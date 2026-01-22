@@ -44,9 +44,16 @@ jobs:
           sudo apt-get install -y gcc-aarch64-linux-gnu
           # Install ARM64 libraries for cross-compilation
           sudo dpkg --add-architecture arm64
-          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs) main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+          # Remove security sources that don't have ARM64 packages and add proper ARM64 sources
+          sudo rm -f /etc/apt/sources.list.d/*.list
+          cat <<EOF | sudo tee /etc/apt/sources.list
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu $(lsb_release -cs) main restricted universe multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu $(lsb_release -cs)-updates main restricted universe multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu $(lsb_release -cs)-security main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs) main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-updates main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-security main restricted universe multiverse
+          EOF
           sudo apt-get update
           sudo apt-get install -y libasound2-dev:arm64
 
