@@ -62,6 +62,9 @@ jobs:
           toolchain: 1.85.0
           targets: ${{ matrix.target }}
 
+      - name: Add Rust target (ensure installed)
+        run: rustup target add ${{ matrix.target }}
+
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
