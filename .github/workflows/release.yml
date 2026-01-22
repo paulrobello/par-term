@@ -1,7 +1,7 @@
 name: Release and Deploy
 
 # This workflow handles the complete release process:
-# 1. Builds standalone binaries for multiple platforms (Linux, macOS, Windows)
+# 1. Builds standalone binaries for multiple platforms (sequentially for debugging)
 # 2. Publishes the library to crates.io
 # 3. Creates a GitHub release with all binary artifacts
 # 4. Updates Homebrew cask
@@ -13,68 +13,123 @@ permissions:
   contents: write
   id-token: write
 
+env:
+  RUST_VERSION: "1.85.0"
+
 jobs:
-  # Build binaries for multiple platforms
-  build-binaries:
-    name: Build binary - ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+  # Build Linux ARM64 first
+  build-linux-arm64:
+    name: Build binary - Linux ARM64
+    runs-on: ubuntu-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux x86_64
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: par-term
-            asset_name: par-term-linux-x86_64
-
-          - name: Linux ARM64
-            os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            artifact_name: par-term
-            asset_name: par-term-linux-aarch64
-
-          - name: macOS x86_64
-            os: macos-latest
-            target: x86_64-apple-darwin
-            artifact_name: par-term
-            asset_name: par-term-macos-x86_64.zip
-
-          - name: macOS ARM64
-            os: macos-latest
-            target: aarch64-apple-darwin
-            artifact_name: par-term
-            asset_name: par-term-macos-aarch64.zip
-
-          - name: Windows x86_64
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact_name: par-term.exe
-            asset_name: par-term-windows-x86_64.exe
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.85.0
-          targets: ${{ matrix.target }}
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: aarch64-unknown-linux-gnu
 
       - name: Add Rust target (ensure installed)
-        run: rustup target add ${{ matrix.target }}
+        run: rustup target add aarch64-unknown-linux-gnu
 
       - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev
 
-      - name: Install cross-compilation tools (Linux ARM64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
+      - name: Install cross-compilation tools
+        run: sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Get version
         run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build binary
+        run: cargo build --release --target aarch64-unknown-linux-gnu
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Strip binary
+        run: aarch64-linux-gnu-strip target/aarch64-unknown-linux-gnu/release/par-term
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p release-binaries
+          cp target/aarch64-unknown-linux-gnu/release/par-term release-binaries/par-term-linux-aarch64
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-aarch64-unknown-linux-gnu
+          path: release-binaries/par-term-linux-aarch64
+          retention-days: 1
+
+  # Build Linux x86_64 after ARM64
+  build-linux-x86_64:
+    name: Build binary - Linux x86_64
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build-linux-arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Add Rust target (ensure installed)
+        run: rustup target add x86_64-unknown-linux-gnu
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev
+
+      - name: Get version
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build binary
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Strip binary
+        run: strip target/x86_64-unknown-linux-gnu/release/par-term
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p release-binaries
+          cp target/x86_64-unknown-linux-gnu/release/par-term release-binaries/par-term-linux-x86_64
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-x86_64-unknown-linux-gnu
+          path: release-binaries/par-term-linux-x86_64
+          retention-days: 1
+
+  # Build Windows x86_64 after Linux
+  build-windows-x86_64:
+    name: Build binary - Windows x86_64
+    runs-on: windows-latest
+    timeout-minutes: 20
+    needs: [build-linux-x86_64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+
+      - name: Add Rust target (ensure installed)
+        run: rustup target add x86_64-pc-windows-msvc
 
       - name: Get version
         shell: bash
@@ -83,27 +138,54 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Build binary
-        run: cargo build --release --target ${{ matrix.target }}
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: cargo build --release --target x86_64-pc-windows-msvc
 
-      - name: Strip binary (Unix)
-        if: runner.os != 'Windows' && runner.os != 'macOS'
+      - name: Prepare artifact
+        shell: bash
         run: |
-          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            aarch64-linux-gnu-strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-          else
-            strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-          fi
+          mkdir -p release-binaries
+          cp target/x86_64-pc-windows-msvc/release/par-term.exe release-binaries/par-term-windows-x86_64.exe
 
-      - name: Bundle and Zip (macOS)
-        if: runner.os == 'macOS'
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-x86_64-pc-windows-msvc
+          path: release-binaries/par-term-windows-x86_64.exe
+          retention-days: 1
+
+  # Build macOS x86_64 after Windows
+  build-macos-x86_64:
+    name: Build binary - macOS x86_64
+    runs-on: macos-latest
+    timeout-minutes: 20
+    needs: [build-windows-x86_64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-apple-darwin
+
+      - name: Add Rust target (ensure installed)
+        run: rustup target add x86_64-apple-darwin
+
+      - name: Get version
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build binary
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Bundle and Zip
         run: |
           mkdir -p par-term.app/Contents/MacOS
           mkdir -p par-term.app/Contents/Resources
 
           # Copy binary
-          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} par-term.app/Contents/MacOS/par-term
+          cp target/x86_64-apple-darwin/release/par-term par-term.app/Contents/MacOS/par-term
           chmod +x par-term.app/Contents/MacOS/par-term
 
           # Copy icon
@@ -126,9 +208,9 @@ jobs:
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>CFBundleShortVersionString</key>
-              <string>${{ env.VERSION }}</string>
+              <string>${VERSION}</string>
               <key>CFBundleVersion</key>
-              <string>${{ env.VERSION }}</string>
+              <string>${VERSION}</string>
               <key>LSMinimumSystemVersion</key>
               <string>10.13</string>
               <key>NSHighResolutionCapable</key>
@@ -138,23 +220,95 @@ jobs:
           EOF
 
           # Create zip
-          zip -r ${{ matrix.asset_name }} par-term.app
+          zip -r par-term-macos-x86_64.zip par-term.app
 
           mkdir -p release-binaries
-          mv ${{ matrix.asset_name }} release-binaries/
-
-      - name: Rename and Move binary (Linux/Windows)
-        if: runner.os != 'macOS'
-        shell: bash
-        run: |
-          mkdir -p release-binaries
-          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release-binaries/${{ matrix.asset_name }}
+          mv par-term-macos-x86_64.zip release-binaries/
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binary-${{ matrix.target }}
-          path: release-binaries/${{ matrix.asset_name }}
+          name: binary-x86_64-apple-darwin
+          path: release-binaries/par-term-macos-x86_64.zip
+          retention-days: 1
+
+  # Build macOS ARM64 last
+  build-macos-arm64:
+    name: Build binary - macOS ARM64
+    runs-on: macos-latest
+    timeout-minutes: 20
+    needs: [build-macos-x86_64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: aarch64-apple-darwin
+
+      - name: Add Rust target (ensure installed)
+        run: rustup target add aarch64-apple-darwin
+
+      - name: Get version
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build binary
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Bundle and Zip
+        run: |
+          mkdir -p par-term.app/Contents/MacOS
+          mkdir -p par-term.app/Contents/Resources
+
+          # Copy binary
+          cp target/aarch64-apple-darwin/release/par-term par-term.app/Contents/MacOS/par-term
+          chmod +x par-term.app/Contents/MacOS/par-term
+
+          # Copy icon
+          cp assets/par-term.icns par-term.app/Contents/Resources/
+
+          # Create Info.plist
+          cat <<EOF > par-term.app/Contents/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>par-term</string>
+              <key>CFBundleIconFile</key>
+              <string>par-term.icns</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.paulrobello.par-term</string>
+              <key>CFBundleName</key>
+              <string>par-term</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${VERSION}</string>
+              <key>CFBundleVersion</key>
+              <string>${VERSION}</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>10.13</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+
+          # Create zip
+          zip -r par-term-macos-aarch64.zip par-term.app
+
+          mkdir -p release-binaries
+          mv par-term-macos-aarch64.zip release-binaries/
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-aarch64-apple-darwin
+          path: release-binaries/par-term-macos-aarch64.zip
           retention-days: 1
 
   # Publish to crates.io
@@ -162,14 +316,14 @@ jobs:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [build-binaries]
+    needs: [build-macos-arm64]
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.85.0
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Install Linux dependencies
         run: |
@@ -209,7 +363,7 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [build-binaries]
+    needs: [build-macos-arm64]
     permissions:
       contents: write
       id-token: write
@@ -220,7 +374,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.85.0
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Get version
         id: get_version
