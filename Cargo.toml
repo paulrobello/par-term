@@ -35,14 +35,6 @@ rustybuzz = "0.20"  # HarfBuzz text shaping for ligatures and complex scripts
 unicode-segmentation = "1.12"  # Grapheme cluster detection for proper text boundaries
 parking_lot = "0.12.5"
 
-# macOS-specific: Access CAMetalLayer for performance optimization
-[target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.6"
-objc2-app-kit = "0.3"
-objc2-foundation = "0.3"
-objc2-quartz-core = "0.3"
-raw-window-handle = "0.6"
-
 # Async runtime for PTY handling
 tokio = { version = "1.49", features = ["full"] }
 
@@ -87,6 +79,14 @@ image = "0.25"
 
 # GLSL to WGSL transpilation for custom shaders
 naga = { version = "27", features = ["glsl-in", "wgsl-out"] }
+
+# macOS-specific: Access CAMetalLayer for performance optimization
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = "0.3"
+objc2-foundation = "0.3"
+objc2-quartz-core = "0.3"
+raw-window-handle = "0.6"
 
 [dev-dependencies]
 tempfile = "3.24"
