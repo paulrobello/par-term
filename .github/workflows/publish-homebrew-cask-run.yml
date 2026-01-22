@@ -1,0 +1,18 @@
+name: Publish Homebrew Cask
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., 0.2.0)"
+        required: true
+        type: string
+
+jobs:
+  run-core:
+    uses: ./.github/workflows/publish-homebrew-cask-core.yml
+    with:
+      version: ${{ github.event.inputs.version }}
+    secrets: inherit
+    permissions:
+      contents: write

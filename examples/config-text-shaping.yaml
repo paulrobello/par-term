@@ -1,0 +1,115 @@
+# Example Configuration: Text Shaping with Ligatures
+# This demonstrates how to enable HarfBuzz text shaping for ligatures and complex scripts
+
+# =============================================================================
+# Text Shaping Configuration
+# =============================================================================
+# Enable HarfBuzz text shaping for proper ligature and emoji rendering
+enable_text_shaping: true   # ✨ ENABLED - Turn on for ligatures!
+
+# Enable ligatures - combines character sequences into single glyphs
+# Examples: fi → ﬁ, fl → ﬂ, -> → →, => → ⇒, >= → ≥, != → ≠
+enable_ligatures: true
+
+# Enable kerning - applies spacing adjustments between characters
+enable_kerning: true
+
+# =============================================================================
+# Font Configuration
+# =============================================================================
+# Use a font with ligature support for best results
+# Recommended ligature fonts:
+#   - Fira Code (extensive programming ligatures)
+#   - JetBrains Mono (programming ligatures)
+#   - Cascadia Code (Microsoft programming font)
+#   - Victor Mono (cursive italic with ligatures)
+#   - Iosevka (highly customizable with ligatures)
+
+font_family: "Fira Code"    # Great ligature support!
+font_size: 14.0
+
+# Optional: Styled font variants
+# font_family_bold: "Fira Code Bold"
+# font_family_italic: "Fira Code Italic"
+
+# =============================================================================
+# Terminal Dimensions
+# =============================================================================
+cols: 100
+rows: 30
+
+# =============================================================================
+# Spacing
+# =============================================================================
+line_spacing: 1.2
+char_spacing: 0.6
+
+# =============================================================================
+# Other Settings
+# =============================================================================
+scrollback_lines: 10000
+theme: "Default Dark"
+window_width: 1200
+window_height: 800
+window_padding: 5.0
+
+# =============================================================================
+# Testing Ligatures
+# =============================================================================
+# Create a test file to verify ligatures are working:
+#
+#   cat > test_ligatures.txt <<'EOF'
+#   Ligatures test:
+#   fi fl ffi ffl
+#   -> => >= <= != ==
+#   && || ++ --
+#   /* */ <!-- --> /** **/
+#   EOF
+#
+#   cat test_ligatures.txt
+#
+# With enable_text_shaping: true, you should see:
+#   - "fi" and "fl" as single combined glyphs
+#   - "->" rendered as a proper arrow
+#   - ">=" rendered as greater-or-equal symbol
+#   - etc.
+
+# =============================================================================
+# Emoji Support
+# =============================================================================
+# Text shaping also enables proper emoji rendering:
+#   - Flags: 🇺🇸 🇬🇧 🇯🇵 (Regional Indicator pairs)
+#   - Skin tones: 👋🏽 👍🏿 (emoji with modifiers)
+#   - Families: 👨‍👩‍👧‍👦 (Zero Width Joiner sequences)
+#
+# Test with:
+#   echo "🇺🇸 🇬🇧 🇯🇵 👋🏽 👨‍👩‍👧‍👦" > test_emoji.txt
+#   cat test_emoji.txt
+
+# =============================================================================
+# Performance Notes
+# =============================================================================
+# Text shaping adds minimal overhead due to caching:
+#   - Shaped results are cached (1000 entries)
+#   - Cache key: (text, font, features)
+#   - Most text is shaped once and reused
+#
+# If you experience performance issues:
+#   - Disable text shaping: enable_text_shaping: false
+#   - Disable only ligatures: enable_ligatures: false
+#   - Keep kerning enabled for best results
+
+# =============================================================================
+# Troubleshooting
+# =============================================================================
+# If ligatures don't appear:
+#   1. Verify your font supports ligatures (check font documentation)
+#   2. Ensure enable_text_shaping: true
+#   3. Check that enable_ligatures: true
+#   4. Try a known ligature font like "Fira Code"
+#   5. Create test file and verify glyphs combine
+#
+# If emoji render incorrectly:
+#   1. Install emoji font: brew install font-apple-color-emoji
+#   2. Enable text shaping
+#   3. Test with simple emoji first (👍) before complex ones (🇺🇸)

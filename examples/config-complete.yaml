@@ -1,0 +1,189 @@
+# Complete Configuration Example
+# This demonstrates all font features together: styled fonts + Unicode ranges
+
+# =============================================================================
+# Terminal Dimensions
+# =============================================================================
+cols: 100
+rows: 30
+
+# =============================================================================
+# Primary Font Configuration
+# =============================================================================
+font_family: "JetBrains Mono"
+font_size: 14.0
+
+# Styled font variants for bold and italic text
+# These provide proper typographic bold/italic instead of synthetic rendering
+font_family_bold: "JetBrains Mono Bold"
+font_family_italic: "JetBrains Mono Italic"
+font_family_bold_italic: "JetBrains Mono Bold Italic"
+
+# =============================================================================
+# Unicode Range-Specific Fonts
+# =============================================================================
+# Define custom fonts for specific Unicode ranges
+# Useful for: CJK characters, emoji, mathematical symbols, etc.
+
+font_ranges:
+  # East Asian Scripts
+  - start: 0x4E00    # CJK Unified Ideographs
+    end: 0x9FFF
+    font_family: "Noto Sans CJK SC"
+
+  - start: 0xAC00    # Hangul Syllables (Korean)
+    end: 0xD7AF
+    font_family: "Noto Sans CJK KR"
+
+  - start: 0x3040    # Hiragana (Japanese)
+    end: 0x309F
+    font_family: "Noto Sans CJK JP"
+
+  - start: 0x30A0    # Katakana (Japanese)
+    end: 0x30FF
+    font_family: "Noto Sans CJK JP"
+
+  # Emoji and Symbols
+  - start: 0x1F300   # Miscellaneous Symbols and Pictographs
+    end: 0x1F5FF
+    font_family: "Apple Color Emoji"
+
+  - start: 0x1F600   # Emoticons
+    end: 0x1F64F
+    font_family: "Apple Color Emoji"
+
+  - start: 0x1F680   # Transport and Map Symbols
+    end: 0x1F6FF
+    font_family: "Apple Color Emoji"
+
+  # Technical Symbols
+  - start: 0x2190    # Arrows
+    end: 0x21FF
+    font_family: "DejaVu Sans Mono"
+
+  - start: 0x2200    # Mathematical Operators
+    end: 0x22FF
+    font_family: "STIX Two Math"
+
+  - start: 0x2500    # Box Drawing
+    end: 0x257F
+    font_family: "DejaVu Sans Mono"
+
+  - start: 0x2580    # Block Elements
+    end: 0x259F
+    font_family: "DejaVu Sans Mono"
+
+# =============================================================================
+# Spacing and Layout
+# =============================================================================
+line_spacing: 1.2    # 1.0 = tight, 1.2 = default, 1.5 = spacious
+char_spacing: 0.6    # 0.5 = narrow, 0.6 = default, 0.7 = wide
+
+# =============================================================================
+# Text Shaping (HarfBuzz Integration)
+# =============================================================================
+# Enable HarfBuzz text shaping for ligatures and complex scripts
+# When enabled, provides proper rendering of:
+#   - Ligatures: fi, fl, ffi, ffl, ->, =>, >=, <=, etc.
+#   - Emoji: Flags (🇺🇸), skin tones (👋🏽), ZWJ sequences (👨‍👩‍👧‍👦)
+#   - Complex scripts: Arabic, Devanagari, Thai, etc.
+#   - Kerning: Proper spacing between characters
+#
+# Note: Requires fonts with OpenType features (Fira Code, JetBrains Mono, etc.)
+enable_text_shaping: false  # Set to true to enable (experimental)
+
+# Enable ligatures (requires enable_text_shaping: true)
+# Combines character sequences into single glyphs (fi → ﬁ, -> → →)
+enable_ligatures: true
+
+# Enable kerning adjustments (requires enable_text_shaping: true)
+# Applies spacing adjustments between character pairs
+enable_kerning: true
+
+# =============================================================================
+# Scrollback
+# =============================================================================
+scrollback_lines: 10000
+
+# =============================================================================
+# Theme
+# =============================================================================
+theme: "Default Dark"
+# Available themes: "Default Dark", "Dracula", "Solarized Dark",
+#                   "Nord", "Monokai", "One Dark"
+
+# =============================================================================
+# Window Settings
+# =============================================================================
+window_width: 1200
+window_height: 800
+window_padding: 5.0
+window_opacity: 1.0
+window_decorations: true
+
+# =============================================================================
+# Cursor
+# =============================================================================
+cursor_style: "Block"  # Block, Beam, or Underline
+cursor_blink: true
+cursor_blink_interval: 500
+
+# =============================================================================
+# Scrollbar
+# =============================================================================
+scrollbar_position: "Right"  # Left or Right
+scrollbar_width: 10.0
+scrollbar_thumb_color: [0.5, 0.5, 0.5, 0.8]  # RGBA
+scrollbar_track_color: [0.2, 0.2, 0.2, 0.5]  # RGBA
+scrollbar_autohide_delay: 1000  # milliseconds
+
+# =============================================================================
+# Mouse and Selection
+# =============================================================================
+auto_copy_selection: false
+copy_trailing_newline: false
+middle_click_paste: true
+mouse_scroll_speed: 3.0
+
+# =============================================================================
+# Bell/Notifications
+# =============================================================================
+notification_bell_desktop: false
+notification_bell_sound: 0.5  # Volume 0.0-1.0
+notification_bell_visual: true
+
+# =============================================================================
+# Shell Configuration
+# =============================================================================
+# custom_shell: "/bin/zsh"
+# shell_args: ["-l"]
+# working_directory: "~"
+
+# =============================================================================
+# Performance
+# =============================================================================
+# Maximum frames per second (FPS) target
+# Controls how frequently the terminal requests screen redraws
+# Note: On macOS, actual FPS may be lower (~22-25) due to system-level
+# VSync throttling in wgpu/Metal, regardless of this setting
+# Default: 60
+max_fps: 60
+
+# =============================================================================
+# Screenshots
+# =============================================================================
+screenshot_format: "PNG"  # PNG, JPEG, or SVG
+
+# =============================================================================
+# Notes on Font Priority:
+# =============================================================================
+# Font selection priority (in order):
+#   1. Styled fonts (bold/italic/bold-italic) for formatted text
+#   2. Unicode range fonts for characters in specified ranges
+#   3. General fallback fonts (automatic system font discovery)
+#   4. Primary font for everything else
+#
+# This means:
+#   - Bold CJK text uses the CJK range font (not the bold font)
+#   - Emoji always use the emoji font regardless of bold/italic
+#   - ASCII text uses appropriate styled fonts when bold/italic

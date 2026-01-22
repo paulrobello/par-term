@@ -1,0 +1,43 @@
+# Example configuration: Styled Fonts
+# This demonstrates how to use separate bold and italic font families
+
+# Terminal dimensions
+cols: 80
+rows: 24
+
+# Regular font
+font_family: "JetBrains Mono"
+font_size: 14.0
+
+# Styled font variants (optional)
+# If not specified, the regular font will be used with synthetic styling
+font_family_bold: "JetBrains Mono Bold"
+font_family_italic: "JetBrains Mono Italic"
+font_family_bold_italic: "JetBrains Mono Bold Italic"
+
+# Alternative: Use different font families for different styles
+# font_family: "Fira Code"
+# font_family_bold: "Fira Code Bold"
+# font_family_italic: "Victor Mono Italic"  # Different italic font
+# font_family_bold_italic: "Victor Mono Bold Italic"
+
+# Line spacing and character spacing
+line_spacing: 1.2
+char_spacing: 0.6
+
+# Text shaping with HarfBuzz (great for ligature fonts!)
+# Enable this to get proper ligatures with Fira Code, JetBrains Mono, etc.
+enable_text_shaping: false  # Set to true for ligatures (fi → ﬁ, -> → →)
+enable_ligatures: true       # Enable ligatures when text shaping is on
+enable_kerning: true         # Enable kerning adjustments
+
+# Scrollback
+scrollback_lines: 10000
+
+# Theme
+theme: "Default Dark"
+
+# Window settings
+window_width: 1024
+window_height: 768
+window_padding: 5.0

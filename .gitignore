@@ -1,0 +1,24 @@
+# Rust
+/target/
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+log.txt
+**/flamegraph.svg
+
+# Gemini/Claude temporary files
+*-mcp.json
+.gemini-clipboard
+claude_scratch/

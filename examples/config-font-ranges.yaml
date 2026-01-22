@@ -1,0 +1,82 @@
+# Example configuration: Unicode Font Ranges
+# This demonstrates how to use different fonts for specific Unicode ranges
+
+# Terminal dimensions
+cols: 80
+rows: 24
+
+# Primary font for ASCII and general use
+font_family: "JetBrains Mono"
+font_size: 14.0
+
+# Unicode range-specific fonts
+# These fonts will be used for characters that fall within the specified ranges
+font_ranges:
+  # CJK Unified Ideographs (Chinese, Japanese, Korean common characters)
+  # Range: U+4E00 to U+9FFF
+  - start: 0x4E00
+    end: 0x9FFF
+    font_family: "Noto Sans CJK SC"
+
+  # Hangul Syllables (Korean alphabet)
+  # Range: U+AC00 to U+D7AF
+  - start: 0xAC00
+    end: 0xD7AF
+    font_family: "Malgun Gothic"
+
+  # Hiragana (Japanese)
+  # Range: U+3040 to U+309F
+  - start: 0x3040
+    end: 0x309F
+    font_family: "Noto Sans CJK JP"
+
+  # Katakana (Japanese)
+  # Range: U+30A0 to U+30FF
+  - start: 0x30A0
+    end: 0x30FF
+    font_family: "Noto Sans CJK JP"
+
+  # Emoji (Emoticons)
+  # Range: U+1F600 to U+1F64F
+  - start: 0x1F600
+    end: 0x1F64F
+    font_family: "Apple Color Emoji"
+
+  # Mathematical Operators
+  # Range: U+2200 to U+22FF
+  - start: 0x2200
+    end: 0x22FF
+    font_family: "STIX Two Math"
+
+  # Box Drawing
+  # Range: U+2500 to U+257F
+  - start: 0x2500
+    end: 0x257F
+    font_family: "DejaVu Sans Mono"
+
+# Line spacing and character spacing
+line_spacing: 1.2
+char_spacing: 0.6
+
+# Text shaping with HarfBuzz
+# Especially useful for emoji (flags, skin tones, ZWJ sequences)
+enable_text_shaping: false  # Set to true for proper emoji and complex scripts
+enable_ligatures: true       # Enable ligatures when text shaping is on
+enable_kerning: true         # Enable kerning adjustments
+
+# Scrollback
+scrollback_lines: 10000
+
+# Theme
+theme: "Default Dark"
+
+# Window settings
+window_width: 1024
+window_height: 768
+window_padding: 5.0
+
+# Notes:
+# - Font ranges are checked in order, first match wins
+# - If a character's font doesn't have the glyph, fallback fonts are used
+# - Font ranges are checked after styled fonts (bold/italic)
+# - Priority: styled fonts → range fonts → general fallback fonts
