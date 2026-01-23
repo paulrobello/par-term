@@ -234,6 +234,46 @@ pub struct Config {
     pub custom_shader_full_content: bool,
 
     // ========================================================================
+    // Cursor Shader Settings (separate from background shader)
+    // ========================================================================
+    /// Cursor shader file path (GLSL format, relative to shaders folder or absolute)
+    /// This is a separate shader specifically for cursor effects (trails, glows, etc.)
+    #[serde(default)]
+    pub cursor_shader: Option<String>,
+
+    /// Enable or disable the cursor shader (even if a path is set)
+    #[serde(default = "default_false")]
+    pub cursor_shader_enabled: bool,
+
+    /// Enable animation in cursor shader (updates iTime uniform each frame)
+    #[serde(default = "default_true")]
+    pub cursor_shader_animation: bool,
+
+    /// Animation speed multiplier for cursor shader (1.0 = normal speed)
+    #[serde(default = "default_custom_shader_speed")]
+    pub cursor_shader_animation_speed: f32,
+
+    /// Cursor color for shader effects [R, G, B] (0-255)
+    /// This color is passed to the shader via iCursorShaderColor uniform
+    #[serde(default = "default_cursor_shader_color")]
+    pub cursor_shader_color: [u8; 3],
+
+    /// Duration of cursor trail effect in seconds
+    /// Passed to shader via iCursorTrailDuration uniform
+    #[serde(default = "default_cursor_trail_duration")]
+    pub cursor_shader_trail_duration: f32,
+
+    /// Radius of cursor glow effect in pixels
+    /// Passed to shader via iCursorGlowRadius uniform
+    #[serde(default = "default_cursor_glow_radius")]
+    pub cursor_shader_glow_radius: f32,
+
+    /// Intensity of cursor glow effect (0.0 = none, 1.0 = full)
+    /// Passed to shader via iCursorGlowIntensity uniform
+    #[serde(default = "default_cursor_glow_intensity")]
+    pub cursor_shader_glow_intensity: f32,
+
+    // ========================================================================
     // Selection & Clipboard
     // ========================================================================
     /// Automatically copy selected text to clipboard
@@ -283,6 +323,10 @@ pub struct Config {
     #[serde(default)]
     pub cursor_style: CursorStyle,
 
+    /// Cursor color [R, G, B] (0-255)
+    #[serde(default = "default_cursor_color")]
+    pub cursor_color: [u8; 3],
+
     // ========================================================================
     // Scrollbar
     // ========================================================================
@@ -326,6 +370,12 @@ pub struct Config {
     /// Environment variables to set for the shell
     #[serde(default)]
     pub shell_env: Option<std::collections::HashMap<String, String>>,
+
+    /// Whether to spawn the shell as a login shell (passes -l flag)
+    /// This is important on macOS to properly initialize PATH from Homebrew, /etc/paths.d, etc.
+    /// Default: true
+    #[serde(default = "default_login_shell")]
+    pub login_shell: bool,
 
     // ========================================================================
     // Scrollbar (GUI-specific)
@@ -455,6 +505,10 @@ fn default_window_padding() -> f32 {
     10.0
 }
 
+fn default_login_shell() -> bool {
+    true
+}
+
 fn default_scrollbar_position() -> String {
     "right".to_string()
 }
@@ -507,6 +561,10 @@ fn default_cursor_blink_interval() -> u64 {
     500 // 500 milliseconds (blink twice per second)
 }
 
+fn default_cursor_color() -> [u8; 3] {
+    [255, 255, 255] // White cursor
+}
+
 fn default_scrollbar_autohide_delay() -> u64 {
     0 // 0 = never auto-hide (always visible when scrollback exists)
 }
@@ -543,6 +601,22 @@ fn default_custom_shader_speed() -> f32 {
     1.0 // Normal animation speed
 }
 
+fn default_cursor_shader_color() -> [u8; 3] {
+    [255, 255, 255] // White cursor for shader effects
+}
+
+fn default_cursor_trail_duration() -> f32 {
+    0.5 // 500ms trail duration
+}
+
+fn default_cursor_glow_radius() -> f32 {
+    80.0 // 80 pixel glow radius
+}
+
+fn default_cursor_glow_intensity() -> f32 {
+    0.3 // 30% glow intensity
+}
+
 fn default_bell_sound() -> u8 {
     50 // Default to 50% volume
 }
@@ -567,6 +641,7 @@ impl Default for Config {
             cursor_blink: default_false(),
             cursor_blink_interval: default_cursor_blink_interval(),
             cursor_style: CursorStyle::default(),
+            cursor_color: default_cursor_color(),
             scrollbar_autohide_delay: default_scrollbar_autohide_delay(),
             window_title: default_window_title(),
             allow_title_change: default_true(),
@@ -596,11 +671,20 @@ impl Default for Config {
             custom_shader_animation_speed: default_custom_shader_speed(),
             custom_shader_text_opacity: default_text_opacity(),
             custom_shader_full_content: default_false(),
+            cursor_shader: None,
+            cursor_shader_enabled: default_false(),
+            cursor_shader_animation: default_true(),
+            cursor_shader_animation_speed: default_custom_shader_speed(),
+            cursor_shader_color: default_cursor_shader_color(),
+            cursor_shader_trail_duration: default_cursor_trail_duration(),
+            cursor_shader_glow_radius: default_cursor_glow_radius(),
+            cursor_shader_glow_intensity: default_cursor_glow_intensity(),
             exit_on_shell_exit: default_true(),
             custom_shell: None,
             shell_args: None,
             working_directory: None,
             shell_env: None,
+            login_shell: default_login_shell(),
             scrollbar_position: default_scrollbar_position(),
             scrollbar_width: default_scrollbar_width(),
             scrollbar_thumb_color: default_scrollbar_thumb_color(),

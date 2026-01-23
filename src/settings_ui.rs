@@ -11,6 +11,13 @@ pub struct ShaderEditorResult {
     pub source: String,
 }
 
+/// Result of cursor shader editor actions
+#[derive(Debug, Clone)]
+pub struct CursorShaderEditorResult {
+    /// New cursor shader source code to compile and apply
+    pub source: String,
+}
+
 /// Settings UI manager using egui
 pub struct SettingsUI {
     /// Whether the settings window is currently visible
@@ -42,11 +49,12 @@ pub struct SettingsUI {
     temp_working_directory: String,
     temp_background_image: String,
     temp_custom_shader: String,
+    temp_cursor_shader: String,
 
     /// Search query used to filter settings sections
     search_query: String,
 
-    // Shader editor state
+    // Background shader editor state
     /// Whether the shader editor window is visible
     shader_editor_visible: bool,
     /// The shader source code being edited
@@ -55,6 +63,16 @@ pub struct SettingsUI {
     shader_editor_error: Option<String>,
     /// Original source when editor was opened (for cancel)
     shader_editor_original: String,
+
+    // Cursor shader editor state
+    /// Whether the cursor shader editor window is visible
+    cursor_shader_editor_visible: bool,
+    /// The cursor shader source code being edited
+    cursor_shader_editor_source: String,
+    /// Cursor shader compilation error message (if any)
+    cursor_shader_editor_error: Option<String>,
+    /// Original cursor shader source when editor was opened (for cancel)
+    cursor_shader_editor_original: String,
 
     // Shader management state
     /// List of available shader files in the shaders folder
@@ -102,6 +120,7 @@ impl SettingsUI {
             temp_working_directory: config.working_directory.clone().unwrap_or_default(),
             temp_background_image: config.background_image.clone().unwrap_or_default(),
             temp_custom_shader: config.custom_shader.clone().unwrap_or_default(),
+            temp_cursor_shader: config.cursor_shader.clone().unwrap_or_default(),
             last_live_opacity: config.window_opacity,
             config,
             has_changes: false,
@@ -110,6 +129,10 @@ impl SettingsUI {
             shader_editor_source: String::new(),
             shader_editor_error: None,
             shader_editor_original: String::new(),
+            cursor_shader_editor_visible: false,
+            cursor_shader_editor_source: String::new(),
+            cursor_shader_editor_error: None,
+            cursor_shader_editor_original: String::new(),
             available_shaders: Self::scan_shaders_folder(),
             new_shader_name: String::new(),
             show_create_shader_dialog: false,
@@ -157,6 +180,24 @@ impl SettingsUI {
         self.available_shaders = Self::scan_shaders_folder();
     }
 
+    /// Get background shaders (excludes cursor_* shaders)
+    fn background_shaders(&self) -> Vec<String> {
+        self.available_shaders
+            .iter()
+            .filter(|s| !s.starts_with("cursor_"))
+            .cloned()
+            .collect()
+    }
+
+    /// Get cursor shaders (only cursor_* shaders)
+    fn cursor_shaders(&self) -> Vec<String> {
+        self.available_shaders
+            .iter()
+            .filter(|s| s.starts_with("cursor_"))
+            .cloned()
+            .collect()
+    }
+
     /// Set shader compilation error (called from app when shader fails to compile)
     pub fn set_shader_error(&mut self, error: Option<String>) {
         self.shader_editor_error = error;
@@ -165,6 +206,22 @@ impl SettingsUI {
     /// Clear shader error
     pub fn clear_shader_error(&mut self) {
         self.shader_editor_error = None;
+    }
+
+    /// Set cursor shader compilation error
+    pub fn set_cursor_shader_error(&mut self, error: Option<String>) {
+        self.cursor_shader_editor_error = error;
+    }
+
+    /// Clear cursor shader error
+    pub fn clear_cursor_shader_error(&mut self) {
+        self.cursor_shader_editor_error = None;
+    }
+
+    /// Check if cursor shader editor is visible
+    #[allow(dead_code)]
+    pub fn is_cursor_shader_editor_visible(&self) -> bool {
+        self.cursor_shader_editor_visible
     }
 
     /// Open the shader editor directly (without opening settings)
@@ -333,30 +390,40 @@ impl SettingsUI {
         &self.config
     }
 
-    /// Show the settings window and return (Option<config_to_save>, Option<config_for_live_update>, Option<ShaderEditorResult>)
+    /// Show the settings window and return results
     /// - First Option: Some(config) if save was clicked (persist to disk)
     /// - Second Option: Some(config) if any changes were made (apply immediately)
-    /// - Third Option: Some(ShaderEditorResult) if shader Apply was clicked
+    /// - Third Option: Some(ShaderEditorResult) if background shader Apply was clicked
+    /// - Fourth Option: Some(CursorShaderEditorResult) if cursor shader Apply was clicked
     pub fn show(
         &mut self,
         ctx: &Context,
-    ) -> (Option<Config>, Option<Config>, Option<ShaderEditorResult>) {
-        if !self.visible && !self.shader_editor_visible {
-            return (None, None, None);
+    ) -> (
+        Option<Config>,
+        Option<Config>,
+        Option<ShaderEditorResult>,
+        Option<CursorShaderEditorResult>,
+    ) {
+        if !self.visible && !self.shader_editor_visible && !self.cursor_shader_editor_visible {
+            return (None, None, None, None);
         }
 
         log::info!("SettingsUI.show() called - visible: true");
 
         // Handle Escape key to close settings window
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            if self.shader_editor_visible {
-                // Close shader editor first if open
+            if self.cursor_shader_editor_visible {
+                // Close cursor shader editor first if open
+                self.cursor_shader_editor_visible = false;
+                self.cursor_shader_editor_error = None;
+            } else if self.shader_editor_visible {
+                // Close background shader editor first if open
                 self.shader_editor_visible = false;
                 self.shader_editor_error = None;
             } else if self.visible {
                 // Close settings window
                 self.visible = false;
-                return (None, None, None);
+                return (None, None, None, None);
             }
         }
 
@@ -374,6 +441,7 @@ impl SettingsUI {
         let mut open = true;
         let mut changes_this_frame = false;
         let mut shader_apply_result: Option<ShaderEditorResult> = None;
+        let mut cursor_shader_apply_result: Option<CursorShaderEditorResult> = None;
 
         // Only show the main settings window if visible
         if self.visible {
@@ -926,8 +994,8 @@ impl SettingsUI {
                                             shader_changed = true;
                                         }
 
-                                        // List available shaders
-                                        for shader in &self.available_shaders.clone() {
+                                        // List available background shaders (excludes cursor_* shaders)
+                                        for shader in &self.background_shaders() {
                                             let is_selected = self.temp_custom_shader == *shader;
                                             if ui.selectable_label(is_selected, shader).clicked() {
                                                 self.temp_custom_shader = shader.clone();
@@ -1070,8 +1138,6 @@ impl SettingsUI {
                                 changes_this_frame = true;
                             }
 
-                            ui.separator();
-
                             // Edit Shader button - only enabled when a shader path is set
                             let has_shader_path = !self.temp_custom_shader.is_empty();
                             ui.horizontal(|ui| {
@@ -1105,8 +1171,188 @@ impl SettingsUI {
                         });
                     }
 
+                    // Cursor Shader (separate from background shader)
+                    if section_matches(
+                        "Cursor Shader",
+                        &[
+                            "Cursor shader",
+                            "Cursor effect",
+                            "Cursor animation",
+                        ],
+                    ) {
+                        insert_section_separator(ui, &mut section_shown);
+                        matches_found = true;
+
+                        ui.collapsing("Cursor Shader", |ui| {
+                            ui.label("Apply shader effects to cursor (trails, glow, etc.)");
+                            ui.add_space(4.0);
+
+                            // Cursor shader selection dropdown
+                            ui.horizontal(|ui| {
+                                ui.label("Shader:");
+                                let selected_text = if self.temp_cursor_shader.is_empty() {
+                                    "(none)".to_string()
+                                } else {
+                                    self.temp_cursor_shader.clone()
+                                };
+
+                                let mut shader_changed = false;
+                                egui::ComboBox::from_id_salt("cursor_shader_select")
+                                    .selected_text(&selected_text)
+                                    .width(200.0)
+                                    .show_ui(ui, |ui| {
+                                        // Option to select none
+                                        if ui.selectable_label(self.temp_cursor_shader.is_empty(), "(none)").clicked() {
+                                            self.temp_cursor_shader.clear();
+                                            self.config.cursor_shader = None;
+                                            shader_changed = true;
+                                        }
+
+                                        // List available cursor shaders (only cursor_* shaders)
+                                        for shader in &self.cursor_shaders() {
+                                            let is_selected = self.temp_cursor_shader == *shader;
+                                            if ui.selectable_label(is_selected, shader).clicked() {
+                                                self.temp_cursor_shader = shader.clone();
+                                                self.config.cursor_shader = Some(shader.clone());
+                                                shader_changed = true;
+                                            }
+                                        }
+                                    });
+
+                                if shader_changed {
+                                    self.has_changes = true;
+                                    changes_this_frame = true;
+                                }
+
+                                // Refresh button
+                                if ui.button("↻").on_hover_text("Refresh shader list").clicked() {
+                                    self.refresh_shaders();
+                                }
+                            });
+
+                            // Browse button for cursor shader
+                            ui.horizontal(|ui| {
+                                if ui.button("Browse...").on_hover_text("Browse for external shader file").clicked()
+                                    && let Some(path) = self.pick_file_path("Select cursor shader file")
+                                {
+                                    self.temp_cursor_shader = path.clone();
+                                    self.config.cursor_shader = Some(path);
+                                    self.has_changes = true;
+                                    changes_this_frame = true;
+                                }
+                            });
+
+                            // Show cursor shader compilation error if any
+                            if let Some(error) = &self.cursor_shader_editor_error {
+                                let shader_path = crate::config::Config::shader_path(&self.temp_cursor_shader);
+                                let full_error = format!("File: {}\n\n{}", shader_path.display(), error);
+                                let error_display = error.clone();
+
+                                ui.add_space(4.0);
+                                egui::Frame::default()
+                                    .fill(Color32::from_rgb(80, 20, 20))
+                                    .inner_margin(8.0)
+                                    .outer_margin(0.0)
+                                    .corner_radius(4.0)
+                                    .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.colored_label(Color32::from_rgb(255, 100, 100), "⚠ Cursor Shader Error");
+                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                if ui.small_button("Copy").clicked()
+                                                    && let Ok(mut clipboard) = Clipboard::new()
+                                                {
+                                                    let _ = clipboard.set_text(full_error.clone());
+                                                }
+                                            });
+                                        });
+                                        // Show shader path on its own line
+                                        ui.label(format!("File: {}", shader_path.display()));
+                                        ui.separator();
+                                        // Show error details with word wrap
+                                        ui.add(
+                                            egui::TextEdit::multiline(&mut error_display.as_str())
+                                                .font(egui::TextStyle::Monospace)
+                                                .desired_width(f32::INFINITY)
+                                                .desired_rows(3)
+                                                .interactive(false)
+                                        );
+                                    });
+                                ui.add_space(4.0);
+                            }
+
+                            if ui
+                                .checkbox(
+                                    &mut self.config.cursor_shader_enabled,
+                                    "Enable cursor shader",
+                                )
+                                .changed()
+                            {
+                                self.has_changes = true;
+                                changes_this_frame = true;
+                            }
+
+                            if ui
+                                .checkbox(
+                                    &mut self.config.cursor_shader_animation,
+                                    "Enable cursor shader animation",
+                                )
+                                .changed()
+                            {
+                                self.has_changes = true;
+                                changes_this_frame = true;
+                            }
+
+                            ui.horizontal(|ui| {
+                                ui.label("Animation speed:");
+                                if ui
+                                    .add(egui::Slider::new(
+                                        &mut self.config.cursor_shader_animation_speed,
+                                        0.0..=5.0,
+                                    ))
+                                    .changed()
+                                {
+                                    self.has_changes = true;
+                                    changes_this_frame = true;
+                                }
+                            });
+
+                            ui.separator();
+
+                            // Edit Cursor Shader button - only enabled when a shader path is set
+                            let has_cursor_shader_path = !self.temp_cursor_shader.is_empty();
+                            ui.horizontal(|ui| {
+                                let edit_button = ui.add_enabled(
+                                    has_cursor_shader_path,
+                                    egui::Button::new("Edit Cursor Shader..."),
+                                );
+                                if edit_button.clicked() {
+                                    // Load cursor shader source from file
+                                    let shader_path = crate::config::Config::shader_path(&self.temp_cursor_shader);
+                                    match std::fs::read_to_string(&shader_path) {
+                                        Ok(source) => {
+                                            self.cursor_shader_editor_source = source.clone();
+                                            self.cursor_shader_editor_original = source;
+                                            self.cursor_shader_editor_error = None;
+                                            self.cursor_shader_editor_visible = true;
+                                        }
+                                        Err(e) => {
+                                            self.cursor_shader_editor_error = Some(format!(
+                                                "Failed to read cursor shader file '{}': {}",
+                                                shader_path.display(),
+                                                e
+                                            ));
+                                        }
+                                    }
+                                }
+                                if !has_cursor_shader_path {
+                                    ui.label("(set cursor shader path first)");
+                                }
+                            });
+                        });
+                    }
+
                     // Cursor
-                    if section_matches("Cursor", &["Style", "Blink", "Blink interval"]) {
+                    if section_matches("Cursor", &["Style", "Blink", "Blink interval", "Color"]) {
                         insert_section_separator(ui, &mut section_shown);
                         matches_found = true;
 
@@ -1159,6 +1405,20 @@ impl SettingsUI {
                                     ))
                                     .changed()
                                 {
+                                    self.has_changes = true;
+                                    changes_this_frame = true;
+                                }
+                            });
+
+                            ui.horizontal(|ui| {
+                                ui.label("Color:");
+                                let mut color = [
+                                    self.config.cursor_color[0],
+                                    self.config.cursor_color[1],
+                                    self.config.cursor_color[2],
+                                ];
+                                if ui.color_edit_button_srgb(&mut color).changed() {
+                                    self.config.cursor_color = color;
                                     self.has_changes = true;
                                     changes_this_frame = true;
                                 }
@@ -1519,7 +1779,7 @@ impl SettingsUI {
                     // Shell Configuration
                     if section_matches(
                         "Shell Configuration",
-                        &["Custom shell", "Shell args", "Working directory"],
+                        &["Custom shell", "Shell args", "Working directory", "Login shell"],
                     ) {
                         insert_section_separator(ui, &mut section_shown);
                         matches_found = true;
@@ -1590,6 +1850,14 @@ impl SettingsUI {
                                     self.has_changes = true;
                                 }
                             });
+
+                            if ui
+                                .checkbox(&mut self.config.login_shell, "Login shell (-l)")
+                                .on_hover_text("Spawn shell as login shell. This ensures PATH is properly initialized from /etc/paths, ~/.zprofile, etc. Recommended on macOS.")
+                                .changed()
+                            {
+                                self.has_changes = true;
+                            }
                         });
                     }
 
@@ -1666,7 +1934,8 @@ impl SettingsUI {
             let viewport = ctx.input(|i| i.viewport_rect());
             let window_height = viewport.height() * 0.9;
 
-            Window::new("Shader Editor")
+            let bg_shader_filename = &self.temp_custom_shader;
+            Window::new(format!("Background Shader Editor - {}", bg_shader_filename))
                 .resizable(true)
                 .default_width(900.0)
                 .default_height(window_height)
@@ -1932,6 +2201,171 @@ impl SettingsUI {
             }
         }
 
+        // Show cursor shader editor window if visible
+        if self.cursor_shader_editor_visible {
+            let mut cursor_shader_editor_open = true;
+            let mut cursor_apply_clicked = false;
+            let mut cursor_cancel_clicked = false;
+            let mut cursor_save_to_file_clicked = false;
+
+            // Calculate 90% of viewport height
+            let viewport = ctx.input(|i| i.viewport_rect());
+            let window_height = viewport.height() * 0.9;
+
+            let cursor_shader_filename = &self.temp_cursor_shader;
+            Window::new(format!("Cursor Shader Editor - {}", cursor_shader_filename))
+                .resizable(true)
+                .default_width(900.0)
+                .default_height(window_height)
+                .default_pos(viewport.center())
+                .pivot(egui::Align2::CENTER_CENTER)
+                .open(&mut cursor_shader_editor_open)
+                .frame(
+                    Frame::window(&ctx.style())
+                        .fill(Color32::from_rgba_unmultiplied(20, 20, 20, 255))
+                        .stroke(egui::Stroke::new(1.0, Color32::from_rgb(60, 60, 60)))
+                        .shadow(Shadow {
+                            offset: [2, 2],
+                            blur: 8,
+                            spread: 0,
+                            color: Color32::from_black_alpha(128),
+                        }),
+                )
+                .show(ctx, |ui| {
+                    ui.heading("Cursor GLSL Shader Editor");
+                    ui.label("Edit your cursor shader below. Click Apply to test changes.");
+                    ui.separator();
+
+                    // Show error dialog if there's an error
+                    let mut dismiss_error = false;
+                    if let Some(error) = &self.cursor_shader_editor_error {
+                        let error_text = error.clone();
+                        let shader_path =
+                            crate::config::Config::shader_path(&self.temp_cursor_shader);
+                        let full_error =
+                            format!("File: {}\n\n{}", shader_path.display(), error_text);
+
+                        ui.group(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.colored_label(
+                                    Color32::from_rgb(255, 100, 100),
+                                    "⚠ Cursor Shader Compilation Error",
+                                );
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui.button("Dismiss").clicked() {
+                                            dismiss_error = true;
+                                        }
+                                        if ui.button("Copy").clicked()
+                                            && let Ok(mut clipboard) = Clipboard::new()
+                                        {
+                                            let _ = clipboard.set_text(full_error.clone());
+                                        }
+                                    },
+                                );
+                            });
+                            ui.label(format!("File: {}", shader_path.display()));
+                            ui.separator();
+                            // Multiline selectable text for copying
+                            egui::ScrollArea::vertical()
+                                .max_height(120.0)
+                                .show(ui, |ui| {
+                                    ui.add(
+                                        egui::TextEdit::multiline(&mut error_text.as_str())
+                                            .font(egui::TextStyle::Monospace)
+                                            .desired_width(f32::INFINITY)
+                                            .interactive(true),
+                                    );
+                                });
+                        });
+                        ui.separator();
+                    }
+                    if dismiss_error {
+                        self.cursor_shader_editor_error = None;
+                    }
+
+                    // Cursor shader source editor
+                    let available_height = ui.available_height() - 60.0; // Reserve space for buttons
+
+                    let cursor_editor_id = egui::Id::new("cursor_shader_editor_textedit");
+
+                    egui::ScrollArea::both()
+                        .auto_shrink([false, false])
+                        .max_height(available_height)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(&mut self.cursor_shader_editor_source)
+                                    .id(cursor_editor_id)
+                                    .font(egui::TextStyle::Monospace)
+                                    .code_editor()
+                                    .desired_width(f32::INFINITY)
+                                    .min_size(egui::vec2(
+                                        ui.available_width(),
+                                        available_height - 20.0,
+                                    )),
+                            );
+                        });
+
+                    ui.separator();
+
+                    // Action buttons
+                    ui.horizontal(|ui| {
+                        if ui.button("Apply").clicked() {
+                            cursor_apply_clicked = true;
+                        }
+                        ui.label("|");
+                        if ui.button("Save to File").clicked() {
+                            cursor_save_to_file_clicked = true;
+                        }
+                        ui.label("|");
+                        if ui.button("Revert").clicked() {
+                            self.cursor_shader_editor_source =
+                                self.cursor_shader_editor_original.clone();
+                            self.cursor_shader_editor_error = None;
+                        }
+                        ui.label("|");
+                        if ui.button("Close").clicked() {
+                            cursor_cancel_clicked = true;
+                        }
+                    });
+                });
+
+            // Handle cursor shader editor actions
+            if cursor_apply_clicked {
+                cursor_shader_apply_result = Some(CursorShaderEditorResult {
+                    source: self.cursor_shader_editor_source.clone(),
+                });
+                // Don't close editor - let user see if it worked or get error
+            }
+
+            if cursor_save_to_file_clicked {
+                // Save current source to the cursor shader file
+                let shader_path = crate::config::Config::shader_path(&self.temp_cursor_shader);
+                match std::fs::write(&shader_path, &self.cursor_shader_editor_source) {
+                    Ok(()) => {
+                        self.cursor_shader_editor_original =
+                            self.cursor_shader_editor_source.clone();
+                        log::info!("Cursor shader saved to {}", shader_path.display());
+                    }
+                    Err(e) => {
+                        self.cursor_shader_editor_error = Some(format!(
+                            "Failed to save cursor shader file '{}': {}",
+                            shader_path.display(),
+                            e
+                        ));
+                    }
+                }
+            }
+
+            if cursor_cancel_clicked || !cursor_shader_editor_open {
+                self.cursor_shader_editor_visible = false;
+                self.cursor_shader_editor_source.clear();
+                self.cursor_shader_editor_original.clear();
+                self.cursor_shader_editor_error = None;
+            }
+        }
+
         // Create Shader Dialog
         if self.show_create_shader_dialog {
             let mut close_dialog = false;
@@ -2133,7 +2567,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             None
         };
 
-        (config_to_save, config_for_live_update, shader_apply_result)
+        (
+            config_to_save,
+            config_for_live_update,
+            shader_apply_result,
+            cursor_shader_apply_result,
+        )
     }
 }
 

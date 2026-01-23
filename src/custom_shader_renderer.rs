@@ -4,8 +4,16 @@
 //! - `iTime`: Time in seconds (animated or fixed at 0.0)
 //! - `iResolution`: Viewport resolution (width, height, 1.0)
 //! - `iChannel0`: Terminal content texture
+//!
+//! Ghostty-compatible cursor uniforms (v1.2.0+):
+//! - `iCurrentCursor`: Current cursor position (xy) and size (zw) in pixels
+//! - `iPreviousCursor`: Previous cursor position and size
+//! - `iCurrentCursorColor`: Current cursor RGBA color (with opacity baked in)
+//! - `iPreviousCursorColor`: Previous cursor RGBA color
+//! - `iTimeCursorChange`: Time when cursor last moved (same timebase as iTime)
 
 use anyhow::{Context, Result};
+use par_term_emu_core_rust::cursor::CursorStyle;
 use std::path::Path;
 use std::time::Instant;
 use wgpu::*;
@@ -45,9 +53,40 @@ struct CustomShaderUniforms {
     /// Pixel aspect ratio (iResolution.z) - offset 68, size 4, usually 1.0
     resolution_z: f32,
     /// Padding to reach 80 bytes (multiple of 16) - offset 72, size 8
-    _padding: [f32; 2],
+    _pad1: [f32; 2],
+
+    // ============ Cursor uniforms (Ghostty-compatible, v1.2.0+) ============
+    // Offsets 80-159
+    /// Current cursor position (xy) and size (zw) in pixels - offset 80, size 16
+    current_cursor: [f32; 4],
+    /// Previous cursor position (xy) and size (zw) in pixels - offset 96, size 16
+    previous_cursor: [f32; 4],
+    /// Current cursor RGBA color (with opacity baked into alpha) - offset 112, size 16
+    current_cursor_color: [f32; 4],
+    /// Previous cursor RGBA color - offset 128, size 16
+    previous_cursor_color: [f32; 4],
+    /// Time when cursor last moved (same timebase as iTime) - offset 144, size 4
+    cursor_change_time: f32,
+
+    // ============ Cursor shader configuration uniforms ============
+    // Offsets 148-175
+    /// Cursor trail duration in seconds - offset 148, size 4
+    cursor_trail_duration: f32,
+    /// Cursor glow radius in pixels - offset 152, size 4
+    cursor_glow_radius: f32,
+    /// Cursor glow intensity (0.0-1.0) - offset 156, size 4
+    cursor_glow_intensity: f32,
+    /// User-configured cursor color for shader effects [R, G, B, 1.0] - offset 160, size 16
+    /// (placed last because vec4 must be aligned to 16 bytes in std140)
+    cursor_shader_color: [f32; 4],
 }
-// Total size: 80 bytes
+// Total size: 176 bytes
+
+// Compile-time assertion to ensure uniform struct size matches expectations
+const _: () = assert!(
+    std::mem::size_of::<CustomShaderUniforms>() == 176,
+    "CustomShaderUniforms must be exactly 176 bytes for GPU compatibility"
+);
 
 /// Custom shader renderer that applies post-processing effects
 pub struct CustomShaderRenderer {
@@ -98,6 +137,42 @@ pub struct CustomShaderRenderer {
     frames_in_second: u32,
     /// Current smoothed frame rate
     current_frame_rate: f32,
+
+    // ============ Cursor tracking (Ghostty-compatible) ============
+    /// Current cursor position in cell coordinates (col, row)
+    current_cursor_pos: (usize, usize),
+    /// Previous cursor position in cell coordinates
+    previous_cursor_pos: (usize, usize),
+    /// Current cursor RGBA color
+    current_cursor_color: [f32; 4],
+    /// Previous cursor RGBA color
+    previous_cursor_color: [f32; 4],
+    /// Current cursor opacity (0.0 = invisible, 1.0 = fully visible)
+    current_cursor_opacity: f32,
+    /// Previous cursor opacity
+    previous_cursor_opacity: f32,
+    /// Time when cursor position last changed (same timebase as iTime)
+    cursor_change_time: f32,
+    /// Current cursor style (for size calculation)
+    current_cursor_style: CursorStyle,
+    /// Previous cursor style
+    previous_cursor_style: CursorStyle,
+    /// Cell width in pixels (for cursor position calculation)
+    cursor_cell_width: f32,
+    /// Cell height in pixels (for cursor position calculation)
+    cursor_cell_height: f32,
+    /// Window padding in pixels (for cursor position calculation)
+    cursor_window_padding: f32,
+
+    // ============ Cursor shader configuration ============
+    /// User-configured cursor color for shader effects [R, G, B, A]
+    cursor_shader_color: [f32; 4],
+    /// Cursor trail duration in seconds
+    cursor_trail_duration: f32,
+    /// Cursor glow radius in pixels
+    cursor_glow_radius: f32,
+    /// Cursor glow intensity (0.0-1.0)
+    cursor_glow_intensity: f32,
 }
 
 impl CustomShaderRenderer {
@@ -300,6 +375,24 @@ impl CustomShaderRenderer {
             frame_time_accumulator: 0.0,
             frames_in_second: 0,
             current_frame_rate: 60.0, // Start with reasonable default
+            // Cursor tracking (Ghostty-compatible)
+            current_cursor_pos: (0, 0),
+            previous_cursor_pos: (0, 0),
+            current_cursor_color: [1.0, 1.0, 1.0, 1.0], // White default
+            previous_cursor_color: [1.0, 1.0, 1.0, 1.0],
+            current_cursor_opacity: 1.0,
+            previous_cursor_opacity: 1.0,
+            cursor_change_time: 0.0,
+            current_cursor_style: CursorStyle::SteadyBlock,
+            previous_cursor_style: CursorStyle::SteadyBlock,
+            cursor_cell_width: 10.0, // Will be updated from renderer
+            cursor_cell_height: 20.0,
+            cursor_window_padding: 0.0,
+            // Cursor shader configuration (defaults match config.rs)
+            cursor_shader_color: [1.0, 1.0, 1.0, 1.0], // White
+            cursor_trail_duration: 0.5,
+            cursor_glow_radius: 80.0,
+            cursor_glow_intensity: 0.3,
         })
     }
 
@@ -482,6 +575,24 @@ impl CustomShaderRenderer {
             [year as f32, month as f32, day as f32, secs_today]
         };
 
+        // Calculate cursor pixel positions
+        let (curr_x, curr_y) =
+            self.cursor_to_pixels(self.current_cursor_pos.0, self.current_cursor_pos.1);
+        let (prev_x, prev_y) =
+            self.cursor_to_pixels(self.previous_cursor_pos.0, self.previous_cursor_pos.1);
+
+        // Debug: Log cursor position info periodically (every 60 frames)
+        if self.frame_count.is_multiple_of(60) {
+            log::debug!(
+                "CURSOR_SHADER: pos=({},{}) -> pixels=({:.1},{:.1}), cell=({:.1}x{:.1}), padding={:.1}, resolution={}x{}",
+                self.current_cursor_pos.0, self.current_cursor_pos.1,
+                curr_x, curr_y,
+                self.cursor_cell_width, self.cursor_cell_height,
+                self.cursor_window_padding,
+                self.texture_width, self.texture_height
+            );
+        }
+
         // Update uniforms
         let uniforms = CustomShaderUniforms {
             resolution: [self.texture_width as f32, self.texture_height as f32],
@@ -495,7 +606,42 @@ impl CustomShaderRenderer {
             frame: self.frame_count as f32,
             frame_rate: self.current_frame_rate,
             resolution_z: 1.0, // Pixel aspect ratio, usually 1.0
-            _padding: [0.0, 0.0],
+            _pad1: [0.0, 0.0],
+            // Cursor uniforms (Ghostty-compatible)
+            // Cursor dimensions vary by style:
+            // - Block: full cell width x height
+            // - Beam/Bar: thin width (2px) x full height
+            // - Underline: full width x thin height (2px)
+            current_cursor: [
+                curr_x,
+                curr_y,
+                self.cursor_width_for_style(self.current_cursor_style),
+                self.cursor_height_for_style(self.current_cursor_style),
+            ],
+            previous_cursor: [
+                prev_x,
+                prev_y,
+                self.cursor_width_for_style(self.previous_cursor_style),
+                self.cursor_height_for_style(self.previous_cursor_style),
+            ],
+            current_cursor_color: [
+                self.current_cursor_color[0],
+                self.current_cursor_color[1],
+                self.current_cursor_color[2],
+                self.current_cursor_color[3] * self.current_cursor_opacity,
+            ],
+            previous_cursor_color: [
+                self.previous_cursor_color[0],
+                self.previous_cursor_color[1],
+                self.previous_cursor_color[2],
+                self.previous_cursor_color[3] * self.previous_cursor_opacity,
+            ],
+            cursor_change_time: self.cursor_change_time,
+            // Cursor shader configuration (floats first, then vec4 at aligned offset)
+            cursor_trail_duration: self.cursor_trail_duration,
+            cursor_glow_radius: self.cursor_glow_radius,
+            cursor_glow_intensity: self.cursor_glow_intensity,
+            cursor_shader_color: self.cursor_shader_color,
         };
 
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
@@ -594,6 +740,147 @@ impl CustomShaderRenderer {
             // Record click position when button is pressed
             self.mouse_click_position = [x, y];
         }
+    }
+
+    // ============ Cursor tracking methods (Ghostty-compatible) ============
+
+    /// Update cursor position and appearance for shader effects
+    ///
+    /// This method tracks cursor movement and records the time of change,
+    /// enabling Ghostty-compatible cursor trail effects and animations.
+    ///
+    /// # Arguments
+    /// * `col` - Cursor column position (0-based)
+    /// * `row` - Cursor row position (0-based)
+    /// * `opacity` - Cursor opacity (0.0 = invisible, 1.0 = fully visible)
+    /// * `cursor_color` - Cursor RGBA color
+    /// * `style` - Cursor style (Block, Beam, Underline)
+    pub fn update_cursor(
+        &mut self,
+        col: usize,
+        row: usize,
+        opacity: f32,
+        cursor_color: [f32; 4],
+        style: CursorStyle,
+    ) {
+        let new_pos = (col, row);
+        let style_changed = style != self.current_cursor_style;
+        let pos_changed = new_pos != self.current_cursor_pos;
+
+        if pos_changed || style_changed {
+            // Store previous state before updating
+            self.previous_cursor_pos = self.current_cursor_pos;
+            self.previous_cursor_opacity = self.current_cursor_opacity;
+            self.previous_cursor_color = self.current_cursor_color;
+            self.previous_cursor_style = self.current_cursor_style;
+            self.current_cursor_pos = new_pos;
+            self.current_cursor_style = style;
+
+            // Record time of change (same timebase as iTime)
+            self.cursor_change_time = if self.animation_enabled {
+                self.start_time.elapsed().as_secs_f32() * self.animation_speed.max(0.0)
+            } else {
+                0.0
+            };
+
+            if pos_changed {
+                log::trace!(
+                    "Cursor moved: ({}, {}) -> ({}, {}), change_time={:.3}",
+                    self.previous_cursor_pos.0,
+                    self.previous_cursor_pos.1,
+                    col,
+                    row,
+                    self.cursor_change_time
+                );
+            }
+        }
+        self.current_cursor_opacity = opacity;
+        self.current_cursor_color = cursor_color;
+    }
+
+    /// Update cell dimensions for cursor pixel position calculation
+    ///
+    /// # Arguments
+    /// * `cell_width` - Cell width in pixels
+    /// * `cell_height` - Cell height in pixels
+    /// * `padding` - Window padding in pixels
+    pub fn update_cell_dimensions(&mut self, cell_width: f32, cell_height: f32, padding: f32) {
+        self.cursor_cell_width = cell_width;
+        self.cursor_cell_height = cell_height;
+        self.cursor_window_padding = padding;
+    }
+
+    /// Convert cursor cell coordinates to pixel coordinates
+    ///
+    /// Returns (x, y) in pixels from top-left corner of the window.
+    fn cursor_to_pixels(&self, col: usize, row: usize) -> (f32, f32) {
+        let x = self.cursor_window_padding + (col as f32 * self.cursor_cell_width);
+        let y = self.cursor_window_padding + (row as f32 * self.cursor_cell_height);
+        (x, y)
+    }
+
+    /// Get cursor width in pixels based on cursor style
+    fn cursor_width_for_style(&self, style: CursorStyle) -> f32 {
+        match style {
+            // Block cursor: full cell width
+            CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => self.cursor_cell_width,
+            // Beam/Bar cursor: thin vertical line (2 pixels)
+            CursorStyle::SteadyBar | CursorStyle::BlinkingBar => 2.0,
+            // Underline cursor: full cell width
+            CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => self.cursor_cell_width,
+        }
+    }
+
+    /// Get cursor height in pixels based on cursor style
+    fn cursor_height_for_style(&self, style: CursorStyle) -> f32 {
+        match style {
+            // Block cursor: full cell height
+            CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => self.cursor_cell_height,
+            // Beam/Bar cursor: full cell height
+            CursorStyle::SteadyBar | CursorStyle::BlinkingBar => self.cursor_cell_height,
+            // Underline cursor: thin horizontal line (2 pixels)
+            CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => 2.0,
+        }
+    }
+
+    /// Check if cursor animation might need continuous rendering
+    ///
+    /// Returns true if a cursor trail animation is likely still in progress
+    /// (within 1 second of the last cursor movement).
+    pub fn cursor_needs_animation(&self) -> bool {
+        if self.animation_enabled {
+            let current_time =
+                self.start_time.elapsed().as_secs_f32() * self.animation_speed.max(0.0);
+            // Allow 1 second for cursor trail animations to complete
+            (current_time - self.cursor_change_time) < 1.0
+        } else {
+            false
+        }
+    }
+
+    /// Update cursor shader configuration from config values
+    ///
+    /// # Arguments
+    /// * `color` - Cursor color for shader effects [R, G, B] (0-255)
+    /// * `trail_duration` - Duration of cursor trail effect in seconds
+    /// * `glow_radius` - Radius of cursor glow effect in pixels
+    /// * `glow_intensity` - Intensity of cursor glow effect (0.0-1.0)
+    pub fn update_cursor_shader_config(
+        &mut self,
+        color: [u8; 3],
+        trail_duration: f32,
+        glow_radius: f32,
+        glow_intensity: f32,
+    ) {
+        self.cursor_shader_color = [
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0,
+            1.0,
+        ];
+        self.cursor_trail_duration = trail_duration.max(0.0);
+        self.cursor_glow_radius = glow_radius.max(0.0);
+        self.cursor_glow_intensity = glow_intensity.clamp(0.0, 1.0);
     }
 
     /// Reload the shader from a source string
@@ -698,6 +985,19 @@ impl CustomShaderRenderer {
 /// - `iOpacity`: Window opacity (par-term specific)
 /// - `iTextOpacity`: Text opacity (par-term specific)
 /// - `iFullContent`: Full content mode flag (par-term specific)
+///
+/// Ghostty-compatible cursor uniforms (v1.2.0+):
+/// - `iCurrentCursor`: Current cursor position (xy) and size (zw) in pixels
+/// - `iPreviousCursor`: Previous cursor position and size
+/// - `iCurrentCursorColor`: Current cursor RGBA color (opacity baked into alpha)
+/// - `iPreviousCursorColor`: Previous cursor RGBA color
+/// - `iTimeCursorChange`: Time when cursor last moved (same timebase as iTime)
+///
+/// Cursor shader configuration uniforms (par-term specific):
+/// - `iCursorShaderColor`: User-configured cursor color for effects (RGBA)
+/// - `iCursorTrailDuration`: Trail effect duration in seconds
+/// - `iCursorGlowRadius`: Glow effect radius in pixels
+/// - `iCursorGlowIntensity`: Glow effect intensity (0.0-1.0)
 fn transpile_glsl_to_wgsl(glsl_source: &str, shader_path: &Path) -> Result<String> {
     // Wrap the Shadertoy-style shader in a proper GLSL fragment shader
     // We need to:
@@ -710,7 +1010,7 @@ fn transpile_glsl_to_wgsl(glsl_source: &str, shader_path: &Path) -> Result<Strin
         r#"#version 450
 
 // Uniforms - must match Rust struct layout (std140)
-// Total size: 80 bytes
+// Total size: 192 bytes
 layout(set = 0, binding = 0) uniform Uniforms {{
     vec2 iResolution;      // offset 0, size 8 - Viewport resolution
     float iTime;           // offset 8, size 4 - Time in seconds
@@ -723,8 +1023,21 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     float iFrame;          // offset 60, size 4 - Frame counter
     float iFrameRate;      // offset 64, size 4 - Current FPS
     float iResolutionZ;    // offset 68, size 4 - Pixel aspect ratio (usually 1.0)
-    vec2 _pad;             // offset 72, size 8 - Padding
-}};                        // total: 80 bytes
+    vec2 _pad1;            // offset 72, size 8 - Padding
+
+    // Cursor uniforms (Ghostty-compatible, v1.2.0+)
+    vec4 iCurrentCursor;       // offset 80, size 16 - xy=position, zw=size (pixels)
+    vec4 iPreviousCursor;      // offset 96, size 16 - xy=previous position, zw=size
+    vec4 iCurrentCursorColor;  // offset 112, size 16 - RGBA (opacity baked into alpha)
+    vec4 iPreviousCursorColor; // offset 128, size 16 - RGBA previous color
+    float iTimeCursorChange;   // offset 144, size 4 - Time when cursor last moved
+
+    // Cursor shader configuration uniforms
+    float iCursorTrailDuration;// offset 148, size 4 - Trail effect duration (seconds)
+    float iCursorGlowRadius;   // offset 152, size 4 - Glow effect radius (pixels)
+    float iCursorGlowIntensity;// offset 156, size 4 - Glow effect intensity (0-1)
+    vec4 iCursorShaderColor;   // offset 160, size 16 - User-configured cursor color (aligned to 16)
+}};                            // total: 176 bytes
 
 // Terminal content texture (iChannel0)
 layout(set = 0, binding = 1) uniform texture2D _iChannel0Tex;
@@ -870,7 +1183,7 @@ fn transpile_glsl_to_wgsl_source(glsl_source: &str, name: &str) -> Result<String
         r#"#version 450
 
 // Uniforms - must match Rust struct layout (std140)
-// Total size: 80 bytes
+// Total size: 192 bytes
 layout(set = 0, binding = 0) uniform Uniforms {{
     vec2 iResolution;      // offset 0, size 8 - Viewport resolution
     float iTime;           // offset 8, size 4 - Time in seconds
@@ -883,8 +1196,21 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     float iFrame;          // offset 60, size 4 - Frame counter
     float iFrameRate;      // offset 64, size 4 - Current FPS
     float iResolutionZ;    // offset 68, size 4 - Pixel aspect ratio (usually 1.0)
-    vec2 _pad;             // offset 72, size 8 - Padding
-}};                        // total: 80 bytes
+    vec2 _pad1;            // offset 72, size 8 - Padding
+
+    // Cursor uniforms (Ghostty-compatible, v1.2.0+)
+    vec4 iCurrentCursor;       // offset 80, size 16 - xy=position, zw=size (pixels)
+    vec4 iPreviousCursor;      // offset 96, size 16 - xy=previous position, zw=size
+    vec4 iCurrentCursorColor;  // offset 112, size 16 - RGBA (opacity baked into alpha)
+    vec4 iPreviousCursorColor; // offset 128, size 16 - RGBA previous color
+    float iTimeCursorChange;   // offset 144, size 4 - Time when cursor last moved
+
+    // Cursor shader configuration uniforms
+    float iCursorTrailDuration;// offset 148, size 4 - Trail effect duration (seconds)
+    float iCursorGlowRadius;   // offset 152, size 4 - Glow effect radius (pixels)
+    float iCursorGlowIntensity;// offset 156, size 4 - Glow effect intensity (0-1)
+    vec4 iCursorShaderColor;   // offset 160, size 16 - User-configured cursor color (aligned to 16)
+}};                            // total: 176 bytes
 
 // Terminal content texture (iChannel0)
 layout(set = 0, binding = 1) uniform texture2D _iChannel0Tex;

@@ -12,6 +12,26 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
+## What's New in 0.3.0
+
+### 🎨 Ghostty-Compatible Cursor Shaders
+
+Full support for cursor-based shader animations compatible with [Ghostty](https://ghostty.org/) custom shaders.
+
+- **Cursor Uniforms**: `iCurrentCursor`, `iPreviousCursor`, `iCurrentCursorColor`, `iTimeCursorChange` uniforms for cursor trail effects
+- **Configurable Cursor Color**: New cursor color setting in the UI, exposed as `iCurrentCursorColor` to shaders
+- **Cursor Style Toggle**: `Cmd+,` (macOS) / `Ctrl+,` to cycle through Block, Beam, and Underline cursor styles
+- **Built-in Cursor Shaders**: Includes sweep, warp, glow, blaze, trail, ripple, and boom effects
+- **Geometric Cursor Rendering**: Proper visual rendering for all cursor styles (Block, Beam, Underline)
+
+### 🐚 Shell & Terminal Fixes
+
+- **Login Shell Support**: Fixed issues with login shell initialization and environment loading
+
+### 🖼️ Shader Editor Improvements
+
+- **Filename Display**: Background and cursor shader editors now show the filename being edited in the window header
+
 ## What's New in 0.2.0
 
 ### 🔋 Intelligent Redraw Loop (Power Efficiency)
@@ -115,6 +135,7 @@ sudo apt install libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
 | `Ctrl + L` | Clear visible screen |
 | `Ctrl + +/-/0` | Adjust font size / Reset |
 | `Ctrl + Shift + S` | Take screenshot |
+| `Cmd + ,` / `Ctrl + ,` | Cycle cursor style (Block/Beam/Underline) |
 | `F1` | Toggle Help panel |
 | `F3` | Toggle FPS overlay |
 | `F5` | Reload configuration |

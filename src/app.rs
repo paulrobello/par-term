@@ -6,7 +6,7 @@ use crate::input::InputHandler;
 use crate::renderer::Renderer;
 use crate::scroll_state::ScrollState;
 use crate::selection::{Selection, SelectionMode};
-use crate::settings_ui::{SettingsUI, ShaderEditorResult};
+use crate::settings_ui::{CursorShaderEditorResult, SettingsUI, ShaderEditorResult};
 use crate::terminal::{ClipboardSlot, TerminalManager};
 use crate::url_detection;
 use anyhow::Result;
@@ -219,7 +219,7 @@ impl AppState {
             Some(self.config.font_family.as_str())
         };
 
-        let renderer = self.runtime.block_on(Renderer::new(
+        let mut renderer = self.runtime.block_on(Renderer::new(
             Arc::clone(&window),
             font_family,
             self.config.font_family_bold.as_deref(),
@@ -250,6 +250,11 @@ impl AppState {
             self.config.custom_shader_animation_speed,
             self.config.custom_shader_text_opacity,
             self.config.custom_shader_full_content,
+            // Cursor shader settings
+            self.config.cursor_shader.as_deref(),
+            self.config.cursor_shader_enabled,
+            self.config.cursor_shader_animation,
+            self.config.cursor_shader_animation_speed,
         ))?;
 
         let (cols, rows) = renderer.grid_size();
@@ -265,6 +270,17 @@ impl AppState {
             term.set_cell_dimensions(cell_width as u32, cell_height as u32);
             term.set_theme(self.config.load_theme());
         }
+
+        // Initialize cursor shader config
+        renderer.update_cursor_shader_config(
+            self.config.cursor_shader_color,
+            self.config.cursor_shader_trail_duration,
+            self.config.cursor_shader_glow_radius,
+            self.config.cursor_shader_glow_intensity,
+        );
+
+        // Initialize cursor color from config
+        renderer.update_cursor_color(self.config.cursor_color);
 
         self.renderer = Some(renderer);
         self.cached_cells = None;
@@ -329,7 +345,7 @@ impl AppState {
             Some(self.config.font_family.as_str())
         };
         let theme = self.config.load_theme();
-        let renderer = Renderer::new(
+        let mut renderer = Renderer::new(
             Arc::clone(&window),
             font_family,
             self.config.font_family_bold.as_deref(),
@@ -360,6 +376,11 @@ impl AppState {
             self.config.custom_shader_animation_speed,
             self.config.custom_shader_text_opacity,
             self.config.custom_shader_full_content,
+            // Cursor shader settings
+            self.config.cursor_shader.as_deref(),
+            self.config.cursor_shader_enabled,
+            self.config.cursor_shader_animation,
+            self.config.cursor_shader_animation_speed,
         )
         .await?;
 
@@ -421,7 +442,7 @@ impl AppState {
         let shell_env = self.config.shell_env.as_ref();
 
         // Determine the shell command to use
-        let (shell_cmd, shell_args) = if let Some(ref custom) = self.config.custom_shell {
+        let (shell_cmd, mut shell_args) = if let Some(ref custom) = self.config.custom_shell {
             (custom.clone(), self.config.shell_args.clone())
         } else {
             #[cfg(target_os = "windows")]
@@ -437,6 +458,17 @@ impl AppState {
             }
         };
 
+        // On Unix-like systems, spawn as login shell if configured (default: true)
+        // This ensures PATH is properly initialized from /etc/paths, ~/.zprofile, etc.
+        #[cfg(not(target_os = "windows"))]
+        if self.config.login_shell {
+            let args = shell_args.get_or_insert_with(Vec::new);
+            // Only add -l if not already present
+            if !args.iter().any(|a| a == "-l" || a == "--login") {
+                args.insert(0, "-l".to_string());
+            }
+        }
+
         let shell_args_deref = shell_args.as_deref();
         terminal.spawn_custom_shell_with_dir(
             &shell_cmd,
@@ -450,6 +482,17 @@ impl AppState {
         let cell_height = renderer.cell_height() as u32;
         log::info!("Setting cell dimensions: {}x{}", cell_width, cell_height);
         terminal.set_cell_dimensions(cell_width, cell_height);
+
+        // Initialize cursor shader config
+        renderer.update_cursor_shader_config(
+            self.config.cursor_shader_color,
+            self.config.cursor_shader_trail_duration,
+            self.config.cursor_shader_glow_radius,
+            self.config.cursor_shader_glow_intensity,
+        );
+
+        // Initialize cursor color from config
+        renderer.update_cursor_color(self.config.cursor_color);
 
         self.window = Some(Arc::clone(&window));
         self.renderer = Some(renderer);
@@ -984,6 +1027,50 @@ impl AppState {
             self.config.font_size = 14.0; // Default font size
             self.pending_font_rebuild = true;
             log::info!("Font size reset to default (14.0, applying live)");
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            return true;
+        }
+
+        // Ctrl+, (Cmd+, on macOS): Cycle cursor style (Block -> Beam -> Underline -> Block)
+        let super_key = self.input_handler.modifiers.state().super_key();
+        let ctrl_or_cmd = ctrl || super_key;
+
+        if ctrl_or_cmd
+            && !shift
+            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == ",")
+        {
+            use crate::config::CursorStyle;
+            use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
+
+            // Cycle to next cursor style
+            self.config.cursor_style = match self.config.cursor_style {
+                CursorStyle::Block => CursorStyle::Beam,
+                CursorStyle::Beam => CursorStyle::Underline,
+                CursorStyle::Underline => CursorStyle::Block,
+            };
+
+            log::info!("Cursor style changed to {:?}", self.config.cursor_style);
+
+            // Apply to terminal
+            if let Some(terminal_mgr) = &self.terminal
+                && let Ok(term_mgr) = terminal_mgr.try_lock()
+            {
+                let terminal = term_mgr.terminal();
+                if let Some(mut term) = terminal.try_lock() {
+                    let term_style = match self.config.cursor_style {
+                        CursorStyle::Block => TermCursorStyle::SteadyBlock,
+                        CursorStyle::Beam => TermCursorStyle::SteadyBar,
+                        CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
+                    };
+                    term.set_cursor_style(term_style);
+                }
+            }
+
+            // Force redraw to reflect cursor style change
+            self.cached_cells = None;
+            self.last_cursor_pos = None;
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
@@ -2365,6 +2452,15 @@ impl AppState {
                 (current_cursor_pos, Some(self.cursor_opacity), cursor_style)
             {
                 renderer.update_cursor(pos, opacity, style);
+                // Forward cursor state to custom shader for Ghostty-compatible cursor animations
+                // Use the configured cursor color
+                let cursor_color = [
+                    self.config.cursor_color[0] as f32 / 255.0,
+                    self.config.cursor_color[1] as f32 / 255.0,
+                    self.config.cursor_color[2] as f32 / 255.0,
+                    1.0,
+                ];
+                renderer.update_shader_cursor(pos.0, pos.1, opacity, cursor_color, style);
             } else {
                 renderer.clear_cursor();
             }
@@ -2476,10 +2572,12 @@ impl AppState {
             };
 
             // Track config changes from settings UI (to be applied after egui block)
+            #[allow(clippy::type_complexity)]
             let mut pending_config_update: Option<(
                 Option<crate::config::Config>,
                 Option<crate::config::Config>,
                 Option<ShaderEditorResult>,
+                Option<CursorShaderEditorResult>,
             )> = None;
 
             let egui_data = if let (Some(egui_ctx), Some(egui_state)) =
@@ -2537,24 +2635,47 @@ impl AppState {
             };
 
             // Process settings changes after egui block (to avoid borrow conflicts)
-            if let Some((config_to_save, config_for_live_update, shader_apply)) =
-                pending_config_update
+            if let Some((
+                config_to_save,
+                config_for_live_update,
+                shader_apply,
+                cursor_shader_apply,
+            )) = pending_config_update
             {
-                // Handle shader apply request first
+                // Handle background shader apply request first
                 if let Some(shader_result) = shader_apply {
                     log::info!(
-                        "Applying shader from editor ({} bytes)",
+                        "Applying background shader from editor ({} bytes)",
                         shader_result.source.len()
                     );
                     match renderer.reload_shader_from_source(&shader_result.source) {
                         Ok(()) => {
-                            log::info!("Shader applied successfully from editor");
+                            log::info!("Background shader applied successfully from editor");
                             self.settings_ui.clear_shader_error();
                         }
                         Err(e) => {
                             let error_msg = format!("{:#}", e);
-                            log::error!("Shader compilation failed: {}", error_msg);
+                            log::error!("Background shader compilation failed: {}", error_msg);
                             self.settings_ui.set_shader_error(Some(error_msg));
+                        }
+                    }
+                }
+
+                // Handle cursor shader apply request
+                if let Some(cursor_shader_result) = cursor_shader_apply {
+                    log::info!(
+                        "Applying cursor shader from editor ({} bytes)",
+                        cursor_shader_result.source.len()
+                    );
+                    match renderer.reload_cursor_shader_from_source(&cursor_shader_result.source) {
+                        Ok(()) => {
+                            log::info!("Cursor shader applied successfully from editor");
+                            self.settings_ui.clear_cursor_shader_error();
+                        }
+                        Err(e) => {
+                            let error_msg = format!("{:#}", e);
+                            log::error!("Cursor shader compilation failed: {}", error_msg);
+                            self.settings_ui.set_cursor_shader_error(Some(error_msg));
                         }
                     }
                 }
@@ -2577,6 +2698,30 @@ impl AppState {
                         - self.config.custom_shader_text_opacity)
                         .abs()
                         > f32::EPSILON;
+                    let cursor_shader_config_changed = live_config.cursor_shader_color
+                        != self.config.cursor_shader_color
+                        || (live_config.cursor_shader_trail_duration
+                            - self.config.cursor_shader_trail_duration)
+                            .abs()
+                            > f32::EPSILON
+                        || (live_config.cursor_shader_glow_radius
+                            - self.config.cursor_shader_glow_radius)
+                            .abs()
+                            > f32::EPSILON
+                        || (live_config.cursor_shader_glow_intensity
+                            - self.config.cursor_shader_glow_intensity)
+                            .abs()
+                            > f32::EPSILON;
+                    let cursor_shader_path_changed =
+                        live_config.cursor_shader != self.config.cursor_shader;
+                    let cursor_shader_enabled_changed =
+                        live_config.cursor_shader_enabled != self.config.cursor_shader_enabled;
+                    let cursor_shader_animation_changed =
+                        live_config.cursor_shader_animation != self.config.cursor_shader_animation;
+                    let cursor_shader_speed_changed = (live_config.cursor_shader_animation_speed
+                        - self.config.cursor_shader_animation_speed)
+                        .abs()
+                        > f32::EPSILON;
                     let _scrollbar_position_changed =
                         live_config.scrollbar_position != self.config.scrollbar_position;
                     let window_title_changed = live_config.window_title != self.config.window_title;
@@ -2584,6 +2729,8 @@ impl AppState {
                         live_config.window_decorations != self.config.window_decorations;
                     let max_fps_changed = live_config.max_fps != self.config.max_fps;
                     let cursor_style_changed = live_config.cursor_style != self.config.cursor_style;
+                    let cursor_color_changed =
+                        live_config.cursor_color != self.config.cursor_color;
                     let bg_enabled_changed = live_config.background_image_enabled
                         != self.config.background_image_enabled;
                     let bg_path_changed =
@@ -2716,6 +2863,18 @@ impl AppState {
                             window.request_redraw();
                         }
                     }
+
+                    // Update cursor color
+                    if cursor_color_changed {
+                        renderer.update_cursor_color(self.config.cursor_color);
+                        // Force cell regen to reflect cursor color change
+                        self.cached_cells = None;
+                        self.last_cursor_pos = None;
+                        if let Some(window) = &self.window {
+                            window.request_redraw();
+                        }
+                    }
+
                     if self.config.background_image_enabled {
                         renderer
                             .update_background_image_opacity(self.config.background_image_opacity);
@@ -2756,6 +2915,39 @@ impl AppState {
                             Err(error_msg) => {
                                 log::error!("Shader compilation failed: {}", error_msg);
                                 self.settings_ui.set_shader_error(Some(error_msg));
+                            }
+                        }
+                    }
+
+                    // Update cursor shader configuration
+                    if cursor_shader_config_changed {
+                        renderer.update_cursor_shader_config(
+                            self.config.cursor_shader_color,
+                            self.config.cursor_shader_trail_duration,
+                            self.config.cursor_shader_glow_radius,
+                            self.config.cursor_shader_glow_intensity,
+                        );
+                    }
+
+                    // Handle cursor shader path/enabled/animation changes
+                    if cursor_shader_path_changed
+                        || cursor_shader_enabled_changed
+                        || cursor_shader_animation_changed
+                        || cursor_shader_speed_changed
+                    {
+                        match renderer.set_cursor_shader_enabled(
+                            self.config.cursor_shader_enabled,
+                            self.config.cursor_shader.as_deref(),
+                            self.config.window_opacity,
+                            self.config.cursor_shader_animation,
+                            self.config.cursor_shader_animation_speed,
+                        ) {
+                            Ok(()) => {
+                                self.settings_ui.clear_cursor_shader_error();
+                            }
+                            Err(error_msg) => {
+                                log::error!("Cursor shader compilation failed: {}", error_msg);
+                                self.settings_ui.set_cursor_shader_error(Some(error_msg));
                             }
                         }
                     }

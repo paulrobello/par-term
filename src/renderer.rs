@@ -21,10 +21,15 @@ pub struct Renderer {
     // egui renderer for settings UI
     egui_renderer: egui_wgpu::Renderer,
 
-    // Custom shader renderer for post-processing effects
+    // Custom shader renderer for post-processing effects (background shader)
     custom_shader_renderer: Option<CustomShaderRenderer>,
     // Track current shader path to detect changes
     custom_shader_path: Option<String>,
+
+    // Cursor shader renderer for cursor-specific effects (separate from background shader)
+    cursor_shader_renderer: Option<CustomShaderRenderer>,
+    // Track current cursor shader path to detect changes
+    cursor_shader_path: Option<String>,
 
     // Cached for convenience
     size: PhysicalSize<u32>,
@@ -72,6 +77,11 @@ impl Renderer {
         custom_shader_animation_speed: f32,
         custom_shader_text_opacity: f32,
         custom_shader_full_content: bool,
+        // Cursor shader settings (separate from background shader)
+        cursor_shader_path: Option<&str>,
+        cursor_shader_enabled: bool,
+        cursor_shader_animation: bool,
+        cursor_shader_animation_speed: f32,
     ) -> Result<Self> {
         let size = window.inner_size();
         let scale_factor = window.scale_factor();
@@ -200,7 +210,13 @@ impl Renderer {
                     custom_shader_text_opacity,
                     custom_shader_full_content,
                 ) {
-                    Ok(renderer) => {
+                    Ok(mut renderer) => {
+                        // Sync cell dimensions for cursor position calculation
+                        renderer.update_cell_dimensions(
+                            cell_renderer.cell_width(),
+                            cell_renderer.cell_height(),
+                            window_padding,
+                        );
                         log::info!(
                             "Custom shader renderer initialized from: {}",
                             path.display()
@@ -219,6 +235,49 @@ impl Renderer {
             (None, None)
         };
 
+        // Create cursor shader renderer if configured (separate from background shader)
+        let (cursor_shader_renderer, initial_cursor_shader_path) = if cursor_shader_enabled {
+            if let Some(shader_path) = cursor_shader_path {
+                let path = crate::config::Config::shader_path(shader_path);
+                match CustomShaderRenderer::new(
+                    cell_renderer.device(),
+                    cell_renderer.queue(),
+                    cell_renderer.surface_format(),
+                    &path,
+                    size.width,
+                    size.height,
+                    cursor_shader_animation,
+                    cursor_shader_animation_speed,
+                    window_opacity,
+                    1.0,  // Text opacity (cursor shader always uses 1.0)
+                    true, // Full content mode (cursor shader always uses full content)
+                ) {
+                    Ok(mut renderer) => {
+                        // Sync cell dimensions for cursor position calculation
+                        let cell_w = cell_renderer.cell_width();
+                        let cell_h = cell_renderer.cell_height();
+                        renderer.update_cell_dimensions(cell_w, cell_h, window_padding);
+                        log::info!(
+                            "Cursor shader renderer initialized from: {} (cell={}x{}, padding={})",
+                            path.display(),
+                            cell_w,
+                            cell_h,
+                            window_padding
+                        );
+                        (Some(renderer), Some(shader_path.to_string()))
+                    }
+                    Err(e) => {
+                        log::error!("Failed to load cursor shader '{}': {}", path.display(), e);
+                        (None, None)
+                    }
+                }
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+
         Ok(Self {
             cell_renderer,
             graphics_renderer,
@@ -226,6 +285,8 @@ impl Renderer {
             egui_renderer,
             custom_shader_renderer,
             custom_shader_path: initial_shader_path,
+            cursor_shader_renderer,
+            cursor_shader_path: initial_cursor_shader_path,
             size,
             dirty: true, // Start dirty to ensure initial render
             debug_text: None,
@@ -249,6 +310,23 @@ impl Renderer {
             // Update custom shader renderer dimensions
             if let Some(ref mut custom_shader) = self.custom_shader_renderer {
                 custom_shader.resize(self.cell_renderer.device(), new_size.width, new_size.height);
+                // Sync cell dimensions for cursor position calculation
+                custom_shader.update_cell_dimensions(
+                    self.cell_renderer.cell_width(),
+                    self.cell_renderer.cell_height(),
+                    self.cell_renderer.window_padding(),
+                );
+            }
+
+            // Update cursor shader renderer dimensions
+            if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+                cursor_shader.resize(self.cell_renderer.device(), new_size.width, new_size.height);
+                // Sync cell dimensions for cursor position calculation
+                cursor_shader.update_cell_dimensions(
+                    self.cell_renderer.cell_width(),
+                    self.cell_renderer.cell_height(),
+                    self.cell_renderer.window_padding(),
+                );
             }
 
             return result;
@@ -330,6 +408,12 @@ impl Renderer {
         self.dirty = true;
     }
 
+    /// Update cursor color for cell rendering
+    pub fn update_cursor_color(&mut self, color: [u8; 3]) {
+        self.cell_renderer.update_cursor_color(color);
+        self.dirty = true;
+    }
+
     /// Update window padding in real-time without full renderer rebuild
     /// Returns Some((cols, rows)) if grid size changed and terminal needs resize
     pub fn update_window_padding(&mut self, padding: f32) -> Option<(usize, usize)> {
@@ -380,6 +464,175 @@ impl Renderer {
     pub fn set_shader_mouse_button(&mut self, pressed: bool, x: f32, y: f32) {
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
             custom_shader.set_mouse_button(pressed, x, y);
+        }
+    }
+
+    /// Update cursor state for custom shader (Ghostty-compatible cursor uniforms)
+    ///
+    /// This enables cursor trail effects and other cursor-based animations in custom shaders.
+    ///
+    /// # Arguments
+    /// * `col` - Cursor column position (0-based)
+    /// * `row` - Cursor row position (0-based)
+    /// * `opacity` - Cursor opacity (0.0 = invisible, 1.0 = fully visible)
+    /// * `color` - Cursor RGBA color
+    /// * `style` - Cursor style (Block, Beam, Underline)
+    pub fn update_shader_cursor(
+        &mut self,
+        col: usize,
+        row: usize,
+        opacity: f32,
+        color: [f32; 4],
+        style: par_term_emu_core_rust::cursor::CursorStyle,
+    ) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.update_cursor(col, row, opacity, color, style);
+        }
+        // Also update cursor shader renderer
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.update_cursor(col, row, opacity, color, style);
+        }
+    }
+
+    /// Update cursor shader configuration from config values
+    ///
+    /// # Arguments
+    /// * `color` - Cursor color for shader effects [R, G, B] (0-255)
+    /// * `trail_duration` - Duration of cursor trail effect in seconds
+    /// * `glow_radius` - Radius of cursor glow effect in pixels
+    /// * `glow_intensity` - Intensity of cursor glow effect (0.0-1.0)
+    pub fn update_cursor_shader_config(
+        &mut self,
+        color: [u8; 3],
+        trail_duration: f32,
+        glow_radius: f32,
+        glow_intensity: f32,
+    ) {
+        // Update both shaders with cursor config
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.update_cursor_shader_config(
+                color,
+                trail_duration,
+                glow_radius,
+                glow_intensity,
+            );
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.update_cursor_shader_config(
+                color,
+                trail_duration,
+                glow_radius,
+                glow_intensity,
+            );
+        }
+    }
+
+    /// Enable or disable the cursor shader at runtime
+    ///
+    /// # Arguments
+    /// * `enabled` - Whether to enable the cursor shader
+    /// * `path` - Optional shader path (relative to shaders folder or absolute)
+    /// * `window_opacity` - Current window opacity
+    /// * `animation_enabled` - Whether animation is enabled
+    /// * `animation_speed` - Animation speed multiplier
+    ///
+    /// # Returns
+    /// Ok(()) if successful, Err with error message if compilation fails
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_cursor_shader_enabled(
+        &mut self,
+        enabled: bool,
+        path: Option<&str>,
+        window_opacity: f32,
+        animation_enabled: bool,
+        animation_speed: f32,
+    ) -> Result<(), String> {
+        match (enabled, path) {
+            (true, Some(path)) => {
+                let path_changed = self.cursor_shader_path.as_ref().is_none_or(|p| p != path);
+
+                // If we already have a shader renderer and path hasn't changed, just update flags
+                if let Some(renderer) = &mut self.cursor_shader_renderer
+                    && !path_changed
+                {
+                    renderer.set_animation_enabled(animation_enabled);
+                    renderer.set_animation_speed(animation_speed);
+                    renderer.set_opacity(window_opacity);
+                    self.dirty = true;
+                    return Ok(());
+                }
+
+                let shader_path_full = crate::config::Config::shader_path(path);
+                match CustomShaderRenderer::new(
+                    self.cell_renderer.device(),
+                    self.cell_renderer.queue(),
+                    self.cell_renderer.surface_format(),
+                    &shader_path_full,
+                    self.size.width,
+                    self.size.height,
+                    animation_enabled,
+                    animation_speed,
+                    window_opacity,
+                    1.0,  // Text opacity (cursor shader always uses 1.0)
+                    true, // Full content mode (cursor shader always uses full content)
+                ) {
+                    Ok(mut renderer) => {
+                        // Sync cell dimensions for cursor position calculation
+                        renderer.update_cell_dimensions(
+                            self.cell_renderer.cell_width(),
+                            self.cell_renderer.cell_height(),
+                            self.cell_renderer.window_padding(),
+                        );
+                        log::info!(
+                            "Cursor shader enabled at runtime: {}",
+                            shader_path_full.display()
+                        );
+                        self.cursor_shader_renderer = Some(renderer);
+                        self.cursor_shader_path = Some(path.to_string());
+                        self.dirty = true;
+                        Ok(())
+                    }
+                    Err(e) => {
+                        let error_msg = format!(
+                            "Failed to load cursor shader '{}': {}",
+                            shader_path_full.display(),
+                            e
+                        );
+                        log::error!("{}", error_msg);
+                        Err(error_msg)
+                    }
+                }
+            }
+            _ => {
+                if self.cursor_shader_renderer.is_some() {
+                    log::info!("Cursor shader disabled at runtime");
+                }
+                self.cursor_shader_renderer = None;
+                self.cursor_shader_path = None;
+                self.dirty = true;
+                Ok(())
+            }
+        }
+    }
+
+    /// Get the current cursor shader path
+    #[allow(dead_code)]
+    pub fn cursor_shader_path(&self) -> Option<&str> {
+        self.cursor_shader_path.as_deref()
+    }
+
+    /// Reload the cursor shader from source code
+    pub fn reload_cursor_shader_from_source(&mut self, source: &str) -> Result<()> {
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.reload_from_source(
+                self.cell_renderer.device(),
+                source,
+                "cursor_editor",
+            )?;
+            self.dirty = true;
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("No cursor shader renderer active"))
         }
     }
 
@@ -472,7 +725,13 @@ impl Renderer {
                     text_opacity,
                     full_content,
                 ) {
-                    Ok(renderer) => {
+                    Ok(mut renderer) => {
+                        // Sync cell dimensions for cursor position calculation
+                        renderer.update_cell_dimensions(
+                            self.cell_renderer.cell_width(),
+                            self.cell_renderer.cell_height(),
+                            self.cell_renderer.window_padding(),
+                        );
                         log::info!(
                             "Custom shader enabled at runtime: {}",
                             shader_path_full.display()
@@ -629,10 +888,19 @@ impl Renderer {
     }
 
     /// Check if animation requires continuous rendering
+    ///
+    /// Returns true if shader animation is enabled or a cursor trail animation
+    /// might still be in progress.
     pub fn needs_continuous_render(&self) -> bool {
-        self.custom_shader_renderer
+        let custom_needs = self
+            .custom_shader_renderer
             .as_ref()
-            .is_some_and(|r| r.animation_enabled())
+            .is_some_and(|r| r.animation_enabled() || r.cursor_needs_animation());
+        let cursor_needs = self
+            .cursor_shader_renderer
+            .as_ref()
+            .is_some_and(|r| r.animation_enabled() || r.cursor_needs_animation());
+        custom_needs || cursor_needs
     }
 
     /// Render a frame with optional egui overlay
@@ -651,15 +919,24 @@ impl Renderer {
             return Ok(false);
         }
 
-        // Check if custom shader is enabled
+        // Check if shaders are enabled
         let has_custom_shader = self.custom_shader_renderer.is_some();
+        let has_cursor_shader = self.cursor_shader_renderer.is_some();
 
         // Cell renderer renders terminal content
         let t1 = std::time::Instant::now();
         let surface_texture = if has_custom_shader {
-            // Render terminal to intermediate texture
+            // Render terminal to intermediate texture for background shader
             self.cell_renderer.render_to_texture(
                 self.custom_shader_renderer
+                    .as_ref()
+                    .unwrap()
+                    .intermediate_texture_view(),
+            )?
+        } else if has_cursor_shader {
+            // Render terminal to intermediate texture for cursor shader
+            self.cell_renderer.render_to_texture(
+                self.cursor_shader_renderer
                     .as_ref()
                     .unwrap()
                     .intermediate_texture_view(),
@@ -670,23 +947,56 @@ impl Renderer {
         };
         let cell_render_time = t1.elapsed();
 
-        // Apply custom shader if enabled
+        // Apply background custom shader if enabled
         let t_custom = std::time::Instant::now();
         let custom_shader_time = if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            // Create view of the surface texture
+            if has_cursor_shader {
+                // Background shader renders to cursor shader's intermediate texture
+                custom_shader.render(
+                    self.cell_renderer.device(),
+                    self.cell_renderer.queue(),
+                    self.cursor_shader_renderer
+                        .as_ref()
+                        .unwrap()
+                        .intermediate_texture_view(),
+                )?;
+            } else {
+                // Background shader renders directly to surface
+                let surface_view = surface_texture
+                    .texture
+                    .create_view(&wgpu::TextureViewDescriptor::default());
+                custom_shader.render(
+                    self.cell_renderer.device(),
+                    self.cell_renderer.queue(),
+                    &surface_view,
+                )?;
+
+                // Render overlays (scrollbar, visual bell) on top after shader
+                self.cell_renderer
+                    .render_overlays(&surface_texture, show_scrollbar)?;
+            }
+            t_custom.elapsed()
+        } else {
+            std::time::Duration::ZERO
+        };
+
+        // Apply cursor shader if enabled
+        let t_cursor = std::time::Instant::now();
+        let cursor_shader_time = if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            log::trace!("Rendering cursor shader");
             let surface_view = surface_texture
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            custom_shader.render(
+            cursor_shader.render(
                 self.cell_renderer.device(),
                 self.cell_renderer.queue(),
                 &surface_view,
             )?;
 
-            // Render overlays (scrollbar, visual bell) on top after shader
+            // Render overlays (scrollbar, visual bell) on top after cursor shader
             self.cell_renderer
                 .render_overlays(&surface_texture, show_scrollbar)?;
-            t_custom.elapsed()
+            t_cursor.elapsed()
         } else {
             std::time::Duration::ZERO
         };
@@ -713,14 +1023,16 @@ impl Renderer {
         // Log timing breakdown
         let total = cell_render_time
             + custom_shader_time
+            + cursor_shader_time
             + sixel_render_time
             + egui_render_time
             + present_time;
         if present_time.as_millis() > 10 || total.as_millis() > 10 {
             log::info!(
-                "RENDER_BREAKDOWN: CellRender={:.2}ms CustomShader={:.2}ms Sixel={:.2}ms Egui={:.2}ms PRESENT={:.2}ms Total={:.2}ms",
+                "RENDER_BREAKDOWN: CellRender={:.2}ms BgShader={:.2}ms CursorShader={:.2}ms Sixel={:.2}ms Egui={:.2}ms PRESENT={:.2}ms Total={:.2}ms",
                 cell_render_time.as_secs_f64() * 1000.0,
                 custom_shader_time.as_secs_f64() * 1000.0,
+                cursor_shader_time.as_secs_f64() * 1000.0,
                 sixel_render_time.as_secs_f64() * 1000.0,
                 egui_render_time.as_secs_f64() * 1000.0,
                 present_time.as_secs_f64() * 1000.0,

@@ -151,6 +151,10 @@ pub struct CellRenderer {
     cursor_pos: (usize, usize),
     cursor_opacity: f32,
     cursor_style: par_term_emu_core_rust::cursor::CursorStyle,
+    /// Separate cursor instance for beam/underline styles (rendered as overlay)
+    cursor_overlay: Option<BackgroundInstance>,
+    /// Cursor color [R, G, B] as floats (0.0-1.0)
+    cursor_color: [f32; 3],
     visual_bell_intensity: f32,
     window_opacity: f32,
     background_color: [f32; 4],
@@ -666,8 +670,8 @@ impl CellRenderer {
             }],
         });
 
-        // Initialize instance buffers
-        let max_bg_instances = cols * rows;
+        // Initialize instance buffers (+1 for cursor overlay)
+        let max_bg_instances = cols * rows + 1;
         let max_text_instances = cols * rows * 2; // Extra for shaped text
         let bg_instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("bg instance buffer"),
@@ -723,6 +727,8 @@ impl CellRenderer {
             cursor_pos: (0, 0),
             cursor_opacity: 0.0,
             cursor_style: par_term_emu_core_rust::cursor::CursorStyle::SteadyBlock,
+            cursor_overlay: None,
+            cursor_color: [1.0, 1.0, 1.0], // Default white
             visual_bell_intensity: 0.0,
             window_opacity,
             background_color: [
@@ -820,7 +826,7 @@ impl CellRenderer {
     }
 
     fn recreate_instance_buffers(&mut self) {
-        self.max_bg_instances = self.cols * self.rows;
+        self.max_bg_instances = self.cols * self.rows + 1; // +1 for cursor overlay
         self.max_text_instances = self.cols * self.rows * 2;
         self.bg_instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("bg instance buffer"),
@@ -882,11 +888,68 @@ impl CellRenderer {
             self.cursor_opacity = opacity;
             self.cursor_style = style;
             self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+
+            // Compute cursor overlay for beam/underline styles
+            use par_term_emu_core_rust::cursor::CursorStyle;
+            self.cursor_overlay = if opacity > 0.0 {
+                let col = pos.0;
+                let row = pos.1;
+                let x0 = (self.window_padding + col as f32 * self.cell_width).round();
+                let x1 = (self.window_padding + (col + 1) as f32 * self.cell_width).round();
+                let y0 = (self.window_padding + row as f32 * self.cell_height).round();
+                let y1 = (self.window_padding + (row + 1) as f32 * self.cell_height).round();
+
+                match style {
+                    // Block cursor: handled in cell background, no overlay needed
+                    CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => None,
+                    // Beam/Bar cursor: thin vertical line on the left (2 pixels wide)
+                    CursorStyle::SteadyBar | CursorStyle::BlinkingBar => {
+                        Some(BackgroundInstance {
+                            position: [
+                                x0 / self.config.width as f32 * 2.0 - 1.0,
+                                1.0 - (y0 / self.config.height as f32 * 2.0),
+                            ],
+                            size: [
+                                2.0 / self.config.width as f32 * 2.0,
+                                (y1 - y0) / self.config.height as f32 * 2.0,
+                            ],
+                            color: [self.cursor_color[0], self.cursor_color[1], self.cursor_color[2], opacity],
+                        })
+                    }
+                    // Underline cursor: thin horizontal line at the bottom (2 pixels tall)
+                    CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => {
+                        Some(BackgroundInstance {
+                            position: [
+                                x0 / self.config.width as f32 * 2.0 - 1.0,
+                                1.0 - ((y1 - 2.0) / self.config.height as f32 * 2.0),
+                            ],
+                            size: [
+                                (x1 - x0) / self.config.width as f32 * 2.0,
+                                2.0 / self.config.height as f32 * 2.0,
+                            ],
+                            color: [self.cursor_color[0], self.cursor_color[1], self.cursor_color[2], opacity],
+                        })
+                    }
+                }
+            } else {
+                None
+            };
         }
     }
 
     pub fn clear_cursor(&mut self) {
         self.update_cursor(self.cursor_pos, 0.0, self.cursor_style);
+    }
+
+    /// Update cursor color
+    pub fn update_cursor_color(&mut self, color: [u8; 3]) {
+        self.cursor_color = [
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0,
+        ];
+        // Mark cursor row as dirty to redraw with new color
+        self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
     }
 
     pub fn update_scrollbar(
@@ -1309,28 +1372,40 @@ impl CellRenderer {
                         continue;
                     }
 
-                    let mut bg_color = [
+                    let bg_color = [
                         cell.bg_color[0] as f32 / 255.0,
                         cell.bg_color[1] as f32 / 255.0,
                         cell.bg_color[2] as f32 / 255.0,
                         cell.bg_color[3] as f32 / 255.0,
                     ];
 
-                    // Simple cursor rendering: blend cursor color if it's on this cell
-                    if has_cursor {
-                        let cursor_color = [1.0, 1.0, 1.0, self.cursor_opacity];
-                        for i in 0..3 {
-                            bg_color[i] = bg_color[i] * (1.0 - self.cursor_opacity)
-                                + cursor_color[i] * self.cursor_opacity;
-                        }
-                        bg_color[3] = bg_color[3].max(self.cursor_opacity);
-                    }
-
                     let x0 = (self.window_padding + col as f32 * self.cell_width).round();
                     let x1 = (self.window_padding + (col + 1) as f32 * self.cell_width).round();
                     let y0 = (self.window_padding + row as f32 * self.cell_height).round();
                     let y1 = (self.window_padding + (row + 1) as f32 * self.cell_height).round();
 
+                    // Geometric cursor rendering based on cursor style
+                    // For block cursor, blend into cell background; for others, add overlay later
+                    let mut final_bg_color = bg_color;
+                    if has_cursor && self.cursor_opacity > 0.0 {
+                        use par_term_emu_core_rust::cursor::CursorStyle;
+                        match self.cursor_style {
+                            // Block cursor: blend cursor color into background
+                            CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
+                                for (bg, &cursor) in
+                                    final_bg_color.iter_mut().take(3).zip(&self.cursor_color)
+                                {
+                                    *bg = *bg * (1.0 - self.cursor_opacity)
+                                        + cursor * self.cursor_opacity;
+                                }
+                                final_bg_color[3] = final_bg_color[3].max(self.cursor_opacity);
+                            }
+                            // Beam/Bar and Underline: handled separately in cursor_instance
+                            _ => {}
+                        }
+                    }
+
+                    // Add cell background
                     row_bg.push(BackgroundInstance {
                         position: [
                             x0 / self.config.width as f32 * 2.0 - 1.0,
@@ -1340,7 +1415,7 @@ impl CellRenderer {
                             (x1 - x0) / self.config.width as f32 * 2.0,
                             (y1 - y0) / self.config.height as f32 * 2.0,
                         ],
-                        color: bg_color,
+                        color: final_bg_color,
                     });
                 }
 
@@ -1530,6 +1605,20 @@ impl CellRenderer {
                 self.dirty_rows[row] = false;
             }
         }
+
+        // Write cursor overlay to the last slot of bg_instances (for beam/underline cursors)
+        let cursor_overlay_index = self.cols * self.rows;
+        let cursor_overlay_instance = self.cursor_overlay.unwrap_or(BackgroundInstance {
+            position: [0.0, 0.0],
+            size: [0.0, 0.0],
+            color: [0.0, 0.0, 0.0, 0.0],
+        });
+        self.bg_instances[cursor_overlay_index] = cursor_overlay_instance;
+        self.queue.write_buffer(
+            &self.bg_instance_buffer,
+            (cursor_overlay_index * std::mem::size_of::<BackgroundInstance>()) as u64,
+            bytemuck::cast_slice(&[cursor_overlay_instance]),
+        );
 
         Ok(())
     }
