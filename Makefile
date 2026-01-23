@@ -253,6 +253,7 @@ package: release
 bundle: release
 ifeq ($(shell uname),Darwin)
 	@echo "Creating macOS app bundle..."
+	$(eval VERSION := $(shell grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/'))
 	@mkdir -p target/release/bundle/par-term.app/Contents/MacOS
 	@mkdir -p target/release/bundle/par-term.app/Contents/Resources
 	@cp target/release/par-term target/release/bundle/par-term.app/Contents/MacOS/
@@ -268,9 +269,9 @@ ifeq ($(shell uname),Darwin)
 	@echo '    <key>CFBundleIdentifier</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
 	@echo '    <string>com.paulrobello.par-term</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
 	@echo '    <key>CFBundleVersion</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>0.1.0</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
+	@echo '    <string>$(VERSION)</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
 	@echo '    <key>CFBundleShortVersionString</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo '    <string>0.1.0</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
+	@echo '    <string>$(VERSION)</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
 	@echo '    <key>CFBundleExecutable</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
 	@echo '    <string>par-term</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
 	@echo '    <key>CFBundleIconFile</key>' >> target/release/bundle/par-term.app/Contents/Info.plist
@@ -283,7 +284,7 @@ ifeq ($(shell uname),Darwin)
 	@echo '    <string>10.13</string>' >> target/release/bundle/par-term.app/Contents/Info.plist
 	@echo '</dict>' >> target/release/bundle/par-term.app/Contents/Info.plist
 	@echo '</plist>' >> target/release/bundle/par-term.app/Contents/Info.plist
-	@echo "Bundle created at: target/release/bundle/par-term.app"
+	@echo "Bundle created at: target/release/bundle/par-term.app (version $(VERSION))"
 else
 	@echo "App bundle creation is only supported on macOS"
 endif
