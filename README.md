@@ -10,6 +10,8 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/probello3)
 
+![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
+
 ## What's New in 0.2.0
 
 ### 🔋 Intelligent Redraw Loop (Power Efficiency)
