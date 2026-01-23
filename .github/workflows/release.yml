@@ -1,7 +1,7 @@
 name: Release and Deploy
 
 # This workflow handles the complete release process:
-# 1. Builds standalone binaries for multiple platforms (sequentially for debugging)
+# 1. Builds standalone binaries for multiple platforms (in parallel)
 # 2. Publishes the library to crates.io
 # 3. Creates a GitHub release with all binary artifacts
 # 4. Updates Homebrew cask
@@ -17,7 +17,7 @@ env:
   RUST_VERSION: "1.85.0"
 
 jobs:
-  # Build Linux ARM64 first using cross
+  # Build Linux ARM64 using cross (parallel)
   build-linux-arm64:
     name: Build binary - Linux ARM64
     runs-on: ubuntu-latest
@@ -54,12 +54,11 @@ jobs:
           path: release-binaries/par-term-linux-aarch64
           retention-days: 1
 
-  # Build Linux x86_64 after ARM64
+  # Build Linux x86_64 (parallel)
   build-linux-x86_64:
     name: Build binary - Linux x86_64
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [build-linux-arm64]
     steps:
       - uses: actions/checkout@v4
 
@@ -100,12 +99,11 @@ jobs:
           path: release-binaries/par-term-linux-x86_64
           retention-days: 1
 
-  # Build Windows x86_64 after Linux
+  # Build Windows x86_64 (parallel)
   build-windows-x86_64:
     name: Build binary - Windows x86_64
     runs-on: windows-latest
     timeout-minutes: 20
-    needs: [build-linux-x86_64]
     steps:
       - uses: actions/checkout@v4
 
@@ -140,12 +138,11 @@ jobs:
           path: release-binaries/par-term-windows-x86_64.exe
           retention-days: 1
 
-  # Build macOS x86_64 after Windows
+  # Build macOS x86_64 (parallel)
   build-macos-x86_64:
     name: Build binary - macOS x86_64
     runs-on: macos-latest
     timeout-minutes: 20
-    needs: [build-windows-x86_64]
     steps:
       - uses: actions/checkout@v4
 
@@ -219,12 +216,11 @@ jobs:
           path: release-binaries/par-term-macos-x86_64.zip
           retention-days: 1
 
-  # Build macOS ARM64 last
+  # Build macOS ARM64 (parallel)
   build-macos-arm64:
     name: Build binary - macOS ARM64
     runs-on: macos-latest
     timeout-minutes: 20
-    needs: [build-macos-x86_64]
     steps:
       - uses: actions/checkout@v4
 
@@ -298,12 +294,12 @@ jobs:
           path: release-binaries/par-term-macos-aarch64.zip
           retention-days: 1
 
-  # Publish to crates.io
+  # Publish to crates.io (after all builds complete)
   publish-crates:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [build-macos-arm64]
+    needs: [build-linux-arm64, build-linux-x86_64, build-windows-x86_64, build-macos-x86_64, build-macos-arm64]
     steps:
       - uses: actions/checkout@v4
 
@@ -345,12 +341,12 @@ jobs:
           args: 'Published {{ EVENT_PAYLOAD.repository.name }} to crates.io successfully!'
         continue-on-error: true
 
-  # Create GitHub release
+  # Create GitHub release (after all builds complete)
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [build-macos-arm64]
+    needs: [build-linux-arm64, build-linux-x86_64, build-windows-x86_64, build-macos-x86_64, build-macos-arm64]
     permissions:
       contents: write
       id-token: write
