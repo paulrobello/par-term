@@ -90,6 +90,12 @@ Significantly reduced CPU and GPU usage by switching from continuous polling to 
 
 ## Installation
 
+### Homebrew (macOS)
+
+```bash
+brew install --cask paulrobello/tap/par-term
+```
+
 ### From Source
 
 Requires Rust 1.85+ (2024 edition) and modern graphics drivers:
