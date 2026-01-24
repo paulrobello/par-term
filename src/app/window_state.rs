@@ -193,61 +193,61 @@ impl WindowState {
         extracted
     }
 
+    // ========================================================================
+    // DRY Helper Methods
+    // ========================================================================
+
+    /// Invalidate the active tab's cell cache, forcing regeneration on next render
+    #[inline]
+    pub(crate) fn invalidate_tab_cache(&mut self) {
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.cache.cells = None;
+        }
+    }
+
+    /// Request window redraw if window exists
+    #[inline]
+    pub(crate) fn request_redraw(&self) {
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// Invalidate cache and request redraw (common pattern after state changes)
+    #[inline]
+    #[allow(dead_code)] // Available for future use, cannot be used inside renderer borrow blocks
+    pub(crate) fn invalidate_and_redraw(&mut self) {
+        self.invalidate_tab_cache();
+        self.needs_redraw = true;
+        self.request_redraw();
+    }
+
+    /// Clear renderer cells and invalidate cache (used when switching tabs)
+    pub(crate) fn clear_and_invalidate(&mut self) {
+        if let Some(renderer) = &mut self.renderer {
+            renderer.clear_all_cells();
+        }
+        self.invalidate_tab_cache();
+        self.needs_redraw = true;
+        self.request_redraw();
+    }
+
     /// Rebuild the renderer after font-related changes and resize the terminal accordingly
     pub(crate) fn rebuild_renderer(&mut self) -> Result<()> {
+        use crate::app::renderer_init::RendererInitParams;
+
         let window = if let Some(w) = &self.window {
             Arc::clone(w)
         } else {
             return Ok(()); // Nothing to rebuild yet
         };
 
+        // Create renderer using DRY init params
         let theme = self.config.load_theme();
-        let font_family = if self.config.font_family.is_empty() {
-            None
-        } else {
-            Some(self.config.font_family.as_str())
-        };
-
-        let mut renderer = self.runtime.block_on(Renderer::new(
-            Arc::clone(&window),
-            font_family,
-            self.config.font_family_bold.as_deref(),
-            self.config.font_family_italic.as_deref(),
-            self.config.font_family_bold_italic.as_deref(),
-            &self.config.font_ranges,
-            self.config.font_size,
-            self.config.window_padding,
-            self.config.line_spacing,
-            self.config.char_spacing,
-            &self.config.scrollbar_position,
-            self.config.scrollbar_width,
-            self.config.scrollbar_thumb_color,
-            self.config.scrollbar_track_color,
-            self.config.enable_text_shaping,
-            self.config.enable_ligatures,
-            self.config.enable_kerning,
-            self.config.vsync_mode,
-            self.config.window_opacity,
-            theme.background.as_array(),
-            self.config.background_image.as_deref(),
-            self.config.background_image_enabled,
-            self.config.background_image_mode,
-            self.config.background_image_opacity,
-            self.config.custom_shader.as_deref(),
-            self.config.custom_shader_enabled,
-            self.config.custom_shader_animation,
-            self.config.custom_shader_animation_speed,
-            self.config.custom_shader_text_opacity,
-            self.config.custom_shader_full_content,
-            self.config.custom_shader_brightness,
-            // Custom shader channel textures
-            &self.config.shader_channel_paths(),
-            // Cursor shader settings
-            self.config.cursor_shader.as_deref(),
-            self.config.cursor_shader_enabled,
-            self.config.cursor_shader_animation,
-            self.config.cursor_shader_animation_speed,
-        ))?;
+        let params = RendererInitParams::from_config(&self.config, &theme);
+        let mut renderer = self
+            .runtime
+            .block_on(params.create_renderer(Arc::clone(&window)))?;
 
         let (cols, rows) = renderer.grid_size();
         let cell_width = renderer.cell_width();
@@ -265,128 +265,37 @@ impl WindowState {
             tab.cache.cells = None;
         }
 
-        // Initialize cursor shader config
-        renderer.update_cursor_shader_config(
-            self.config.cursor_shader_color,
-            self.config.cursor_shader_trail_duration,
-            self.config.cursor_shader_glow_radius,
-            self.config.cursor_shader_glow_intensity,
-        );
-
-        // Initialize cursor color from config
-        renderer.update_cursor_color(self.config.cursor_color);
-
-        // Hide cursor if cursor shader is enabled and configured to hide
-        renderer.set_cursor_hidden_for_shader(
-            self.config.cursor_shader_enabled && self.config.cursor_shader_hides_cursor,
-        );
+        // Apply cursor shader configuration
+        self.apply_cursor_shader_config(&mut renderer);
 
         self.renderer = Some(renderer);
         self.needs_redraw = true;
 
-        // Reset egui GPU textures so the new renderer has a fresh atlas, but
-        // preserve window positions/collapse state by cloning the previous
-        // egui memory into the new context (otherwise the Settings window
-        // snaps to the top-left and all panels collapse after font changes).
-        let previous_memory = self
-            .egui_ctx
-            .as_ref()
-            .map(|ctx| ctx.memory(|mem| mem.clone()));
-
-        let scale_factor = window.scale_factor() as f32;
-        let egui_ctx = egui::Context::default();
-        if let Some(memory) = previous_memory {
-            egui_ctx.memory_mut(|mem| *mem = memory);
-        }
-        let egui_state = egui_winit::State::new(
-            egui_ctx.clone(),
-            egui::ViewportId::ROOT,
-            &window,
-            Some(scale_factor),
-            None,
-            None,
-        );
-        self.egui_ctx = Some(egui_ctx);
-        self.egui_state = Some(egui_state);
-
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        // Reset egui with preserved memory (window positions, collapse state)
+        self.init_egui(&window, true);
+        self.request_redraw();
 
         Ok(())
     }
 
     /// Initialize the window asynchronously
     pub(crate) async fn initialize_async(&mut self, window: Window) -> Result<()> {
+        use crate::app::renderer_init::RendererInitParams;
+
         // Enable IME (Input Method Editor) to receive all character events including Space
         window.set_ime_allowed(true);
         log::debug!("IME enabled for character input");
 
         let window = Arc::new(window);
 
-        // Initialize egui context and state
-        let egui_ctx = egui::Context::default();
-        let egui_state = egui_winit::State::new(
-            egui_ctx.clone(),
-            egui::ViewportId::ROOT,
-            &window,
-            Some(window.scale_factor() as f32),
-            None,
-            None, // max_texture_side
-        );
-        self.egui_ctx = Some(egui_ctx);
-        self.egui_state = Some(egui_state);
+        // Initialize egui context and state (no memory to preserve on first init)
+        self.init_egui(&window, false);
 
-        // Create renderer with font family from config
-        let font_family = if self.config.font_family.is_empty() {
-            None
-        } else {
-            Some(self.config.font_family.as_str())
-        };
+        // Create renderer using DRY init params
         let theme = self.config.load_theme();
-        let mut renderer = Renderer::new(
-            Arc::clone(&window),
-            font_family,
-            self.config.font_family_bold.as_deref(),
-            self.config.font_family_italic.as_deref(),
-            self.config.font_family_bold_italic.as_deref(),
-            &self.config.font_ranges,
-            self.config.font_size,
-            self.config.window_padding,
-            self.config.line_spacing,
-            self.config.char_spacing,
-            &self.config.scrollbar_position,
-            self.config.scrollbar_width,
-            self.config.scrollbar_thumb_color,
-            self.config.scrollbar_track_color,
-            self.config.enable_text_shaping,
-            self.config.enable_ligatures,
-            self.config.enable_kerning,
-            self.config.vsync_mode,
-            self.config.window_opacity,
-            theme.background.as_array(),
-            self.config.background_image.as_deref(),
-            self.config.background_image_enabled,
-            self.config.background_image_mode,
-            self.config.background_image_opacity,
-            self.config.custom_shader.as_deref(),
-            self.config.custom_shader_enabled,
-            self.config.custom_shader_animation,
-            self.config.custom_shader_animation_speed,
-            self.config.custom_shader_text_opacity,
-            self.config.custom_shader_full_content,
-            self.config.custom_shader_brightness,
-            // Custom shader channel textures
-            &self.config.shader_channel_paths(),
-            // Cursor shader settings
-            self.config.cursor_shader.as_deref(),
-            self.config.cursor_shader_enabled,
-            self.config.cursor_shader_animation,
-            self.config.cursor_shader_animation_speed,
-        )
-        .await?;
+        let params = RendererInitParams::from_config(&self.config, &theme);
+        let mut renderer = params.create_renderer(Arc::clone(&window)).await?;
 
-        // macOS: also update the NSWindow alpha so the OS compositor reflects live opacity
         // macOS: Configure CAMetalLayer (transparency + performance)
         // This MUST be done AFTER creating the wgpu surface/renderer
         // so that the CAMetalLayer has been created by wgpu
@@ -404,21 +313,8 @@ impl WindowState {
             }
         }
 
-        // Initialize cursor shader config
-        renderer.update_cursor_shader_config(
-            self.config.cursor_shader_color,
-            self.config.cursor_shader_trail_duration,
-            self.config.cursor_shader_glow_radius,
-            self.config.cursor_shader_glow_intensity,
-        );
-
-        // Initialize cursor color from config
-        renderer.update_cursor_color(self.config.cursor_color);
-
-        // Hide cursor if cursor shader is enabled and configured to hide
-        renderer.set_cursor_hidden_for_shader(
-            self.config.cursor_shader_enabled && self.config.cursor_shader_hides_cursor,
-        );
+        // Apply cursor shader configuration
+        self.apply_cursor_shader_config(&mut renderer);
 
         self.window = Some(Arc::clone(&window));
         self.renderer = Some(renderer);
@@ -494,11 +390,8 @@ impl WindowState {
         }
 
         // Request redraw
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
-
         self.needs_redraw = true;
+        self.request_redraw();
     }
 
     /// Check if egui is currently using the pointer (mouse is over an egui UI element)
@@ -1084,7 +977,9 @@ impl WindowState {
                 cursor_shader_apply,
             )) = pending_config_update
             {
-                // Handle background shader apply request first
+                use crate::app::config_updates::ConfigChanges;
+
+                // Handle shader apply requests from editors
                 if let Some(shader_result) = shader_apply {
                     log::info!(
                         "Applying background shader from editor ({} bytes)",
@@ -1102,8 +997,6 @@ impl WindowState {
                         }
                     }
                 }
-
-                // Handle cursor shader apply request
                 if let Some(cursor_shader_result) = cursor_shader_apply {
                     log::info!(
                         "Applying cursor shader from editor ({} bytes)",
@@ -1121,143 +1014,61 @@ impl WindowState {
                         }
                     }
                 }
+
                 // Apply live updates immediately (for visual feedback)
                 if let Some(live_config) = config_for_live_update {
-                    let theme_changed = live_config.theme != self.config.theme;
-                    let shader_animation_changed =
-                        live_config.custom_shader_animation != self.config.custom_shader_animation;
-                    let shader_enabled_changed =
-                        live_config.custom_shader_enabled != self.config.custom_shader_enabled;
-                    let shader_path_changed =
-                        live_config.custom_shader != self.config.custom_shader;
-                    let shader_speed_changed = (live_config.custom_shader_animation_speed
-                        - self.config.custom_shader_animation_speed)
-                        .abs()
-                        > f32::EPSILON;
-                    let shader_full_content_changed = live_config.custom_shader_full_content
-                        != self.config.custom_shader_full_content;
-                    let shader_text_opacity_changed = (live_config.custom_shader_text_opacity
-                        - self.config.custom_shader_text_opacity)
-                        .abs()
-                        > f32::EPSILON;
-                    let shader_brightness_changed = (live_config.custom_shader_brightness
-                        - self.config.custom_shader_brightness)
-                        .abs()
-                        > f32::EPSILON;
-                    let cursor_shader_config_changed = live_config.cursor_shader_color
-                        != self.config.cursor_shader_color
-                        || (live_config.cursor_shader_trail_duration
-                            - self.config.cursor_shader_trail_duration)
-                            .abs()
-                            > f32::EPSILON
-                        || (live_config.cursor_shader_glow_radius
-                            - self.config.cursor_shader_glow_radius)
-                            .abs()
-                            > f32::EPSILON
-                        || (live_config.cursor_shader_glow_intensity
-                            - self.config.cursor_shader_glow_intensity)
-                            .abs()
-                            > f32::EPSILON;
-                    let cursor_shader_path_changed =
-                        live_config.cursor_shader != self.config.cursor_shader;
-                    let cursor_shader_enabled_changed =
-                        live_config.cursor_shader_enabled != self.config.cursor_shader_enabled;
-                    let cursor_shader_animation_changed =
-                        live_config.cursor_shader_animation != self.config.cursor_shader_animation;
-                    let cursor_shader_speed_changed = (live_config.cursor_shader_animation_speed
-                        - self.config.cursor_shader_animation_speed)
-                        .abs()
-                        > f32::EPSILON;
-                    let cursor_shader_hides_cursor_changed = live_config.cursor_shader_hides_cursor
-                        != self.config.cursor_shader_hides_cursor;
-                    let _scrollbar_position_changed =
-                        live_config.scrollbar_position != self.config.scrollbar_position;
-                    let window_title_changed = live_config.window_title != self.config.window_title;
-                    let window_decorations_changed =
-                        live_config.window_decorations != self.config.window_decorations;
-                    let max_fps_changed = live_config.max_fps != self.config.max_fps;
-                    let cursor_style_changed = live_config.cursor_style != self.config.cursor_style;
-                    let cursor_color_changed = live_config.cursor_color != self.config.cursor_color;
-                    let bg_enabled_changed = live_config.background_image_enabled
-                        != self.config.background_image_enabled;
-                    let bg_path_changed =
-                        live_config.background_image != self.config.background_image;
-                    let bg_mode_changed =
-                        live_config.background_image_mode != self.config.background_image_mode;
-                    let bg_opacity_changed = (live_config.background_image_opacity
-                        - self.config.background_image_opacity)
-                        .abs()
-                        > f32::EPSILON;
-                    let font_changed = live_config.font_family != self.config.font_family
-                        || live_config.font_family_bold != self.config.font_family_bold
-                        || live_config.font_family_italic != self.config.font_family_italic
-                        || live_config.font_family_bold_italic
-                            != self.config.font_family_bold_italic
-                        || (live_config.font_size - self.config.font_size).abs() > f32::EPSILON
-                        || (live_config.line_spacing - self.config.line_spacing).abs()
-                            > f32::EPSILON
-                        || (live_config.char_spacing - self.config.char_spacing).abs()
-                            > f32::EPSILON;
-                    let padding_changed = (live_config.window_padding - self.config.window_padding)
-                        .abs()
-                        > f32::EPSILON;
+                    // Detect what changed using structured approach
+                    let changes = ConfigChanges::detect(&self.config, &live_config);
+
                     log::info!(
                         "Applying live config update - opacity: {}{}{}",
                         live_config.window_opacity,
-                        if theme_changed {
+                        if changes.theme {
                             " (theme changed)"
                         } else {
                             ""
                         },
-                        if font_changed { " (font changed)" } else { "" }
+                        if changes.font { " (font changed)" } else { "" }
                     );
                     self.config = live_config;
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
                         tab.scroll_state.last_activity = std::time::Instant::now();
                     }
 
-                    // Apply settings that can be updated in real-time
+                    // Apply window-related changes
                     if let Some(window) = &self.window {
-                        // Update window level (always on top)
                         window.set_window_level(if self.config.window_always_on_top {
                             winit::window::WindowLevel::AlwaysOnTop
                         } else {
                             winit::window::WindowLevel::Normal
                         });
-
-                        // Update window title
-                        if window_title_changed {
+                        if changes.window_title {
                             window.set_title(&self.config.window_title);
                             log::info!("Updated window title to: {}", self.config.window_title);
                         }
-
-                        // Update window decorations
-                        if window_decorations_changed {
+                        if changes.window_decorations {
                             window.set_decorations(self.config.window_decorations);
                             log::info!(
                                 "Updated window decorations: {}",
                                 self.config.window_decorations
                             );
                         }
-
-                        // Request redraw to apply visual changes
                         window.request_redraw();
                     }
 
-                    // Update max_fps (restart refresh timer with new interval for all tabs)
-                    if max_fps_changed {
-                        // Update all tabs' refresh tasks
-                        if let Some(window) = &self.window {
-                            for tab in self.tab_manager.tabs_mut() {
-                                tab.stop_refresh_task();
-                                tab.start_refresh_task(
-                                    Arc::clone(&self.runtime),
-                                    Arc::clone(window),
-                                    self.config.max_fps,
-                                );
-                            }
-                            log::info!("Updated max_fps to {} for all tabs", self.config.max_fps);
+                    // Update max_fps for all tabs
+                    if changes.max_fps
+                        && let Some(window) = &self.window
+                    {
+                        for tab in self.tab_manager.tabs_mut() {
+                            tab.stop_refresh_task();
+                            tab.start_refresh_task(
+                                Arc::clone(&self.runtime),
+                                Arc::clone(window),
+                                self.config.max_fps,
+                            );
                         }
+                        log::info!("Updated max_fps to {} for all tabs", self.config.max_fps);
                     }
 
                     // Update renderer with real-time settings
@@ -1267,18 +1078,14 @@ impl WindowState {
                         self.config.scrollbar_thumb_color,
                         self.config.scrollbar_track_color,
                     );
-                    // Scrollbar position is now fixed to right; ignore config changes
 
-                    if cursor_style_changed {
-                        // Set cursor style directly on the terminal (no need to send DECSCUSR to PTY)
-                        // This updates the terminal's internal cursor state without involving the shell
+                    // Apply cursor style change
+                    if changes.cursor_style {
                         if let Some(tab) = self.tab_manager.active_tab()
                             && let Ok(term_mgr) = tab.terminal.try_lock()
                         {
-                            // Get the underlying Terminal from TerminalManager
                             let terminal = term_mgr.terminal();
                             if let Some(mut term) = terminal.try_lock() {
-                                // Convert config cursor style to terminal cursor style
                                 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
                                 let term_style = match self.config.cursor_style {
                                     crate::config::CursorStyle::Block => {
@@ -1292,8 +1099,6 @@ impl WindowState {
                                 term.set_cursor_style(term_style);
                             }
                         }
-
-                        // Force cell regen to reflect cursor style change
                         if let Some(tab) = self.tab_manager.active_tab_mut() {
                             tab.cache.cells = None;
                             tab.cache.cursor_pos = None;
@@ -1304,9 +1109,8 @@ impl WindowState {
                     }
 
                     // Update cursor color
-                    if cursor_color_changed {
+                    if changes.cursor_color {
                         renderer.update_cursor_color(self.config.cursor_color);
-                        // Force cell regen to reflect cursor color change
                         if let Some(tab) = self.tab_manager.active_tab_mut() {
                             tab.cache.cells = None;
                             tab.cache.cursor_pos = None;
@@ -1316,16 +1120,12 @@ impl WindowState {
                         }
                     }
 
+                    // Update background image
                     if self.config.background_image_enabled {
                         renderer
                             .update_background_image_opacity(self.config.background_image_opacity);
                     }
-
-                    if bg_enabled_changed
-                        || bg_path_changed
-                        || bg_mode_changed
-                        || bg_opacity_changed
-                    {
+                    if changes.any_bg_change() {
                         renderer.set_background_image_enabled(
                             self.config.background_image_enabled,
                             self.config.background_image.as_deref(),
@@ -1334,14 +1134,8 @@ impl WindowState {
                         );
                     }
 
-                    if shader_animation_changed
-                        || shader_enabled_changed
-                        || shader_path_changed
-                        || shader_speed_changed
-                        || shader_full_content_changed
-                        || shader_text_opacity_changed
-                        || shader_brightness_changed
-                    {
+                    // Apply shader changes
+                    if changes.any_shader_change() {
                         match renderer.set_custom_shader_enabled(
                             self.config.custom_shader_enabled,
                             self.config.custom_shader.as_deref(),
@@ -1353,9 +1147,7 @@ impl WindowState {
                             self.config.custom_shader_brightness,
                             &self.config.shader_channel_paths(),
                         ) {
-                            Ok(()) => {
-                                self.settings_ui.clear_shader_error();
-                            }
+                            Ok(()) => self.settings_ui.clear_shader_error(),
                             Err(error_msg) => {
                                 log::error!("Shader compilation failed: {}", error_msg);
                                 self.settings_ui.set_shader_error(Some(error_msg));
@@ -1364,7 +1156,7 @@ impl WindowState {
                     }
 
                     // Update cursor shader configuration
-                    if cursor_shader_config_changed {
+                    if changes.cursor_shader_config {
                         renderer.update_cursor_shader_config(
                             self.config.cursor_shader_color,
                             self.config.cursor_shader_trail_duration,
@@ -1373,12 +1165,8 @@ impl WindowState {
                         );
                     }
 
-                    // Handle cursor shader path/enabled/animation changes
-                    if cursor_shader_path_changed
-                        || cursor_shader_enabled_changed
-                        || cursor_shader_animation_changed
-                        || cursor_shader_speed_changed
-                    {
+                    // Handle cursor shader toggle changes
+                    if changes.any_cursor_shader_toggle() {
                         match renderer.set_cursor_shader_enabled(
                             self.config.cursor_shader_enabled,
                             self.config.cursor_shader.as_deref(),
@@ -1386,9 +1174,7 @@ impl WindowState {
                             self.config.cursor_shader_animation,
                             self.config.cursor_shader_animation_speed,
                         ) {
-                            Ok(()) => {
-                                self.settings_ui.clear_cursor_shader_error();
-                            }
+                            Ok(()) => self.settings_ui.clear_cursor_shader_error(),
                             Err(error_msg) => {
                                 log::error!("Cursor shader compilation failed: {}", error_msg);
                                 self.settings_ui.set_cursor_shader_error(Some(error_msg));
@@ -1396,23 +1182,22 @@ impl WindowState {
                         }
                     }
 
-                    // Update cursor hidden state when shader enabled or hides_cursor setting changes
-                    if cursor_shader_enabled_changed || cursor_shader_hides_cursor_changed {
+                    // Update cursor hidden state
+                    if changes.cursor_shader_enabled || changes.cursor_shader_hides_cursor {
                         renderer.set_cursor_hidden_for_shader(
                             self.config.cursor_shader_enabled
                                 && self.config.cursor_shader_hides_cursor,
                         );
                     }
 
-                    // Apply theme changes immediately to the terminal
-                    if theme_changed {
+                    // Apply theme changes
+                    if changes.theme {
                         if let Some(tab) = self.tab_manager.active_tab()
                             && let Ok(mut term) = tab.terminal.try_lock()
                         {
                             term.set_theme(self.config.load_theme());
                             log::info!("Applied live theme change: {}", self.config.theme);
                         }
-                        // Force redraw so new theme colors show up right away
                         if let Some(tab) = self.tab_manager.active_tab_mut() {
                             tab.cache.cells = None;
                         }
@@ -1421,23 +1206,21 @@ impl WindowState {
                         }
                     }
 
-                    if font_changed {
-                        // Rebuild renderer on next frame to apply font/spacing changes without restart
+                    // Queue font rebuild
+                    if changes.font {
                         self.pending_font_rebuild = true;
                         log::info!("Queued renderer rebuild for font change");
                     }
 
-                    // Update window padding dynamically (no rebuild needed)
-                    if padding_changed {
+                    // Apply padding change
+                    if changes.padding {
                         if let Some((cols, rows)) =
                             renderer.update_window_padding(self.config.window_padding)
                         {
-                            // Grid size changed - resize all tabs' terminals to match
                             let cell_width = renderer.cell_width();
                             let cell_height = renderer.cell_height();
                             let width_px = (cols as f32 * cell_width) as usize;
                             let height_px = (rows as f32 * cell_height) as usize;
-
                             for tab in self.tab_manager.tabs_mut() {
                                 if let Ok(mut term) = tab.terminal.try_lock() {
                                     let _ =
@@ -1453,14 +1236,11 @@ impl WindowState {
                         log::info!("Updated window padding to {}", self.config.window_padding);
                     }
 
-                    // Invalidate cell cache to force regeneration with new opacity
+                    // Invalidate cell cache
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
                         tab.cache.cells = None;
-                        // Track last applied opacity
                         tab.cache.applied_opacity = self.config.window_opacity;
                     }
-
-                    // Request multiple redraws to ensure changes are visible
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
@@ -1478,7 +1258,6 @@ impl WindowState {
                             new_config.notification_bell_visual,
                             new_config.notification_bell_desktop
                         );
-                        // Update settings_ui with saved config
                         self.settings_ui.update_config(new_config);
                     }
                 }

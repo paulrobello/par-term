@@ -63,9 +63,7 @@ impl WindowState {
                 }
 
                 self.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             Err(e) => {
                 log::error!("Failed to create new tab: {}", e);
@@ -79,9 +77,7 @@ impl WindowState {
         if let Some(tab_id) = self.tab_manager.active_tab_id() {
             let is_last = self.tab_manager.close_tab(tab_id);
             self.needs_redraw = true;
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             is_last
         } else {
             true // No tabs, window should close
@@ -91,67 +87,33 @@ impl WindowState {
     /// Switch to next tab
     pub fn next_tab(&mut self) {
         self.tab_manager.next_tab();
-        // Clear renderer cells and invalidate cache to ensure clean switch
-        if let Some(renderer) = &mut self.renderer {
-            renderer.clear_all_cells();
-        }
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.cache.cells = None;
-        }
-        self.needs_redraw = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.clear_and_invalidate();
     }
 
     /// Switch to previous tab
     pub fn prev_tab(&mut self) {
         self.tab_manager.prev_tab();
-        // Clear renderer cells and invalidate cache to ensure clean switch
-        if let Some(renderer) = &mut self.renderer {
-            renderer.clear_all_cells();
-        }
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.cache.cells = None;
-        }
-        self.needs_redraw = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.clear_and_invalidate();
     }
 
     /// Switch to tab by index (1-based)
     pub fn switch_to_tab_index(&mut self, index: usize) {
         self.tab_manager.switch_to_index(index);
-        // Clear renderer cells and invalidate cache to ensure clean switch
-        if let Some(renderer) = &mut self.renderer {
-            renderer.clear_all_cells();
-        }
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.cache.cells = None;
-        }
-        self.needs_redraw = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.clear_and_invalidate();
     }
 
     /// Move current tab left
     pub fn move_tab_left(&mut self) {
         self.tab_manager.move_active_tab_left();
         self.needs_redraw = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.request_redraw();
     }
 
     /// Move current tab right
     pub fn move_tab_right(&mut self) {
         self.tab_manager.move_active_tab_right();
         self.needs_redraw = true;
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        }
+        self.request_redraw();
     }
 
     /// Duplicate current tab
@@ -172,9 +134,7 @@ impl WindowState {
                     );
                 }
                 self.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
             Ok(None) => {
                 log::debug!("No active tab to duplicate");
