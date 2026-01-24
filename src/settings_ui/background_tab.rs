@@ -3,7 +3,11 @@ use crate::config::BackgroundImageMode;
 use arboard::Clipboard;
 use egui::Color32;
 
-pub fn show_background(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show_background(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
     ui.collapsing("Background & Effects", |ui| {
         ui.horizontal(|ui| {
             ui.label("Background image path:");
@@ -292,7 +296,11 @@ pub fn show_background(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_thi
     });
 }
 
-pub fn show_cursor_shader(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show_cursor_shader(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
     ui.collapsing("Cursor Shader", |ui| {
         ui.label("Apply shader effects to cursor (trails, glow, etc.)");
         ui.add_space(4.0);
@@ -312,7 +320,10 @@ pub fn show_cursor_shader(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_
                 .width(200.0)
                 .show_ui(ui, |ui| {
                     // Option to select none
-                    if ui.selectable_label(settings.temp_cursor_shader.is_empty(), "(none)").clicked() {
+                    if ui
+                        .selectable_label(settings.temp_cursor_shader.is_empty(), "(none)")
+                        .clicked()
+                    {
                         settings.temp_cursor_shader.clear();
                         settings.config.cursor_shader = None;
                         shader_changed = true;
@@ -335,14 +346,21 @@ pub fn show_cursor_shader(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_
             }
 
             // Refresh button
-            if ui.button("↻").on_hover_text("Refresh shader list").clicked() {
+            if ui
+                .button("↻")
+                .on_hover_text("Refresh shader list")
+                .clicked()
+            {
                 settings.refresh_shaders();
             }
         });
 
         // Browse button for cursor shader
         ui.horizontal(|ui| {
-            if ui.button("Browse...").on_hover_text("Browse for external shader file").clicked()
+            if ui
+                .button("Browse...")
+                .on_hover_text("Browse for external shader file")
+                .clicked()
                 && let Some(path) = settings.pick_file_path("Select cursor shader file")
             {
                 settings.temp_cursor_shader = path.clone();
@@ -384,7 +402,7 @@ pub fn show_cursor_shader(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_
                             .font(egui::TextStyle::Monospace)
                             .desired_width(f32::INFINITY)
                             .desired_rows(3)
-                            .interactive(false)
+                            .interactive(false),
                     );
                 });
             ui.add_space(4.0);
@@ -429,10 +447,8 @@ pub fn show_cursor_shader(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_
         // Edit Shader button - only enabled when a shader path is set
         let has_shader_path = !settings.temp_cursor_shader.is_empty();
         ui.horizontal(|ui| {
-            let edit_button = ui.add_enabled(
-                has_shader_path,
-                egui::Button::new("Edit Cursor Shader..."),
-            );
+            let edit_button =
+                ui.add_enabled(has_shader_path, egui::Button::new("Edit Cursor Shader..."));
             if edit_button.clicked() {
                 // Load shader source from file
                 let shader_path = crate::config::Config::shader_path(&settings.temp_cursor_shader);

@@ -76,15 +76,15 @@ struct AppState {
     pub(crate) last_cursor_blink: Option<std::time::Instant>, // Time of last cursor blink toggle
     pub(crate) last_key_press: Option<std::time::Instant>, // Time of last key press (to reset cursor blink)
     pub(crate) is_fullscreen: bool, // Whether window is currently in fullscreen mode
-    pub(crate) egui_ctx: Option<egui::Context>,               // egui context for GUI rendering
-    pub(crate) egui_state: Option<egui_winit::State>,         // egui-winit state for event handling
-    pub(crate) settings_ui: SettingsUI,                       // Settings UI manager
-    pub(crate) help_ui: HelpUI,                               // Help UI manager
-    pub(crate) clipboard_history_ui: ClipboardHistoryUI,      // Clipboard history UI manager
-    pub(crate) is_recording: bool,                            // Whether terminal session recording is active
+    pub(crate) egui_ctx: Option<egui::Context>, // egui context for GUI rendering
+    pub(crate) egui_state: Option<egui_winit::State>, // egui-winit state for event handling
+    pub(crate) settings_ui: SettingsUI, // Settings UI manager
+    pub(crate) help_ui: HelpUI,     // Help UI manager
+    pub(crate) clipboard_history_ui: ClipboardHistoryUI, // Clipboard history UI manager
+    pub(crate) is_recording: bool,  // Whether terminal session recording is active
     #[allow(dead_code)] // Used in recording feature but clippy doesn't detect it
     pub(crate) recording_start_time: Option<std::time::Instant>, // When recording started
-    pub(crate) is_shutting_down: bool,                        // Flag to indicate shutdown is in progress
+    pub(crate) is_shutting_down: bool, // Flag to indicate shutdown is in progress
 
     // Smart redraw tracking (event-driven rendering)
     pub(crate) needs_redraw: bool, // Whether we need to render next frame
@@ -489,8 +489,6 @@ impl AppState {
         Ok(())
     }
 
-
-
     /// Force surface reconfiguration - useful when rendering becomes corrupted
     /// after moving between monitors or when automatic detection fails.
     /// Also clears glyph cache to ensure fonts render correctly.
@@ -525,8 +523,6 @@ impl AppState {
 
         self.needs_redraw = true;
     }
-
-
 
     fn handle_fullscreen_toggle(&mut self, event: &KeyEvent) -> bool {
         use winit::event::ElementState;
@@ -762,14 +758,6 @@ impl AppState {
         }
     }
 
-
-
-
-
-
-
-
-
     /// Determine if scrollbar should be visible based on autohide setting and recent activity
     fn should_show_scrollbar(&self) -> bool {
         // No scrollbar needed if no scrollback available
@@ -809,9 +797,6 @@ impl AppState {
         self.scroll_state.last_activity.elapsed().as_millis()
             < self.config.scrollbar_autohide_delay as u128
     }
-
-    /// Select word at the given position
-
 
     /// Update cursor blink state based on configured interval
     fn update_cursor_blink(&mut self) {
@@ -1002,10 +987,7 @@ impl AppState {
         let (scrollback_len, terminal_title) = if let Ok(term) = terminal.try_lock() {
             (term.scrollback_len(), term.get_title())
         } else {
-            (
-                self.cache.scrollback_len,
-                self.cache.terminal_title.clone(),
-            )
+            (self.cache.scrollback_len, self.cache.terminal_title.clone())
         };
 
         self.cache.scrollback_len = scrollback_len;
@@ -1357,8 +1339,7 @@ impl AppState {
                         live_config.window_decorations != self.config.window_decorations;
                     let max_fps_changed = live_config.max_fps != self.config.max_fps;
                     let cursor_style_changed = live_config.cursor_style != self.config.cursor_style;
-                    let cursor_color_changed =
-                        live_config.cursor_color != self.config.cursor_color;
+                    let cursor_color_changed = live_config.cursor_color != self.config.cursor_color;
                     let bg_enabled_changed = live_config.background_image_enabled
                         != self.config.background_image_enabled;
                     let bg_path_changed =
@@ -1776,18 +1757,7 @@ impl AppState {
             );
         }
     }
-
-
-
-
-
-
-
-
-
 }
-
-
 
 impl Drop for AppState {
     fn drop(&mut self) {

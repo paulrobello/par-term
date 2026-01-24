@@ -54,7 +54,11 @@ impl CellRenderer {
         self.lru_head = Some(key);
     }
 
-    pub(crate) fn rasterize_glyph(&self, font_idx: usize, glyph_id: u16) -> Option<RasterizedGlyph> {
+    pub(crate) fn rasterize_glyph(
+        &self,
+        font_idx: usize,
+        glyph_id: u16,
+    ) -> Option<RasterizedGlyph> {
         let font = self.font_manager.get_font(font_idx)?;
         // Use swash to rasterize
         use swash::scale::image::Content;

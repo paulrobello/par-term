@@ -521,11 +521,15 @@ impl CustomShaderRenderer {
         if self.frame_count.is_multiple_of(60) {
             log::debug!(
                 "CURSOR_SHADER: pos=({},{}) -> pixels=({:.1},{:.1}), cell=({:.1}x{:.1}), padding={:.1}, resolution={}x{}",
-                self.current_cursor_pos.0, self.current_cursor_pos.1,
-                curr_x, curr_y,
-                self.cursor_cell_width, self.cursor_cell_height,
+                self.current_cursor_pos.0,
+                self.current_cursor_pos.1,
+                curr_x,
+                curr_y,
+                self.cursor_cell_width,
+                self.cursor_cell_height,
                 self.cursor_window_padding,
-                self.texture_width, self.texture_height
+                self.texture_width,
+                self.texture_height
             );
         }
 
@@ -905,7 +909,3 @@ impl CustomShaderRenderer {
         Ok(())
     }
 }
-
-
-
-

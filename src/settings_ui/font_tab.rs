@@ -14,7 +14,10 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
 
         ui.horizontal(|ui| {
             ui.label("Bold font (optional):");
-            if ui.text_edit_singleline(&mut settings.temp_font_bold).changed() {
+            if ui
+                .text_edit_singleline(&mut settings.temp_font_bold)
+                .changed()
+            {
                 settings.font_pending_changes = true;
             }
         });
@@ -52,7 +55,10 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         ui.horizontal(|ui| {
             ui.label("Line spacing:");
             if ui
-                .add(egui::Slider::new(&mut settings.temp_line_spacing, 0.8..=2.0))
+                .add(egui::Slider::new(
+                    &mut settings.temp_line_spacing,
+                    0.8..=2.0,
+                ))
                 .changed()
             {
                 settings.font_pending_changes = true;
@@ -62,7 +68,10 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         ui.horizontal(|ui| {
             ui.label("Char spacing:");
             if ui
-                .add(egui::Slider::new(&mut settings.temp_char_spacing, 0.5..=1.0))
+                .add(egui::Slider::new(
+                    &mut settings.temp_char_spacing,
+                    0.5..=1.0,
+                ))
                 .changed()
             {
                 settings.font_pending_changes = true;
@@ -70,7 +79,10 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         });
 
         if ui
-            .checkbox(&mut settings.temp_enable_text_shaping, "Enable text shaping")
+            .checkbox(
+                &mut settings.temp_enable_text_shaping,
+                "Enable text shaping",
+            )
             .changed()
         {
             settings.font_pending_changes = true;

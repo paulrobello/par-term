@@ -826,19 +826,22 @@ impl CellRenderer {
                     // Block cursor: handled in cell background, no overlay needed
                     CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => None,
                     // Beam/Bar cursor: thin vertical line on the left (2 pixels wide)
-                    CursorStyle::SteadyBar | CursorStyle::BlinkingBar => {
-                        Some(BackgroundInstance {
-                            position: [
-                                x0 / self.config.width as f32 * 2.0 - 1.0,
-                                1.0 - (y0 / self.config.height as f32 * 2.0),
-                            ],
-                            size: [
-                                2.0 / self.config.width as f32 * 2.0,
-                                (y1 - y0) / self.config.height as f32 * 2.0,
-                            ],
-                            color: [self.cursor_color[0], self.cursor_color[1], self.cursor_color[2], opacity],
-                        })
-                    }
+                    CursorStyle::SteadyBar | CursorStyle::BlinkingBar => Some(BackgroundInstance {
+                        position: [
+                            x0 / self.config.width as f32 * 2.0 - 1.0,
+                            1.0 - (y0 / self.config.height as f32 * 2.0),
+                        ],
+                        size: [
+                            2.0 / self.config.width as f32 * 2.0,
+                            (y1 - y0) / self.config.height as f32 * 2.0,
+                        ],
+                        color: [
+                            self.cursor_color[0],
+                            self.cursor_color[1],
+                            self.cursor_color[2],
+                            opacity,
+                        ],
+                    }),
                     // Underline cursor: thin horizontal line at the bottom (2 pixels tall)
                     CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => {
                         Some(BackgroundInstance {
@@ -850,7 +853,12 @@ impl CellRenderer {
                                 (x1 - x0) / self.config.width as f32 * 2.0,
                                 2.0 / self.config.height as f32 * 2.0,
                             ],
-                            color: [self.cursor_color[0], self.cursor_color[1], self.cursor_color[2], opacity],
+                            color: [
+                                self.cursor_color[0],
+                                self.cursor_color[1],
+                                self.cursor_color[2],
+                                opacity,
+                            ],
                         })
                     }
                 }
@@ -913,8 +921,6 @@ impl CellRenderer {
         None
     }
 
-
-
     pub fn update_scrollbar_appearance(
         &mut self,
         width: f32,
@@ -949,24 +955,6 @@ impl CellRenderer {
         self.surface.configure(&self.device, &self.config);
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     #[allow(dead_code)]
     pub fn update_graphics(
         &mut self,
@@ -977,8 +965,4 @@ impl CellRenderer {
     ) -> Result<()> {
         Ok(())
     }
-
-
 }
-
-

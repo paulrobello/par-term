@@ -438,12 +438,6 @@ impl Renderer {
         self.dirty = true;
     }
 
-
-
-
-
-
-
     /// Update scrollbar appearance in real-time
     pub fn update_scrollbar_appearance(
         &mut self,
@@ -463,15 +457,11 @@ impl Renderer {
         self.dirty = true;
     }
 
-
-
     /// Update background image opacity in real-time
     pub fn update_background_image_opacity(&mut self, opacity: f32) {
         self.cell_renderer.update_background_image_opacity(opacity);
         self.dirty = true;
     }
-
-
 
     /// Check if animation requires continuous rendering
     ///
@@ -631,8 +621,6 @@ impl Renderer {
 
         Ok(true)
     }
-
-
 
     /// Render egui overlay on top of the terminal
     fn render_egui(
@@ -804,8 +792,6 @@ impl Renderer {
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }
-
-
 
     /// Set debug overlay text to be rendered
     #[allow(dead_code)]

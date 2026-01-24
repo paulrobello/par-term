@@ -13,11 +13,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                 .selected_text(selected.as_str())
                 .show_ui(ui, |ui| {
                     for opt in options {
-                        ui.selectable_value(
-                            &mut selected,
-                            opt.to_string(),
-                            opt,
-                        );
+                        ui.selectable_value(&mut selected, opt.to_string(), opt);
                     }
                 });
 

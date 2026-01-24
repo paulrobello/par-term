@@ -3,9 +3,15 @@ use std::time::Instant;
 
 /// State related to audio and visual bells
 pub struct BellState {
-    pub audio: Option<AudioBell>, // Audio bell for terminal bell sounds
-    pub last_count: u64, // Last bell event count from terminal
+    pub audio: Option<AudioBell>,      // Audio bell for terminal bell sounds
+    pub last_count: u64,               // Last bell event count from terminal
     pub visual_flash: Option<Instant>, // When visual bell flash started (None = not flashing)
+}
+
+impl Default for BellState {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BellState {

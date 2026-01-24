@@ -25,7 +25,10 @@ pub fn show_selection(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this
         }
 
         if ui
-            .checkbox(&mut settings.config.middle_click_paste, "Middle-click paste")
+            .checkbox(
+                &mut settings.config.middle_click_paste,
+                "Middle-click paste",
+            )
             .changed()
         {
             settings.has_changes = true;
@@ -62,7 +65,11 @@ pub fn show_selection(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this
     });
 }
 
-pub fn show_mouse_behavior(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show_mouse_behavior(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
     ui.collapsing("Mouse Behavior", |ui| {
         ui.horizontal(|ui| {
             ui.label("Scroll speed:");

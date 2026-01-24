@@ -73,7 +73,10 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         });
 
         if ui
-            .checkbox(&mut settings.config.window_decorations, "Window decorations")
+            .checkbox(
+                &mut settings.config.window_decorations,
+                "Window decorations",
+            )
             .changed()
         {
             settings.has_changes = true;
@@ -115,11 +118,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                     _ => "Unknown",
                 })
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut selected,
-                        0,
-                        "Immediate (No VSync)",
-                    );
+                    ui.selectable_value(&mut selected, 0, "Immediate (No VSync)");
                     ui.selectable_value(&mut selected, 1, "Mailbox (Balanced)");
                     ui.selectable_value(&mut selected, 2, "FIFO (VSync)");
                 });

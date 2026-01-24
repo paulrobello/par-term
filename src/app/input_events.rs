@@ -474,7 +474,7 @@ impl AppState {
             self.needs_redraw = true;
 
             log::info!("Cycled cursor style to {:?}", self.config.cursor_style);
-            
+
             // Map our config cursor style to terminal cursor style
             // This ensures consistent behavior between configured style and runtime changes
             let term_style = match self.config.cursor_style {
@@ -482,12 +482,13 @@ impl AppState {
                 CursorStyle::Beam => TermCursorStyle::BlinkingBar,
                 CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
             };
-            
-            if let Some(terminal) = &self.terminal 
-                && let Ok(mut term) = terminal.try_lock() {
+
+            if let Some(terminal) = &self.terminal
+                && let Ok(mut term) = terminal.try_lock()
+            {
                 term.set_cursor_style(term_style);
             }
-            
+
             return true;
         }
 

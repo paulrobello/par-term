@@ -92,7 +92,11 @@ impl AppState {
             }
 
             // Use click_position as the anchor row (the originally triple-clicked row)
-            let anchor_row = self.mouse.click_position.map(|(_, r)| r).unwrap_or(current_row);
+            let anchor_row = self
+                .mouse
+                .click_position
+                .map(|(_, r)| r)
+                .unwrap_or(current_row);
 
             if let Some(ref mut selection) = self.mouse.selection
                 && selection.mode == SelectionMode::Line
@@ -374,9 +378,11 @@ impl AppState {
                     // Adjust row for scroll offset
                     let adjusted_row = row + self.scroll_state.offset;
 
-                    if let Some(url) =
-                        url_detection::find_url_at_position(&self.mouse.detected_urls, col, adjusted_row)
-                    {
+                    if let Some(url) = url_detection::find_url_at_position(
+                        &self.mouse.detected_urls,
+                        col,
+                        adjusted_row,
+                    ) {
                         if let Err(e) = url_detection::open_url(&url.url) {
                             log::error!("Failed to open URL: {}", e);
                         }
@@ -593,8 +599,7 @@ impl AppState {
                     if let Some(window) = &self.window {
                         window.set_cursor(winit::window::CursorIcon::Text);
                         // Restore terminal-controlled title or config default
-                        if self.config.allow_title_change && !self.cache.terminal_title.is_empty()
-                        {
+                        if self.config.allow_title_change && !self.cache.terminal_title.is_empty() {
                             window.set_title(&self.cache.terminal_title);
                         } else {
                             window.set_title(&self.config.window_title);

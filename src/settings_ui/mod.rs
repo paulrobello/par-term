@@ -459,257 +459,269 @@ impl SettingsUI {
         if self.visible {
             let settings_viewport = ctx.input(|i| i.viewport_rect());
             Window::new("Settings")
-            .resizable(true)
-            .default_width(650.0)
-            .default_height(700.0)
-            .default_pos(settings_viewport.center())
-            .pivot(egui::Align2::CENTER_CENTER)
-            .open(&mut open)
-            .frame(
-                Frame::window(&ctx.style())
-                    .fill(solid_bg)
-                    .stroke(egui::Stroke::NONE)
-                    .shadow(Shadow {
-                        offset: [0, 0],
-                        blur: 0,
-                        spread: 0,
-                        color: Color32::TRANSPARENT,
-                    }),
-            )
-            .show(ctx, |ui| {
-                // Reserve space for fixed footer buttons
-                let available_height = ui.available_height();
-                let footer_height = 45.0;
+                .resizable(true)
+                .default_width(650.0)
+                .default_height(700.0)
+                .default_pos(settings_viewport.center())
+                .pivot(egui::Align2::CENTER_CENTER)
+                .open(&mut open)
+                .frame(
+                    Frame::window(&ctx.style())
+                        .fill(solid_bg)
+                        .stroke(egui::Stroke::NONE)
+                        .shadow(Shadow {
+                            offset: [0, 0],
+                            blur: 0,
+                            spread: 0,
+                            color: Color32::TRANSPARENT,
+                        }),
+                )
+                .show(ctx, |ui| {
+                    // Reserve space for fixed footer buttons
+                    let available_height = ui.available_height();
+                    let footer_height = 45.0;
 
-                // Scrollable content area (takes remaining space above footer)
-                egui::ScrollArea::vertical()
-                    .max_height(available_height - footer_height)
-                    .show(ui, |ui| {
-                    ui.heading("Terminal Settings");
-                    ui.horizontal(|ui| {
-                        ui.label("Quick search:");
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.search_query)
-                                .hint_text("Type to filter settings"),
-                        );
-                    });
-                    ui.separator();
-
-                    let query = self.search_query.trim().to_lowercase();
-                    let mut matches_found = false;
-                    let mut section_shown = false;
-                    let insert_section_separator = |ui: &mut egui::Ui, shown: &mut bool| {
-                        if *shown {
+                    // Scrollable content area (takes remaining space above footer)
+                    egui::ScrollArea::vertical()
+                        .max_height(available_height - footer_height)
+                        .show(ui, |ui| {
+                            ui.heading("Terminal Settings");
+                            ui.horizontal(|ui| {
+                                ui.label("Quick search:");
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut self.search_query)
+                                        .hint_text("Type to filter settings"),
+                                );
+                            });
                             ui.separator();
-                        } else {
-                            *shown = true;
+
+                            let query = self.search_query.trim().to_lowercase();
+                            let mut matches_found = false;
+                            let mut section_shown = false;
+                            let insert_section_separator = |ui: &mut egui::Ui, shown: &mut bool| {
+                                if *shown {
+                                    ui.separator();
+                                } else {
+                                    *shown = true;
+                                }
+                            };
+                            let section_matches = |title: &str, fields: &[&str]| -> bool {
+                                if query.is_empty() {
+                                    return true;
+                                }
+
+                                let q = query.as_str();
+                                title.to_lowercase().contains(q)
+                                    || fields.iter().any(|f| f.to_lowercase().contains(q))
+                            };
+
+                            // Window & Display
+                            if section_matches(
+                                "Window & Display",
+                                &[
+                                    "Title",
+                                    "Width",
+                                    "Height",
+                                    "Padding",
+                                    "Opacity",
+                                    "Decorations",
+                                    "Always on top",
+                                    "Max FPS",
+                                    "VSync",
+                                ],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                window_tab::show(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Terminal
+                            if section_matches(
+                                "Terminal",
+                                &["Columns", "Rows", "Scrollback", "Exit when shell exits"],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                terminal_tab::show(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Font Settings
+                            if section_matches(
+                                "Font",
+                                &[
+                                    "Family",
+                                    "Bold",
+                                    "Italic",
+                                    "Size",
+                                    "Line spacing",
+                                    "Char spacing",
+                                    "Text shaping",
+                                    "Ligatures",
+                                    "Kerning",
+                                ],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                font_tab::show(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Theme & Colors
+                            if section_matches("Theme & Colors", &["Theme"]) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                theme_tab::show(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Background & Effects
+                            if section_matches(
+                                "Background & Effects",
+                                &[
+                                    "Background image",
+                                    "Enable background image",
+                                    "Shader",
+                                    "Enable shader",
+                                    "Opacity",
+                                    "Animation",
+                                    "Mode",
+                                    "Text opacity",
+                                ],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                background_tab::show_background(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Cursor Shader (separate from background shader)
+                            if section_matches(
+                                "Cursor Shader",
+                                &["Cursor shader", "Cursor effect", "Cursor animation"],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                background_tab::show_cursor_shader(
+                                    ui,
+                                    self,
+                                    &mut changes_this_frame,
+                                );
+                            }
+
+                            // Cursor
+                            if section_matches(
+                                "Cursor",
+                                &["Style", "Blink", "Blink interval", "Color"],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                cursor_tab::show(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Selection & Clipboard
+                            if section_matches(
+                                "Selection & Clipboard",
+                                &[
+                                    "Auto-copy",
+                                    "Trailing newline",
+                                    "Middle-click",
+                                    "Max clipboard",
+                                ],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                mouse_tab::show_selection(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Mouse Behavior
+                            if section_matches(
+                                "Mouse Behavior",
+                                &["Scroll speed", "Double-click", "Triple-click"],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                mouse_tab::show_mouse_behavior(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Scrollbar
+                            if section_matches(
+                                "Scrollbar",
+                                &[
+                                    "Width",
+                                    "Autohide",
+                                    "Position",
+                                    "Thumb color",
+                                    "Track color",
+                                ],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                scrollbar_tab::show(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Bell & Notifications
+                            if section_matches(
+                                "Bell & Notifications",
+                                &[
+                                    "Visual bell",
+                                    "Audio bell",
+                                    "Desktop notifications",
+                                    "Activity",
+                                    "Silence",
+                                    "Notification buffer",
+                                ],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                bell_tab::show(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Shell Configuration
+                            if section_matches(
+                                "Shell Configuration",
+                                &[
+                                    "Custom shell",
+                                    "Shell args",
+                                    "Working directory",
+                                    "Login shell",
+                                ],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                shell_tab::show(ui, self, &mut changes_this_frame);
+                            }
+
+                            // Screenshot
+                            if section_matches(
+                                "Screenshot",
+                                &["Format", "png", "jpeg", "svg", "html"],
+                            ) {
+                                insert_section_separator(ui, &mut section_shown);
+                                matches_found = true;
+                                screenshot_tab::show(ui, self, &mut changes_this_frame);
+                            }
+                            if !matches_found && !query.is_empty() {
+                                ui.label(format!("No settings match \"{}\"", self.search_query));
+                            }
+                        });
+
+                    // Fixed footer with action buttons (outside ScrollArea)
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("Save").clicked() {
+                            save_requested = true;
                         }
-                    };
-                    let section_matches = |title: &str, fields: &[&str]| -> bool {
-                        if query.is_empty() {
-                            return true;
+
+                        if ui.button("Discard").clicked() {
+                            discard_requested = true;
                         }
 
-                        let q = query.as_str();
-                        title.to_lowercase().contains(q)
-                            || fields.iter().any(|f| f.to_lowercase().contains(q))
-                    };
+                        if ui.button("Close").clicked() {
+                            close_requested = true;
+                        }
 
-                    // Window & Display
-                    if section_matches(
-                        "Window & Display",
-                        &[
-                            "Title",
-                            "Width",
-                            "Height",
-                            "Padding",
-                            "Opacity",
-                            "Decorations",
-                            "Always on top",
-                            "Max FPS",
-                            "VSync",
-                        ],
-                    ) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        window_tab::show(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Terminal
-                    if section_matches(
-                        "Terminal",
-                        &["Columns", "Rows", "Scrollback", "Exit when shell exits"],
-                    ) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        terminal_tab::show(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Font Settings
-                    if section_matches(
-                        "Font",
-                        &[
-                            "Family",
-                            "Bold",
-                            "Italic",
-                            "Size",
-                            "Line spacing",
-                            "Char spacing",
-                            "Text shaping",
-                            "Ligatures",
-                            "Kerning",
-                        ],
-                    ) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        font_tab::show(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Theme & Colors
-                    if section_matches("Theme & Colors", &["Theme"]) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        theme_tab::show(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Background & Effects
-                    if section_matches(
-                        "Background & Effects",
-                        &[
-                            "Background image",
-                            "Enable background image",
-                            "Shader",
-                            "Enable shader",
-                            "Opacity",
-                            "Animation",
-                            "Mode",
-                            "Text opacity",
-                        ],
-                    ) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        background_tab::show_background(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Cursor Shader (separate from background shader)
-                    if section_matches(
-                        "Cursor Shader",
-                        &[
-                            "Cursor shader",
-                            "Cursor effect",
-                            "Cursor animation",
-                        ],
-                    ) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        background_tab::show_cursor_shader(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Cursor
-                    if section_matches("Cursor", &["Style", "Blink", "Blink interval", "Color"]) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        cursor_tab::show(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Selection & Clipboard
-                    if section_matches(
-                        "Selection & Clipboard",
-                        &[
-                            "Auto-copy",
-                            "Trailing newline",
-                            "Middle-click",
-                            "Max clipboard",
-                        ],
-                    ) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        mouse_tab::show_selection(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Mouse Behavior
-                    if section_matches(
-                        "Mouse Behavior",
-                        &["Scroll speed", "Double-click", "Triple-click"],
-                    ) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        mouse_tab::show_mouse_behavior(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Scrollbar
-                    if section_matches(
-                        "Scrollbar",
-                        &[
-                            "Width",
-                            "Autohide",
-                            "Position",
-                            "Thumb color",
-                            "Track color",
-                        ],
-                    ) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        scrollbar_tab::show(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Bell & Notifications
-                    if section_matches(
-                        "Bell & Notifications",
-                        &[
-                            "Visual bell",
-                            "Audio bell",
-                            "Desktop notifications",
-                            "Activity",
-                            "Silence",
-                            "Notification buffer",
-                        ],
-                    ) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        bell_tab::show(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Shell Configuration
-                    if section_matches(
-                        "Shell Configuration",
-                        &["Custom shell", "Shell args", "Working directory", "Login shell"],
-                    ) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        shell_tab::show(ui, self, &mut changes_this_frame);
-                    }
-
-                    // Screenshot
-                    if section_matches("Screenshot", &["Format", "png", "jpeg", "svg", "html"]) {
-                        insert_section_separator(ui, &mut section_shown);
-                        matches_found = true;
-                        screenshot_tab::show(ui, self, &mut changes_this_frame);
-                    }                    if !matches_found && !query.is_empty() {
-                        ui.label(format!("No settings match \"{}\"", self.search_query));
-                    }
+                        if self.has_changes {
+                            ui.colored_label(egui::Color32::YELLOW, "* Unsaved changes");
+                        }
+                    });
                 });
-
-                // Fixed footer with action buttons (outside ScrollArea)
-                ui.separator();
-                ui.horizontal(|ui| {
-                    if ui.button("Save").clicked() {
-                        save_requested = true;
-                    }
-
-                    if ui.button("Discard").clicked() {
-                        discard_requested = true;
-                    }
-
-                    if ui.button("Close").clicked() {
-                        close_requested = true;
-                    }
-
-                    if self.has_changes {
-                        ui.colored_label(egui::Color32::YELLOW, "* Unsaved changes");
-                    }
-                });
-            });
         }
 
         // Show shader editor window if visible

@@ -104,10 +104,6 @@ impl TerminalManager {
         term.set_cell_dimensions(width, height);
     }
 
-
-
-
-
     /// Write data to the PTY (send user input to shell)
     pub fn write(&self, data: &[u8]) -> Result<()> {
         // Debug log to track what we're sending
@@ -421,12 +417,6 @@ impl TerminalManager {
     }
     */
 
-
-
-
-
-
-
     /// Get cursor position
     #[allow(dead_code)]
     pub fn cursor_position(&self) -> (usize, usize) {
@@ -555,25 +545,13 @@ impl TerminalManager {
         let pty = self.pty_session.lock();
         pty.update_generation()
     }
-
-
-
-
 }
 
 // ========================================================================
 // Clipboard History Methods
 // ========================================================================
 
-impl TerminalManager {
-
-
-
-
-
-
-
-}
+impl TerminalManager {}
 
 impl Drop for TerminalManager {
     fn drop(&mut self) {

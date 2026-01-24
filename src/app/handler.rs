@@ -1,9 +1,9 @@
 use crate::app::AppState;
+use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::{Window, WindowId};
-use std::sync::Arc;
 
 impl AppState {
     pub(crate) fn check_notifications(&mut self) {

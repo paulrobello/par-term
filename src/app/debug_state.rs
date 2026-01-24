@@ -11,6 +11,12 @@ pub struct DebugState {
     pub fps_value: f64,             // Current FPS value for overlay display
 }
 
+impl Default for DebugState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DebugState {
     pub fn new() -> Self {
         Self {
