@@ -1,6 +1,129 @@
 use super::Renderer;
+use crate::cell_renderer::CellRenderer;
 use crate::custom_shader_renderer::CustomShaderRenderer;
 use anyhow::Result;
+
+/// Initialize the custom shader renderer if configured.
+///
+/// Returns (renderer, shader_path) tuple where both are Some if initialization succeeded.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn init_custom_shader(
+    cell_renderer: &CellRenderer,
+    size_width: u32,
+    size_height: u32,
+    window_padding: f32,
+    custom_shader_path: Option<&str>,
+    custom_shader_enabled: bool,
+    custom_shader_animation: bool,
+    custom_shader_animation_speed: f32,
+    window_opacity: f32,
+    custom_shader_text_opacity: f32,
+    custom_shader_full_content: bool,
+    custom_shader_brightness: f32,
+    custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
+) -> (Option<CustomShaderRenderer>, Option<String>) {
+    if !custom_shader_enabled {
+        return (None, None);
+    }
+
+    let Some(shader_path) = custom_shader_path else {
+        return (None, None);
+    };
+
+    let path = crate::config::Config::shader_path(shader_path);
+    match CustomShaderRenderer::new(
+        cell_renderer.device(),
+        cell_renderer.queue(),
+        cell_renderer.surface_format(),
+        &path,
+        size_width,
+        size_height,
+        custom_shader_animation,
+        custom_shader_animation_speed,
+        window_opacity,
+        custom_shader_text_opacity,
+        custom_shader_full_content,
+        custom_shader_channel_paths,
+    ) {
+        Ok(mut renderer) => {
+            renderer.update_cell_dimensions(
+                cell_renderer.cell_width(),
+                cell_renderer.cell_height(),
+                window_padding,
+            );
+            renderer.set_brightness(custom_shader_brightness);
+            log::info!(
+                "Custom shader renderer initialized from: {}",
+                path.display()
+            );
+            (Some(renderer), Some(shader_path.to_string()))
+        }
+        Err(e) => {
+            log::error!("Failed to load custom shader '{}': {}", path.display(), e);
+            (None, None)
+        }
+    }
+}
+
+/// Initialize the cursor shader renderer if configured.
+///
+/// Returns (renderer, shader_path) tuple where both are Some if initialization succeeded.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn init_cursor_shader(
+    cell_renderer: &CellRenderer,
+    size_width: u32,
+    size_height: u32,
+    window_padding: f32,
+    cursor_shader_path: Option<&str>,
+    cursor_shader_enabled: bool,
+    cursor_shader_animation: bool,
+    cursor_shader_animation_speed: f32,
+    window_opacity: f32,
+) -> (Option<CustomShaderRenderer>, Option<String>) {
+    if !cursor_shader_enabled {
+        return (None, None);
+    }
+
+    let Some(shader_path) = cursor_shader_path else {
+        return (None, None);
+    };
+
+    let path = crate::config::Config::shader_path(shader_path);
+    let empty_channels: [Option<std::path::PathBuf>; 4] = [None, None, None, None];
+
+    match CustomShaderRenderer::new(
+        cell_renderer.device(),
+        cell_renderer.queue(),
+        cell_renderer.surface_format(),
+        &path,
+        size_width,
+        size_height,
+        cursor_shader_animation,
+        cursor_shader_animation_speed,
+        window_opacity,
+        1.0,  // Text opacity (cursor shader always uses 1.0)
+        true, // Full content mode (cursor shader always uses full content)
+        &empty_channels,
+    ) {
+        Ok(mut renderer) => {
+            let cell_w = cell_renderer.cell_width();
+            let cell_h = cell_renderer.cell_height();
+            renderer.update_cell_dimensions(cell_w, cell_h, window_padding);
+            log::info!(
+                "Cursor shader renderer initialized from: {} (cell={}x{}, padding={})",
+                path.display(),
+                cell_w,
+                cell_h,
+                window_padding
+            );
+            (Some(renderer), Some(shader_path.to_string()))
+        }
+        Err(e) => {
+            log::error!("Failed to load cursor shader '{}': {}", path.display(), e);
+            (None, None)
+        }
+    }
+}
 
 impl Renderer {
     /// Enable or disable animation for the custom shader at runtime
