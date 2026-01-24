@@ -183,6 +183,59 @@ All built-in shaders use instanced rendering for performance. User custom shader
 - Renderer receives only visible cells for the viewport
 - Scrollbar position calculated from: `scroll_offset`, `visible_lines`, `total_lines`
 
+## Code Organization Guidelines
+
+### File Size Limits
+- **Target**: Keep files under 500 lines of code
+- **Hard limit**: Files exceeding 800 lines should be refactored
+- **Rationale**: Smaller files are easier to navigate, test, and maintain
+
+### When to Extract Modules
+Extract code into a new module when:
+1. A file exceeds 500 lines
+2. A logical grouping of functions/structs emerges (e.g., all clipboard-related code)
+3. Code is reused across multiple files
+4. A single struct has many associated methods that can be grouped by functionality
+5. Tests for a component become complex enough to warrant their own file
+
+### Module Organization Patterns
+When splitting a large file into a module directory:
+```
+# Before: src/large_file.rs (800+ lines)
+
+# After: src/large_file/
+├── mod.rs          # Public API, re-exports, and orchestration
+├── types.rs        # Data structures and type definitions
+├── core.rs         # Core logic and primary functionality
+├── helpers.rs      # Internal utility functions
+└── tests.rs        # Unit tests (if complex)
+```
+
+Example from this codebase:
+- `src/app/` splits the monolithic app into `handler.rs`, `input_events.rs`, `mouse_events.rs`
+- `src/terminal/` splits terminal logic into `spawn.rs`, `rendering.rs`, `graphics.rs`, `clipboard.rs`
+- `src/cell_renderer/` splits rendering into `render.rs`, `atlas.rs`, `background.rs`, `types.rs`
+
+### DRY Principles
+- **Extract shared utilities**: Common patterns should live in dedicated utility modules
+- **Prefer composition**: Use trait implementations and composition over code duplication
+- **Centralize constants**: Define magic numbers and strings in a central location (e.g., `constants.rs` or at module top)
+- **Create helper traits**: When multiple types need similar functionality, define a trait
+
+### Utility Module Guidelines
+Create utility modules for:
+- Color conversion functions → `src/utils/color.rs`
+- Geometry calculations → `src/utils/geometry.rs`
+- String processing helpers → `src/utils/text.rs`
+- Platform-specific abstractions → `src/platform/`
+
+### Signs You Need to Refactor
+- Copy-pasting code between files
+- Scrolling extensively to find functions in a file
+- Multiple unrelated responsibilities in one file
+- Difficulty writing focused unit tests
+- Import lists growing unwieldy
+
 ## Platform-Specific Notes
 
 ### macOS
