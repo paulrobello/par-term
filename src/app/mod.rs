@@ -12,12 +12,20 @@ use tokio::runtime::Runtime;
 use winit::event_loop::{ControlFlow, EventLoop};
 
 pub mod bell;
+pub mod config_updates;
 pub mod debug_state;
 pub mod handler;
 pub mod input_events;
+pub mod keyboard_handlers;
 pub mod mouse;
 pub mod mouse_events;
+mod notifications;
 pub mod render_cache;
+pub mod renderer_init;
+pub mod scroll_ops;
+pub mod tab_ops;
+pub mod text_selection;
+pub mod url_hover;
 pub mod window_manager;
 pub mod window_state;
 

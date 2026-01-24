@@ -200,95 +200,34 @@ impl Renderer {
         )?;
 
         // Create custom shader renderer if configured
-        let (custom_shader_renderer, initial_shader_path) = if custom_shader_enabled {
-            if let Some(shader_path) = custom_shader_path {
-                let path = crate::config::Config::shader_path(shader_path);
-                match CustomShaderRenderer::new(
-                    cell_renderer.device(),
-                    cell_renderer.queue(),
-                    cell_renderer.surface_format(),
-                    &path,
-                    size.width,
-                    size.height,
-                    custom_shader_animation,
-                    custom_shader_animation_speed,
-                    window_opacity,
-                    custom_shader_text_opacity,
-                    custom_shader_full_content,
-                    custom_shader_channel_paths,
-                ) {
-                    Ok(mut renderer) => {
-                        // Sync cell dimensions for cursor position calculation
-                        renderer.update_cell_dimensions(
-                            cell_renderer.cell_width(),
-                            cell_renderer.cell_height(),
-                            window_padding,
-                        );
-                        // Apply brightness setting
-                        renderer.set_brightness(custom_shader_brightness);
-                        log::info!(
-                            "Custom shader renderer initialized from: {}",
-                            path.display()
-                        );
-                        (Some(renderer), Some(shader_path.to_string()))
-                    }
-                    Err(e) => {
-                        log::error!("Failed to load custom shader '{}': {}", path.display(), e);
-                        (None, None)
-                    }
-                }
-            } else {
-                (None, None)
-            }
-        } else {
-            (None, None)
-        };
+        let (custom_shader_renderer, initial_shader_path) = shaders::init_custom_shader(
+            &cell_renderer,
+            size.width,
+            size.height,
+            window_padding,
+            custom_shader_path,
+            custom_shader_enabled,
+            custom_shader_animation,
+            custom_shader_animation_speed,
+            window_opacity,
+            custom_shader_text_opacity,
+            custom_shader_full_content,
+            custom_shader_brightness,
+            custom_shader_channel_paths,
+        );
 
         // Create cursor shader renderer if configured (separate from background shader)
-        let (cursor_shader_renderer, initial_cursor_shader_path) = if cursor_shader_enabled {
-            if let Some(shader_path) = cursor_shader_path {
-                let path = crate::config::Config::shader_path(shader_path);
-                // Cursor shader doesn't use channel textures
-                let empty_channels: [Option<std::path::PathBuf>; 4] = [None, None, None, None];
-                match CustomShaderRenderer::new(
-                    cell_renderer.device(),
-                    cell_renderer.queue(),
-                    cell_renderer.surface_format(),
-                    &path,
-                    size.width,
-                    size.height,
-                    cursor_shader_animation,
-                    cursor_shader_animation_speed,
-                    window_opacity,
-                    1.0,  // Text opacity (cursor shader always uses 1.0)
-                    true, // Full content mode (cursor shader always uses full content)
-                    &empty_channels,
-                ) {
-                    Ok(mut renderer) => {
-                        // Sync cell dimensions for cursor position calculation
-                        let cell_w = cell_renderer.cell_width();
-                        let cell_h = cell_renderer.cell_height();
-                        renderer.update_cell_dimensions(cell_w, cell_h, window_padding);
-                        log::info!(
-                            "Cursor shader renderer initialized from: {} (cell={}x{}, padding={})",
-                            path.display(),
-                            cell_w,
-                            cell_h,
-                            window_padding
-                        );
-                        (Some(renderer), Some(shader_path.to_string()))
-                    }
-                    Err(e) => {
-                        log::error!("Failed to load cursor shader '{}': {}", path.display(), e);
-                        (None, None)
-                    }
-                }
-            } else {
-                (None, None)
-            }
-        } else {
-            (None, None)
-        };
+        let (cursor_shader_renderer, initial_cursor_shader_path) = shaders::init_cursor_shader(
+            &cell_renderer,
+            size.width,
+            size.height,
+            window_padding,
+            cursor_shader_path,
+            cursor_shader_enabled,
+            cursor_shader_animation,
+            cursor_shader_animation_speed,
+            window_opacity,
+        );
 
         Ok(Self {
             cell_renderer,
@@ -835,5 +774,29 @@ impl Renderer {
     pub fn clear_glyph_cache(&mut self) {
         self.cell_renderer.clear_glyph_cache();
         self.dirty = true;
+    }
+
+    /// Pause shader animations (e.g., when window loses focus)
+    /// This reduces GPU usage when the terminal is not actively being viewed
+    pub fn pause_shader_animations(&mut self) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_animation_enabled(false);
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_animation_enabled(false);
+        }
+        log::debug!("Shader animations paused");
+    }
+
+    /// Resume shader animations (e.g., when window regains focus)
+    pub fn resume_shader_animations(&mut self) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_animation_enabled(true);
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_animation_enabled(true);
+        }
+        self.dirty = true;
+        log::debug!("Shader animations resumed");
     }
 }

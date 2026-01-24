@@ -2,6 +2,8 @@ use anyhow::Result;
 use std::collections::HashMap;
 use wgpu::*;
 
+use crate::gpu_utils;
+
 /// Instance data for a single sixel graphic
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -85,16 +87,7 @@ impl GraphicsRenderer {
         });
 
         // Create sampler
-        let sampler = device.create_sampler(&SamplerDescriptor {
-            label: Some("Sixel Sampler"),
-            address_mode_u: AddressMode::ClampToEdge,
-            address_mode_v: AddressMode::ClampToEdge,
-            address_mode_w: AddressMode::ClampToEdge,
-            mag_filter: FilterMode::Linear,
-            min_filter: FilterMode::Linear,
-            mipmap_filter: FilterMode::Nearest,
-            ..Default::default()
-        });
+        let sampler = gpu_utils::create_linear_sampler(device, Some("Sixel Sampler"));
 
         // Create rendering pipeline
         let pipeline = Self::create_pipeline(device, surface_format, &bind_group_layout)?;

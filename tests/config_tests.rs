@@ -122,3 +122,40 @@ fn test_config_builder_chain() {
     assert_eq!(config.scrollback_lines, 20000);
     assert_eq!(config.window_title, "Custom Terminal");
 }
+
+#[test]
+fn test_config_power_saving_defaults() {
+    let config = Config::default();
+    // Default: pause shaders on blur is enabled for power savings
+    assert!(config.pause_shaders_on_blur);
+    // Default: pause refresh on blur is disabled (maintain responsiveness)
+    assert!(!config.pause_refresh_on_blur);
+    // Default unfocused FPS is 10
+    assert_eq!(config.unfocused_fps, 10);
+}
+
+#[test]
+fn test_config_power_saving_yaml_deserialization() {
+    let yaml = r#"
+pause_shaders_on_blur: false
+pause_refresh_on_blur: true
+unfocused_fps: 5
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(!config.pause_shaders_on_blur);
+    assert!(config.pause_refresh_on_blur);
+    assert_eq!(config.unfocused_fps, 5);
+}
+
+#[test]
+fn test_config_power_saving_yaml_serialization() {
+    let mut config = Config::default();
+    config.pause_shaders_on_blur = false;
+    config.pause_refresh_on_blur = true;
+    config.unfocused_fps = 15;
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("pause_shaders_on_blur: false"));
+    assert!(yaml.contains("pause_refresh_on_blur: true"));
+    assert!(yaml.contains("unfocused_fps: 15"));
+}

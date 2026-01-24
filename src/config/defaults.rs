@@ -1,0 +1,185 @@
+//! Default value functions for configuration.
+
+pub fn cols() -> usize {
+    80
+}
+
+pub fn rows() -> usize {
+    24
+}
+
+pub fn font_size() -> f32 {
+    13.0
+}
+
+pub fn font_family() -> String {
+    "JetBrains Mono".to_string()
+}
+
+pub fn line_spacing() -> f32 {
+    1.0 // Default line height multiplier
+}
+
+pub fn char_spacing() -> f32 {
+    1.0 // Default character width multiplier
+}
+
+pub fn text_shaping() -> bool {
+    true // Enabled by default - OpenType features now properly configured via Feature::from_str()
+}
+
+pub fn scrollback() -> usize {
+    10000
+}
+
+pub fn window_title() -> String {
+    "par-term".to_string()
+}
+
+pub fn theme() -> String {
+    "dark-background".to_string()
+}
+
+pub fn screenshot_format() -> String {
+    "png".to_string()
+}
+
+pub fn max_fps() -> u32 {
+    60
+}
+
+pub fn window_padding() -> f32 {
+    10.0
+}
+
+pub fn login_shell() -> bool {
+    true
+}
+
+pub fn scrollbar_position() -> String {
+    "right".to_string()
+}
+
+pub fn scrollbar_width() -> f32 {
+    15.0
+}
+
+pub fn scrollbar_thumb_color() -> [f32; 4] {
+    [0.4, 0.4, 0.4, 0.95] // Medium gray, nearly opaque
+}
+
+pub fn scrollbar_track_color() -> [f32; 4] {
+    [0.15, 0.15, 0.15, 0.6] // Dark gray, semi-transparent
+}
+
+pub fn clipboard_max_sync_events() -> usize {
+    64 // Aligned with sister project
+}
+
+pub fn clipboard_max_event_bytes() -> usize {
+    2048 // Aligned with sister project
+}
+
+pub fn activity_threshold() -> u64 {
+    10 // Aligned with sister project (10 seconds)
+}
+
+pub fn silence_threshold() -> u64 {
+    300 // 5 minutes
+}
+
+pub fn notification_max_buffer() -> usize {
+    64 // Aligned with sister project
+}
+
+pub fn scroll_speed() -> f32 {
+    3.0 // Lines per scroll tick
+}
+
+pub fn double_click_threshold() -> u64 {
+    500 // 500 milliseconds
+}
+
+pub fn triple_click_threshold() -> u64 {
+    500 // 500 milliseconds (same as double-click)
+}
+
+pub fn cursor_blink_interval() -> u64 {
+    500 // 500 milliseconds (blink twice per second)
+}
+
+pub fn cursor_color() -> [u8; 3] {
+    [255, 255, 255] // White cursor
+}
+
+pub fn scrollbar_autohide_delay() -> u64 {
+    0 // 0 = never auto-hide (always visible when scrollback exists)
+}
+
+pub fn window_opacity() -> f32 {
+    1.0 // Fully opaque by default
+}
+
+pub fn window_width() -> u32 {
+    1600 // Default initial width
+}
+
+pub fn window_height() -> u32 {
+    600 // Default initial height
+}
+
+pub fn background_image_opacity() -> f32 {
+    1.0 // Fully opaque by default
+}
+
+pub fn bool_false() -> bool {
+    false
+}
+
+pub fn bool_true() -> bool {
+    true
+}
+
+pub fn text_opacity() -> f32 {
+    1.0 // Fully opaque text by default
+}
+
+pub fn custom_shader_speed() -> f32 {
+    1.0 // Normal animation speed
+}
+
+pub fn custom_shader_brightness() -> f32 {
+    1.0 // Full brightness by default
+}
+
+pub fn cursor_shader_color() -> [u8; 3] {
+    [255, 255, 255] // White cursor for shader effects
+}
+
+pub fn cursor_trail_duration() -> f32 {
+    0.5 // 500ms trail duration
+}
+
+pub fn cursor_glow_radius() -> f32 {
+    80.0 // 80 pixel glow radius
+}
+
+pub fn cursor_glow_intensity() -> f32 {
+    0.3 // 30% glow intensity
+}
+
+pub fn bell_sound() -> u8 {
+    50 // Default to 50% volume
+}
+
+pub fn tab_bar_height() -> f32 {
+    28.0 // Default tab bar height in pixels
+}
+
+pub fn zero() -> usize {
+    0
+}
+
+pub fn unfocused_fps() -> u32 {
+    10 // Reduced FPS when window is not focused (10 FPS is plenty for background activity)
+}

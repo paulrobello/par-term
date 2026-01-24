@@ -18,10 +18,13 @@ use std::path::Path;
 use std::time::Instant;
 use wgpu::*;
 
+mod cursor;
+pub mod pipeline;
 pub mod textures;
 pub mod transpiler;
 pub mod types;
 
+use pipeline::{create_bind_group, create_bind_group_layout, create_render_pipeline};
 use textures::{ChannelTexture, load_channel_textures};
 use transpiler::{transpile_glsl_to_wgsl, transpile_glsl_to_wgsl_source};
 use types::CustomShaderUniforms;
@@ -121,20 +124,6 @@ pub struct CustomShaderRenderer {
 
 impl CustomShaderRenderer {
     /// Create a new custom shader renderer from a GLSL shader file
-    ///
-    /// # Arguments
-    /// * `device` - The wgpu device
-    /// * `queue` - The wgpu queue
-    /// * `surface_format` - The surface texture format
-    /// * `shader_path` - Path to the GLSL shader file
-    /// * `width` - Initial viewport width
-    /// * `height` - Initial viewport height
-    /// * `animation_enabled` - Whether to animate iTime
-    /// * `animation_speed` - Animation speed multiplier
-    /// * `window_opacity` - Window opacity
-    /// * `text_opacity` - Text opacity
-    /// * `full_content_mode` - Whether shader receives full terminal content
-    /// * `channel_paths` - Optional paths for iChannel1-4 textures
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         device: &Device,
@@ -165,8 +154,7 @@ impl CustomShaderRenderer {
         );
         log::debug!("Generated WGSL:\n{}", wgsl_source);
 
-        // Create the shader module
-        // Pre-validate WGSL to surface errors gracefully
+        // Pre-validate WGSL
         let module = naga::front::wgsl::parse_str(&wgsl_source)
             .context("Custom shader WGSL parse failed")?;
         let _info = naga::valid::Validator::new(
@@ -208,218 +196,25 @@ impl CustomShaderRenderer {
             mapped_at_creation: false,
         });
 
-        // Create bind group layout with all 11 entries:
-        // 0: Uniform buffer
-        // 1: iChannel0 texture (terminal content)
-        // 2: iChannel0 sampler
-        // 3: iChannel1 texture
-        // 4: iChannel1 sampler
-        // 5: iChannel2 texture
-        // 6: iChannel2 sampler
-        // 7: iChannel3 texture
-        // 8: iChannel3 sampler
-        // 9: iChannel4 texture
-        // 10: iChannel4 sampler
-        let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("Custom Shader Bind Group Layout"),
-            entries: &[
-                // Uniform buffer (binding 0)
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // iChannel0 texture (binding 1) - terminal content
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                // iChannel0 sampler (binding 2)
-                BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-                // iChannel1 texture (binding 3)
-                BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                // iChannel1 sampler (binding 4)
-                BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-                // iChannel2 texture (binding 5)
-                BindGroupLayoutEntry {
-                    binding: 5,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                // iChannel2 sampler (binding 6)
-                BindGroupLayoutEntry {
-                    binding: 6,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-                // iChannel3 texture (binding 7)
-                BindGroupLayoutEntry {
-                    binding: 7,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                // iChannel3 sampler (binding 8)
-                BindGroupLayoutEntry {
-                    binding: 8,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-                // iChannel4 texture (binding 9)
-                BindGroupLayoutEntry {
-                    binding: 9,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                // iChannel4 sampler (binding 10)
-                BindGroupLayoutEntry {
-                    binding: 10,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        });
-
-        // Create bind group with all 11 entries
-        let bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Custom Shader Bind Group"),
-            layout: &bind_group_layout,
-            entries: &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: uniform_buffer.as_entire_binding(),
-                },
-                // iChannel0 (terminal content)
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::TextureView(&intermediate_texture_view),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: BindingResource::Sampler(&sampler),
-                },
-                // iChannel1
-                BindGroupEntry {
-                    binding: 3,
-                    resource: BindingResource::TextureView(&channel_textures[0].view),
-                },
-                BindGroupEntry {
-                    binding: 4,
-                    resource: BindingResource::Sampler(&channel_textures[0].sampler),
-                },
-                // iChannel2
-                BindGroupEntry {
-                    binding: 5,
-                    resource: BindingResource::TextureView(&channel_textures[1].view),
-                },
-                BindGroupEntry {
-                    binding: 6,
-                    resource: BindingResource::Sampler(&channel_textures[1].sampler),
-                },
-                // iChannel3
-                BindGroupEntry {
-                    binding: 7,
-                    resource: BindingResource::TextureView(&channel_textures[2].view),
-                },
-                BindGroupEntry {
-                    binding: 8,
-                    resource: BindingResource::Sampler(&channel_textures[2].sampler),
-                },
-                // iChannel4
-                BindGroupEntry {
-                    binding: 9,
-                    resource: BindingResource::TextureView(&channel_textures[3].view),
-                },
-                BindGroupEntry {
-                    binding: 10,
-                    resource: BindingResource::Sampler(&channel_textures[3].sampler),
-                },
-            ],
-        });
-
-        // Create pipeline layout
-        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("Custom Shader Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        // Create bind group layout and bind group
+        let bind_group_layout = create_bind_group_layout(device);
+        let bind_group = create_bind_group(
+            device,
+            &bind_group_layout,
+            &uniform_buffer,
+            &intermediate_texture_view,
+            &sampler,
+            &channel_textures,
+        );
 
         // Create render pipeline
-        let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: Some("Custom Shader Pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: VertexState {
-                module: &shader_module,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(FragmentState {
-                module: &shader_module,
-                entry_point: Some("fs_main"),
-                targets: &[Some(ColorTargetState {
-                    format: surface_format,
-                    blend: Some(BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleStrip,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
+        let pipeline = create_render_pipeline(
+            device,
+            &shader_module,
+            &bind_group_layout,
+            surface_format,
+            Some("Custom Shader Pipeline"),
+        );
 
         let now = Instant::now();
         Ok(Self {
@@ -447,26 +242,23 @@ impl CustomShaderRenderer {
             mouse_button_down: false,
             frame_time_accumulator: 0.0,
             frames_in_second: 0,
-            current_frame_rate: 60.0, // Start with reasonable default
-            // Cursor tracking (Ghostty-compatible)
+            current_frame_rate: 60.0,
             current_cursor_pos: (0, 0),
             previous_cursor_pos: (0, 0),
-            current_cursor_color: [1.0, 1.0, 1.0, 1.0], // White default
+            current_cursor_color: [1.0, 1.0, 1.0, 1.0],
             previous_cursor_color: [1.0, 1.0, 1.0, 1.0],
             current_cursor_opacity: 1.0,
             previous_cursor_opacity: 1.0,
             cursor_change_time: 0.0,
             current_cursor_style: CursorStyle::SteadyBlock,
             previous_cursor_style: CursorStyle::SteadyBlock,
-            cursor_cell_width: 10.0, // Will be updated from renderer
+            cursor_cell_width: 10.0,
             cursor_cell_height: 20.0,
             cursor_window_padding: 0.0,
-            // Cursor shader configuration (defaults match config.rs)
-            cursor_shader_color: [1.0, 1.0, 1.0, 1.0], // White
+            cursor_shader_color: [1.0, 1.0, 1.0, 1.0],
             cursor_trail_duration: 0.5,
             cursor_glow_radius: 80.0,
             cursor_glow_intensity: 0.3,
-            // Channel textures
             channel_textures,
         })
     }
@@ -517,68 +309,18 @@ impl CustomShaderRenderer {
         self.intermediate_texture = texture;
         self.intermediate_texture_view = view;
 
-        // Recreate bind group with new texture view (including all channel textures)
-        self.bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Custom Shader Bind Group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: self.uniform_buffer.as_entire_binding(),
-                },
-                // iChannel0 (terminal content)
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::TextureView(&self.intermediate_texture_view),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: BindingResource::Sampler(&self.sampler),
-                },
-                // iChannel1
-                BindGroupEntry {
-                    binding: 3,
-                    resource: BindingResource::TextureView(&self.channel_textures[0].view),
-                },
-                BindGroupEntry {
-                    binding: 4,
-                    resource: BindingResource::Sampler(&self.channel_textures[0].sampler),
-                },
-                // iChannel2
-                BindGroupEntry {
-                    binding: 5,
-                    resource: BindingResource::TextureView(&self.channel_textures[1].view),
-                },
-                BindGroupEntry {
-                    binding: 6,
-                    resource: BindingResource::Sampler(&self.channel_textures[1].sampler),
-                },
-                // iChannel3
-                BindGroupEntry {
-                    binding: 7,
-                    resource: BindingResource::TextureView(&self.channel_textures[2].view),
-                },
-                BindGroupEntry {
-                    binding: 8,
-                    resource: BindingResource::Sampler(&self.channel_textures[2].sampler),
-                },
-                // iChannel4
-                BindGroupEntry {
-                    binding: 9,
-                    resource: BindingResource::TextureView(&self.channel_textures[3].view),
-                },
-                BindGroupEntry {
-                    binding: 10,
-                    resource: BindingResource::Sampler(&self.channel_textures[3].sampler),
-                },
-            ],
-        });
+        // Recreate bind group with new texture view
+        self.bind_group = create_bind_group(
+            device,
+            &self.bind_group_layout,
+            &self.uniform_buffer,
+            &self.intermediate_texture_view,
+            &self.sampler,
+            &self.channel_textures,
+        );
     }
 
     /// Render the custom shader effect to the output texture
-    ///
-    /// This should be called after the terminal content has been rendered to the
-    /// intermediate texture obtained via `intermediate_texture_view()`.
     pub fn render(
         &mut self,
         device: &Device,
@@ -598,7 +340,7 @@ impl CustomShaderRenderer {
         let time_delta = now.duration_since(self.last_frame_time).as_secs_f32();
         self.last_frame_time = now;
 
-        // Update frame rate calculation (smoothed over ~1 second)
+        // Update frame rate calculation
         self.frame_time_accumulator += time_delta;
         self.frames_in_second += 1;
         if self.frame_time_accumulator >= 1.0 {
@@ -607,18 +349,51 @@ impl CustomShaderRenderer {
             self.frames_in_second = 0;
         }
 
-        // Increment frame counter
         self.frame_count = self.frame_count.wrapping_add(1);
 
+        // Calculate uniforms
+        let uniforms = self.build_uniforms(time, time_delta);
+        queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+
+        // Create command encoder and render
+        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("Custom Shader Encoder"),
+        });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Custom Shader Render Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: output_view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::TRANSPARENT),
+                        store: StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_bind_group(0, &self.bind_group, &[]);
+            render_pass.draw(0..4, 0..1);
+        }
+
+        queue.submit(std::iter::once(encoder.finish()));
+        Ok(())
+    }
+
+    /// Build the uniform buffer data
+    fn build_uniforms(&self, time: f32, time_delta: f32) -> CustomShaderUniforms {
         // Calculate iMouse uniform
-        // xy = current position (Shadertoy uses bottom-left origin, so flip Y)
-        // zw = click position (positive when button down, negative when up)
         let height = self.texture_height as f32;
         let mouse_y_flipped = height - self.mouse_position[1];
         let click_y_flipped = height - self.mouse_click_position[1];
 
         let mouse = if self.mouse_button_down {
-            // When dragging, xy = current position, zw = positive click position
             [
                 self.mouse_position[0],
                 mouse_y_flipped,
@@ -626,7 +401,6 @@ impl CustomShaderRenderer {
                 click_y_flipped,
             ]
         } else {
-            // When not dragging, xy = last drag position (or 0), zw = negative click position
             [
                 self.mouse_position[0],
                 mouse_y_flipped,
@@ -636,56 +410,7 @@ impl CustomShaderRenderer {
         };
 
         // Calculate iDate uniform
-        // x = year, y = month (0-11), z = day (1-31), w = seconds since midnight
-        let date = {
-            use std::time::{SystemTime, UNIX_EPOCH};
-            let now_sys = SystemTime::now();
-            let since_epoch = now_sys.duration_since(UNIX_EPOCH).unwrap_or_default();
-            let secs = since_epoch.as_secs();
-
-            // Calculate date components (simplified UTC calculation)
-            // This is a basic implementation - for more accuracy, consider using chrono
-            let days_since_epoch = secs / 86400;
-            let secs_today = (secs % 86400) as f32;
-
-            // Approximate year/month/day calculation
-            // Starting from 1970-01-01
-            let mut year = 1970i32;
-            let mut remaining_days = days_since_epoch as i32;
-
-            loop {
-                let days_in_year = if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
-                    366
-                } else {
-                    365
-                };
-                if remaining_days < days_in_year {
-                    break;
-                }
-                remaining_days -= days_in_year;
-                year += 1;
-            }
-
-            let is_leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-            let days_in_months: [i32; 12] = if is_leap {
-                [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-            } else {
-                [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-            };
-
-            let mut month = 0i32;
-            for (i, &days) in days_in_months.iter().enumerate() {
-                if remaining_days < days {
-                    month = i as i32;
-                    break;
-                }
-                remaining_days -= days;
-            }
-
-            let day = remaining_days + 1; // Days are 1-indexed
-
-            [year as f32, month as f32, day as f32, secs_today]
-        };
+        let date = Self::calculate_date();
 
         // Calculate cursor pixel positions
         let (curr_x, curr_y) =
@@ -693,24 +418,20 @@ impl CustomShaderRenderer {
         let (prev_x, prev_y) =
             self.cursor_to_pixels(self.previous_cursor_pos.0, self.previous_cursor_pos.1);
 
-        // Debug: Log cursor position info periodically (every 60 frames)
+        // Debug logging
         if self.frame_count.is_multiple_of(60) {
             log::debug!(
-                "CURSOR_SHADER: pos=({},{}) -> pixels=({:.1},{:.1}), cell=({:.1}x{:.1}), padding={:.1}, resolution={}x{}",
+                "CURSOR_SHADER: pos=({},{}) -> pixels=({:.1},{:.1}), cell=({:.1}x{:.1})",
                 self.current_cursor_pos.0,
                 self.current_cursor_pos.1,
                 curr_x,
                 curr_y,
                 self.cursor_cell_width,
                 self.cursor_cell_height,
-                self.cursor_window_padding,
-                self.texture_width,
-                self.texture_height
             );
         }
 
-        // Update uniforms
-        let uniforms = CustomShaderUniforms {
+        CustomShaderUniforms {
             resolution: [self.texture_width as f32, self.texture_height as f32],
             time,
             time_delta,
@@ -721,14 +442,9 @@ impl CustomShaderRenderer {
             full_content_mode: if self.full_content_mode { 1.0 } else { 0.0 },
             frame: self.frame_count as f32,
             frame_rate: self.current_frame_rate,
-            resolution_z: 1.0, // Pixel aspect ratio, usually 1.0
+            resolution_z: 1.0,
             brightness: self.brightness,
             _pad1: 0.0,
-            // Cursor uniforms (Ghostty-compatible)
-            // Cursor dimensions vary by style:
-            // - Block: full cell width x height
-            // - Beam/Bar: thin width (2px) x full height
-            // - Underline: full width x thin height (2px)
             current_cursor: [
                 curr_x,
                 curr_y,
@@ -754,12 +470,10 @@ impl CustomShaderRenderer {
                 self.previous_cursor_color[3] * self.previous_cursor_opacity,
             ],
             cursor_change_time: self.cursor_change_time,
-            // Cursor shader configuration (floats first, then vec4 at aligned offset)
             cursor_trail_duration: self.cursor_trail_duration,
             cursor_glow_radius: self.cursor_glow_radius,
             cursor_glow_intensity: self.cursor_glow_intensity,
             cursor_shader_color: self.cursor_shader_color,
-            // Channel resolutions (Shadertoy-compatible)
             channel0_resolution: [
                 self.texture_width as f32,
                 self.texture_height as f32,
@@ -770,42 +484,53 @@ impl CustomShaderRenderer {
             channel2_resolution: self.channel_textures[1].resolution(),
             channel3_resolution: self.channel_textures[2].resolution(),
             channel4_resolution: self.channel_textures[3].resolution(),
-        };
+        }
+    }
 
-        queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
+    /// Calculate the iDate uniform value
+    fn calculate_date() -> [f32; 4] {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now_sys = SystemTime::now();
+        let since_epoch = now_sys.duration_since(UNIX_EPOCH).unwrap_or_default();
+        let secs = since_epoch.as_secs();
 
-        // Create command encoder
-        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("Custom Shader Encoder"),
-        });
+        let days_since_epoch = secs / 86400;
+        let secs_today = (secs % 86400) as f32;
 
-        // Render pass
-        {
-            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("Custom Shader Render Pass"),
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: output_view,
-                    resolve_target: None,
-                    ops: Operations {
-                        // Clear to transparent to support window transparency
-                        load: LoadOp::Clear(Color::TRANSPARENT),
-                        store: StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
+        let mut year = 1970i32;
+        let mut remaining_days = days_since_epoch as i32;
 
-            render_pass.set_pipeline(&self.pipeline);
-            render_pass.set_bind_group(0, &self.bind_group, &[]);
-            render_pass.draw(0..4, 0..1);
+        loop {
+            let days_in_year = if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
+                366
+            } else {
+                365
+            };
+            if remaining_days < days_in_year {
+                break;
+            }
+            remaining_days -= days_in_year;
+            year += 1;
         }
 
-        queue.submit(std::iter::once(encoder.finish()));
+        let is_leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+        let days_in_months: [i32; 12] = if is_leap {
+            [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        } else {
+            [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        };
 
-        Ok(())
+        let mut month = 0i32;
+        for (i, &days) in days_in_months.iter().enumerate() {
+            if remaining_days < days {
+                month = i as i32;
+                break;
+            }
+            remaining_days -= days;
+        }
+
+        let day = remaining_days + 1;
+        [year as f32, month as f32, day as f32, secs_today]
     }
 
     /// Check if animation is enabled
@@ -819,7 +544,6 @@ impl CustomShaderRenderer {
     pub fn set_animation_enabled(&mut self, enabled: bool) {
         self.animation_enabled = enabled;
         if enabled {
-            // Reset start time when enabling animation
             self.start_time = Instant::now();
         }
     }
@@ -829,12 +553,12 @@ impl CustomShaderRenderer {
         self.animation_speed = speed.max(0.0);
     }
 
-    /// Update window opacity (content alpha passed to shader)
+    /// Update window opacity
     pub fn set_opacity(&mut self, opacity: f32) {
         self.window_opacity = opacity.clamp(0.0, 1.0);
     }
 
-    /// Update shader brightness multiplier (dims shader background for readability)
+    /// Update shader brightness multiplier
     pub fn set_brightness(&mut self, brightness: f32) {
         self.brightness = brightness.clamp(0.05, 1.0);
     }
@@ -851,156 +575,19 @@ impl CustomShaderRenderer {
     }
 
     /// Update mouse position in pixel coordinates
-    ///
-    /// # Arguments
-    /// * `x` - Mouse X position in pixels (0 = left edge)
-    /// * `y` - Mouse Y position in pixels (0 = top edge, will be flipped for shader)
     pub fn set_mouse_position(&mut self, x: f32, y: f32) {
         self.mouse_position = [x, y];
     }
 
     /// Update mouse button state and click position
-    ///
-    /// Call this when the left mouse button is pressed or released.
-    ///
-    /// # Arguments
-    /// * `pressed` - True if mouse button is now pressed, false if released
-    /// * `x` - Mouse X position in pixels at time of click/release
-    /// * `y` - Mouse Y position in pixels at time of click/release (will be flipped for shader)
     pub fn set_mouse_button(&mut self, pressed: bool, x: f32, y: f32) {
         self.mouse_button_down = pressed;
         if pressed {
-            // Record click position when button is pressed
             self.mouse_click_position = [x, y];
         }
     }
 
-    // ============ Cursor tracking methods (Ghostty-compatible) ============
-
-    /// Update cursor position and appearance for shader effects
-    ///
-    /// This method tracks cursor movement and records the time of change,
-    /// enabling Ghostty-compatible cursor trail effects and animations.
-    ///
-    /// # Arguments
-    /// * `col` - Cursor column position (0-based)
-    /// * `row` - Cursor row position (0-based)
-    /// * `opacity` - Cursor opacity (0.0 = invisible, 1.0 = fully visible)
-    /// * `cursor_color` - Cursor RGBA color
-    /// * `style` - Cursor style (Block, Beam, Underline)
-    pub fn update_cursor(
-        &mut self,
-        col: usize,
-        row: usize,
-        opacity: f32,
-        cursor_color: [f32; 4],
-        style: CursorStyle,
-    ) {
-        let new_pos = (col, row);
-        let style_changed = style != self.current_cursor_style;
-        let pos_changed = new_pos != self.current_cursor_pos;
-
-        if pos_changed || style_changed {
-            // Store previous state before updating
-            self.previous_cursor_pos = self.current_cursor_pos;
-            self.previous_cursor_opacity = self.current_cursor_opacity;
-            self.previous_cursor_color = self.current_cursor_color;
-            self.previous_cursor_style = self.current_cursor_style;
-            self.current_cursor_pos = new_pos;
-            self.current_cursor_style = style;
-
-            // Record time of change (same timebase as iTime)
-            self.cursor_change_time = if self.animation_enabled {
-                self.start_time.elapsed().as_secs_f32() * self.animation_speed.max(0.0)
-            } else {
-                0.0
-            };
-
-            if pos_changed {
-                log::trace!(
-                    "Cursor moved: ({}, {}) -> ({}, {}), change_time={:.3}",
-                    self.previous_cursor_pos.0,
-                    self.previous_cursor_pos.1,
-                    col,
-                    row,
-                    self.cursor_change_time
-                );
-            }
-        }
-        self.current_cursor_opacity = opacity;
-        self.current_cursor_color = cursor_color;
-    }
-
-    /// Update cell dimensions for cursor pixel position calculation
-    ///
-    /// # Arguments
-    /// * `cell_width` - Cell width in pixels
-    /// * `cell_height` - Cell height in pixels
-    /// * `padding` - Window padding in pixels
-    pub fn update_cell_dimensions(&mut self, cell_width: f32, cell_height: f32, padding: f32) {
-        self.cursor_cell_width = cell_width;
-        self.cursor_cell_height = cell_height;
-        self.cursor_window_padding = padding;
-    }
-
-    /// Convert cursor cell coordinates to pixel coordinates
-    ///
-    /// Returns (x, y) in pixels from top-left corner of the window.
-    fn cursor_to_pixels(&self, col: usize, row: usize) -> (f32, f32) {
-        let x = self.cursor_window_padding + (col as f32 * self.cursor_cell_width);
-        let y = self.cursor_window_padding + (row as f32 * self.cursor_cell_height);
-        (x, y)
-    }
-
-    /// Get cursor width in pixels based on cursor style
-    fn cursor_width_for_style(&self, style: CursorStyle) -> f32 {
-        match style {
-            // Block cursor: full cell width
-            CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => self.cursor_cell_width,
-            // Beam/Bar cursor: thin vertical line (2 pixels)
-            CursorStyle::SteadyBar | CursorStyle::BlinkingBar => 2.0,
-            // Underline cursor: full cell width
-            CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => self.cursor_cell_width,
-        }
-    }
-
-    /// Get cursor height in pixels based on cursor style
-    fn cursor_height_for_style(&self, style: CursorStyle) -> f32 {
-        match style {
-            // Block cursor: full cell height
-            CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => self.cursor_cell_height,
-            // Beam/Bar cursor: full cell height
-            CursorStyle::SteadyBar | CursorStyle::BlinkingBar => self.cursor_cell_height,
-            // Underline cursor: thin horizontal line (2 pixels)
-            CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => 2.0,
-        }
-    }
-
-    /// Check if cursor animation might need continuous rendering
-    ///
-    /// Returns true if a cursor trail animation is likely still in progress
-    /// (within 1 second of the last cursor movement).
-    pub fn cursor_needs_animation(&self) -> bool {
-        if self.animation_enabled {
-            let current_time =
-                self.start_time.elapsed().as_secs_f32() * self.animation_speed.max(0.0);
-            // Allow 1 second for cursor trail animations to complete
-            (current_time - self.cursor_change_time) < 1.0
-        } else {
-            false
-        }
-    }
-
     /// Update a channel texture at runtime
-    ///
-    /// # Arguments
-    /// * `device` - The wgpu device
-    /// * `queue` - The wgpu queue
-    /// * `channel` - Channel index (1-4)
-    /// * `path` - Optional path to texture file (None = placeholder)
-    ///
-    /// # Returns
-    /// Ok(()) if successful, Err if texture loading fails
     #[allow(dead_code)]
     pub fn update_channel_texture(
         &mut self,
@@ -1015,71 +602,21 @@ impl CustomShaderRenderer {
 
         let index = (channel - 1) as usize;
 
-        // Load new texture or create placeholder
         let new_texture = match path {
             Some(p) => ChannelTexture::from_file(device, queue, p)?,
             None => ChannelTexture::placeholder(device, queue),
         };
 
-        // Replace the texture
         self.channel_textures[index] = new_texture;
 
-        // Recreate bind group with new texture
-        self.bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Custom Shader Bind Group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: self.uniform_buffer.as_entire_binding(),
-                },
-                // iChannel0 (terminal content)
-                BindGroupEntry {
-                    binding: 1,
-                    resource: BindingResource::TextureView(&self.intermediate_texture_view),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: BindingResource::Sampler(&self.sampler),
-                },
-                // iChannel1
-                BindGroupEntry {
-                    binding: 3,
-                    resource: BindingResource::TextureView(&self.channel_textures[0].view),
-                },
-                BindGroupEntry {
-                    binding: 4,
-                    resource: BindingResource::Sampler(&self.channel_textures[0].sampler),
-                },
-                // iChannel2
-                BindGroupEntry {
-                    binding: 5,
-                    resource: BindingResource::TextureView(&self.channel_textures[1].view),
-                },
-                BindGroupEntry {
-                    binding: 6,
-                    resource: BindingResource::Sampler(&self.channel_textures[1].sampler),
-                },
-                // iChannel3
-                BindGroupEntry {
-                    binding: 7,
-                    resource: BindingResource::TextureView(&self.channel_textures[2].view),
-                },
-                BindGroupEntry {
-                    binding: 8,
-                    resource: BindingResource::Sampler(&self.channel_textures[2].sampler),
-                },
-                // iChannel4
-                BindGroupEntry {
-                    binding: 9,
-                    resource: BindingResource::TextureView(&self.channel_textures[3].view),
-                },
-                BindGroupEntry {
-                    binding: 10,
-                    resource: BindingResource::Sampler(&self.channel_textures[3].sampler),
-                },
-            ],
-        });
+        self.bind_group = create_bind_group(
+            device,
+            &self.bind_group_layout,
+            &self.uniform_buffer,
+            &self.intermediate_texture_view,
+            &self.sampler,
+            &self.channel_textures,
+        );
 
         log::info!(
             "Updated iChannel{} texture: {}",
@@ -1091,45 +628,8 @@ impl CustomShaderRenderer {
         Ok(())
     }
 
-    /// Update cursor shader configuration from config values
-    ///
-    /// # Arguments
-    /// * `color` - Cursor color for shader effects [R, G, B] (0-255)
-    /// * `trail_duration` - Duration of cursor trail effect in seconds
-    /// * `glow_radius` - Radius of cursor glow effect in pixels
-    /// * `glow_intensity` - Intensity of cursor glow effect (0.0-1.0)
-    pub fn update_cursor_shader_config(
-        &mut self,
-        color: [u8; 3],
-        trail_duration: f32,
-        glow_radius: f32,
-        glow_intensity: f32,
-    ) {
-        self.cursor_shader_color = [
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0,
-            1.0,
-        ];
-        self.cursor_trail_duration = trail_duration.max(0.0);
-        self.cursor_glow_radius = glow_radius.max(0.0);
-        self.cursor_glow_intensity = glow_intensity.clamp(0.0, 1.0);
-    }
-
     /// Reload the shader from a source string
-    ///
-    /// This method compiles the new shader source and replaces the current pipeline.
-    /// If compilation fails, returns an error and the old shader remains active.
-    ///
-    /// # Arguments
-    /// * `device` - The wgpu device
-    /// * `source` - The GLSL shader source code
-    /// * `name` - A name for error messages (e.g., "editor")
-    ///
-    /// # Returns
-    /// Ok(()) if successful, Err with error message if compilation fails
     pub fn reload_from_source(&mut self, device: &Device, source: &str, name: &str) -> Result<()> {
-        // Transpile GLSL to WGSL
         let wgsl_source = transpile_glsl_to_wgsl_source(source, name)?;
 
         log::info!(
@@ -1139,7 +639,7 @@ impl CustomShaderRenderer {
         );
         log::debug!("Generated WGSL:\n{}", wgsl_source);
 
-        // Pre-validate WGSL to surface errors gracefully
+        // Pre-validate WGSL
         let module = naga::front::wgsl::parse_str(&wgsl_source)
             .context("Custom shader WGSL parse failed")?;
         let _info = naga::valid::Validator::new(
@@ -1149,53 +649,19 @@ impl CustomShaderRenderer {
         .validate(&module)
         .context("Custom shader WGSL validation failed")?;
 
-        // Create the shader module
         let shader_module = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Custom Shader Module (reloaded)"),
             source: ShaderSource::Wgsl(wgsl_source.into()),
         });
 
-        // Create pipeline layout
-        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("Custom Shader Pipeline Layout (reloaded)"),
-            bind_group_layouts: &[&self.bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        self.pipeline = create_render_pipeline(
+            device,
+            &shader_module,
+            &self.bind_group_layout,
+            self.surface_format,
+            Some("Custom Shader Pipeline (reloaded)"),
+        );
 
-        // Create render pipeline
-        let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: Some("Custom Shader Pipeline (reloaded)"),
-            layout: Some(&pipeline_layout),
-            vertex: VertexState {
-                module: &shader_module,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(FragmentState {
-                module: &shader_module,
-                entry_point: Some("fs_main"),
-                targets: &[Some(ColorTargetState {
-                    format: self.surface_format,
-                    blend: Some(BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleStrip,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
-
-        // Success! Replace the old pipeline
-        self.pipeline = pipeline;
-
-        // Reset animation timer
         self.start_time = Instant::now();
 
         log::info!("Custom shader reloaded successfully from source");
