@@ -10,28 +10,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2026-01-23
 
 ### Added
+- **Multi-Tab Support**: Multiple terminal tabs per window with independent PTY sessions
+  - `Cmd/Ctrl+T` to create a new tab
+  - `Cmd/Ctrl+W` to close tab (or window if single tab)
+  - `Cmd/Ctrl+Shift+[/]` or `Ctrl+Tab/Shift+Tab` to switch tabs
+  - `Cmd/Ctrl+1-9` for direct tab access
+  - `Cmd/Ctrl+Shift+Left/Right` to reorder tabs
+  - Tab duplication with inherited working directory
+  - Visual tab bar with close buttons, activity indicators, and bell icons
+  - Configurable tab bar visibility (always, when_multiple, never)
 - **Multi-Window Support**: Spawn multiple independent terminal windows
   - `Cmd/Ctrl+N` to open a new terminal window
-  - `Cmd/Ctrl+W` to close the current window
   - Each window runs its own shell process with separate scrollback and state
   - Application exits when the last window is closed
 - **Native Menu Bar**: Cross-platform native menu support using the `muda` crate
   - macOS: Global application menu bar with standard macOS conventions
   - Windows/Linux: Per-window menu bar with GTK integration on Linux
   - Full keyboard accelerators for all menu items
-  - Menu structure: File, Edit, View, Window (macOS), Help
+  - Menu structure: File, Edit, View, Tab, Window (macOS), Help
+- **Shader Texture Channels**: Shadertoy-compatible iChannel1-4 texture support
+  - Load custom textures for use in GLSL shaders
+  - Configure via `custom_shader_channel1` through `custom_shader_channel4` settings
+  - Supports PNG, JPEG, and other common image formats
+- **Shader Brightness Control**: New `custom_shader_brightness` setting
+  - Dims shader background to improve text readability (0.05 = very dark, 1.0 = full)
+- **Cursor Shader Improvements**: Enhanced cursor shader system
+  - New `cursor_shader_hides_cursor` option to fully replace cursor rendering
+  - Allows cursor shaders to completely control cursor appearance
 - **Custom Shaders Collection**: 40+ included GLSL shaders in `shaders/` directory
-  - Background effects: starfield, galaxy, underwater, CRT, bloom, and more
-  - Cursor effects: glow, sweep, trail, warp, blaze, ripple, pacman
+  - Background effects: starfield, galaxy, underwater, CRT, bloom, clouds, happy_fractal, bumped_sinusoidal_warp
+  - Cursor effects: glow, sweep, trail, warp, blaze, ripple, pacman, orbit
 
 ### Changed
 - **Architecture Refactor**: Decomposed monolithic `AppState` into modular components
+  - `TabManager`: Coordinates multiple tabs within each window
   - `WindowManager`: Coordinates multiple windows and handles menu events
   - `WindowState`: Per-window state (terminal, renderer, input, UI)
-  - Event routing by `WindowId` for proper multi-window support
+  - Event routing by `WindowId` and tab index for proper multi-window/tab support
 
 ### Documentation
 - Added `docs/CUSTOM_SHADERS.md` - Comprehensive guide for installing and creating shaders
+- Updated `docs/ARCHITECTURE.md` - Added TabManager and texture system details
+- Updated README with multi-tab keyboard shortcuts and configuration
 
 ---
 
@@ -109,7 +129,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Color accessibility controls (contrast, brightness)
 - Dynamic font hot-reloading
 - Font subsetting for large CJK fonts
-- Tab support with multiple terminal instances
 - Split pane support (horizontal/vertical)
 - Search functionality (Ctrl+F)
 

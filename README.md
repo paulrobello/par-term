@@ -55,6 +55,13 @@ Cross-platform native menu support using the [muda](https://github.com/tauri-app
 | **Window** (macOS) | Minimize, Zoom |
 | **Help** | Keyboard Shortcuts, About |
 
+### 🎨 Custom Shader Enhancements
+
+- **Texture Channels**: Shadertoy-compatible iChannel1-4 texture support for custom images in shaders
+- **Brightness Control**: `custom_shader_brightness` setting to dim shader backgrounds for better text readability
+- **Cursor Shader Options**: `cursor_shader_hides_cursor` allows shaders to fully replace cursor rendering
+- **New Shaders**: Added clouds, happy_fractal, bumped_sinusoidal_warp, cursor_orbit effects
+
 ### 🏗️ Architecture Improvements
 
 - **TabManager**: New multi-tab coordinator manages tab lifecycle within each window
@@ -246,6 +253,12 @@ tab_bar_mode: "when_multiple"  # always, when_multiple, never
 tab_bar_height: 28.0
 tab_show_close_button: true
 tab_inherit_cwd: true
+
+# Custom shader settings
+custom_shader: "starfield.glsl"
+custom_shader_enabled: true
+custom_shader_brightness: 0.3  # Dim shader for readability
+custom_shader_channel1: "~/textures/noise.png"  # Optional texture
 ```
 
 See `examples/config-complete.yaml` for a full list of options.
