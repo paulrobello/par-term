@@ -488,21 +488,48 @@ impl WindowState {
     }
 
     /// Handle a shader reload event
+    ///
+    /// On success: clears errors, triggers redraw, optionally shows notification
+    /// On failure: preserves the old working shader, logs error, shows notification
     fn handle_shader_reload_event(&mut self, event: ShaderReloadEvent) -> bool {
-        log::info!(
-            "Reloading {:?} shader from: {}",
-            event.shader_type,
-            event.path.display()
-        );
+        let shader_name = match event.shader_type {
+            ShaderType::Background => "Background shader",
+            ShaderType::Cursor => "Cursor shader",
+        };
+        let file_name = event
+            .path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("shader");
+
+        log::info!("Hot reload: {} from {}", shader_name, event.path.display());
 
         // Read the shader source
         let source = match std::fs::read_to_string(&event.path) {
             Ok(s) => s,
             Err(e) => {
-                let error_msg = format!("Failed to read shader file: {}", e);
-                log::error!("{}", error_msg);
+                let error_msg = format!("Cannot read '{}': {}", file_name, e);
+                log::error!("Shader hot reload failed: {}", error_msg);
                 self.shader_reload_error = Some(error_msg.clone());
-                self.settings_ui.set_shader_error(Some(error_msg));
+                match event.shader_type {
+                    ShaderType::Background => {
+                        self.settings_ui.set_shader_error(Some(error_msg.clone()))
+                    }
+                    ShaderType::Cursor => self
+                        .settings_ui
+                        .set_cursor_shader_error(Some(error_msg.clone())),
+                }
+                // Notify user of the error
+                self.deliver_notification(
+                    "Shader Reload Failed",
+                    &format!("{} - {}", shader_name, error_msg),
+                );
+                // Trigger visual bell if enabled to alert user
+                if self.config.notification_bell_visual
+                    && let Some(tab) = self.tab_manager.active_tab_mut()
+                {
+                    tab.bell.visual_flash = Some(std::time::Instant::now());
+                }
                 return false;
             }
         };
@@ -512,7 +539,8 @@ impl WindowState {
             return false;
         };
 
-        // Reload the appropriate shader
+        // Attempt to reload the shader
+        // Note: On compilation failure, the old shader pipeline is preserved
         let result = match event.shader_type {
             ShaderType::Background => renderer.reload_shader_from_source(&source),
             ShaderType::Cursor => renderer.reload_cursor_shader_from_source(&source),
@@ -520,7 +548,7 @@ impl WindowState {
 
         match result {
             Ok(()) => {
-                log::info!("{:?} shader reloaded successfully", event.shader_type);
+                log::info!("{} reloaded successfully from {}", shader_name, file_name);
                 self.shader_reload_error = None;
                 match event.shader_type {
                     ShaderType::Background => self.settings_ui.clear_shader_error(),
@@ -531,13 +559,45 @@ impl WindowState {
                 true
             }
             Err(e) => {
-                let error_msg = format!("{:?} shader reload failed: {:#}", event.shader_type, e);
-                log::error!("{}", error_msg);
+                // Extract the most relevant error message from the chain
+                let root_cause = e.root_cause().to_string();
+                let error_msg = if root_cause.len() > 200 {
+                    // Truncate very long error messages
+                    format!("{}...", &root_cause[..200])
+                } else {
+                    root_cause
+                };
+
+                log::error!(
+                    "{} compilation failed (old shader preserved): {}",
+                    shader_name,
+                    error_msg
+                );
+                log::debug!("Full error chain: {:#}", e);
+
                 self.shader_reload_error = Some(error_msg.clone());
                 match event.shader_type {
-                    ShaderType::Background => self.settings_ui.set_shader_error(Some(error_msg)),
-                    ShaderType::Cursor => self.settings_ui.set_cursor_shader_error(Some(error_msg)),
+                    ShaderType::Background => {
+                        self.settings_ui.set_shader_error(Some(error_msg.clone()))
+                    }
+                    ShaderType::Cursor => self
+                        .settings_ui
+                        .set_cursor_shader_error(Some(error_msg.clone())),
                 }
+
+                // Notify user of the compilation error
+                self.deliver_notification(
+                    "Shader Compilation Error",
+                    &format!("{}: {}", file_name, error_msg),
+                );
+
+                // Trigger visual bell if enabled to alert user
+                if self.config.notification_bell_visual
+                    && let Some(tab) = self.tab_manager.active_tab_mut()
+                {
+                    tab.bell.visual_flash = Some(std::time::Instant::now());
+                }
+
                 false
             }
         }
