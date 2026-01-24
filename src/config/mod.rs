@@ -655,6 +655,7 @@ impl Config {
     }
 
     /// Resolve a texture path, expanding ~ to home directory
+    /// and resolving relative paths relative to the shaders directory.
     /// Returns the expanded path or the original if expansion fails
     pub fn resolve_texture_path(path: &str) -> PathBuf {
         if path.starts_with("~/")
@@ -662,7 +663,12 @@ impl Config {
         {
             return home.join(&path[2..]);
         }
-        PathBuf::from(path)
+        let path_buf = PathBuf::from(path);
+        if path_buf.is_absolute() {
+            path_buf
+        } else {
+            Self::shaders_dir().join(path)
+        }
     }
 
     /// Get the channel texture paths as an array of Options

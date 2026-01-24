@@ -107,6 +107,8 @@ The directory is created automatically when par-term first starts.
 | `happy_fractal.glsl` | Raymarched fractal landscape with animated happy face and rainbow trail |
 | `clouds.glsl` | Animated procedural clouds with blue sky gradient |
 | `bumped_sinusoidal_warp.glsl` | Bump-mapped sinusoidal warp effect with point lighting (uses iChannel1 texture) |
+| `gyroid.glsl` | Raymarched gyroid tunnel with colorful lighting and reflections |
+| `dodecagon-pattern.glsl` | Raymarched dodecagon tile pattern with BRDF metallic frames (uses iChannel1 texture) |
 
 ### CRT and Retro Effects
 
