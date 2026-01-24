@@ -31,7 +31,10 @@ The system is composed of three primary layers: the Application Layer (handling 
 ```mermaid
 graph TB
     subgraph "Application Layer"
-        App[App Controller]
+        App[App Entry Point]
+        WM[Window Manager]
+        WS[Window State]
+        Menu[Native Menu]
         Input[Input Handler]
         Config[Configuration]
     end
@@ -50,9 +53,12 @@ graph TB
         GPU[WGPU / GPU]
     end
 
-    Input --> App
-    App --> TM
-    App --> Renderer
+    App --> WM
+    WM --> WS
+    WM --> Menu
+    Input --> WS
+    WS --> TM
+    WS --> Renderer
     TM --> Core
     Core <--> PTY
     Core --> Renderer
@@ -63,6 +69,9 @@ graph TB
     GraphicRender --> GPU
 
     style App fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style WM fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style WS fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style Menu fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style TM fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Renderer fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style PTY fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
@@ -73,13 +82,18 @@ graph TB
 
 ### Application Logic
 
-*   **App (`src/app.rs`)**: The central coordinator. It initializes the application, manages the main event loop (via `winit`), and orchestrates communication between the input, terminal, and renderer.
+*   **App (`src/app/mod.rs`)**: The entry point that initializes configuration and runs the event loop via `winit`.
+*   **WindowManager (`src/app/window_manager.rs`)**: Coordinates multiple terminal windows, handles native menu events, and manages shared resources.
+*   **WindowState (`src/app/window_state.rs`)**: Per-window state containing terminal, renderer, input handler, and UI components.
 *   **Input Handler (`src/input.rs`)**: Translates OS window events (keyboard, mouse) into terminal input sequences or application commands (e.g., shortcuts for copy/paste).
+*   **Menu (`src/menu/mod.rs`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).
 *   **Configuration (`src/config.rs`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`).
 
 ### Terminal Emulation
 
-*   **Terminal Manager (`src/terminal.rs`)**: A wrapper around the core emulation library. It exposes a thread-safe API for the UI to interact with the underlying PTY session.
+*   **Terminal Manager (`src/terminal/mod.rs`)**: A wrapper around the core emulation library. It exposes a thread-safe API for the UI to interact with the underlying PTY session.
+*   **Shell Spawning (`src/terminal/spawn.rs`)**: Handles shell process creation and login shell initialization.
+*   **Graphics (`src/terminal/graphics.rs`)**: Manages Sixel and inline graphics metadata.
 *   **Core Library**: Uses `par-term-emu-core-rust` for:
     *   VT100/ANSI escape sequence parsing.
     *   Grid management and scrollback history.
@@ -87,10 +101,10 @@ graph TB
 
 ### Rendering Engine
 
-*   **Renderer (`src/renderer.rs`)**: The high-level rendering coordinator. It manages the `wgpu` surface and delegates tasks to specialized sub-renderers.
-*   **Cell Renderer (`src/cell_renderer.rs`)**: Responsible for drawing the text grid. It uploads cell data (characters, colors, attributes) to the GPU.
+*   **Renderer (`src/renderer/mod.rs`)**: The high-level rendering coordinator. It manages the `wgpu` surface and delegates tasks to specialized sub-renderers.
+*   **Cell Renderer (`src/cell_renderer/mod.rs`)**: Responsible for drawing the text grid. Includes glyph atlas management (`atlas.rs`), background images (`background.rs`), and the core render loop (`render.rs`).
 *   **Graphics Renderer (`src/graphics_renderer.rs`)**: Handles overlay graphics like Sixel, iTerm2 images, and Kitty graphics.
-*   **Custom Shaders (`src/custom_shader_renderer.rs`)**: Provides post-processing effects using GLSL shaders (compatible with Shadertoy/Ghostty).
+*   **Custom Shaders (`src/custom_shader_renderer/mod.rs`)**: Provides post-processing effects using GLSL shaders (compatible with Shadertoy/Ghostty). Includes GLSL-to-WGSL transpilation via `naga`.
 
 ### Text & Font Handling
 
@@ -149,6 +163,6 @@ Access to shared resources (like the Terminal state) is managed via `parking_lot
 
 ## Related Documentation
 
-*   [Documentation Style Guide](../docs/DOCUMENTATION_STYLE_GUIDE.md) - Standards for project documentation.
-*   [Compositor Architecture](../docs/COMPOSITOR.md) - Deep dive into the GPU rendering pipeline and shader system.
-*   [API Reference](../docs/API_DOCUMENTATION.md) - (Placeholder) Future detailed API docs.
+- [Documentation Style Guide](DOCUMENTATION_STYLE_GUIDE.md) - Standards for project documentation.
+- [Compositor Architecture](COMPOSITOR.md) - Deep dive into the GPU rendering pipeline and shader system.
+- [Custom Shaders Guide](CUSTOM_SHADERS.md) - Installing and creating custom GLSL shaders.

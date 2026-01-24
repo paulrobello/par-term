@@ -12,6 +12,7 @@ mod graphics_renderer;
 mod help_ui;
 mod input;
 mod macos_metal; // macOS-specific CAMetalLayer configuration
+mod menu;
 mod renderer;
 mod scroll_state;
 mod scrollbar;

@@ -248,6 +248,22 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 | `iTextOpacity` | `float` | Text opacity (0.0 - 1.0) |
 | `iFullContent` | `float` | Full content mode flag (0.0 or 1.0) |
 
+#### Cursor Uniforms (Ghostty-Compatible)
+
+These uniforms enable cursor trail and glow effects:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iCurrentCursor` | `vec4` | Current cursor: `xy` = position, `zw` = cell size (pixels) |
+| `iPreviousCursor` | `vec4` | Previous cursor position and size |
+| `iCurrentCursorColor` | `vec4` | Current cursor RGBA color |
+| `iPreviousCursorColor` | `vec4` | Previous cursor RGBA color |
+| `iTimeCursorChange` | `float` | Time when cursor last moved (same timebase as `iTime`) |
+| `iCursorTrailDuration` | `float` | Trail animation duration in seconds |
+| `iCursorGlowRadius` | `float` | Glow radius in pixels |
+| `iCursorGlowIntensity` | `float` | Glow intensity (0.0 - 1.0) |
+| `iCursorShaderColor` | `vec4` | User-configured cursor shader color |
+
 ### Shader Modes
 
 Par-term supports two shader modes controlled by the `custom_shader_full_content` configuration option:
@@ -634,6 +650,7 @@ background_image_opacity: 1.0
 ## Related Documentation
 
 - [README.md](../README.md) - Project overview and configuration reference
-- [CLAUDE.md](../CLAUDE.md) - Architecture overview and development guide
+- [Custom Shaders Guide](CUSTOM_SHADERS.md) - Installing and creating custom shaders
+- [Architecture](ARCHITECTURE.md) - System architecture overview
 - [Shadertoy](https://www.shadertoy.com) - Shader inspiration and examples
-- [Ghostty Shaders](https://github.com/ghostty-org/ghostty) - Compatible shader format reference
+- [Ghostty Shaders](https://ghostty.org/) - Compatible shader format reference

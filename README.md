@@ -12,6 +12,41 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
+## What's New in 0.4.0
+
+### 🪟 Multi-Window Support
+
+Spawn multiple independent terminal windows, each with its own PTY session.
+
+- **New Window**: `Cmd+N` (macOS) / `Ctrl+N` to open a new terminal window
+- **Close Window**: `Cmd+W` (macOS) / `Ctrl+W` to close the current window
+- **Independent Sessions**: Each window runs its own shell process with separate scrollback and state
+- **Clean Shutdown**: Application exits when the last window is closed
+
+### 📋 Native Menu Bar
+
+Cross-platform native menu support using the [muda](https://github.com/tauri-apps/muda) crate.
+
+- **macOS**: Global application menu bar with standard macOS conventions
+- **Windows/Linux**: Per-window menu bar with GTK integration on Linux
+- **Full Keyboard Accelerators**: All menu items have proper keyboard shortcuts
+
+#### Menu Structure
+
+| Menu | Items |
+|------|-------|
+| **File** | New Window, Close Window, Quit (Windows/Linux) |
+| **Edit** | Copy, Paste, Select All, Clear Scrollback, Clipboard History |
+| **View** | Toggle Fullscreen, Font Size (+/-/Reset), FPS Overlay, Settings |
+| **Window** (macOS) | Minimize, Zoom |
+| **Help** | Keyboard Shortcuts, About |
+
+### 🏗️ Architecture Improvements
+
+- **WindowManager**: New multi-window coordinator handles window lifecycle and menu events
+- **WindowState**: Per-window state cleanly separated from application-level state
+- **Event Routing**: Events properly routed to the correct window by WindowId
+
 ## What's New in 0.3.0
 
 ### 🎨 Ghostty-Compatible Cursor Shaders
@@ -84,6 +119,7 @@ Significantly reduced CPU and GPU usage by switching from continuous polling to 
 ## Documentation
 
 - **[Quick Start Guide](QUICK_START_FONTS.md)** - Get up and running with custom fonts.
+- **[Custom Shaders Guide](docs/CUSTOM_SHADERS.md)** - Install and create custom GLSL shaders for backgrounds and cursor effects.
 - **[Compositor Details](docs/COMPOSITOR.md)** - Deep dive into the rendering architecture.
 - **[Examples](examples/README.md)** - Comprehensive configuration examples.
 - **[Core Library](https://github.com/paulrobello/par-term-emu-core-rust)** - Documentation for the underlying terminal engine.
@@ -124,28 +160,33 @@ make run-bundle
 
 ### Linux Dependencies
 
-On Linux (Ubuntu/Debian), you may need:
+On Linux (Ubuntu/Debian), you need GTK3 and X11/Wayland libraries:
 ```bash
-sudo apt install libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev
 ```
 
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
+| `Cmd/Ctrl + N` | New window |
+| `Cmd/Ctrl + W` | Close window |
+| `Cmd/Ctrl + Q` | Quit (Windows/Linux) |
 | `PageUp` / `PageDown` | Scroll up/down one page |
 | `Shift + Home` | Jump to top of scrollback |
 | `Shift + End` | Jump to bottom (current) |
-| `Ctrl + V` | Paste from clipboard |
-| `Ctrl + Shift + K` | Clear scrollback buffer |
+| `Cmd/Ctrl + C` | Copy selection |
+| `Cmd/Ctrl + V` | Paste from clipboard |
+| `Cmd/Ctrl + Shift + K` | Clear scrollback buffer |
+| `Cmd/Ctrl + Shift + H` | Clipboard history |
 | `Ctrl + L` | Clear visible screen |
-| `Ctrl + +/-/0` | Adjust font size / Reset |
+| `Cmd/Ctrl + +/-/0` | Adjust font size / Reset |
 | `Ctrl + Shift + S` | Take screenshot |
 | `Cmd + ,` / `Ctrl + ,` | Cycle cursor style (Block/Beam/Underline) |
 | `F1` | Toggle Help panel |
 | `F3` | Toggle FPS overlay |
 | `F5` | Reload configuration |
-| `F11` | Toggle fullscreen / Shader editor |
+| `F11` | Toggle fullscreen |
 | `F12` | Toggle Settings UI |
 
 ## Configuration

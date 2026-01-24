@@ -14,6 +14,7 @@ pub mod graphics_renderer;
 pub mod help_ui;
 pub mod input;
 pub mod macos_metal; // macOS-specific CAMetalLayer configuration
+pub mod menu;
 pub mod renderer;
 pub mod scroll_state;
 pub mod scrollbar;

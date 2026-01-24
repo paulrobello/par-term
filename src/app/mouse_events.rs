@@ -1,11 +1,11 @@
-use crate::app::AppState;
+use crate::app::window_state::WindowState;
 use crate::selection::{Selection, SelectionMode};
 use crate::terminal::ClipboardSlot;
 use crate::url_detection;
 use std::sync::Arc;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta};
 
-impl AppState {
+impl WindowState {
     pub(crate) fn select_word_at(&mut self, col: usize, row: usize) {
         if let Some(terminal) = &self.terminal
             && let Ok(term) = terminal.try_lock()

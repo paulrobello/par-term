@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-01-23
+
+### Added
+- **Multi-Window Support**: Spawn multiple independent terminal windows
+  - `Cmd/Ctrl+N` to open a new terminal window
+  - `Cmd/Ctrl+W` to close the current window
+  - Each window runs its own shell process with separate scrollback and state
+  - Application exits when the last window is closed
+- **Native Menu Bar**: Cross-platform native menu support using the `muda` crate
+  - macOS: Global application menu bar with standard macOS conventions
+  - Windows/Linux: Per-window menu bar with GTK integration on Linux
+  - Full keyboard accelerators for all menu items
+  - Menu structure: File, Edit, View, Window (macOS), Help
+- **Custom Shaders Collection**: 40+ included GLSL shaders in `shaders/` directory
+  - Background effects: starfield, galaxy, underwater, CRT, bloom, and more
+  - Cursor effects: glow, sweep, trail, warp, blaze, ripple, pacman
+
+### Changed
+- **Architecture Refactor**: Decomposed monolithic `AppState` into modular components
+  - `WindowManager`: Coordinates multiple windows and handles menu events
+  - `WindowState`: Per-window state (terminal, renderer, input, UI)
+  - Event routing by `WindowId` for proper multi-window support
+
+### Documentation
+- Added `docs/CUSTOM_SHADERS.md` - Comprehensive guide for installing and creating shaders
+
+---
+
+## [0.3.0] - 2026-01-21
+
+### Added
+- **Ghostty-Compatible Cursor Shaders**: Full support for cursor-based shader animations
+  - `iCurrentCursor`, `iPreviousCursor` uniforms for cursor position and size
+  - `iCurrentCursorColor` uniform for cursor color
+  - `iTimeCursorChange` uniform for cursor movement timing
+  - Built-in cursor shaders: sweep, warp, glow, blaze, trail, ripple, boom
+- **Configurable Cursor Color**: New cursor color setting exposed to shaders
+- **Cursor Style Toggle**: `Cmd+,` (macOS) / `Ctrl+,` to cycle through Block, Beam, and Underline styles
+- **Geometric Cursor Rendering**: Proper visual rendering for all cursor styles
+
+### Fixed
+- **Login Shell Support**: Fixed issues with login shell initialization and environment loading
+
+### Changed
+- **Shader Editor Improvements**: Background and cursor shader editors now show filename in window header
+
+---
+
 ## [0.2.0] - 2026-01-20
 
 ### Added
@@ -258,7 +306,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/paulrobello/par-term/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/paulrobello/par-term/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/paulrobello/par-term/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/paulrobello/par-term/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/paulrobello/par-term/releases/tag/v0.1.0

@@ -1,11 +1,17 @@
-use crate::app::AppState;
+//! Application event handler
+//!
+//! This module implements the winit `ApplicationHandler` trait for `WindowManager`,
+//! routing window events to the appropriate `WindowState` and handling menu events.
+
+use crate::app::window_manager::WindowManager;
+use crate::app::window_state::WindowState;
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
-use winit::window::{Window, WindowId};
+use winit::window::WindowId;
 
-impl AppState {
+impl WindowState {
     pub(crate) fn check_notifications(&mut self) {
         if let Some(terminal) = &self.terminal
             && let Ok(term) = terminal.try_lock()
@@ -37,7 +43,7 @@ impl AppState {
             if current_bell_count > self.bell.last_count {
                 // Bell event(s) occurred
                 let bell_events = current_bell_count - self.bell.last_count;
-                log::info!("🔔 Bell event detected ({} bell(s))", bell_events);
+                log::info!("Bell event detected ({} bell(s))", bell_events);
                 log::info!(
                     "  Config: sound={}, visual={}, desktop={}",
                     self.config.notification_bell_sound,
@@ -172,7 +178,7 @@ impl AppState {
         );
     }
 
-    fn deliver_notification(&self, title: &str, message: &str) {
+    pub(crate) fn deliver_notification(&self, title: &str, message: &str) {
         // Always log notifications
         if !title.is_empty() {
             log::info!("=== Notification: {} ===", title);
@@ -292,72 +298,13 @@ impl AppState {
             window.set_title(&title);
         }
     }
-}
 
-impl ApplicationHandler for AppState {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_none() {
-            let mut window_attrs = Window::default_attributes()
-                .with_title(&self.config.window_title)
-                .with_inner_size(winit::dpi::LogicalSize::new(
-                    self.config.window_width,
-                    self.config.window_height,
-                ))
-                .with_decorations(self.config.window_decorations);
-
-            // Load and set the application icon
-            let icon_bytes = include_bytes!("../../assets/icon.png");
-            if let Ok(icon_image) = image::load_from_memory(icon_bytes) {
-                let rgba = icon_image.to_rgba8();
-                let (width, height) = rgba.dimensions();
-                if let Ok(icon) = winit::window::Icon::from_rgba(rgba.into_raw(), width, height) {
-                    window_attrs = window_attrs.with_window_icon(Some(icon));
-                    log::info!("Window icon set ({}x{})", width, height);
-                } else {
-                    log::warn!("Failed to create window icon from RGBA data");
-                }
-            } else {
-                log::warn!("Failed to load embedded icon image");
-            }
-
-            // Set window always-on-top if requested
-            if self.config.window_always_on_top {
-                window_attrs =
-                    window_attrs.with_window_level(winit::window::WindowLevel::AlwaysOnTop);
-                log::info!("Window always-on-top enabled");
-            }
-
-            // Always enable window transparency support for runtime opacity changes
-            // Even if starting at opacity 1.0, we need this for real-time updates
-            window_attrs = window_attrs.with_transparent(true);
-            log::info!(
-                "Window transparency enabled (opacity: {})",
-                self.config.window_opacity
-            );
-
-            match event_loop.create_window(window_attrs) {
-                Ok(window) => {
-                    // Initialize async components using the shared runtime
-                    let runtime = Arc::clone(&self.runtime);
-                    if let Err(e) = runtime.block_on(self.initialize_async(window)) {
-                        log::error!("Failed to initialize: {}", e);
-                        event_loop.exit();
-                    }
-                }
-                Err(e) => {
-                    log::error!("Failed to create window: {}", e);
-                    event_loop.exit();
-                }
-            }
-        }
-    }
-
-    fn window_event(
+    /// Handle window events for this window state
+    pub(crate) fn handle_window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
-        _window_id: WindowId,
         event: WindowEvent,
-    ) {
+    ) -> bool {
         use winit::keyboard::{Key, NamedKey};
 
         // Debug: Log ALL keyboard events at entry to diagnose Space issue
@@ -374,7 +321,7 @@ impl ApplicationHandler for AppState {
                     );
                 }
                 Key::Named(NamedKey::Space) => {
-                    log::debug!("🔔 SPACE EVENT: state={:?}", key_event.state);
+                    log::debug!("SPACE EVENT: state={:?}", key_event.state);
                 }
                 Key::Named(named) => {
                     log::trace!(
@@ -438,12 +385,12 @@ impl ApplicationHandler for AppState {
                     _ => {}
                 }
             }
-            return;
+            return false; // Event consumed by egui, don't close window
         }
 
         match event {
             WindowEvent::CloseRequested => {
-                log::info!("Close requested, cleaning up and exiting");
+                log::info!("Close requested for window");
                 // Set shutdown flag to stop redraw loop
                 self.is_shutting_down = true;
                 // Abort the refresh task to prevent lockup on shutdown
@@ -451,7 +398,7 @@ impl ApplicationHandler for AppState {
                     task.abort();
                     log::info!("Refresh task aborted");
                 }
-                event_loop.exit();
+                return true; // Signal to close this window
             }
 
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
@@ -590,7 +537,7 @@ impl ApplicationHandler for AppState {
             WindowEvent::RedrawRequested => {
                 // Skip rendering if shutting down
                 if self.is_shutting_down {
-                    return;
+                    return false;
                 }
 
                 // Check if shell has exited and close window if configured
@@ -607,8 +554,7 @@ impl ApplicationHandler for AppState {
                         task.abort();
                         log::info!("Refresh task aborted");
                     }
-                    event_loop.exit();
-                    return;
+                    return true; // Signal to close this window
                 }
 
                 self.render();
@@ -616,9 +562,12 @@ impl ApplicationHandler for AppState {
 
             _ => {}
         }
+
+        false // Don't close window
     }
 
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+    /// Process per-window updates in about_to_wait
+    pub(crate) fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         // Skip all processing if shutting down
         if self.is_shutting_down {
             return;
@@ -715,5 +664,55 @@ impl ApplicationHandler for AppState {
 
         // Set the calculated sleep interval
         event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
+    }
+}
+
+impl ApplicationHandler for WindowManager {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        // Create the first window on app resume (or if all windows were closed on some platforms)
+        if self.windows.is_empty() {
+            self.create_window(event_loop);
+        }
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        // Route event to the appropriate window
+        let should_close = if let Some(window_state) = self.windows.get_mut(&window_id) {
+            window_state.handle_window_event(event_loop, event)
+        } else {
+            false
+        };
+
+        // Close window if requested
+        if should_close {
+            self.close_window(window_id);
+        }
+
+        // Exit if no windows remain
+        if self.should_exit {
+            event_loop.exit();
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // Process menu events
+        // Find focused window (for now, use the first window if any)
+        let focused_window = self.windows.keys().next().copied();
+        self.process_menu_events(event_loop, focused_window);
+
+        // Process each window's about_to_wait logic
+        for window_state in self.windows.values_mut() {
+            window_state.about_to_wait(event_loop);
+        }
+
+        // Exit if no windows remain
+        if self.should_exit {
+            event_loop.exit();
+        }
     }
 }

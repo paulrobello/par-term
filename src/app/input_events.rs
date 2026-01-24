@@ -1,4 +1,4 @@
-use crate::app::AppState;
+use crate::app::window_state::WindowState;
 use crate::config::Config;
 use crate::terminal::ClipboardSlot;
 use std::sync::Arc;
@@ -7,7 +7,7 @@ use winit::event::KeyEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
 
-impl AppState {
+impl WindowState {
     pub(crate) fn handle_key_event(&mut self, event: KeyEvent, event_loop: &ActiveEventLoop) {
         // Check if any UI panel is visible
         let any_ui_visible =

@@ -1,0 +1,387 @@
+# Custom Shaders Guide
+
+Par-term supports custom GLSL shaders for background effects and post-processing, compatible with Ghostty and Shadertoy shader formats. This guide covers installing included shaders and creating your own.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Quick Start](#quick-start)
+- [Installing Shaders](#installing-shaders)
+  - [From the Included Collection](#from-the-included-collection)
+  - [Shader Directory Location](#shader-directory-location)
+- [Included Shaders](#included-shaders)
+  - [Background Effects](#background-effects)
+  - [CRT and Retro Effects](#crt-and-retro-effects)
+  - [Cursor Effects](#cursor-effects)
+- [Configuration](#configuration)
+  - [Background Shaders](#background-shaders)
+  - [Cursor Shaders](#cursor-shaders)
+- [Creating Custom Shaders](#creating-custom-shaders)
+  - [Basic Structure](#basic-structure)
+  - [Available Uniforms](#available-uniforms)
+  - [Cursor Shader Uniforms](#cursor-shader-uniforms)
+  - [Shader Modes](#shader-modes)
+- [Examples](#examples)
+  - [Simple Background Gradient](#simple-background-gradient)
+  - [Animated Background](#animated-background)
+  - [Custom Cursor Trail](#custom-cursor-trail)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
+
+## Overview
+
+Par-term's shader system provides two types of customization:
+
+1. **Background Shaders**: Post-processing effects applied to the entire terminal (CRT effects, color grading, animated backgrounds)
+2. **Cursor Shaders**: Visual effects that follow the cursor (trails, glows, ripples)
+
+Shaders are written in GLSL (OpenGL Shading Language) and automatically transpiled to WGSL for the GPU backend.
+
+## Quick Start
+
+1. Copy a shader file to your config directory:
+   ```bash
+   # macOS/Linux
+   mkdir -p ~/.config/par-term/shaders
+   cp shaders/starfield.glsl ~/.config/par-term/shaders/
+   ```
+
+2. Enable the shader in your config:
+   ```yaml
+   # ~/.config/par-term/config.yaml
+   custom_shader: "starfield.glsl"
+   custom_shader_enabled: true
+   ```
+
+3. Restart par-term or press `F5` to reload configuration
+
+## Installing Shaders
+
+### From the Included Collection
+
+Par-term includes a collection of 40+ ready-to-use shaders in the `shaders/` directory. Copy any shader to your configuration directory to use it:
+
+```bash
+# macOS/Linux
+cp shaders/crt.glsl ~/.config/par-term/shaders/
+
+# Windows (PowerShell)
+Copy-Item shaders\crt.glsl $env:APPDATA\par-term\shaders\
+```
+
+### Shader Directory Location
+
+| Platform | Path |
+|----------|------|
+| macOS/Linux | `~/.config/par-term/shaders/` |
+| Windows | `%APPDATA%\par-term\shaders\` |
+
+The directory is created automatically when par-term first starts.
+
+## Included Shaders
+
+### Background Effects
+
+| Shader | Description |
+|--------|-------------|
+| `starfield.glsl` | Animated starfield with parallax layers behind terminal text |
+| `starfield-colors.glsl` | Colorful variant of the starfield effect |
+| `galaxy.glsl` | Swirling galaxy background animation |
+| `animated-gradient-shader.glsl` | Smoothly animated color gradient background |
+| `gradient-background.glsl` | Static diagonal gradient background |
+| `underwater.glsl` | Caustic water effect with subtle distortion |
+| `water.glsl` | Simpler water caustic effect |
+| `water-bg.glsl` | Water effect optimized for background use |
+| `just-snow.glsl` | Falling snow particles overlay |
+| `fireworks.glsl` | Fireworks particle effect |
+| `fireworks-rockets.glsl` | Fireworks with rocket trails |
+| `sparks-from-fire.glsl` | Rising fire sparks effect |
+| `smoke-and-ghost.glsl` | Ethereal smoke and ghosting effect |
+| `cubes.glsl` | 3D rotating cubes background |
+| `gears-and-belts.glsl` | Mechanical gears animation |
+| `inside-the-matrix.glsl` | Matrix-style falling code effect |
+| `cineShader-Lava.glsl` | Flowing lava/plasma effect |
+| `sin-interference.glsl` | Wave interference pattern |
+
+### CRT and Retro Effects
+
+| Shader | Description |
+|--------|-------------|
+| `crt.glsl` | Full CRT simulation with curvature, scanlines, and phosphor mask |
+| `bettercrt.glsl` | Simplified CRT effect with scanlines |
+| `retro-terminal.glsl` | Classic green-tint terminal with scanlines |
+| `in-game-crt.glsl` | Game-style CRT effect |
+| `tft.glsl` | TFT/LCD subpixel simulation |
+| `bloom.glsl` | Soft glow/bloom around bright text |
+| `dither.glsl` | Retro dithering effect |
+| `glitchy.glsl` | Digital glitch distortion |
+| `glow-rgbsplit-twitchy.glsl` | RGB split with glow and glitch |
+| `drunkard.glsl` | Wobbly distortion effect |
+| `negative.glsl` | Simple color inversion |
+| `spotlight.glsl` | Spotlight/vignette effect |
+
+### Cursor Effects
+
+Cursor shaders create visual effects that follow your cursor position. These use special uniforms for cursor tracking.
+
+| Shader | Description |
+|--------|-------------|
+| `cursor_glow.glsl` | Soft radial glow around cursor |
+| `cursor_sweep.glsl` | Smooth trailing sweep when cursor moves |
+| `cursor_trail.glsl` | Persistent fading trail behind cursor |
+| `cursor_warp.glsl` | Space warp effect emanating from cursor |
+| `cursor_blaze.glsl` | Fire/blaze effect following cursor |
+| `cursor_ripple.glsl` | Ripple waves emanating from cursor position |
+| `cursor_ripple_rectangle.glsl` | Rectangular ripple variant |
+| `cursor_sonic_boom.glsl` | Shockwave effect on cursor movement |
+| `cursor_rectangle_boom.glsl` | Rectangular explosion effect |
+| `cursor_pacman.glsl` | Pac-Man themed cursor animation |
+
+## Configuration
+
+### Background Shaders
+
+Configure background/post-processing shaders in your config file:
+
+```yaml
+# ~/.config/par-term/config.yaml
+
+# Shader file name (in shaders/ directory)
+custom_shader: "starfield.glsl"
+
+# Enable/disable the shader
+custom_shader_enabled: true
+
+# Enable animation (updates iTime uniform each frame)
+custom_shader_animation: true
+
+# Animation speed multiplier (1.0 = normal, 0.5 = half speed)
+custom_shader_animation_speed: 1.0
+
+# Text opacity when shader is active (0.0 - 1.0)
+custom_shader_text_opacity: 1.0
+
+# Full content mode: shader can distort/modify text
+# false = text composited on top of shader output (recommended)
+# true = shader receives and can modify terminal content
+custom_shader_full_content: false
+```
+
+### Cursor Shaders
+
+Cursor shaders are configured separately:
+
+```yaml
+# Cursor shader file name
+cursor_shader: "cursor_glow.glsl"
+
+# Enable/disable cursor shader
+cursor_shader_enabled: true
+
+# Cursor color (used by shaders via iCurrentCursorColor)
+cursor_color: "#00ff00"
+```
+
+## Creating Custom Shaders
+
+### Basic Structure
+
+Every shader must define a `mainImage` function:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    // Normalize coordinates to 0-1 range
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Sample terminal content
+    vec4 terminal = texture(iChannel0, uv);
+
+    // Apply your effect
+    vec3 color = terminal.rgb;
+
+    // Output with alpha (1.0 = opaque)
+    fragColor = vec4(color, 1.0);
+}
+```
+
+### Available Uniforms
+
+Par-term provides Shadertoy-compatible uniforms:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iResolution` | `vec2` | Viewport size in pixels |
+| `iTime` | `float` | Time in seconds since shader started |
+| `iTimeDelta` | `float` | Time since last frame |
+| `iFrame` | `float` | Frame counter |
+| `iFrameRate` | `float` | Current FPS |
+| `iMouse` | `vec4` | Mouse position and click state |
+| `iDate` | `vec4` | Year, month (0-11), day (1-31), seconds since midnight |
+| `iChannel0` | `sampler2D` | Terminal content texture |
+| `iOpacity` | `float` | Window opacity setting |
+| `iTextOpacity` | `float` | Text opacity setting |
+
+### Cursor Shader Uniforms
+
+Cursor shaders have additional uniforms:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iCurrentCursor` | `vec4` | Current cursor: `xy` = position, `zw` = cell size |
+| `iPreviousCursor` | `vec4` | Previous cursor position and size |
+| `iCurrentCursorColor` | `vec4` | Cursor color (RGBA) |
+| `iTimeCursorChange` | `float` | Time when cursor last moved |
+
+**Cursor position details:**
+- `iCurrentCursor.xy` is the top-left corner of the cursor cell
+- `iCurrentCursor.zw` is the cell width and height in pixels
+- To get cursor center: `iCurrentCursor.xy + iCurrentCursor.zw * 0.5`
+
+### Shader Modes
+
+**Background-Only Mode** (default, `custom_shader_full_content: false`):
+- Shader output is used as background
+- Terminal text is composited on top, remaining sharp
+- Best for animated backgrounds and non-distorting effects
+
+**Full Content Mode** (`custom_shader_full_content: true`):
+- Shader receives full terminal content via `iChannel0`
+- Shader can distort, warp, or transform text
+- Required for CRT curvature, underwater distortion, etc.
+
+## Examples
+
+### Simple Background Gradient
+
+A static diagonal gradient:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Diagonal gradient
+    float t = (uv.x + uv.y) * 0.5;
+
+    // Dark blue to dark purple
+    vec3 color1 = vec3(0.05, 0.05, 0.15);
+    vec3 color2 = vec3(0.15, 0.05, 0.15);
+
+    vec3 bg = mix(color1, color2, t);
+
+    fragColor = vec4(bg, 1.0);
+}
+```
+
+### Animated Background
+
+Pulsing color effect:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Animated pulse
+    float pulse = sin(iTime * 2.0) * 0.5 + 0.5;
+
+    // Dark base with subtle color variation
+    vec3 color = vec3(0.05, 0.05, 0.1);
+    color += vec3(0.02, 0.0, 0.05) * pulse;
+
+    // Add radial gradient from center
+    float dist = length(uv - 0.5);
+    color *= 1.0 - dist * 0.5;
+
+    fragColor = vec4(color, 1.0);
+}
+```
+
+### Custom Cursor Trail
+
+Simple fading trail effect:
+
+```glsl
+const float TRAIL_INTENSITY = 0.5;
+const float TRAIL_RADIUS = 50.0;
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Sample terminal
+    vec4 terminal = texture(iChannel0, uv);
+
+    // Get cursor center
+    vec2 cursorCenter = iCurrentCursor.xy + iCurrentCursor.zw * 0.5;
+    vec2 prevCenter = iPreviousCursor.xy + iPreviousCursor.zw * 0.5;
+
+    // Distance from cursor path
+    vec2 toCursor = fragCoord - cursorCenter;
+    float dist = length(toCursor);
+
+    // Glow falloff
+    float glow = 1.0 - smoothstep(0.0, TRAIL_RADIUS, dist);
+    glow = pow(glow, 2.0) * TRAIL_INTENSITY;
+
+    // Blend glow with cursor color
+    vec3 color = terminal.rgb + iCurrentCursorColor.rgb * glow;
+
+    fragColor = vec4(color, terminal.a);
+}
+```
+
+## Troubleshooting
+
+### Shader Not Loading
+
+**Symptom:** No visual effect after enabling shader
+
+**Solutions:**
+- Verify file exists in `~/.config/par-term/shaders/`
+- Check `custom_shader_enabled: true` in config
+- Press `F5` to reload configuration
+- Check terminal output for compilation errors
+
+### Black or White Screen
+
+**Symptom:** Terminal content not visible
+
+**Solutions:**
+- Ensure `fragColor.a = 1.0` for opaque output
+- Verify UV coordinates are in 0.0-1.0 range
+- Check `texture(iChannel0, uv)` sampling
+
+### Text Hard to Read
+
+**Symptom:** Text blurry or distorted
+
+**Solutions:**
+- Use `custom_shader_full_content: false` (background-only mode)
+- Increase `custom_shader_text_opacity`
+- Reduce effect intensity in shader
+
+### Low Frame Rate
+
+**Symptom:** Stuttering or choppy animation
+
+**Solutions:**
+- Reduce shader complexity (fewer loops, simpler math)
+- Lower `custom_shader_animation_speed`
+- Disable animation: `custom_shader_animation: false`
+
+### Compilation Errors
+
+**Common GLSL issues:**
+- Use `texture()` not `texture2D()`
+- Declare constants with `const` keyword
+- Arrays: `vec3[N] arr = vec3[N](...)`
+- No `#version` directive needed (added automatically)
+
+## Related Documentation
+
+- [Compositor Details](COMPOSITOR.md) - Deep dive into the rendering pipeline
+- [README.md](../README.md) - Configuration reference
+- [Shadertoy](https://www.shadertoy.com) - Shader inspiration and examples
+- [Ghostty](https://ghostty.org/) - Compatible shader format reference

@@ -1,6 +1,6 @@
 [package]
 name = "par-term"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Cross-platform GPU-accelerated terminal emulator with inline graphics support (Sixel, iTerm2, Kitty)"
@@ -79,6 +79,14 @@ image = "0.25"
 
 # GLSL to WGSL transpilation for custom shaders
 naga = { version = "27", features = ["glsl-in", "wgsl-out"] }
+
+# Native window menus
+muda = "0.17"
+
+# Linux-specific: GTK for native menus (muda requires gtk feature on Linux)
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]
+version = "0.17"
+features = ["gtk"]
 
 # macOS-specific: Access CAMetalLayer for performance optimization
 [target.'cfg(target_os = "macos")'.dependencies]
