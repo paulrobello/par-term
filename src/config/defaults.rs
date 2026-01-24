@@ -187,3 +187,48 @@ pub fn unfocused_fps() -> u32 {
 pub fn shader_hot_reload_delay() -> u64 {
     100 // Debounce delay in milliseconds
 }
+
+// Tab bar color defaults
+pub fn tab_bar_background() -> [u8; 3] {
+    [40, 40, 40] // Dark gray background
+}
+
+pub fn tab_active_background() -> [u8; 3] {
+    [60, 60, 60] // Slightly lighter for active tab
+}
+
+pub fn tab_inactive_background() -> [u8; 3] {
+    [40, 40, 40] // Same as bar background
+}
+
+pub fn tab_hover_background() -> [u8; 3] {
+    [50, 50, 50] // Between inactive and active
+}
+
+pub fn tab_active_text() -> [u8; 3] {
+    [255, 255, 255] // White text for active tab
+}
+
+pub fn tab_inactive_text() -> [u8; 3] {
+    [180, 180, 180] // Gray text for inactive tabs
+}
+
+pub fn tab_active_indicator() -> [u8; 3] {
+    [100, 150, 255] // Blue underline for active tab
+}
+
+pub fn tab_activity_indicator() -> [u8; 3] {
+    [100, 180, 255] // Light blue activity dot
+}
+
+pub fn tab_bell_indicator() -> [u8; 3] {
+    [255, 200, 100] // Orange/yellow bell icon
+}
+
+pub fn tab_close_button() -> [u8; 3] {
+    [150, 150, 150] // Gray close button
+}
+
+pub fn tab_close_button_hover() -> [u8; 3] {
+    [255, 100, 100] // Red on hover
+}

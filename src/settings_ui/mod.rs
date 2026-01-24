@@ -19,6 +19,7 @@ mod shader_dialogs;
 mod shader_editor;
 mod shader_utils;
 pub mod shell_tab;
+pub mod tab_bar_tab;
 pub mod terminal_tab;
 pub mod theme_tab;
 pub mod window_tab;
@@ -616,6 +617,26 @@ impl SettingsUI {
             insert_section_separator(ui, &mut section_shown);
             matches_found = true;
             shell_tab::show(ui, self, changes_this_frame);
+        }
+
+        // Tab Bar
+        if section_matches(
+            "Tab Bar",
+            &[
+                "Tab bar",
+                "Tab background",
+                "Tab text",
+                "Tab indicator",
+                "Tab close",
+                "Active tab",
+                "Inactive tab",
+                "Bell",
+                "Activity",
+            ],
+        ) {
+            insert_section_separator(ui, &mut section_shown);
+            matches_found = true;
+            tab_bar_tab::show(ui, self, changes_this_frame);
         }
 
         // Screenshot
