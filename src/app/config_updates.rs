@@ -47,6 +47,10 @@ pub(crate) struct ConfigChanges {
     // Font/spacing (requires rebuild)
     pub font: bool,
     pub padding: bool,
+
+    // Shader hot reload
+    pub shader_hot_reload: bool,
+    pub shader_hot_reload_delay: bool,
 }
 
 impl ConfigChanges {
@@ -106,6 +110,9 @@ impl ConfigChanges {
                 || (new.line_spacing - old.line_spacing).abs() > f32::EPSILON
                 || (new.char_spacing - old.char_spacing).abs() > f32::EPSILON,
             padding: (new.window_padding - old.window_padding).abs() > f32::EPSILON,
+
+            shader_hot_reload: new.shader_hot_reload != old.shader_hot_reload,
+            shader_hot_reload_delay: new.shader_hot_reload_delay != old.shader_hot_reload_delay,
         }
     }
 
@@ -131,5 +138,15 @@ impl ConfigChanges {
     /// Returns true if any background image setting changed
     pub fn any_bg_change(&self) -> bool {
         self.bg_enabled || self.bg_path || self.bg_mode || self.bg_opacity
+    }
+
+    /// Returns true if shader watcher needs to be reinitialized
+    pub fn needs_watcher_reinit(&self) -> bool {
+        self.shader_hot_reload
+            || self.shader_hot_reload_delay
+            || self.shader_path
+            || self.cursor_shader_path
+            || self.shader_enabled
+            || self.cursor_shader_enabled
     }
 }

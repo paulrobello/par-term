@@ -11,6 +11,7 @@ use crate::input::InputHandler;
 use crate::renderer::Renderer;
 use crate::selection::SelectionMode;
 use crate::settings_ui::{CursorShaderEditorResult, SettingsUI, ShaderEditorResult};
+use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::tab::TabManager;
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
 use anyhow::Result;
@@ -71,6 +72,12 @@ pub struct WindowState {
     // Focus state for power saving
     /// Whether the window currently has focus
     pub(crate) is_focused: bool,
+
+    // Shader hot reload
+    /// Shader file watcher for hot reload support
+    pub(crate) shader_watcher: Option<ShaderWatcher>,
+    /// Last shader reload error message (for display in UI)
+    pub(crate) shader_reload_error: Option<String>,
 }
 
 impl WindowState {
@@ -108,6 +115,9 @@ impl WindowState {
             pending_font_rebuild: false,
 
             is_focused: true, // Assume focused on creation
+
+            shader_watcher: None,
+            shader_reload_error: None,
         }
     }
 
@@ -325,6 +335,9 @@ impl WindowState {
         self.window = Some(Arc::clone(&window));
         self.renderer = Some(renderer);
 
+        // Initialize shader watcher if hot reload is enabled
+        self.init_shader_watcher();
+
         // Create the first tab
         let tab_id = self.tab_manager.new_tab(
             &self.config,
@@ -398,6 +411,196 @@ impl WindowState {
         // Request redraw
         self.needs_redraw = true;
         self.request_redraw();
+    }
+
+    // ========================================================================
+    // Shader Hot Reload
+    // ========================================================================
+
+    /// Initialize the shader watcher for hot reload support
+    pub(crate) fn init_shader_watcher(&mut self) {
+        if !self.config.shader_hot_reload {
+            log::debug!("Shader hot reload disabled");
+            return;
+        }
+
+        let background_path = self
+            .config
+            .custom_shader
+            .as_ref()
+            .filter(|_| self.config.custom_shader_enabled)
+            .map(|s| Config::shader_path(s));
+
+        let cursor_path = self
+            .config
+            .cursor_shader
+            .as_ref()
+            .filter(|_| self.config.cursor_shader_enabled)
+            .map(|s| Config::shader_path(s));
+
+        if background_path.is_none() && cursor_path.is_none() {
+            log::debug!("No shaders to watch for hot reload");
+            return;
+        }
+
+        match ShaderWatcher::new(
+            background_path.as_deref(),
+            cursor_path.as_deref(),
+            self.config.shader_hot_reload_delay,
+        ) {
+            Ok(watcher) => {
+                log::info!(
+                    "Shader hot reload initialized (debounce: {}ms)",
+                    self.config.shader_hot_reload_delay
+                );
+                self.shader_watcher = Some(watcher);
+            }
+            Err(e) => {
+                log::error!("Failed to initialize shader hot reload: {}", e);
+            }
+        }
+    }
+
+    /// Reinitialize shader watcher when shader paths change
+    pub(crate) fn reinit_shader_watcher(&mut self) {
+        // Drop existing watcher
+        self.shader_watcher = None;
+        self.shader_reload_error = None;
+
+        // Reinitialize if hot reload is still enabled
+        self.init_shader_watcher();
+    }
+
+    /// Check for and handle shader reload events
+    ///
+    /// Should be called periodically (e.g., in about_to_wait or render loop).
+    /// Returns true if a shader was reloaded.
+    pub(crate) fn check_shader_reload(&mut self) -> bool {
+        let Some(watcher) = &self.shader_watcher else {
+            return false;
+        };
+
+        let Some(event) = watcher.try_recv() else {
+            return false;
+        };
+
+        self.handle_shader_reload_event(event)
+    }
+
+    /// Handle a shader reload event
+    ///
+    /// On success: clears errors, triggers redraw, optionally shows notification
+    /// On failure: preserves the old working shader, logs error, shows notification
+    fn handle_shader_reload_event(&mut self, event: ShaderReloadEvent) -> bool {
+        let shader_name = match event.shader_type {
+            ShaderType::Background => "Background shader",
+            ShaderType::Cursor => "Cursor shader",
+        };
+        let file_name = event
+            .path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("shader");
+
+        log::info!("Hot reload: {} from {}", shader_name, event.path.display());
+
+        // Read the shader source
+        let source = match std::fs::read_to_string(&event.path) {
+            Ok(s) => s,
+            Err(e) => {
+                let error_msg = format!("Cannot read '{}': {}", file_name, e);
+                log::error!("Shader hot reload failed: {}", error_msg);
+                self.shader_reload_error = Some(error_msg.clone());
+                match event.shader_type {
+                    ShaderType::Background => {
+                        self.settings_ui.set_shader_error(Some(error_msg.clone()))
+                    }
+                    ShaderType::Cursor => self
+                        .settings_ui
+                        .set_cursor_shader_error(Some(error_msg.clone())),
+                }
+                // Notify user of the error
+                self.deliver_notification(
+                    "Shader Reload Failed",
+                    &format!("{} - {}", shader_name, error_msg),
+                );
+                // Trigger visual bell if enabled to alert user
+                if self.config.notification_bell_visual
+                    && let Some(tab) = self.tab_manager.active_tab_mut()
+                {
+                    tab.bell.visual_flash = Some(std::time::Instant::now());
+                }
+                return false;
+            }
+        };
+
+        let Some(renderer) = &mut self.renderer else {
+            log::error!("Cannot reload shader: no renderer available");
+            return false;
+        };
+
+        // Attempt to reload the shader
+        // Note: On compilation failure, the old shader pipeline is preserved
+        let result = match event.shader_type {
+            ShaderType::Background => renderer.reload_shader_from_source(&source),
+            ShaderType::Cursor => renderer.reload_cursor_shader_from_source(&source),
+        };
+
+        match result {
+            Ok(()) => {
+                log::info!("{} reloaded successfully from {}", shader_name, file_name);
+                self.shader_reload_error = None;
+                match event.shader_type {
+                    ShaderType::Background => self.settings_ui.clear_shader_error(),
+                    ShaderType::Cursor => self.settings_ui.clear_cursor_shader_error(),
+                }
+                self.needs_redraw = true;
+                self.request_redraw();
+                true
+            }
+            Err(e) => {
+                // Extract the most relevant error message from the chain
+                let root_cause = e.root_cause().to_string();
+                let error_msg = if root_cause.len() > 200 {
+                    // Truncate very long error messages
+                    format!("{}...", &root_cause[..200])
+                } else {
+                    root_cause
+                };
+
+                log::error!(
+                    "{} compilation failed (old shader preserved): {}",
+                    shader_name,
+                    error_msg
+                );
+                log::debug!("Full error chain: {:#}", e);
+
+                self.shader_reload_error = Some(error_msg.clone());
+                match event.shader_type {
+                    ShaderType::Background => {
+                        self.settings_ui.set_shader_error(Some(error_msg.clone()))
+                    }
+                    ShaderType::Cursor => self
+                        .settings_ui
+                        .set_cursor_shader_error(Some(error_msg.clone())),
+                }
+
+                // Notify user of the compilation error
+                self.deliver_notification(
+                    "Shader Compilation Error",
+                    &format!("{}: {}", file_name, error_msg),
+                );
+
+                // Trigger visual bell if enabled to alert user
+                if self.config.notification_bell_visual
+                    && let Some(tab) = self.tab_manager.active_tab_mut()
+                {
+                    tab.bell.visual_flash = Some(std::time::Instant::now());
+                }
+
+                false
+            }
+        }
     }
 
     /// Check if egui is currently using the pointer (mouse is over an egui UI element)
@@ -917,6 +1120,9 @@ impl WindowState {
                 Option<CursorShaderEditorResult>,
             )> = None;
 
+            // Flag to reinitialize shader watcher after renderer borrow ends
+            let mut needs_watcher_reinit = false;
+
             let egui_data = if let (Some(egui_ctx), Some(egui_state)) =
                 (&self.egui_ctx, &mut self.egui_state)
             {
@@ -1242,6 +1448,11 @@ impl WindowState {
                         log::info!("Updated window padding to {}", self.config.window_padding);
                     }
 
+                    // Flag for shader watcher reinit (done outside renderer borrow)
+                    if changes.needs_watcher_reinit() {
+                        needs_watcher_reinit = true;
+                    }
+
                     // Invalidate cell cache
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
                         tab.cache.cells = None;
@@ -1354,6 +1565,11 @@ impl WindowState {
             let _ = debug_actual_render_time;
 
             self.debug.render_time = render_start.elapsed();
+
+            // Reinitialize shader watcher if config changed (outside renderer borrow)
+            if needs_watcher_reinit {
+                self.reinit_shader_watcher();
+            }
         }
 
         // Handle tab bar actions collected during egui rendering

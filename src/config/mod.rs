@@ -471,6 +471,19 @@ pub struct Config {
     /// Lower values save more power but may delay terminal output visibility
     #[serde(default = "defaults::unfocused_fps")]
     pub unfocused_fps: u32,
+
+    // ========================================================================
+    // Shader Hot Reload
+    // ========================================================================
+    /// Enable automatic shader reloading when shader files are modified
+    /// This watches custom_shader and cursor_shader files for changes
+    #[serde(default = "defaults::bool_false")]
+    pub shader_hot_reload: bool,
+
+    /// Debounce delay in milliseconds before reloading shader after file change
+    /// Helps avoid multiple reloads during rapid saves from editors
+    #[serde(default = "defaults::shader_hot_reload_delay")]
+    pub shader_hot_reload_delay: u64,
 }
 
 impl Default for Config {
@@ -566,6 +579,8 @@ impl Default for Config {
             pause_shaders_on_blur: defaults::bool_true(),
             pause_refresh_on_blur: defaults::bool_false(),
             unfocused_fps: defaults::unfocused_fps(),
+            shader_hot_reload: defaults::bool_false(),
+            shader_hot_reload_delay: defaults::shader_hot_reload_delay(),
         }
     }
 }
