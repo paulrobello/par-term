@@ -183,3 +183,7 @@ pub fn zero() -> usize {
 pub fn unfocused_fps() -> u32 {
     10 // Reduced FPS when window is not focused (10 FPS is plenty for background activity)
 }
+
+pub fn shader_hot_reload_delay() -> u64 {
+    100 // Debounce delay in milliseconds
+}

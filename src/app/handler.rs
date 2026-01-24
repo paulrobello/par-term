@@ -422,6 +422,11 @@ impl WindowState {
         // Check for bell events and play audio/visual feedback
         self.check_bell();
 
+        // Check for shader hot reload events
+        if self.check_shader_reload() {
+            log::debug!("Shader hot reload triggered redraw");
+        }
+
         // Update window title with shell integration info (CWD, exit code)
         self.update_window_title_with_shell_integration();
 

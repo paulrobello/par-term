@@ -80,6 +80,9 @@ image = "0.25"
 # GLSL to WGSL transpilation for custom shaders
 naga = { version = "27", features = ["glsl-in", "wgsl-out"] }
 
+# File watching for shader hot reload
+notify = { version = "8.0", default-features = false, features = ["macos_kqueue"] }
+
 # Native window menus
 muda = "0.17"
 
