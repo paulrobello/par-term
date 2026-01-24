@@ -1,0 +1,249 @@
+//! Tab management for multi-tab terminal support
+//!
+//! This module provides the core tab infrastructure including:
+//! - `Tab`: Represents a single terminal session with its own state
+//! - `TabManager`: Coordinates multiple tabs within a window
+//! - `TabId`: Unique identifier for each tab
+
+mod manager;
+
+pub use manager::TabManager;
+
+use crate::app::bell::BellState;
+use crate::app::mouse::MouseState;
+use crate::app::render_cache::RenderCache;
+use crate::config::Config;
+use crate::scroll_state::ScrollState;
+use crate::terminal::TerminalManager;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
+
+/// Unique identifier for a tab
+pub type TabId = u64;
+
+/// A single terminal tab with its own state
+pub struct Tab {
+    /// Unique identifier for this tab
+    pub id: TabId,
+    /// The terminal session for this tab
+    pub terminal: Arc<Mutex<TerminalManager>>,
+    /// Tab title (from OSC sequences or fallback)
+    pub title: String,
+    /// Whether this tab has unread activity since last viewed
+    pub has_activity: bool,
+    /// Scroll state for this tab
+    pub scroll_state: ScrollState,
+    /// Mouse state for this tab
+    pub mouse: MouseState,
+    /// Bell state for this tab
+    pub bell: BellState,
+    /// Render cache for this tab
+    pub cache: RenderCache,
+    /// Async task for refresh polling
+    pub refresh_task: Option<JoinHandle<()>>,
+    /// Working directory when tab was created (for inheriting)
+    pub working_directory: Option<String>,
+}
+
+impl Tab {
+    /// Create a new tab with a terminal session
+    pub fn new(
+        id: TabId,
+        config: &Config,
+        _runtime: Arc<Runtime>,
+        working_directory: Option<String>,
+    ) -> anyhow::Result<Self> {
+        let initial_opacity = config.window_opacity;
+
+        // Create terminal with scrollback from config
+        let mut terminal = TerminalManager::new_with_scrollback(
+            config.cols,
+            config.rows,
+            config.scrollback_lines,
+        )?;
+
+        // Set theme from config
+        terminal.set_theme(config.load_theme());
+
+        // Apply clipboard history limits from config
+        terminal.set_max_clipboard_sync_events(config.clipboard_max_sync_events);
+        terminal.set_max_clipboard_event_bytes(config.clipboard_max_event_bytes);
+
+        // Determine working directory
+        let work_dir = working_directory
+            .as_deref()
+            .or(config.working_directory.as_deref());
+
+        // Determine the shell command to use
+        let (shell_cmd, mut shell_args) = if let Some(ref custom) = config.custom_shell {
+            (custom.clone(), config.shell_args.clone())
+        } else {
+            #[cfg(target_os = "windows")]
+            {
+                ("powershell.exe".to_string(), None)
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                (
+                    std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()),
+                    None,
+                )
+            }
+        };
+
+        // On Unix-like systems, spawn as login shell if configured
+        #[cfg(not(target_os = "windows"))]
+        if config.login_shell {
+            let args = shell_args.get_or_insert_with(Vec::new);
+            if !args.iter().any(|a| a == "-l" || a == "--login") {
+                args.insert(0, "-l".to_string());
+            }
+        }
+
+        let shell_args_deref = shell_args.as_deref();
+        let shell_env = config.shell_env.as_ref();
+        terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env)?;
+
+        let terminal = Arc::new(Mutex::new(terminal));
+
+        // Generate initial title
+        let title = format!("Tab {}", id);
+
+        Ok(Self {
+            id,
+            terminal,
+            title,
+            has_activity: false,
+            scroll_state: ScrollState::new(),
+            mouse: MouseState::new(),
+            bell: BellState::new(),
+            cache: RenderCache::new(initial_opacity),
+            refresh_task: None,
+            working_directory: working_directory.or_else(|| config.working_directory.clone()),
+        })
+    }
+
+    /// Check if the visual bell is currently active (within flash duration)
+    pub fn is_bell_active(&self) -> bool {
+        const FLASH_DURATION_MS: u128 = 150;
+        if let Some(flash_start) = self.bell.visual_flash {
+            flash_start.elapsed().as_millis() < FLASH_DURATION_MS
+        } else {
+            false
+        }
+    }
+
+    /// Update tab title from terminal OSC sequences
+    pub fn update_title(&mut self) {
+        if let Ok(term) = self.terminal.try_lock() {
+            let osc_title = term.get_title();
+            if !osc_title.is_empty() {
+                self.title = osc_title;
+            } else if let Some(cwd) = term.shell_integration_cwd() {
+                // Abbreviate home directory to ~
+                let abbreviated = if let Some(home) = dirs::home_dir() {
+                    cwd.replace(&home.to_string_lossy().to_string(), "~")
+                } else {
+                    cwd
+                };
+                // Use just the last component for brevity
+                if let Some(last) = abbreviated.rsplit('/').next() {
+                    if !last.is_empty() {
+                        self.title = last.to_string();
+                    } else {
+                        self.title = abbreviated;
+                    }
+                } else {
+                    self.title = abbreviated;
+                }
+            }
+            // Otherwise keep the existing title (e.g., "Tab N")
+        }
+    }
+
+    /// Check if the terminal in this tab is still running
+    #[allow(dead_code)]
+    pub fn is_running(&self) -> bool {
+        if let Ok(term) = self.terminal.try_lock() {
+            term.is_running()
+        } else {
+            true // Assume running if locked
+        }
+    }
+
+    /// Get the current working directory of this tab's shell
+    pub fn get_cwd(&self) -> Option<String> {
+        if let Ok(term) = self.terminal.try_lock() {
+            term.shell_integration_cwd()
+        } else {
+            self.working_directory.clone()
+        }
+    }
+
+    /// Start the refresh polling task for this tab
+    pub fn start_refresh_task(
+        &mut self,
+        runtime: Arc<Runtime>,
+        window: Arc<winit::window::Window>,
+        max_fps: u32,
+    ) {
+        let terminal_clone = Arc::clone(&self.terminal);
+        let refresh_interval_ms = 1000 / max_fps.max(1);
+
+        let handle = runtime.spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(
+                refresh_interval_ms as u64,
+            ));
+            let mut last_gen = 0;
+
+            loop {
+                interval.tick().await;
+
+                let should_redraw = if let Ok(term) = terminal_clone.try_lock() {
+                    let current_gen = term.update_generation();
+                    if current_gen > last_gen {
+                        last_gen = current_gen;
+                        true
+                    } else {
+                        term.has_updates()
+                    }
+                } else {
+                    false
+                };
+
+                if should_redraw {
+                    window.request_redraw();
+                }
+            }
+        });
+
+        self.refresh_task = Some(handle);
+    }
+
+    /// Stop the refresh polling task
+    pub fn stop_refresh_task(&mut self) {
+        if let Some(handle) = self.refresh_task.take() {
+            handle.abort();
+        }
+    }
+}
+
+impl Drop for Tab {
+    fn drop(&mut self) {
+        log::info!("Dropping tab {}", self.id);
+        self.stop_refresh_task();
+
+        // Give the task time to abort
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        // Kill the terminal
+        if let Ok(mut term) = self.terminal.try_lock()
+            && term.is_running()
+        {
+            log::info!("Killing terminal for tab {}", self.id);
+            let _ = term.kill();
+        }
+    }
+}

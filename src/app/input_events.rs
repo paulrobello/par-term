@@ -36,9 +36,9 @@ impl WindowState {
             return;
         }
 
-        // Check if shell has exited
-        let is_running = if let Some(terminal) = &self.terminal {
-            if let Ok(term) = terminal.try_lock() {
+        // Check if active tab's shell has exited
+        let is_running = if let Some(tab) = self.tab_manager.active_tab() {
+            if let Ok(term) = tab.terminal.try_lock() {
                 term.is_running()
             } else {
                 true
@@ -51,11 +51,13 @@ impl WindowState {
         // (fallback behavior if close_on_shell_exit is false)
         if !is_running && event.state == ElementState::Pressed {
             log::info!("Shell has exited, closing terminal on keypress");
-            // Abort the refresh task to prevent lockup on shutdown
-            if let Some(task) = self.refresh_task.take() {
-                task.abort();
-                log::info!("Refresh task aborted");
+            // Abort refresh tasks for all tabs
+            for tab in self.tab_manager.tabs_mut() {
+                if let Some(task) = tab.refresh_task.take() {
+                    task.abort();
+                }
             }
+            log::info!("Refresh tasks aborted");
             event_loop.exit();
             return;
         }
@@ -110,9 +112,17 @@ impl WindowState {
             return; // Key was handled by utility shortcut
         }
 
+        // Check for tab shortcuts (Cmd+T, Cmd+W, Cmd+Shift+[/], Cmd+1-9)
+        if self.handle_tab_shortcuts(&event, event_loop) {
+            return; // Key was handled by tab shortcut
+        }
+
         // Clear selection on keyboard input (except for special keys handled above)
-        if event.state == ElementState::Pressed && self.mouse.selection.is_some() {
-            self.mouse.selection = None;
+        if event.state == ElementState::Pressed
+            && let Some(tab) = self.tab_manager.active_tab_mut()
+            && tab.mouse.selection.is_some()
+        {
+            tab.mouse.selection = None;
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
@@ -130,7 +140,7 @@ impl WindowState {
 
         // Normal key handling - send to terminal
         if let Some(bytes) = self.input_handler.handle_key_event(event)
-            && let Some(terminal) = &self.terminal
+            && let Some(tab) = self.tab_manager.active_tab()
         {
             if is_tab {
                 log::debug!("Sending Tab key to terminal ({} bytes)", bytes.len());
@@ -138,7 +148,7 @@ impl WindowState {
             if is_space {
                 log::debug!("Sending Space key to terminal ({} bytes)", bytes.len());
             }
-            let terminal_clone = Arc::clone(terminal);
+            let terminal_clone = Arc::clone(&tab.terminal);
 
             self.runtime.spawn(async move {
                 let term = terminal_clone.lock().await;
@@ -224,12 +234,13 @@ impl WindowState {
                 // Update theme
                 if self.config.theme != new_config.theme {
                     self.config.theme = new_config.theme.clone();
-                    if let Some(terminal) = &self.terminal
-                        && let Ok(mut term) = terminal.try_lock()
-                    {
-                        term.set_theme(new_config.load_theme());
-                        log::info!("Applied new theme: {}", new_config.theme);
+                    // Apply theme to all tabs
+                    for tab in self.tab_manager.tabs_mut() {
+                        if let Ok(mut term) = tab.terminal.try_lock() {
+                            term.set_theme(new_config.load_theme());
+                        }
                     }
+                    log::info!("Applied new theme: {}", new_config.theme);
                 }
 
                 // Note: Clipboard history and notification settings not yet available in core library
@@ -315,8 +326,8 @@ impl WindowState {
 
     fn toggle_clipboard_history(&mut self) {
         // Refresh clipboard history entries from terminal before showing
-        if let Some(terminal) = &self.terminal
-            && let Ok(term) = terminal.try_lock()
+        if let Some(tab) = self.tab_manager.active_tab()
+            && let Ok(term) = tab.terminal.try_lock()
         {
             // Get history for all slots and merge
             let mut all_entries = Vec::new();
@@ -339,8 +350,8 @@ impl WindowState {
     }
 
     pub(crate) fn paste_text(&mut self, text: &str) {
-        if let Some(terminal) = &self.terminal {
-            let terminal_clone = Arc::clone(terminal);
+        if let Some(tab) = self.tab_manager.active_tab() {
+            let terminal_clone = Arc::clone(&tab.terminal);
             // Convert newlines to carriage returns for terminal
             let text = text.replace('\n', "\r");
             self.runtime.spawn(async move {
@@ -369,17 +380,19 @@ impl WindowState {
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "k" || c.as_str() == "K")
         {
             // Clear scrollback if terminal is available
-            let cleared = if let Some(terminal) = &self.terminal
-                && let Ok(term) = terminal.try_lock()
-            {
-                term.clear_scrollback();
-                true
+            let cleared = if let Some(tab) = self.tab_manager.active_tab_mut() {
+                if let Ok(term) = tab.terminal.try_lock() {
+                    term.clear_scrollback();
+                    tab.cache.scrollback_len = 0;
+                    true
+                } else {
+                    false
+                }
             } else {
                 false
             };
 
             if cleared {
-                self.cache.scrollback_len = 0;
                 self.set_scroll_target(0);
                 log::info!("Cleared scrollback buffer");
             }
@@ -391,8 +404,8 @@ impl WindowState {
             && !shift
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "l" || c.as_str() == "L")
         {
-            if let Some(terminal) = &self.terminal {
-                let terminal_clone = Arc::clone(terminal);
+            if let Some(tab) = self.tab_manager.active_tab() {
+                let terminal_clone = Arc::clone(&tab.terminal);
                 // Send the "clear" command sequence (Ctrl+L)
                 let clear_sequence = vec![0x0C]; // Ctrl+L character
                 self.runtime.spawn(async move {
@@ -470,7 +483,9 @@ impl WindowState {
             };
 
             // Force cell regen to reflect cursor style change
-            self.cache.cells = None;
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.cache.cells = None;
+            }
             self.needs_redraw = true;
 
             log::info!("Cycled cursor style to {:?}", self.config.cursor_style);
@@ -483,13 +498,129 @@ impl WindowState {
                 CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
             };
 
-            if let Some(terminal) = &self.terminal
-                && let Ok(mut term) = terminal.try_lock()
+            if let Some(tab) = self.tab_manager.active_tab()
+                && let Ok(mut term) = tab.terminal.try_lock()
             {
                 term.set_cursor_style(term_style);
             }
 
             return true;
+        }
+
+        false
+    }
+
+    fn handle_tab_shortcuts(&mut self, event: &KeyEvent, _event_loop: &ActiveEventLoop) -> bool {
+        if event.state != ElementState::Pressed {
+            return false;
+        }
+
+        let ctrl = self.input_handler.modifiers.state().control_key();
+        let shift = self.input_handler.modifiers.state().shift_key();
+        let super_key = self.input_handler.modifiers.state().super_key();
+
+        // Use Cmd on macOS, Ctrl on other platforms
+        #[cfg(target_os = "macos")]
+        let cmd_or_ctrl = super_key;
+        #[cfg(not(target_os = "macos"))]
+        let cmd_or_ctrl = ctrl;
+
+        // Cmd+T: New tab
+        if cmd_or_ctrl
+            && !shift
+            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "t" || c.as_str() == "T")
+        {
+            self.new_tab();
+            log::info!("New tab created via Cmd+T");
+            return true;
+        }
+
+        // Cmd+W: Smart close (close tab if multiple, close window if single)
+        // Note: Window close is handled separately in handle_window_event
+        if cmd_or_ctrl
+            && !shift
+            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "w" || c.as_str() == "W")
+        {
+            if self.has_multiple_tabs() {
+                self.close_current_tab();
+                log::info!("Tab closed via Cmd+W");
+                return true;
+            }
+            // If single tab, let the window close handler take care of it
+            return false;
+        }
+
+        // Cmd+Shift+]: Next tab
+        if cmd_or_ctrl
+            && shift
+            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "]")
+        {
+            self.next_tab();
+            log::debug!("Switched to next tab via Cmd+Shift+]");
+            return true;
+        }
+
+        // Cmd+Shift+[: Previous tab
+        if cmd_or_ctrl
+            && shift
+            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "[")
+        {
+            self.prev_tab();
+            log::debug!("Switched to previous tab via Cmd+Shift+[");
+            return true;
+        }
+
+        // Ctrl+Tab: Next tab (alternative)
+        if ctrl && !shift && matches!(event.logical_key, Key::Named(NamedKey::Tab)) {
+            self.next_tab();
+            log::debug!("Switched to next tab via Ctrl+Tab");
+            return true;
+        }
+
+        // Ctrl+Shift+Tab: Previous tab (alternative)
+        if ctrl && shift && matches!(event.logical_key, Key::Named(NamedKey::Tab)) {
+            self.prev_tab();
+            log::debug!("Switched to previous tab via Ctrl+Shift+Tab");
+            return true;
+        }
+
+        // Cmd+Shift+Left: Move tab left
+        if cmd_or_ctrl && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowLeft)) {
+            self.move_tab_left();
+            log::debug!("Moved tab left via Cmd+Shift+Left");
+            return true;
+        }
+
+        // Cmd+Shift+Right: Move tab right
+        if cmd_or_ctrl && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowRight)) {
+            self.move_tab_right();
+            log::debug!("Moved tab right via Cmd+Shift+Right");
+            return true;
+        }
+
+        // Cmd+1-9: Switch to tab N
+        if cmd_or_ctrl && !shift {
+            let tab_num = match &event.logical_key {
+                Key::Character(c) => match c.as_str() {
+                    "1" => Some(1),
+                    "2" => Some(2),
+                    "3" => Some(3),
+                    "4" => Some(4),
+                    "5" => Some(5),
+                    "6" => Some(6),
+                    "7" => Some(7),
+                    "8" => Some(8),
+                    "9" => Some(9),
+                    _ => None,
+                },
+                _ => None,
+            };
+
+            if let Some(n) = tab_num {
+                self.switch_to_tab_index(n);
+                log::debug!("Switched to tab {} via Cmd+{}", n, n);
+                return true;
+            }
         }
 
         false

@@ -6,6 +6,7 @@
 //   cursor_shader: "cursor_pacman.glsl"
 //   cursor_shader_enabled: true
 //   cursor_shader_animation: true
+//   cursor_shader_hides_cursor: true  # Recommended: hides default cursor
 
 // Signed distance function for a circle
 float sdCircle(vec2 p, float r) {
@@ -125,32 +126,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec3 pacmanColor = iCurrentCursorColor.rgb;
     float cursorOpacity = iCurrentCursorColor.a;
 
-    // Eye color
-    vec3 eyeColor = vec3(0.0);
-
-    // Check if we're in the cursor bounding box
-    vec2 cursorMin = cursorPos;
-    vec2 cursorMax = cursorPos + cursorSize;
-    bool inCursorBox = fragCoord.x >= cursorMin.x && fragCoord.x <= cursorMax.x &&
-                       fragCoord.y >= cursorMin.y && fragCoord.y <= cursorMax.y;
-
-    // Sample background from outside cursor area
-    vec2 bgSamplePos = vec2(cursorPos.x - cursorSize.x, cursorPos.y + cursorSize.y * 0.5);
-    vec2 bgUv = bgSamplePos / iResolution.xy;
-    bgUv = clamp(bgUv, vec2(0.0), vec2(1.0));
-    vec4 background = texture(iChannel0, bgUv);
-
     // Start with terminal content
     vec4 result = terminal;
-
-    // In cursor box, replace cursor-colored pixels with background (but keep text)
-    if (inCursorBox && cursorOpacity > 0.01) {
-        // Check if this pixel matches the cursor color (it's the cursor block, not text)
-        float cursorMatch = 1.0 - distance(terminal.rgb, pacmanColor) * 2.0;
-        cursorMatch = clamp(cursorMatch, 0.0, 1.0);
-        // Replace cursor block pixels with background, preserve text
-        result = mix(terminal, background, cursorMatch);
-    }
 
     // Only draw if cursor is visible (has opacity)
     if (cursorOpacity > 0.01) {

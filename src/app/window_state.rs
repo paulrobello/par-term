@@ -1,45 +1,39 @@
 //! Per-window state for multi-window terminal emulator
 //!
 //! This module contains `WindowState`, which holds all state specific to a single window,
-//! including its renderer, terminal, input handler, and UI components.
+//! including its renderer, tab manager, input handler, and UI components.
 
-use crate::app::bell::BellState;
 use crate::app::debug_state::DebugState;
-use crate::app::mouse::MouseState;
-use crate::app::render_cache::RenderCache;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::config::Config;
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::renderer::Renderer;
-use crate::scroll_state::ScrollState;
 use crate::selection::SelectionMode;
 use crate::settings_ui::{CursorShaderEditorResult, SettingsUI, ShaderEditorResult};
-use crate::terminal::TerminalManager;
+use crate::tab::TabManager;
+use crate::tab_bar_ui::{TabBarAction, TabBarUI};
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
 use wgpu::SurfaceError;
 use winit::event::KeyEvent;
 use winit::window::Window;
 
-/// Per-window state that manages a single terminal window
+/// Per-window state that manages a single terminal window with multiple tabs
 pub struct WindowState {
     pub(crate) config: Config,
     pub(crate) window: Option<Arc<Window>>,
     pub(crate) renderer: Option<Renderer>,
-    pub(crate) terminal: Option<Arc<Mutex<TerminalManager>>>,
     pub(crate) input_handler: InputHandler,
-    pub(crate) refresh_task: Option<JoinHandle<()>>,
     pub(crate) runtime: Arc<Runtime>,
-    pub(crate) scroll_state: ScrollState,
 
-    pub(crate) mouse: MouseState,
+    /// Tab manager for handling multiple terminal tabs
+    pub(crate) tab_manager: TabManager,
+    /// Tab bar UI
+    pub(crate) tab_bar_ui: TabBarUI,
+
     pub(crate) debug: DebugState,
-    pub(crate) bell: BellState,
-    pub(crate) cache: RenderCache,
 
     /// Cursor opacity for smooth fade animation (0.0 = invisible, 1.0 = fully visible)
     pub(crate) cursor_opacity: f32,
@@ -79,23 +73,19 @@ pub struct WindowState {
 impl WindowState {
     /// Create a new window state with the given configuration
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
-        let initial_opacity = config.window_opacity;
         let settings_ui = SettingsUI::new(config.clone());
 
         Self {
             config,
             window: None,
             renderer: None,
-            terminal: None,
             input_handler: InputHandler::new(),
-            refresh_task: None,
             runtime,
-            scroll_state: ScrollState::new(),
 
-            mouse: MouseState::new(),
+            tab_manager: TabManager::new(),
+            tab_bar_ui: TabBarUI::new(),
+
             debug: DebugState::new(),
-            bell: BellState::new(),
-            cache: RenderCache::new(initial_opacity),
 
             cursor_opacity: 1.0,
             last_cursor_blink: None,
@@ -113,6 +103,267 @@ impl WindowState {
             needs_redraw: true,
             cursor_blink_timer: None,
             pending_font_rebuild: false,
+        }
+    }
+
+    // ========================================================================
+    // Tab Management Methods
+    // ========================================================================
+
+    /// Create a new tab
+    pub fn new_tab(&mut self) {
+        // Check max tabs limit
+        if self.config.max_tabs > 0 && self.tab_manager.tab_count() >= self.config.max_tabs {
+            log::warn!(
+                "Cannot create new tab: max_tabs limit ({}) reached",
+                self.config.max_tabs
+            );
+            return;
+        }
+
+        match self.tab_manager.new_tab(
+            &self.config,
+            Arc::clone(&self.runtime),
+            self.config.tab_inherit_cwd,
+        ) {
+            Ok(tab_id) => {
+                // Start refresh task for the new tab and resize to match window
+                if let Some(window) = &self.window
+                    && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                {
+                    tab.start_refresh_task(
+                        Arc::clone(&self.runtime),
+                        Arc::clone(window),
+                        self.config.max_fps,
+                    );
+
+                    // Resize terminal to match current renderer dimensions
+                    if let Some(renderer) = &self.renderer
+                        && let Ok(mut term) = tab.terminal.try_lock()
+                    {
+                        let (cols, rows) = renderer.grid_size();
+                        let size = renderer.size();
+                        let width_px = size.width as usize;
+                        let height_px = size.height as usize;
+
+                        // Set cell dimensions
+                        term.set_cell_dimensions(
+                            renderer.cell_width() as u32,
+                            renderer.cell_height() as u32,
+                        );
+
+                        // Resize terminal to match window size
+                        let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                        log::info!(
+                            "Resized new tab {} terminal to {}x{} ({}x{} px)",
+                            tab_id,
+                            cols,
+                            rows,
+                            width_px,
+                            height_px
+                        );
+                    }
+                }
+
+                self.needs_redraw = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to create new tab: {}", e);
+            }
+        }
+    }
+
+    /// Close the current tab
+    /// Returns true if the window should close (last tab was closed)
+    pub fn close_current_tab(&mut self) -> bool {
+        if let Some(tab_id) = self.tab_manager.active_tab_id() {
+            let is_last = self.tab_manager.close_tab(tab_id);
+            self.needs_redraw = true;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            is_last
+        } else {
+            true // No tabs, window should close
+        }
+    }
+
+    /// Switch to next tab
+    pub fn next_tab(&mut self) {
+        self.tab_manager.next_tab();
+        // Clear renderer cells and invalidate cache to ensure clean switch
+        if let Some(renderer) = &mut self.renderer {
+            renderer.clear_all_cells();
+        }
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.cache.cells = None;
+        }
+        self.needs_redraw = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// Switch to previous tab
+    pub fn prev_tab(&mut self) {
+        self.tab_manager.prev_tab();
+        // Clear renderer cells and invalidate cache to ensure clean switch
+        if let Some(renderer) = &mut self.renderer {
+            renderer.clear_all_cells();
+        }
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.cache.cells = None;
+        }
+        self.needs_redraw = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// Switch to tab by index (1-based)
+    pub fn switch_to_tab_index(&mut self, index: usize) {
+        self.tab_manager.switch_to_index(index);
+        // Clear renderer cells and invalidate cache to ensure clean switch
+        if let Some(renderer) = &mut self.renderer {
+            renderer.clear_all_cells();
+        }
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.cache.cells = None;
+        }
+        self.needs_redraw = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// Move current tab left
+    pub fn move_tab_left(&mut self) {
+        self.tab_manager.move_active_tab_left();
+        self.needs_redraw = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// Move current tab right
+    pub fn move_tab_right(&mut self) {
+        self.tab_manager.move_active_tab_right();
+        self.needs_redraw = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// Duplicate current tab
+    pub fn duplicate_tab(&mut self) {
+        match self
+            .tab_manager
+            .duplicate_active_tab(&self.config, Arc::clone(&self.runtime))
+        {
+            Ok(Some(tab_id)) => {
+                // Start refresh task for the new tab
+                if let Some(window) = &self.window
+                    && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                {
+                    tab.start_refresh_task(
+                        Arc::clone(&self.runtime),
+                        Arc::clone(window),
+                        self.config.max_fps,
+                    );
+                }
+                self.needs_redraw = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            Ok(None) => {
+                log::debug!("No active tab to duplicate");
+            }
+            Err(e) => {
+                log::error!("Failed to duplicate tab: {}", e);
+            }
+        }
+    }
+
+    /// Check if there are multiple tabs
+    pub fn has_multiple_tabs(&self) -> bool {
+        self.tab_manager.has_multiple_tabs()
+    }
+
+    /// Get the active tab's terminal
+    #[allow(dead_code)]
+    pub fn active_terminal(
+        &self,
+    ) -> Option<&Arc<tokio::sync::Mutex<crate::terminal::TerminalManager>>> {
+        self.tab_manager.active_tab().map(|tab| &tab.terminal)
+    }
+
+    // ========================================================================
+    // Active Tab State Accessors (compatibility - may be useful later)
+    // ========================================================================
+    #[allow(dead_code)]
+    pub(crate) fn terminal(
+        &self,
+    ) -> Option<&Arc<tokio::sync::Mutex<crate::terminal::TerminalManager>>> {
+        self.active_terminal()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn scroll_state(&self) -> Option<&crate::scroll_state::ScrollState> {
+        self.tab_manager.active_tab().map(|t| &t.scroll_state)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn scroll_state_mut(&mut self) -> Option<&mut crate::scroll_state::ScrollState> {
+        self.tab_manager
+            .active_tab_mut()
+            .map(|t| &mut t.scroll_state)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn mouse(&self) -> Option<&crate::app::mouse::MouseState> {
+        self.tab_manager.active_tab().map(|t| &t.mouse)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn mouse_mut(&mut self) -> Option<&mut crate::app::mouse::MouseState> {
+        self.tab_manager.active_tab_mut().map(|t| &mut t.mouse)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn bell(&self) -> Option<&crate::app::bell::BellState> {
+        self.tab_manager.active_tab().map(|t| &t.bell)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn bell_mut(&mut self) -> Option<&mut crate::app::bell::BellState> {
+        self.tab_manager.active_tab_mut().map(|t| &mut t.bell)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn cache(&self) -> Option<&crate::app::render_cache::RenderCache> {
+        self.tab_manager.active_tab().map(|t| &t.cache)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn cache_mut(&mut self) -> Option<&mut crate::app::render_cache::RenderCache> {
+        self.tab_manager.active_tab_mut().map(|t| &mut t.cache)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn refresh_task(&self) -> Option<&Option<tokio::task::JoinHandle<()>>> {
+        self.tab_manager.active_tab().map(|t| &t.refresh_task)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn abort_refresh_task(&mut self) {
+        if let Some(tab) = self.tab_manager.active_tab_mut()
+            && let Some(task) = tab.refresh_task.take()
+        {
+            task.abort();
         }
     }
 
@@ -184,6 +435,9 @@ impl WindowState {
             self.config.custom_shader_animation_speed,
             self.config.custom_shader_text_opacity,
             self.config.custom_shader_full_content,
+            self.config.custom_shader_brightness,
+            // Custom shader channel textures
+            &self.config.shader_channel_paths(),
             // Cursor shader settings
             self.config.cursor_shader.as_deref(),
             self.config.cursor_shader_enabled,
@@ -197,12 +451,14 @@ impl WindowState {
         let width_px = (cols as f32 * cell_width) as usize;
         let height_px = (rows as f32 * cell_height) as usize;
 
-        if let Some(terminal) = &self.terminal
-            && let Ok(mut term) = terminal.try_lock()
-        {
-            let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
-            term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-            term.set_theme(self.config.load_theme());
+        // Resize all tabs' terminals
+        for tab in self.tab_manager.tabs_mut() {
+            if let Ok(mut term) = tab.terminal.try_lock() {
+                let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                term.set_theme(self.config.load_theme());
+            }
+            tab.cache.cells = None;
         }
 
         // Initialize cursor shader config
@@ -216,8 +472,12 @@ impl WindowState {
         // Initialize cursor color from config
         renderer.update_cursor_color(self.config.cursor_color);
 
+        // Hide cursor if cursor shader is enabled and configured to hide
+        renderer.set_cursor_hidden_for_shader(
+            self.config.cursor_shader_enabled && self.config.cursor_shader_hides_cursor,
+        );
+
         self.renderer = Some(renderer);
-        self.cache.cells = None;
         self.needs_redraw = true;
 
         // Reset egui GPU textures so the new renderer has a fresh atlas, but
@@ -311,6 +571,9 @@ impl WindowState {
             self.config.custom_shader_animation_speed,
             self.config.custom_shader_text_opacity,
             self.config.custom_shader_full_content,
+            self.config.custom_shader_brightness,
+            // Custom shader channel textures
+            &self.config.shader_channel_paths(),
             // Cursor shader settings
             self.config.cursor_shader.as_deref(),
             self.config.cursor_shader_enabled,
@@ -337,87 +600,6 @@ impl WindowState {
             }
         }
 
-        // Create terminal with scrollback from config
-        let mut terminal = TerminalManager::new_with_scrollback(
-            self.config.cols,
-            self.config.rows,
-            self.config.scrollback_lines,
-        )?;
-
-        // Set theme from config
-        terminal.set_theme(self.config.load_theme());
-
-        // Apply clipboard history limits from config
-        terminal.set_max_clipboard_sync_events(self.config.clipboard_max_sync_events);
-        terminal.set_max_clipboard_event_bytes(self.config.clipboard_max_event_bytes);
-
-        // Ensure PTY dimensions match the renderer's computed grid
-        let (renderer_cols, renderer_rows) = renderer.grid_size();
-        log::info!(
-            "Initial terminal dimensions: {}x{}",
-            renderer_cols,
-            renderer_rows
-        );
-
-        // Calculate pixel dimensions and resize PTY with both character and pixel dimensions
-        // This is required for applications like kitty icat that query pixel dimensions via TIOCGWINSZ
-        let cell_width = renderer.cell_width();
-        let cell_height = renderer.cell_height();
-        let width_px = (renderer_cols as f32 * cell_width) as usize;
-        let height_px = (renderer_rows as f32 * cell_height) as usize;
-        terminal.resize_with_pixels(renderer_cols, renderer_rows, width_px, height_px)?;
-        log::info!(
-            "Initial terminal pixel dimensions: {}x{} px",
-            width_px,
-            height_px
-        );
-
-        // Spawn shell (custom or default) with optional working directory, args, and env vars
-        let working_dir = self.config.working_directory.as_deref();
-        let shell_env = self.config.shell_env.as_ref();
-
-        // Determine the shell command to use
-        let (shell_cmd, mut shell_args) = if let Some(ref custom) = self.config.custom_shell {
-            (custom.clone(), self.config.shell_args.clone())
-        } else {
-            #[cfg(target_os = "windows")]
-            {
-                ("powershell.exe".to_string(), None)
-            }
-            #[cfg(not(target_os = "windows"))]
-            {
-                (
-                    std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()),
-                    None,
-                )
-            }
-        };
-
-        // On Unix-like systems, spawn as login shell if configured (default: true)
-        // This ensures PATH is properly initialized from /etc/paths, ~/.zprofile, etc.
-        #[cfg(not(target_os = "windows"))]
-        if self.config.login_shell {
-            let args = shell_args.get_or_insert_with(Vec::new);
-            // Only add -l if not already present
-            if !args.iter().any(|a| a == "-l" || a == "--login") {
-                args.insert(0, "-l".to_string());
-            }
-        }
-
-        let shell_args_deref = shell_args.as_deref();
-        terminal.spawn_custom_shell_with_dir(
-            &shell_cmd,
-            shell_args_deref,
-            working_dir,
-            shell_env,
-        )?;
-
-        // Set cell dimensions on terminal for proper graphics scroll calculations
-        let cell_width = renderer.cell_width() as u32;
-        let cell_height = renderer.cell_height() as u32;
-        log::info!("Setting cell dimensions: {}x{}", cell_width, cell_height);
-        terminal.set_cell_dimensions(cell_width, cell_height);
-
         // Initialize cursor shader config
         renderer.update_cursor_shader_config(
             self.config.cursor_shader_color,
@@ -429,48 +611,51 @@ impl WindowState {
         // Initialize cursor color from config
         renderer.update_cursor_color(self.config.cursor_color);
 
+        // Hide cursor if cursor shader is enabled and configured to hide
+        renderer.set_cursor_hidden_for_shader(
+            self.config.cursor_shader_enabled && self.config.cursor_shader_hides_cursor,
+        );
+
         self.window = Some(Arc::clone(&window));
         self.renderer = Some(renderer);
-        self.terminal = Some(Arc::new(Mutex::new(terminal)));
 
-        // Start update polling task to check for terminal changes
-        let window_clone = Arc::clone(&window);
-        let terminal_clone = Arc::clone(self.terminal.as_ref().unwrap());
-        let max_fps = self.config.max_fps.max(1);
-        let refresh_interval_ms = 1000 / max_fps;
+        // Create the first tab
+        let tab_id = self.tab_manager.new_tab(
+            &self.config,
+            Arc::clone(&self.runtime),
+            false, // First tab doesn't inherit cwd
+        )?;
 
-        let handle = self.runtime.spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(
-                refresh_interval_ms as u64,
-            ));
-            // Track the last seen generation to detect changes
-            let mut last_gen = 0;
+        // Resize the tab's terminal to match renderer grid
+        if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
+            if let Some(renderer) = &self.renderer {
+                let (renderer_cols, renderer_rows) = renderer.grid_size();
+                let cell_width = renderer.cell_width();
+                let cell_height = renderer.cell_height();
+                let width_px = (renderer_cols as f32 * cell_width) as usize;
+                let height_px = (renderer_rows as f32 * cell_height) as usize;
 
-            loop {
-                interval.tick().await;
-
-                // Check if terminal has updates (using generation counter if available, or has_updates flag)
-                // We use try_lock to avoid blocking the PTY thread
-                let should_redraw = if let Ok(term) = terminal_clone.try_lock() {
-                    let current_gen = term.update_generation();
-                    if current_gen > last_gen {
-                        last_gen = current_gen;
-                        true
-                    } else {
-                        // Also check for animations or other updates that might not bump generation
-                        term.has_updates()
-                    }
-                } else {
-                    // contention - retry next tick
-                    false
-                };
-
-                if should_redraw {
-                    window_clone.request_redraw();
+                if let Ok(mut term) = tab.terminal.try_lock() {
+                    let _ =
+                        term.resize_with_pixels(renderer_cols, renderer_rows, width_px, height_px);
+                    term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                    log::info!(
+                        "Initial terminal dimensions: {}x{} ({}x{} px)",
+                        renderer_cols,
+                        renderer_rows,
+                        width_px,
+                        height_px
+                    );
                 }
             }
-        });
-        self.refresh_task = Some(handle);
+
+            // Start refresh task for the first tab
+            tab.start_refresh_task(
+                Arc::clone(&self.runtime),
+                Arc::clone(&window),
+                self.config.max_fps,
+            );
+        }
 
         Ok(())
     }
@@ -489,7 +674,9 @@ impl WindowState {
             renderer.clear_glyph_cache();
 
             // Invalidate cached cells to force full re-render
-            self.cache.cells = None;
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.cache.cells = None;
+            }
         }
 
         // On macOS, reconfigure the Metal layer
@@ -681,29 +868,53 @@ impl WindowState {
 
     pub(crate) fn scroll_up_page(&mut self) {
         // Calculate page size based on visible lines
+        let (target_offset, scrollback_len) = {
+            let tab = if let Some(t) = self.tab_manager.active_tab() {
+                t
+            } else {
+                return;
+            };
+            (tab.scroll_state.target_offset, tab.cache.scrollback_len)
+        };
+
         if let Some(renderer) = &self.renderer {
             let char_height = self.config.font_size * 1.2;
             let page_size = (renderer.size().height as f32 / char_height) as usize;
 
-            let new_target = self.scroll_state.target_offset.saturating_add(page_size);
-            let clamped_target = new_target.min(self.cache.scrollback_len);
+            let new_target = target_offset.saturating_add(page_size);
+            let clamped_target = new_target.min(scrollback_len);
             self.set_scroll_target(clamped_target);
         }
     }
 
     pub(crate) fn scroll_down_page(&mut self) {
         // Calculate page size based on visible lines
+        let target_offset = {
+            if let Some(tab) = self.tab_manager.active_tab() {
+                tab.scroll_state.target_offset
+            } else {
+                return;
+            }
+        };
+
         if let Some(renderer) = &self.renderer {
             let char_height = self.config.font_size * 1.2;
             let page_size = (renderer.size().height as f32 / char_height) as usize;
 
-            let new_target = self.scroll_state.target_offset.saturating_sub(page_size);
+            let new_target = target_offset.saturating_sub(page_size);
             self.set_scroll_target(new_target);
         }
     }
 
     pub(crate) fn scroll_to_top(&mut self) {
-        self.set_scroll_target(self.cache.scrollback_len);
+        let scrollback_len = {
+            if let Some(tab) = self.tab_manager.active_tab() {
+                tab.cache.scrollback_len
+            } else {
+                return;
+            }
+        };
+        self.set_scroll_target(scrollback_len);
     }
 
     pub(crate) fn scroll_to_bottom(&mut self) {
@@ -746,13 +957,18 @@ impl WindowState {
 
     /// Determine if scrollbar should be visible based on autohide setting and recent activity
     pub(crate) fn should_show_scrollbar(&self) -> bool {
+        let tab = match self.tab_manager.active_tab() {
+            Some(t) => t,
+            None => return false,
+        };
+
         // No scrollbar needed if no scrollback available
-        if self.cache.scrollback_len == 0 {
+        if tab.cache.scrollback_len == 0 {
             return false;
         }
 
         // Always show when dragging or moving
-        if self.scroll_state.dragging {
+        if tab.scroll_state.dragging {
             return true;
         }
 
@@ -762,7 +978,7 @@ impl WindowState {
         }
 
         // If scrolled away from bottom, keep visible
-        if self.scroll_state.offset > 0 || self.scroll_state.target_offset > 0 {
+        if tab.scroll_state.offset > 0 || tab.scroll_state.target_offset > 0 {
             return true;
         }
 
@@ -771,16 +987,16 @@ impl WindowState {
             let padding = 32.0; // px hover band
             let width = window.inner_size().width as f64;
             let near_right = self.config.scrollbar_position != "left"
-                && (width - self.mouse.position.0) <= padding;
+                && (width - tab.mouse.position.0) <= padding;
             let near_left =
-                self.config.scrollbar_position == "left" && self.mouse.position.0 <= padding;
+                self.config.scrollbar_position == "left" && tab.mouse.position.0 <= padding;
             if near_left || near_right {
                 return true;
             }
         }
 
         // Otherwise, hide after delay
-        self.scroll_state.last_activity.elapsed().as_millis()
+        tab.scroll_state.last_activity.elapsed().as_millis()
             < self.config.scrollbar_autohide_delay as u128
     }
 
@@ -853,7 +1069,14 @@ impl WindowState {
         self.debug.last_frame_start = Some(frame_start);
 
         // Update scroll animation
-        let animation_running = self.scroll_state.update_animation();
+        let animation_running = if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.scroll_state.update_animation()
+        } else {
+            false
+        };
+
+        // Update tab titles from terminal OSC sequences
+        self.tab_manager.update_all_titles();
 
         // Rebuild renderer if font-related settings changed
         if self.pending_font_rebuild {
@@ -869,11 +1092,12 @@ impl WindowState {
             return;
         };
 
-        let terminal = if let Some(terminal) = &self.terminal {
-            terminal
-        } else {
-            return;
+        // Get active tab's terminal
+        let tab = match self.tab_manager.active_tab() {
+            Some(t) => t,
+            None => return,
         };
+        let terminal = &tab.terminal;
 
         // Check if shell has exited
         let _is_running = if let Ok(term) = terminal.try_lock() {
@@ -887,13 +1111,17 @@ impl WindowState {
             window.request_redraw();
         }
 
+        // Get scroll offset and selection from active tab
+        let scroll_offset = tab.scroll_state.offset;
+        let mouse_selection = tab.mouse.selection;
+
         // Get terminal cells for rendering (with dirty tracking optimization)
         let (cells, current_cursor_pos, cursor_style) = if let Ok(term) = terminal.try_lock() {
             // Get current generation to check if terminal content has changed
             let current_generation = term.update_generation();
 
             // Normalize selection if it exists and extract mode
-            let (selection, rectangular) = if let Some(sel) = self.mouse.selection {
+            let (selection, rectangular) = if let Some(sel) = mouse_selection {
                 (
                     Some(sel.normalized()),
                     sel.mode == SelectionMode::Rectangular,
@@ -904,7 +1132,7 @@ impl WindowState {
 
             // Get cursor position and opacity (only show if we're at the bottom with no scroll offset
             // and the cursor is visible - TUI apps hide cursor via DECTCEM escape sequence)
-            let current_cursor_pos = if self.scroll_state.offset == 0 && term.is_cursor_visible() {
+            let current_cursor_pos = if scroll_offset == 0 && term.is_cursor_visible() {
                 Some(term.cursor_position())
             } else {
                 None
@@ -924,40 +1152,29 @@ impl WindowState {
                 current_cursor_pos,
                 self.cursor_opacity,
                 cursor_style,
-                self.scroll_state.offset,
+                scroll_offset,
                 term.is_cursor_visible()
             );
 
             // Check if we need to regenerate cells
             // Only regenerate when content actually changes, not on every cursor blink
-            let needs_regeneration = self.cache.cells.is_none()
-                || current_generation != self.cache.generation
-                || self.scroll_state.offset != self.cache.scroll_offset
-                || current_cursor_pos != self.cache.cursor_pos // Regenerate if cursor position changed
-                || self.mouse.selection != self.cache.selection; // Regenerate if selection changed (including clearing)
+            let needs_regeneration = tab.cache.cells.is_none()
+                || current_generation != tab.cache.generation
+                || scroll_offset != tab.cache.scroll_offset
+                || current_cursor_pos != tab.cache.cursor_pos // Regenerate if cursor position changed
+                || mouse_selection != tab.cache.selection; // Regenerate if selection changed (including clearing)
 
             let cell_gen_start = std::time::Instant::now();
             let (cells, is_cache_hit) = if needs_regeneration {
                 // Generate fresh cells
-                let fresh_cells = term.get_cells_with_scrollback(
-                    self.scroll_state.offset,
-                    selection,
-                    rectangular,
-                    cursor,
-                );
-
-                // Update cache
-                self.cache.cells = Some(fresh_cells.clone());
-                self.cache.generation = current_generation;
-                self.cache.scroll_offset = self.scroll_state.offset;
-                self.cache.cursor_pos = current_cursor_pos;
-                self.cache.selection = self.mouse.selection;
+                let fresh_cells =
+                    term.get_cells_with_scrollback(scroll_offset, selection, rectangular, cursor);
 
                 (fresh_cells, false)
             } else {
                 // Use cached cells - clone is still needed because of apply_url_underlines
                 // but we track it accurately for debug logging
-                (self.cache.cells.as_ref().unwrap().clone(), true)
+                (tab.cache.cells.as_ref().unwrap().clone(), true)
             };
             self.debug.cache_hit = is_cache_hit;
             self.debug.cell_gen_time = cell_gen_start.elapsed();
@@ -967,34 +1184,63 @@ impl WindowState {
             return; // Terminal locked, skip this frame
         };
 
+        // Update cache with regenerated cells (if needed)
+        // Need to re-borrow as mutable after the terminal lock is released
+        if !self.debug.cache_hit
+            && let Some(tab) = self.tab_manager.active_tab_mut()
+            && let Ok(term) = tab.terminal.try_lock()
+        {
+            let current_generation = term.update_generation();
+            tab.cache.cells = Some(cells.clone());
+            tab.cache.generation = current_generation;
+            tab.cache.scroll_offset = tab.scroll_state.offset;
+            tab.cache.cursor_pos = current_cursor_pos;
+            tab.cache.selection = tab.mouse.selection;
+        }
+
         // Get scrollback length and terminal title from terminal
         // Note: When terminal width changes during resize, the core library clears
         // scrollback because the old cells would be misaligned with the new column count.
         // This is a limitation of the current implementation - proper reflow is not yet supported.
+        let tab = match self.tab_manager.active_tab() {
+            Some(t) => t,
+            None => return,
+        };
+        let terminal = &tab.terminal;
+        let cached_scrollback_len = tab.cache.scrollback_len;
+        let cached_terminal_title = tab.cache.terminal_title.clone();
+        let hovered_url = tab.mouse.hovered_url.clone();
+
         let (scrollback_len, terminal_title) = if let Ok(term) = terminal.try_lock() {
             (term.scrollback_len(), term.get_title())
         } else {
-            (self.cache.scrollback_len, self.cache.terminal_title.clone())
+            (cached_scrollback_len, cached_terminal_title.clone())
         };
 
-        self.cache.scrollback_len = scrollback_len;
-        self.scroll_state
-            .clamp_to_scrollback(self.cache.scrollback_len);
+        // Update cache scrollback and clamp scroll state
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.cache.scrollback_len = scrollback_len;
+            tab.scroll_state
+                .clamp_to_scrollback(tab.cache.scrollback_len);
+        }
 
         // Update window title if terminal has set one via OSC sequences
         // Only if allow_title_change is enabled and we're not showing a URL tooltip
         if self.config.allow_title_change
-            && self.mouse.hovered_url.is_none()
-            && terminal_title != self.cache.terminal_title
-            && let Some(window) = &self.window
+            && hovered_url.is_none()
+            && terminal_title != cached_terminal_title
         {
-            self.cache.terminal_title = terminal_title.clone();
-            if terminal_title.is_empty() {
-                // Restore configured title when terminal clears title
-                window.set_title(&self.config.window_title);
-            } else {
-                // Use terminal-set title
-                window.set_title(&terminal_title);
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.cache.terminal_title = terminal_title.clone();
+            }
+            if let Some(window) = &self.window {
+                if terminal_title.is_empty() {
+                    // Restore configured title when terminal clears title
+                    window.set_title(&self.config.window_title);
+                } else {
+                    // Use terminal-set title
+                    window.set_title(&terminal_title);
+                }
             }
         }
 
@@ -1032,6 +1278,8 @@ impl WindowState {
         let _ = &debug_actual_render_time;
         // Clipboard action to handle after rendering (declared here to survive renderer borrow)
         let mut pending_clipboard_action = ClipboardHistoryAction::None;
+        // Tab bar action to handle after rendering (declared here to survive renderer borrow)
+        let mut pending_tab_action = TabBarAction::None;
 
         let show_scrollbar = self.should_show_scrollbar();
 
@@ -1075,20 +1323,27 @@ impl WindowState {
                 }
 
                 renderer.update_opacity(self.config.window_opacity);
-                self.cache.applied_opacity = self.config.window_opacity;
-                self.cache.cells = None;
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.cache.applied_opacity = self.config.window_opacity;
+                    tab.cache.cells = None;
+                }
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
             }
 
             // Update scrollbar
-            renderer.update_scrollbar(self.scroll_state.offset, visible_lines, total_lines);
+            let scroll_offset = self
+                .tab_manager
+                .active_tab()
+                .map(|t| t.scroll_state.offset)
+                .unwrap_or(0);
+            renderer.update_scrollbar(scroll_offset, visible_lines, total_lines);
 
             // Update animations and request redraw if frames changed
             let anim_start = std::time::Instant::now();
-            if let Some(terminal) = &self.terminal {
-                let terminal = terminal.blocking_lock();
+            if let Some(tab) = self.tab_manager.active_tab() {
+                let terminal = tab.terminal.blocking_lock();
                 if terminal.update_animations() {
                     // Animation frame changed - request continuous redraws while animations are playing
                     if let Some(window) = &self.window {
@@ -1102,8 +1357,8 @@ impl WindowState {
             // Include both current screen graphics and scrollback graphics
             // Use get_graphics_with_animations() to get current animation frames
             let graphics_start = std::time::Instant::now();
-            if let Some(terminal) = &self.terminal {
-                let terminal = terminal.blocking_lock();
+            if let Some(tab) = self.tab_manager.active_tab() {
+                let terminal = tab.terminal.blocking_lock();
                 let mut graphics = terminal.get_graphics_with_animations();
                 let scrollback_len = terminal.scrollback_len();
 
@@ -1117,12 +1372,12 @@ impl WindowState {
                     "Got {} graphics ({} scrollback) from terminal (scroll_offset={}, scrollback_len={})",
                     graphics.len(),
                     scrollback_count,
-                    self.scroll_state.offset,
+                    scroll_offset,
                     scrollback_len
                 );
                 if let Err(e) = renderer.update_graphics(
                     &graphics,
-                    self.scroll_state.offset,
+                    scroll_offset,
                     scrollback_len,
                     visible_lines,
                 ) {
@@ -1132,7 +1387,11 @@ impl WindowState {
             debug_graphics_time = graphics_start.elapsed();
 
             // Calculate visual bell flash intensity (0.0 = no flash, 1.0 = full flash)
-            let visual_bell_intensity = if let Some(flash_start) = self.bell.visual_flash {
+            let visual_bell_flash = self
+                .tab_manager
+                .active_tab()
+                .and_then(|t| t.bell.visual_flash);
+            let visual_bell_intensity = if let Some(flash_start) = visual_bell_flash {
                 const FLASH_DURATION_MS: u128 = 150;
                 let elapsed = flash_start.elapsed().as_millis();
                 if elapsed < FLASH_DURATION_MS {
@@ -1144,7 +1403,9 @@ impl WindowState {
                     0.3 * (1.0 - (elapsed as f32 / FLASH_DURATION_MS as f32))
                 } else {
                     // Flash complete - clear it
-                    self.bell.visual_flash = None;
+                    if let Some(tab) = self.tab_manager.active_tab_mut() {
+                        tab.bell.visual_flash = None;
+                    }
                     0.0
                 }
             } else {
@@ -1207,6 +1468,10 @@ impl WindowState {
                                     });
                             });
                     }
+
+                    // Render tab bar if visible (action handled after closure)
+                    pending_tab_action =
+                        self.tab_bar_ui.render(ctx, &self.tab_manager, &self.config);
 
                     // Show settings UI and store results for later processing
                     let settings_result = self.settings_ui.show(ctx);
@@ -1295,6 +1560,10 @@ impl WindowState {
                         - self.config.custom_shader_text_opacity)
                         .abs()
                         > f32::EPSILON;
+                    let shader_brightness_changed = (live_config.custom_shader_brightness
+                        - self.config.custom_shader_brightness)
+                        .abs()
+                        > f32::EPSILON;
                     let cursor_shader_config_changed = live_config.cursor_shader_color
                         != self.config.cursor_shader_color
                         || (live_config.cursor_shader_trail_duration
@@ -1319,6 +1588,8 @@ impl WindowState {
                         - self.config.cursor_shader_animation_speed)
                         .abs()
                         > f32::EPSILON;
+                    let cursor_shader_hides_cursor_changed = live_config.cursor_shader_hides_cursor
+                        != self.config.cursor_shader_hides_cursor;
                     let _scrollbar_position_changed =
                         live_config.scrollbar_position != self.config.scrollbar_position;
                     let window_title_changed = live_config.window_title != self.config.window_title;
@@ -1361,7 +1632,9 @@ impl WindowState {
                         if font_changed { " (font changed)" } else { "" }
                     );
                     self.config = live_config;
-                    self.scroll_state.last_activity = std::time::Instant::now();
+                    if let Some(tab) = self.tab_manager.active_tab_mut() {
+                        tab.scroll_state.last_activity = std::time::Instant::now();
+                    }
 
                     // Apply settings that can be updated in real-time
                     if let Some(window) = &self.window {
@@ -1391,31 +1664,19 @@ impl WindowState {
                         window.request_redraw();
                     }
 
-                    // Update max_fps (restart refresh timer with new interval)
+                    // Update max_fps (restart refresh timer with new interval for all tabs)
                     if max_fps_changed {
-                        // Abort the old timer task
-                        if let Some(old_task) = self.refresh_task.take() {
-                            old_task.abort();
-                        }
-                        // Start new timer with updated interval
+                        // Update all tabs' refresh tasks
                         if let Some(window) = &self.window {
-                            let window_clone = Arc::clone(window);
-                            let refresh_interval_ms = 1000 / self.config.max_fps.max(1); // Convert Hz to ms
-                            let handle = self.runtime.spawn(async move {
-                                let mut interval = tokio::time::interval(
-                                    tokio::time::Duration::from_millis(refresh_interval_ms as u64),
+                            for tab in self.tab_manager.tabs_mut() {
+                                tab.stop_refresh_task();
+                                tab.start_refresh_task(
+                                    Arc::clone(&self.runtime),
+                                    Arc::clone(window),
+                                    self.config.max_fps,
                                 );
-                                loop {
-                                    interval.tick().await;
-                                    window_clone.request_redraw();
-                                }
-                            });
-                            self.refresh_task = Some(handle);
-                            log::info!(
-                                "Updated max_fps to {} ({}ms interval)",
-                                self.config.max_fps,
-                                refresh_interval_ms
-                            );
+                            }
+                            log::info!("Updated max_fps to {} for all tabs", self.config.max_fps);
                         }
                     }
 
@@ -1431,8 +1692,8 @@ impl WindowState {
                     if cursor_style_changed {
                         // Set cursor style directly on the terminal (no need to send DECSCUSR to PTY)
                         // This updates the terminal's internal cursor state without involving the shell
-                        if let Some(terminal_mgr) = &self.terminal
-                            && let Ok(term_mgr) = terminal_mgr.try_lock()
+                        if let Some(tab) = self.tab_manager.active_tab()
+                            && let Ok(term_mgr) = tab.terminal.try_lock()
                         {
                             // Get the underlying Terminal from TerminalManager
                             let terminal = term_mgr.terminal();
@@ -1453,8 +1714,10 @@ impl WindowState {
                         }
 
                         // Force cell regen to reflect cursor style change
-                        self.cache.cells = None;
-                        self.cache.cursor_pos = None;
+                        if let Some(tab) = self.tab_manager.active_tab_mut() {
+                            tab.cache.cells = None;
+                            tab.cache.cursor_pos = None;
+                        }
                         if let Some(window) = &self.window {
                             window.request_redraw();
                         }
@@ -1464,8 +1727,10 @@ impl WindowState {
                     if cursor_color_changed {
                         renderer.update_cursor_color(self.config.cursor_color);
                         // Force cell regen to reflect cursor color change
-                        self.cache.cells = None;
-                        self.cache.cursor_pos = None;
+                        if let Some(tab) = self.tab_manager.active_tab_mut() {
+                            tab.cache.cells = None;
+                            tab.cache.cursor_pos = None;
+                        }
                         if let Some(window) = &self.window {
                             window.request_redraw();
                         }
@@ -1495,6 +1760,7 @@ impl WindowState {
                         || shader_speed_changed
                         || shader_full_content_changed
                         || shader_text_opacity_changed
+                        || shader_brightness_changed
                     {
                         match renderer.set_custom_shader_enabled(
                             self.config.custom_shader_enabled,
@@ -1504,6 +1770,8 @@ impl WindowState {
                             self.config.custom_shader_animation,
                             self.config.custom_shader_animation_speed,
                             self.config.custom_shader_full_content,
+                            self.config.custom_shader_brightness,
+                            &self.config.shader_channel_paths(),
                         ) {
                             Ok(()) => {
                                 self.settings_ui.clear_shader_error();
@@ -1548,16 +1816,26 @@ impl WindowState {
                         }
                     }
 
+                    // Update cursor hidden state when shader enabled or hides_cursor setting changes
+                    if cursor_shader_enabled_changed || cursor_shader_hides_cursor_changed {
+                        renderer.set_cursor_hidden_for_shader(
+                            self.config.cursor_shader_enabled
+                                && self.config.cursor_shader_hides_cursor,
+                        );
+                    }
+
                     // Apply theme changes immediately to the terminal
                     if theme_changed {
-                        if let Some(terminal) = &self.terminal
-                            && let Ok(mut term) = terminal.try_lock()
+                        if let Some(tab) = self.tab_manager.active_tab()
+                            && let Ok(mut term) = tab.terminal.try_lock()
                         {
                             term.set_theme(self.config.load_theme());
                             log::info!("Applied live theme change: {}", self.config.theme);
                         }
                         // Force redraw so new theme colors show up right away
-                        self.cache.cells = None;
+                        if let Some(tab) = self.tab_manager.active_tab_mut() {
+                            tab.cache.cells = None;
+                        }
                         if let Some(window) = &self.window {
                             window.request_redraw();
                         }
@@ -1574,31 +1852,33 @@ impl WindowState {
                         if let Some((cols, rows)) =
                             renderer.update_window_padding(self.config.window_padding)
                         {
-                            // Grid size changed - resize terminal to match
+                            // Grid size changed - resize all tabs' terminals to match
                             let cell_width = renderer.cell_width();
                             let cell_height = renderer.cell_height();
                             let width_px = (cols as f32 * cell_width) as usize;
                             let height_px = (rows as f32 * cell_height) as usize;
 
-                            if let Some(terminal) = &self.terminal
-                                && let Ok(mut term) = terminal.try_lock()
-                            {
-                                let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
-                                log::info!(
-                                    "Resized terminal to {}x{} due to padding change",
-                                    cols,
-                                    rows
-                                );
+                            for tab in self.tab_manager.tabs_mut() {
+                                if let Ok(mut term) = tab.terminal.try_lock() {
+                                    let _ =
+                                        term.resize_with_pixels(cols, rows, width_px, height_px);
+                                }
                             }
+                            log::info!(
+                                "Resized terminals to {}x{} due to padding change",
+                                cols,
+                                rows
+                            );
                         }
                         log::info!("Updated window padding to {}", self.config.window_padding);
                     }
 
                     // Invalidate cell cache to force regeneration with new opacity
-                    self.cache.cells = None;
-
-                    // Track last applied opacity
-                    self.cache.applied_opacity = self.config.window_opacity;
+                    if let Some(tab) = self.tab_manager.active_tab_mut() {
+                        tab.cache.cells = None;
+                        // Track last applied opacity
+                        tab.cache.applied_opacity = self.config.window_opacity;
+                    }
 
                     // Request multiple redraws to ensure changes are visible
                     if let Some(window) = &self.window {
@@ -1643,6 +1923,11 @@ impl WindowState {
 
             // Log debug info every 60 frames (about once per second at 60 FPS)
             if self.debug.frame_times.len() >= 60 {
+                let (cache_gen, cache_has_cells) = self
+                    .tab_manager
+                    .active_tab()
+                    .map(|t| (t.cache.generation, t.cache.cells.is_some()))
+                    .unwrap_or((0, false));
                 log::info!(
                     "PERF: FPS={:.1} Frame={:.2}ms CellGen={:.2}ms({}) URLDetect={:.2}ms Anim={:.2}ms Graphics={:.2}ms egui={:.2}ms UpdateCells={:.2}ms ActualRender={:.2}ms Total={:.2}ms Cells={} Gen={} Cache={}",
                     fps,
@@ -1657,12 +1942,8 @@ impl WindowState {
                     debug_actual_render_time.as_secs_f64() * 1000.0,
                     self.debug.render_time.as_secs_f64() * 1000.0,
                     cells.len(),
-                    self.cache.generation,
-                    if self.cache.cells.is_some() {
-                        "YES"
-                    } else {
-                        "NO"
-                    }
+                    cache_gen,
+                    if cache_has_cells { "YES" } else { "NO" }
                 );
             }
 
@@ -1710,6 +1991,41 @@ impl WindowState {
             self.debug.render_time = render_start.elapsed();
         }
 
+        // Handle tab bar actions collected during egui rendering
+        // (done here to avoid borrow conflicts with renderer)
+        match pending_tab_action {
+            TabBarAction::SwitchTo(id) => {
+                self.tab_manager.switch_to(id);
+                // Clear renderer cells and invalidate cache to ensure clean switch
+                if let Some(renderer) = &mut self.renderer {
+                    renderer.clear_all_cells();
+                }
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.cache.cells = None;
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::Close(id) => {
+                let was_last = self.tab_manager.close_tab(id);
+                if was_last {
+                    // Last tab closed - close window
+                    self.is_shutting_down = true;
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::NewTab => {
+                self.new_tab();
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::None | TabBarAction::Reorder(_, _) => {}
+        }
+
         // Handle clipboard actions collected during egui rendering
         // (done here to avoid borrow conflicts with renderer)
         match pending_clipboard_action {
@@ -1717,8 +2033,8 @@ impl WindowState {
                 self.paste_text(&content);
             }
             ClipboardHistoryAction::ClearAll => {
-                if let Some(terminal) = &self.terminal
-                    && let Ok(term) = terminal.try_lock()
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
                 {
                     term.clear_all_clipboard_history();
                     log::info!("Cleared all clipboard history");
@@ -1726,8 +2042,8 @@ impl WindowState {
                 self.clipboard_history_ui.update_entries(Vec::new());
             }
             ClipboardHistoryAction::ClearSlot(slot) => {
-                if let Some(terminal) = &self.terminal
-                    && let Ok(term) = terminal.try_lock()
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
                 {
                     term.clear_clipboard_history(slot);
                     log::info!("Cleared clipboard history for slot {:?}", slot);
@@ -1753,68 +2069,45 @@ impl Drop for WindowState {
         // Set shutdown flag
         self.is_shutting_down = true;
 
-        // Abort refresh task first to prevent lock contention
-        if let Some(handle) = self.refresh_task.take() {
-            handle.abort();
-            log::info!("Refresh task aborted");
+        // Clean up all tabs
+        let tab_count = self.tab_manager.tab_count();
+        log::info!("Cleaning up {} tabs", tab_count);
 
-            // Give abort time to take effect and any pending operations to complete
-            std::thread::sleep(std::time::Duration::from_millis(100));
+        // Stop all refresh tasks first
+        for tab in self.tab_manager.tabs_mut() {
+            tab.stop_refresh_task();
         }
+        log::info!("All refresh tasks aborted");
 
-        // Kill the PTY process first (doesn't require terminal lock)
-        if let Some(terminal) = &self.terminal {
-            // Try to acquire lock briefly to kill the PTY
-            let killed = if let Ok(mut term) = terminal.try_lock() {
+        // Give abort time to take effect and any pending operations to complete
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // Kill all PTY processes
+        for tab in self.tab_manager.tabs_mut() {
+            if let Ok(mut term) = tab.terminal.try_lock() {
                 if term.is_running() {
-                    log::info!("Killing PTY process during shutdown");
+                    log::info!("Killing PTY process for tab {}", tab.id);
                     match term.kill() {
                         Ok(()) => {
-                            log::info!("PTY process killed successfully");
-                            true
+                            log::info!("PTY process killed successfully for tab {}", tab.id);
                         }
                         Err(e) => {
-                            log::warn!("Failed to kill PTY process: {:?}", e);
-                            false
+                            log::warn!("Failed to kill PTY process for tab {}: {:?}", tab.id, e);
                         }
                     }
                 } else {
-                    log::info!("PTY process already stopped");
-                    true
+                    log::info!("PTY process already stopped for tab {}", tab.id);
                 }
             } else {
-                log::warn!("Could not acquire terminal lock to kill PTY during shutdown");
-                false
-            };
-
-            // Give the PTY time to clean up after kill signal
-            if killed {
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                log::warn!(
+                    "Could not acquire terminal lock to kill PTY for tab {}",
+                    tab.id
+                );
             }
         }
 
-        // Now drop terminal - should be safe since PTY is killed and refresh task is aborted
-        if let Some(terminal) = self.terminal.take() {
-            // Use a shorter timeout since PTY is already killed
-            let timeout = std::time::Duration::from_millis(500);
-            let start = std::time::Instant::now();
-
-            loop {
-                if let Ok(_term) = terminal.try_lock() {
-                    log::info!("Terminal lock acquired for cleanup");
-                    // Terminal will be dropped when _term goes out of scope
-                    break;
-                } else if start.elapsed() >= timeout {
-                    log::warn!(
-                        "Could not acquire terminal lock within timeout during shutdown, forcing cleanup"
-                    );
-                    // Force drop by breaking - Arc will be dropped anyway
-                    break;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(10));
-            }
-            // Arc will be dropped here regardless
-        }
+        // Give the PTY time to clean up after kill signal
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         log::info!("Window shutdown complete");
     }

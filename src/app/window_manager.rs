@@ -179,6 +179,64 @@ impl WindowManager {
                     self.close_window(window_id);
                 }
             }
+            MenuAction::NewTab => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.new_tab();
+                }
+            }
+            MenuAction::CloseTab => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                    && window_state.close_current_tab()
+                {
+                    // Last tab closed, close the window
+                    self.close_window(window_id);
+                }
+            }
+            MenuAction::NextTab => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.next_tab();
+                }
+            }
+            MenuAction::PreviousTab => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.prev_tab();
+                }
+            }
+            MenuAction::SwitchToTab(index) => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.switch_to_tab_index(index);
+                }
+            }
+            MenuAction::MoveTabLeft => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.move_tab_left();
+                }
+            }
+            MenuAction::MoveTabRight => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.move_tab_right();
+                }
+            }
+            MenuAction::DuplicateTab => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.duplicate_tab();
+                }
+            }
             MenuAction::Quit => {
                 // Close all windows
                 let window_ids: Vec<_> = self.windows.keys().copied().collect();
@@ -212,9 +270,9 @@ impl WindowManager {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
-                    // Clear scrollback - take terminal Arc to avoid borrow conflicts
-                    let cleared = if let Some(terminal) = &window_state.terminal {
-                        if let Ok(term) = terminal.try_lock() {
+                    // Clear scrollback in active tab
+                    let cleared = if let Some(tab) = window_state.tab_manager.active_tab() {
+                        if let Ok(term) = tab.terminal.try_lock() {
                             term.clear_scrollback();
                             true
                         } else {
@@ -225,7 +283,9 @@ impl WindowManager {
                     };
 
                     if cleared {
-                        window_state.cache.scrollback_len = 0;
+                        if let Some(tab) = window_state.tab_manager.active_tab_mut() {
+                            tab.cache.scrollback_len = 0;
+                        }
                         window_state.set_scroll_target(0);
                         log::info!("Cleared scrollback buffer");
                     }

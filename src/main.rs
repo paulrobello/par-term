@@ -19,6 +19,8 @@ mod scrollbar;
 mod selection;
 mod settings_ui;
 mod styled_content;
+mod tab;
+mod tab_bar_ui;
 mod terminal;
 mod text_shaper;
 mod themes;

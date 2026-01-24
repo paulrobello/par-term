@@ -292,11 +292,14 @@ custom_shader_animation_speed: 1.0
 - Use `make profile` for CPU flamegraph generation
 
 ### Adding a Custom Shader
-1. Create GLSL shader file in `~/.config/par-term/shaders/`
+1. Create GLSL shader file in `~/.config/par-term/shaders/` (user config directory)
 2. Use Shadertoy-compatible format with `mainImage(out vec4 fragColor, in vec2 fragCoord)`
 3. Available uniforms: `iTime`, `iResolution`, `iMouse`, `iChannel0` (terminal texture)
 4. Set `custom_shader: "filename.glsl"` in config
 5. Enable with `custom_shader_enabled: true`
+6. Once the shader is tested and ready for distribution, copy it to the repo's `shaders/` directory
+
+**IMPORTANT**: Always develop new shaders in `~/.config/par-term/shaders/` first. Only move shaders to the repo `shaders/` folder when they are complete and ready to be included in the distribution.
 
 ### Adding a New Configuration Option
 1. Add field to `Config` struct in `src/config.rs`

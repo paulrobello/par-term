@@ -62,6 +62,12 @@ pub struct SettingsUI {
     pub(crate) temp_custom_shader: String,
     pub(crate) temp_cursor_shader: String,
 
+    /// Temporary strings for shader channel texture paths (iChannel1-4)
+    pub(crate) temp_shader_channel1: String,
+    pub(crate) temp_shader_channel2: String,
+    pub(crate) temp_shader_channel3: String,
+    pub(crate) temp_shader_channel4: String,
+
     /// Search query used to filter settings sections
     pub(crate) search_query: String,
 
@@ -132,6 +138,10 @@ impl SettingsUI {
             temp_background_image: config.background_image.clone().unwrap_or_default(),
             temp_custom_shader: config.custom_shader.clone().unwrap_or_default(),
             temp_cursor_shader: config.cursor_shader.clone().unwrap_or_default(),
+            temp_shader_channel1: config.custom_shader_channel1.clone().unwrap_or_default(),
+            temp_shader_channel2: config.custom_shader_channel2.clone().unwrap_or_default(),
+            temp_shader_channel3: config.custom_shader_channel3.clone().unwrap_or_default(),
+            temp_shader_channel4: config.custom_shader_channel4.clone().unwrap_or_default(),
             last_live_opacity: config.window_opacity,
             config,
             has_changes: false,

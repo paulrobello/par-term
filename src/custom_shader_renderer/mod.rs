@@ -18,9 +18,11 @@ use std::path::Path;
 use std::time::Instant;
 use wgpu::*;
 
+pub mod textures;
 pub mod transpiler;
 pub mod types;
 
+use textures::{ChannelTexture, load_channel_textures};
 use transpiler::{transpile_glsl_to_wgsl, transpile_glsl_to_wgsl_source};
 use types::CustomShaderUniforms;
 
@@ -57,6 +59,8 @@ pub struct CustomShaderRenderer {
     pub(crate) text_opacity: f32,
     /// Full content mode - shader receives and can manipulate full terminal content
     pub(crate) full_content_mode: bool,
+    /// Brightness multiplier for shader output (0.05-1.0)
+    pub(crate) brightness: f32,
     /// Frame counter for iFrame uniform
     pub(crate) frame_count: u32,
     /// Last frame time for calculating time delta
@@ -109,6 +113,10 @@ pub struct CustomShaderRenderer {
     pub(crate) cursor_glow_radius: f32,
     /// Cursor glow intensity (0.0-1.0)
     pub(crate) cursor_glow_intensity: f32,
+
+    // ============ Channel textures (iChannel1-4) ============
+    /// Texture channels 1-4 (placeholders or loaded textures)
+    pub(crate) channel_textures: [ChannelTexture; 4],
 }
 
 impl CustomShaderRenderer {
@@ -123,10 +131,14 @@ impl CustomShaderRenderer {
     /// * `height` - Initial viewport height
     /// * `animation_enabled` - Whether to animate iTime
     /// * `animation_speed` - Animation speed multiplier
+    /// * `window_opacity` - Window opacity
+    /// * `text_opacity` - Text opacity
+    /// * `full_content_mode` - Whether shader receives full terminal content
+    /// * `channel_paths` - Optional paths for iChannel1-4 textures
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         device: &Device,
-        _queue: &Queue,
+        queue: &Queue,
         surface_format: TextureFormat,
         shader_path: &Path,
         width: u32,
@@ -136,6 +148,7 @@ impl CustomShaderRenderer {
         window_opacity: f32,
         text_opacity: f32,
         full_content_mode: bool,
+        channel_paths: &[Option<std::path::PathBuf>; 4],
     ) -> Result<Self> {
         // Load the GLSL shader
         let glsl_source = std::fs::read_to_string(shader_path)
@@ -184,6 +197,9 @@ impl CustomShaderRenderer {
             ..Default::default()
         });
 
+        // Load channel textures (iChannel1-4)
+        let channel_textures = load_channel_textures(device, queue, channel_paths);
+
         // Create uniform buffer
         let uniform_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Custom Shader Uniforms"),
@@ -192,7 +208,18 @@ impl CustomShaderRenderer {
             mapped_at_creation: false,
         });
 
-        // Create bind group layout
+        // Create bind group layout with all 11 entries:
+        // 0: Uniform buffer
+        // 1: iChannel0 texture (terminal content)
+        // 2: iChannel0 sampler
+        // 3: iChannel1 texture
+        // 4: iChannel1 sampler
+        // 5: iChannel2 texture
+        // 6: iChannel2 sampler
+        // 7: iChannel3 texture
+        // 8: iChannel3 sampler
+        // 9: iChannel4 texture
+        // 10: iChannel4 sampler
         let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: Some("Custom Shader Bind Group Layout"),
             entries: &[
@@ -207,7 +234,7 @@ impl CustomShaderRenderer {
                     },
                     count: None,
                 },
-                // iChannel0 texture (binding 1)
+                // iChannel0 texture (binding 1) - terminal content
                 BindGroupLayoutEntry {
                     binding: 1,
                     visibility: ShaderStages::FRAGMENT,
@@ -218,9 +245,81 @@ impl CustomShaderRenderer {
                     },
                     count: None,
                 },
-                // Sampler (binding 2)
+                // iChannel0 sampler (binding 2)
                 BindGroupLayoutEntry {
                     binding: 2,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                },
+                // iChannel1 texture (binding 3)
+                BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // iChannel1 sampler (binding 4)
+                BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                },
+                // iChannel2 texture (binding 5)
+                BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // iChannel2 sampler (binding 6)
+                BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                },
+                // iChannel3 texture (binding 7)
+                BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // iChannel3 sampler (binding 8)
+                BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                    count: None,
+                },
+                // iChannel4 texture (binding 9)
+                BindGroupLayoutEntry {
+                    binding: 9,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture {
+                        sample_type: TextureSampleType::Float { filterable: true },
+                        view_dimension: TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // iChannel4 sampler (binding 10)
+                BindGroupLayoutEntry {
+                    binding: 10,
                     visibility: ShaderStages::FRAGMENT,
                     ty: BindingType::Sampler(SamplerBindingType::Filtering),
                     count: None,
@@ -228,7 +327,7 @@ impl CustomShaderRenderer {
             ],
         });
 
-        // Create bind group
+        // Create bind group with all 11 entries
         let bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: Some("Custom Shader Bind Group"),
             layout: &bind_group_layout,
@@ -237,6 +336,7 @@ impl CustomShaderRenderer {
                     binding: 0,
                     resource: uniform_buffer.as_entire_binding(),
                 },
+                // iChannel0 (terminal content)
                 BindGroupEntry {
                     binding: 1,
                     resource: BindingResource::TextureView(&intermediate_texture_view),
@@ -244,6 +344,42 @@ impl CustomShaderRenderer {
                 BindGroupEntry {
                     binding: 2,
                     resource: BindingResource::Sampler(&sampler),
+                },
+                // iChannel1
+                BindGroupEntry {
+                    binding: 3,
+                    resource: BindingResource::TextureView(&channel_textures[0].view),
+                },
+                BindGroupEntry {
+                    binding: 4,
+                    resource: BindingResource::Sampler(&channel_textures[0].sampler),
+                },
+                // iChannel2
+                BindGroupEntry {
+                    binding: 5,
+                    resource: BindingResource::TextureView(&channel_textures[1].view),
+                },
+                BindGroupEntry {
+                    binding: 6,
+                    resource: BindingResource::Sampler(&channel_textures[1].sampler),
+                },
+                // iChannel3
+                BindGroupEntry {
+                    binding: 7,
+                    resource: BindingResource::TextureView(&channel_textures[2].view),
+                },
+                BindGroupEntry {
+                    binding: 8,
+                    resource: BindingResource::Sampler(&channel_textures[2].sampler),
+                },
+                // iChannel4
+                BindGroupEntry {
+                    binding: 9,
+                    resource: BindingResource::TextureView(&channel_textures[3].view),
+                },
+                BindGroupEntry {
+                    binding: 10,
+                    resource: BindingResource::Sampler(&channel_textures[3].sampler),
                 },
             ],
         });
@@ -303,6 +439,7 @@ impl CustomShaderRenderer {
             window_opacity,
             text_opacity,
             full_content_mode,
+            brightness: 1.0,
             frame_count: 0,
             last_frame_time: now,
             mouse_position: [0.0, 0.0],
@@ -329,6 +466,8 @@ impl CustomShaderRenderer {
             cursor_trail_duration: 0.5,
             cursor_glow_radius: 80.0,
             cursor_glow_intensity: 0.3,
+            // Channel textures
+            channel_textures,
         })
     }
 
@@ -378,7 +517,7 @@ impl CustomShaderRenderer {
         self.intermediate_texture = texture;
         self.intermediate_texture_view = view;
 
-        // Recreate bind group with new texture view
+        // Recreate bind group with new texture view (including all channel textures)
         self.bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: Some("Custom Shader Bind Group"),
             layout: &self.bind_group_layout,
@@ -387,6 +526,7 @@ impl CustomShaderRenderer {
                     binding: 0,
                     resource: self.uniform_buffer.as_entire_binding(),
                 },
+                // iChannel0 (terminal content)
                 BindGroupEntry {
                     binding: 1,
                     resource: BindingResource::TextureView(&self.intermediate_texture_view),
@@ -394,6 +534,42 @@ impl CustomShaderRenderer {
                 BindGroupEntry {
                     binding: 2,
                     resource: BindingResource::Sampler(&self.sampler),
+                },
+                // iChannel1
+                BindGroupEntry {
+                    binding: 3,
+                    resource: BindingResource::TextureView(&self.channel_textures[0].view),
+                },
+                BindGroupEntry {
+                    binding: 4,
+                    resource: BindingResource::Sampler(&self.channel_textures[0].sampler),
+                },
+                // iChannel2
+                BindGroupEntry {
+                    binding: 5,
+                    resource: BindingResource::TextureView(&self.channel_textures[1].view),
+                },
+                BindGroupEntry {
+                    binding: 6,
+                    resource: BindingResource::Sampler(&self.channel_textures[1].sampler),
+                },
+                // iChannel3
+                BindGroupEntry {
+                    binding: 7,
+                    resource: BindingResource::TextureView(&self.channel_textures[2].view),
+                },
+                BindGroupEntry {
+                    binding: 8,
+                    resource: BindingResource::Sampler(&self.channel_textures[2].sampler),
+                },
+                // iChannel4
+                BindGroupEntry {
+                    binding: 9,
+                    resource: BindingResource::TextureView(&self.channel_textures[3].view),
+                },
+                BindGroupEntry {
+                    binding: 10,
+                    resource: BindingResource::Sampler(&self.channel_textures[3].sampler),
                 },
             ],
         });
@@ -546,7 +722,8 @@ impl CustomShaderRenderer {
             frame: self.frame_count as f32,
             frame_rate: self.current_frame_rate,
             resolution_z: 1.0, // Pixel aspect ratio, usually 1.0
-            _pad1: [0.0, 0.0],
+            brightness: self.brightness,
+            _pad1: 0.0,
             // Cursor uniforms (Ghostty-compatible)
             // Cursor dimensions vary by style:
             // - Block: full cell width x height
@@ -582,6 +759,17 @@ impl CustomShaderRenderer {
             cursor_glow_radius: self.cursor_glow_radius,
             cursor_glow_intensity: self.cursor_glow_intensity,
             cursor_shader_color: self.cursor_shader_color,
+            // Channel resolutions (Shadertoy-compatible)
+            channel0_resolution: [
+                self.texture_width as f32,
+                self.texture_height as f32,
+                1.0,
+                0.0,
+            ],
+            channel1_resolution: self.channel_textures[0].resolution(),
+            channel2_resolution: self.channel_textures[1].resolution(),
+            channel3_resolution: self.channel_textures[2].resolution(),
+            channel4_resolution: self.channel_textures[3].resolution(),
         };
 
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
@@ -644,6 +832,11 @@ impl CustomShaderRenderer {
     /// Update window opacity (content alpha passed to shader)
     pub fn set_opacity(&mut self, opacity: f32) {
         self.window_opacity = opacity.clamp(0.0, 1.0);
+    }
+
+    /// Update shader brightness multiplier (dims shader background for readability)
+    pub fn set_brightness(&mut self, brightness: f32) {
+        self.brightness = brightness.clamp(0.05, 1.0);
     }
 
     /// Update full content mode
@@ -796,6 +989,106 @@ impl CustomShaderRenderer {
         } else {
             false
         }
+    }
+
+    /// Update a channel texture at runtime
+    ///
+    /// # Arguments
+    /// * `device` - The wgpu device
+    /// * `queue` - The wgpu queue
+    /// * `channel` - Channel index (1-4)
+    /// * `path` - Optional path to texture file (None = placeholder)
+    ///
+    /// # Returns
+    /// Ok(()) if successful, Err if texture loading fails
+    #[allow(dead_code)]
+    pub fn update_channel_texture(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        channel: u8,
+        path: Option<&std::path::Path>,
+    ) -> Result<()> {
+        if !(1..=4).contains(&channel) {
+            anyhow::bail!("Invalid channel index: {} (must be 1-4)", channel);
+        }
+
+        let index = (channel - 1) as usize;
+
+        // Load new texture or create placeholder
+        let new_texture = match path {
+            Some(p) => ChannelTexture::from_file(device, queue, p)?,
+            None => ChannelTexture::placeholder(device, queue),
+        };
+
+        // Replace the texture
+        self.channel_textures[index] = new_texture;
+
+        // Recreate bind group with new texture
+        self.bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Custom Shader Bind Group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: self.uniform_buffer.as_entire_binding(),
+                },
+                // iChannel0 (terminal content)
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::TextureView(&self.intermediate_texture_view),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: BindingResource::Sampler(&self.sampler),
+                },
+                // iChannel1
+                BindGroupEntry {
+                    binding: 3,
+                    resource: BindingResource::TextureView(&self.channel_textures[0].view),
+                },
+                BindGroupEntry {
+                    binding: 4,
+                    resource: BindingResource::Sampler(&self.channel_textures[0].sampler),
+                },
+                // iChannel2
+                BindGroupEntry {
+                    binding: 5,
+                    resource: BindingResource::TextureView(&self.channel_textures[1].view),
+                },
+                BindGroupEntry {
+                    binding: 6,
+                    resource: BindingResource::Sampler(&self.channel_textures[1].sampler),
+                },
+                // iChannel3
+                BindGroupEntry {
+                    binding: 7,
+                    resource: BindingResource::TextureView(&self.channel_textures[2].view),
+                },
+                BindGroupEntry {
+                    binding: 8,
+                    resource: BindingResource::Sampler(&self.channel_textures[2].sampler),
+                },
+                // iChannel4
+                BindGroupEntry {
+                    binding: 9,
+                    resource: BindingResource::TextureView(&self.channel_textures[3].view),
+                },
+                BindGroupEntry {
+                    binding: 10,
+                    resource: BindingResource::Sampler(&self.channel_textures[3].sampler),
+                },
+            ],
+        });
+
+        log::info!(
+            "Updated iChannel{} texture: {}",
+            channel,
+            path.map(|p| p.display().to_string())
+                .unwrap_or_else(|| "placeholder".to_string())
+        );
+
+        Ok(())
     }
 
     /// Update cursor shader configuration from config values

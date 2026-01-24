@@ -15,6 +15,7 @@ Par-term supports custom GLSL shaders for background effects and post-processing
   - [Cursor Effects](#cursor-effects)
 - [Configuration](#configuration)
   - [Background Shaders](#background-shaders)
+  - [Channel Textures](#channel-textures)
   - [Cursor Shaders](#cursor-shaders)
 - [Creating Custom Shaders](#creating-custom-shaders)
   - [Basic Structure](#basic-structure)
@@ -25,6 +26,7 @@ Par-term supports custom GLSL shaders for background effects and post-processing
   - [Simple Background Gradient](#simple-background-gradient)
   - [Animated Background](#animated-background)
   - [Custom Cursor Trail](#custom-cursor-trail)
+  - [Using Channel Textures](#using-channel-textures)
 - [Troubleshooting](#troubleshooting)
 - [Related Documentation](#related-documentation)
 
@@ -102,6 +104,9 @@ The directory is created automatically when par-term first starts.
 | `inside-the-matrix.glsl` | Matrix-style falling code effect |
 | `cineShader-Lava.glsl` | Flowing lava/plasma effect |
 | `sin-interference.glsl` | Wave interference pattern |
+| `happy_fractal.glsl` | Raymarched fractal landscape with animated happy face and rainbow trail |
+| `clouds.glsl` | Animated procedural clouds with blue sky gradient |
+| `bumped_sinusoidal_warp.glsl` | Bump-mapped sinusoidal warp effect with point lighting (uses iChannel1 texture) |
 
 ### CRT and Retro Effects
 
@@ -135,7 +140,8 @@ Cursor shaders create visual effects that follow your cursor position. These use
 | `cursor_ripple_rectangle.glsl` | Rectangular ripple variant |
 | `cursor_sonic_boom.glsl` | Shockwave effect on cursor movement |
 | `cursor_rectangle_boom.glsl` | Rectangular explosion effect |
-| `cursor_pacman.glsl` | Pac-Man themed cursor animation |
+| `cursor_pacman.glsl` | Animated Pac-Man cursor that faces movement direction |
+| `cursor_orbit.glsl` | Ball with fading trail orbiting inside the cursor cell |
 
 ## Configuration
 
@@ -161,11 +167,37 @@ custom_shader_animation_speed: 1.0
 # Text opacity when shader is active (0.0 - 1.0)
 custom_shader_text_opacity: 1.0
 
+# Shader brightness (0.05 - 1.0, default 1.0)
+# Dims the shader background to improve text readability
+custom_shader_brightness: 0.5
+
 # Full content mode: shader can distort/modify text
 # false = text composited on top of shader output (recommended)
 # true = shader receives and can modify terminal content
 custom_shader_full_content: false
 ```
+
+### Channel Textures
+
+Par-term supports Shadertoy-compatible texture channels (iChannel1-4) for passing custom images to shaders. This enables effects like noise textures, normal maps, or any image-based input.
+
+```yaml
+# ~/.config/par-term/config.yaml
+
+# Texture paths for shader channels (supports ~ for home directory)
+custom_shader_channel1: "~/textures/noise.png"
+custom_shader_channel2: "~/textures/metal.jpg"
+custom_shader_channel3: null  # Not used
+custom_shader_channel4: null  # Not used
+```
+
+**Notes:**
+- `iChannel0` is always the terminal content texture
+- `iChannel1-4` are user-defined texture inputs
+- Channels without a configured texture use a 1x1 transparent placeholder
+- Supports common image formats: PNG, JPEG, BMP, etc.
+- Textures can also be configured via Settings UI under "Shader Channel Textures"
+- Sample textures are included in `shaders/textures/` directory
 
 ### Cursor Shaders
 
@@ -177,6 +209,10 @@ cursor_shader: "cursor_glow.glsl"
 
 # Enable/disable cursor shader
 cursor_shader_enabled: true
+
+# Hide default cursor when shader is active (let shader handle cursor rendering)
+# Recommended for shaders that fully replace the cursor (e.g., cursor_pacman, cursor_orbit)
+cursor_shader_hides_cursor: true
 
 # Cursor color (used by shaders via iCurrentCursorColor)
 cursor_color: "#00ff00"
@@ -219,8 +255,14 @@ Par-term provides Shadertoy-compatible uniforms:
 | `iMouse` | `vec4` | Mouse position and click state |
 | `iDate` | `vec4` | Year, month (0-11), day (1-31), seconds since midnight |
 | `iChannel0` | `sampler2D` | Terminal content texture |
+| `iChannel1` | `sampler2D` | User texture channel 1 (configurable) |
+| `iChannel2` | `sampler2D` | User texture channel 2 (configurable) |
+| `iChannel3` | `sampler2D` | User texture channel 3 (configurable) |
+| `iChannel4` | `sampler2D` | User texture channel 4 (configurable) |
+| `iChannelResolution[n]` | `vec3` | Resolution of channel n (width, height, 1.0) |
 | `iOpacity` | `float` | Window opacity setting |
 | `iTextOpacity` | `float` | Text opacity setting |
+| `iBrightness` | `float` | Shader brightness multiplier (0.05-1.0) |
 
 ### Cursor Shader Uniforms
 
@@ -230,7 +272,7 @@ Cursor shaders have additional uniforms:
 |---------|------|-------------|
 | `iCurrentCursor` | `vec4` | Current cursor: `xy` = position, `zw` = cell size |
 | `iPreviousCursor` | `vec4` | Previous cursor position and size |
-| `iCurrentCursorColor` | `vec4` | Cursor color (RGBA) |
+| `iCurrentCursorColor` | `vec4` | Cursor color (RGB) with blink opacity in alpha (0.0-1.0, animated by `cursor_blink` settings) |
 | `iTimeCursorChange` | `float` | Time when cursor last moved |
 
 **Cursor position details:**
@@ -332,6 +374,39 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 }
 ```
 
+### Using Channel Textures
+
+Blend a noise texture with the terminal content:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Sample terminal content (iChannel0)
+    vec4 terminal = texture(iChannel0, uv);
+
+    // Sample noise texture (iChannel1)
+    // Configure via: custom_shader_channel1: "path/to/noise.png"
+    vec4 noise = texture(iChannel1, uv * 2.0);  // Scale UV for tiling
+
+    // Get texture dimensions if needed
+    vec2 noiseSize = iChannelResolution[1].xy;
+
+    // Blend noise with terminal (subtle overlay)
+    vec3 color = terminal.rgb + noise.rgb * 0.1;
+
+    fragColor = vec4(color, terminal.a);
+}
+```
+
+**Configuration for the above shader:**
+```yaml
+custom_shader: "my_noise_shader.glsl"
+custom_shader_enabled: true
+custom_shader_channel1: "~/textures/noise.png"
+```
+
 ## Troubleshooting
 
 ### Shader Not Loading
@@ -355,11 +430,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
 ### Text Hard to Read
 
-**Symptom:** Text blurry or distorted
+**Symptom:** Text blurry or distorted, or shader background is too bright
 
 **Solutions:**
 - Use `custom_shader_full_content: false` (background-only mode)
 - Increase `custom_shader_text_opacity`
+- Lower `custom_shader_brightness` (e.g., 0.3-0.5) to dim bright shader backgrounds
 - Reduce effect intensity in shader
 
 ### Low Frame Rate
@@ -370,6 +446,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 - Reduce shader complexity (fewer loops, simpler math)
 - Lower `custom_shader_animation_speed`
 - Disable animation: `custom_shader_animation: false`
+
+### Default Cursor Showing Through Cursor Shader
+
+**Symptom:** The default block/beam cursor is visible behind or through your cursor shader effect
+
+**Solution:**
+- Set `cursor_shader_hides_cursor: true` in config
+- This tells the renderer to skip drawing the default cursor when a cursor shader is active
+- Recommended for shaders that fully replace the cursor (e.g., `cursor_pacman`, `cursor_orbit`)
 
 ### Compilation Errors
 

@@ -32,8 +32,10 @@ pub(crate) struct CustomShaderUniforms {
     pub frame_rate: f32,
     /// Pixel aspect ratio (iResolution.z) - offset 68, size 4, usually 1.0
     pub resolution_z: f32,
-    /// Padding to reach 80 bytes (multiple of 16) - offset 72, size 8
-    pub _pad1: [f32; 2],
+    /// Brightness multiplier for shader output (0.05-1.0) - offset 72, size 4
+    pub brightness: f32,
+    /// Padding to reach 80 bytes (multiple of 16) - offset 76, size 4
+    pub _pad1: f32,
 
     // ============ Cursor uniforms (Ghostty-compatible, v1.2.0+) ============
     // Offsets 80-159
@@ -59,11 +61,24 @@ pub(crate) struct CustomShaderUniforms {
     /// User-configured cursor color for shader effects [R, G, B, 1.0] - offset 160, size 16
     /// (placed last because vec4 must be aligned to 16 bytes in std140)
     pub cursor_shader_color: [f32; 4],
+
+    // ============ Channel resolution uniforms (Shadertoy-compatible) ============
+    // Offsets 176-255
+    /// Channel 0 resolution (terminal texture) [width, height, 1.0, 0.0] - offset 176, size 16
+    pub channel0_resolution: [f32; 4],
+    /// Channel 1 resolution [width, height, 1.0, 0.0] - offset 192, size 16
+    pub channel1_resolution: [f32; 4],
+    /// Channel 2 resolution [width, height, 1.0, 0.0] - offset 208, size 16
+    pub channel2_resolution: [f32; 4],
+    /// Channel 3 resolution [width, height, 1.0, 0.0] - offset 224, size 16
+    pub channel3_resolution: [f32; 4],
+    /// Channel 4 resolution [width, height, 1.0, 0.0] - offset 240, size 16
+    pub channel4_resolution: [f32; 4],
 }
-// Total size: 176 bytes
+// Total size: 256 bytes
 
 // Compile-time assertion to ensure uniform struct size matches expectations
 const _: () = assert!(
-    std::mem::size_of::<CustomShaderUniforms>() == 176,
-    "CustomShaderUniforms must be exactly 176 bytes for GPU compatibility"
+    std::mem::size_of::<CustomShaderUniforms>() == 256,
+    "CustomShaderUniforms must be exactly 256 bytes for GPU compatibility"
 );

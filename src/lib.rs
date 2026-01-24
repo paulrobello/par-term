@@ -21,6 +21,8 @@ pub mod scrollbar;
 pub mod selection;
 pub mod settings_ui;
 pub mod styled_content;
+pub mod tab;
+pub mod tab_bar_ui;
 pub mod terminal;
 pub mod text_shaper;
 pub mod themes;

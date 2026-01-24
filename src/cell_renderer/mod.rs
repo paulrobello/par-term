@@ -78,6 +78,8 @@ pub struct CellRenderer {
     pub(crate) cursor_overlay: Option<BackgroundInstance>,
     /// Cursor color [R, G, B] as floats (0.0-1.0)
     pub(crate) cursor_color: [f32; 3],
+    /// Hide cursor when cursor shader is active (let shader handle cursor rendering)
+    pub(crate) cursor_hidden_for_shader: bool,
     pub(crate) visual_bell_intensity: f32,
     pub(crate) window_opacity: f32,
     pub(crate) background_color: [f32; 4],
@@ -652,6 +654,7 @@ impl CellRenderer {
             cursor_style: par_term_emu_core_rust::cursor::CursorStyle::SteadyBlock,
             cursor_overlay: None,
             cursor_color: [1.0, 1.0, 1.0], // Default white
+            cursor_hidden_for_shader: false,
             visual_bell_intensity: 0.0,
             window_opacity,
             background_color: [
@@ -799,6 +802,17 @@ impl CellRenderer {
         }
     }
 
+    /// Clear all cells and mark all rows as dirty.
+    /// Call this when switching tabs to ensure clean slate.
+    pub fn clear_all_cells(&mut self) {
+        for cell in &mut self.cells {
+            *cell = Cell::default();
+        }
+        for dirty in &mut self.dirty_rows {
+            *dirty = true;
+        }
+    }
+
     pub fn update_cursor(
         &mut self,
         pos: (usize, usize),
@@ -881,6 +895,15 @@ impl CellRenderer {
         ];
         // Mark cursor row as dirty to redraw with new color
         self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+    }
+
+    /// Set whether cursor should be hidden when cursor shader is active
+    pub fn set_cursor_hidden_for_shader(&mut self, hidden: bool) {
+        if self.cursor_hidden_for_shader != hidden {
+            self.cursor_hidden_for_shader = hidden;
+            // Mark cursor row as dirty to redraw
+            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+        }
     }
 
     pub fn update_scrollbar(

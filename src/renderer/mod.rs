@@ -80,6 +80,9 @@ impl Renderer {
         custom_shader_animation_speed: f32,
         custom_shader_text_opacity: f32,
         custom_shader_full_content: bool,
+        custom_shader_brightness: f32,
+        // Custom shader channel textures (iChannel1-4)
+        custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
         // Cursor shader settings (separate from background shader)
         cursor_shader_path: Option<&str>,
         cursor_shader_enabled: bool,
@@ -212,6 +215,7 @@ impl Renderer {
                     window_opacity,
                     custom_shader_text_opacity,
                     custom_shader_full_content,
+                    custom_shader_channel_paths,
                 ) {
                     Ok(mut renderer) => {
                         // Sync cell dimensions for cursor position calculation
@@ -220,6 +224,8 @@ impl Renderer {
                             cell_renderer.cell_height(),
                             window_padding,
                         );
+                        // Apply brightness setting
+                        renderer.set_brightness(custom_shader_brightness);
                         log::info!(
                             "Custom shader renderer initialized from: {}",
                             path.display()
@@ -242,6 +248,8 @@ impl Renderer {
         let (cursor_shader_renderer, initial_cursor_shader_path) = if cursor_shader_enabled {
             if let Some(shader_path) = cursor_shader_path {
                 let path = crate::config::Config::shader_path(shader_path);
+                // Cursor shader doesn't use channel textures
+                let empty_channels: [Option<std::path::PathBuf>; 4] = [None, None, None, None];
                 match CustomShaderRenderer::new(
                     cell_renderer.device(),
                     cell_renderer.queue(),
@@ -254,6 +262,7 @@ impl Renderer {
                     window_opacity,
                     1.0,  // Text opacity (cursor shader always uses 1.0)
                     true, // Full content mode (cursor shader always uses full content)
+                    &empty_channels,
                 ) {
                     Ok(mut renderer) => {
                         // Sync cell dimensions for cursor position calculation
@@ -354,6 +363,13 @@ impl Renderer {
         self.dirty = true; // Mark dirty when cells change
     }
 
+    /// Clear all cells in the renderer.
+    /// Call this when switching tabs to ensure a clean slate.
+    pub fn clear_all_cells(&mut self) {
+        self.cell_renderer.clear_all_cells();
+        self.dirty = true;
+    }
+
     /// Update cursor position and style for geometric rendering
     pub fn update_cursor(
         &mut self,
@@ -414,6 +430,12 @@ impl Renderer {
     /// Update cursor color for cell rendering
     pub fn update_cursor_color(&mut self, color: [u8; 3]) {
         self.cell_renderer.update_cursor_color(color);
+        self.dirty = true;
+    }
+
+    /// Set whether cursor should be hidden when cursor shader is active
+    pub fn set_cursor_hidden_for_shader(&mut self, hidden: bool) {
+        self.cell_renderer.set_cursor_hidden_for_shader(hidden);
         self.dirty = true;
     }
 

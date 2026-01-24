@@ -13,9 +13,13 @@ use winit::window::WindowId;
 
 impl WindowState {
     pub(crate) fn check_notifications(&mut self) {
-        if let Some(terminal) = &self.terminal
-            && let Ok(term) = terminal.try_lock()
-        {
+        let tab = if let Some(t) = self.tab_manager.active_tab() {
+            t
+        } else {
+            return;
+        };
+
+        if let Ok(term) = tab.terminal.try_lock() {
             // Check for OSC 9/777 notifications
             if term.has_notifications() {
                 let notifications = term.take_notifications();
@@ -35,25 +39,36 @@ impl WindowState {
             return;
         }
 
-        if let Some(terminal) = &self.terminal
-            && let Ok(term) = terminal.try_lock()
-        {
-            let current_bell_count = term.bell_count();
+        // Get current bell count from active tab's terminal
+        let (current_bell_count, last_count) = {
+            let tab = if let Some(t) = self.tab_manager.active_tab() {
+                t
+            } else {
+                return;
+            };
 
-            if current_bell_count > self.bell.last_count {
-                // Bell event(s) occurred
-                let bell_events = current_bell_count - self.bell.last_count;
-                log::info!("Bell event detected ({} bell(s))", bell_events);
-                log::info!(
-                    "  Config: sound={}, visual={}, desktop={}",
-                    self.config.notification_bell_sound,
-                    self.config.notification_bell_visual,
-                    self.config.notification_bell_desktop
-                );
+            if let Ok(term) = tab.terminal.try_lock() {
+                (term.bell_count(), tab.bell.last_count)
+            } else {
+                return;
+            }
+        };
 
-                // Play audio bell if enabled (volume > 0)
-                if self.config.notification_bell_sound > 0 {
-                    if let Some(audio_bell) = &self.bell.audio {
+        if current_bell_count > last_count {
+            // Bell event(s) occurred
+            let bell_events = current_bell_count - last_count;
+            log::info!("Bell event detected ({} bell(s))", bell_events);
+            log::info!(
+                "  Config: sound={}, visual={}, desktop={}",
+                self.config.notification_bell_sound,
+                self.config.notification_bell_visual,
+                self.config.notification_bell_desktop
+            );
+
+            // Play audio bell if enabled (volume > 0)
+            if self.config.notification_bell_sound > 0 {
+                if let Some(tab) = self.tab_manager.active_tab() {
+                    if let Some(ref audio_bell) = tab.bell.audio {
                         log::info!(
                             "  Playing audio bell at {}% volume",
                             self.config.notification_bell_sound
@@ -62,36 +77,41 @@ impl WindowState {
                     } else {
                         log::warn!("  Audio bell requested but not initialized");
                     }
-                } else {
-                    log::debug!("  Audio bell disabled (volume=0)");
                 }
+            } else {
+                log::debug!("  Audio bell disabled (volume=0)");
+            }
 
-                // Trigger visual bell flash if enabled
-                if self.config.notification_bell_visual {
-                    log::info!("  Triggering visual bell flash");
-                    self.bell.visual_flash = Some(std::time::Instant::now());
-                    // Request immediate redraw to show flash
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
-                } else {
-                    log::debug!("  Visual bell disabled");
+            // Trigger visual bell flash if enabled
+            if self.config.notification_bell_visual {
+                log::info!("  Triggering visual bell flash");
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.bell.visual_flash = Some(std::time::Instant::now());
                 }
-
-                // Send desktop notification if enabled
-                if self.config.notification_bell_desktop {
-                    log::info!("  Sending desktop notification");
-                    let message = if bell_events == 1 {
-                        "Terminal bell".to_string()
-                    } else {
-                        format!("Terminal bell ({} events)", bell_events)
-                    };
-                    self.deliver_notification("Terminal", &message);
-                } else {
-                    log::debug!("  Desktop notification disabled");
+                // Request immediate redraw to show flash
+                if let Some(window) = &self.window {
+                    window.request_redraw();
                 }
+            } else {
+                log::debug!("  Visual bell disabled");
+            }
 
-                self.bell.last_count = current_bell_count;
+            // Send desktop notification if enabled
+            if self.config.notification_bell_desktop {
+                log::info!("  Sending desktop notification");
+                let message = if bell_events == 1 {
+                    "Terminal bell".to_string()
+                } else {
+                    format!("Terminal bell ({} events)", bell_events)
+                };
+                self.deliver_notification("Terminal", &message);
+            } else {
+                log::debug!("  Desktop notification disabled");
+            }
+
+            // Update last count
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.bell.last_count = current_bell_count;
             }
         }
     }
@@ -100,71 +120,74 @@ impl WindowState {
     fn take_screenshot(&self) {
         log::info!("Taking screenshot...");
 
-        if let Some(terminal) = &self.terminal {
-            // Generate timestamp-based filename
-            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-            let format = &self.config.screenshot_format;
-            let filename = format!("par-term_screenshot_{}.{}", timestamp, format);
-
-            // Create screenshots directory in user's home dir
-            if let Some(home_dir) = dirs::home_dir() {
-                let screenshot_dir = home_dir.join("par-term-screenshots");
-                if !screenshot_dir.exists()
-                    && let Err(e) = std::fs::create_dir_all(&screenshot_dir)
-                {
-                    log::error!("Failed to create screenshot directory: {}", e);
-                    self.deliver_notification(
-                        "Screenshot Error",
-                        &format!("Failed to create directory: {}", e),
-                    );
-                    return;
-                }
-
-                let path = screenshot_dir.join(&filename);
-                let path_str = path.to_string_lossy().to_string();
-
-                // Take screenshot (include scrollback for better context)
-                let terminal_clone = Arc::clone(terminal);
-                let format_clone = format.clone();
-
-                // Use async to avoid blocking the UI
-                let result = std::thread::spawn(move || {
-                    if let Ok(term) = terminal_clone.try_lock() {
-                        // Include 0 scrollback lines (just visible content)
-                        term.screenshot_to_file(&path, &format_clone, 0)
-                    } else {
-                        Err(anyhow::anyhow!("Failed to lock terminal"))
-                    }
-                })
-                .join();
-
-                match result {
-                    Ok(Ok(())) => {
-                        log::info!("Screenshot saved to: {}", path_str);
-                        self.deliver_notification(
-                            "Screenshot Saved",
-                            &format!("Saved to: {}", path_str),
-                        );
-                    }
-                    Ok(Err(e)) => {
-                        log::error!("Failed to save screenshot: {}", e);
-                        self.deliver_notification(
-                            "Screenshot Error",
-                            &format!("Failed to save: {}", e),
-                        );
-                    }
-                    Err(e) => {
-                        log::error!("Screenshot thread panicked: {:?}", e);
-                        self.deliver_notification("Screenshot Error", "Screenshot thread failed");
-                    }
-                }
-            } else {
-                log::error!("Failed to get home directory");
-                self.deliver_notification("Screenshot Error", "Failed to get home directory");
-            }
+        let terminal = if let Some(tab) = self.tab_manager.active_tab() {
+            Arc::clone(&tab.terminal)
         } else {
             log::warn!("No terminal available for screenshot");
             self.deliver_notification("Screenshot Error", "No terminal available");
+            return;
+        };
+
+        // Generate timestamp-based filename
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+        let format = &self.config.screenshot_format;
+        let filename = format!("par-term_screenshot_{}.{}", timestamp, format);
+
+        // Create screenshots directory in user's home dir
+        if let Some(home_dir) = dirs::home_dir() {
+            let screenshot_dir = home_dir.join("par-term-screenshots");
+            if !screenshot_dir.exists()
+                && let Err(e) = std::fs::create_dir_all(&screenshot_dir)
+            {
+                log::error!("Failed to create screenshot directory: {}", e);
+                self.deliver_notification(
+                    "Screenshot Error",
+                    &format!("Failed to create directory: {}", e),
+                );
+                return;
+            }
+
+            let path = screenshot_dir.join(&filename);
+            let path_str = path.to_string_lossy().to_string();
+
+            // Take screenshot (include scrollback for better context)
+            let terminal_clone = terminal;
+            let format_clone = format.clone();
+
+            // Use async to avoid blocking the UI
+            let result = std::thread::spawn(move || {
+                if let Ok(term) = terminal_clone.try_lock() {
+                    // Include 0 scrollback lines (just visible content)
+                    term.screenshot_to_file(&path, &format_clone, 0)
+                } else {
+                    Err(anyhow::anyhow!("Failed to lock terminal"))
+                }
+            })
+            .join();
+
+            match result {
+                Ok(Ok(())) => {
+                    log::info!("Screenshot saved to: {}", path_str);
+                    self.deliver_notification(
+                        "Screenshot Saved",
+                        &format!("Saved to: {}", path_str),
+                    );
+                }
+                Ok(Err(e)) => {
+                    log::error!("Failed to save screenshot: {}", e);
+                    self.deliver_notification(
+                        "Screenshot Error",
+                        &format!("Failed to save: {}", e),
+                    );
+                }
+                Err(e) => {
+                    log::error!("Screenshot thread panicked: {:?}", e);
+                    self.deliver_notification("Screenshot Error", "Screenshot thread failed");
+                }
+            }
+        } else {
+            log::error!("Failed to get home directory");
+            self.deliver_notification("Screenshot Error", "Failed to get home directory");
         }
     }
 
@@ -242,13 +265,20 @@ impl WindowState {
     /// Update window title with shell integration info (cwd and exit code)
     /// Only updates if not scrolled and not hovering over URL
     pub(crate) fn update_window_title_with_shell_integration(&self) {
+        // Get active tab state
+        let tab = if let Some(t) = self.tab_manager.active_tab() {
+            t
+        } else {
+            return;
+        };
+
         // Skip if scrolled (scrollback indicator takes priority)
-        if self.scroll_state.offset != 0 {
+        if tab.scroll_state.offset != 0 {
             return;
         }
 
         // Skip if hovering over URL (URL tooltip takes priority)
-        if self.mouse.hovered_url.is_some() {
+        if tab.mouse.hovered_url.is_some() {
             return;
         }
 
@@ -259,15 +289,8 @@ impl WindowState {
             return;
         };
 
-        // Skip if terminal not available
-        let terminal = if let Some(t) = &self.terminal {
-            t
-        } else {
-            return;
-        };
-
         // Try to get shell integration info
-        if let Ok(term) = terminal.try_lock() {
+        if let Ok(term) = tab.terminal.try_lock() {
             let mut title_parts = vec![self.config.window_title.clone()];
 
             // Add current working directory if available
@@ -393,11 +416,13 @@ impl WindowState {
                 log::info!("Close requested for window");
                 // Set shutdown flag to stop redraw loop
                 self.is_shutting_down = true;
-                // Abort the refresh task to prevent lockup on shutdown
-                if let Some(task) = self.refresh_task.take() {
-                    task.abort();
-                    log::info!("Refresh task aborted");
+                // Abort refresh tasks for all tabs
+                for tab in self.tab_manager.tabs_mut() {
+                    if let Some(task) = tab.refresh_task.take() {
+                        task.abort();
+                    }
                 }
+                log::info!("Refresh tasks aborted");
                 return true; // Signal to close this window
             }
 
@@ -421,11 +446,11 @@ impl WindowState {
                     let width_px = (cols as f32 * cell_width) as usize;
                     let height_px = (rows as f32 * cell_height) as usize;
 
-                    // Resize terminal with pixel dimensions for TIOCGWINSZ support
-                    if let Some(terminal) = &self.terminal
-                        && let Ok(mut term) = terminal.try_lock()
-                    {
-                        let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                    // Resize all tabs' terminals with pixel dimensions for TIOCGWINSZ support
+                    for tab in self.tab_manager.tabs_mut() {
+                        if let Ok(mut term) = tab.terminal.try_lock() {
+                            let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                        }
                     }
 
                     // Reconfigure macOS Metal layer after display change
@@ -485,23 +510,24 @@ impl WindowState {
                     let width_px = (cols as f32 * cell_width) as usize;
                     let height_px = (rows as f32 * cell_height) as usize;
 
-                    // Resize terminal with pixel dimensions for TIOCGWINSZ support
+                    // Resize all tabs' terminals with pixel dimensions for TIOCGWINSZ support
                     // This allows applications like kitty icat to query pixel dimensions
                     // Note: The core library (v0.11.0+) implements scrollback reflow when
                     // width changes - wrapped lines are unwrapped/re-wrapped as needed.
-                    if let Some(terminal) = &self.terminal
-                        && let Ok(mut term) = terminal.try_lock()
-                    {
-                        let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
-                        self.cache.scrollback_len = term.scrollback_len();
-
-                        // Update scrollbar internal state
-                        let total_lines = rows + self.cache.scrollback_len;
-                        renderer.update_scrollbar(self.scroll_state.offset, rows, total_lines);
+                    for tab in self.tab_manager.tabs_mut() {
+                        if let Ok(mut term) = tab.terminal.try_lock() {
+                            let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                            tab.cache.scrollback_len = term.scrollback_len();
+                        }
+                        // Invalidate cell cache to force regeneration
+                        tab.cache.cells = None;
                     }
 
-                    // Invalidate cell cache to force regeneration
-                    self.cache.cells = None;
+                    // Update scrollbar for active tab
+                    if let Some(tab) = self.tab_manager.active_tab() {
+                        let total_lines = rows + tab.cache.scrollback_len;
+                        renderer.update_scrollbar(tab.scroll_state.offset, rows, total_lines);
+                    }
                 }
             }
 
@@ -540,21 +566,36 @@ impl WindowState {
                     return false;
                 }
 
-                // Check if shell has exited and close window if configured
-                if self.config.exit_on_shell_exit
-                    && let Some(terminal) = &self.terminal
-                    && let Ok(term) = terminal.try_lock()
-                    && !term.is_running()
-                {
-                    log::info!("Shell has exited, closing terminal");
-                    // Set shutdown flag to stop redraw loop
-                    self.is_shutting_down = true;
-                    // Abort the refresh task to prevent lockup on shutdown
-                    if let Some(task) = self.refresh_task.take() {
-                        task.abort();
-                        log::info!("Refresh task aborted");
+                // Check if active tab's shell has exited and close window/tab if configured
+                if self.config.exit_on_shell_exit {
+                    // First check if shell exited (gather info without mutable borrows)
+                    let (shell_exited, active_tab_id, tab_count) = {
+                        let exited = self.tab_manager.active_tab().is_some_and(|tab| {
+                            tab.terminal
+                                .try_lock()
+                                .ok()
+                                .is_some_and(|term| !term.is_running())
+                        });
+                        let tab_id = self.tab_manager.active_tab_id();
+                        let count = self.tab_manager.tab_count();
+                        (exited, tab_id, count)
+                    };
+
+                    if shell_exited {
+                        log::info!("Shell in active tab has exited");
+                        if tab_count <= 1 {
+                            // Last tab - close window
+                            log::info!("Last tab, closing window");
+                            self.is_shutting_down = true;
+                            for tab in self.tab_manager.tabs_mut() {
+                                tab.stop_refresh_task();
+                            }
+                            return true;
+                        } else if let Some(tab_id) = active_tab_id {
+                            // Close just this tab
+                            let _ = self.tab_manager.close_tab(tab_id);
+                        }
                     }
-                    return true; // Signal to close this window
                 }
 
                 self.render();
@@ -615,30 +656,34 @@ impl WindowState {
 
         // 2. Smooth Scrolling & Animations
         // If a scroll interpolation or terminal animation is active, target ~60 FPS (16.6ms).
-        if self.scroll_state.animation_start.is_some() {
-            self.needs_redraw = true;
-            let next_frame = now + std::time::Duration::from_millis(16);
-            if next_frame < next_wake {
-                next_wake = next_frame;
+        if let Some(tab) = self.tab_manager.active_tab() {
+            if tab.scroll_state.animation_start.is_some() {
+                self.needs_redraw = true;
+                let next_frame = now + std::time::Duration::from_millis(16);
+                if next_frame < next_wake {
+                    next_wake = next_frame;
+                }
             }
-        }
 
-        // 3. Visual Bell Feedback
-        // Maintain high frame rate during the visual flash fade-out.
-        if self.bell.visual_flash.is_some() {
-            self.needs_redraw = true;
-            let next_frame = now + std::time::Duration::from_millis(16);
-            if next_frame < next_wake {
-                next_wake = next_frame;
+            // 3. Visual Bell Feedback
+            // Maintain high frame rate during the visual flash fade-out.
+            if tab.bell.visual_flash.is_some() {
+                self.needs_redraw = true;
+                let next_frame = now + std::time::Duration::from_millis(16);
+                if next_frame < next_wake {
+                    next_wake = next_frame;
+                }
             }
-        }
 
-        // 4. Interactive UI Elements
-        // Ensure high responsiveness during mouse dragging (text selection or scrollbar).
-        if (self.mouse.is_selecting || self.mouse.selection.is_some() || self.scroll_state.dragging)
-            && self.mouse.button_pressed
-        {
-            self.needs_redraw = true;
+            // 4. Interactive UI Elements
+            // Ensure high responsiveness during mouse dragging (text selection or scrollbar).
+            if (tab.mouse.is_selecting
+                || tab.mouse.selection.is_some()
+                || tab.scroll_state.dragging)
+                && tab.mouse.button_pressed
+            {
+                self.needs_redraw = true;
+            }
         }
 
         // 5. Custom Background Shaders

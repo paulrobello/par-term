@@ -15,6 +15,27 @@ pub enum MenuAction {
     #[allow(dead_code)]
     Quit,
 
+    // Tab menu
+    /// Create a new tab
+    NewTab,
+    /// Close the current tab
+    CloseTab,
+    /// Switch to next tab
+    NextTab,
+    /// Switch to previous tab
+    PreviousTab,
+    /// Switch to tab by index (1-9)
+    SwitchToTab(usize),
+    /// Move tab left (not yet implemented)
+    #[allow(dead_code)]
+    MoveTabLeft,
+    /// Move tab right (not yet implemented)
+    #[allow(dead_code)]
+    MoveTabRight,
+    /// Duplicate the current tab (not yet implemented)
+    #[allow(dead_code)]
+    DuplicateTab,
+
     // Edit menu
     /// Copy selected text to clipboard
     Copy,

@@ -193,6 +193,7 @@ impl CellRenderer {
                                 < 0.001;
 
                     let has_cursor = self.cursor_opacity > 0.0
+                        && !self.cursor_hidden_for_shader
                         && self.cursor_pos.1 == row
                         && self.cursor_pos.0 == col;
 

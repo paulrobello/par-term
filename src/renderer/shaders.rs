@@ -131,6 +131,8 @@ impl Renderer {
                 }
 
                 let shader_path_full = crate::config::Config::shader_path(path);
+                // Cursor shader doesn't use channel textures
+                let empty_channels: [Option<std::path::PathBuf>; 4] = [None, None, None, None];
                 match CustomShaderRenderer::new(
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),
@@ -143,6 +145,7 @@ impl Renderer {
                     window_opacity,
                     1.0,  // Text opacity (cursor shader always uses 1.0)
                     true, // Full content mode (cursor shader always uses full content)
+                    &empty_channels,
                 ) {
                     Ok(mut renderer) => {
                         // Sync cell dimensions for cursor position calculation
@@ -241,6 +244,8 @@ impl Renderer {
         animation_enabled: bool,
         animation_speed: f32,
         full_content: bool,
+        brightness: f32,
+        channel_paths: &[Option<std::path::PathBuf>; 4],
     ) -> Result<(), String> {
         match (enabled, shader_path) {
             (true, Some(path)) => {
@@ -254,6 +259,7 @@ impl Renderer {
                         renderer.set_animation_speed(animation_speed);
                         renderer.set_opacity(window_opacity);
                         renderer.set_full_content_mode(full_content);
+                        renderer.set_brightness(brightness);
                         return Ok(());
                     }
                     // Path changed - we need to reload, so drop the old renderer
@@ -273,6 +279,7 @@ impl Renderer {
                     window_opacity,
                     text_opacity,
                     full_content,
+                    channel_paths,
                 ) {
                     Ok(mut renderer) => {
                         // Sync cell dimensions for cursor position calculation
@@ -281,6 +288,8 @@ impl Renderer {
                             self.cell_renderer.cell_height(),
                             self.cell_renderer.window_padding(),
                         );
+                        // Apply brightness setting
+                        renderer.set_brightness(brightness);
                         log::info!(
                             "Custom shader enabled at runtime: {}",
                             shader_path_full.display()

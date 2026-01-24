@@ -8,6 +8,8 @@ use std::path::Path;
 /// - `iResolution`: Viewport resolution (width, height, 1.0)
 /// - `iMouse`: Mouse state (xy=current, zw=click)
 /// - `iChannel0`: Terminal content texture
+/// - `iChannel1-4`: User-defined texture channels
+/// - `iChannelResolution[0-4]`: Channel texture resolutions
 ///
 /// Ghostty-compatible cursor uniforms (v1.2.0+):
 /// - `iCurrentCursor`: xy=position, zw=size (pixels)
@@ -33,7 +35,7 @@ pub(crate) fn transpile_glsl_to_wgsl(glsl_source: &str, shader_path: &Path) -> R
         r#"#version 450
 
 // Uniforms - must match Rust struct layout (std140)
-// Total size: 192 bytes
+// Total size: 256 bytes
 layout(set = 0, binding = 0) uniform Uniforms {{
     vec2 iResolution;      // offset 0, size 8 - Viewport resolution
     float iTime;           // offset 8, size 4 - Time in seconds
@@ -46,7 +48,8 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     float iFrame;          // offset 60, size 4 - Frame counter
     float iFrameRate;      // offset 64, size 4 - Current FPS
     float iResolutionZ;    // offset 68, size 4 - Pixel aspect ratio (usually 1.0)
-    vec2 _pad1;            // offset 72, size 8 - Padding
+    float iBrightness;     // offset 72, size 4 - Shader brightness multiplier (0.05-1.0)
+    float _pad1;           // offset 76, size 4 - Padding
 
     // Cursor uniforms (Ghostty-compatible, v1.2.0+)
     vec4 iCurrentCursor;       // offset 80, size 16 - xy=position, zw=size (pixels)
@@ -60,14 +63,45 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     float iCursorGlowRadius;   // offset 152, size 4 - Glow effect radius (pixels)
     float iCursorGlowIntensity;// offset 156, size 4 - Glow effect intensity (0-1)
     vec4 iCursorShaderColor;   // offset 160, size 16 - User-configured cursor color (aligned to 16)
-}};                            // total: 176 bytes
+
+    // Channel resolution uniforms (Shadertoy-compatible)
+    vec4 iChannelResolution0;  // offset 176, size 16 - iChannel0 resolution [width, height, 1, 0]
+    vec4 iChannelResolution1;  // offset 192, size 16 - iChannel1 resolution
+    vec4 iChannelResolution2;  // offset 208, size 16 - iChannel2 resolution
+    vec4 iChannelResolution3;  // offset 224, size 16 - iChannel3 resolution
+    vec4 iChannelResolution4;  // offset 240, size 16 - iChannel4 resolution
+}};                            // total: 256 bytes
+
+// Shadertoy-compatible iChannelResolution array accessor
+// Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.
+vec3 iChannelResolution[5] = vec3[5](
+    iChannelResolution0.xyz,
+    iChannelResolution1.xyz,
+    iChannelResolution2.xyz,
+    iChannelResolution3.xyz,
+    iChannelResolution4.xyz
+);
 
 // Terminal content texture (iChannel0)
 layout(set = 0, binding = 1) uniform texture2D _iChannel0Tex;
 layout(set = 0, binding = 2) uniform sampler _iChannel0Sampler;
 
-// Combined sampler for texture() calls
+// User-defined texture channels (iChannel1-4)
+layout(set = 0, binding = 3) uniform texture2D _iChannel1Tex;
+layout(set = 0, binding = 4) uniform sampler _iChannel1Sampler;
+layout(set = 0, binding = 5) uniform texture2D _iChannel2Tex;
+layout(set = 0, binding = 6) uniform sampler _iChannel2Sampler;
+layout(set = 0, binding = 7) uniform texture2D _iChannel3Tex;
+layout(set = 0, binding = 8) uniform sampler _iChannel3Sampler;
+layout(set = 0, binding = 9) uniform texture2D _iChannel4Tex;
+layout(set = 0, binding = 10) uniform sampler _iChannel4Sampler;
+
+// Combined samplers for texture() calls
 #define iChannel0 sampler2D(_iChannel0Tex, _iChannel0Sampler)
+#define iChannel1 sampler2D(_iChannel1Tex, _iChannel1Sampler)
+#define iChannel2 sampler2D(_iChannel2Tex, _iChannel2Sampler)
+#define iChannel3 sampler2D(_iChannel3Tex, _iChannel3Sampler)
+#define iChannel4 sampler2D(_iChannel4Tex, _iChannel4Sampler)
 
 // Input from vertex shader
 layout(location = 0) in vec2 v_uv;
@@ -86,11 +120,14 @@ void main() {{
     vec4 shaderColor;
     mainImage(shaderColor, fragCoord);
 
+    // Apply brightness multiplier to shader background (not text)
+    vec3 dimmedShaderRgb = shaderColor.rgb * iBrightness;
+
     if (iFullContent > 0.5) {{
         // Full content mode: shader output is used directly
         // The shader has full control over the terminal content via iChannel0
         // Apply window opacity to the shader's alpha output
-        outColor = vec4(shaderColor.rgb * iOpacity, shaderColor.a * iOpacity);
+        outColor = vec4(dimmedShaderRgb * iOpacity, shaderColor.a * iOpacity);
     }} else {{
         // Background-only mode: text is composited cleanly on top
         // Sample terminal to detect text pixels
@@ -98,9 +135,9 @@ void main() {{
         float hasText = step(0.01, terminalColor.a);
 
         // Text pixels: use terminal color with text opacity
-        // Background pixels: use shader output with window opacity
+        // Background pixels: use dimmed shader output with window opacity
         vec3 textCol = terminalColor.rgb;
-        vec3 bgCol = shaderColor.rgb;
+        vec3 bgCol = dimmedShaderRgb;
 
         // Composite: text over shader background
         float textA = hasText * iTextOpacity;
@@ -206,7 +243,7 @@ pub(crate) fn transpile_glsl_to_wgsl_source(glsl_source: &str, name: &str) -> Re
         r#"#version 450
 
 // Uniforms - must match Rust struct layout (std140)
-// Total size: 192 bytes
+// Total size: 256 bytes
 layout(set = 0, binding = 0) uniform Uniforms {{
     vec2 iResolution;      // offset 0, size 8 - Viewport resolution
     float iTime;           // offset 8, size 4 - Time in seconds
@@ -219,7 +256,8 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     float iFrame;          // offset 60, size 4 - Frame counter
     float iFrameRate;      // offset 64, size 4 - Current FPS
     float iResolutionZ;    // offset 68, size 4 - Pixel aspect ratio (usually 1.0)
-    vec2 _pad1;            // offset 72, size 8 - Padding
+    float iBrightness;     // offset 72, size 4 - Shader brightness multiplier (0.05-1.0)
+    float _pad1;           // offset 76, size 4 - Padding
 
     // Cursor uniforms (Ghostty-compatible, v1.2.0+)
     vec4 iCurrentCursor;       // offset 80, size 16 - xy=position, zw=size (pixels)
@@ -233,14 +271,45 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     float iCursorGlowRadius;   // offset 152, size 4 - Glow effect radius (pixels)
     float iCursorGlowIntensity;// offset 156, size 4 - Glow effect intensity (0-1)
     vec4 iCursorShaderColor;   // offset 160, size 16 - User-configured cursor color (aligned to 16)
-}};                            // total: 176 bytes
+
+    // Channel resolution uniforms (Shadertoy-compatible)
+    vec4 iChannelResolution0;  // offset 176, size 16 - iChannel0 resolution [width, height, 1, 0]
+    vec4 iChannelResolution1;  // offset 192, size 16 - iChannel1 resolution
+    vec4 iChannelResolution2;  // offset 208, size 16 - iChannel2 resolution
+    vec4 iChannelResolution3;  // offset 224, size 16 - iChannel3 resolution
+    vec4 iChannelResolution4;  // offset 240, size 16 - iChannel4 resolution
+}};                            // total: 256 bytes
+
+// Shadertoy-compatible iChannelResolution array accessor
+// Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.
+vec3 iChannelResolution[5] = vec3[5](
+    iChannelResolution0.xyz,
+    iChannelResolution1.xyz,
+    iChannelResolution2.xyz,
+    iChannelResolution3.xyz,
+    iChannelResolution4.xyz
+);
 
 // Terminal content texture (iChannel0)
 layout(set = 0, binding = 1) uniform texture2D _iChannel0Tex;
 layout(set = 0, binding = 2) uniform sampler _iChannel0Sampler;
 
-// Combined sampler for texture() calls
+// User-defined texture channels (iChannel1-4)
+layout(set = 0, binding = 3) uniform texture2D _iChannel1Tex;
+layout(set = 0, binding = 4) uniform sampler _iChannel1Sampler;
+layout(set = 0, binding = 5) uniform texture2D _iChannel2Tex;
+layout(set = 0, binding = 6) uniform sampler _iChannel2Sampler;
+layout(set = 0, binding = 7) uniform texture2D _iChannel3Tex;
+layout(set = 0, binding = 8) uniform sampler _iChannel3Sampler;
+layout(set = 0, binding = 9) uniform texture2D _iChannel4Tex;
+layout(set = 0, binding = 10) uniform sampler _iChannel4Sampler;
+
+// Combined samplers for texture() calls
 #define iChannel0 sampler2D(_iChannel0Tex, _iChannel0Sampler)
+#define iChannel1 sampler2D(_iChannel1Tex, _iChannel1Sampler)
+#define iChannel2 sampler2D(_iChannel2Tex, _iChannel2Sampler)
+#define iChannel3 sampler2D(_iChannel3Tex, _iChannel3Sampler)
+#define iChannel4 sampler2D(_iChannel4Tex, _iChannel4Sampler)
 
 // Input from vertex shader
 layout(location = 0) in vec2 v_uv;
@@ -259,11 +328,14 @@ void main() {{
     vec4 shaderColor;
     mainImage(shaderColor, fragCoord);
 
+    // Apply brightness multiplier to shader background (not text)
+    vec3 dimmedShaderRgb = shaderColor.rgb * iBrightness;
+
     if (iFullContent > 0.5) {{
         // Full content mode: shader output is used directly
         // The shader has full control over the terminal content via iChannel0
         // Apply window opacity to the shader's alpha output
-        outColor = vec4(shaderColor.rgb * iOpacity, shaderColor.a * iOpacity);
+        outColor = vec4(dimmedShaderRgb * iOpacity, shaderColor.a * iOpacity);
     }} else {{
         // Background-only mode: text is composited cleanly on top
         // Sample terminal to detect text pixels
@@ -271,9 +343,9 @@ void main() {{
         float hasText = step(0.01, terminalColor.a);
 
         // Text pixels: use terminal color with text opacity
-        // Background pixels: use shader output with window opacity
+        // Background pixels: use dimmed shader output with window opacity
         vec3 textCol = terminalColor.rgb;
-        vec3 bgCol = shaderColor.rgb;
+        vec3 bgCol = dimmedShaderRgb;
 
         // Composite: text over shader background
         float textA = hasText * iTextOpacity;

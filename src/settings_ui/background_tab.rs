@@ -238,6 +238,24 @@ pub fn show_background(
         });
 
         ui.horizontal(|ui| {
+            ui.label("Shader brightness:");
+            if ui
+                .add(
+                    egui::Slider::new(
+                        &mut settings.config.custom_shader_brightness,
+                        0.05..=1.0,
+                    )
+                    .custom_formatter(|v, _| format!("{:.0}%", v * 100.0)),
+                )
+                .on_hover_text("Dim the shader background to improve text readability")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        ui.horizontal(|ui| {
             ui.label("Shader text opacity:");
             if ui
                 .add(egui::Slider::new(
@@ -292,6 +310,137 @@ pub fn show_background(
             if !has_shader_path {
                 ui.label("(set shader path first)");
             }
+        });
+
+        // Shader channel textures (iChannel1-4) section
+        ui.add_space(8.0);
+        ui.collapsing("Shader Channel Textures (iChannel1-4)", |ui| {
+            ui.label("Provide texture inputs to shaders via iChannel1-4");
+            ui.add_space(4.0);
+
+            // iChannel1
+            ui.horizontal(|ui| {
+                ui.label("iChannel1:");
+                if ui.text_edit_singleline(&mut settings.temp_shader_channel1).changed() {
+                    settings.config.custom_shader_channel1 = if settings.temp_shader_channel1.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_shader_channel1.clone())
+                    };
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if ui.button("Browse…").clicked()
+                    && let Some(path) = settings.pick_file_path("Select iChannel1 texture")
+                {
+                    settings.temp_shader_channel1 = path.clone();
+                    settings.config.custom_shader_channel1 = Some(path);
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if !settings.temp_shader_channel1.is_empty() && ui.button("×").clicked() {
+                    settings.temp_shader_channel1.clear();
+                    settings.config.custom_shader_channel1 = None;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            // iChannel2
+            ui.horizontal(|ui| {
+                ui.label("iChannel2:");
+                if ui.text_edit_singleline(&mut settings.temp_shader_channel2).changed() {
+                    settings.config.custom_shader_channel2 = if settings.temp_shader_channel2.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_shader_channel2.clone())
+                    };
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if ui.button("Browse…").clicked()
+                    && let Some(path) = settings.pick_file_path("Select iChannel2 texture")
+                {
+                    settings.temp_shader_channel2 = path.clone();
+                    settings.config.custom_shader_channel2 = Some(path);
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if !settings.temp_shader_channel2.is_empty() && ui.button("×").clicked() {
+                    settings.temp_shader_channel2.clear();
+                    settings.config.custom_shader_channel2 = None;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            // iChannel3
+            ui.horizontal(|ui| {
+                ui.label("iChannel3:");
+                if ui.text_edit_singleline(&mut settings.temp_shader_channel3).changed() {
+                    settings.config.custom_shader_channel3 = if settings.temp_shader_channel3.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_shader_channel3.clone())
+                    };
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if ui.button("Browse…").clicked()
+                    && let Some(path) = settings.pick_file_path("Select iChannel3 texture")
+                {
+                    settings.temp_shader_channel3 = path.clone();
+                    settings.config.custom_shader_channel3 = Some(path);
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if !settings.temp_shader_channel3.is_empty() && ui.button("×").clicked() {
+                    settings.temp_shader_channel3.clear();
+                    settings.config.custom_shader_channel3 = None;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            // iChannel4
+            ui.horizontal(|ui| {
+                ui.label("iChannel4:");
+                if ui.text_edit_singleline(&mut settings.temp_shader_channel4).changed() {
+                    settings.config.custom_shader_channel4 = if settings.temp_shader_channel4.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_shader_channel4.clone())
+                    };
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if ui.button("Browse…").clicked()
+                    && let Some(path) = settings.pick_file_path("Select iChannel4 texture")
+                {
+                    settings.temp_shader_channel4 = path.clone();
+                    settings.config.custom_shader_channel4 = Some(path);
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if !settings.temp_shader_channel4.is_empty() && ui.button("×").clicked() {
+                    settings.temp_shader_channel4.clear();
+                    settings.config.custom_shader_channel4 = None;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(4.0);
+            ui.label("Textures are available in shaders as iChannel1-4");
+            ui.label("Use iChannelResolution[n].xy for texture dimensions");
         });
     });
 }
@@ -443,6 +592,18 @@ pub fn show_cursor_shader(
                 *changes_this_frame = true;
             }
         });
+
+        if ui
+            .checkbox(
+                &mut settings.config.cursor_shader_hides_cursor,
+                "Hide default cursor (let shader handle it)",
+            )
+            .on_hover_text("When enabled, the normal cursor is not drawn, allowing the cursor shader to fully replace cursor rendering")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
 
         // Edit Shader button - only enabled when a shader path is set
         let has_shader_path = !settings.temp_cursor_shader.is_empty();

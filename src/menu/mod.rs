@@ -77,6 +77,81 @@ impl MenuManager {
 
         menu.append(&file_menu)?;
 
+        // Tab menu
+        let tab_menu = Submenu::new("Tab", true);
+
+        let new_tab = MenuItem::with_id(
+            "new_tab",
+            "New Tab",
+            true,
+            Some(Accelerator::new(Some(cmd_or_ctrl), Code::KeyT)),
+        );
+        action_map.insert(new_tab.id().clone(), MenuAction::NewTab);
+        tab_menu.append(&new_tab)?;
+
+        let close_tab = MenuItem::with_id(
+            "close_tab",
+            "Close Tab",
+            true,
+            None, // Cmd+W handled in File menu (smart close)
+        );
+        action_map.insert(close_tab.id().clone(), MenuAction::CloseTab);
+        tab_menu.append(&close_tab)?;
+
+        tab_menu.append(&PredefinedMenuItem::separator())?;
+
+        let next_tab = MenuItem::with_id(
+            "next_tab",
+            "Next Tab",
+            true,
+            Some(Accelerator::new(
+                Some(cmd_or_ctrl | Modifiers::SHIFT),
+                Code::BracketRight,
+            )),
+        );
+        action_map.insert(next_tab.id().clone(), MenuAction::NextTab);
+        tab_menu.append(&next_tab)?;
+
+        let prev_tab = MenuItem::with_id(
+            "prev_tab",
+            "Previous Tab",
+            true,
+            Some(Accelerator::new(
+                Some(cmd_or_ctrl | Modifiers::SHIFT),
+                Code::BracketLeft,
+            )),
+        );
+        action_map.insert(prev_tab.id().clone(), MenuAction::PreviousTab);
+        tab_menu.append(&prev_tab)?;
+
+        tab_menu.append(&PredefinedMenuItem::separator())?;
+
+        // Tab 1-9 shortcuts
+        for i in 1..=9 {
+            let code = match i {
+                1 => Code::Digit1,
+                2 => Code::Digit2,
+                3 => Code::Digit3,
+                4 => Code::Digit4,
+                5 => Code::Digit5,
+                6 => Code::Digit6,
+                7 => Code::Digit7,
+                8 => Code::Digit8,
+                9 => Code::Digit9,
+                _ => unreachable!(),
+            };
+            let tab_item = MenuItem::with_id(
+                format!("tab_{}", i),
+                format!("Tab {}", i),
+                true,
+                Some(Accelerator::new(Some(cmd_or_ctrl), code)),
+            );
+            action_map.insert(tab_item.id().clone(), MenuAction::SwitchToTab(i));
+            tab_menu.append(&tab_item)?;
+        }
+
+        menu.append(&tab_menu)?;
+
         // Edit menu
         let edit_menu = Submenu::new("Edit", true);
 

@@ -14,9 +14,22 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ## What's New in 0.4.0
 
+### 🗂️ Multi-Tab Support
+
+Each window now supports multiple terminal tabs, each with its own independent PTY session.
+
+- **New Tab**: `Cmd+T` (macOS) / `Ctrl+T` to create a new tab
+- **Close Tab**: `Cmd+W` closes tab (or window if single tab)
+- **Tab Switching**: `Cmd+Shift+[` / `Cmd+Shift+]` or `Ctrl+Tab` / `Ctrl+Shift+Tab`
+- **Direct Tab Access**: `Cmd+1` through `Cmd+9` to switch to specific tabs
+- **Tab Reordering**: `Cmd+Shift+Left/Right` to move tabs
+- **Duplicate Tab**: Create new tab with same working directory
+- **Tab Bar**: Visual tab bar with close buttons, activity indicators, and bell icons
+- **Configurable**: Tab bar visibility (always, when_multiple, never), height, and styling
+
 ### 🪟 Multi-Window Support
 
-Spawn multiple independent terminal windows, each with its own PTY session.
+Spawn multiple independent terminal windows, each with its own PTY session and tabs.
 
 - **New Window**: `Cmd+N` (macOS) / `Ctrl+N` to open a new terminal window
 - **Close Window**: `Cmd+W` (macOS) / `Ctrl+W` to close the current window
@@ -35,17 +48,19 @@ Cross-platform native menu support using the [muda](https://github.com/tauri-app
 
 | Menu | Items |
 |------|-------|
-| **File** | New Window, Close Window, Quit (Windows/Linux) |
+| **File** | New Window, New Tab, Close Tab, Close Window, Quit (Windows/Linux) |
 | **Edit** | Copy, Paste, Select All, Clear Scrollback, Clipboard History |
 | **View** | Toggle Fullscreen, Font Size (+/-/Reset), FPS Overlay, Settings |
+| **Tab** | New Tab, Close Tab, Next/Previous Tab, Move Tab Left/Right, Duplicate Tab |
 | **Window** (macOS) | Minimize, Zoom |
 | **Help** | Keyboard Shortcuts, About |
 
 ### 🏗️ Architecture Improvements
 
-- **WindowManager**: New multi-window coordinator handles window lifecycle and menu events
+- **TabManager**: New multi-tab coordinator manages tab lifecycle within each window
+- **WindowManager**: Multi-window coordinator handles window lifecycle and menu events
 - **WindowState**: Per-window state cleanly separated from application-level state
-- **Event Routing**: Events properly routed to the correct window by WindowId
+- **Event Routing**: Events properly routed to the correct window and tab
 
 ## What's New in 0.3.0
 
@@ -86,6 +101,7 @@ Significantly reduced CPU and GPU usage by switching from continuous polling to 
 
 ### Core Terminal Frontend
 - **Cross-platform Support**: Native performance on macOS (Metal), Linux (Vulkan/X11/Wayland), and Windows (DirectX 12).
+- **Multi-Window & Multi-Tab**: Multiple windows with independent tab sessions per window.
 - **GPU-Accelerated Rendering**: Powered by `wgpu` with custom glyph atlas for blazing-fast text rasterization.
 - **Inline Graphics**: Full support for Sixel, iTerm2, and Kitty graphics protocols.
 - **Real PTY Integration**: Full pseudo-terminal support for interactive shell sessions.
@@ -119,6 +135,7 @@ Significantly reduced CPU and GPU usage by switching from continuous polling to 
 ## Documentation
 
 - **[Quick Start Guide](QUICK_START_FONTS.md)** - Get up and running with custom fonts.
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - High-level system architecture and components.
 - **[Custom Shaders Guide](docs/CUSTOM_SHADERS.md)** - Install and create custom GLSL shaders for backgrounds and cursor effects.
 - **[Compositor Details](docs/COMPOSITOR.md)** - Deep dive into the rendering architecture.
 - **[Examples](examples/README.md)** - Comprehensive configuration examples.
@@ -167,11 +184,26 @@ sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev
 
 ## Keyboard Shortcuts
 
+### Window & Tab Management
+
 | Shortcut | Action |
 |----------|--------|
 | `Cmd/Ctrl + N` | New window |
-| `Cmd/Ctrl + W` | Close window |
+| `Cmd/Ctrl + T` | New tab |
+| `Cmd/Ctrl + W` | Close tab (or window if single tab) |
 | `Cmd/Ctrl + Q` | Quit (Windows/Linux) |
+| `Cmd/Ctrl + Shift + ]` | Next tab |
+| `Cmd/Ctrl + Shift + [` | Previous tab |
+| `Ctrl + Tab` | Next tab (alternative) |
+| `Ctrl + Shift + Tab` | Previous tab (alternative) |
+| `Cmd/Ctrl + 1-9` | Switch to tab 1-9 |
+| `Cmd/Ctrl + Shift + Left` | Move tab left |
+| `Cmd/Ctrl + Shift + Right` | Move tab right |
+
+### Navigation & Editing
+
+| Shortcut | Action |
+|----------|--------|
 | `PageUp` / `PageDown` | Scroll up/down one page |
 | `Shift + Home` | Jump to top of scrollback |
 | `Shift + End` | Jump to bottom (current) |
@@ -183,6 +215,11 @@ sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev
 | `Cmd/Ctrl + +/-/0` | Adjust font size / Reset |
 | `Ctrl + Shift + S` | Take screenshot |
 | `Cmd + ,` / `Ctrl + ,` | Cycle cursor style (Block/Beam/Underline) |
+
+### UI Toggles
+
+| Shortcut | Action |
+|----------|--------|
 | `F1` | Toggle Help panel |
 | `F3` | Toggle FPS overlay |
 | `F5` | Reload configuration |
@@ -203,6 +240,12 @@ font_family: "JetBrains Mono"
 theme: "dark-background"
 window_opacity: 0.95
 scrollbar_position: "right"
+
+# Tab bar settings
+tab_bar_mode: "when_multiple"  # always, when_multiple, never
+tab_bar_height: 28.0
+tab_show_close_button: true
+tab_inherit_cwd: true
 ```
 
 See `examples/config-complete.yaml` for a full list of options.

@@ -59,6 +59,19 @@ pub enum BackgroundImageMode {
     Center,
 }
 
+/// Tab bar visibility mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TabBarMode {
+    /// Always show tab bar
+    Always,
+    /// Show tab bar only when there are multiple tabs (default)
+    #[default]
+    WhenMultiple,
+    /// Never show tab bar
+    Never,
+}
+
 /// Font mapping for a specific Unicode range
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FontRange {
@@ -233,6 +246,28 @@ pub struct Config {
     #[serde(default = "default_false")]
     pub custom_shader_full_content: bool,
 
+    /// Brightness multiplier for custom shader output (0.05 = very dark, 1.0 = full brightness)
+    /// This dims the shader background to improve text readability
+    #[serde(default = "default_custom_shader_brightness")]
+    pub custom_shader_brightness: f32,
+
+    /// Texture file path for custom shader iChannel1 (optional)
+    /// Supports ~ for home directory. Example: "~/textures/noise.png"
+    #[serde(default)]
+    pub custom_shader_channel1: Option<String>,
+
+    /// Texture file path for custom shader iChannel2 (optional)
+    #[serde(default)]
+    pub custom_shader_channel2: Option<String>,
+
+    /// Texture file path for custom shader iChannel3 (optional)
+    #[serde(default)]
+    pub custom_shader_channel3: Option<String>,
+
+    /// Texture file path for custom shader iChannel4 (optional)
+    #[serde(default)]
+    pub custom_shader_channel4: Option<String>,
+
     // ========================================================================
     // Cursor Shader Settings (separate from background shader)
     // ========================================================================
@@ -272,6 +307,12 @@ pub struct Config {
     /// Passed to shader via iCursorGlowIntensity uniform
     #[serde(default = "default_cursor_glow_intensity")]
     pub cursor_shader_glow_intensity: f32,
+
+    /// Hide the default cursor when cursor shader is enabled
+    /// When true and cursor_shader_enabled is true, the normal cursor is not drawn
+    /// This allows cursor shaders to fully replace the cursor rendering
+    #[serde(default = "default_false")]
+    pub cursor_shader_hides_cursor: bool,
 
     // ========================================================================
     // Selection & Clipboard
@@ -450,6 +491,33 @@ pub struct Config {
         alias = "max_notifications"
     )]
     pub notification_max_buffer: usize,
+
+    // ========================================================================
+    // Tab Settings
+    // ========================================================================
+    /// Tab bar visibility mode (always, when_multiple, never)
+    #[serde(default)]
+    pub tab_bar_mode: TabBarMode,
+
+    /// Tab bar height in pixels
+    #[serde(default = "default_tab_bar_height")]
+    pub tab_bar_height: f32,
+
+    /// Show close button on tabs
+    #[serde(default = "default_true")]
+    pub tab_show_close_button: bool,
+
+    /// Show tab index numbers (for Cmd+1-9)
+    #[serde(default = "default_false")]
+    pub tab_show_index: bool,
+
+    /// New tab inherits working directory from active tab
+    #[serde(default = "default_true")]
+    pub tab_inherit_cwd: bool,
+
+    /// Maximum tabs per window (0 = unlimited)
+    #[serde(default = "default_zero")]
+    pub max_tabs: usize,
 }
 
 // Default value functions
@@ -601,6 +669,10 @@ fn default_custom_shader_speed() -> f32 {
     1.0 // Normal animation speed
 }
 
+fn default_custom_shader_brightness() -> f32 {
+    1.0 // Full brightness by default
+}
+
 fn default_cursor_shader_color() -> [u8; 3] {
     [255, 255, 255] // White cursor for shader effects
 }
@@ -619,6 +691,14 @@ fn default_cursor_glow_intensity() -> f32 {
 
 fn default_bell_sound() -> u8 {
     50 // Default to 50% volume
+}
+
+fn default_tab_bar_height() -> f32 {
+    28.0 // Default tab bar height in pixels
+}
+
+fn default_zero() -> usize {
+    0
 }
 
 impl Default for Config {
@@ -671,6 +751,11 @@ impl Default for Config {
             custom_shader_animation_speed: default_custom_shader_speed(),
             custom_shader_text_opacity: default_text_opacity(),
             custom_shader_full_content: default_false(),
+            custom_shader_brightness: default_custom_shader_brightness(),
+            custom_shader_channel1: None,
+            custom_shader_channel2: None,
+            custom_shader_channel3: None,
+            custom_shader_channel4: None,
             cursor_shader: None,
             cursor_shader_enabled: default_false(),
             cursor_shader_animation: default_true(),
@@ -679,6 +764,7 @@ impl Default for Config {
             cursor_shader_trail_duration: default_cursor_trail_duration(),
             cursor_shader_glow_radius: default_cursor_glow_radius(),
             cursor_shader_glow_intensity: default_cursor_glow_intensity(),
+            cursor_shader_hides_cursor: default_false(),
             exit_on_shell_exit: default_true(),
             custom_shell: None,
             shell_args: None,
@@ -699,6 +785,12 @@ impl Default for Config {
             notification_silence_enabled: default_false(),
             notification_silence_threshold: default_silence_threshold(),
             notification_max_buffer: default_notification_max_buffer(),
+            tab_bar_mode: TabBarMode::default(),
+            tab_bar_height: default_tab_bar_height(),
+            tab_show_close_button: default_true(),
+            tab_show_index: default_false(),
+            tab_inherit_cwd: default_true(),
+            max_tabs: default_zero(),
         }
     }
 }
@@ -806,6 +898,36 @@ impl Config {
         } else {
             Self::shaders_dir().join(shader_name)
         }
+    }
+
+    /// Resolve a texture path, expanding ~ to home directory
+    /// Returns the expanded path or the original if expansion fails
+    pub fn resolve_texture_path(path: &str) -> PathBuf {
+        if path.starts_with("~/")
+            && let Some(home) = dirs::home_dir()
+        {
+            return home.join(&path[2..]);
+        }
+        PathBuf::from(path)
+    }
+
+    /// Get the channel texture paths as an array of Options
+    /// Returns [channel1, channel2, channel3, channel4]
+    pub fn shader_channel_paths(&self) -> [Option<PathBuf>; 4] {
+        [
+            self.custom_shader_channel1
+                .as_ref()
+                .map(|p| Self::resolve_texture_path(p)),
+            self.custom_shader_channel2
+                .as_ref()
+                .map(|p| Self::resolve_texture_path(p)),
+            self.custom_shader_channel3
+                .as_ref()
+                .map(|p| Self::resolve_texture_path(p)),
+            self.custom_shader_channel4
+                .as_ref()
+                .map(|p| Self::resolve_texture_path(p)),
+        ]
     }
 
     /// Set window dimensions
