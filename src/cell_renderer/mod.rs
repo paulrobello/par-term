@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
-use wgpu::util::DeviceExt;
 use winit::window::Window;
 
 use crate::font_manager::FontManager;
@@ -9,6 +8,7 @@ use crate::scrollbar::Scrollbar;
 
 pub mod atlas;
 pub mod background;
+pub mod pipeline;
 pub mod render;
 pub mod types;
 pub use types::*;
@@ -186,8 +186,6 @@ impl CellRenderer {
 
         let scale_factor = window.scale_factor() as f32;
 
-        // Standard DPI for the platform
-        // macOS typically uses 72 DPI for points, Windows and most Linux use 96 DPI
         let platform_dpi = if cfg!(target_os = "macos") {
             72.0
         } else {
@@ -205,16 +203,13 @@ impl CellRenderer {
             font_ranges,
         )?;
 
-        // Extract font metrics for better baseline alignment
+        // Extract font metrics
         let (font_ascent, font_descent, font_leading, char_advance) = {
             let primary_font = font_manager.get_font(0).unwrap();
             let metrics = primary_font.metrics(&[]);
             let scale = font_size_pixels / metrics.units_per_em as f32;
-
-            // Get advance width of a standard character ('m' is common for monospace width)
             let glyph_id = primary_font.charmap().map('m');
             let advance = primary_font.glyph_metrics(&[]).advance_width(glyph_id) * scale;
-
             (
                 metrics.ascent * scale,
                 metrics.descent * scale,
@@ -223,8 +218,6 @@ impl CellRenderer {
             )
         };
 
-        // Use font metrics for cell height if line_spacing is 1.0
-        // Natural line height = ascent + descent + leading
         let natural_line_height = font_ascent + font_descent + font_leading;
         let cell_height = (natural_line_height * line_spacing).max(1.0);
         let cell_width = (char_advance * char_spacing).max(1.0);
@@ -238,378 +231,38 @@ impl CellRenderer {
             scrollbar_track_color,
         );
 
-        // Shaders
-        let bg_shader = device.create_shader_module(wgpu::include_wgsl!("../shaders/cell_bg.wgsl"));
-        let text_shader =
-            device.create_shader_module(wgpu::include_wgsl!("../shaders/cell_text.wgsl"));
-        let bg_image_shader =
-            device.create_shader_module(wgpu::include_wgsl!("../shaders/background_image.wgsl"));
+        // Create pipelines using the pipeline module
+        let bg_pipeline = pipeline::create_bg_pipeline(&device, surface_format);
 
-        // Vertex buffer
-        let vertices = [
-            Vertex {
-                position: [0.0, 0.0],
-                tex_coords: [0.0, 0.0],
-            },
-            Vertex {
-                position: [1.0, 0.0],
-                tex_coords: [1.0, 0.0],
-            },
-            Vertex {
-                position: [0.0, 1.0],
-                tex_coords: [0.0, 1.0],
-            },
-            Vertex {
-                position: [1.0, 1.0],
-                tex_coords: [1.0, 1.0],
-            },
-        ];
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex buffer"),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        let (atlas_texture, atlas_view, atlas_sampler) = pipeline::create_atlas(&device);
+        let text_bind_group_layout = pipeline::create_text_bind_group_layout(&device);
+        let text_bind_group = pipeline::create_text_bind_group(
+            &device,
+            &text_bind_group_layout,
+            &atlas_view,
+            &atlas_sampler,
+        );
+        let text_pipeline =
+            pipeline::create_text_pipeline(&device, surface_format, &text_bind_group_layout);
 
-        // Background pipeline
-        let bg_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("bg pipeline layout"),
-            bind_group_layouts: &[],
-            push_constant_ranges: &[],
-        });
+        let bg_image_bind_group_layout = pipeline::create_bg_image_bind_group_layout(&device);
+        let bg_image_pipeline = pipeline::create_bg_image_pipeline(
+            &device,
+            surface_format,
+            &bg_image_bind_group_layout,
+        );
+        let bg_image_uniform_buffer = pipeline::create_bg_image_uniform_buffer(&device);
 
-        let bg_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("bg pipeline"),
-            layout: Some(&bg_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &bg_shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[
-                    wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
-                    },
-                    wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<BackgroundInstance>() as wgpu::BufferAddress,
-                        step_mode: wgpu::VertexStepMode::Instance,
-                        attributes: &wgpu::vertex_attr_array![2 => Float32x2, 3 => Float32x2, 4 => Float32x4],
-                    },
-                ],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &bg_shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleStrip,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
+        let (visual_bell_pipeline, visual_bell_bind_group, _, visual_bell_uniform_buffer) =
+            pipeline::create_visual_bell_pipeline(&device, surface_format);
 
-        // Atlas
-        let atlas_size = 2048;
-        let atlas_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("atlas texture"),
-            size: wgpu::Extent3d {
-                width: atlas_size,
-                height: atlas_size,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        let atlas_view = atlas_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let atlas_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
+        let vertex_buffer = pipeline::create_vertex_buffer(&device);
 
-        let text_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("text bind group layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-            });
-
-        let text_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("text bind group"),
-            layout: &text_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&atlas_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&atlas_sampler),
-                },
-            ],
-        });
-
-        let text_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("text pipeline layout"),
-            bind_group_layouts: &[&text_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let text_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("text pipeline"),
-            layout: Some(&text_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &text_shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[
-                    wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
-                    },
-                    wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<TextInstance>() as wgpu::BufferAddress,
-                        step_mode: wgpu::VertexStepMode::Instance,
-                        attributes: &wgpu::vertex_attr_array![
-                            2 => Float32x2,
-                            3 => Float32x2,
-                            4 => Float32x2,
-                            5 => Float32x2,
-                            6 => Float32x4,
-                            7 => Uint32
-                        ],
-                    },
-                ],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &text_shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleStrip,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
-
-        // Background image
-        let bg_image_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("bg image bind group layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-            });
-
-        let bg_image_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("bg image pipeline layout"),
-                bind_group_layouts: &[&bg_image_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let bg_image_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("bg image pipeline"),
-            layout: Some(&bg_image_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &bg_image_shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
-                }],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &bg_image_shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleStrip,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
-
-        let bg_image_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("bg image uniform buffer"),
-            size: 64, // Sufficient for basic uniforms
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        // Visual bell
-        let visual_bell_shader =
-            device.create_shader_module(wgpu::include_wgsl!("../shaders/cell_bg.wgsl"));
-        let visual_bell_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("visual bell bind group layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
-        let visual_bell_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("visual bell pipeline layout"),
-                bind_group_layouts: &[&visual_bell_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let visual_bell_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("visual bell pipeline"),
-            layout: Some(&visual_bell_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &visual_bell_shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[
-                    wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
-                    },
-                    wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<BackgroundInstance>() as wgpu::BufferAddress,
-                        step_mode: wgpu::VertexStepMode::Instance,
-                        attributes: &wgpu::vertex_attr_array![2 => Float32x2, 3 => Float32x2, 4 => Float32x4],
-                    },
-                ],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &visual_bell_shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleStrip,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
-
-        let visual_bell_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("visual bell uniform buffer"),
-            size: 64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let visual_bell_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("visual bell bind group"),
-            layout: &visual_bell_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: visual_bell_uniform_buffer.as_entire_binding(),
-            }],
-        });
-
-        // Initialize instance buffers (+1 for cursor overlay)
+        // Instance buffers
         let max_bg_instances = cols * rows + 1;
-        let max_text_instances = cols * rows * 2; // Extra for shaped text
-        let bg_instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("bg instance buffer"),
-            size: (max_bg_instances * std::mem::size_of::<BackgroundInstance>()) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let text_instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("text instance buffer"),
-            size: (max_text_instances * std::mem::size_of::<TextInstance>()) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let max_text_instances = cols * rows * 2;
+        let (bg_instance_buffer, text_instance_buffer) =
+            pipeline::create_instance_buffers(&device, max_bg_instances, max_text_instances);
 
         let mut renderer = Self {
             device,
@@ -653,7 +306,7 @@ impl CellRenderer {
             cursor_opacity: 0.0,
             cursor_style: par_term_emu_core_rust::cursor::CursorStyle::SteadyBlock,
             cursor_overlay: None,
-            cursor_color: [1.0, 1.0, 1.0], // Default white
+            cursor_color: [1.0, 1.0, 1.0],
             cursor_hidden_for_shader: false,
             visual_bell_intensity: 0.0,
             window_opacity,
@@ -752,20 +405,15 @@ impl CellRenderer {
     }
 
     fn recreate_instance_buffers(&mut self) {
-        self.max_bg_instances = self.cols * self.rows + 1; // +1 for cursor overlay
+        self.max_bg_instances = self.cols * self.rows + 1;
         self.max_text_instances = self.cols * self.rows * 2;
-        self.bg_instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("bg instance buffer"),
-            size: (self.max_bg_instances * std::mem::size_of::<BackgroundInstance>()) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        self.text_instance_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("text instance buffer"),
-            size: (self.max_text_instances * std::mem::size_of::<TextInstance>()) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let (bg_buf, text_buf) = pipeline::create_instance_buffers(
+            &self.device,
+            self.max_bg_instances,
+            self.max_text_instances,
+        );
+        self.bg_instance_buffer = bg_buf;
+        self.text_instance_buffer = text_buf;
 
         self.bg_instances = vec![
             BackgroundInstance {
@@ -803,7 +451,6 @@ impl CellRenderer {
     }
 
     /// Clear all cells and mark all rows as dirty.
-    /// Call this when switching tabs to ensure clean slate.
     pub fn clear_all_cells(&mut self) {
         for cell in &mut self.cells {
             *cell = Cell::default();
@@ -837,9 +484,7 @@ impl CellRenderer {
                 let y1 = (self.window_padding + (row + 1) as f32 * self.cell_height).round();
 
                 match style {
-                    // Block cursor: handled in cell background, no overlay needed
                     CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => None,
-                    // Beam/Bar cursor: thin vertical line on the left (2 pixels wide)
                     CursorStyle::SteadyBar | CursorStyle::BlinkingBar => Some(BackgroundInstance {
                         position: [
                             x0 / self.config.width as f32 * 2.0 - 1.0,
@@ -856,7 +501,6 @@ impl CellRenderer {
                             opacity,
                         ],
                     }),
-                    // Underline cursor: thin horizontal line at the bottom (2 pixels tall)
                     CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => {
                         Some(BackgroundInstance {
                             position: [
@@ -893,7 +537,6 @@ impl CellRenderer {
             color[1] as f32 / 255.0,
             color[2] as f32 / 255.0,
         ];
-        // Mark cursor row as dirty to redraw with new color
         self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
     }
 
@@ -901,7 +544,6 @@ impl CellRenderer {
     pub fn set_cursor_hidden_for_shader(&mut self, hidden: bool) {
         if self.cursor_hidden_for_shader != hidden {
             self.cursor_hidden_for_shader = hidden;
-            // Mark cursor row as dirty to redraw
             self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
         }
     }

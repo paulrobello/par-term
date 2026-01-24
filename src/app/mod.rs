@@ -15,9 +15,14 @@ pub mod bell;
 pub mod debug_state;
 pub mod handler;
 pub mod input_events;
+pub mod keyboard_handlers;
 pub mod mouse;
 pub mod mouse_events;
 pub mod render_cache;
+pub mod scroll_ops;
+pub mod tab_ops;
+pub mod text_selection;
+pub mod url_hover;
 pub mod window_manager;
 pub mod window_state;
 
