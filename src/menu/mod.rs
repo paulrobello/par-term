@@ -321,7 +321,8 @@ impl MenuManager {
     ///
     /// On macOS, this initializes the global application menu (only needs to be called once).
     /// On Windows/Linux, this attaches a menu bar to the specific window.
-    pub fn init_for_window(&self, _window: &Arc<Window>) -> Result<()> {
+    #[allow(unused_variables)] // window is only used on Windows/Linux
+    pub fn init_for_window(&self, window: &Arc<Window>) -> Result<()> {
         #[cfg(target_os = "macos")]
         {
             // On macOS, init for NSApp (global menu bar)
@@ -334,7 +335,7 @@ impl MenuManager {
 
         #[cfg(target_os = "windows")]
         {
-            use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+            use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
             if let Ok(handle) = window.window_handle() {
                 if let RawWindowHandle::Win32(win32_handle) = handle.as_raw() {
                     self.menu.init_for_hwnd(win32_handle.hwnd.get() as _)?;
@@ -354,7 +355,7 @@ impl MenuManager {
         {
             // On Linux with GTK, we need to initialize for GTK window
             // This requires the gtk feature to be enabled
-            use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+            use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
             if let Ok(handle) = window.window_handle() {
                 if let RawWindowHandle::Xlib(xlib_handle) = handle.as_raw() {
                     // For X11, we'd need to use the GTK integration
