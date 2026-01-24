@@ -5,6 +5,7 @@
 
 use crate::app::window_manager::WindowManager;
 use crate::app::window_state::WindowState;
+use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
@@ -309,6 +310,10 @@ impl WindowState {
                 }
             }
 
+            WindowEvent::Focused(focused) => {
+                self.handle_focus_change(focused);
+            }
+
             WindowEvent::RedrawRequested => {
                 // Skip rendering if shutting down
                 if self.is_shutting_down {
@@ -354,6 +359,54 @@ impl WindowState {
         }
 
         false // Don't close window
+    }
+
+    /// Handle window focus change for power saving
+    pub(crate) fn handle_focus_change(&mut self, focused: bool) {
+        if self.is_focused == focused {
+            return; // No change
+        }
+
+        self.is_focused = focused;
+        log::info!(
+            "Window focus changed: {}",
+            if focused { "focused" } else { "blurred" }
+        );
+
+        // Handle shader animation pause/resume
+        if self.config.pause_shaders_on_blur
+            && let Some(renderer) = &mut self.renderer
+        {
+            if focused {
+                renderer.resume_shader_animations();
+            } else {
+                renderer.pause_shader_animations();
+            }
+        }
+
+        // Handle refresh rate adjustment for all tabs
+        if self.config.pause_refresh_on_blur
+            && let Some(window) = &self.window
+        {
+            let fps = if focused {
+                self.config.max_fps
+            } else {
+                self.config.unfocused_fps
+            };
+            for tab in self.tab_manager.tabs_mut() {
+                tab.stop_refresh_task();
+                tab.start_refresh_task(Arc::clone(&self.runtime), Arc::clone(window), fps);
+            }
+            log::info!(
+                "Adjusted refresh rate to {} FPS ({})",
+                fps,
+                if focused { "focused" } else { "unfocused" }
+            );
+        }
+
+        // Request a redraw when focus changes
+        self.needs_redraw = true;
+        self.request_redraw();
     }
 
     /// Process per-window updates in about_to_wait

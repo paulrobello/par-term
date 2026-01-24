@@ -461,6 +461,10 @@ impl SettingsUI {
                 "Always on top",
                 "Max FPS",
                 "VSync",
+                "Power Saving",
+                "Pause shaders",
+                "Unfocused",
+                "blur",
             ],
         ) {
             insert_section_separator(ui, &mut section_shown);

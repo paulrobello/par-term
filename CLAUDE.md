@@ -288,6 +288,11 @@ custom_shader: "crt.glsl"     # Relative to ~/.config/par-term/shaders/
 custom_shader_enabled: true
 custom_shader_animation: true
 custom_shader_animation_speed: 1.0
+
+# Power saving when window loses focus
+pause_shaders_on_blur: true   # Pause shader animations when unfocused (default: true)
+pause_refresh_on_blur: false  # Reduce refresh rate when unfocused (default: false)
+unfocused_fps: 10             # Target FPS when unfocused (default: 10)
 ```
 
 ## Testing Considerations

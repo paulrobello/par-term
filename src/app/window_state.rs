@@ -67,6 +67,10 @@ pub struct WindowState {
     pub(crate) cursor_blink_timer: Option<std::time::Instant>,
     /// Whether we need to rebuild renderer after font-related changes
     pub(crate) pending_font_rebuild: bool,
+
+    // Focus state for power saving
+    /// Whether the window currently has focus
+    pub(crate) is_focused: bool,
 }
 
 impl WindowState {
@@ -102,6 +106,8 @@ impl WindowState {
             needs_redraw: true,
             cursor_blink_timer: None,
             pending_font_rebuild: false,
+
+            is_focused: true, // Assume focused on creation
         }
     }
 

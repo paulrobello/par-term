@@ -775,4 +775,28 @@ impl Renderer {
         self.cell_renderer.clear_glyph_cache();
         self.dirty = true;
     }
+
+    /// Pause shader animations (e.g., when window loses focus)
+    /// This reduces GPU usage when the terminal is not actively being viewed
+    pub fn pause_shader_animations(&mut self) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_animation_enabled(false);
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_animation_enabled(false);
+        }
+        log::debug!("Shader animations paused");
+    }
+
+    /// Resume shader animations (e.g., when window regains focus)
+    pub fn resume_shader_animations(&mut self) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_animation_enabled(true);
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_animation_enabled(true);
+        }
+        self.dirty = true;
+        log::debug!("Shader animations resumed");
+    }
 }

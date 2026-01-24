@@ -453,6 +453,24 @@ pub struct Config {
     /// Maximum tabs per window (0 = unlimited)
     #[serde(default = "defaults::zero")]
     pub max_tabs: usize,
+
+    // ========================================================================
+    // Focus/Blur Power Saving
+    // ========================================================================
+    /// Pause shader animations when window loses focus
+    /// This reduces GPU usage when the terminal is not actively being viewed
+    #[serde(default = "defaults::bool_true")]
+    pub pause_shaders_on_blur: bool,
+
+    /// Reduce refresh rate when window is not focused
+    /// When true, uses unfocused_fps instead of max_fps when window is blurred
+    #[serde(default = "defaults::bool_false")]
+    pub pause_refresh_on_blur: bool,
+
+    /// Target FPS when window is not focused (only used if pause_refresh_on_blur is true)
+    /// Lower values save more power but may delay terminal output visibility
+    #[serde(default = "defaults::unfocused_fps")]
+    pub unfocused_fps: u32,
 }
 
 impl Default for Config {
@@ -545,6 +563,9 @@ impl Default for Config {
             tab_show_index: defaults::bool_false(),
             tab_inherit_cwd: defaults::bool_true(),
             max_tabs: defaults::zero(),
+            pause_shaders_on_blur: defaults::bool_true(),
+            pause_refresh_on_blur: defaults::bool_false(),
+            unfocused_fps: defaults::unfocused_fps(),
         }
     }
 }

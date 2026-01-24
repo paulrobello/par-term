@@ -132,5 +132,53 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                 settings.has_changes = true;
             }
         });
+
+        ui.separator();
+        ui.label("Power Saving (when window loses focus):");
+
+        if ui
+            .checkbox(
+                &mut settings.config.pause_shaders_on_blur,
+                "Pause shader animations when unfocused",
+            )
+            .on_hover_text(
+                "Reduces GPU usage by pausing animated shaders when the window is not in focus",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.pause_refresh_on_blur,
+                "Reduce refresh rate when unfocused",
+            )
+            .on_hover_text(
+                "Reduces CPU/GPU usage by lowering the frame rate when the window is not in focus",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.horizontal(|ui| {
+            ui.label("Unfocused FPS:");
+            if ui
+                .add_enabled(
+                    settings.config.pause_refresh_on_blur,
+                    egui::Slider::new(&mut settings.config.unfocused_fps, 1..=30),
+                )
+                .on_hover_text(
+                    "Target frame rate when window is unfocused (lower = more power savings)",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
     });
 }

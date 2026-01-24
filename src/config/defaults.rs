@@ -179,3 +179,7 @@ pub fn tab_bar_height() -> f32 {
 pub fn zero() -> usize {
     0
 }
+
+pub fn unfocused_fps() -> u32 {
+    10 // Reduced FPS when window is not focused (10 FPS is plenty for background activity)
+}
