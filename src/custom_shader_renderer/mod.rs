@@ -18,161 +18,97 @@ use std::path::Path;
 use std::time::Instant;
 use wgpu::*;
 
-/// Uniform data passed to custom shaders
-/// Layout must match GLSL std140 rules:
-/// - vec2 aligned to 8 bytes
-/// - vec4 aligned to 16 bytes
-/// - float aligned to 4 bytes
-/// - struct size rounded to 16 bytes (largest alignment)
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct CustomShaderUniforms {
-    /// Viewport resolution (iResolution.xy) - offset 0, size 8
-    resolution: [f32; 2],
-    /// Time in seconds since shader started (iTime) - offset 8, size 4
-    time: f32,
-    /// Time since last frame in seconds (iTimeDelta) - offset 12, size 4
-    time_delta: f32,
-    /// Mouse state (iMouse) - offset 16, size 16
-    /// xy = current position (if dragging) or last drag position
-    /// zw = click position (positive when held, negative when released)
-    mouse: [f32; 4],
-    /// Date/time (iDate) - offset 32, size 16
-    /// x = year, y = month (0-11), z = day (1-31), w = seconds since midnight
-    date: [f32; 4],
-    /// Window opacity for transparency support - offset 48, size 4
-    opacity: f32,
-    /// Text opacity (separate from window opacity) - offset 52, size 4
-    text_opacity: f32,
-    /// Full content mode: 1.0 = shader receives and outputs full content, 0.0 = background only
-    full_content_mode: f32,
-    /// Frame counter (iFrame) - offset 60, size 4
-    frame: f32,
-    /// Current frame rate in FPS (iFrameRate) - offset 64, size 4
-    frame_rate: f32,
-    /// Pixel aspect ratio (iResolution.z) - offset 68, size 4, usually 1.0
-    resolution_z: f32,
-    /// Padding to reach 80 bytes (multiple of 16) - offset 72, size 8
-    _pad1: [f32; 2],
+pub mod transpiler;
+pub mod types;
 
-    // ============ Cursor uniforms (Ghostty-compatible, v1.2.0+) ============
-    // Offsets 80-159
-    /// Current cursor position (xy) and size (zw) in pixels - offset 80, size 16
-    current_cursor: [f32; 4],
-    /// Previous cursor position (xy) and size (zw) in pixels - offset 96, size 16
-    previous_cursor: [f32; 4],
-    /// Current cursor RGBA color (with opacity baked into alpha) - offset 112, size 16
-    current_cursor_color: [f32; 4],
-    /// Previous cursor RGBA color - offset 128, size 16
-    previous_cursor_color: [f32; 4],
-    /// Time when cursor last moved (same timebase as iTime) - offset 144, size 4
-    cursor_change_time: f32,
-
-    // ============ Cursor shader configuration uniforms ============
-    // Offsets 148-175
-    /// Cursor trail duration in seconds - offset 148, size 4
-    cursor_trail_duration: f32,
-    /// Cursor glow radius in pixels - offset 152, size 4
-    cursor_glow_radius: f32,
-    /// Cursor glow intensity (0.0-1.0) - offset 156, size 4
-    cursor_glow_intensity: f32,
-    /// User-configured cursor color for shader effects [R, G, B, 1.0] - offset 160, size 16
-    /// (placed last because vec4 must be aligned to 16 bytes in std140)
-    cursor_shader_color: [f32; 4],
-}
-// Total size: 176 bytes
-
-// Compile-time assertion to ensure uniform struct size matches expectations
-const _: () = assert!(
-    std::mem::size_of::<CustomShaderUniforms>() == 176,
-    "CustomShaderUniforms must be exactly 176 bytes for GPU compatibility"
-);
+use transpiler::{transpile_glsl_to_wgsl, transpile_glsl_to_wgsl_source};
+use types::CustomShaderUniforms;
 
 /// Custom shader renderer that applies post-processing effects
 pub struct CustomShaderRenderer {
     /// The render pipeline for the custom shader
-    pipeline: RenderPipeline,
+    pub(crate) pipeline: RenderPipeline,
     /// Bind group for shader uniforms and textures
-    bind_group: BindGroup,
+    pub(crate) bind_group: BindGroup,
     /// Uniform buffer for shader parameters
-    uniform_buffer: Buffer,
+    pub(crate) uniform_buffer: Buffer,
     /// Intermediate texture to render terminal content into
-    intermediate_texture: Texture,
+    pub(crate) intermediate_texture: Texture,
     /// View of the intermediate texture
-    intermediate_texture_view: TextureView,
+    pub(crate) intermediate_texture_view: TextureView,
     /// Start time for animation
-    start_time: Instant,
+    pub(crate) start_time: Instant,
     /// Whether animation is enabled
-    animation_enabled: bool,
+    pub(crate) animation_enabled: bool,
     /// Animation speed multiplier
-    animation_speed: f32,
+    pub(crate) animation_speed: f32,
     /// Current texture dimensions
-    texture_width: u32,
-    texture_height: u32,
+    pub(crate) texture_width: u32,
+    pub(crate) texture_height: u32,
     /// Surface format for compatibility
-    surface_format: TextureFormat,
+    pub(crate) surface_format: TextureFormat,
     /// Bind group layout for recreating bind groups on resize
-    bind_group_layout: BindGroupLayout,
+    pub(crate) bind_group_layout: BindGroupLayout,
     /// Sampler for the intermediate texture
-    sampler: Sampler,
+    pub(crate) sampler: Sampler,
     /// Window opacity for transparency
-    window_opacity: f32,
+    pub(crate) window_opacity: f32,
     /// Text opacity (separate from window opacity)
-    text_opacity: f32,
+    pub(crate) text_opacity: f32,
     /// Full content mode - shader receives and can manipulate full terminal content
-    full_content_mode: bool,
+    pub(crate) full_content_mode: bool,
     /// Frame counter for iFrame uniform
-    frame_count: u32,
+    pub(crate) frame_count: u32,
     /// Last frame time for calculating time delta
-    last_frame_time: Instant,
+    pub(crate) last_frame_time: Instant,
     /// Current mouse position in pixels (xy)
-    mouse_position: [f32; 2],
+    pub(crate) mouse_position: [f32; 2],
     /// Last click position in pixels (zw)
-    mouse_click_position: [f32; 2],
+    pub(crate) mouse_click_position: [f32; 2],
     /// Whether mouse button is currently pressed (affects sign of zw)
-    mouse_button_down: bool,
+    pub(crate) mouse_button_down: bool,
     /// Frame rate tracking: time accumulator for averaging
-    frame_time_accumulator: f32,
+    pub(crate) frame_time_accumulator: f32,
     /// Frame rate tracking: frames in current second
-    frames_in_second: u32,
+    pub(crate) frames_in_second: u32,
     /// Current smoothed frame rate
-    current_frame_rate: f32,
+    pub(crate) current_frame_rate: f32,
 
     // ============ Cursor tracking (Ghostty-compatible) ============
     /// Current cursor position in cell coordinates (col, row)
-    current_cursor_pos: (usize, usize),
+    pub(crate) current_cursor_pos: (usize, usize),
     /// Previous cursor position in cell coordinates
-    previous_cursor_pos: (usize, usize),
+    pub(crate) previous_cursor_pos: (usize, usize),
     /// Current cursor RGBA color
-    current_cursor_color: [f32; 4],
+    pub(crate) current_cursor_color: [f32; 4],
     /// Previous cursor RGBA color
-    previous_cursor_color: [f32; 4],
+    pub(crate) previous_cursor_color: [f32; 4],
     /// Current cursor opacity (0.0 = invisible, 1.0 = fully visible)
-    current_cursor_opacity: f32,
+    pub(crate) current_cursor_opacity: f32,
     /// Previous cursor opacity
-    previous_cursor_opacity: f32,
+    pub(crate) previous_cursor_opacity: f32,
     /// Time when cursor position last changed (same timebase as iTime)
-    cursor_change_time: f32,
+    pub(crate) cursor_change_time: f32,
     /// Current cursor style (for size calculation)
-    current_cursor_style: CursorStyle,
+    pub(crate) current_cursor_style: CursorStyle,
     /// Previous cursor style
-    previous_cursor_style: CursorStyle,
+    pub(crate) previous_cursor_style: CursorStyle,
     /// Cell width in pixels (for cursor position calculation)
-    cursor_cell_width: f32,
+    pub(crate) cursor_cell_width: f32,
     /// Cell height in pixels (for cursor position calculation)
-    cursor_cell_height: f32,
+    pub(crate) cursor_cell_height: f32,
     /// Window padding in pixels (for cursor position calculation)
-    cursor_window_padding: f32,
+    pub(crate) cursor_window_padding: f32,
 
     // ============ Cursor shader configuration ============
     /// User-configured cursor color for shader effects [R, G, B, A]
-    cursor_shader_color: [f32; 4],
+    pub(crate) cursor_shader_color: [f32; 4],
     /// Cursor trail duration in seconds
-    cursor_trail_duration: f32,
+    pub(crate) cursor_trail_duration: f32,
     /// Cursor glow radius in pixels
-    cursor_glow_radius: f32,
+    pub(crate) cursor_glow_radius: f32,
     /// Cursor glow intensity (0.0-1.0)
-    cursor_glow_intensity: f32,
+    pub(crate) cursor_glow_intensity: f32,
 }
 
 impl CustomShaderRenderer {
@@ -970,369 +906,6 @@ impl CustomShaderRenderer {
     }
 }
 
-/// Transpile a Ghostty/Shadertoy-style GLSL shader to WGSL
-///
-/// The input shader should have a `mainImage(out vec4 fragColor, in vec2 fragCoord)` function
-/// and can use the following uniforms:
-/// - `iTime`: Time in seconds
-/// - `iTimeDelta`: Time since last frame in seconds
-/// - `iFrame`: Frame counter
-/// - `iFrameRate`: Current frame rate in FPS
-/// - `iResolution`: Viewport resolution (vec2, z available as iResolutionZ)
-/// - `iMouse`: Mouse state (xy=current pos, zw=click pos)
-/// - `iDate`: Date/time (year, month, day, seconds since midnight)
-/// - `iChannel0`: Terminal content texture (sampler2D)
-/// - `iOpacity`: Window opacity (par-term specific)
-/// - `iTextOpacity`: Text opacity (par-term specific)
-/// - `iFullContent`: Full content mode flag (par-term specific)
-///
-/// Ghostty-compatible cursor uniforms (v1.2.0+):
-/// - `iCurrentCursor`: Current cursor position (xy) and size (zw) in pixels
-/// - `iPreviousCursor`: Previous cursor position and size
-/// - `iCurrentCursorColor`: Current cursor RGBA color (opacity baked into alpha)
-/// - `iPreviousCursorColor`: Previous cursor RGBA color
-/// - `iTimeCursorChange`: Time when cursor last moved (same timebase as iTime)
-///
-/// Cursor shader configuration uniforms (par-term specific):
-/// - `iCursorShaderColor`: User-configured cursor color for effects (RGBA)
-/// - `iCursorTrailDuration`: Trail effect duration in seconds
-/// - `iCursorGlowRadius`: Glow effect radius in pixels
-/// - `iCursorGlowIntensity`: Glow effect intensity (0.0-1.0)
-fn transpile_glsl_to_wgsl(glsl_source: &str, shader_path: &Path) -> Result<String> {
-    // Wrap the Shadertoy-style shader in a proper GLSL fragment shader
-    // We need to:
-    // 1. Add version and precision qualifiers
-    // 2. Declare uniforms and samplers
-    // 3. Add input/output declarations
-    // 4. Add a main() that calls mainImage()
 
-    let wrapped_glsl = format!(
-        r#"#version 450
 
-// Uniforms - must match Rust struct layout (std140)
-// Total size: 192 bytes
-layout(set = 0, binding = 0) uniform Uniforms {{
-    vec2 iResolution;      // offset 0, size 8 - Viewport resolution
-    float iTime;           // offset 8, size 4 - Time in seconds
-    float iTimeDelta;      // offset 12, size 4 - Time since last frame
-    vec4 iMouse;           // offset 16, size 16 - Mouse state (xy=current, zw=click)
-    vec4 iDate;            // offset 32, size 16 - Date (year, month, day, seconds)
-    float iOpacity;        // offset 48, size 4 - Window opacity
-    float iTextOpacity;    // offset 52, size 4 - Text opacity
-    float iFullContent;    // offset 56, size 4 - Full content mode (1.0 = enabled)
-    float iFrame;          // offset 60, size 4 - Frame counter
-    float iFrameRate;      // offset 64, size 4 - Current FPS
-    float iResolutionZ;    // offset 68, size 4 - Pixel aspect ratio (usually 1.0)
-    vec2 _pad1;            // offset 72, size 8 - Padding
 
-    // Cursor uniforms (Ghostty-compatible, v1.2.0+)
-    vec4 iCurrentCursor;       // offset 80, size 16 - xy=position, zw=size (pixels)
-    vec4 iPreviousCursor;      // offset 96, size 16 - xy=previous position, zw=size
-    vec4 iCurrentCursorColor;  // offset 112, size 16 - RGBA (opacity baked into alpha)
-    vec4 iPreviousCursorColor; // offset 128, size 16 - RGBA previous color
-    float iTimeCursorChange;   // offset 144, size 4 - Time when cursor last moved
-
-    // Cursor shader configuration uniforms
-    float iCursorTrailDuration;// offset 148, size 4 - Trail effect duration (seconds)
-    float iCursorGlowRadius;   // offset 152, size 4 - Glow effect radius (pixels)
-    float iCursorGlowIntensity;// offset 156, size 4 - Glow effect intensity (0-1)
-    vec4 iCursorShaderColor;   // offset 160, size 16 - User-configured cursor color (aligned to 16)
-}};                            // total: 176 bytes
-
-// Terminal content texture (iChannel0)
-layout(set = 0, binding = 1) uniform texture2D _iChannel0Tex;
-layout(set = 0, binding = 2) uniform sampler _iChannel0Sampler;
-
-// Combined sampler for texture() calls
-#define iChannel0 sampler2D(_iChannel0Tex, _iChannel0Sampler)
-
-// Input from vertex shader
-layout(location = 0) in vec2 v_uv;
-
-// Output color
-layout(location = 0) out vec4 outColor;
-
-// ============ User shader code begins ============
-
-{glsl_source}
-
-// ============ User shader code ends ============
-
-void main() {{
-    vec2 fragCoord = v_uv * iResolution;
-    vec4 shaderColor;
-    mainImage(shaderColor, fragCoord);
-
-    if (iFullContent > 0.5) {{
-        // Full content mode: shader output is used directly
-        // The shader has full control over the terminal content via iChannel0
-        // Apply window opacity to the shader's alpha output
-        outColor = vec4(shaderColor.rgb * iOpacity, shaderColor.a * iOpacity);
-    }} else {{
-        // Background-only mode: text is composited cleanly on top
-        // Sample terminal to detect text pixels
-        vec4 terminalColor = texture(iChannel0, v_uv);
-        float hasText = step(0.01, terminalColor.a);
-
-        // Text pixels: use terminal color with text opacity
-        // Background pixels: use shader output with window opacity
-        vec3 textCol = terminalColor.rgb;
-        vec3 bgCol = shaderColor.rgb;
-
-        // Composite: text over shader background
-        float textA = hasText * iTextOpacity;
-        float bgA = (1.0 - hasText) * iOpacity;
-
-        vec3 finalRgb = textCol * textA + bgCol * bgA;
-        float finalA = textA + bgA;
-
-        outColor = vec4(finalRgb, finalA);
-    }}
-}}
-"#
-    );
-
-    // Parse GLSL using naga
-    let mut parser = naga::front::glsl::Frontend::default();
-    let options = naga::front::glsl::Options::from(naga::ShaderStage::Fragment);
-
-    let module = parser.parse(&options, &wrapped_glsl).map_err(|errors| {
-        let error_messages: Vec<String> = errors
-            .errors
-            .iter()
-            .map(|e| format!("  {:?}", e.kind))
-            .collect();
-        anyhow::anyhow!(
-            "GLSL parse error in '{}'. Errors:\n{}",
-            shader_path.display(),
-            error_messages.join("\n")
-        )
-    })?;
-
-    // Validate the module
-    let info = naga::valid::Validator::new(
-        naga::valid::ValidationFlags::all(),
-        naga::valid::Capabilities::all(),
-    )
-    .validate(&module)
-    .map_err(|e| {
-        anyhow::anyhow!(
-            "Shader validation failed for '{}': {:?}",
-            shader_path.display(),
-            e
-        )
-    })?;
-
-    // Generate WGSL output for fragment shader
-    let mut fragment_wgsl = String::new();
-    let mut writer =
-        naga::back::wgsl::Writer::new(&mut fragment_wgsl, naga::back::wgsl::WriterFlags::empty());
-
-    writer.write(&module, &info).map_err(|e| {
-        anyhow::anyhow!(
-            "WGSL generation failed for '{}': {:?}",
-            shader_path.display(),
-            e
-        )
-    })?;
-
-    // The generated WGSL will have a main() function but we need to rename it to fs_main
-    // and add a vertex shader
-    let fragment_wgsl = fragment_wgsl.replace("fn main(", "fn fs_main(");
-
-    // Build the complete shader with vertex shader
-    let full_wgsl = format!(
-        r#"// Auto-generated WGSL from GLSL shader: {}
-
-struct VertexOutput {{
-    @builtin(position) position: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-}}
-
-@vertex
-fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {{
-    var out: VertexOutput;
-
-    // Generate full-screen quad vertices (triangle strip)
-    let x = f32(vertex_index & 1u);
-    let y = f32((vertex_index >> 1u) & 1u);
-
-    // Full screen in NDC
-    out.position = vec4<f32>(x * 2.0 - 1.0, 1.0 - y * 2.0, 0.0, 1.0);
-    out.uv = vec2<f32>(x, y);
-
-    return out;
-}}
-
-// ============ Fragment shader (transpiled from GLSL) ============
-
-{fragment_wgsl}
-"#,
-        shader_path.display()
-    );
-
-    Ok(full_wgsl)
-}
-
-/// Transpile a Ghostty/Shadertoy-style GLSL shader to WGSL from source string
-///
-/// Same as `transpile_glsl_to_wgsl` but takes a source string and name instead of a file path.
-fn transpile_glsl_to_wgsl_source(glsl_source: &str, name: &str) -> Result<String> {
-    // Wrap the Shadertoy-style shader in a proper GLSL fragment shader
-    let wrapped_glsl = format!(
-        r#"#version 450
-
-// Uniforms - must match Rust struct layout (std140)
-// Total size: 192 bytes
-layout(set = 0, binding = 0) uniform Uniforms {{
-    vec2 iResolution;      // offset 0, size 8 - Viewport resolution
-    float iTime;           // offset 8, size 4 - Time in seconds
-    float iTimeDelta;      // offset 12, size 4 - Time since last frame
-    vec4 iMouse;           // offset 16, size 16 - Mouse state (xy=current, zw=click)
-    vec4 iDate;            // offset 32, size 16 - Date (year, month, day, seconds)
-    float iOpacity;        // offset 48, size 4 - Window opacity
-    float iTextOpacity;    // offset 52, size 4 - Text opacity
-    float iFullContent;    // offset 56, size 4 - Full content mode (1.0 = enabled)
-    float iFrame;          // offset 60, size 4 - Frame counter
-    float iFrameRate;      // offset 64, size 4 - Current FPS
-    float iResolutionZ;    // offset 68, size 4 - Pixel aspect ratio (usually 1.0)
-    vec2 _pad1;            // offset 72, size 8 - Padding
-
-    // Cursor uniforms (Ghostty-compatible, v1.2.0+)
-    vec4 iCurrentCursor;       // offset 80, size 16 - xy=position, zw=size (pixels)
-    vec4 iPreviousCursor;      // offset 96, size 16 - xy=previous position, zw=size
-    vec4 iCurrentCursorColor;  // offset 112, size 16 - RGBA (opacity baked into alpha)
-    vec4 iPreviousCursorColor; // offset 128, size 16 - RGBA previous color
-    float iTimeCursorChange;   // offset 144, size 4 - Time when cursor last moved
-
-    // Cursor shader configuration uniforms
-    float iCursorTrailDuration;// offset 148, size 4 - Trail effect duration (seconds)
-    float iCursorGlowRadius;   // offset 152, size 4 - Glow effect radius (pixels)
-    float iCursorGlowIntensity;// offset 156, size 4 - Glow effect intensity (0-1)
-    vec4 iCursorShaderColor;   // offset 160, size 16 - User-configured cursor color (aligned to 16)
-}};                            // total: 176 bytes
-
-// Terminal content texture (iChannel0)
-layout(set = 0, binding = 1) uniform texture2D _iChannel0Tex;
-layout(set = 0, binding = 2) uniform sampler _iChannel0Sampler;
-
-// Combined sampler for texture() calls
-#define iChannel0 sampler2D(_iChannel0Tex, _iChannel0Sampler)
-
-// Input from vertex shader
-layout(location = 0) in vec2 v_uv;
-
-// Output color
-layout(location = 0) out vec4 outColor;
-
-// ============ User shader code begins ============
-
-{glsl_source}
-
-// ============ User shader code ends ============
-
-void main() {{
-    vec2 fragCoord = v_uv * iResolution;
-    vec4 shaderColor;
-    mainImage(shaderColor, fragCoord);
-
-    if (iFullContent > 0.5) {{
-        // Full content mode: shader output is used directly
-        // The shader has full control over the terminal content via iChannel0
-        // Apply window opacity to the shader's alpha output
-        outColor = vec4(shaderColor.rgb * iOpacity, shaderColor.a * iOpacity);
-    }} else {{
-        // Background-only mode: text is composited cleanly on top
-        // Sample terminal to detect text pixels
-        vec4 terminalColor = texture(iChannel0, v_uv);
-        float hasText = step(0.01, terminalColor.a);
-
-        // Text pixels: use terminal color with text opacity
-        // Background pixels: use shader output with window opacity
-        vec3 textCol = terminalColor.rgb;
-        vec3 bgCol = shaderColor.rgb;
-
-        // Composite: text over shader background
-        float textA = hasText * iTextOpacity;
-        float bgA = (1.0 - hasText) * iOpacity;
-
-        vec3 finalRgb = textCol * textA + bgCol * bgA;
-        float finalA = textA + bgA;
-
-        outColor = vec4(finalRgb, finalA);
-    }}
-}}
-"#
-    );
-
-    // Parse GLSL using naga
-    let mut parser = naga::front::glsl::Frontend::default();
-    let options = naga::front::glsl::Options::from(naga::ShaderStage::Fragment);
-
-    let module = parser.parse(&options, &wrapped_glsl).map_err(|errors| {
-        let error_messages: Vec<String> = errors
-            .errors
-            .iter()
-            .map(|e| format!("  {:?}", e.kind))
-            .collect();
-        anyhow::anyhow!(
-            "GLSL parse error in '{}'. Errors:\n{}",
-            name,
-            error_messages.join("\n")
-        )
-    })?;
-
-    // Validate the module
-    let info = naga::valid::Validator::new(
-        naga::valid::ValidationFlags::all(),
-        naga::valid::Capabilities::all(),
-    )
-    .validate(&module)
-    .map_err(|e| anyhow::anyhow!("Shader validation failed for '{}': {:?}", name, e))?;
-
-    // Generate WGSL output for fragment shader
-    let mut fragment_wgsl = String::new();
-    let mut writer =
-        naga::back::wgsl::Writer::new(&mut fragment_wgsl, naga::back::wgsl::WriterFlags::empty());
-
-    writer
-        .write(&module, &info)
-        .map_err(|e| anyhow::anyhow!("WGSL generation failed for '{}': {:?}", name, e))?;
-
-    // The generated WGSL will have a main() function but we need to rename it to fs_main
-    // and add a vertex shader
-    let fragment_wgsl = fragment_wgsl.replace("fn main(", "fn fs_main(");
-
-    // Build the complete shader with vertex shader
-    let full_wgsl = format!(
-        r#"// Auto-generated WGSL from GLSL shader: {}
-
-struct VertexOutput {{
-    @builtin(position) position: vec4<f32>,
-    @location(0) uv: vec2<f32>,
-}}
-
-@vertex
-fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {{
-    var out: VertexOutput;
-
-    // Generate full-screen quad vertices (triangle strip)
-    let x = f32(vertex_index & 1u);
-    let y = f32((vertex_index >> 1u) & 1u);
-
-    // Full screen in NDC
-    out.position = vec4<f32>(x * 2.0 - 1.0, 1.0 - y * 2.0, 0.0, 1.0);
-    out.uv = vec2<f32>(x, y);
-
-    return out;
-}}
-
-// ============ Fragment shader (transpiled from GLSL) ============
-
-{fragment_wgsl}
-"#,
-        name
-    );
-
-    Ok(full_wgsl)
-}

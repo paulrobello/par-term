@@ -91,95 +91,47 @@ make bundle         # Create macOS .app bundle (macOS only)
 
 ### Core Components
 
-The application follows a layered architecture with clear separation of concerns:
+The application follows a layered architecture with clear separation of concerns, organized into modular directories:
 
-**App Layer** (`src/app.rs`)
-- Main event loop using winit's `ApplicationHandler`
-- Manages application state (`AppState`): window, renderer, terminal, input handler
-- Handles window events, keyboard/mouse input, text selection, scrollbar dragging
-- Coordinates between components
+**App Layer** (`src/app/`)
+- Main event loop using winit's `ApplicationHandler`.
+- `mod.rs`: Manages application state (`AppState`) and initialization.
+- `handler.rs`: Winit event handling and UI orchestration.
+- `input_events.rs` & `mouse_events.rs`: Logic for keyboard/mouse interaction and shortcuts.
+- `bell.rs`, `mouse.rs`, `render_cache.rs`, `debug_state.rs`: Sub-states for `AppState`.
 
-**Terminal Layer** (`src/terminal.rs`)
-- `TerminalManager`: Wraps `PtySession` from par-term-emu-core-rust
-- Manages PTY lifecycle: spawn shell, read/write data, handle resize
-- Converts terminal state to renderer cells using `styled_content::extract_styled_segments`
-- ANSI color handling via `ansi_to_rgb` function
+**Terminal Layer** (`src/terminal/`)
+- `mod.rs`: `TerminalManager` orchestrates PTY lifecycle.
+- `spawn.rs`: Shell and process spawning logic.
+- `rendering.rs`: Converts terminal state to renderer cells.
+- `graphics.rs`: Sixel and inline graphics metadata management.
+- `clipboard.rs`: Clipboard history and sync.
+- `hyperlinks.rs`: OSC 8 hyperlink tracking.
 
-**Renderer Layer** (`src/renderer.rs`, `src/cell_renderer.rs`, `src/graphics_renderer.rs`)
-- `Renderer`: High-level rendering coordinator
-- `CellRenderer`: GPU-accelerated cell-based rendering using custom wgpu pipeline
-- Three separate render pipelines:
-  - Cell backgrounds: Colored quads for cell backgrounds
-  - Cell text: Glyph atlas texture with instanced rendering
-  - Sixel graphics: RGBA texture rendering for inline images
-- Owns and manages `Scrollbar` and `GraphicsRenderer` components
+**Renderer Layer** (`src/renderer/`, `src/cell_renderer/`, `src/graphics_renderer.rs`)
+- `renderer/mod.rs`: High-level rendering coordinator.
+- `renderer/graphics.rs` & `renderer/shaders.rs`: Sixel rendering orchestration and shader management.
+- `cell_renderer/mod.rs`: GPU-accelerated cell-based rendering coordinator.
+- `cell_renderer/render.rs`: Core render loop and instance buffer building.
+- `cell_renderer/atlas.rs`: Dynamic glyph atlas and LRU cache management.
+- `cell_renderer/background.rs`: Background image management.
+- `cell_renderer/types.rs`: Core rendering data structures.
 
-**Graphics Rendering** (`src/graphics_renderer.rs`)
-- `GraphicsRenderer`: Dedicated GPU renderer for Sixel graphics
-- RGBA texture caching with position-based IDs
-- Custom WGSL shader (`src/shaders/sixel.wgsl`) for texture sampling and alpha blending
-- Instanced rendering for efficient multi-graphic display
-- Dynamic buffer resizing for optimal memory usage
-- Cell-based positioning: graphics placed at terminal coordinates
+**Custom Shader Renderer** (`src/custom_shader_renderer/`)
+- `mod.rs`: Orchestrates post-processing effects.
+- `transpiler.rs`: GLSL to WGSL transpilation via `naga`.
+- `types.rs`: Shader uniform data structures.
 
 **Font System** (`src/font_manager.rs`)
-- `FontManager`: Manages font loading with fallback chain
-- Uses `swash` for font rasterization, `fontdb` for system font discovery
-- Builds glyph atlas texture dynamically as glyphs are needed
-- Supports colored glyphs (emoji)
-
-**Scrollbar** (`src/scrollbar.rs`)
-- Custom GPU-rendered scrollbar using WGSL shader (`src/shaders/scrollbar.wgsl`)
-- Auto-hide behavior (only shows when scrollback content exists)
-- Interactive: click, drag, mouse wheel scrolling
-- Two-component design: track (background) and thumb (position indicator)
-
-**Input Handling** (`src/input.rs`)
-- `InputHandler`: Processes keyboard input and converts to terminal sequences
-- Clipboard integration via `arboard`
-- Handles special keys (arrow keys, function keys, modifiers)
-- Text selection and copy/paste support
+- `FontManager`: Manages font loading with fallback chain using `swash` and `fontdb`.
 
 **Text Shaping** (`src/text_shaper.rs`)
-- HarfBuzz-based text shaping via `rustybuzz`
-- Ligature support for programming fonts
-- Complex script support (Arabic, Devanagari, Thai, RTL languages)
-- Grapheme cluster handling via `unicode-segmentation`
+- HarfBuzz-based text shaping via `rustybuzz` for ligatures and complex scripts.
 
-**Selection System** (`src/selection.rs`)
-- Text selection state management
-- Click type detection (single, double, triple)
-- Word and line selection modes
+**Settings UI** (`src/settings_ui/`)
+- `mod.rs`: egui-based settings overlay state.
+- `*_tab.rs`: Individual modules for each settings section (font, theme, window, etc.).
 
-**URL Detection** (`src/url_detection.rs`)
-- Regex-based URL detection in terminal content
-- OSC 8 hyperlink protocol support
-- Ctrl+click to open URLs
-
-**Audio Bell** (`src/audio_bell.rs`)
-- Bell sound playback via `rodio`
-- Volume control and graceful fallback if no audio device
-
-**Settings UI** (`src/settings_ui.rs`, `src/help_ui.rs`, `src/clipboard_history_ui.rs`)
-- egui-based settings overlay
-- Real-time configuration editing
-- Clipboard history viewer
-
-**Custom Shader Renderer** (`src/custom_shader_renderer.rs`)
-- GLSL to WGSL transpilation via `naga`
-- Shadertoy/Ghostty-compatible shader format
-- Uniforms: iTime, iResolution, iMouse, iChannel0 (terminal texture)
-- Animation support with configurable speed
-
-**Themes** (`src/themes.rs`)
-- Built-in color themes with ANSI 256-color palette
-- Theme loading by name
-
-**Configuration** (`src/config.rs`)
-- YAML-based configuration at `~/.config/par-term/config.yaml`
-- Extensive settings: font, window, scrollback, theme, clipboard, notifications, custom shaders, background images
-- VSync modes: `immediate`, `mailbox`, `fifo`
-- Custom shaders loaded from `~/.config/par-term/shaders/`
 
 ### Data Flow
 

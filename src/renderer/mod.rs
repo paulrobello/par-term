@@ -6,41 +6,44 @@ use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
+pub mod graphics;
+pub mod shaders;
+
 /// Renderer for the terminal using custom wgpu cell renderer
 pub struct Renderer {
     // Cell renderer (owns the scrollbar)
-    cell_renderer: CellRenderer,
+    pub(crate) cell_renderer: CellRenderer,
 
     // Graphics renderer for sixel images
-    graphics_renderer: GraphicsRenderer,
+    pub(crate) graphics_renderer: GraphicsRenderer,
 
     // Current sixel graphics to render: (id, row, col, width_cells, height_cells, alpha, scroll_offset_rows)
     // Note: row is isize to allow negative values for graphics scrolled off top
-    sixel_graphics: Vec<(u64, isize, usize, usize, usize, f32, usize)>,
+    pub(crate) sixel_graphics: Vec<(u64, isize, usize, usize, usize, f32, usize)>,
 
     // egui renderer for settings UI
-    egui_renderer: egui_wgpu::Renderer,
+    pub(crate) egui_renderer: egui_wgpu::Renderer,
 
     // Custom shader renderer for post-processing effects (background shader)
-    custom_shader_renderer: Option<CustomShaderRenderer>,
+    pub(crate) custom_shader_renderer: Option<CustomShaderRenderer>,
     // Track current shader path to detect changes
-    custom_shader_path: Option<String>,
+    pub(crate) custom_shader_path: Option<String>,
 
     // Cursor shader renderer for cursor-specific effects (separate from background shader)
-    cursor_shader_renderer: Option<CustomShaderRenderer>,
+    pub(crate) cursor_shader_renderer: Option<CustomShaderRenderer>,
     // Track current cursor shader path to detect changes
-    cursor_shader_path: Option<String>,
+    pub(crate) cursor_shader_path: Option<String>,
 
     // Cached for convenience
-    size: PhysicalSize<u32>,
+    pub(crate) size: PhysicalSize<u32>,
 
     // Dirty flag for optimization - only render when content has changed
-    dirty: bool,
+    pub(crate) dirty: bool,
 
     // Debug overlay text
     #[allow(dead_code)]
     #[allow(dead_code)]
-    debug_text: Option<String>,
+    pub(crate) debug_text: Option<String>,
 }
 
 impl Renderer {
@@ -435,206 +438,11 @@ impl Renderer {
         self.dirty = true;
     }
 
-    /// Enable or disable animation for the custom shader at runtime
-    #[allow(dead_code)]
-    pub fn set_custom_shader_animation(&mut self, enabled: bool) {
-        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            custom_shader.set_animation_enabled(enabled);
-            self.dirty = true;
-        }
-    }
 
-    /// Update mouse position for custom shader (iMouse uniform)
-    ///
-    /// # Arguments
-    /// * `x` - Mouse X position in pixels (0 = left edge)
-    /// * `y` - Mouse Y position in pixels (0 = top edge)
-    pub fn set_shader_mouse_position(&mut self, x: f32, y: f32) {
-        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            custom_shader.set_mouse_position(x, y);
-        }
-    }
 
-    /// Update mouse button state for custom shader (iMouse uniform)
-    ///
-    /// # Arguments
-    /// * `pressed` - True if left mouse button is pressed
-    /// * `x` - Mouse X position at time of click/release
-    /// * `y` - Mouse Y position at time of click/release
-    pub fn set_shader_mouse_button(&mut self, pressed: bool, x: f32, y: f32) {
-        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            custom_shader.set_mouse_button(pressed, x, y);
-        }
-    }
 
-    /// Update cursor state for custom shader (Ghostty-compatible cursor uniforms)
-    ///
-    /// This enables cursor trail effects and other cursor-based animations in custom shaders.
-    ///
-    /// # Arguments
-    /// * `col` - Cursor column position (0-based)
-    /// * `row` - Cursor row position (0-based)
-    /// * `opacity` - Cursor opacity (0.0 = invisible, 1.0 = fully visible)
-    /// * `color` - Cursor RGBA color
-    /// * `style` - Cursor style (Block, Beam, Underline)
-    pub fn update_shader_cursor(
-        &mut self,
-        col: usize,
-        row: usize,
-        opacity: f32,
-        color: [f32; 4],
-        style: par_term_emu_core_rust::cursor::CursorStyle,
-    ) {
-        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            custom_shader.update_cursor(col, row, opacity, color, style);
-        }
-        // Also update cursor shader renderer
-        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
-            cursor_shader.update_cursor(col, row, opacity, color, style);
-        }
-    }
 
-    /// Update cursor shader configuration from config values
-    ///
-    /// # Arguments
-    /// * `color` - Cursor color for shader effects [R, G, B] (0-255)
-    /// * `trail_duration` - Duration of cursor trail effect in seconds
-    /// * `glow_radius` - Radius of cursor glow effect in pixels
-    /// * `glow_intensity` - Intensity of cursor glow effect (0.0-1.0)
-    pub fn update_cursor_shader_config(
-        &mut self,
-        color: [u8; 3],
-        trail_duration: f32,
-        glow_radius: f32,
-        glow_intensity: f32,
-    ) {
-        // Update both shaders with cursor config
-        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            custom_shader.update_cursor_shader_config(
-                color,
-                trail_duration,
-                glow_radius,
-                glow_intensity,
-            );
-        }
-        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
-            cursor_shader.update_cursor_shader_config(
-                color,
-                trail_duration,
-                glow_radius,
-                glow_intensity,
-            );
-        }
-    }
 
-    /// Enable or disable the cursor shader at runtime
-    ///
-    /// # Arguments
-    /// * `enabled` - Whether to enable the cursor shader
-    /// * `path` - Optional shader path (relative to shaders folder or absolute)
-    /// * `window_opacity` - Current window opacity
-    /// * `animation_enabled` - Whether animation is enabled
-    /// * `animation_speed` - Animation speed multiplier
-    ///
-    /// # Returns
-    /// Ok(()) if successful, Err with error message if compilation fails
-    #[allow(clippy::too_many_arguments)]
-    pub fn set_cursor_shader_enabled(
-        &mut self,
-        enabled: bool,
-        path: Option<&str>,
-        window_opacity: f32,
-        animation_enabled: bool,
-        animation_speed: f32,
-    ) -> Result<(), String> {
-        match (enabled, path) {
-            (true, Some(path)) => {
-                let path_changed = self.cursor_shader_path.as_ref().is_none_or(|p| p != path);
-
-                // If we already have a shader renderer and path hasn't changed, just update flags
-                if let Some(renderer) = &mut self.cursor_shader_renderer
-                    && !path_changed
-                {
-                    renderer.set_animation_enabled(animation_enabled);
-                    renderer.set_animation_speed(animation_speed);
-                    renderer.set_opacity(window_opacity);
-                    self.dirty = true;
-                    return Ok(());
-                }
-
-                let shader_path_full = crate::config::Config::shader_path(path);
-                match CustomShaderRenderer::new(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    self.cell_renderer.surface_format(),
-                    &shader_path_full,
-                    self.size.width,
-                    self.size.height,
-                    animation_enabled,
-                    animation_speed,
-                    window_opacity,
-                    1.0,  // Text opacity (cursor shader always uses 1.0)
-                    true, // Full content mode (cursor shader always uses full content)
-                ) {
-                    Ok(mut renderer) => {
-                        // Sync cell dimensions for cursor position calculation
-                        renderer.update_cell_dimensions(
-                            self.cell_renderer.cell_width(),
-                            self.cell_renderer.cell_height(),
-                            self.cell_renderer.window_padding(),
-                        );
-                        log::info!(
-                            "Cursor shader enabled at runtime: {}",
-                            shader_path_full.display()
-                        );
-                        self.cursor_shader_renderer = Some(renderer);
-                        self.cursor_shader_path = Some(path.to_string());
-                        self.dirty = true;
-                        Ok(())
-                    }
-                    Err(e) => {
-                        let error_msg = format!(
-                            "Failed to load cursor shader '{}': {}",
-                            shader_path_full.display(),
-                            e
-                        );
-                        log::error!("{}", error_msg);
-                        Err(error_msg)
-                    }
-                }
-            }
-            _ => {
-                if self.cursor_shader_renderer.is_some() {
-                    log::info!("Cursor shader disabled at runtime");
-                }
-                self.cursor_shader_renderer = None;
-                self.cursor_shader_path = None;
-                self.dirty = true;
-                Ok(())
-            }
-        }
-    }
-
-    /// Get the current cursor shader path
-    #[allow(dead_code)]
-    pub fn cursor_shader_path(&self) -> Option<&str> {
-        self.cursor_shader_path.as_deref()
-    }
-
-    /// Reload the cursor shader from source code
-    pub fn reload_cursor_shader_from_source(&mut self, source: &str) -> Result<()> {
-        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
-            cursor_shader.reload_from_source(
-                self.cell_renderer.device(),
-                source,
-                "cursor_editor",
-            )?;
-            self.dirty = true;
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("No cursor shader renderer active"))
-        }
-    }
 
     /// Update scrollbar appearance in real-time
     pub fn update_scrollbar_appearance(
@@ -655,114 +463,7 @@ impl Renderer {
         self.dirty = true;
     }
 
-    /// Reload the custom shader from source code
-    ///
-    /// This method compiles the new shader source and replaces the current pipeline.
-    /// If compilation fails, returns an error and the old shader remains active.
-    ///
-    /// # Arguments
-    /// * `source` - The GLSL shader source code
-    ///
-    /// # Returns
-    /// Ok(()) if successful, Err with error message if compilation fails
-    pub fn reload_shader_from_source(&mut self, source: &str) -> Result<()> {
-        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            custom_shader.reload_from_source(self.cell_renderer.device(), source, "editor")?;
-            self.dirty = true;
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
-                "No custom shader is currently loaded. Enable a custom shader first."
-            ))
-        }
-    }
 
-    /// Enable/disable custom shader at runtime. When enabling, tries to
-    /// (re)load the shader from the given path; when disabling, drops the
-    /// renderer instance.
-    ///
-    /// Returns Ok(()) on success, or Err with error message on failure.
-    #[allow(clippy::too_many_arguments)]
-    pub fn set_custom_shader_enabled(
-        &mut self,
-        enabled: bool,
-        shader_path: Option<&str>,
-        window_opacity: f32,
-        text_opacity: f32,
-        animation_enabled: bool,
-        animation_speed: f32,
-        full_content: bool,
-    ) -> Result<(), String> {
-        match (enabled, shader_path) {
-            (true, Some(path)) => {
-                // Check if the shader path has changed
-                let path_changed = self.custom_shader_path.as_deref() != Some(path);
-
-                // If we already have a shader renderer and path hasn't changed, just update flags
-                if let Some(renderer) = &mut self.custom_shader_renderer {
-                    if !path_changed {
-                        renderer.set_animation_enabled(animation_enabled);
-                        renderer.set_animation_speed(animation_speed);
-                        renderer.set_opacity(window_opacity);
-                        renderer.set_full_content_mode(full_content);
-                        return Ok(());
-                    }
-                    // Path changed - we need to reload, so drop the old renderer
-                    log::info!("Shader path changed, reloading shader");
-                }
-
-                let shader_path_full = crate::config::Config::shader_path(path);
-                match CustomShaderRenderer::new(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    self.cell_renderer.surface_format(),
-                    &shader_path_full,
-                    self.size.width,
-                    self.size.height,
-                    animation_enabled,
-                    animation_speed,
-                    window_opacity,
-                    text_opacity,
-                    full_content,
-                ) {
-                    Ok(mut renderer) => {
-                        // Sync cell dimensions for cursor position calculation
-                        renderer.update_cell_dimensions(
-                            self.cell_renderer.cell_width(),
-                            self.cell_renderer.cell_height(),
-                            self.cell_renderer.window_padding(),
-                        );
-                        log::info!(
-                            "Custom shader enabled at runtime: {}",
-                            shader_path_full.display()
-                        );
-                        self.custom_shader_renderer = Some(renderer);
-                        self.custom_shader_path = Some(path.to_string());
-                        self.dirty = true;
-                        Ok(())
-                    }
-                    Err(e) => {
-                        let error_msg = format!(
-                            "Failed to load shader '{}': {}",
-                            shader_path_full.display(),
-                            e
-                        );
-                        log::error!("{}", error_msg);
-                        Err(error_msg)
-                    }
-                }
-            }
-            _ => {
-                if self.custom_shader_renderer.is_some() {
-                    log::info!("Custom shader disabled at runtime");
-                }
-                self.custom_shader_renderer = None;
-                self.custom_shader_path = None;
-                self.dirty = true;
-                Ok(())
-            }
-        }
-    }
 
     /// Update background image opacity in real-time
     pub fn update_background_image_opacity(&mut self, opacity: f32) {
@@ -770,122 +471,7 @@ impl Renderer {
         self.dirty = true;
     }
 
-    /// Update graphics textures (Sixel, iTerm2, Kitty)
-    ///
-    /// # Arguments
-    /// * `graphics` - Graphics from the terminal with RGBA data
-    /// * `view_scroll_offset` - Current view scroll offset (0 = viewing current content)
-    /// * `scrollback_len` - Total lines in scrollback buffer
-    /// * `visible_rows` - Number of visible rows in terminal
-    #[allow(dead_code)]
-    pub fn update_graphics(
-        &mut self,
-        graphics: &[par_term_emu_core_rust::graphics::TerminalGraphic],
-        view_scroll_offset: usize,
-        scrollback_len: usize,
-        visible_rows: usize,
-    ) -> Result<()> {
-        // Clear old graphics list
-        self.sixel_graphics.clear();
 
-        // Calculate the view window in absolute terms
-        // total_lines = scrollback_len + visible_rows
-        // When scroll_offset = 0, we view lines [scrollback_len, scrollback_len + visible_rows)
-        // When scroll_offset > 0, we view earlier lines
-        let total_lines = scrollback_len + visible_rows;
-        let view_end = total_lines.saturating_sub(view_scroll_offset);
-        let view_start = view_end.saturating_sub(visible_rows);
-
-        // Process each graphic
-        for graphic in graphics {
-            // Use the unique ID from the graphic (stable across position changes)
-            let id = graphic.id;
-            let (col, row) = graphic.position;
-
-            // Calculate screen row based on whether this is a scrollback graphic or current
-            let screen_row: isize = if let Some(sb_row) = graphic.scrollback_row {
-                // Scrollback graphic: sb_row is absolute index in scrollback
-                // Screen row = sb_row - view_start
-                sb_row as isize - view_start as isize
-            } else {
-                // Current graphic: position is relative to visible area
-                // Absolute position = scrollback_len + row - scroll_offset_rows
-                // This keeps the graphic at its original absolute position as scrollback grows
-                let absolute_row = scrollback_len.saturating_sub(graphic.scroll_offset_rows) + row;
-
-                debug_trace!(
-                    "RENDERER",
-                    "CALC: scrollback_len={}, row={}, scroll_offset_rows={}, absolute_row={}, view_start={}, screen_row={}",
-                    scrollback_len,
-                    row,
-                    graphic.scroll_offset_rows,
-                    absolute_row,
-                    view_start,
-                    absolute_row as isize - view_start as isize
-                );
-
-                absolute_row as isize - view_start as isize
-            };
-
-            debug_log!(
-                "RENDERER",
-                "Graphics update: id={}, protocol={:?}, pos=({},{}), screen_row={}, scrollback_row={:?}, scroll_offset_rows={}, size={}x{}, view=[{},{})",
-                id,
-                graphic.protocol,
-                col,
-                row,
-                screen_row,
-                graphic.scrollback_row,
-                graphic.scroll_offset_rows,
-                graphic.width,
-                graphic.height,
-                view_start,
-                view_end
-            );
-
-            // Create or update texture in cache
-            self.graphics_renderer.get_or_create_texture(
-                self.cell_renderer.device(),
-                self.cell_renderer.queue(),
-                id,
-                &graphic.pixels, // RGBA pixel data (Arc<Vec<u8>>)
-                graphic.width as u32,
-                graphic.height as u32,
-            )?;
-
-            // Add to render list with position and dimensions
-            // Calculate size in cells (rounding up to cover all affected cells)
-            let width_cells =
-                ((graphic.width as f32 / self.cell_renderer.cell_width()).ceil() as usize).max(1);
-            let height_cells =
-                ((graphic.height as f32 / self.cell_renderer.cell_height()).ceil() as usize).max(1);
-
-            // Calculate effective clip rows based on screen position
-            // If screen_row < 0, we need to clip that many rows from the top
-            // If screen_row >= 0, no clipping needed (we can see the full graphic)
-            let effective_clip_rows = if screen_row < 0 {
-                (-screen_row) as usize
-            } else {
-                0
-            };
-
-            self.sixel_graphics.push((
-                id,
-                screen_row, // row position (can be negative if scrolled off top)
-                col,        // col position
-                width_cells,
-                height_cells,
-                1.0,                 // Full opacity by default
-                effective_clip_rows, // Rows to clip from top for partial rendering
-            ));
-        }
-
-        if !graphics.is_empty() {
-            self.dirty = true; // Mark dirty when graphics change
-        }
-
-        Ok(())
-    }
 
     /// Check if animation requires continuous rendering
     ///
@@ -1046,59 +632,7 @@ impl Renderer {
         Ok(true)
     }
 
-    /// Render sixel graphics on top of terminal cells
-    fn render_sixel_graphics(&mut self, surface_texture: &wgpu::SurfaceTexture) -> Result<()> {
-        use wgpu::TextureViewDescriptor;
 
-        // Create view of the surface texture
-        let view = surface_texture
-            .texture
-            .create_view(&TextureViewDescriptor::default());
-
-        // Create command encoder for sixel rendering
-        let mut encoder =
-            self.cell_renderer
-                .device()
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("sixel encoder"),
-                });
-
-        // Create render pass
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("sixel render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load, // Don't clear - render on top of terminal
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            // Render all sixel graphics
-            self.graphics_renderer.render(
-                self.cell_renderer.device(),
-                self.cell_renderer.queue(),
-                &mut render_pass,
-                &self.sixel_graphics,
-                self.size.width as f32,
-                self.size.height as f32,
-            )?;
-        } // render_pass dropped here
-
-        // Submit sixel commands
-        self.cell_renderer
-            .queue()
-            .submit(std::iter::once(encoder.finish()));
-
-        Ok(())
-    }
 
     /// Render egui overlay on top of the terminal
     fn render_egui(
@@ -1271,28 +805,7 @@ impl Renderer {
         self.dirty = true;
     }
 
-    /// Clear all cached sixel textures
-    #[allow(dead_code)]
-    pub fn clear_sixel_cache(&mut self) {
-        self.graphics_renderer.clear_cache();
-        self.sixel_graphics.clear();
-        self.dirty = true;
-    }
 
-    /// Get the number of cached sixel textures
-    #[allow(dead_code)]
-    pub fn sixel_cache_size(&self) -> usize {
-        self.graphics_renderer.cache_size()
-    }
-
-    /// Remove a specific sixel texture from cache
-    #[allow(dead_code)]
-    pub fn remove_sixel_texture(&mut self, id: u64) {
-        self.graphics_renderer.remove_texture(id);
-        self.sixel_graphics
-            .retain(|(gid, _, _, _, _, _, _)| *gid != id);
-        self.dirty = true;
-    }
 
     /// Set debug overlay text to be rendered
     #[allow(dead_code)]
