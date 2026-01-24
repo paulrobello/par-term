@@ -517,11 +517,10 @@ impl WindowState {
 
         let ctrl = self.input_handler.modifiers.state().control_key();
         let shift = self.input_handler.modifiers.state().shift_key();
-        let super_key = self.input_handler.modifiers.state().super_key();
 
         // Use Cmd on macOS, Ctrl on other platforms
         #[cfg(target_os = "macos")]
-        let cmd_or_ctrl = super_key;
+        let cmd_or_ctrl = self.input_handler.modifiers.state().super_key();
         #[cfg(not(target_os = "macos"))]
         let cmd_or_ctrl = ctrl;
 
