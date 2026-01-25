@@ -798,7 +798,8 @@ impl WindowState {
         let mouse_selection = tab.mouse.selection;
 
         // Get terminal cells for rendering (with dirty tracking optimization)
-        let (cells, current_cursor_pos, cursor_style) = if let Ok(term) = terminal.try_lock() {
+        // Also capture alt screen state to disable cursor shader for TUI apps
+        let (cells, current_cursor_pos, cursor_style, is_alt_screen) = if let Ok(term) = terminal.try_lock() {
             // Get current generation to check if terminal content has changed
             let current_generation = term.update_generation();
 
@@ -861,7 +862,10 @@ impl WindowState {
             self.debug.cache_hit = is_cache_hit;
             self.debug.cell_gen_time = cell_gen_start.elapsed();
 
-            (cells, current_cursor_pos, cursor_style)
+            // Check if alt screen is active (TUI apps like vim, htop)
+            let is_alt_screen = term.is_alt_screen_active();
+
+            (cells, current_cursor_pos, cursor_style, is_alt_screen)
         } else {
             return; // Terminal locked, skip this frame
         };
@@ -966,6 +970,9 @@ impl WindowState {
         let show_scrollbar = self.should_show_scrollbar();
 
         if let Some(renderer) = &mut self.renderer {
+            // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
+            renderer.set_cursor_shader_disabled_for_alt_screen(is_alt_screen);
+
             // Only update renderer with cells if they changed (cache MISS)
             // This avoids re-uploading the same cell data to GPU on every frame
             if !self.debug.cache_hit {

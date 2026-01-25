@@ -40,6 +40,9 @@ pub struct Renderer {
     // Dirty flag for optimization - only render when content has changed
     pub(crate) dirty: bool,
 
+    // Skip cursor shader when alt screen is active (TUI apps like vim, htop)
+    pub(crate) cursor_shader_disabled_for_alt_screen: bool,
+
     // Debug overlay text
     #[allow(dead_code)]
     #[allow(dead_code)]
@@ -240,6 +243,7 @@ impl Renderer {
             cursor_shader_path: initial_cursor_shader_path,
             size,
             dirty: true, // Start dirty to ensure initial render
+            cursor_shader_disabled_for_alt_screen: false,
             debug_text: None,
         })
     }
@@ -378,6 +382,14 @@ impl Renderer {
         self.dirty = true;
     }
 
+    /// Set whether cursor shader should be disabled due to alt screen being active
+    ///
+    /// When alt screen is active (e.g., vim, htop, less), cursor shader effects
+    /// are disabled since TUI applications typically have their own cursor handling.
+    pub fn set_cursor_shader_disabled_for_alt_screen(&mut self, disabled: bool) {
+        self.cursor_shader_disabled_for_alt_screen = disabled;
+    }
+
     /// Update window padding in real-time without full renderer rebuild
     /// Returns Some((cols, rows)) if grid size changed and terminal needs resize
     pub fn update_window_padding(&mut self, padding: f32) -> Option<(usize, usize)> {
@@ -458,7 +470,9 @@ impl Renderer {
 
         // Check if shaders are enabled
         let has_custom_shader = self.custom_shader_renderer.is_some();
-        let has_cursor_shader = self.cursor_shader_renderer.is_some();
+        // Only use cursor shader if it's enabled and not disabled for alt screen
+        let use_cursor_shader =
+            self.cursor_shader_renderer.is_some() && !self.cursor_shader_disabled_for_alt_screen;
 
         // Cell renderer renders terminal content
         let t1 = std::time::Instant::now();
@@ -470,7 +484,7 @@ impl Renderer {
                     .unwrap()
                     .intermediate_texture_view(),
             )?
-        } else if has_cursor_shader {
+        } else if use_cursor_shader {
             // Render terminal to intermediate texture for cursor shader
             self.cell_renderer.render_to_texture(
                 self.cursor_shader_renderer
@@ -479,7 +493,7 @@ impl Renderer {
                     .intermediate_texture_view(),
             )?
         } else {
-            // Render directly to surface
+            // Render directly to surface (no shaders, or cursor shader disabled for alt screen)
             self.cell_renderer.render(show_scrollbar)?
         };
         let cell_render_time = t1.elapsed();
@@ -487,7 +501,7 @@ impl Renderer {
         // Apply background custom shader if enabled
         let t_custom = std::time::Instant::now();
         let custom_shader_time = if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            if has_cursor_shader {
+            if use_cursor_shader {
                 // Background shader renders to cursor shader's intermediate texture
                 custom_shader.render(
                     self.cell_renderer.device(),
@@ -499,6 +513,7 @@ impl Renderer {
                 )?;
             } else {
                 // Background shader renders directly to surface
+                // (cursor shader disabled for alt screen or not configured)
                 let surface_view = surface_texture
                     .texture
                     .create_view(&wgpu::TextureViewDescriptor::default());
@@ -517,10 +532,11 @@ impl Renderer {
             std::time::Duration::ZERO
         };
 
-        // Apply cursor shader if enabled
+        // Apply cursor shader if enabled (skip when alt screen is active for TUI apps)
         let t_cursor = std::time::Instant::now();
-        let cursor_shader_time = if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+        let cursor_shader_time = if use_cursor_shader {
             log::trace!("Rendering cursor shader");
+            let cursor_shader = self.cursor_shader_renderer.as_mut().unwrap();
             let surface_view = surface_texture
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
@@ -535,6 +551,9 @@ impl Renderer {
                 .render_overlays(&surface_texture, show_scrollbar)?;
             t_cursor.elapsed()
         } else {
+            if self.cursor_shader_disabled_for_alt_screen {
+                log::trace!("Skipping cursor shader - alt screen active");
+            }
             std::time::Duration::ZERO
         };
 

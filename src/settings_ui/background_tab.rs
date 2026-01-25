@@ -237,6 +237,18 @@ pub fn show_background(
             }
         });
 
+        if ui
+            .checkbox(
+                &mut settings.config.shader_hot_reload,
+                "Enable shader hot reload",
+            )
+            .on_hover_text("Automatically reload shaders when files change on disk")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
         ui.horizontal(|ui| {
             ui.label("Shader brightness:");
             if ui
