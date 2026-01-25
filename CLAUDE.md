@@ -352,10 +352,15 @@ unfocused_fps: 10             # Target FPS when unfocused (default: 10)
 ### Adding a Custom Shader
 1. Create GLSL shader file in `~/.config/par-term/shaders/` (user config directory)
 2. Use Shadertoy-compatible format with `mainImage(out vec4 fragColor, in vec2 fragCoord)`
-3. Available uniforms: `iTime`, `iResolution`, `iMouse`, `iChannel0` (terminal texture)
+3. Available uniforms: `iTime`, `iResolution`, `iMouse` (vec2), `iChannel1` (terminal texture)
 4. Set `custom_shader: "filename.glsl"` in config
 5. Enable with `custom_shader_enabled: true`
 6. Once the shader is tested and ready for distribution, copy it to the repo's `shaders/` directory
+
+**Porting Shadertoy shaders**: When adapting shaders from Shadertoy:
+- Change `iChannel0` to `iChannel1` (terminal texture is on channel 1)
+- `iMouse` is a `vec2` (xy only), not `vec4` - remove any `.z` or `.w` swizzle access for click state
+- Y-axis is flipped: negate Y velocity/movement to fix upside-down animations (e.g., `uv.y += t` becomes `uv.y -= t`)
 
 **IMPORTANT**: Always develop new shaders in `~/.config/par-term/shaders/` first. Only move shaders to the repo `shaders/` folder when they are complete and ready to be included in the distribution.
 
