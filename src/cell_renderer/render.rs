@@ -219,6 +219,12 @@ impl CellRenderer {
                     let y0 = (self.window_padding + row as f32 * self.cell_height).round();
                     let y1 = (self.window_padding + (row + 1) as f32 * self.cell_height).round();
 
+                    // Add small overlap to prevent gaps between adjacent cells
+                    // Extend right and bottom edges by 1 pixel
+                    let bg_overlap = 1.0;
+                    let x1 = x1 + bg_overlap;
+                    let y1 = y1 + bg_overlap;
+
                     // Geometric cursor rendering based on cursor style
                     // For block cursor, blend into cell background; for others, add overlay later
                     let mut final_bg_color = bg_color;
@@ -306,8 +312,8 @@ impl CellRenderer {
                                 let rect =
                                     geo_block.to_pixel_rect(x0, y0, char_w, self.cell_height);
 
-                                // Add small extension to prevent gaps (0.5 pixel overlap)
-                                let extension = 0.5;
+                                // Add small extension to prevent gaps (1 pixel overlap)
+                                let extension = 1.0;
                                 let ext_x = if geo_block.x == 0.0 { extension } else { 0.0 };
                                 let ext_y = if geo_block.y == 0.0 { extension } else { 0.0 };
                                 let ext_w = if geo_block.x + geo_block.width >= 1.0 {
