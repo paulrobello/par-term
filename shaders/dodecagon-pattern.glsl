@@ -549,7 +549,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
 
         float speR = pow(max(dot(normalize(ld - rd), sn), 0.), 8.);
         vec3 rf = reflect(rd, sn);
-        vec3 rTx = texture(iChannel2, rf.xy).xyz; rTx *= rTx;
+        // Convert reflection direction to equirectangular UV for 2D texture
+        // (Shadertoy uses cubemap which accepts vec3 directly)
+        vec2 rfUV = vec2(atan(rf.z, rf.x) / TAU + 0.5, asin(clamp(rf.y, -1.0, 1.0)) / PI + 0.5);
+        vec3 rTx = texture(iChannel2, rfUV).xyz; rTx *= rTx;
         float rF = svGID==1? 2. : svGID==0? 16. : 6.;
         sceneCol = sceneCol + sceneCol*speR*rTx*rF;
 

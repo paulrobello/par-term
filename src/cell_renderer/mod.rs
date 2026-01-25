@@ -8,6 +8,7 @@ use crate::scrollbar::Scrollbar;
 
 pub mod atlas;
 pub mod background;
+pub mod block_chars;
 pub mod pipeline;
 pub mod render;
 pub mod types;
@@ -108,6 +109,9 @@ pub struct CellRenderer {
     pub(crate) enable_text_shaping: bool,
     pub(crate) enable_ligatures: bool,
     pub(crate) enable_kerning: bool,
+
+    // Solid white pixel in atlas for geometric block rendering
+    pub(crate) solid_pixel_offset: (u32, u32),
 }
 
 impl CellRenderer {
@@ -347,13 +351,51 @@ impl CellRenderer {
             enable_text_shaping,
             enable_ligatures,
             enable_kerning,
+            solid_pixel_offset: (0, 0),
         };
+
+        // Upload a solid white 2x2 pixel block to the atlas for geometric block rendering
+        renderer.upload_solid_pixel();
 
         if let Some(path) = background_image_path {
             renderer.load_background_image(path)?;
         }
 
         Ok(renderer)
+    }
+
+    /// Upload a solid white pixel to the atlas for use in geometric block rendering
+    pub(crate) fn upload_solid_pixel(&mut self) {
+        let size = 2u32; // 2x2 for better sampling
+        let white_pixels: Vec<u8> = vec![255; (size * size * 4) as usize];
+
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.atlas_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d {
+                    x: self.atlas_next_x,
+                    y: self.atlas_next_y,
+                    z: 0,
+                },
+                aspect: wgpu::TextureAspect::All,
+            },
+            &white_pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * size),
+                rows_per_image: Some(size),
+            },
+            wgpu::Extent3d {
+                width: size,
+                height: size,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        self.solid_pixel_offset = (self.atlas_next_x, self.atlas_next_y);
+        self.atlas_next_x += size + 2; // padding
+        self.atlas_row_height = self.atlas_row_height.max(size);
     }
 
     pub fn device(&self) -> &wgpu::Device {
