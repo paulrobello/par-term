@@ -326,8 +326,9 @@ impl CellRenderer {
                                 let final_w = rect.width + ext_x + ext_w;
                                 let final_h = rect.height + ext_y + ext_h;
 
-                                // Render as a colored background rectangle
-                                row_bg.push(BackgroundInstance {
+                                // Render as a colored rectangle using the solid white pixel in atlas
+                                // This goes through the text pipeline with foreground color
+                                row_text.push(TextInstance {
                                     position: [
                                         final_x / self.config.width as f32 * 2.0 - 1.0,
                                         1.0 - (final_y / self.config.height as f32 * 2.0),
@@ -336,12 +337,19 @@ impl CellRenderer {
                                         final_w / self.config.width as f32 * 2.0,
                                         final_h / self.config.height as f32 * 2.0,
                                     ],
+                                    // Use solid white pixel from atlas
+                                    tex_offset: [
+                                        self.solid_pixel_offset.0 as f32 / 2048.0,
+                                        self.solid_pixel_offset.1 as f32 / 2048.0,
+                                    ],
+                                    tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
                                     color: [
                                         fg_color[0] as f32 / 255.0,
                                         fg_color[1] as f32 / 255.0,
                                         fg_color[2] as f32 / 255.0,
                                         fg_color[3] as f32 / 255.0,
                                     ],
+                                    is_colored: 0,
                                 });
 
                                 x_offset += self.cell_width;

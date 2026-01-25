@@ -20,6 +20,8 @@ impl CellRenderer {
         self.atlas_next_y = 0;
         self.atlas_row_height = 0;
         self.dirty_rows.fill(true);
+        // Re-upload the solid white pixel for geometric block rendering
+        self.upload_solid_pixel();
     }
 
     pub(crate) fn lru_remove(&mut self, key: u64) {
