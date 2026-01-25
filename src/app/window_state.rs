@@ -78,6 +78,10 @@ pub struct WindowState {
     pub(crate) shader_watcher: Option<ShaderWatcher>,
     /// Last shader reload error message (for display in UI)
     pub(crate) shader_reload_error: Option<String>,
+
+    /// Flag to signal that the settings window should be opened
+    /// This is set by keyboard handlers and consumed by the window manager
+    pub(crate) open_settings_window_requested: bool,
 }
 
 impl WindowState {
@@ -118,6 +122,8 @@ impl WindowState {
 
             shader_watcher: None,
             shader_reload_error: None,
+
+            open_settings_window_requested: false,
         }
     }
 
@@ -799,7 +805,9 @@ impl WindowState {
 
         // Get terminal cells for rendering (with dirty tracking optimization)
         // Also capture alt screen state to disable cursor shader for TUI apps
-        let (cells, current_cursor_pos, cursor_style, is_alt_screen) = if let Ok(term) = terminal.try_lock() {
+        let (cells, current_cursor_pos, cursor_style, is_alt_screen) = if let Ok(term) =
+            terminal.try_lock()
+        {
             // Get current generation to check if terminal content has changed
             let current_generation = term.update_generation();
 

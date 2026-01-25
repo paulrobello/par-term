@@ -19,6 +19,7 @@ mod scroll_state;
 mod scrollbar;
 mod selection;
 mod settings_ui;
+mod settings_window;
 mod shader_watcher;
 mod styled_content;
 mod tab;

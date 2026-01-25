@@ -43,19 +43,17 @@ impl WindowState {
             return false;
         }
 
-        // F12: Toggle settings UI
-        if matches!(event.logical_key, Key::Named(NamedKey::F12)) {
-            self.settings_ui.toggle();
-            log::info!(
-                "Settings UI toggled: {}",
-                if self.settings_ui.visible {
-                    "visible"
-                } else {
-                    "hidden"
-                }
-            );
+        // F12 or Cmd+, (macOS): Open settings window
+        let is_f12 = matches!(event.logical_key, Key::Named(NamedKey::F12));
+        let is_cmd_comma = matches!(event.logical_key, Key::Character(ref c) if c == ",")
+            && self.input_handler.modifiers.state().super_key();
 
-            // Request redraw to show/hide settings
+        if is_f12 || is_cmd_comma {
+            // Signal to window manager to open settings window
+            self.open_settings_window_requested = true;
+            log::info!("Settings window requested");
+
+            // Request redraw to trigger event processing
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
