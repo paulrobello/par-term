@@ -110,6 +110,8 @@ The directory is created automatically when par-term first starts.
 | `gyroid.glsl` | Raymarched gyroid tunnel with colorful lighting and reflections |
 | `dodecagon-pattern.glsl` | Raymarched dodecagon tile pattern with BRDF metallic frames (uses iChannel1 texture) |
 | `convergence.glsl` | Two swirling voronoi patterns (teal/red) split by an animated lightning bolt |
+| `singularity.glsl` | Whirling blackhole with red/blue accretion disk and spiraling waves |
+| `universe-within.glsl` | Mystical neural network with pulsing nodes and connecting lines |
 
 ### CRT and Retro Effects
 
