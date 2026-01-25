@@ -8,6 +8,7 @@ use crate::scrollbar::Scrollbar;
 
 pub mod atlas;
 pub mod background;
+pub mod block_chars;
 pub mod pipeline;
 pub mod render;
 pub mod types;

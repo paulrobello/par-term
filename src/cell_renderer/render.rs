@@ -1,3 +1,4 @@
+use super::block_chars;
 use super::{BackgroundInstance, CellRenderer, RowCacheEntry, TextInstance};
 use crate::text_shaper::ShapingOptions;
 use anyhow::Result;
@@ -286,6 +287,68 @@ impl CellRenderer {
                     let chars: Vec<char> = grapheme.chars().collect();
                     #[allow(clippy::collapsible_if)]
                     if let Some(ch) = chars.first() {
+                        // Classify the character for rendering optimization
+                        let char_type = block_chars::classify_char(*ch);
+
+                        // Check if we should render this character geometrically
+                        if block_chars::should_render_geometrically(char_type) {
+                            if let Some(geo_block) = block_chars::get_geometric_block(*ch) {
+                                let char_w = if is_wide {
+                                    self.cell_width * 2.0
+                                } else {
+                                    self.cell_width
+                                };
+                                let x0 = (self.window_padding + x_offset).round();
+                                let y0 =
+                                    (self.window_padding + row as f32 * self.cell_height).round();
+
+                                // Convert geometric block to pixel rectangle
+                                let rect =
+                                    geo_block.to_pixel_rect(x0, y0, char_w, self.cell_height);
+
+                                // Add small extension to prevent gaps (0.5 pixel overlap)
+                                let extension = 0.5;
+                                let ext_x = if geo_block.x == 0.0 { extension } else { 0.0 };
+                                let ext_y = if geo_block.y == 0.0 { extension } else { 0.0 };
+                                let ext_w = if geo_block.x + geo_block.width >= 1.0 {
+                                    extension
+                                } else {
+                                    0.0
+                                };
+                                let ext_h = if geo_block.y + geo_block.height >= 1.0 {
+                                    extension
+                                } else {
+                                    0.0
+                                };
+
+                                let final_x = rect.x - ext_x;
+                                let final_y = rect.y - ext_y;
+                                let final_w = rect.width + ext_x + ext_w;
+                                let final_h = rect.height + ext_y + ext_h;
+
+                                // Render as a colored background rectangle
+                                row_bg.push(BackgroundInstance {
+                                    position: [
+                                        final_x / self.config.width as f32 * 2.0 - 1.0,
+                                        1.0 - (final_y / self.config.height as f32 * 2.0),
+                                    ],
+                                    size: [
+                                        final_w / self.config.width as f32 * 2.0,
+                                        final_h / self.config.height as f32 * 2.0,
+                                    ],
+                                    color: [
+                                        fg_color[0] as f32 / 255.0,
+                                        fg_color[1] as f32 / 255.0,
+                                        fg_color[2] as f32 / 255.0,
+                                        fg_color[3] as f32 / 255.0,
+                                    ],
+                                });
+
+                                x_offset += self.cell_width;
+                                continue;
+                            }
+                        }
+
                         if let Some((font_idx, glyph_id)) =
                             self.font_manager.find_glyph(*ch, bold, italic)
                         {
@@ -325,72 +388,34 @@ impl CellRenderer {
                             // Position glyph relative to snapped cell top-left
                             let baseline_offset = baseline_y_unrounded
                                 - (self.window_padding + row as f32 * self.cell_height);
-                            let mut glyph_left = x0 + (info.bearing_x * scale_x).round();
-                            let mut glyph_top =
+                            let glyph_left = x0 + (info.bearing_x * scale_x).round();
+                            let glyph_top =
                                 y0 + ((baseline_offset - info.bearing_y) * scale_y).round();
 
-                            let mut render_w = info.width as f32 * scale_x;
-                            let mut render_h = info.height as f32 * scale_y;
+                            let render_w = info.width as f32 * scale_x;
+                            let render_h = info.height as f32 * scale_y;
 
-                            // Special case: for box drawing and block elements, ensure they fill the cell
-                            // if they are close to the edges to avoid 1px gaps.
-                            let char_code = *ch as u32;
-                            let is_block_char = (0x2500..=0x259F).contains(&char_code)
-                                || (0xE0A0..=0xE0D4).contains(&char_code)
-                                || (0x25A0..=0x25FF).contains(&char_code); // Geometric shapes
-
-                            if is_block_char {
-                                // Snap to left/right cell boundaries
-                                if (glyph_left - x0).abs() < 3.0 {
-                                    let right = glyph_left + render_w;
-                                    glyph_left = x0;
-                                    render_w = (right - x0).max(render_w);
-                                }
-                                if (x1 - (glyph_left + render_w)).abs() < 3.0 {
-                                    render_w = x1 - glyph_left;
-                                }
-
-                                // Snap to top/bottom cell boundaries
-                                if (glyph_top - y0).abs() < 3.0 {
-                                    let bottom = glyph_top + render_h;
-                                    glyph_top = y0;
-                                    render_h = (bottom - y0).max(render_h);
-                                }
-                                if (y1 - (glyph_top + render_h)).abs() < 3.0 {
-                                    render_h = y1 - glyph_top;
-                                }
-
-                                // For half-blocks and quadrants, also snap to middle boundaries
-                                let cx = (x0 + x1) / 2.0;
-                                let cy = (y0 + y1) / 2.0;
-
-                                // Vertical middle snap
-                                if (glyph_top + render_h - cy).abs() < 2.0 {
-                                    render_h = cy - glyph_top;
-                                } else if (glyph_top - cy).abs() < 2.0 {
-                                    let bottom = glyph_top + render_h;
-                                    glyph_top = cy;
-                                    render_h = bottom - cy;
-                                }
-
-                                // Horizontal middle snap
-                                if (glyph_left + render_w - cx).abs() < 2.0 {
-                                    render_w = cx - glyph_left;
-                                } else if (glyph_left - cx).abs() < 2.0 {
-                                    let right = glyph_left + render_w;
-                                    glyph_left = cx;
-                                    render_w = right - cx;
-                                }
-                            }
+                            // For block characters that need font rendering (box drawing, etc.),
+                            // apply snapping to cell boundaries with sub-pixel extension
+                            let (final_left, final_top, final_w, final_h) =
+                                if block_chars::should_snap_to_boundaries(char_type) {
+                                    // Snap threshold of 3 pixels, extension of 0.5 pixels
+                                    block_chars::snap_glyph_to_cell(
+                                        glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1,
+                                        3.0, 0.5,
+                                    )
+                                } else {
+                                    (glyph_left, glyph_top, render_w, render_h)
+                                };
 
                             row_text.push(TextInstance {
                                 position: [
-                                    glyph_left / self.config.width as f32 * 2.0 - 1.0,
-                                    1.0 - (glyph_top / self.config.height as f32 * 2.0),
+                                    final_left / self.config.width as f32 * 2.0 - 1.0,
+                                    1.0 - (final_top / self.config.height as f32 * 2.0),
                                 ],
                                 size: [
-                                    render_w / self.config.width as f32 * 2.0,
-                                    render_h / self.config.height as f32 * 2.0,
+                                    final_w / self.config.width as f32 * 2.0,
+                                    final_h / self.config.height as f32 * 2.0,
                                 ],
                                 tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
                                 tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
