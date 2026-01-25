@@ -214,16 +214,18 @@ impl CellRenderer {
                         cell.bg_color[3] as f32 / 255.0,
                     ];
 
-                    let x0 = (self.window_padding + col as f32 * self.cell_width).round();
-                    let x1 = (self.window_padding + (col + 1) as f32 * self.cell_width).round();
-                    let y0 = (self.window_padding + row as f32 * self.cell_height).round();
-                    let y1 = (self.window_padding + (row + 1) as f32 * self.cell_height).round();
+                    let x0 = self.window_padding + col as f32 * self.cell_width;
+                    let x1 = self.window_padding + (col + 1) as f32 * self.cell_width;
+                    let y0 = self.window_padding + row as f32 * self.cell_height;
+                    let y1 = self.window_padding + (row + 1) as f32 * self.cell_height;
 
-                    // Add small overlap to prevent gaps between adjacent cells
-                    // Extend right and bottom edges by 1 pixel
-                    let bg_overlap = 1.0;
-                    let x1 = x1 + bg_overlap;
-                    let y1 = y1 + bg_overlap;
+                    // Extend cell backgrounds by 0.5 pixels on ALL sides to eliminate seams
+                    // Adjacent cells will overlap by 1 pixel total, ensuring no gaps
+                    let bg_overlap = 0.5;
+                    let x0 = (x0 - bg_overlap).floor();
+                    let x1 = (x1 + bg_overlap).ceil();
+                    let y0 = (y0 - bg_overlap).floor();
+                    let y1 = (y1 + bg_overlap).ceil();
 
                     // Geometric cursor rendering based on cursor style
                     // For block cursor, blend into cell background; for others, add overlay later
@@ -298,17 +300,69 @@ impl CellRenderer {
 
                         // Check if we should render this character geometrically
                         if block_chars::should_render_geometrically(char_type) {
-                            if let Some(geo_block) = block_chars::get_geometric_block(*ch) {
-                                let char_w = if is_wide {
-                                    self.cell_width * 2.0
-                                } else {
-                                    self.cell_width
-                                };
-                                let x0 = (self.window_padding + x_offset).round();
-                                let y0 =
-                                    (self.window_padding + row as f32 * self.cell_height).round();
+                            let char_w = if is_wide {
+                                self.cell_width * 2.0
+                            } else {
+                                self.cell_width
+                            };
+                            let x0 = (self.window_padding + x_offset).round();
+                            let y0 = (self.window_padding + row as f32 * self.cell_height).round();
 
-                                // Convert geometric block to pixel rectangle
+                            // Try box drawing geometry first (for lines, corners, junctions)
+                            if let Some(box_geo) = block_chars::get_box_drawing_geometry(*ch) {
+                                for segment in &box_geo.segments {
+                                    let rect =
+                                        segment.to_pixel_rect(x0, y0, char_w, self.cell_height);
+
+                                    // Extend segments that touch cell edges
+                                    let extension = 1.0;
+                                    let ext_x = if segment.x <= 0.01 { extension } else { 0.0 };
+                                    let ext_y = if segment.y <= 0.01 { extension } else { 0.0 };
+                                    let ext_w = if segment.x + segment.width >= 0.99 {
+                                        extension
+                                    } else {
+                                        0.0
+                                    };
+                                    let ext_h = if segment.y + segment.height >= 0.99 {
+                                        extension
+                                    } else {
+                                        0.0
+                                    };
+
+                                    let final_x = rect.x - ext_x;
+                                    let final_y = rect.y - ext_y;
+                                    let final_w = rect.width + ext_x + ext_w;
+                                    let final_h = rect.height + ext_y + ext_h;
+
+                                    row_text.push(TextInstance {
+                                        position: [
+                                            final_x / self.config.width as f32 * 2.0 - 1.0,
+                                            1.0 - (final_y / self.config.height as f32 * 2.0),
+                                        ],
+                                        size: [
+                                            final_w / self.config.width as f32 * 2.0,
+                                            final_h / self.config.height as f32 * 2.0,
+                                        ],
+                                        tex_offset: [
+                                            self.solid_pixel_offset.0 as f32 / 2048.0,
+                                            self.solid_pixel_offset.1 as f32 / 2048.0,
+                                        ],
+                                        tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
+                                        color: [
+                                            fg_color[0] as f32 / 255.0,
+                                            fg_color[1] as f32 / 255.0,
+                                            fg_color[2] as f32 / 255.0,
+                                            fg_color[3] as f32 / 255.0,
+                                        ],
+                                        is_colored: 0,
+                                    });
+                                }
+                                x_offset += self.cell_width;
+                                continue;
+                            }
+
+                            // Try block element geometry (for solid blocks, half blocks, etc.)
+                            if let Some(geo_block) = block_chars::get_geometric_block(*ch) {
                                 let rect =
                                     geo_block.to_pixel_rect(x0, y0, char_w, self.cell_height);
 

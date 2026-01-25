@@ -276,8 +276,8 @@ fn test_should_snap_to_boundaries_values() {
 fn test_should_render_geometrically_values() {
     assert!(should_render_geometrically(BlockCharType::SolidBlock));
     assert!(should_render_geometrically(BlockCharType::PartialBlock));
+    assert!(should_render_geometrically(BlockCharType::BoxDrawing));
 
-    assert!(!should_render_geometrically(BlockCharType::BoxDrawing));
     assert!(!should_render_geometrically(BlockCharType::None));
     assert!(!should_render_geometrically(BlockCharType::Shade));
     assert!(!should_render_geometrically(BlockCharType::Geometric));

@@ -111,8 +111,281 @@ pub fn should_snap_to_boundaries(char_type: BlockCharType) -> bool {
 pub fn should_render_geometrically(char_type: BlockCharType) -> bool {
     matches!(
         char_type,
-        BlockCharType::SolidBlock | BlockCharType::PartialBlock
+        BlockCharType::SolidBlock | BlockCharType::PartialBlock | BlockCharType::BoxDrawing
     )
+}
+
+/// Line thickness for box drawing (as fraction of cell dimension)
+const LINE_THICKNESS: f32 = 0.15;
+const HEAVY_LINE_THICKNESS: f32 = 0.25;
+
+/// Represents line segments for box drawing characters
+/// Each segment is a rectangle: (x, y, width, height) in normalized cell coordinates
+#[derive(Debug, Clone)]
+pub struct BoxDrawingGeometry {
+    pub segments: Vec<GeometricBlock>,
+}
+
+impl BoxDrawingGeometry {
+    fn with_capacity(cap: usize) -> Self {
+        Self {
+            segments: Vec::with_capacity(cap),
+        }
+    }
+
+    fn horizontal(y: f32, x_start: f32, x_end: f32, thickness: f32) -> GeometricBlock {
+        GeometricBlock::new(x_start, y - thickness / 2.0, x_end - x_start, thickness)
+    }
+
+    fn vertical(x: f32, y_start: f32, y_end: f32, thickness: f32) -> GeometricBlock {
+        GeometricBlock::new(x - thickness / 2.0, y_start, thickness, y_end - y_start)
+    }
+
+    fn push(&mut self, block: GeometricBlock) {
+        self.segments.push(block);
+    }
+}
+
+/// Get geometric representation of a box drawing character
+/// Returns None if the character should use font rendering
+pub fn get_box_drawing_geometry(ch: char) -> Option<BoxDrawingGeometry> {
+    let mut geo = BoxDrawingGeometry::with_capacity(2);
+    let t = LINE_THICKNESS;
+    let ht = HEAVY_LINE_THICKNESS;
+
+    match ch {
+        // Light horizontal line ─
+        '\u{2500}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 1.0, t));
+        }
+        // Heavy horizontal line ━
+        '\u{2501}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 1.0, ht));
+        }
+        // Light vertical line │
+        '\u{2502}' => {
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 1.0, t));
+        }
+        // Heavy vertical line ┃
+        '\u{2503}' => {
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 1.0, ht));
+        }
+
+        // Light corners
+        // ┌ Box Drawings Light Down and Right
+        '\u{250C}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.5, 1.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.5, 1.0, t));
+        }
+        // ┐ Box Drawings Light Down and Left
+        '\u{2510}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 0.5 + t / 2.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.5, 1.0, t));
+        }
+        // └ Box Drawings Light Up and Right
+        '\u{2514}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.5, 1.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 0.5 + t / 2.0, t));
+        }
+        // ┘ Box Drawings Light Up and Left
+        '\u{2518}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 0.5 + t / 2.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 0.5 + t / 2.0, t));
+        }
+
+        // Light T-junctions
+        // ├ Box Drawings Light Vertical and Right
+        '\u{251C}' => {
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 1.0, t));
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.5, 1.0, t));
+        }
+        // ┤ Box Drawings Light Vertical and Left
+        '\u{2524}' => {
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 1.0, t));
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 0.5 + t / 2.0, t));
+        }
+        // ┬ Box Drawings Light Down and Horizontal
+        '\u{252C}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 1.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.5, 1.0, t));
+        }
+        // ┴ Box Drawings Light Up and Horizontal
+        '\u{2534}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 1.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 0.5 + t / 2.0, t));
+        }
+
+        // Light cross ┼
+        '\u{253C}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 1.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 1.0, t));
+        }
+
+        // Heavy corners
+        // ┏ Box Drawings Heavy Down and Right
+        '\u{250F}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.5, 1.0, ht));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.5, 1.0, ht));
+        }
+        // ┓ Box Drawings Heavy Down and Left
+        '\u{2513}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 0.5 + ht / 2.0, ht));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.5, 1.0, ht));
+        }
+        // ┗ Box Drawings Heavy Up and Right
+        '\u{2517}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.5, 1.0, ht));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 0.5 + ht / 2.0, ht));
+        }
+        // ┛ Box Drawings Heavy Up and Left
+        '\u{251B}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 0.5 + ht / 2.0, ht));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 0.5 + ht / 2.0, ht));
+        }
+
+        // Heavy T-junctions
+        // ┣ Box Drawings Heavy Vertical and Right
+        '\u{2523}' => {
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 1.0, ht));
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.5, 1.0, ht));
+        }
+        // ┫ Box Drawings Heavy Vertical and Left
+        '\u{252B}' => {
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 1.0, ht));
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 0.5 + ht / 2.0, ht));
+        }
+        // ┳ Box Drawings Heavy Down and Horizontal
+        '\u{2533}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 1.0, ht));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.5, 1.0, ht));
+        }
+        // ┻ Box Drawings Heavy Up and Horizontal
+        '\u{253B}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 1.0, ht));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 0.5 + ht / 2.0, ht));
+        }
+
+        // Heavy cross ╋
+        '\u{254B}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 1.0, ht));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 1.0, ht));
+        }
+
+        // Double lines
+        // ═ Box Drawings Double Horizontal
+        '\u{2550}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.35, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.65, 0.0, 1.0, t * 0.7));
+        }
+        // ║ Box Drawings Double Vertical
+        '\u{2551}' => {
+            geo.push(BoxDrawingGeometry::vertical(0.35, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.65, 0.0, 1.0, t * 0.7));
+        }
+        // ╔ Box Drawings Double Down and Right
+        '\u{2554}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.35, 0.65, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.65, 0.35, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.35, 0.35, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.65, 0.65, 1.0, t * 0.7));
+        }
+        // ╗ Box Drawings Double Down and Left
+        '\u{2557}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.35, 0.0, 0.35, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.65, 0.0, 0.65, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.35, 0.65, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.65, 0.35, 1.0, t * 0.7));
+        }
+        // ╚ Box Drawings Double Up and Right
+        '\u{255A}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.35, 0.35, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.65, 0.65, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.35, 0.0, 0.35, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.65, 0.0, 0.65, t * 0.7));
+        }
+        // ╝ Box Drawings Double Up and Left
+        '\u{255D}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.35, 0.0, 0.65, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.65, 0.0, 0.35, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.35, 0.0, 0.65, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.65, 0.0, 0.35, t * 0.7));
+        }
+        // ╠ Box Drawings Double Vertical and Right
+        '\u{2560}' => {
+            geo.push(BoxDrawingGeometry::vertical(0.35, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.65, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.35, 0.65, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.65, 0.65, 1.0, t * 0.7));
+        }
+        // ╣ Box Drawings Double Vertical and Left
+        '\u{2563}' => {
+            geo.push(BoxDrawingGeometry::vertical(0.35, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.65, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.35, 0.0, 0.35, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.65, 0.0, 0.35, t * 0.7));
+        }
+        // ╦ Box Drawings Double Down and Horizontal
+        '\u{2566}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.35, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.65, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.35, 0.65, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.65, 0.65, 1.0, t * 0.7));
+        }
+        // ╩ Box Drawings Double Up and Horizontal
+        '\u{2569}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.35, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.65, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.35, 0.0, 0.35, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.65, 0.0, 0.35, t * 0.7));
+        }
+        // ╬ Box Drawings Double Vertical and Horizontal
+        '\u{256C}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.35, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::horizontal(0.65, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.35, 0.0, 1.0, t * 0.7));
+            geo.push(BoxDrawingGeometry::vertical(0.65, 0.0, 1.0, t * 0.7));
+        }
+
+        // Dashed lines - render as solid for now
+        // ┄ Box Drawings Light Triple Dash Horizontal
+        '\u{2504}' | '\u{2505}' | '\u{2508}' | '\u{2509}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 1.0, t));
+        }
+        // ┆ Box Drawings Light Triple Dash Vertical
+        '\u{2506}' | '\u{2507}' | '\u{250A}' | '\u{250B}' => {
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 1.0, t));
+        }
+
+        // Rounded corners - render as regular corners for now
+        // ╭ Box Drawings Light Arc Down and Right
+        '\u{256D}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.5, 1.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.5, 1.0, t));
+        }
+        // ╮ Box Drawings Light Arc Down and Left
+        '\u{256E}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 0.5 + t / 2.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.5, 1.0, t));
+        }
+        // ╯ Box Drawings Light Arc Up and Left
+        '\u{256F}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.0, 0.5 + t / 2.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 0.5 + t / 2.0, t));
+        }
+        // ╰ Box Drawings Light Arc Up and Right
+        '\u{2570}' => {
+            geo.push(BoxDrawingGeometry::horizontal(0.5, 0.5, 1.0, t));
+            geo.push(BoxDrawingGeometry::vertical(0.5, 0.0, 0.5 + t / 2.0, t));
+        }
+
+        _ => return None,
+    }
+
+    if geo.segments.is_empty() {
+        None
+    } else {
+        Some(geo)
+    }
 }
 
 /// Represents a geometric block that can be rendered as a colored rectangle
@@ -387,10 +660,13 @@ mod tests {
     fn test_should_render_geometrically() {
         assert!(should_render_geometrically(BlockCharType::SolidBlock));
         assert!(should_render_geometrically(BlockCharType::PartialBlock));
+        assert!(should_render_geometrically(BlockCharType::BoxDrawing));
 
-        assert!(!should_render_geometrically(BlockCharType::BoxDrawing));
         assert!(!should_render_geometrically(BlockCharType::None));
         assert!(!should_render_geometrically(BlockCharType::Shade));
+        assert!(!should_render_geometrically(BlockCharType::Geometric));
+        assert!(!should_render_geometrically(BlockCharType::Powerline));
+        assert!(!should_render_geometrically(BlockCharType::Braille));
     }
 
     #[test]
