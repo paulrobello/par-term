@@ -309,7 +309,11 @@ impl CellRenderer {
                             let y0 = (self.window_padding + row as f32 * self.cell_height).round();
 
                             // Try box drawing geometry first (for lines, corners, junctions)
-                            if let Some(box_geo) = block_chars::get_box_drawing_geometry(*ch) {
+                            // Pass aspect ratio so vertical lines have same visual thickness as horizontal
+                            let aspect_ratio = self.cell_height / char_w;
+                            if let Some(box_geo) =
+                                block_chars::get_box_drawing_geometry(*ch, aspect_ratio)
+                            {
                                 for segment in &box_geo.segments {
                                     let rect =
                                         segment.to_pixel_rect(x0, y0, char_w, self.cell_height);
