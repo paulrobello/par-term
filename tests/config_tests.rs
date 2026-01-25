@@ -159,3 +159,82 @@ fn test_config_power_saving_yaml_serialization() {
     assert!(yaml.contains("pause_refresh_on_blur: true"));
     assert!(yaml.contains("unfocused_fps: 15"));
 }
+
+#[test]
+fn test_config_tab_bar_color_defaults() {
+    let config = Config::default();
+    // Tab bar background colors
+    assert_eq!(config.tab_bar_background, [40, 40, 40]);
+    assert_eq!(config.tab_active_background, [60, 60, 60]);
+    assert_eq!(config.tab_inactive_background, [40, 40, 40]);
+    assert_eq!(config.tab_hover_background, [50, 50, 50]);
+    // Tab text colors
+    assert_eq!(config.tab_active_text, [255, 255, 255]);
+    assert_eq!(config.tab_inactive_text, [180, 180, 180]);
+    // Tab indicator colors
+    assert_eq!(config.tab_active_indicator, [100, 150, 255]);
+    assert_eq!(config.tab_activity_indicator, [100, 180, 255]);
+    assert_eq!(config.tab_bell_indicator, [255, 200, 100]);
+    // Close button colors
+    assert_eq!(config.tab_close_button, [150, 150, 150]);
+    assert_eq!(config.tab_close_button_hover, [255, 100, 100]);
+}
+
+#[test]
+fn test_config_tab_bar_color_yaml_deserialization() {
+    let yaml = r#"
+tab_bar_background: [30, 30, 30]
+tab_active_background: [80, 80, 80]
+tab_inactive_background: [35, 35, 35]
+tab_hover_background: [55, 55, 55]
+tab_active_text: [240, 240, 240]
+tab_inactive_text: [160, 160, 160]
+tab_active_indicator: [120, 170, 255]
+tab_activity_indicator: [80, 200, 255]
+tab_bell_indicator: [255, 180, 80]
+tab_close_button: [130, 130, 130]
+tab_close_button_hover: [255, 80, 80]
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.tab_bar_background, [30, 30, 30]);
+    assert_eq!(config.tab_active_background, [80, 80, 80]);
+    assert_eq!(config.tab_inactive_background, [35, 35, 35]);
+    assert_eq!(config.tab_hover_background, [55, 55, 55]);
+    assert_eq!(config.tab_active_text, [240, 240, 240]);
+    assert_eq!(config.tab_inactive_text, [160, 160, 160]);
+    assert_eq!(config.tab_active_indicator, [120, 170, 255]);
+    assert_eq!(config.tab_activity_indicator, [80, 200, 255]);
+    assert_eq!(config.tab_bell_indicator, [255, 180, 80]);
+    assert_eq!(config.tab_close_button, [130, 130, 130]);
+    assert_eq!(config.tab_close_button_hover, [255, 80, 80]);
+}
+
+#[test]
+fn test_config_tab_bar_color_yaml_serialization() {
+    let mut config = Config::default();
+    config.tab_bar_background = [50, 50, 50];
+    config.tab_active_indicator = [200, 100, 50];
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("tab_bar_background:"));
+    assert!(yaml.contains("- 50"));
+    assert!(yaml.contains("tab_active_indicator:"));
+    assert!(yaml.contains("- 200"));
+    assert!(yaml.contains("- 100"));
+}
+
+#[test]
+fn test_config_tab_bar_color_partial_yaml() {
+    // Test that default values are used for missing tab bar color fields
+    let yaml = r#"
+tab_bar_background: [25, 25, 25]
+tab_active_text: [200, 200, 200]
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.tab_bar_background, [25, 25, 25]);
+    assert_eq!(config.tab_active_text, [200, 200, 200]);
+    // Other fields should have defaults
+    assert_eq!(config.tab_active_background, [60, 60, 60]);
+    assert_eq!(config.tab_inactive_background, [40, 40, 40]);
+    assert_eq!(config.tab_close_button, [150, 150, 150]);
+}

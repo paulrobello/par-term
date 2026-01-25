@@ -455,6 +455,53 @@ pub struct Config {
     pub max_tabs: usize,
 
     // ========================================================================
+    // Tab Bar Colors
+    // ========================================================================
+    /// Tab bar background color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_bar_background")]
+    pub tab_bar_background: [u8; 3],
+
+    /// Active tab background color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_active_background")]
+    pub tab_active_background: [u8; 3],
+
+    /// Inactive tab background color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_inactive_background")]
+    pub tab_inactive_background: [u8; 3],
+
+    /// Hovered tab background color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_hover_background")]
+    pub tab_hover_background: [u8; 3],
+
+    /// Active tab text color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_active_text")]
+    pub tab_active_text: [u8; 3],
+
+    /// Inactive tab text color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_inactive_text")]
+    pub tab_inactive_text: [u8; 3],
+
+    /// Active tab indicator/underline color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_active_indicator")]
+    pub tab_active_indicator: [u8; 3],
+
+    /// Activity indicator dot color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_activity_indicator")]
+    pub tab_activity_indicator: [u8; 3],
+
+    /// Bell indicator color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_bell_indicator")]
+    pub tab_bell_indicator: [u8; 3],
+
+    /// Close button color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_close_button")]
+    pub tab_close_button: [u8; 3],
+
+    /// Close button hover color [R, G, B] (0-255)
+    #[serde(default = "defaults::tab_close_button_hover")]
+    pub tab_close_button_hover: [u8; 3],
+
+    // ========================================================================
     // Focus/Blur Power Saving
     // ========================================================================
     /// Pause shader animations when window loses focus
@@ -576,6 +623,17 @@ impl Default for Config {
             tab_show_index: defaults::bool_false(),
             tab_inherit_cwd: defaults::bool_true(),
             max_tabs: defaults::zero(),
+            tab_bar_background: defaults::tab_bar_background(),
+            tab_active_background: defaults::tab_active_background(),
+            tab_inactive_background: defaults::tab_inactive_background(),
+            tab_hover_background: defaults::tab_hover_background(),
+            tab_active_text: defaults::tab_active_text(),
+            tab_inactive_text: defaults::tab_inactive_text(),
+            tab_active_indicator: defaults::tab_active_indicator(),
+            tab_activity_indicator: defaults::tab_activity_indicator(),
+            tab_bell_indicator: defaults::tab_bell_indicator(),
+            tab_close_button: defaults::tab_close_button(),
+            tab_close_button_hover: defaults::tab_close_button_hover(),
             pause_shaders_on_blur: defaults::bool_true(),
             pause_refresh_on_blur: defaults::bool_false(),
             unfocused_fps: defaults::unfocused_fps(),

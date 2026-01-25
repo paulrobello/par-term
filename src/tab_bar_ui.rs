@@ -73,9 +73,10 @@ impl TabBarUI {
         let active_tab_id = tabs.active_tab_id();
 
         // Tab bar area at the top
+        let bar_bg = config.tab_bar_background;
         egui::TopBottomPanel::top("tab_bar")
             .exact_height(config.tab_bar_height)
-            .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(40, 40, 40)))
+            .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2])))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     // Style for tabs
@@ -142,11 +143,14 @@ impl TabBarUI {
 
         // Tab background color
         let bg_color = if is_active {
-            egui::Color32::from_rgb(60, 60, 60)
+            let c = config.tab_active_background;
+            egui::Color32::from_rgb(c[0], c[1], c[2])
         } else if self.hovered_tab == Some(id) {
-            egui::Color32::from_rgb(50, 50, 50)
+            let c = config.tab_hover_background;
+            egui::Color32::from_rgb(c[0], c[1], c[2])
         } else {
-            egui::Color32::from_rgb(40, 40, 40)
+            let c = config.tab_inactive_background;
+            egui::Color32::from_rgb(c[0], c[1], c[2])
         };
 
         // Tab frame - use allocate_ui_with_layout to get a proper interactive response
@@ -169,11 +173,13 @@ impl TabBarUI {
             content_ui.horizontal(|ui| {
                 // Bell indicator (takes priority over activity indicator)
                 if is_bell_active {
-                    ui.colored_label(egui::Color32::from_rgb(255, 200, 100), "🔔");
+                    let c = config.tab_bell_indicator;
+                    ui.colored_label(egui::Color32::from_rgb(c[0], c[1], c[2]), "🔔");
                     ui.add_space(4.0);
                 } else if has_activity && !is_active {
                     // Activity indicator
-                    ui.colored_label(egui::Color32::from_rgb(100, 180, 255), "•");
+                    let c = config.tab_activity_indicator;
+                    ui.colored_label(egui::Color32::from_rgb(c[0], c[1], c[2]), "•");
                     ui.add_space(4.0);
                 }
 
@@ -191,9 +197,11 @@ impl TabBarUI {
                 };
 
                 let text_color = if is_active {
-                    egui::Color32::WHITE
+                    let c = config.tab_active_text;
+                    egui::Color32::from_rgb(c[0], c[1], c[2])
                 } else {
-                    egui::Color32::from_rgb(180, 180, 180)
+                    let c = config.tab_inactive_text;
+                    egui::Color32::from_rgb(c[0], c[1], c[2])
                 };
 
                 ui.label(egui::RichText::new(&display_title).color(text_color));
@@ -203,9 +211,11 @@ impl TabBarUI {
                     // Close button
                     if config.tab_show_close_button {
                         let close_color = if self.close_hovered == Some(id) {
-                            egui::Color32::from_rgb(255, 100, 100)
+                            let c = config.tab_close_button_hover;
+                            egui::Color32::from_rgb(c[0], c[1], c[2])
                         } else {
-                            egui::Color32::from_rgb(150, 150, 150)
+                            let c = config.tab_close_button;
+                            egui::Color32::from_rgb(c[0], c[1], c[2])
                         };
 
                         let close_btn = ui.add(
@@ -244,10 +254,11 @@ impl TabBarUI {
 
         // Active tab indicator (bottom border)
         if is_active {
+            let c = config.tab_active_indicator;
             ui.painter().hline(
                 tab_rect.left()..=tab_rect.right(),
                 tab_rect.bottom() - 2.0,
-                egui::Stroke::new(2.0, egui::Color32::from_rgb(100, 150, 255)),
+                egui::Stroke::new(2.0, egui::Color32::from_rgb(c[0], c[1], c[2])),
             );
         }
 
