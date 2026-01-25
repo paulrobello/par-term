@@ -290,16 +290,8 @@ impl SettingsWindow {
         // Run egui
         let raw_input = self.egui_state.take_egui_input(&self.window);
         let egui_output = self.egui_ctx.run(raw_input, |ctx| {
-            // Set dark style for the settings window
-            let mut style = (*ctx.style()).clone();
-            let solid_bg = egui::Color32::from_rgb(24, 24, 24);
-            style.visuals.window_fill = solid_bg;
-            style.visuals.panel_fill = solid_bg;
-            style.visuals.widgets.noninteractive.bg_fill = solid_bg;
-            ctx.set_style(style);
-
-            // Show the settings UI and capture results
-            let (save, live, shader, cursor_shader) = self.settings_ui.show(ctx);
+            // Show the settings UI as a panel (not a nested window) and capture results
+            let (save, live, shader, cursor_shader) = self.settings_ui.show_as_panel(ctx);
             config_to_save = save;
             config_for_live = live;
             shader_apply = shader;

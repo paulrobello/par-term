@@ -429,6 +429,128 @@ impl SettingsUI {
         )
     }
 
+    /// Show the settings UI as a full-window panel (for standalone settings window)
+    /// This renders directly to a CentralPanel instead of creating an egui::Window
+    pub fn show_as_panel(
+        &mut self,
+        ctx: &Context,
+    ) -> (
+        Option<Config>,
+        Option<Config>,
+        Option<ShaderEditorResult>,
+        Option<CursorShaderEditorResult>,
+    ) {
+        // Handle Escape key to close shader editors (not the window itself - that's handled by winit)
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if self.cursor_shader_editor_visible {
+                self.cursor_shader_editor_visible = false;
+                self.cursor_shader_editor_error = None;
+            } else if self.shader_editor_visible {
+                self.shader_editor_visible = false;
+                self.shader_editor_error = None;
+            }
+        }
+
+        // Ensure settings panel is fully opaque
+        let mut style = (*ctx.style()).clone();
+        let solid_bg = Color32::from_rgba_unmultiplied(24, 24, 24, 255);
+        style.visuals.window_fill = solid_bg;
+        style.visuals.panel_fill = solid_bg;
+        style.visuals.widgets.noninteractive.bg_fill = solid_bg;
+        ctx.set_style(style);
+
+        let mut save_requested = false;
+        let mut discard_requested = false;
+        let mut changes_this_frame = false;
+
+        // Render directly to CentralPanel (no egui::Window wrapper)
+        egui::CentralPanel::default()
+            .frame(Frame::central_panel(&ctx.style()).fill(solid_bg))
+            .show(ctx, |ui| {
+                // Reserve space for fixed footer buttons
+                let available_height = ui.available_height();
+                let footer_height = 45.0;
+
+                // Scrollable content area (takes remaining space above footer)
+                egui::ScrollArea::vertical()
+                    .max_height(available_height - footer_height)
+                    .show(ui, |ui| {
+                        ui.heading("Terminal Settings");
+                        ui.horizontal(|ui| {
+                            ui.label("Quick search:");
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.search_query)
+                                    .hint_text("Type to filter settings"),
+                            );
+                        });
+                        ui.separator();
+
+                        self.show_settings_sections(ui, &mut changes_this_frame);
+                    });
+
+                // Fixed footer with action buttons (outside ScrollArea)
+                ui.separator();
+                ui.horizontal(|ui| {
+                    if ui.button("Save").clicked() {
+                        save_requested = true;
+                    }
+
+                    if ui.button("Discard").clicked() {
+                        discard_requested = true;
+                    }
+
+                    if self.has_changes {
+                        ui.colored_label(egui::Color32::YELLOW, "* Unsaved changes");
+                    }
+                });
+            });
+
+        // Show shader editor windows (delegated to separate modules)
+        let shader_apply_result = self.show_shader_editor_window(ctx);
+        let cursor_shader_apply_result = self.show_cursor_shader_editor_window(ctx);
+
+        // Show shader dialogs
+        self.show_create_shader_dialog_window(ctx);
+        self.show_delete_shader_dialog_window(ctx);
+
+        // Handle save request
+        let config_to_save = if save_requested {
+            if self.font_pending_changes {
+                self.apply_font_changes();
+            }
+            self.has_changes = false;
+            Some(self.config.clone())
+        } else {
+            None
+        };
+
+        // Handle discard request
+        if discard_requested {
+            self.has_changes = false;
+            self.sync_font_temps_from_config();
+        }
+
+        // Push live config for real-time updates
+        let config_for_live_update = {
+            if (self.config.window_opacity - self.last_live_opacity).abs() > f32::EPSILON {
+                log::info!(
+                    "SettingsUI: live opacity {:.3} (last {:.3})",
+                    self.config.window_opacity,
+                    self.last_live_opacity
+                );
+                self.last_live_opacity = self.config.window_opacity;
+            }
+            Some(self.config.clone())
+        };
+
+        (
+            config_to_save,
+            config_for_live_update,
+            shader_apply_result,
+            cursor_shader_apply_result,
+        )
+    }
+
     /// Show all settings sections filtered by search query
     fn show_settings_sections(&mut self, ui: &mut egui::Ui, changes_this_frame: &mut bool) {
         let query = self.search_query.trim().to_lowercase();
