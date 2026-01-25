@@ -247,6 +247,9 @@ impl SettingsUI {
     }
 
     /// Toggle settings window visibility
+    /// Note: This is kept for the overlay mode in WindowState, but the primary
+    /// settings interface is now a separate window managed by WindowManager.
+    #[allow(dead_code)]
     pub fn toggle(&mut self) {
         self.visible = !self.visible;
     }

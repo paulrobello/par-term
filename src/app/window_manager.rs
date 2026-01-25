@@ -6,9 +6,11 @@
 use crate::app::window_state::WindowState;
 use crate::config::Config;
 use crate::menu::{MenuAction, MenuManager};
+use crate::settings_window::{SettingsWindow, SettingsWindowAction};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
+use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
@@ -26,6 +28,8 @@ pub struct WindowManager {
     pub(crate) should_exit: bool,
     /// Counter for generating unique window IDs during creation
     pending_window_count: usize,
+    /// Separate settings window (if open)
+    pub(crate) settings_window: Option<SettingsWindow>,
 }
 
 impl WindowManager {
@@ -38,6 +42,7 @@ impl WindowManager {
             runtime,
             should_exit: false,
             pending_window_count: 0,
+            settings_window: None,
         }
     }
 
@@ -356,14 +361,7 @@ impl WindowManager {
                 }
             }
             MenuAction::OpenSettings => {
-                if let Some(window_id) = focused_window
-                    && let Some(window_state) = self.windows.get_mut(&window_id)
-                {
-                    window_state.settings_ui.toggle();
-                    if let Some(window) = &window_state.window {
-                        window.request_redraw();
-                    }
-                }
+                self.open_settings_window(event_loop);
             }
             MenuAction::Minimize => {
                 if let Some(window_id) = focused_window
@@ -410,6 +408,228 @@ impl WindowManager {
             for action in actions {
                 self.handle_menu_action(action, event_loop, focused_window);
             }
+        }
+    }
+
+    /// Open the settings window (or focus if already open)
+    pub fn open_settings_window(&mut self, event_loop: &ActiveEventLoop) {
+        // If already open, just request redraw to focus
+        if let Some(settings_window) = &self.settings_window {
+            settings_window.request_redraw();
+            return;
+        }
+
+        // Create new settings window using shared runtime
+        let config = self.config.clone();
+        let runtime = Arc::clone(&self.runtime);
+
+        match runtime.block_on(SettingsWindow::new(event_loop, config)) {
+            Ok(settings_window) => {
+                log::info!("Opened settings window {:?}", settings_window.window_id());
+                self.settings_window = Some(settings_window);
+            }
+            Err(e) => {
+                log::error!("Failed to create settings window: {}", e);
+            }
+        }
+    }
+
+    /// Close the settings window
+    pub fn close_settings_window(&mut self) {
+        if self.settings_window.take().is_some() {
+            log::info!("Closed settings window");
+        }
+    }
+
+    /// Check if a window ID belongs to the settings window
+    pub fn is_settings_window(&self, window_id: WindowId) -> bool {
+        self.settings_window
+            .as_ref()
+            .is_some_and(|sw| sw.window_id() == window_id)
+    }
+
+    /// Handle an event for the settings window
+    pub fn handle_settings_window_event(
+        &mut self,
+        event: WindowEvent,
+    ) -> Option<SettingsWindowAction> {
+        if let Some(settings_window) = &mut self.settings_window {
+            let action = settings_window.handle_window_event(event);
+
+            // Handle close action
+            if settings_window.should_close() {
+                self.close_settings_window();
+                return Some(SettingsWindowAction::Close);
+            }
+
+            return Some(action);
+        }
+        None
+    }
+
+    /// Apply config changes from settings window to all terminal windows
+    pub fn apply_config_to_windows(&mut self, config: &Config) {
+        use crate::app::config_updates::ConfigChanges;
+
+        for window_state in self.windows.values_mut() {
+            // Detect what changed
+            let changes = ConfigChanges::detect(&window_state.config, config);
+
+            // Update the config
+            window_state.config = config.clone();
+
+            // Apply changes to renderer
+            if let Some(renderer) = &mut window_state.renderer {
+                // Update opacity
+                renderer.update_opacity(config.window_opacity);
+
+                // Update scrollbar appearance
+                renderer.update_scrollbar_appearance(
+                    config.scrollbar_width,
+                    config.scrollbar_thumb_color,
+                    config.scrollbar_track_color,
+                );
+
+                // Update cursor color
+                if changes.cursor_color {
+                    renderer.update_cursor_color(config.cursor_color);
+                }
+
+                // Apply theme changes
+                if changes.theme
+                    && let Some(tab) = window_state.tab_manager.active_tab()
+                    && let Ok(mut term) = tab.terminal.try_lock()
+                {
+                    term.set_theme(config.load_theme());
+                }
+
+                // Apply shader changes
+                if changes.any_shader_change() {
+                    let _ = renderer.set_custom_shader_enabled(
+                        config.custom_shader_enabled,
+                        config.custom_shader.as_deref(),
+                        config.window_opacity,
+                        config.custom_shader_text_opacity,
+                        config.custom_shader_animation,
+                        config.custom_shader_animation_speed,
+                        config.custom_shader_full_content,
+                        config.custom_shader_brightness,
+                        &config.shader_channel_paths(),
+                    );
+                }
+
+                // Apply cursor shader changes
+                if changes.any_cursor_shader_toggle() {
+                    let _ = renderer.set_cursor_shader_enabled(
+                        config.cursor_shader_enabled,
+                        config.cursor_shader.as_deref(),
+                        config.window_opacity,
+                        config.cursor_shader_animation,
+                        config.cursor_shader_animation_speed,
+                    );
+                }
+            }
+
+            // Apply window-related changes
+            if let Some(window) = &window_state.window {
+                if changes.window_title {
+                    window.set_title(&config.window_title);
+                }
+                if changes.window_decorations {
+                    window.set_decorations(config.window_decorations);
+                }
+                window.set_window_level(if config.window_always_on_top {
+                    winit::window::WindowLevel::AlwaysOnTop
+                } else {
+                    winit::window::WindowLevel::Normal
+                });
+                window.request_redraw();
+            }
+
+            // Queue font rebuild if needed
+            if changes.font {
+                window_state.pending_font_rebuild = true;
+            }
+
+            // Invalidate cache
+            if let Some(tab) = window_state.tab_manager.active_tab_mut() {
+                tab.cache.cells = None;
+            }
+            window_state.needs_redraw = true;
+        }
+
+        // Also update the shared config
+        self.config = config.clone();
+    }
+
+    /// Apply shader changes from settings window editor
+    pub fn apply_shader_from_editor(&mut self, source: &str) -> Result<(), String> {
+        let mut last_error = None;
+
+        for window_state in self.windows.values_mut() {
+            if let Some(renderer) = &mut window_state.renderer {
+                match renderer.reload_shader_from_source(source) {
+                    Ok(()) => {
+                        window_state.needs_redraw = true;
+                        if let Some(window) = &window_state.window {
+                            window.request_redraw();
+                        }
+                    }
+                    Err(e) => {
+                        last_error = Some(format!("{:#}", e));
+                    }
+                }
+            }
+        }
+
+        // Update settings window with error status
+        if let Some(settings_window) = &mut self.settings_window {
+            if let Some(ref err) = last_error {
+                settings_window.set_shader_error(Some(err.clone()));
+            } else {
+                settings_window.clear_shader_error();
+            }
+        }
+
+        last_error.map_or(Ok(()), Err)
+    }
+
+    /// Apply cursor shader changes from settings window editor
+    pub fn apply_cursor_shader_from_editor(&mut self, source: &str) -> Result<(), String> {
+        let mut last_error = None;
+
+        for window_state in self.windows.values_mut() {
+            if let Some(renderer) = &mut window_state.renderer {
+                match renderer.reload_cursor_shader_from_source(source) {
+                    Ok(()) => {
+                        window_state.needs_redraw = true;
+                        if let Some(window) = &window_state.window {
+                            window.request_redraw();
+                        }
+                    }
+                    Err(e) => {
+                        last_error = Some(format!("{:#}", e));
+                    }
+                }
+            }
+        }
+
+        // Update settings window with error status
+        if let Some(settings_window) = &mut self.settings_window {
+            if let Some(ref err) = last_error {
+                settings_window.set_cursor_shader_error(Some(err.clone()));
+            } else {
+                settings_window.clear_cursor_shader_error();
+            }
+        }
+
+        last_error.map_or(Ok(()), Err)
+    }
+
+    /// Request redraw for settings window
+    pub fn request_settings_redraw(&self) {
+        if let Some(settings_window) = &self.settings_window {
+            settings_window.request_redraw();
         }
     }
 }

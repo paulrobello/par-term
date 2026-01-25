@@ -537,7 +537,44 @@ impl ApplicationHandler for WindowManager {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        // Route event to the appropriate window
+        // Check if this event is for the settings window
+        if self.is_settings_window(window_id) {
+            if let Some(action) = self.handle_settings_window_event(event) {
+                use crate::settings_window::SettingsWindowAction;
+                match action {
+                    SettingsWindowAction::Close => {
+                        // Already handled in handle_settings_window_event
+                    }
+                    SettingsWindowAction::ApplyConfig(config) => {
+                        // Apply live config changes to all terminal windows
+                        self.apply_config_to_windows(&config);
+                    }
+                    SettingsWindowAction::SaveConfig(config) => {
+                        // Save config to disk and apply to all windows
+                        if let Err(e) = config.save() {
+                            log::error!("Failed to save config: {}", e);
+                        } else {
+                            log::info!("Configuration saved successfully");
+                        }
+                        self.apply_config_to_windows(&config);
+                        // Update settings window with saved config
+                        if let Some(settings_window) = &mut self.settings_window {
+                            settings_window.update_config(config);
+                        }
+                    }
+                    SettingsWindowAction::ApplyShader(shader_result) => {
+                        let _ = self.apply_shader_from_editor(&shader_result.source);
+                    }
+                    SettingsWindowAction::ApplyCursorShader(cursor_shader_result) => {
+                        let _ = self.apply_cursor_shader_from_editor(&cursor_shader_result.source);
+                    }
+                    SettingsWindowAction::None => {}
+                }
+            }
+            return;
+        }
+
+        // Route event to the appropriate terminal window
         let should_close = if let Some(window_state) = self.windows.get_mut(&window_id) {
             window_state.handle_window_event(event_loop, event)
         } else {
@@ -561,10 +598,23 @@ impl ApplicationHandler for WindowManager {
         let focused_window = self.windows.keys().next().copied();
         self.process_menu_events(event_loop, focused_window);
 
-        // Process each window's about_to_wait logic
+        // Check if any window requested opening the settings window
+        let mut open_settings = false;
         for window_state in self.windows.values_mut() {
+            if window_state.open_settings_window_requested {
+                window_state.open_settings_window_requested = false;
+                open_settings = true;
+            }
             window_state.about_to_wait(event_loop);
         }
+
+        // Open settings window if requested
+        if open_settings {
+            self.open_settings_window(event_loop);
+        }
+
+        // Request redraw for settings window if it needs continuous updates
+        self.request_settings_redraw();
 
         // Exit if no windows remain
         if self.should_exit {
