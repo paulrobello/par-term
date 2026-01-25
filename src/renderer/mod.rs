@@ -789,14 +789,23 @@ impl Renderer {
     }
 
     /// Resume shader animations (e.g., when window regains focus)
-    pub fn resume_shader_animations(&mut self) {
+    /// Only resumes if the user's config has animation enabled
+    pub fn resume_shader_animations(
+        &mut self,
+        custom_shader_animation: bool,
+        cursor_shader_animation: bool,
+    ) {
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            custom_shader.set_animation_enabled(true);
+            custom_shader.set_animation_enabled(custom_shader_animation);
         }
         if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
-            cursor_shader.set_animation_enabled(true);
+            cursor_shader.set_animation_enabled(cursor_shader_animation);
         }
         self.dirty = true;
-        log::debug!("Shader animations resumed");
+        log::debug!(
+            "Shader animations resumed (custom: {}, cursor: {})",
+            custom_shader_animation,
+            cursor_shader_animation
+        );
     }
 }
