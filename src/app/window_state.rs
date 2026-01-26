@@ -878,6 +878,15 @@ impl WindowState {
             return; // Terminal locked, skip this frame
         };
 
+        // Ensure cursor visibility flag for cell renderer reflects current config every frame
+        // (so toggling "Hide default cursor" takes effect immediately even if no other changes)
+        let hide_cursor_for_shader = self.config.cursor_shader_enabled
+            && self.config.cursor_shader_hides_cursor
+            && !(self.config.cursor_shader_disable_in_alt_screen && is_alt_screen);
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_cursor_hidden_for_shader(hide_cursor_for_shader);
+        }
+
         // Update cache with regenerated cells (if needed)
         // Need to re-borrow as mutable after the terminal lock is released
         if !self.debug.cache_hit
@@ -979,7 +988,9 @@ impl WindowState {
 
         if let Some(renderer) = &mut self.renderer {
             // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
-            renderer.set_cursor_shader_disabled_for_alt_screen(is_alt_screen);
+            let disable_cursor_shader =
+                self.config.cursor_shader_disable_in_alt_screen && is_alt_screen;
+            renderer.set_cursor_shader_disabled_for_alt_screen(disable_cursor_shader);
 
             // Only update renderer with cells if they changed (cache MISS)
             // This avoids re-uploading the same cell data to GPU on every frame

@@ -324,11 +324,41 @@ pub fn show_background(
             }
         });
 
-        // Shader channel textures (iChannel1-4) section
+        // Shader channel textures (iChannel0-3) section
         ui.add_space(8.0);
-        ui.collapsing("Shader Channel Textures (iChannel1-4)", |ui| {
-            ui.label("Provide texture inputs to shaders via iChannel1-4");
+        ui.collapsing("Shader Channel Textures (iChannel0-3)", |ui| {
+            ui.label("Provide texture inputs to shaders via iChannel0-3 (Shadertoy compatible)");
             ui.add_space(4.0);
+
+            // iChannel0
+            ui.horizontal(|ui| {
+                ui.label("iChannel0:");
+                if ui.text_edit_singleline(&mut settings.temp_shader_channel0).changed() {
+                    settings.config.custom_shader_channel0 = if settings.temp_shader_channel0.is_empty() {
+                        None
+                    } else {
+                        Some(settings.temp_shader_channel0.clone())
+                    };
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if ui.button("Browse…").clicked()
+                    && let Some(path) = settings.pick_file_path("Select iChannel0 texture")
+                {
+                    settings.temp_shader_channel0 = path.clone();
+                    settings.config.custom_shader_channel0 = Some(path);
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if !settings.temp_shader_channel0.is_empty() && ui.button("×").clicked() {
+                    settings.temp_shader_channel0.clear();
+                    settings.config.custom_shader_channel0 = None;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
 
             // iChannel1
             ui.horizontal(|ui| {
@@ -420,38 +450,9 @@ pub fn show_background(
                 }
             });
 
-            // iChannel4
-            ui.horizontal(|ui| {
-                ui.label("iChannel4:");
-                if ui.text_edit_singleline(&mut settings.temp_shader_channel4).changed() {
-                    settings.config.custom_shader_channel4 = if settings.temp_shader_channel4.is_empty() {
-                        None
-                    } else {
-                        Some(settings.temp_shader_channel4.clone())
-                    };
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-
-                if ui.button("Browse…").clicked()
-                    && let Some(path) = settings.pick_file_path("Select iChannel4 texture")
-                {
-                    settings.temp_shader_channel4 = path.clone();
-                    settings.config.custom_shader_channel4 = Some(path);
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-
-                if !settings.temp_shader_channel4.is_empty() && ui.button("×").clicked() {
-                    settings.temp_shader_channel4.clear();
-                    settings.config.custom_shader_channel4 = None;
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-
             ui.add_space(4.0);
-            ui.label("Textures are available in shaders as iChannel1-4");
+            ui.label("Textures are available in shaders as iChannel0-3");
+            ui.label("Terminal content is available as iChannel4");
             ui.label("Use iChannelResolution[n].xy for texture dimensions");
         });
     });
@@ -611,6 +612,18 @@ pub fn show_cursor_shader(
                 "Hide default cursor (let shader handle it)",
             )
             .on_hover_text("When enabled, the normal cursor is not drawn, allowing the cursor shader to fully replace cursor rendering")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.cursor_shader_disable_in_alt_screen,
+                "Disable cursor shader in alt screen (vim/less/htop)",
+            )
+            .on_hover_text("When enabled, cursor shader effects pause while an application is using the alt screen")
             .changed()
         {
             settings.has_changes = true;

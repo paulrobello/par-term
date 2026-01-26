@@ -80,11 +80,22 @@ pub(super) fn init_cursor_shader(
     cursor_shader_animation_speed: f32,
     window_opacity: f32,
 ) -> (Option<CustomShaderRenderer>, Option<String>) {
+    debug_log!(
+        "cursor-shader",
+        "Init: enabled={}, path={:?}, animation={}, speed={}",
+        cursor_shader_enabled,
+        cursor_shader_path,
+        cursor_shader_animation,
+        cursor_shader_animation_speed
+    );
+
     if !cursor_shader_enabled {
+        debug_info!("cursor-shader", "Disabled by config");
         return (None, None);
     }
 
     let Some(shader_path) = cursor_shader_path else {
+        debug_info!("cursor-shader", "Enabled but no path provided");
         return (None, None);
     };
 
@@ -238,6 +249,15 @@ impl Renderer {
         animation_enabled: bool,
         animation_speed: f32,
     ) -> Result<(), String> {
+        debug_log!(
+            "cursor-shader",
+            "Toggle: enabled={}, path={:?}, animation={}, speed={}, opacity={}",
+            enabled,
+            path,
+            animation_enabled,
+            animation_speed,
+            window_opacity
+        );
         match (enabled, path) {
             (true, Some(path)) => {
                 let path_changed = self.cursor_shader_path.as_ref().is_none_or(|p| p != path);
@@ -250,6 +270,10 @@ impl Renderer {
                     renderer.set_animation_speed(animation_speed);
                     renderer.set_opacity(window_opacity);
                     self.dirty = true;
+                    debug_info!(
+                        "cursor-shader",
+                        "Already loaded; updated animation/opacities"
+                    );
                     return Ok(());
                 }
 
@@ -277,8 +301,9 @@ impl Renderer {
                             self.cell_renderer.cell_height(),
                             self.cell_renderer.window_padding(),
                         );
-                        log::info!(
-                            "Cursor shader enabled at runtime: {}",
+                        debug_info!(
+                            "cursor-shader",
+                            "Enabled at runtime: {}",
                             shader_path_full.display()
                         );
                         self.cursor_shader_renderer = Some(renderer);
@@ -292,14 +317,16 @@ impl Renderer {
                             shader_path_full.display(),
                             e
                         );
-                        log::error!("{}", error_msg);
+                        debug_error!("cursor-shader", "{}", error_msg);
                         Err(error_msg)
                     }
                 }
             }
             _ => {
                 if self.cursor_shader_renderer.is_some() {
-                    log::info!("Cursor shader disabled at runtime");
+                    debug_info!("cursor-shader", "Disabled at runtime");
+                } else {
+                    debug_log!("cursor-shader", "Already disabled");
                 }
                 self.cursor_shader_renderer = None;
                 self.cursor_shader_path = None;

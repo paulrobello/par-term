@@ -28,6 +28,7 @@ pub(crate) struct ConfigChanges {
     pub cursor_shader_animation: bool,
     pub cursor_shader_speed: bool,
     pub cursor_shader_hides_cursor: bool,
+    pub cursor_shader_disable_in_alt_screen: bool,
 
     // Window
     pub window_title: bool,
@@ -88,6 +89,8 @@ impl ConfigChanges {
                 > f32::EPSILON,
             cursor_shader_hides_cursor: new.cursor_shader_hides_cursor
                 != old.cursor_shader_hides_cursor,
+            cursor_shader_disable_in_alt_screen: new.cursor_shader_disable_in_alt_screen
+                != old.cursor_shader_disable_in_alt_screen,
 
             window_title: new.window_title != old.window_title,
             window_decorations: new.window_decorations != old.window_decorations,
@@ -133,6 +136,7 @@ impl ConfigChanges {
             || self.cursor_shader_enabled
             || self.cursor_shader_animation
             || self.cursor_shader_speed
+            || self.cursor_shader_disable_in_alt_screen
     }
 
     /// Returns true if any background image setting changed

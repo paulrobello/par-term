@@ -84,7 +84,7 @@ impl Renderer {
         custom_shader_text_opacity: f32,
         custom_shader_full_content: bool,
         custom_shader_brightness: f32,
-        // Custom shader channel textures (iChannel1-4)
+        // Custom shader channel textures (iChannel0-3)
         custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
         // Cursor shader settings (separate from background shader)
         cursor_shader_path: Option<&str>,
@@ -230,6 +230,13 @@ impl Renderer {
             cursor_shader_animation,
             cursor_shader_animation_speed,
             window_opacity,
+        );
+
+        debug_info!(
+            "renderer",
+            "Renderer created: custom_shader_loaded={}, cursor_shader_loaded={}",
+            initial_shader_path.is_some(),
+            initial_cursor_shader_path.is_some()
         );
 
         Ok(Self {
@@ -387,7 +394,12 @@ impl Renderer {
     /// When alt screen is active (e.g., vim, htop, less), cursor shader effects
     /// are disabled since TUI applications typically have their own cursor handling.
     pub fn set_cursor_shader_disabled_for_alt_screen(&mut self, disabled: bool) {
-        self.cursor_shader_disabled_for_alt_screen = disabled;
+        if self.cursor_shader_disabled_for_alt_screen != disabled {
+            debug_log!("cursor-shader", "Alt-screen disable set to {}", disabled);
+            self.cursor_shader_disabled_for_alt_screen = disabled;
+        } else {
+            self.cursor_shader_disabled_for_alt_screen = disabled;
+        }
     }
 
     /// Update window padding in real-time without full renderer rebuild

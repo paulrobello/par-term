@@ -11,12 +11,13 @@
 const float ORBIT_SPEED = 2.0;        // Speed of orbit (cycles per second)
 const float TRAIL_LENGTH = 0.8;       // Trail length (0.0 - 1.0, fraction of orbit)
 const float BALL_RADIUS = 2.0;        // Ball radius in pixels
-const float EDGE_INSET = 3.0;         // Distance from cell edge in pixels
+// Keep the orbit tight to the cell edge; inset just enough to avoid clipping with AA.
+const float EDGE_INSET = BALL_RADIUS + 0.75; // Distance from cell edge in pixels
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Sample terminal content
     vec2 uv = fragCoord / iResolution.xy;
-    vec4 terminal = texture(iChannel0, uv);
+    vec4 terminal = texture(iChannel4, uv);
 
     // Get cursor info
     vec2 cursorPos = iCurrentCursor.xy;
