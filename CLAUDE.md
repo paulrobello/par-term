@@ -350,17 +350,40 @@ unfocused_fps: 10             # Target FPS when unfocused (default: 10)
 - Use `make profile` for CPU flamegraph generation
 
 ### Adding a Custom Shader
+
+**IMPORTANT**: par-term has TWO separate custom shader systems. Do not confuse them when debugging:
+
+1. **Background Shaders** (`custom_shader`): Full-screen post-processing effects behind terminal text
+   - Config: `custom_shader: "filename.glsl"`, `custom_shader_enabled: true`
+   - Debug files: `/tmp/par_term_<name>_shader.wgsl`
+   - Has access to `iChannel0-4` textures, full Shadertoy uniforms
+
+2. **Cursor Shaders** (`cursor_shader`): Effects around/following the cursor
+   - Config: `cursor_shader: "filename.glsl"`, `cursor_shader_enabled: true`
+   - Debug files: `/tmp/par_term_<name>_shader.wgsl`
+   - Has access to cursor-specific uniforms: `iCurrentCursor`, `iPreviousCursor`, `iTimeCursorChange`, etc.
+
+Both use the same transpiler (`src/custom_shader_renderer/transpiler.rs`) and GLSL format.
+
+**Creating a shader:**
 1. Create GLSL shader file in `~/.config/par-term/shaders/` (user config directory)
 2. Use Shadertoy-compatible format with `mainImage(out vec4 fragColor, in vec2 fragCoord)`
-3. Available uniforms: `iTime`, `iResolution`, `iMouse` (vec2), `iChannel1` (terminal texture)
-4. Set `custom_shader: "filename.glsl"` in config
-5. Enable with `custom_shader_enabled: true`
+3. Available uniforms: `iTime`, `iResolution`, `iMouse` (vec4), `iChannel4` (terminal texture)
+4. Set `custom_shader: "filename.glsl"` or `cursor_shader: "filename.glsl"` in config
+5. Enable with `custom_shader_enabled: true` or `cursor_shader_enabled: true`
 6. Once the shader is tested and ready for distribution, copy it to the repo's `shaders/` directory
 
-**Porting Shadertoy shaders**: When adapting shaders from Shadertoy:
-- Change `iChannel0` to `iChannel1` (terminal texture is on channel 1)
-- `iMouse` is a `vec2` (xy only), not `vec4` - remove any `.z` or `.w` swizzle access for click state
-- Y-axis is flipped: negate Y velocity/movement to fix upside-down animations (e.g., `uv.y += t` becomes `uv.y -= t`)
+**Porting Shadertoy shaders**: Shaders are fully Shadertoy compatible:
+- `iChannel0-3`: User texture channels (same as Shadertoy)
+- `iChannel4`: Terminal content texture (par-term specific)
+- `iMouse`: vec4 with full Shadertoy compatibility (xy=current position, zw=click position)
+- Y-axis now matches Shadertoy convention (fragCoord.y=0 at bottom) via transpiler flip; no changes needed in user shaders.
+
+**Debugging shaders:**
+- Transpiled WGSL is written to `/tmp/par_term_<shader_name>_shader.wgsl`
+- Wrapped GLSL is written to `/tmp/par_term_debug_wrapped.glsl` (last shader only)
+- Check these files to see the actual generated code
+- When debugging one shader type, temporarily disable the other to avoid confusion
 
 **IMPORTANT**: Always develop new shaders in `~/.config/par-term/shaders/` first. Only move shaders to the repo `shaders/` folder when they are complete and ready to be included in the distribution.
 
