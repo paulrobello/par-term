@@ -215,9 +215,13 @@ cursor_shader: "cursor_glow.glsl"
 # Enable/disable cursor shader
 cursor_shader_enabled: true
 
-# Hide default cursor when shader is active (let shader handle cursor rendering)
-# Recommended for shaders that fully replace the cursor (e.g., cursor_pacman, cursor_orbit)
-cursor_shader_hides_cursor: true
+# Animation controls
+cursor_shader_animation: true
+cursor_shader_animation_speed: 1.0
+
+# Visibility controls
+cursor_shader_hides_cursor: false          # Show normal cursor (set true to let shader fully replace it)
+cursor_shader_disable_in_alt_screen: true  # Pause cursor shader in alt-screen TUIs (vim/less/htop)
 
 # Cursor color (used by shaders via iCurrentCursorColor)
 cursor_color: "#00ff00"
