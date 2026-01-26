@@ -80,7 +80,8 @@ impl SettingsUI {
 // Available uniforms:
 //   iTime       - Time in seconds (when animation enabled)
 //   iResolution - Viewport resolution (vec2)
-//   iChannel0   - Terminal content texture (sampler2D)
+//   iChannel0-3 - User texture channels (sampler2D, Shadertoy compatible)
+//   iChannel4   - Terminal content texture (sampler2D)
 //   iOpacity    - Window opacity (float)
 //   iTextOpacity - Text opacity (float)
 
@@ -88,7 +89,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
 
     // Sample terminal content
-    vec4 terminal = texture(iChannel0, uv);
+    vec4 terminal = texture(iChannel4, uv);
 
     // Example: simple color tint based on position
     vec3 tint = vec3(0.8, 0.9, 1.0);

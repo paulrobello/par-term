@@ -21,7 +21,7 @@ float getBayerFromPacked(int x, int y) {
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord * (1.0 / iResolution.xy);
-    vec3 color = texture(iChannel0, uv).rgb;
+    vec3 color = texture(iChannel4, uv).rgb;
  
     float threshold = getBayerFromPacked(int(fragCoord.x), int(fragCoord.y));
     vec3 dithered = floor(color * LEVELS + threshold) * INV_LEVELS;

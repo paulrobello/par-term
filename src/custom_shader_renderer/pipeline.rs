@@ -11,15 +11,15 @@ use super::textures::ChannelTexture;
 ///
 /// Layout:
 /// - 0: Uniform buffer
-/// - 1: iChannel0 texture (terminal content)
+/// - 1: iChannel0 texture (user texture, Shadertoy compatible)
 /// - 2: iChannel0 sampler
-/// - 3: iChannel1 texture
+/// - 3: iChannel1 texture (user texture)
 /// - 4: iChannel1 sampler
-/// - 5: iChannel2 texture
+/// - 5: iChannel2 texture (user texture)
 /// - 6: iChannel2 sampler
-/// - 7: iChannel3 texture
+/// - 7: iChannel3 texture (user texture)
 /// - 8: iChannel3 sampler
-/// - 9: iChannel4 texture
+/// - 9: iChannel4 texture (terminal content)
 /// - 10: iChannel4 sampler
 pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
     device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -36,7 +36,7 @@ pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
                 },
                 count: None,
             },
-            // iChannel0 texture (binding 1) - terminal content
+            // iChannel0 texture (binding 1) - user texture, Shadertoy compatible
             BindGroupLayoutEntry {
                 binding: 1,
                 visibility: ShaderStages::FRAGMENT,
@@ -54,7 +54,7 @@ pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
                 ty: BindingType::Sampler(SamplerBindingType::Filtering),
                 count: None,
             },
-            // iChannel1 texture (binding 3)
+            // iChannel1 texture (binding 3) - user texture
             BindGroupLayoutEntry {
                 binding: 3,
                 visibility: ShaderStages::FRAGMENT,
@@ -72,7 +72,7 @@ pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
                 ty: BindingType::Sampler(SamplerBindingType::Filtering),
                 count: None,
             },
-            // iChannel2 texture (binding 5)
+            // iChannel2 texture (binding 5) - user texture
             BindGroupLayoutEntry {
                 binding: 5,
                 visibility: ShaderStages::FRAGMENT,
@@ -90,7 +90,7 @@ pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
                 ty: BindingType::Sampler(SamplerBindingType::Filtering),
                 count: None,
             },
-            // iChannel3 texture (binding 7)
+            // iChannel3 texture (binding 7) - user texture
             BindGroupLayoutEntry {
                 binding: 7,
                 visibility: ShaderStages::FRAGMENT,
@@ -108,7 +108,7 @@ pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
                 ty: BindingType::Sampler(SamplerBindingType::Filtering),
                 count: None,
             },
-            // iChannel4 texture (binding 9)
+            // iChannel4 texture (binding 9) - terminal content
             BindGroupLayoutEntry {
                 binding: 9,
                 visibility: ShaderStages::FRAGMENT,
@@ -136,9 +136,9 @@ pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
 /// * `device` - The wgpu device
 /// * `layout` - The bind group layout
 /// * `uniform_buffer` - Uniform buffer for shader parameters
-/// * `intermediate_texture_view` - Terminal content texture view (iChannel0)
+/// * `intermediate_texture_view` - Terminal content texture view (iChannel4)
 /// * `sampler` - Sampler for the intermediate texture
-/// * `channel_textures` - Array of 4 channel textures (iChannel1-4)
+/// * `channel_textures` - Array of 4 channel textures (iChannel0-3, Shadertoy compatible)
 pub fn create_bind_group(
     device: &Device,
     layout: &BindGroupLayout,
@@ -155,50 +155,50 @@ pub fn create_bind_group(
                 binding: 0,
                 resource: uniform_buffer.as_entire_binding(),
             },
-            // iChannel0 (terminal content)
+            // iChannel0 (user texture, Shadertoy compatible)
             BindGroupEntry {
                 binding: 1,
-                resource: BindingResource::TextureView(intermediate_texture_view),
-            },
-            BindGroupEntry {
-                binding: 2,
-                resource: BindingResource::Sampler(sampler),
-            },
-            // iChannel1
-            BindGroupEntry {
-                binding: 3,
                 resource: BindingResource::TextureView(&channel_textures[0].view),
             },
             BindGroupEntry {
-                binding: 4,
+                binding: 2,
                 resource: BindingResource::Sampler(&channel_textures[0].sampler),
             },
-            // iChannel2
+            // iChannel1 (user texture)
             BindGroupEntry {
-                binding: 5,
+                binding: 3,
                 resource: BindingResource::TextureView(&channel_textures[1].view),
             },
             BindGroupEntry {
-                binding: 6,
+                binding: 4,
                 resource: BindingResource::Sampler(&channel_textures[1].sampler),
             },
-            // iChannel3
+            // iChannel2 (user texture)
             BindGroupEntry {
-                binding: 7,
+                binding: 5,
                 resource: BindingResource::TextureView(&channel_textures[2].view),
             },
             BindGroupEntry {
-                binding: 8,
+                binding: 6,
                 resource: BindingResource::Sampler(&channel_textures[2].sampler),
             },
-            // iChannel4
+            // iChannel3 (user texture)
             BindGroupEntry {
-                binding: 9,
+                binding: 7,
                 resource: BindingResource::TextureView(&channel_textures[3].view),
             },
             BindGroupEntry {
-                binding: 10,
+                binding: 8,
                 resource: BindingResource::Sampler(&channel_textures[3].sampler),
+            },
+            // iChannel4 (terminal content)
+            BindGroupEntry {
+                binding: 9,
+                resource: BindingResource::TextureView(intermediate_texture_view),
+            },
+            BindGroupEntry {
+                binding: 10,
+                resource: BindingResource::Sampler(sampler),
             },
         ],
     })

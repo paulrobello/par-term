@@ -233,7 +233,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     col = smoothstep(-0.08, 1.0, col);
 
     vec2 termUV = fragCoord.xy / iResolution.xy;
-    vec4 terminalColor = texture(iChannel0, termUV);
+    vec4 terminalColor = texture(iChannel4, termUV);
 
     float alpha = step(length(terminalColor.rgb), BLACK_BLEND_THRESHOLD);
     vec3 blendedColor = mix(terminalColor.rgb, col, alpha);

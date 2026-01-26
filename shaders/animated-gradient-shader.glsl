@@ -32,7 +32,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 
     vec3 gradientColor = mix(gradientStartColor, gradientEndColor, gradientFactor);
 
-    vec4 terminalColor = texture(iChannel0, uv);
+    vec4 terminalColor = texture(iChannel4, uv);
     float mask = 1.0 - step(0.5, dot(terminalColor.rgb, vec3(1.0)));
     vec3 blendedColor = mix(terminalColor.rgb, gradientColor, mask);
 

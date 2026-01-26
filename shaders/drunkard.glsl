@@ -56,12 +56,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec3 col;
 
     if (ABERRATION) {
-        col.r = texture(iChannel0, uv + vec2(noise * (1.0 + ABERRATION_DELTA))).r;
-        col.g = texture(iChannel0, uv + vec2(noise)).g;
-        col.b = texture(iChannel0, uv + vec2(noise * (1.0 - ABERRATION_DELTA))).b;
+        col.r = texture(iChannel4, uv + vec2(noise * (1.0 + ABERRATION_DELTA))).r;
+        col.g = texture(iChannel4, uv + vec2(noise)).g;
+        col.b = texture(iChannel4, uv + vec2(noise * (1.0 - ABERRATION_DELTA))).b;
     } else {
         vec2 distortedUV = uv + vec2(noise);
-        col = texture(iChannel0, distortedUV).rgb;
+        col = texture(iChannel4, distortedUV).rgb;
     }
 
     fragColor = vec4(col, 1.0);

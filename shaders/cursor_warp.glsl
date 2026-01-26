@@ -146,7 +146,7 @@ float getDurationFromDot(float dot_val, float DURATION_LEAD, float DURATION_SIDE
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord){
     #if !defined(WEB)
-    fragColor = texture(iChannel0, fragCoord.xy / iResolution.xy);
+    fragColor = texture(iChannel4, fragCoord.xy / iResolution.xy);
     #endif
 
     // normalization & setup(-1, 1 coords)

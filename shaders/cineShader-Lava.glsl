@@ -68,7 +68,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 	
 
     vec2 termUV = fragCoord.xy / iResolution.xy;
-    vec4 terminalColor = texture(iChannel0, termUV);
+    vec4 terminalColor = texture(iChannel4, termUV);
 
     float alpha = step(length(terminalColor.rgb), BLACK_BLEND_THRESHOLD);
     vec3 blendedColor = mix(terminalColor.rgb * 1.0, col.rgb * 0.3, alpha);

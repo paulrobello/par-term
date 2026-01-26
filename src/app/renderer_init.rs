@@ -54,6 +54,15 @@ pub(crate) struct RendererInitParams {
 impl RendererInitParams {
     /// Create renderer init params from config and theme
     pub fn from_config(config: &Config, theme: &Theme) -> Self {
+        debug_log!(
+            "cursor-shader",
+            "Config snapshot: enabled={}, path={:?}, animation={}, speed={}, disable_alt_screen={}",
+            config.cursor_shader_enabled,
+            config.cursor_shader,
+            config.cursor_shader_animation,
+            config.cursor_shader_animation_speed,
+            config.cursor_shader_disable_in_alt_screen
+        );
         Self {
             font_family: if config.font_family.is_empty() {
                 None

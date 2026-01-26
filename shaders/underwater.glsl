@@ -29,9 +29,7 @@ float rayStrength(vec2 raySource, vec2 rayRefDirection, vec2 coord, float seedA,
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
 	vec2 uv = fragCoord.xy / iResolution.xy;
-
-	uv.y = 1.0 - uv.y;
-	vec2 coord = vec2(fragCoord.x, iResolution.y - fragCoord.y);
+	vec2 coord = fragCoord.xy;
 	
 	// Set the parameters of the sun rays
 	vec2 rayPos1 = vec2(iResolution.x * 0.7, iResolution.y * 1.1);
@@ -65,7 +63,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 	col.b *= 0.3 + (brightness * 0.5);
 
   vec2 termUV = fragCoord.xy / iResolution.xy;
-  vec4 terminalColor = texture(iChannel0, termUV);
+  vec4 terminalColor = texture(iChannel4, termUV);
 
   float alpha = step(length(terminalColor.rgb), BLACK_BLEND_THRESHOLD);
   vec3 blendedColor = mix(terminalColor.rgb * 1.0, col.rgb * 0.3, alpha);

@@ -14,7 +14,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec3 gradientColor = mix(gradientStartColor, gradientEndColor, gradientFactor);
 
     // Sample the terminal screen texture including alpha channel
-    vec4 terminalColor = texture(iChannel0, uv);
+    vec4 terminalColor = texture(iChannel4, uv);
 
     // Make a mask that is 1.0 where the terminal content is not black
     float mask = 1 - step(0.5, dot(terminalColor.rgb, vec3(1.0)));

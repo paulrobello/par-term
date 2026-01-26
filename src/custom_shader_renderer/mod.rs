@@ -3,7 +3,8 @@
 //! Supports Ghostty/Shadertoy-style GLSL shaders with the following uniforms:
 //! - `iTime`: Time in seconds (animated or fixed at 0.0)
 //! - `iResolution`: Viewport resolution (width, height, 1.0)
-//! - `iChannel0`: Terminal content texture
+//! - `iChannel0-3`: User texture channels (Shadertoy compatible)
+//! - `iChannel4`: Terminal content texture
 //!
 //! Ghostty-compatible cursor uniforms (v1.2.0+):
 //! - `iCurrentCursor`: Current cursor position (xy) and size (zw) in pixels
@@ -117,8 +118,8 @@ pub struct CustomShaderRenderer {
     /// Cursor glow intensity (0.0-1.0)
     pub(crate) cursor_glow_intensity: f32,
 
-    // ============ Channel textures (iChannel1-4) ============
-    /// Texture channels 1-4 (placeholders or loaded textures)
+    // ============ Channel textures (iChannel0-3) ============
+    /// Texture channels 0-3 (placeholders or loaded textures, Shadertoy compatible)
     pub(crate) channel_textures: [ChannelTexture; 4],
 }
 
@@ -154,6 +155,18 @@ impl CustomShaderRenderer {
         );
         log::debug!("Generated WGSL:\n{}", wgsl_source);
 
+        // DEBUG: Write generated WGSL to file for inspection
+        let shader_name = shader_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("unknown");
+        let debug_filename = format!("/tmp/par_term_{}_shader.wgsl", shader_name);
+        if let Err(e) = std::fs::write(&debug_filename, &wgsl_source) {
+            log::warn!("Failed to write debug shader: {}", e);
+        } else {
+            log::info!("Wrote debug shader to {}", debug_filename);
+        }
+
         // Pre-validate WGSL
         let module = naga::front::wgsl::parse_str(&wgsl_source)
             .context("Custom shader WGSL parse failed")?;
@@ -185,7 +198,7 @@ impl CustomShaderRenderer {
             ..Default::default()
         });
 
-        // Load channel textures (iChannel1-4)
+        // Load channel textures (iChannel0-3)
         let channel_textures = load_channel_textures(device, queue, channel_paths);
 
         // Create uniform buffer
@@ -474,16 +487,16 @@ impl CustomShaderRenderer {
             cursor_glow_radius: self.cursor_glow_radius,
             cursor_glow_intensity: self.cursor_glow_intensity,
             cursor_shader_color: self.cursor_shader_color,
-            channel0_resolution: [
+            channel0_resolution: self.channel_textures[0].resolution(),
+            channel1_resolution: self.channel_textures[1].resolution(),
+            channel2_resolution: self.channel_textures[2].resolution(),
+            channel3_resolution: self.channel_textures[3].resolution(),
+            channel4_resolution: [
                 self.texture_width as f32,
                 self.texture_height as f32,
                 1.0,
                 0.0,
             ],
-            channel1_resolution: self.channel_textures[0].resolution(),
-            channel2_resolution: self.channel_textures[1].resolution(),
-            channel3_resolution: self.channel_textures[2].resolution(),
-            channel4_resolution: self.channel_textures[3].resolution(),
         }
     }
 

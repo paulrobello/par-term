@@ -42,7 +42,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 	}
 	
 	// Sample the terminal screen texture including alpha channel
-	vec4 terminalColor = texture(iChannel0, uv);
+	vec4 terminalColor = texture(iChannel4, uv);
 
 	// Combine the snow effect with the terminal color
 	vec3 blendedColor = terminalColor.rgb + acc;

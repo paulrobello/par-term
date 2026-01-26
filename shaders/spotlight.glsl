@@ -14,7 +14,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 ratio = vec2(iResolution.x / iResolution.y, 1.0);
 
     // Get the texture from iChannel0
-    vec4 texColor = texture(iChannel0, uv);
+    vec4 texColor = texture(iChannel4, uv);
 
     // Spotlight center moving based on a smooth random pattern
     float time = iTime * 1.0; // Control speed of motion

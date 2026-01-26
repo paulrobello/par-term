@@ -195,7 +195,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ){
     // warped one. By the way, the warp function is called above in the "bumpFunc" function,
     // so it's kind of wasteful doing it again here, but the function is kind of cheap, and
     // it's more readable this way.
-    // Using iChannel1 for user-provided texture (iChannel0 is terminal content in par-term)
+    // Using iChannel1 for user-provided texture (iChannel0-3 are Shadertoy compatible, iChannel4 is terminal content)
     vec3 texCol = texture(iChannel1, sp.xy + W(sp.xy)/8.).xyz;
     texCol *= texCol; // Rough sRGB to linear conversion... That's a whole other conversation. :)
     // A bit of color processing.

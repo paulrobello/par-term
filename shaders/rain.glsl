@@ -101,10 +101,8 @@ vec2 Drops(vec2 uv, float t, float l0, float l1, float l2) {
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
-    // Flip Y for par-term coordinate system
-    vec2 flippedCoord = vec2(fragCoord.x, iResolution.y - fragCoord.y);
-    vec2 uv = (flippedCoord.xy-.5*iResolution.xy) / iResolution.y;
-    vec2 UV = flippedCoord.xy/iResolution.xy;
+    vec2 uv = (fragCoord.xy-.5*iResolution.xy) / iResolution.y;
+    vec2 UV = fragCoord.xy/iResolution.xy;
     vec2 M = iMouse.xy/iResolution.xy;
     float T = USE_MOUSE ? iTime+M.x*2. : iTime;
 

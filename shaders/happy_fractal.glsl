@@ -288,8 +288,6 @@ vec3 move(inout vec3 dir) {
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
-    // Flip Y to match Shadertoy coordinate system
-    fragCoord.y = iResolution.y - fragCoord.y;
     vec2 uv = fragCoord.xy / iResolution.xy*2.-1.;
     vec2 oriuv=uv;
     uv.y*=iResolution.y/iResolution.x;

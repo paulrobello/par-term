@@ -150,7 +150,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
     // Blend with terminal content
     vec2 terminalUV = fragCoord.xy / iResolution.xy;
-    vec4 terminalColor = texture(iChannel0, terminalUV);
+    vec4 terminalColor = texture(iChannel4, terminalUV);
 
     float brightnessThreshold = 0.1;
     float terminalBrightness = dot(terminalColor.rgb, vec3(0.2126, 0.7152, 0.0722));

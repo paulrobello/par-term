@@ -86,9 +86,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     uv.x -= .5;
     uv.x *= iResolution.x / iResolution.y;
 
-    // Flip the y-axis so that the gravity is downwards
-    uv.y = -uv.y + 1.;
-
     float n = hash12(uv + 10.);
     float t = iTime * .5;
 
@@ -107,7 +104,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     c = Rainbow(c);
 
     vec2 termUV = fragCoord.xy / iResolution.xy;
-    vec4 terminalColor = texture(iChannel0, termUV);
+    vec4 terminalColor = texture(iChannel4, termUV);
 
     float alpha = step(length(terminalColor.rgb), BLACK_BLEND_THRESHOLD);
     vec3 blendedColor = mix(terminalColor.rgb * 1.0, c.rgb * 0.3, alpha);

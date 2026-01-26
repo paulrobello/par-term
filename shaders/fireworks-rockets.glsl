@@ -90,9 +90,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     uv.x *= iResolution.x / iResolution.y;
     vec3 col = vec3(0.1, 0.1, 0.2);
 
-    // Flip the y-axis so that the rocket is drawn from the bottom of the screen
-    uv.y = -uv.y;
-
     col += 0.1 * uv.y;
 
     col += drawFireworks(iTime, uv, vec3(1.0, 0.1, 0.1), 1.);
@@ -100,7 +97,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     col += drawFireworks(iTime - 4.0, uv, vec3(1.0, 1.0, 0.1), 3.);
 
     vec2 termUV = fragCoord.xy / iResolution.xy;
-    vec4 terminalColor = texture(iChannel0, termUV);
+    vec4 terminalColor = texture(iChannel4, termUV);
 
     float alpha = step(length(terminalColor.rgb), BLACK_BLEND_THRESHOLD);
     vec3 blendedColor = mix(terminalColor.rgb * 1.0, col.rgb * 0.3, alpha);

@@ -209,16 +209,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
 
     // Retrieve colors from appropriate locations
-    fragColor.r = texture(iChannel0, vec2(uv.x + 0.0003 * COLOR_FRINGING_SPREAD, uv.y + 0.0003 * COLOR_FRINGING_SPREAD)).x;
-    fragColor.g = texture(iChannel0, vec2(uv.x + 0.0000 * COLOR_FRINGING_SPREAD, uv.y - 0.0006 * COLOR_FRINGING_SPREAD)).y;
-    fragColor.b = texture(iChannel0, vec2(uv.x - 0.0006 * COLOR_FRINGING_SPREAD, uv.y + 0.0000 * COLOR_FRINGING_SPREAD)).z;
-    fragColor.a = texture(iChannel0, uv).a;
+    fragColor.r = texture(iChannel4, vec2(uv.x + 0.0003 * COLOR_FRINGING_SPREAD, uv.y + 0.0003 * COLOR_FRINGING_SPREAD)).x;
+    fragColor.g = texture(iChannel4, vec2(uv.x + 0.0000 * COLOR_FRINGING_SPREAD, uv.y - 0.0006 * COLOR_FRINGING_SPREAD)).y;
+    fragColor.b = texture(iChannel4, vec2(uv.x - 0.0006 * COLOR_FRINGING_SPREAD, uv.y + 0.0000 * COLOR_FRINGING_SPREAD)).z;
+    fragColor.a = texture(iChannel4, uv).a;
 
 
     // Add faint ghost images
-    fragColor.r += 0.04 * GHOSTING_STRENGTH * texture(iChannel0, GHOSTING_SPREAD * vec2(+0.025, -0.027) + uv.xy).x;
-    fragColor.g += 0.02 * GHOSTING_STRENGTH * texture(iChannel0, GHOSTING_SPREAD * vec2(-0.022, -0.020) + uv.xy).y;
-    fragColor.b += 0.04 * GHOSTING_STRENGTH * texture(iChannel0, GHOSTING_SPREAD * vec2(-0.020, -0.018) + uv.xy).z;
+    fragColor.r += 0.04 * GHOSTING_STRENGTH * texture(iChannel4, GHOSTING_SPREAD * vec2(+0.025, -0.027) + uv.xy).x;
+    fragColor.g += 0.02 * GHOSTING_STRENGTH * texture(iChannel4, GHOSTING_SPREAD * vec2(-0.022, -0.020) + uv.xy).y;
+    fragColor.b += 0.04 * GHOSTING_STRENGTH * texture(iChannel4, GHOSTING_SPREAD * vec2(-0.020, -0.018) + uv.xy).z;
 
 
     // Quadratically darken everything
@@ -288,7 +288,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     for (int i = 0; i < 24; i++) {
         vec3 bloom_sample = bloom_samples[i];
-        vec4 neighbor = texture(iChannel0, uv + bloom_sample.xy * step);
+        vec4 neighbor = texture(iChannel4, uv + bloom_sample.xy * step);
         float luminance = 0.299 * neighbor.r + 0.587 * neighbor.g + 0.114 * neighbor.b;
 
         fragColor += luminance * bloom_sample.z * neighbor * BLOOM_STRENGTH;

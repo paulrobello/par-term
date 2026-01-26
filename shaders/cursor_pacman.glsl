@@ -77,7 +77,7 @@ vec2 getEyePos(float r, bool facingRight) {
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Sample the terminal content
     vec2 uv = fragCoord / iResolution.xy;
-    vec4 terminal = texture(iChannel0, uv);
+    vec4 terminal = texture(iChannel4, uv);
 
     // Get cursor info
     vec2 cursorPos = iCurrentCursor.xy;

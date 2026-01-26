@@ -107,7 +107,7 @@ vec3 FromSrgb(vec3 c) {
 }
 
 vec3 CrtsFetch(vec2 uv) {
-  return FromSrgb(texture(iChannel0, uv.xy).rgb);
+  return FromSrgb(texture(iChannel4, uv.xy).rgb);
 }
 
 #define CrtsRcpF1(x) (1.0/(x))

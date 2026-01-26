@@ -21,7 +21,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     float greycol = (((dMSin * dCSin) + 1.0) * 0.5);
     greycol = greycol * map(d, 0.0, 1.4142135623730951, 0.5, 0.0);
 
-    vec4 terminalColor = texture(iChannel0, uv);
+    vec4 terminalColor = texture(iChannel4, uv);
     vec3 blendedColor = mix(terminalColor.rgb, vec3(greycol * col.x, greycol * col.y, greycol * col.z), 0.25);
 
     fragColor = vec4(blendedColor, terminalColor.a);
