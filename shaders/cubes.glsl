@@ -108,7 +108,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     }
 
     vec2 uv = fragCoord/iResolution.xy;
-    vec4 terminalColor = texture(iChannel0, uv);
+    vec4 terminalColor = texture(iChannel4, uv);
     vec3 blendedColor = terminalColor.rgb + cubes.rgb;
     fragColor = vec4(blendedColor, terminalColor.a);
 }

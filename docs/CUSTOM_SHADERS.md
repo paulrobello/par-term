@@ -98,6 +98,7 @@ The directory is created automatically when par-term first starts.
 | `fireworks.glsl` | Fireworks particle effect |
 | `fireworks-rockets.glsl` | Fireworks with rocket trails |
 | `sparks-from-fire.glsl` | Rising fire sparks effect |
+| `cubemap-skybox.glsl` | Cubemap environment with animated rotation |
 | `smoke-and-ghost.glsl` | Ethereal smoke and ghosting effect |
 | `cubes.glsl` | 3D rotating cubes background |
 | `gears-and-belts.glsl` | Mechanical gears animation |
@@ -184,25 +185,77 @@ custom_shader_full_content: false
 
 ### Channel Textures
 
-Par-term supports Shadertoy-compatible texture channels (iChannel1-4) for passing custom images to shaders. This enables effects like noise textures, normal maps, or any image-based input.
+Par-term supports Shadertoy-compatible texture channels (iChannel0-3) for passing custom images to shaders. This enables effects like noise textures, normal maps, or any image-based input.
 
 ```yaml
 # ~/.config/par-term/config.yaml
 
 # Texture paths for shader channels (supports ~ for home directory)
-custom_shader_channel1: "~/textures/noise.png"
-custom_shader_channel2: "~/textures/metal.jpg"
+custom_shader_channel0: "~/textures/noise.png"
+custom_shader_channel1: "~/textures/metal.jpg"
+custom_shader_channel2: null  # Not used
 custom_shader_channel3: null  # Not used
-custom_shader_channel4: null  # Not used
 ```
 
 **Notes:**
-- `iChannel0` is always the terminal content texture
-- `iChannel1-4` are user-defined texture inputs
+- `iChannel0-3` are user-defined texture inputs (Shadertoy compatible)
+- `iChannel4` is the terminal content texture (par-term specific)
 - Channels without a configured texture use a 1x1 transparent placeholder
 - Supports common image formats: PNG, JPEG, BMP, etc.
 - Textures can also be configured via Settings UI under "Shader Channel Textures"
 - Sample textures are included in `shaders/textures/` directory
+
+### Cubemap Textures
+
+Par-term supports cubemap textures for environment mapping and skybox effects via the `iCubemap` uniform. Cubemaps consist of 6 face images that form a seamless cube.
+
+```yaml
+# ~/.config/par-term/config.yaml
+
+# Path prefix for cubemap faces
+# Expects 6 files: {prefix}-px.{ext}, -nx.{ext}, -py.{ext}, -ny.{ext}, -pz.{ext}, -nz.{ext}
+# where {ext} is one of: png, jpg, jpeg, hdr
+custom_shader_cubemap: "shaders/textures/cubemaps/env-outside"
+
+# Enable cubemap sampling
+custom_shader_cubemap_enabled: true
+```
+
+**Face naming convention:**
+- `{prefix}-px.{ext}` - Positive X (+X, right)
+- `{prefix}-nx.{ext}` - Negative X (-X, left)
+- `{prefix}-py.{ext}` - Positive Y (+Y, top)
+- `{prefix}-ny.{ext}` - Negative Y (-Y, bottom)
+- `{prefix}-pz.{ext}` - Positive Z (+Z, front)
+- `{prefix}-nz.{ext}` - Negative Z (-Z, back)
+
+**Example usage in shader:**
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    vec2 uv = (fragCoord - 0.5 * iResolution.xy) / min(iResolution.x, iResolution.y);
+
+    // Create ray direction from camera
+    vec3 rayDir = normalize(vec3(uv.x, uv.y, -1.0));
+
+    // Rotate over time for animation
+    float angle = iTime * 0.2;
+    float c = cos(angle), s = sin(angle);
+    rayDir = vec3(rayDir.x * c - rayDir.z * s, rayDir.y, rayDir.x * s + rayDir.z * c);
+
+    // Sample cubemap
+    vec4 sky = texture(iCubemap, rayDir);
+
+    // Blend with terminal content
+    vec4 terminal = texture(iChannel4, fragCoord / iResolution.xy);
+    fragColor = terminal.a > 0.01 ? terminal : sky;
+}
+```
+
+**Notes:**
+- HDR cubemaps (.hdr) are supported with automatic Rgba16Float conversion
+- LDR cubemaps use Rgba8UnormSrgb format
+- Sample cubemaps are included in `shaders/textures/cubemaps/`
+- Use `iCubemapResolution.xy` for cubemap face dimensions
 
 ### Cursor Shaders
 
@@ -215,9 +268,13 @@ cursor_shader: "cursor_glow.glsl"
 # Enable/disable cursor shader
 cursor_shader_enabled: true
 
-# Hide default cursor when shader is active (let shader handle cursor rendering)
-# Recommended for shaders that fully replace the cursor (e.g., cursor_pacman, cursor_orbit)
-cursor_shader_hides_cursor: true
+# Animation controls
+cursor_shader_animation: true
+cursor_shader_animation_speed: 1.0
+
+# Visibility controls
+cursor_shader_hides_cursor: false          # Show normal cursor (set true to let shader fully replace it)
+cursor_shader_disable_in_alt_screen: true  # Pause cursor shader in alt-screen TUIs (vim/less/htop)
 
 # Cursor color (used by shaders via iCurrentCursorColor)
 cursor_color: "#00ff00"
@@ -235,8 +292,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     // Normalize coordinates to 0-1 range
     vec2 uv = fragCoord / iResolution.xy;
 
-    // Sample terminal content
-    vec4 terminal = texture(iChannel0, uv);
+    // Sample terminal content (iChannel4 in par-term)
+    vec4 terminal = texture(iChannel4, uv);
 
     // Apply your effect
     vec3 color = terminal.rgb;
@@ -259,12 +316,14 @@ Par-term provides Shadertoy-compatible uniforms:
 | `iFrameRate` | `float` | Current FPS |
 | `iMouse` | `vec4` | Mouse position and click state |
 | `iDate` | `vec4` | Year, month (0-11), day (1-31), seconds since midnight |
-| `iChannel0` | `sampler2D` | Terminal content texture |
-| `iChannel1` | `sampler2D` | User texture channel 1 (configurable) |
-| `iChannel2` | `sampler2D` | User texture channel 2 (configurable) |
-| `iChannel3` | `sampler2D` | User texture channel 3 (configurable) |
-| `iChannel4` | `sampler2D` | User texture channel 4 (configurable) |
+| `iChannel0` | `sampler2D` | User texture channel 0 (Shadertoy compatible) |
+| `iChannel1` | `sampler2D` | User texture channel 1 (Shadertoy compatible) |
+| `iChannel2` | `sampler2D` | User texture channel 2 (Shadertoy compatible) |
+| `iChannel3` | `sampler2D` | User texture channel 3 (Shadertoy compatible) |
+| `iChannel4` | `sampler2D` | Terminal content texture |
 | `iChannelResolution[n]` | `vec3` | Resolution of channel n (width, height, 1.0) |
+| `iCubemap` | `samplerCube` | Cubemap texture for environment mapping |
+| `iCubemapResolution` | `vec4` | Cubemap face size (size, size, 1.0, 0.0) |
 | `iOpacity` | `float` | Window opacity setting |
 | `iTextOpacity` | `float` | Text opacity setting |
 | `iBrightness` | `float` | Shader brightness multiplier (0.05-1.0) |
@@ -293,9 +352,18 @@ Cursor shaders have additional uniforms:
 - Best for animated backgrounds and non-distorting effects
 
 **Full Content Mode** (`custom_shader_full_content: true`):
-- Shader receives full terminal content via `iChannel0`
+- Shader receives full terminal content via `iChannel4`
 - Shader can distort, warp, or transform text
 - Required for CRT curvature, underwater distortion, etc.
+
+### Porting Shadertoy Shaders
+
+Par-term is fully Shadertoy compatible. When adapting shaders:
+
+1. **Terminal content is on iChannel4**: Use `texture(iChannel4, uv)` to sample terminal content. iChannel0-3 are available for user textures (same as Shadertoy)
+2. **Y-axis matches Shadertoy**: No modifications needed - fragCoord.y=0 at bottom, same as Shadertoy
+3. **iMouse is vec4**: Full Shadertoy compatibility (xy=current position, zw=click position)
+4. **mat2(vec4) construction**: May need to expand to `mat2(v.x, v.y, v.z, v.w)` for GLSL 450 compatibility
 
 ## Examples
 
@@ -357,8 +425,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord / iResolution.xy;
 
-    // Sample terminal
-    vec4 terminal = texture(iChannel0, uv);
+    // Sample terminal content
+    vec4 terminal = texture(iChannel4, uv);
 
     // Get cursor center
     vec2 cursorCenter = iCurrentCursor.xy + iCurrentCursor.zw * 0.5;
@@ -388,15 +456,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord / iResolution.xy;
 
-    // Sample terminal content (iChannel0)
-    vec4 terminal = texture(iChannel0, uv);
+    // Sample terminal content (iChannel4)
+    vec4 terminal = texture(iChannel4, uv);
 
-    // Sample noise texture (iChannel1)
-    // Configure via: custom_shader_channel1: "path/to/noise.png"
-    vec4 noise = texture(iChannel1, uv * 2.0);  // Scale UV for tiling
+    // Sample noise texture (iChannel0 - Shadertoy compatible)
+    // Configure via: custom_shader_channel0: "path/to/noise.png"
+    vec4 noise = texture(iChannel0, uv * 2.0);  // Scale UV for tiling
 
     // Get texture dimensions if needed
-    vec2 noiseSize = iChannelResolution[1].xy;
+    vec2 noiseSize = iChannelResolution[0].xy;
 
     // Blend noise with terminal (subtle overlay)
     vec3 color = terminal.rgb + noise.rgb * 0.1;
@@ -409,7 +477,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 ```yaml
 custom_shader: "my_noise_shader.glsl"
 custom_shader_enabled: true
-custom_shader_channel1: "~/textures/noise.png"
+custom_shader_channel0: "~/textures/noise.png"
 ```
 
 ## Troubleshooting
@@ -431,7 +499,7 @@ custom_shader_channel1: "~/textures/noise.png"
 **Solutions:**
 - Ensure `fragColor.a = 1.0` for opaque output
 - Verify UV coordinates are in 0.0-1.0 range
-- Check `texture(iChannel0, uv)` sampling
+- Check `texture(iChannel4, uv)` sampling for terminal content
 
 ### Text Hard to Read
 

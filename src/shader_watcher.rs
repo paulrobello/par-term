@@ -4,7 +4,7 @@
 //! Uses debouncing to avoid multiple reloads during rapid saves from editors.
 
 use anyhow::{Context, Result};
-use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{Config, Event, PollWatcher, RecursiveMode, Watcher};
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -33,7 +33,7 @@ pub struct ShaderReloadEvent {
 /// Manages file watching for shader hot reload
 pub struct ShaderWatcher {
     /// The file system watcher
-    _watcher: RecommendedWatcher,
+    _watcher: PollWatcher,
     /// Receiver for file change events
     event_receiver: Receiver<ShaderReloadEvent>,
     /// Debounce delay in milliseconds
@@ -64,87 +64,129 @@ impl ShaderWatcher {
         let debounce_state: Arc<Mutex<HashMap<ShaderType, Instant>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
-        // Build mapping of watched paths to shader types
-        let mut path_to_type: HashMap<PathBuf, ShaderType> = HashMap::new();
+        // Build mapping of filenames to shader types and track directories to watch
+        // We watch parent directories because many editors use atomic saves (write temp + rename)
+        // which breaks direct file watching
+        let mut filename_to_type: HashMap<std::ffi::OsString, (ShaderType, PathBuf)> =
+            HashMap::new();
+        let mut dirs_to_watch: HashMap<PathBuf, ()> = HashMap::new();
+
         if let Some(path) = background_shader_path {
+            if !path.exists() {
+                anyhow::bail!("Background shader file not found: {}", path.display());
+            }
             let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-            path_to_type.insert(canonical.clone(), ShaderType::Background);
+            if let Some(filename) = canonical.file_name() {
+                filename_to_type.insert(
+                    filename.to_os_string(),
+                    (ShaderType::Background, canonical.clone()),
+                );
+                if let Some(parent) = canonical.parent() {
+                    dirs_to_watch.insert(parent.to_path_buf(), ());
+                }
+            }
             log::info!(
                 "Shader hot reload: watching background shader at {}",
                 canonical.display()
             );
         }
         if let Some(path) = cursor_shader_path {
+            if !path.exists() {
+                anyhow::bail!("Cursor shader file not found: {}", path.display());
+            }
             let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-            path_to_type.insert(canonical.clone(), ShaderType::Cursor);
+            if let Some(filename) = canonical.file_name() {
+                filename_to_type.insert(
+                    filename.to_os_string(),
+                    (ShaderType::Cursor, canonical.clone()),
+                );
+                if let Some(parent) = canonical.parent() {
+                    dirs_to_watch.insert(parent.to_path_buf(), ());
+                }
+            }
             log::info!(
                 "Shader hot reload: watching cursor shader at {}",
                 canonical.display()
             );
         }
 
-        if path_to_type.is_empty() {
+        if filename_to_type.is_empty() {
             anyhow::bail!("No shader paths provided for hot reload");
         }
 
-        let path_to_type = Arc::new(path_to_type);
+        let filename_to_type = Arc::new(filename_to_type);
         let debounce_delay = Duration::from_millis(debounce_delay_ms);
         let debounce_state_clone = Arc::clone(&debounce_state);
 
         // Create the watcher with event handler
-        let mut watcher = RecommendedWatcher::new(
+        let mut watcher = PollWatcher::new(
             move |result: std::result::Result<Event, notify::Error>| {
                 if let Ok(event) = result {
-                    // Only process modify events
+                    log::debug!(
+                        "File system event: {:?} for paths: {:?}",
+                        event.kind,
+                        event.paths
+                    );
+
+                    // Process modify, create, and rename events (for atomic saves)
                     if !matches!(
                         event.kind,
-                        notify::EventKind::Modify(_) | notify::EventKind::Create(_)
+                        notify::EventKind::Modify(_)
+                            | notify::EventKind::Create(_)
+                            | notify::EventKind::Remove(_)
                     ) {
+                        log::trace!("Ignoring event kind: {:?}", event.kind);
                         return;
                     }
 
-                    let path_to_type = Arc::clone(&path_to_type);
+                    let filename_to_type = Arc::clone(&filename_to_type);
                     let debounce_state = Arc::clone(&debounce_state_clone);
 
                     // Process each path in the event
                     for path in event.paths {
-                        let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+                        // Match by filename (handles atomic saves where path changes)
+                        let Some(filename) = path.file_name() else {
+                            log::trace!("Skipping path with no filename: {:?}", path);
+                            continue;
+                        };
 
-                        if let Some(&shader_type) = path_to_type.get(&canonical) {
-                            // Check debounce using parking_lot Mutex (sync-safe)
-                            let should_send = {
-                                let now = Instant::now();
-                                let mut state = debounce_state.lock();
-                                if let Some(last_event) = state.get(&shader_type) {
-                                    if now.duration_since(*last_event) < debounce_delay {
-                                        log::trace!(
-                                            "Debouncing shader reload for {:?}",
-                                            shader_type
-                                        );
-                                        false
-                                    } else {
-                                        state.insert(shader_type, now);
-                                        true
-                                    }
+                        let Some((shader_type, canonical_path)) =
+                            filename_to_type.get(filename).cloned()
+                        else {
+                            log::trace!("Filename {:?} not in watch list", filename);
+                            continue;
+                        };
+
+                        // Check debounce using parking_lot Mutex (sync-safe)
+                        let should_send = {
+                            let now = Instant::now();
+                            let mut state = debounce_state.lock();
+                            if let Some(last_event) = state.get(&shader_type) {
+                                if now.duration_since(*last_event) < debounce_delay {
+                                    log::trace!("Debouncing shader reload for {:?}", shader_type);
+                                    false
                                 } else {
                                     state.insert(shader_type, now);
                                     true
                                 }
-                            };
+                            } else {
+                                state.insert(shader_type, now);
+                                true
+                            }
+                        };
 
-                            if should_send {
-                                let reload_event = ShaderReloadEvent {
-                                    shader_type,
-                                    path: canonical,
-                                };
-                                log::info!(
-                                    "Shader file changed: {:?} at {}",
-                                    shader_type,
-                                    reload_event.path.display()
-                                );
-                                if let Err(e) = tx.send(reload_event) {
-                                    log::error!("Failed to send shader reload event: {}", e);
-                                }
+                        if should_send {
+                            let reload_event = ShaderReloadEvent {
+                                shader_type,
+                                path: canonical_path,
+                            };
+                            log::info!(
+                                "Shader file changed: {:?} at {}",
+                                shader_type,
+                                reload_event.path.display()
+                            );
+                            if let Err(e) = tx.send(reload_event) {
+                                log::error!("Failed to send shader reload event: {}", e);
                             }
                         }
                     }
@@ -154,18 +196,12 @@ impl ShaderWatcher {
         )
         .context("Failed to create file watcher")?;
 
-        // Watch each shader path
-        if let Some(path) = background_shader_path {
+        // Watch parent directories (handles atomic saves from editors like vim, VSCode)
+        for dir in dirs_to_watch.keys() {
             watcher
-                .watch(path, RecursiveMode::NonRecursive)
-                .with_context(|| {
-                    format!("Failed to watch background shader: {}", path.display())
-                })?;
-        }
-        if let Some(path) = cursor_shader_path {
-            watcher
-                .watch(path, RecursiveMode::NonRecursive)
-                .with_context(|| format!("Failed to watch cursor shader: {}", path.display()))?;
+                .watch(dir, RecursiveMode::NonRecursive)
+                .with_context(|| format!("Failed to watch shader directory: {}", dir.display()))?;
+            log::debug!("Watching directory for shader changes: {}", dir.display());
         }
 
         Ok(Self {

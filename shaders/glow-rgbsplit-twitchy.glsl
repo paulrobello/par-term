@@ -124,7 +124,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         for (int i = 0; i < 24; i++) {
             vec3 s = samples[i];
             float weight = s.z;
-            vec4 c = toOklab(texture(iChannel0, uv + s.xy * step));
+            vec4 c = toOklab(texture(iChannel4, uv + s.xy * step));
             if (c.x > DIM_CUTOFF) {
                 glow.yz += c.yz * weight * 0.3;
                 if (c.x <= BRIGHT_CUTOFF) {

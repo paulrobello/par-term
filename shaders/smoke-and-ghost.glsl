@@ -115,13 +115,13 @@ float calculateSmoke(vec2 uv, vec2 sourcePos) {
 }
 
 float isTargetPixel(vec2 uv) {
-    vec4 color = texture(iChannel0, uv);
+    vec4 color = texture(iChannel4, uv);
     return float(all(lessThan(abs(color.rgb - TARGET_COLOR), vec3(COLOR_TOLERANCE))));
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord/iResolution.xy;
-    vec4 originalColor = texture(iChannel0, uv);
+    vec4 originalColor = texture(iChannel4, uv);
     
     // Calculate smoke effect
     float smokeAccum = 0.0;

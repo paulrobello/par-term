@@ -425,6 +425,11 @@ impl WindowState {
 
     /// Initialize the shader watcher for hot reload support
     pub(crate) fn init_shader_watcher(&mut self) {
+        log::info!(
+            "init_shader_watcher called, hot_reload={}",
+            self.config.shader_hot_reload
+        );
+
         if !self.config.shader_hot_reload {
             log::debug!("Shader hot reload disabled");
             return;
@@ -443,6 +448,12 @@ impl WindowState {
             .as_ref()
             .filter(|_| self.config.cursor_shader_enabled)
             .map(|s| Config::shader_path(s));
+
+        log::info!(
+            "Shader paths: background={:?}, cursor={:?}",
+            background_path,
+            cursor_path
+        );
 
         if background_path.is_none() && cursor_path.is_none() {
             log::debug!("No shaders to watch for hot reload");
@@ -612,8 +623,11 @@ impl WindowState {
     /// Check if egui is currently using the pointer (mouse is over an egui UI element)
     pub(crate) fn is_egui_using_pointer(&self) -> bool {
         // If any UI panel is visible, check if egui wants the pointer
-        let any_ui_visible =
-            self.settings_ui.visible || self.help_ui.visible || self.clipboard_history_ui.visible;
+        let any_ui_visible = self.settings_ui.visible
+            || self.help_ui.visible
+            || self.clipboard_history_ui.visible
+            || self.settings_ui.is_shader_editor_visible()
+            || self.settings_ui.is_cursor_shader_editor_visible();
         if !any_ui_visible {
             return false;
         }
@@ -629,8 +643,11 @@ impl WindowState {
     /// Check if egui is currently using keyboard input (e.g., text input or ComboBox has focus)
     pub(crate) fn is_egui_using_keyboard(&self) -> bool {
         // If any UI panel is visible, check if egui wants keyboard input
-        let any_ui_visible =
-            self.settings_ui.visible || self.help_ui.visible || self.clipboard_history_ui.visible;
+        let any_ui_visible = self.settings_ui.visible
+            || self.help_ui.visible
+            || self.clipboard_history_ui.visible
+            || self.settings_ui.is_shader_editor_visible()
+            || self.settings_ui.is_cursor_shader_editor_visible();
         if !any_ui_visible {
             return false;
         }
@@ -878,6 +895,15 @@ impl WindowState {
             return; // Terminal locked, skip this frame
         };
 
+        // Ensure cursor visibility flag for cell renderer reflects current config every frame
+        // (so toggling "Hide default cursor" takes effect immediately even if no other changes)
+        let hide_cursor_for_shader = self.config.cursor_shader_enabled
+            && self.config.cursor_shader_hides_cursor
+            && !(self.config.cursor_shader_disable_in_alt_screen && is_alt_screen);
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_cursor_hidden_for_shader(hide_cursor_for_shader);
+        }
+
         // Update cache with regenerated cells (if needed)
         // Need to re-borrow as mutable after the terminal lock is released
         if !self.debug.cache_hit
@@ -979,7 +1005,9 @@ impl WindowState {
 
         if let Some(renderer) = &mut self.renderer {
             // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
-            renderer.set_cursor_shader_disabled_for_alt_screen(is_alt_screen);
+            let disable_cursor_shader =
+                self.config.cursor_shader_disable_in_alt_screen && is_alt_screen;
+            renderer.set_cursor_shader_disabled_for_alt_screen(disable_cursor_shader);
 
             // Only update renderer with cells if they changed (cache MISS)
             // This avoids re-uploading the same cell data to GPU on every frame
@@ -1363,6 +1391,13 @@ impl WindowState {
 
                     // Apply shader changes
                     if changes.any_shader_change() {
+                        log::info!(
+                            "Shader change detected: textures={} cubemap={} path={} enabled={}",
+                            changes.shader_textures,
+                            changes.shader_cubemap,
+                            changes.shader_path,
+                            changes.shader_enabled
+                        );
                         match renderer.set_custom_shader_enabled(
                             self.config.custom_shader_enabled,
                             self.config.custom_shader.as_deref(),
@@ -1373,6 +1408,7 @@ impl WindowState {
                             self.config.custom_shader_full_content,
                             self.config.custom_shader_brightness,
                             &self.config.shader_channel_paths(),
+                            self.config.shader_cubemap_path().as_deref(),
                         ) {
                             Ok(()) => self.settings_ui.clear_shader_error(),
                             Err(error_msg) => {

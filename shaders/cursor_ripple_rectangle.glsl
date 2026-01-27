@@ -75,7 +75,7 @@ float getSdfRectangle(in vec2 p, in vec2 xy, in vec2 b){
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord){
     #if !defined(WEB)
-    fragColor = texture(iChannel0, fragCoord.xy / iResolution.xy);
+    fragColor = texture(iChannel4, fragCoord.xy / iResolution.xy);
     #endif
 
     // Normalization & setup (-1 to 1 coords)

@@ -11,7 +11,7 @@ float easeOutQuad(float t) {
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
-    vec4 terminalColor = texture(iChannel0, uv);
+    vec4 terminalColor = texture(iChannel4, uv);
 
     // Get cursor positions
     vec2 currentPos = iCurrentCursor.xy + iCurrentCursor.zw * 0.5;

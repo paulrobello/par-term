@@ -4,6 +4,8 @@
     https://www.shadertoy.com/view/t3yyzD
 
     Dodecagon-based quad pattern with overlapping frame and BRDF materials.
+
+    Original by Shane. Adapted for par-term with cubemap support.
 */
 
 // PI and 2 PI.
@@ -122,13 +124,13 @@ float sdRegularPolygon(in vec2 p, in float r, in int n){
 // Main shader code
 /////////////////////
 
-// Tri-Planar blending function using iChannel1.
-vec3 tex3D_ch1(in vec3 p, in vec3 n){
+// Tri-Planar blending function using iChannel0.
+vec3 tex3D(sampler2D tex, in vec3 p, in vec3 n){
     n = max(n*n - .2, .001);
     n /= dot(n, vec3(1));
-    vec3 tx = texture(iChannel1, p.zy).xyz;
-    vec3 ty = texture(iChannel1, p.xz).xyz;
-    vec3 tz = texture(iChannel1, p.xy).xyz;
+    vec3 tx = texture(tex, p.zy).xyz;
+    vec3 ty = texture(tex, p.xz).xyz;
+    vec3 tz = texture(tex, p.xy).xyz;
     return mat3(tx*tx, ty*ty, tz*tz)*n;
 }
 
@@ -475,7 +477,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
 
         vec3 txP = sp;
         txP.xy *= rot2(-PI/4.);
-        vec3 tx = tex3D_ch1(txP/1., sn);
+        vec3 tx = tex3D(iChannel0, txP/1., sn);
         float gr = dot(tx, vec3(.299, .587, .114));
 
         float rnd = hash21(id + .1);
@@ -547,12 +549,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
 
         sceneCol = texCol*(diff*sh + amb*(sh*.5 + .5) + vec3(8)*spec*sh);
 
+        // Specular reflection using cubemap
         float speR = pow(max(dot(normalize(ld - rd), sn), 0.), 8.);
         vec3 rf = reflect(rd, sn);
-        // Convert reflection direction to equirectangular UV for 2D texture
-        // (Shadertoy uses cubemap which accepts vec3 directly)
-        vec2 rfUV = vec2(atan(rf.z, rf.x) / TAU + 0.5, asin(clamp(rf.y, -1.0, 1.0)) / PI + 0.5);
-        vec3 rTx = texture(iChannel2, rfUV).xyz; rTx *= rTx;
+        vec3 rTx = texture(iCubemap, rf).xyz; rTx *= rTx;
         float rF = svGID==1? 2. : svGID==0? 16. : 6.;
         sceneCol = sceneCol + sceneCol*speR*rTx*rF;
 

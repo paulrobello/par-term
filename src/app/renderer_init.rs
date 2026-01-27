@@ -45,6 +45,7 @@ pub(crate) struct RendererInitParams {
     pub custom_shader_full_content: bool,
     pub custom_shader_brightness: f32,
     pub custom_shader_channel_paths: [Option<PathBuf>; 4],
+    pub custom_shader_cubemap_path: Option<PathBuf>,
     pub cursor_shader_path: Option<String>,
     pub cursor_shader_enabled: bool,
     pub cursor_shader_animation: bool,
@@ -54,6 +55,15 @@ pub(crate) struct RendererInitParams {
 impl RendererInitParams {
     /// Create renderer init params from config and theme
     pub fn from_config(config: &Config, theme: &Theme) -> Self {
+        debug_log!(
+            "cursor-shader",
+            "Config snapshot: enabled={}, path={:?}, animation={}, speed={}, disable_alt_screen={}",
+            config.cursor_shader_enabled,
+            config.cursor_shader,
+            config.cursor_shader_animation,
+            config.cursor_shader_animation_speed,
+            config.cursor_shader_disable_in_alt_screen
+        );
         Self {
             font_family: if config.font_family.is_empty() {
                 None
@@ -90,6 +100,7 @@ impl RendererInitParams {
             custom_shader_full_content: config.custom_shader_full_content,
             custom_shader_brightness: config.custom_shader_brightness,
             custom_shader_channel_paths: config.shader_channel_paths(),
+            custom_shader_cubemap_path: config.shader_cubemap_path(),
             cursor_shader_path: config.cursor_shader.clone(),
             cursor_shader_enabled: config.cursor_shader_enabled,
             cursor_shader_animation: config.cursor_shader_animation,
@@ -132,6 +143,7 @@ impl RendererInitParams {
             self.custom_shader_full_content,
             self.custom_shader_brightness,
             &self.custom_shader_channel_paths,
+            self.custom_shader_cubemap_path.as_deref(),
             self.cursor_shader_path.as_deref(),
             self.cursor_shader_enabled,
             self.cursor_shader_animation,

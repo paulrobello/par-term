@@ -1,7 +1,7 @@
 //! Channel texture management for custom shaders
 //!
-//! Provides loading and management of texture channels (iChannel1-4)
-//! that can be used by custom shaders alongside the terminal content (iChannel0).
+//! Provides loading and management of texture channels (iChannel0-3)
+//! that can be used by custom shaders alongside the terminal content (iChannel4).
 
 use anyhow::{Context, Result};
 use std::path::Path;
@@ -184,7 +184,7 @@ impl ChannelTexture {
 /// # Arguments
 /// * `device` - The wgpu device
 /// * `queue` - The wgpu queue
-/// * `paths` - Array of 4 optional paths for iChannel1-4
+/// * `paths` - Array of 4 optional paths for iChannel0-3
 ///
 /// # Returns
 /// Array of 4 ChannelTexture instances (placeholders for None paths)
@@ -200,7 +200,7 @@ pub fn load_channel_textures(
                 Err(e) => {
                     log::error!(
                         "Failed to load iChannel{} texture '{}': {}",
-                        index + 1,
+                        index,
                         p.display(),
                         e
                     );

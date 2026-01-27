@@ -21,6 +21,7 @@ pub(super) fn init_custom_shader(
     custom_shader_full_content: bool,
     custom_shader_brightness: f32,
     custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
+    custom_shader_cubemap_path: Option<&std::path::Path>,
 ) -> (Option<CustomShaderRenderer>, Option<String>) {
     if !custom_shader_enabled {
         return (None, None);
@@ -44,6 +45,7 @@ pub(super) fn init_custom_shader(
         custom_shader_text_opacity,
         custom_shader_full_content,
         custom_shader_channel_paths,
+        custom_shader_cubemap_path,
     ) {
         Ok(mut renderer) => {
             renderer.update_cell_dimensions(
@@ -80,11 +82,22 @@ pub(super) fn init_cursor_shader(
     cursor_shader_animation_speed: f32,
     window_opacity: f32,
 ) -> (Option<CustomShaderRenderer>, Option<String>) {
+    debug_log!(
+        "cursor-shader",
+        "Init: enabled={}, path={:?}, animation={}, speed={}",
+        cursor_shader_enabled,
+        cursor_shader_path,
+        cursor_shader_animation,
+        cursor_shader_animation_speed
+    );
+
     if !cursor_shader_enabled {
+        debug_info!("cursor-shader", "Disabled by config");
         return (None, None);
     }
 
     let Some(shader_path) = cursor_shader_path else {
+        debug_info!("cursor-shader", "Enabled but no path provided");
         return (None, None);
     };
 
@@ -104,6 +117,7 @@ pub(super) fn init_cursor_shader(
         1.0,  // Text opacity (cursor shader always uses 1.0)
         true, // Full content mode (cursor shader always uses full content)
         &empty_channels,
+        None, // Cursor shaders don't use cubemaps
     ) {
         Ok(mut renderer) => {
             let cell_w = cell_renderer.cell_width();
@@ -238,6 +252,15 @@ impl Renderer {
         animation_enabled: bool,
         animation_speed: f32,
     ) -> Result<(), String> {
+        debug_log!(
+            "cursor-shader",
+            "Toggle: enabled={}, path={:?}, animation={}, speed={}, opacity={}",
+            enabled,
+            path,
+            animation_enabled,
+            animation_speed,
+            window_opacity
+        );
         match (enabled, path) {
             (true, Some(path)) => {
                 let path_changed = self.cursor_shader_path.as_ref().is_none_or(|p| p != path);
@@ -250,11 +273,15 @@ impl Renderer {
                     renderer.set_animation_speed(animation_speed);
                     renderer.set_opacity(window_opacity);
                     self.dirty = true;
+                    debug_info!(
+                        "cursor-shader",
+                        "Already loaded; updated animation/opacities"
+                    );
                     return Ok(());
                 }
 
                 let shader_path_full = crate::config::Config::shader_path(path);
-                // Cursor shader doesn't use channel textures
+                // Cursor shader doesn't use channel textures or cubemaps
                 let empty_channels: [Option<std::path::PathBuf>; 4] = [None, None, None, None];
                 match CustomShaderRenderer::new(
                     self.cell_renderer.device(),
@@ -269,6 +296,7 @@ impl Renderer {
                     1.0,  // Text opacity (cursor shader always uses 1.0)
                     true, // Full content mode (cursor shader always uses full content)
                     &empty_channels,
+                    None, // Cursor shaders don't use cubemaps
                 ) {
                     Ok(mut renderer) => {
                         // Sync cell dimensions for cursor position calculation
@@ -277,8 +305,9 @@ impl Renderer {
                             self.cell_renderer.cell_height(),
                             self.cell_renderer.window_padding(),
                         );
-                        log::info!(
-                            "Cursor shader enabled at runtime: {}",
+                        debug_info!(
+                            "cursor-shader",
+                            "Enabled at runtime: {}",
                             shader_path_full.display()
                         );
                         self.cursor_shader_renderer = Some(renderer);
@@ -292,14 +321,16 @@ impl Renderer {
                             shader_path_full.display(),
                             e
                         );
-                        log::error!("{}", error_msg);
+                        debug_error!("cursor-shader", "{}", error_msg);
                         Err(error_msg)
                     }
                 }
             }
             _ => {
                 if self.cursor_shader_renderer.is_some() {
-                    log::info!("Cursor shader disabled at runtime");
+                    debug_info!("cursor-shader", "Disabled at runtime");
+                } else {
+                    debug_log!("cursor-shader", "Already disabled");
                 }
                 self.cursor_shader_renderer = None;
                 self.cursor_shader_path = None;
@@ -369,6 +400,7 @@ impl Renderer {
         full_content: bool,
         brightness: f32,
         channel_paths: &[Option<std::path::PathBuf>; 4],
+        cubemap_path: Option<&std::path::Path>,
     ) -> Result<(), String> {
         match (enabled, shader_path) {
             (true, Some(path)) => {
@@ -403,6 +435,7 @@ impl Renderer {
                     text_opacity,
                     full_content,
                     channel_paths,
+                    cubemap_path,
                 ) {
                     Ok(mut renderer) => {
                         // Sync cell dimensions for cursor position calculation

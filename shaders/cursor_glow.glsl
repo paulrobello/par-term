@@ -8,7 +8,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
 
     // Sample the terminal content
-    vec4 terminalColor = texture(iChannel0, uv);
+    vec4 terminalColor = texture(iChannel4, uv);
 
     // Get cursor center position (add half cell size to center it)
     vec2 cursorCenter = iCurrentCursor.xy + iCurrentCursor.zw * 0.5;

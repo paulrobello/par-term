@@ -27,7 +27,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     vec2 tc = vec2(cos(c)-0.75,sin(c)-0.75)*0.04;
     uv = clamp(uv + tc,0.0,1.0);
 
-    fragColor = texture(iChannel0, uv);
+    fragColor = texture(iChannel4, uv);
     // give transparent pixels a color
     if ( fragColor.a == 0.0 ) fragColor=vec4(0.5,0.5,1.0,1.0);
     fragColor *= vec4(color, 1.0);

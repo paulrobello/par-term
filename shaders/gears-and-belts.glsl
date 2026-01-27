@@ -368,7 +368,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     col = col * tint;
     
     vec2 uv = fragCoord/iResolution.xy;
-    vec4 terminalColor = texture(iChannel0, uv);
+    vec4 terminalColor = texture(iChannel4, uv);
     
     // Blend with reduced opacity for the shader elements
     vec3 blendedColor = terminalColor.rgb + col.rgb * 0.7; // Reduced blend factor

@@ -25,7 +25,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
         float apply = abs(sin(fragCoord.y) * 0.5 * scan);
         
         // sample the texture and apply a teal tint
-        vec3 color = texture(iChannel0, uv).rgb;
+        vec3 color = texture(iChannel4, uv).rgb;
         vec3 tealTint = vec3(0.0, 0.8, 0.6); // teal color (slightly more green than blue)
 
         // mix the sampled color with the teal tint based on scanline intensity

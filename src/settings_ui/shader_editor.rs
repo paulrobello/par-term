@@ -74,6 +74,36 @@ impl SettingsUI {
 
                 let editor_id = egui::Id::new("shader_editor_textedit");
 
+                // Handle keyboard shortcuts
+                // macOS menu system consumes key-press events, so we detect key-release with cmd held
+                let (select_all, copy, paste, cut) = ui.input(|i| {
+                    // Check raw events for key releases with command modifier
+                    // (macOS steals the press but we still see the release)
+                    let mut a = false;
+                    let mut c = false;
+                    let mut v = false;
+                    let mut x = false;
+                    for event in &i.raw.events {
+                        if let egui::Event::Key {
+                            key,
+                            pressed: false, // Key release
+                            modifiers,
+                            ..
+                        } = event
+                            && modifiers.command
+                        {
+                            match key {
+                                egui::Key::A => a = true,
+                                egui::Key::C => c = true,
+                                egui::Key::V => v = true,
+                                egui::Key::X => x = true,
+                                _ => {}
+                            }
+                        }
+                    }
+                    (a, c, v, x)
+                });
+
                 egui::ScrollArea::both()
                     .auto_shrink([false, false])
                     .max_height(available_height)
@@ -90,8 +120,86 @@ impl SettingsUI {
                                 )),
                         );
 
+                        // Handle select all
+                        if select_all {
+                            if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), editor_id)
+                            {
+                                let len = self.shader_editor_source.len();
+                                let ccursor_range = egui::text::CCursorRange::two(
+                                    egui::text::CCursor::new(0),
+                                    egui::text::CCursor::new(len),
+                                );
+                                state.cursor.set_char_range(Some(ccursor_range));
+                                state.store(ui.ctx(), editor_id);
+                            }
+                        }
+                        // Handle copy
+                        else if copy {
+                            if let Some(state) = egui::TextEdit::load_state(ui.ctx(), editor_id)
+                                && let Some(range) = state.cursor.char_range()
+                            {
+                                let start = range.primary.index.min(range.secondary.index);
+                                let end = range.primary.index.max(range.secondary.index);
+                                if start != end {
+                                    let selected_text = &self.shader_editor_source[start..end];
+                                    if let Ok(mut clipboard) = Clipboard::new() {
+                                        let _ = clipboard.set_text(selected_text);
+                                    }
+                                }
+                            }
+                        }
+                        // Handle cut
+                        else if cut {
+                            if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), editor_id)
+                                && let Some(range) = state.cursor.char_range()
+                            {
+                                let start = range.primary.index.min(range.secondary.index);
+                                let end = range.primary.index.max(range.secondary.index);
+                                if start != end {
+                                    let selected_text = &self.shader_editor_source[start..end];
+                                    if let Ok(mut clipboard) = Clipboard::new() {
+                                        let _ = clipboard.set_text(selected_text);
+                                    }
+                                    // Delete the selected text
+                                    self.shader_editor_source.replace_range(start..end, "");
+                                    // Move cursor to start of deleted range
+                                    let ccursor = egui::text::CCursor::new(start);
+                                    state.cursor.set_char_range(Some(
+                                        egui::text::CCursorRange::one(ccursor),
+                                    ));
+                                    state.store(ui.ctx(), editor_id);
+                                }
+                            }
+                        }
+                        // Handle paste
+                        else if paste
+                            && let Ok(mut clipboard) = Clipboard::new()
+                            && let Ok(text) = clipboard.get_text()
+                            && let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), editor_id)
+                        {
+                            let insert_pos = if let Some(range) = state.cursor.char_range() {
+                                let start = range.primary.index.min(range.secondary.index);
+                                let end = range.primary.index.max(range.secondary.index);
+                                // Delete selection if any
+                                if start != end {
+                                    self.shader_editor_source.replace_range(start..end, "");
+                                }
+                                start
+                            } else {
+                                self.shader_editor_source.len()
+                            };
+                            // Insert pasted text
+                            self.shader_editor_source.insert_str(insert_pos, &text);
+                            // Move cursor to end of pasted text
+                            let new_pos = insert_pos + text.len();
+                            let ccursor = egui::text::CCursor::new(new_pos);
+                            state
+                                .cursor
+                                .set_char_range(Some(egui::text::CCursorRange::one(ccursor)));
+                            state.store(ui.ctx(), editor_id);
+                        }
                         // If we have a search match, select it and scroll to it
-                        if let Some((start, end)) = search_selection
+                        else if let Some((start, end)) = search_selection
                             && let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), editor_id)
                         {
                             // Create a cursor range that selects the match

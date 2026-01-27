@@ -168,6 +168,10 @@ pub fn cursor_glow_intensity() -> f32 {
     0.3 // 30% glow intensity
 }
 
+pub fn cursor_shader_disable_in_alt_screen() -> bool {
+    true // Preserve current behavior: disable cursor shader in alt screen by default
+}
+
 pub fn bell_sound() -> u8 {
     50 // Default to 50% volume
 }
@@ -231,4 +235,8 @@ pub fn tab_close_button() -> [u8; 3] {
 
 pub fn tab_close_button_hover() -> [u8; 3] {
     [255, 100, 100] // Red on hover
+}
+
+pub fn cubemap_enabled() -> bool {
+    true // Cubemap sampling enabled by default when a path is configured
 }

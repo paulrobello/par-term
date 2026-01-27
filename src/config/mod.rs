@@ -150,7 +150,7 @@ pub struct Config {
 
     /// Custom shader file path (GLSL format, relative to shaders folder or absolute)
     /// Shaders are loaded from ~/.config/par-term/shaders/ by default
-    /// Supports Ghostty/Shadertoy-style GLSL shaders with iTime, iResolution, iChannel0
+    /// Supports Ghostty/Shadertoy-style GLSL shaders with iTime, iResolution, iChannel0-4
     #[serde(default)]
     pub custom_shader: Option<String>,
 
@@ -183,8 +183,12 @@ pub struct Config {
     #[serde(default = "defaults::custom_shader_brightness")]
     pub custom_shader_brightness: f32,
 
-    /// Texture file path for custom shader iChannel1 (optional)
+    /// Texture file path for custom shader iChannel0 (optional, Shadertoy compatible)
     /// Supports ~ for home directory. Example: "~/textures/noise.png"
+    #[serde(default)]
+    pub custom_shader_channel0: Option<String>,
+
+    /// Texture file path for custom shader iChannel1 (optional)
     #[serde(default)]
     pub custom_shader_channel1: Option<String>,
 
@@ -196,9 +200,17 @@ pub struct Config {
     #[serde(default)]
     pub custom_shader_channel3: Option<String>,
 
-    /// Texture file path for custom shader iChannel4 (optional)
+    /// Cubemap texture path prefix for custom shaders (optional)
+    /// Expects 6 face files: {prefix}-px.{ext}, -nx.{ext}, -py.{ext}, -ny.{ext}, -pz.{ext}, -nz.{ext}
+    /// Supported formats: .png, .jpg, .jpeg, .hdr
+    /// Example: "textures/cubemaps/env-outside" will load env-outside-px.png, etc.
     #[serde(default)]
-    pub custom_shader_channel4: Option<String>,
+    pub custom_shader_cubemap: Option<String>,
+
+    /// Enable cubemap sampling in custom shaders
+    /// When enabled and a cubemap path is set, iCubemap uniform is available in shaders
+    #[serde(default = "defaults::cubemap_enabled")]
+    pub custom_shader_cubemap_enabled: bool,
 
     // ========================================================================
     // Cursor Shader Settings (separate from background shader)
@@ -245,6 +257,11 @@ pub struct Config {
     /// This allows cursor shaders to fully replace the cursor rendering
     #[serde(default = "defaults::bool_false")]
     pub cursor_shader_hides_cursor: bool,
+
+    /// Disable cursor shader while in alt screen (vim, less, htop)
+    /// Keeps current behavior by default for TUI compatibility
+    #[serde(default = "defaults::cursor_shader_disable_in_alt_screen")]
+    pub cursor_shader_disable_in_alt_screen: bool,
 
     // ========================================================================
     // Selection & Clipboard
@@ -584,10 +601,12 @@ impl Default for Config {
             custom_shader_text_opacity: defaults::text_opacity(),
             custom_shader_full_content: defaults::bool_false(),
             custom_shader_brightness: defaults::custom_shader_brightness(),
+            custom_shader_channel0: None,
             custom_shader_channel1: None,
             custom_shader_channel2: None,
             custom_shader_channel3: None,
-            custom_shader_channel4: None,
+            custom_shader_cubemap: None,
+            custom_shader_cubemap_enabled: defaults::cubemap_enabled(),
             cursor_shader: None,
             cursor_shader_enabled: defaults::bool_false(),
             cursor_shader_animation: defaults::bool_true(),
@@ -597,6 +616,7 @@ impl Default for Config {
             cursor_shader_glow_radius: defaults::cursor_glow_radius(),
             cursor_shader_glow_intensity: defaults::cursor_glow_intensity(),
             cursor_shader_hides_cursor: defaults::bool_false(),
+            cursor_shader_disable_in_alt_screen: defaults::cursor_shader_disable_in_alt_screen(),
             exit_on_shell_exit: defaults::bool_true(),
             custom_shell: None,
             shell_args: None,
@@ -766,9 +786,12 @@ impl Config {
     }
 
     /// Get the channel texture paths as an array of Options
-    /// Returns [channel1, channel2, channel3, channel4]
+    /// Returns [channel0, channel1, channel2, channel3] for iChannel0-3
     pub fn shader_channel_paths(&self) -> [Option<PathBuf>; 4] {
         [
+            self.custom_shader_channel0
+                .as_ref()
+                .map(|p| Self::resolve_texture_path(p)),
             self.custom_shader_channel1
                 .as_ref()
                 .map(|p| Self::resolve_texture_path(p)),
@@ -778,10 +801,15 @@ impl Config {
             self.custom_shader_channel3
                 .as_ref()
                 .map(|p| Self::resolve_texture_path(p)),
-            self.custom_shader_channel4
-                .as_ref()
-                .map(|p| Self::resolve_texture_path(p)),
         ]
+    }
+
+    /// Get the cubemap path prefix (resolved)
+    /// Returns None if not configured, otherwise the resolved path prefix
+    pub fn shader_cubemap_path(&self) -> Option<PathBuf> {
+        self.custom_shader_cubemap
+            .as_ref()
+            .map(|p| Self::resolve_texture_path(p))
     }
 
     /// Set window dimensions
