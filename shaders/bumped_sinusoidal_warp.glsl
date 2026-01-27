@@ -1,12 +1,19 @@
 /*! par-term shader metadata
-name: "Bumped Sinusoidal Warp"
-author: "Shane (Shadertoy)"
-description: "Metallic sinusoidal warp with bump-mapped lighting"
-version: "1.0.0"
-
+name: Bumped Sinusoidal Warp
+author: Shane (Shadertoy)
+description: Metallic sinusoidal warp with bump-mapped lighting
+version: 1.0.0
 defaults:
-  animation_speed: 1.0
-  brightness: 1.0
+  animation_speed: 0.5
+  brightness: 0.25
+  text_opacity: null
+  full_content: null
+  channel0: textures/metalic1.jpg
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: textures/cubemaps/env-outside
+  cubemap_enabled: false
 */
 
 /*
@@ -28,24 +35,27 @@ defaults:
 // Sinusoidal warp function
 vec2 W(vec2 p){
     p = (p + 3.)*4.;
-    float t = iTime/2.;
+    float t = iTime*.5;
+    vec2 tOff = vec2(t, 1.57);
+    vec2 tOff2 = vec2(1.57, 0);
 
-    // Layered sinusoidal feedback
-    for (int i=0; i<3; i++){
-        p += cos(p.yx*3. + vec2(t, 1.57))/3.;
-        p += sin(p.yx + t + vec2(1.57, 0))/2.;
-        p *= 1.3;
-    }
+    // Layered sinusoidal feedback (unrolled for clarity)
+    p += cos(p.yx*3. + tOff)*.333;
+    p += sin(p.yx + t + tOff2)*.5;
+    p *= 1.3;
 
-    // Subtle jitter to soften edges
-    p += fract(sin(p+vec2(13, 7))*5e5)*.005 - .0025;
+    p += cos(p.yx*3. + tOff)*.333;
+    p += sin(p.yx + t + tOff2)*.5;
+    p *= 1.3;
+
+    p += cos(p.yx*3. + tOff)*.333;
+    p += sin(p.yx + t + tOff2)*.5;
+    p *= 1.3;
+
+    // Cheaper jitter using fract-based hash
+    p += fract(p*127.1 + p.yx*311.7)*.005 - .0025;
 
     return mod(p, 2.) - 1.;
-}
-
-// Bump height from warp function
-float bumpFunc(vec2 p){
-    return length(W(p))*.7071;
 }
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord ){
@@ -57,11 +67,14 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ){
     vec3 lp = vec3(cos(iTime)*.5, sin(iTime)*.2, -1);
     vec3 sn = vec3(0, 0, -1);
 
-    // Bump mapping
+    // Cache warp at center point (used for bump height AND texture warp)
+    vec2 warpCenter = W(sp.xy);
+    float f = length(warpCenter)*.7071;
+
+    // Bump mapping - compute derivatives at offset positions
     vec2 eps = vec2(4./iResolution.y, 0);
-    float f = bumpFunc(sp.xy);
-    float fx = bumpFunc(sp.xy - eps.xy);
-    float fy = bumpFunc(sp.xy - eps.yx);
+    float fx = length(W(sp.xy - eps.xy))*.7071;
+    float fy = length(W(sp.xy - eps.yx))*.7071;
 
     const float bumpFactor = .05;
     fx = (fx - f)/eps.x;
@@ -80,8 +93,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ){
     diff = pow(diff, 4.)*.66 + pow(diff, 8.)*.34;
     float spec = pow(max(dot(reflect(-ld, sn), -rd), 0.), 12.);
 
-    // Texture color with warp
-    vec3 texCol = texture(iChannel0, sp.xy + W(sp.xy)/8.).xyz;
+    // Texture color with cached warp
+    vec3 texCol = texture(iChannel0, sp.xy + warpCenter*.125).xyz;
     texCol *= texCol; // sRGB to linear
     texCol = smoothstep(.05, .75, pow(texCol, vec3(.75, .8, .85)));
 
