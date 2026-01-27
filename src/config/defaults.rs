@@ -240,3 +240,7 @@ pub fn tab_close_button_hover() -> [u8; 3] {
 pub fn cubemap_enabled() -> bool {
     true // Cubemap sampling enabled by default when a path is configured
 }
+
+pub fn inactive_tab_opacity() -> f32 {
+    0.6 // Default opacity for inactive tabs (60%)
+}

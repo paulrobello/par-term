@@ -4,6 +4,41 @@ use super::SettingsUI;
 
 pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.collapsing("Tab Bar", |ui| {
+        // Inactive Tab Dimming section
+        ui.label("Inactive Tab Dimming");
+        ui.indent("tab_dimming", |ui| {
+            if ui
+                .checkbox(&mut settings.config.dim_inactive_tabs, "Dim inactive tabs")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if settings.config.dim_inactive_tabs {
+                ui.horizontal(|ui| {
+                    ui.label("Opacity:");
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut settings.config.inactive_tab_opacity, 0.2..=1.0)
+                                .step_by(0.05)
+                                .suffix(""),
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+                ui.label(
+                    egui::RichText::new("Hovered tabs temporarily restore full opacity")
+                        .small()
+                        .weak(),
+                );
+            }
+        });
+
+        ui.add_space(8.0);
         ui.label("Background Colors");
         ui.indent("tab_bg_colors", |ui| {
             ui.horizontal(|ui| {
