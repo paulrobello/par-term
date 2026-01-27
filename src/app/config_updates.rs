@@ -20,6 +20,8 @@ pub(crate) struct ConfigChanges {
     pub shader_full_content: bool,
     pub shader_text_opacity: bool,
     pub shader_brightness: bool,
+    pub shader_textures: bool,
+    pub shader_cubemap: bool,
 
     // Cursor shader
     pub cursor_shader_config: bool,
@@ -72,6 +74,12 @@ impl ConfigChanges {
                 > f32::EPSILON,
             shader_brightness: (new.custom_shader_brightness - old.custom_shader_brightness).abs()
                 > f32::EPSILON,
+            shader_textures: new.custom_shader_channel0 != old.custom_shader_channel0
+                || new.custom_shader_channel1 != old.custom_shader_channel1
+                || new.custom_shader_channel2 != old.custom_shader_channel2
+                || new.custom_shader_channel3 != old.custom_shader_channel3,
+            shader_cubemap: new.custom_shader_cubemap != old.custom_shader_cubemap
+                || new.custom_shader_cubemap_enabled != old.custom_shader_cubemap_enabled,
 
             cursor_shader_config: new.cursor_shader_color != old.cursor_shader_color
                 || (new.cursor_shader_trail_duration - old.cursor_shader_trail_duration).abs()
@@ -128,6 +136,8 @@ impl ConfigChanges {
             || self.shader_full_content
             || self.shader_text_opacity
             || self.shader_brightness
+            || self.shader_textures
+            || self.shader_cubemap
     }
 
     /// Returns true if any cursor shader path/enabled/animation changed

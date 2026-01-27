@@ -98,6 +98,7 @@ The directory is created automatically when par-term first starts.
 | `fireworks.glsl` | Fireworks particle effect |
 | `fireworks-rockets.glsl` | Fireworks with rocket trails |
 | `sparks-from-fire.glsl` | Rising fire sparks effect |
+| `cubemap-skybox.glsl` | Cubemap environment with animated rotation |
 | `smoke-and-ghost.glsl` | Ethereal smoke and ghosting effect |
 | `cubes.glsl` | 3D rotating cubes background |
 | `gears-and-belts.glsl` | Mechanical gears animation |
@@ -204,6 +205,58 @@ custom_shader_channel3: null  # Not used
 - Textures can also be configured via Settings UI under "Shader Channel Textures"
 - Sample textures are included in `shaders/textures/` directory
 
+### Cubemap Textures
+
+Par-term supports cubemap textures for environment mapping and skybox effects via the `iCubemap` uniform. Cubemaps consist of 6 face images that form a seamless cube.
+
+```yaml
+# ~/.config/par-term/config.yaml
+
+# Path prefix for cubemap faces
+# Expects 6 files: {prefix}-px.{ext}, -nx.{ext}, -py.{ext}, -ny.{ext}, -pz.{ext}, -nz.{ext}
+# where {ext} is one of: png, jpg, jpeg, hdr
+custom_shader_cubemap: "shaders/textures/cubemaps/env-outside"
+
+# Enable cubemap sampling
+custom_shader_cubemap_enabled: true
+```
+
+**Face naming convention:**
+- `{prefix}-px.{ext}` - Positive X (+X, right)
+- `{prefix}-nx.{ext}` - Negative X (-X, left)
+- `{prefix}-py.{ext}` - Positive Y (+Y, top)
+- `{prefix}-ny.{ext}` - Negative Y (-Y, bottom)
+- `{prefix}-pz.{ext}` - Positive Z (+Z, front)
+- `{prefix}-nz.{ext}` - Negative Z (-Z, back)
+
+**Example usage in shader:**
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    vec2 uv = (fragCoord - 0.5 * iResolution.xy) / min(iResolution.x, iResolution.y);
+
+    // Create ray direction from camera
+    vec3 rayDir = normalize(vec3(uv.x, uv.y, -1.0));
+
+    // Rotate over time for animation
+    float angle = iTime * 0.2;
+    float c = cos(angle), s = sin(angle);
+    rayDir = vec3(rayDir.x * c - rayDir.z * s, rayDir.y, rayDir.x * s + rayDir.z * c);
+
+    // Sample cubemap
+    vec4 sky = texture(iCubemap, rayDir);
+
+    // Blend with terminal content
+    vec4 terminal = texture(iChannel4, fragCoord / iResolution.xy);
+    fragColor = terminal.a > 0.01 ? terminal : sky;
+}
+```
+
+**Notes:**
+- HDR cubemaps (.hdr) are supported with automatic Rgba16Float conversion
+- LDR cubemaps use Rgba8UnormSrgb format
+- Sample cubemaps are included in `shaders/textures/cubemaps/`
+- Use `iCubemapResolution.xy` for cubemap face dimensions
+
 ### Cursor Shaders
 
 Cursor shaders are configured separately:
@@ -269,6 +322,8 @@ Par-term provides Shadertoy-compatible uniforms:
 | `iChannel3` | `sampler2D` | User texture channel 3 (Shadertoy compatible) |
 | `iChannel4` | `sampler2D` | Terminal content texture |
 | `iChannelResolution[n]` | `vec3` | Resolution of channel n (width, height, 1.0) |
+| `iCubemap` | `samplerCube` | Cubemap texture for environment mapping |
+| `iCubemapResolution` | `vec4` | Cubemap face size (size, size, 1.0, 0.0) |
 | `iOpacity` | `float` | Window opacity setting |
 | `iTextOpacity` | `float` | Text opacity setting |
 | `iBrightness` | `float` | Shader brightness multiplier (0.05-1.0) |

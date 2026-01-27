@@ -126,7 +126,8 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     vec4 iChannelResolution2;  // offset 208, size 16 - iChannel2 resolution
     vec4 iChannelResolution3;  // offset 224, size 16 - iChannel3 resolution
     vec4 iChannelResolution4;  // offset 240, size 16 - iChannel4 resolution
-}};                            // total: 256 bytes
+    vec4 iCubemapResolution;   // offset 256, size 16 - Cubemap resolution [size, size, 1, 0]
+}};                            // total: 272 bytes
 
 // Shadertoy-compatible iChannelResolution array accessor
 // Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.
@@ -152,12 +153,17 @@ layout(set = 0, binding = 8) uniform sampler _iChannel3Sampler;
 layout(set = 0, binding = 9) uniform texture2D _iChannel4Tex;
 layout(set = 0, binding = 10) uniform sampler _iChannel4Sampler;
 
+// Cubemap texture (iCubemap)
+layout(set = 0, binding = 11) uniform textureCube _iCubemapTex;
+layout(set = 0, binding = 12) uniform sampler _iCubemapSampler;
+
 // Combined samplers for texture() calls
 #define iChannel0 sampler2D(_iChannel0Tex, _iChannel0Sampler)
 #define iChannel1 sampler2D(_iChannel1Tex, _iChannel1Sampler)
 #define iChannel2 sampler2D(_iChannel2Tex, _iChannel2Sampler)
 #define iChannel3 sampler2D(_iChannel3Tex, _iChannel3Sampler)
 #define iChannel4 sampler2D(_iChannel4Tex, _iChannel4Sampler)
+#define iCubemap samplerCube(_iCubemapTex, _iCubemapSampler)
 
 // Input from vertex shader
 layout(location = 0) in vec2 v_uv;
@@ -377,7 +383,8 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     vec4 iChannelResolution2;  // offset 208, size 16 - iChannel2 resolution
     vec4 iChannelResolution3;  // offset 224, size 16 - iChannel3 resolution
     vec4 iChannelResolution4;  // offset 240, size 16 - iChannel4 resolution
-}};                            // total: 256 bytes
+    vec4 iCubemapResolution;   // offset 256, size 16 - Cubemap resolution [size, size, 1, 0]
+}};                            // total: 272 bytes
 
 // Shadertoy-compatible iChannelResolution array accessor
 // Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.
@@ -403,12 +410,17 @@ layout(set = 0, binding = 8) uniform sampler _iChannel3Sampler;
 layout(set = 0, binding = 9) uniform texture2D _iChannel4Tex;
 layout(set = 0, binding = 10) uniform sampler _iChannel4Sampler;
 
+// Cubemap texture (iCubemap)
+layout(set = 0, binding = 11) uniform textureCube _iCubemapTex;
+layout(set = 0, binding = 12) uniform sampler _iCubemapSampler;
+
 // Combined samplers for texture() calls
 #define iChannel0 sampler2D(_iChannel0Tex, _iChannel0Sampler)
 #define iChannel1 sampler2D(_iChannel1Tex, _iChannel1Sampler)
 #define iChannel2 sampler2D(_iChannel2Tex, _iChannel2Sampler)
 #define iChannel3 sampler2D(_iChannel3Tex, _iChannel3Sampler)
 #define iChannel4 sampler2D(_iChannel4Tex, _iChannel4Sampler)
+#define iCubemap samplerCube(_iCubemapTex, _iCubemapSampler)
 
 // Input from vertex shader
 layout(location = 0) in vec2 v_uv;

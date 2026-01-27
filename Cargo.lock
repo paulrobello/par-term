@@ -3255,6 +3255,7 @@ dependencies = [
  "egui-winit",
  "env_logger",
  "fontdb",
+ "half",
  "image",
  "log",
  "muda",

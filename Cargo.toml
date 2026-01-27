@@ -77,6 +77,9 @@ chrono = "0.4"
 # Image loading for background images
 image = "0.25"
 
+# Half-precision float for HDR cubemap textures
+half = "2.4"
+
 # GLSL to WGSL transpilation for custom shaders
 naga = { version = "27", features = ["glsl-in", "wgsl-out"] }
 

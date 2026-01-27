@@ -10,8 +10,11 @@ use winit::keyboard::{Key, NamedKey};
 impl WindowState {
     pub(crate) fn handle_key_event(&mut self, event: KeyEvent, event_loop: &ActiveEventLoop) {
         // Check if any UI panel is visible
-        let any_ui_visible =
-            self.settings_ui.visible || self.help_ui.visible || self.clipboard_history_ui.visible;
+        let any_ui_visible = self.settings_ui.visible
+            || self.help_ui.visible
+            || self.clipboard_history_ui.visible
+            || self.settings_ui.is_shader_editor_visible()
+            || self.settings_ui.is_cursor_shader_editor_visible();
 
         // When UI panels are visible, block ALL keys from going to terminal
         // except for UI control keys (Escape handled by egui, F1/F2/F3 for toggles)
@@ -25,14 +28,12 @@ impl WindowState {
             );
 
             if !is_ui_control_key {
-                log::debug!("Blocking key while UI visible: {:?}", event.logical_key);
                 return;
             }
         }
 
         // Check if egui UI wants keyboard input (e.g., text fields, ComboBoxes)
         if self.is_egui_using_keyboard() {
-            log::debug!("Blocking key event: egui wants keyboard input");
             return;
         }
 
@@ -128,26 +129,10 @@ impl WindowState {
             }
         }
 
-        // Debug: Log Tab and Space key before processing
-        let is_tab = matches!(event.logical_key, Key::Named(NamedKey::Tab));
-        let is_space = matches!(event.logical_key, Key::Named(NamedKey::Space));
-        if is_tab {
-            log::debug!("Tab key event received, state={:?}", event.state);
-        }
-        if is_space {
-            log::debug!("Space key event received, state={:?}", event.state);
-        }
-
         // Normal key handling - send to terminal
         if let Some(bytes) = self.input_handler.handle_key_event(event)
             && let Some(tab) = self.tab_manager.active_tab()
         {
-            if is_tab {
-                log::debug!("Sending Tab key to terminal ({} bytes)", bytes.len());
-            }
-            if is_space {
-                log::debug!("Sending Space key to terminal ({} bytes)", bytes.len());
-            }
             let terminal_clone = Arc::clone(&tab.terminal);
 
             self.runtime.spawn(async move {

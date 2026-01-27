@@ -19,12 +19,14 @@ use std::path::Path;
 use std::time::Instant;
 use wgpu::*;
 
+mod cubemap;
 mod cursor;
 pub mod pipeline;
 pub mod textures;
 pub mod transpiler;
 pub mod types;
 
+use cubemap::CubemapTexture;
 use pipeline::{create_bind_group, create_bind_group_layout, create_render_pipeline};
 use textures::{ChannelTexture, load_channel_textures};
 use transpiler::{transpile_glsl_to_wgsl, transpile_glsl_to_wgsl_source};
@@ -121,6 +123,10 @@ pub struct CustomShaderRenderer {
     // ============ Channel textures (iChannel0-3) ============
     /// Texture channels 0-3 (placeholders or loaded textures, Shadertoy compatible)
     pub(crate) channel_textures: [ChannelTexture; 4],
+
+    // ============ Cubemap texture (iCubemap) ============
+    /// Cubemap texture for environment mapping (placeholder or loaded)
+    pub(crate) cubemap: CubemapTexture,
 }
 
 impl CustomShaderRenderer {
@@ -139,6 +145,7 @@ impl CustomShaderRenderer {
         text_opacity: f32,
         full_content_mode: bool,
         channel_paths: &[Option<std::path::PathBuf>; 4],
+        cubemap_path: Option<&Path>,
     ) -> Result<Self> {
         // Load the GLSL shader
         let glsl_source = std::fs::read_to_string(shader_path)
@@ -201,6 +208,18 @@ impl CustomShaderRenderer {
         // Load channel textures (iChannel0-3)
         let channel_textures = load_channel_textures(device, queue, channel_paths);
 
+        // Load cubemap texture (iCubemap)
+        let cubemap = match cubemap_path {
+            Some(path) => match CubemapTexture::from_prefix(device, queue, path) {
+                Ok(cm) => cm,
+                Err(e) => {
+                    log::error!("Failed to load cubemap '{}': {}", path.display(), e);
+                    CubemapTexture::placeholder(device, queue)
+                }
+            },
+            None => CubemapTexture::placeholder(device, queue),
+        };
+
         // Create uniform buffer
         let uniform_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Custom Shader Uniforms"),
@@ -218,6 +237,7 @@ impl CustomShaderRenderer {
             &intermediate_texture_view,
             &sampler,
             &channel_textures,
+            &cubemap,
         );
 
         // Create render pipeline
@@ -273,6 +293,7 @@ impl CustomShaderRenderer {
             cursor_glow_radius: 80.0,
             cursor_glow_intensity: 0.3,
             channel_textures,
+            cubemap,
         })
     }
 
@@ -330,6 +351,7 @@ impl CustomShaderRenderer {
             &self.intermediate_texture_view,
             &self.sampler,
             &self.channel_textures,
+            &self.cubemap,
         );
     }
 
@@ -431,19 +453,6 @@ impl CustomShaderRenderer {
         let (prev_x, prev_y) =
             self.cursor_to_pixels(self.previous_cursor_pos.0, self.previous_cursor_pos.1);
 
-        // Debug logging
-        if self.frame_count.is_multiple_of(60) {
-            log::debug!(
-                "CURSOR_SHADER: pos=({},{}) -> pixels=({:.1},{:.1}), cell=({:.1}x{:.1})",
-                self.current_cursor_pos.0,
-                self.current_cursor_pos.1,
-                curr_x,
-                curr_y,
-                self.cursor_cell_width,
-                self.cursor_cell_height,
-            );
-        }
-
         CustomShaderUniforms {
             resolution: [self.texture_width as f32, self.texture_height as f32],
             time,
@@ -497,6 +506,7 @@ impl CustomShaderRenderer {
                 1.0,
                 0.0,
             ],
+            cubemap_resolution: self.cubemap.resolution(),
         }
     }
 
@@ -629,11 +639,46 @@ impl CustomShaderRenderer {
             &self.intermediate_texture_view,
             &self.sampler,
             &self.channel_textures,
+            &self.cubemap,
         );
 
         log::info!(
             "Updated iChannel{} texture: {}",
             channel,
+            path.map(|p| p.display().to_string())
+                .unwrap_or_else(|| "placeholder".to_string())
+        );
+
+        Ok(())
+    }
+
+    /// Update the cubemap texture at runtime
+    #[allow(dead_code)]
+    pub fn update_cubemap(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        path: Option<&std::path::Path>,
+    ) -> Result<()> {
+        let new_cubemap = match path {
+            Some(p) => CubemapTexture::from_prefix(device, queue, p)?,
+            None => CubemapTexture::placeholder(device, queue),
+        };
+
+        self.cubemap = new_cubemap;
+
+        self.bind_group = create_bind_group(
+            device,
+            &self.bind_group_layout,
+            &self.uniform_buffer,
+            &self.intermediate_texture_view,
+            &self.sampler,
+            &self.channel_textures,
+            &self.cubemap,
+        );
+
+        log::info!(
+            "Updated cubemap texture: {}",
             path.map(|p| p.display().to_string())
                 .unwrap_or_else(|| "placeholder".to_string())
         );

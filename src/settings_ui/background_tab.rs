@@ -293,6 +293,95 @@ pub fn show_background(
             *changes_this_frame = true;
         }
 
+        // Cubemap settings
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            ui.label("Cubemap:");
+            let selected_text = if settings.temp_cubemap_path.is_empty() {
+                "(none)".to_string()
+            } else {
+                // Show just the cubemap name, not full path
+                settings.temp_cubemap_path
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&settings.temp_cubemap_path)
+                    .to_string()
+            };
+
+            let mut cubemap_changed = false;
+            egui::ComboBox::from_id_salt("cubemap_select")
+                .selected_text(&selected_text)
+                .width(200.0)
+                .show_ui(ui, |ui| {
+                    // Option to select none
+                    if ui.selectable_label(settings.temp_cubemap_path.is_empty(), "(none)").clicked() {
+                        settings.temp_cubemap_path.clear();
+                        settings.config.custom_shader_cubemap = None;
+                        cubemap_changed = true;
+                    }
+
+                    // List available cubemaps
+                    for cubemap in &settings.available_cubemaps.clone() {
+                        let display_name = cubemap.rsplit('/').next().unwrap_or(cubemap);
+                        let is_selected = settings.temp_cubemap_path == *cubemap;
+                        if ui.selectable_label(is_selected, display_name).clicked() {
+                            settings.temp_cubemap_path = cubemap.clone();
+                            settings.config.custom_shader_cubemap = Some(cubemap.clone());
+                            cubemap_changed = true;
+                        }
+                    }
+                });
+
+            if cubemap_changed {
+                log::info!(
+                    "Cubemap changed in UI: path={:?}",
+                    settings.config.custom_shader_cubemap
+                );
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            // Refresh button
+            if ui.button("↻").on_hover_text("Refresh cubemap list").clicked() {
+                settings.refresh_cubemaps();
+            }
+        });
+
+        ui.horizontal(|ui| {
+            if ui.button("Browse folder...").clicked()
+                && let Some(folder) = rfd::FileDialog::new()
+                    .set_title("Select folder containing cubemap faces")
+                    .pick_folder()
+            {
+                // Look for common cubemap prefixes in the selected folder
+                if let Some(prefix) = find_cubemap_prefix(&folder) {
+                    settings.temp_cubemap_path = prefix.to_string_lossy().to_string();
+                    settings.config.custom_shader_cubemap = Some(settings.temp_cubemap_path.clone());
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            }
+
+            if ui.button("Clear").clicked() && !settings.temp_cubemap_path.is_empty() {
+                settings.temp_cubemap_path.clear();
+                settings.config.custom_shader_cubemap = None;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        if ui
+            .checkbox(
+                &mut settings.config.custom_shader_cubemap_enabled,
+                "Enable cubemap",
+            )
+            .on_hover_text("Enable iCubemap uniform for environment mapping in shaders")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
         // Edit Shader button - only enabled when a shader path is set
         let has_shader_path = !settings.temp_custom_shader.is_empty();
         ui.horizontal(|ui| {
@@ -659,4 +748,48 @@ pub fn show_cursor_shader(
             }
         });
     });
+}
+
+/// Find a cubemap prefix in a folder by looking for standard face naming patterns
+fn find_cubemap_prefix(folder: &std::path::Path) -> Option<std::path::PathBuf> {
+    // Look for files matching common cubemap naming patterns
+    let suffixes = ["px", "nx", "py", "ny", "pz", "nz"];
+    let extensions = ["png", "jpg", "jpeg", "hdr"];
+
+    // Try to find any file that matches *-px.* pattern
+    if let Ok(entries) = std::fs::read_dir(folder) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                // Check if this file ends with a face suffix
+                for suffix in &suffixes {
+                    let pattern = format!("-{}", suffix);
+                    if stem.ends_with(&pattern) {
+                        // Found a face file, extract the prefix
+                        let prefix = &stem[..stem.len() - pattern.len()];
+                        // Verify all 6 faces exist
+                        let mut all_found = true;
+                        for check_suffix in &suffixes {
+                            let mut found = false;
+                            for ext in &extensions {
+                                let face_name = format!("{}-{}.{}", prefix, check_suffix, ext);
+                                if folder.join(&face_name).exists() {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if !found {
+                                all_found = false;
+                                break;
+                            }
+                        }
+                        if all_found {
+                            return Some(folder.join(prefix));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }

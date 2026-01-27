@@ -200,6 +200,18 @@ pub struct Config {
     #[serde(default)]
     pub custom_shader_channel3: Option<String>,
 
+    /// Cubemap texture path prefix for custom shaders (optional)
+    /// Expects 6 face files: {prefix}-px.{ext}, -nx.{ext}, -py.{ext}, -ny.{ext}, -pz.{ext}, -nz.{ext}
+    /// Supported formats: .png, .jpg, .jpeg, .hdr
+    /// Example: "textures/cubemaps/env-outside" will load env-outside-px.png, etc.
+    #[serde(default)]
+    pub custom_shader_cubemap: Option<String>,
+
+    /// Enable cubemap sampling in custom shaders
+    /// When enabled and a cubemap path is set, iCubemap uniform is available in shaders
+    #[serde(default = "defaults::cubemap_enabled")]
+    pub custom_shader_cubemap_enabled: bool,
+
     // ========================================================================
     // Cursor Shader Settings (separate from background shader)
     // ========================================================================
@@ -593,6 +605,8 @@ impl Default for Config {
             custom_shader_channel1: None,
             custom_shader_channel2: None,
             custom_shader_channel3: None,
+            custom_shader_cubemap: None,
+            custom_shader_cubemap_enabled: defaults::cubemap_enabled(),
             cursor_shader: None,
             cursor_shader_enabled: defaults::bool_false(),
             cursor_shader_animation: defaults::bool_true(),
@@ -788,6 +802,14 @@ impl Config {
                 .as_ref()
                 .map(|p| Self::resolve_texture_path(p)),
         ]
+    }
+
+    /// Get the cubemap path prefix (resolved)
+    /// Returns None if not configured, otherwise the resolved path prefix
+    pub fn shader_cubemap_path(&self) -> Option<PathBuf> {
+        self.custom_shader_cubemap
+            .as_ref()
+            .map(|p| Self::resolve_texture_path(p))
     }
 
     /// Set window dimensions

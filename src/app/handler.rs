@@ -93,9 +93,6 @@ impl WindowState {
                         key_event.state
                     );
                 }
-                Key::Named(NamedKey::Space) => {
-                    log::debug!("SPACE EVENT: state={:?}", key_event.state);
-                }
                 Key::Named(named) => {
                     log::trace!(
                         "window_event: Named key {:?}, state={:?}",
@@ -135,8 +132,31 @@ impl WindowState {
 
         // Only honor egui's consumption if an egui UI panel is actually visible
         // This prevents egui from stealing Tab/Space when UI is closed
-        let any_ui_visible =
-            self.settings_ui.visible || self.help_ui.visible || self.clipboard_history_ui.visible;
+        let any_ui_visible = self.settings_ui.visible
+            || self.help_ui.visible
+            || self.clipboard_history_ui.visible
+            || self.settings_ui.is_shader_editor_visible()
+            || self.settings_ui.is_cursor_shader_editor_visible();
+
+        // When shader editor is visible, block keyboard events from terminal
+        // even if egui didn't consume them (egui might not have focus)
+        if any_ui_visible
+            && let WindowEvent::KeyboardInput {
+                event: key_event, ..
+            } = &event
+            // Always block keyboard input when UI is visible (except system keys)
+            && !matches!(
+                key_event.logical_key,
+                Key::Named(NamedKey::F1)
+                    | Key::Named(NamedKey::F2)
+                    | Key::Named(NamedKey::F3)
+                    | Key::Named(NamedKey::F11)
+                    | Key::Named(NamedKey::Escape)
+            )
+        {
+            return false;
+        }
+
         if egui_consumed
             && any_ui_visible
             && !matches!(
@@ -144,20 +164,6 @@ impl WindowState {
                 WindowEvent::CloseRequested | WindowEvent::RedrawRequested
             )
         {
-            if let WindowEvent::KeyboardInput {
-                event: key_event, ..
-            } = &event
-            {
-                match &key_event.logical_key {
-                    Key::Named(NamedKey::Space) => {
-                        log::debug!("egui consumed Space while UI panel is visible")
-                    }
-                    Key::Named(_) => {
-                        log::debug!("egui consumed named key while UI panel is visible")
-                    }
-                    _ => {}
-                }
-            }
             return false; // Event consumed by egui, don't close window
         }
 

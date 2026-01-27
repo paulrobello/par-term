@@ -21,6 +21,7 @@ pub(super) fn init_custom_shader(
     custom_shader_full_content: bool,
     custom_shader_brightness: f32,
     custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
+    custom_shader_cubemap_path: Option<&std::path::Path>,
 ) -> (Option<CustomShaderRenderer>, Option<String>) {
     if !custom_shader_enabled {
         return (None, None);
@@ -44,6 +45,7 @@ pub(super) fn init_custom_shader(
         custom_shader_text_opacity,
         custom_shader_full_content,
         custom_shader_channel_paths,
+        custom_shader_cubemap_path,
     ) {
         Ok(mut renderer) => {
             renderer.update_cell_dimensions(
@@ -115,6 +117,7 @@ pub(super) fn init_cursor_shader(
         1.0,  // Text opacity (cursor shader always uses 1.0)
         true, // Full content mode (cursor shader always uses full content)
         &empty_channels,
+        None, // Cursor shaders don't use cubemaps
     ) {
         Ok(mut renderer) => {
             let cell_w = cell_renderer.cell_width();
@@ -278,7 +281,7 @@ impl Renderer {
                 }
 
                 let shader_path_full = crate::config::Config::shader_path(path);
-                // Cursor shader doesn't use channel textures
+                // Cursor shader doesn't use channel textures or cubemaps
                 let empty_channels: [Option<std::path::PathBuf>; 4] = [None, None, None, None];
                 match CustomShaderRenderer::new(
                     self.cell_renderer.device(),
@@ -293,6 +296,7 @@ impl Renderer {
                     1.0,  // Text opacity (cursor shader always uses 1.0)
                     true, // Full content mode (cursor shader always uses full content)
                     &empty_channels,
+                    None, // Cursor shaders don't use cubemaps
                 ) {
                     Ok(mut renderer) => {
                         // Sync cell dimensions for cursor position calculation
@@ -396,6 +400,7 @@ impl Renderer {
         full_content: bool,
         brightness: f32,
         channel_paths: &[Option<std::path::PathBuf>; 4],
+        cubemap_path: Option<&std::path::Path>,
     ) -> Result<(), String> {
         match (enabled, shader_path) {
             (true, Some(path)) => {
@@ -430,6 +435,7 @@ impl Renderer {
                     text_opacity,
                     full_content,
                     channel_paths,
+                    cubemap_path,
                 ) {
                     Ok(mut renderer) => {
                         // Sync cell dimensions for cursor position calculation

@@ -5,9 +5,10 @@
 
 use wgpu::*;
 
+use super::cubemap::CubemapTexture;
 use super::textures::ChannelTexture;
 
-/// Create the bind group layout for custom shaders with all 11 entries.
+/// Create the bind group layout for custom shaders with all 13 entries.
 ///
 /// Layout:
 /// - 0: Uniform buffer
@@ -21,6 +22,8 @@ use super::textures::ChannelTexture;
 /// - 8: iChannel3 sampler
 /// - 9: iChannel4 texture (terminal content)
 /// - 10: iChannel4 sampler
+/// - 11: iCubemap texture (cubemap for environment mapping)
+/// - 12: iCubemap sampler
 pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
     device.create_bind_group_layout(&BindGroupLayoutDescriptor {
         label: Some("Custom Shader Bind Group Layout"),
@@ -126,6 +129,24 @@ pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
                 ty: BindingType::Sampler(SamplerBindingType::Filtering),
                 count: None,
             },
+            // iCubemap texture (binding 11) - cubemap for environment mapping
+            BindGroupLayoutEntry {
+                binding: 11,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Texture {
+                    sample_type: TextureSampleType::Float { filterable: true },
+                    view_dimension: TextureViewDimension::Cube,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            // iCubemap sampler (binding 12)
+            BindGroupLayoutEntry {
+                binding: 12,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Sampler(SamplerBindingType::Filtering),
+                count: None,
+            },
         ],
     })
 }
@@ -139,6 +160,7 @@ pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
 /// * `intermediate_texture_view` - Terminal content texture view (iChannel4)
 /// * `sampler` - Sampler for the intermediate texture
 /// * `channel_textures` - Array of 4 channel textures (iChannel0-3, Shadertoy compatible)
+/// * `cubemap` - Cubemap texture for environment mapping (iCubemap)
 pub fn create_bind_group(
     device: &Device,
     layout: &BindGroupLayout,
@@ -146,6 +168,7 @@ pub fn create_bind_group(
     intermediate_texture_view: &TextureView,
     sampler: &Sampler,
     channel_textures: &[ChannelTexture; 4],
+    cubemap: &CubemapTexture,
 ) -> BindGroup {
     device.create_bind_group(&BindGroupDescriptor {
         label: Some("Custom Shader Bind Group"),
@@ -199,6 +222,15 @@ pub fn create_bind_group(
             BindGroupEntry {
                 binding: 10,
                 resource: BindingResource::Sampler(sampler),
+            },
+            // iCubemap (cubemap for environment mapping)
+            BindGroupEntry {
+                binding: 11,
+                resource: BindingResource::TextureView(&cubemap.view),
+            },
+            BindGroupEntry {
+                binding: 12,
+                resource: BindingResource::Sampler(&cubemap.sampler),
             },
         ],
     })

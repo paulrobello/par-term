@@ -86,6 +86,8 @@ impl Renderer {
         custom_shader_brightness: f32,
         // Custom shader channel textures (iChannel0-3)
         custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
+        // Cubemap texture path prefix for environment mapping (iCubemap)
+        custom_shader_cubemap_path: Option<&std::path::Path>,
         // Cursor shader settings (separate from background shader)
         cursor_shader_path: Option<&str>,
         cursor_shader_enabled: bool,
@@ -217,6 +219,7 @@ impl Renderer {
             custom_shader_full_content,
             custom_shader_brightness,
             custom_shader_channel_paths,
+            custom_shader_cubemap_path,
         );
 
         // Create cursor shader renderer if configured (separate from background shader)

@@ -77,6 +77,9 @@ pub struct SettingsUI {
     pub(crate) temp_shader_channel2: String,
     pub(crate) temp_shader_channel3: String,
 
+    /// Temporary string for cubemap path prefix (iCubemap)
+    pub(crate) temp_cubemap_path: String,
+
     /// Search query used to filter settings sections
     pub(crate) search_query: String,
 
@@ -103,6 +106,8 @@ pub struct SettingsUI {
     // Shader management state
     /// List of available shader files in the shaders folder
     pub(crate) available_shaders: Vec<String>,
+    /// List of available cubemap prefixes (e.g., "textures/cubemaps/env-outside")
+    pub(crate) available_cubemaps: Vec<String>,
     /// Name for new shader (in create dialog)
     pub(crate) new_shader_name: String,
     /// Whether to show the create shader dialog
@@ -151,6 +156,7 @@ impl SettingsUI {
             temp_shader_channel1: config.custom_shader_channel1.clone().unwrap_or_default(),
             temp_shader_channel2: config.custom_shader_channel2.clone().unwrap_or_default(),
             temp_shader_channel3: config.custom_shader_channel3.clone().unwrap_or_default(),
+            temp_cubemap_path: config.custom_shader_cubemap.clone().unwrap_or_default(),
             last_live_opacity: config.window_opacity,
             config,
             has_changes: false,
@@ -164,6 +170,7 @@ impl SettingsUI {
             cursor_shader_editor_error: None,
             cursor_shader_editor_original: String::new(),
             available_shaders: Self::scan_shaders_folder(),
+            available_cubemaps: Self::scan_cubemaps_folder(),
             new_shader_name: String::new(),
             show_create_shader_dialog: false,
             show_delete_shader_dialog: false,

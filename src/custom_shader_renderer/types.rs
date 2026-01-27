@@ -74,11 +74,13 @@ pub(crate) struct CustomShaderUniforms {
     pub channel3_resolution: [f32; 4],
     /// Channel 4 resolution [width, height, 1.0, 0.0] - offset 240, size 16
     pub channel4_resolution: [f32; 4],
+    /// Cubemap resolution [size, size, 1.0, 0.0] - offset 256, size 16
+    pub cubemap_resolution: [f32; 4],
 }
-// Total size: 256 bytes
+// Total size: 272 bytes
 
 // Compile-time assertion to ensure uniform struct size matches expectations
 const _: () = assert!(
-    std::mem::size_of::<CustomShaderUniforms>() == 256,
-    "CustomShaderUniforms must be exactly 256 bytes for GPU compatibility"
+    std::mem::size_of::<CustomShaderUniforms>() == 272,
+    "CustomShaderUniforms must be exactly 272 bytes for GPU compatibility"
 );

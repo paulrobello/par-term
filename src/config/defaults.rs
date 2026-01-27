@@ -236,3 +236,7 @@ pub fn tab_close_button() -> [u8; 3] {
 pub fn tab_close_button_hover() -> [u8; 3] {
     [255, 100, 100] // Red on hover
 }
+
+pub fn cubemap_enabled() -> bool {
+    true // Cubemap sampling enabled by default when a path is configured
+}

@@ -120,6 +120,15 @@ run-trace:
 	@echo ""
 	RUST_LOG=trace DEBUG_LEVEL=4 cargo run
 
+# Run release build with debug logging
+run-release-debug: release
+	@echo "Running release build with DEBUG_LEVEL=3..."
+	@echo "Debug log: /tmp/par_term_debug.log"
+	@echo ""
+	@echo "💡 In another terminal, run: make tail-log"
+	@echo ""
+	RUST_LOG=debug DEBUG_LEVEL=3 ./target/release/par-term
+
 # Run all tests
 test:
 	@echo "Running tests..."

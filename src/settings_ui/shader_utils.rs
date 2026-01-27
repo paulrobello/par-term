@@ -39,6 +39,77 @@ impl SettingsUI {
         self.available_shaders = Self::scan_shaders_folder();
     }
 
+    /// Scan for cubemap prefixes in the textures/cubemaps folder.
+    /// Returns relative paths like "textures/cubemaps/env-outside"
+    pub(super) fn scan_cubemaps_folder() -> Vec<String> {
+        let cubemaps_dir = crate::config::Config::shaders_dir()
+            .join("textures")
+            .join("cubemaps");
+        let mut cubemaps = Vec::new();
+
+        if !cubemaps_dir.exists() {
+            return cubemaps;
+        }
+
+        let suffixes = ["px", "nx", "py", "ny", "pz", "nz"];
+        let extensions = ["png", "jpg", "jpeg", "hdr"];
+        let mut seen_prefixes = std::collections::HashSet::new();
+
+        if let Ok(entries) = std::fs::read_dir(&cubemaps_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    // Check if this file ends with a face suffix
+                    for suffix in &suffixes {
+                        let pattern = format!("-{}", suffix);
+                        if stem.ends_with(&pattern) {
+                            let prefix = &stem[..stem.len() - pattern.len()];
+                            if seen_prefixes.contains(prefix) {
+                                continue;
+                            }
+
+                            // Verify all 6 faces exist
+                            let mut all_found = true;
+                            for check_suffix in &suffixes {
+                                let mut found = false;
+                                for ext in &extensions {
+                                    let face_name = format!("{}-{}.{}", prefix, check_suffix, ext);
+                                    if cubemaps_dir.join(&face_name).exists() {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if !found {
+                                    all_found = false;
+                                    break;
+                                }
+                            }
+
+                            if all_found {
+                                seen_prefixes.insert(prefix.to_string());
+                                // Return relative path from shaders dir
+                                cubemaps.push(format!("textures/cubemaps/{}", prefix));
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        cubemaps.sort();
+        cubemaps
+    }
+
+    /// Refresh the list of available cubemaps.
+    pub fn refresh_cubemaps(&mut self) {
+        self.available_cubemaps = Self::scan_cubemaps_folder();
+    }
+
     /// Get background shaders (excludes cursor_* shaders).
     pub(crate) fn background_shaders(&self) -> Vec<String> {
         self.available_shaders

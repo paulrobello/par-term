@@ -250,6 +250,10 @@ impl WindowManager {
                 }
             }
             MenuAction::Copy => {
+                // Don't copy from terminal if settings window is open (let egui handle it)
+                if self.settings_window.is_some() {
+                    return;
+                }
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                     && let Some(text) = window_state.get_selected_text()
@@ -259,6 +263,10 @@ impl WindowManager {
                 }
             }
             MenuAction::Paste => {
+                // Don't paste to terminal if settings window is open (let egui handle it)
+                if self.settings_window.is_some() {
+                    return;
+                }
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                     && let Some(text) = window_state.input_handler.paste_from_clipboard()
@@ -505,6 +513,13 @@ impl WindowManager {
 
                 // Apply shader changes
                 if changes.any_shader_change() {
+                    log::info!(
+                        "Shader change detected (window_manager): textures={} cubemap={} path={} enabled={}",
+                        changes.shader_textures,
+                        changes.shader_cubemap,
+                        changes.shader_path,
+                        changes.shader_enabled
+                    );
                     let _ = renderer.set_custom_shader_enabled(
                         config.custom_shader_enabled,
                         config.custom_shader.as_deref(),
@@ -515,6 +530,7 @@ impl WindowManager {
                         config.custom_shader_full_content,
                         config.custom_shader_brightness,
                         &config.shader_channel_paths(),
+                        config.shader_cubemap_path().as_deref(),
                     );
                 }
 
