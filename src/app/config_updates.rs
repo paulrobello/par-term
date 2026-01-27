@@ -39,6 +39,7 @@ pub(crate) struct ConfigChanges {
 
     // Cursor appearance
     pub cursor_style: bool,
+    pub cursor_blink: bool,
     pub cursor_color: bool,
 
     // Background image
@@ -105,6 +106,7 @@ impl ConfigChanges {
             max_fps: new.max_fps != old.max_fps,
 
             cursor_style: new.cursor_style != old.cursor_style,
+            cursor_blink: new.cursor_blink != old.cursor_blink,
             cursor_color: new.cursor_color != old.cursor_color,
 
             bg_enabled: new.background_image_enabled != old.background_image_enabled,

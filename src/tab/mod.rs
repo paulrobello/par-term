@@ -71,6 +71,27 @@ impl Tab {
         terminal.set_max_clipboard_sync_events(config.clipboard_max_sync_events);
         terminal.set_max_clipboard_event_bytes(config.clipboard_max_event_bytes);
 
+        // Initialize cursor style from config
+        // Convert config cursor style to terminal cursor style
+        {
+            use crate::config::CursorStyle as ConfigCursorStyle;
+            use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
+            let term_style = if config.cursor_blink {
+                match config.cursor_style {
+                    ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
+                    ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
+                    ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
+                }
+            } else {
+                match config.cursor_style {
+                    ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
+                    ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
+                    ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,
+                }
+            };
+            terminal.set_cursor_style(term_style);
+        }
+
         // Determine working directory
         let work_dir = working_directory
             .as_deref()

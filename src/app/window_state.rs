@@ -705,10 +705,40 @@ impl WindowState {
             < self.config.scrollbar_autohide_delay as u128
     }
 
-    /// Update cursor blink state based on configured interval
+    /// Update cursor blink state based on configured interval and DECSCUSR style
+    ///
+    /// The cursor blink state is determined by:
+    /// 1. The terminal's cursor style (set via DECSCUSR escape sequence) - this takes precedence
+    /// 2. The user's config setting (cursor_blink) - used as default
+    ///
+    /// DECSCUSR values: odd = blinking, even = steady
+    /// - 0/1: Blinking block (default)
+    /// - 2: Steady block
+    /// - 3: Blinking underline
+    /// - 4: Steady underline
+    /// - 5: Blinking bar
+    /// - 6: Steady bar
     pub(crate) fn update_cursor_blink(&mut self) {
-        if !self.config.cursor_blink {
-            // Smoothly fade to full visibility if blinking disabled
+        // Get cursor style from terminal to check if DECSCUSR specified blinking
+        let cursor_should_blink = if let Some(tab) = self.tab_manager.active_tab()
+            && let Ok(term) = tab.terminal.try_lock()
+        {
+            use par_term_emu_core_rust::cursor::CursorStyle;
+            let style = term.cursor_style();
+            // DECSCUSR: odd values (1,3,5) = blinking, even values (2,4,6) = steady
+            matches!(
+                style,
+                CursorStyle::BlinkingBlock
+                    | CursorStyle::BlinkingUnderline
+                    | CursorStyle::BlinkingBar
+            )
+        } else {
+            // Fallback to config setting if terminal lock unavailable
+            self.config.cursor_blink
+        };
+
+        if !cursor_should_blink {
+            // Smoothly fade to full visibility if blinking disabled (by DECSCUSR or config)
             self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
             return;
         }
@@ -1334,22 +1364,40 @@ impl WindowState {
                         self.config.scrollbar_track_color,
                     );
 
-                    // Apply cursor style change
-                    if changes.cursor_style {
+                    // Apply cursor style or blink change
+                    // Both style and blink settings affect the terminal's CursorStyle enum
+                    if changes.cursor_style || changes.cursor_blink {
                         if let Some(tab) = self.tab_manager.active_tab()
                             && let Ok(term_mgr) = tab.terminal.try_lock()
                         {
                             let terminal = term_mgr.terminal();
                             if let Some(mut term) = terminal.try_lock() {
                                 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
-                                let term_style = match self.config.cursor_style {
-                                    crate::config::CursorStyle::Block => {
-                                        TermCursorStyle::SteadyBlock
+                                // Combine shape and blink settings into the correct variant
+                                let term_style = if self.config.cursor_blink {
+                                    match self.config.cursor_style {
+                                        crate::config::CursorStyle::Block => {
+                                            TermCursorStyle::BlinkingBlock
+                                        }
+                                        crate::config::CursorStyle::Underline => {
+                                            TermCursorStyle::BlinkingUnderline
+                                        }
+                                        crate::config::CursorStyle::Beam => {
+                                            TermCursorStyle::BlinkingBar
+                                        }
                                     }
-                                    crate::config::CursorStyle::Underline => {
-                                        TermCursorStyle::SteadyUnderline
+                                } else {
+                                    match self.config.cursor_style {
+                                        crate::config::CursorStyle::Block => {
+                                            TermCursorStyle::SteadyBlock
+                                        }
+                                        crate::config::CursorStyle::Underline => {
+                                            TermCursorStyle::SteadyUnderline
+                                        }
+                                        crate::config::CursorStyle::Beam => {
+                                            TermCursorStyle::SteadyBar
+                                        }
                                     }
-                                    crate::config::CursorStyle::Beam => TermCursorStyle::SteadyBar,
                                 };
                                 term.set_cursor_style(term_style);
                             }
