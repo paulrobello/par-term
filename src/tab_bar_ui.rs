@@ -141,16 +141,26 @@ impl TabBarUI {
         let tab_count = 10; // estimate
         let tab_width = (available_width / tab_count as f32).clamp(80.0, 200.0);
 
-        // Tab background color
+        // Determine if this tab should be dimmed
+        // Active tabs and hovered inactive tabs are NOT dimmed
+        let is_hovered = self.hovered_tab == Some(id);
+        let should_dim = config.dim_inactive_tabs && !is_active && !is_hovered;
+        let opacity = if should_dim {
+            (config.inactive_tab_opacity * 255.0) as u8
+        } else {
+            255
+        };
+
+        // Tab background color with opacity
         let bg_color = if is_active {
             let c = config.tab_active_background;
-            egui::Color32::from_rgb(c[0], c[1], c[2])
-        } else if self.hovered_tab == Some(id) {
+            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
+        } else if is_hovered {
             let c = config.tab_hover_background;
-            egui::Color32::from_rgb(c[0], c[1], c[2])
+            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
         } else {
             let c = config.tab_inactive_background;
-            egui::Color32::from_rgb(c[0], c[1], c[2])
+            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
         };
 
         // Tab frame - use allocate_ui_with_layout to get a proper interactive response
@@ -198,10 +208,10 @@ impl TabBarUI {
 
                 let text_color = if is_active {
                     let c = config.tab_active_text;
-                    egui::Color32::from_rgb(c[0], c[1], c[2])
+                    egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
                 } else {
                     let c = config.tab_inactive_text;
-                    egui::Color32::from_rgb(c[0], c[1], c[2])
+                    egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
                 };
 
                 ui.label(egui::RichText::new(&display_title).color(text_color));
@@ -212,10 +222,10 @@ impl TabBarUI {
                     if config.tab_show_close_button {
                         let close_color = if self.close_hovered == Some(id) {
                             let c = config.tab_close_button_hover;
-                            egui::Color32::from_rgb(c[0], c[1], c[2])
+                            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
                         } else {
                             let c = config.tab_close_button;
-                            egui::Color32::from_rgb(c[0], c[1], c[2])
+                            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
                         };
 
                         let close_btn = ui.add(

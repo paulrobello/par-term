@@ -238,3 +238,68 @@ tab_active_text: [200, 200, 200]
     assert_eq!(config.tab_inactive_background, [40, 40, 40]);
     assert_eq!(config.tab_close_button, [150, 150, 150]);
 }
+
+#[test]
+fn test_config_inactive_tab_dimming_defaults() {
+    let config = Config::default();
+    // Default: dimming is enabled
+    assert!(config.dim_inactive_tabs);
+    // Default: 60% opacity for inactive tabs
+    assert!((config.inactive_tab_opacity - 0.6).abs() < f32::EPSILON);
+}
+
+#[test]
+fn test_config_inactive_tab_dimming_yaml_deserialization() {
+    let yaml = r#"
+dim_inactive_tabs: false
+inactive_tab_opacity: 0.8
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(!config.dim_inactive_tabs);
+    assert!((config.inactive_tab_opacity - 0.8).abs() < f32::EPSILON);
+}
+
+#[test]
+fn test_config_inactive_tab_dimming_yaml_serialization() {
+    let mut config = Config::default();
+    config.dim_inactive_tabs = false;
+    config.inactive_tab_opacity = 0.5;
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("dim_inactive_tabs: false"));
+    assert!(yaml.contains("inactive_tab_opacity: 0.5"));
+}
+
+#[test]
+fn test_config_inactive_tab_dimming_partial_yaml() {
+    // Test that default values are used for missing fields
+    let yaml = r#"
+dim_inactive_tabs: true
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.dim_inactive_tabs);
+    // Default opacity should be used
+    assert!((config.inactive_tab_opacity - 0.6).abs() < f32::EPSILON);
+}
+
+#[test]
+fn test_config_inactive_tab_opacity_bounds() {
+    // Test various opacity values that might be configured
+    let yaml = r#"
+inactive_tab_opacity: 0.0
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!((config.inactive_tab_opacity).abs() < f32::EPSILON);
+
+    let yaml = r#"
+inactive_tab_opacity: 1.0
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!((config.inactive_tab_opacity - 1.0).abs() < f32::EPSILON);
+
+    let yaml = r#"
+inactive_tab_opacity: 0.3
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!((config.inactive_tab_opacity - 0.3).abs() < f32::EPSILON);
+}

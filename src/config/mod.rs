@@ -518,6 +518,17 @@ pub struct Config {
     #[serde(default = "defaults::tab_close_button_hover")]
     pub tab_close_button_hover: [u8; 3],
 
+    /// Enable visual dimming of inactive tabs
+    /// When true, inactive tabs are rendered with reduced opacity
+    #[serde(default = "defaults::bool_true")]
+    pub dim_inactive_tabs: bool,
+
+    /// Opacity level for inactive tabs (0.0-1.0)
+    /// Only used when dim_inactive_tabs is true
+    /// Lower values make inactive tabs more transparent/dimmed
+    #[serde(default = "defaults::inactive_tab_opacity")]
+    pub inactive_tab_opacity: f32,
+
     // ========================================================================
     // Focus/Blur Power Saving
     // ========================================================================
@@ -654,6 +665,8 @@ impl Default for Config {
             tab_bell_indicator: defaults::tab_bell_indicator(),
             tab_close_button: defaults::tab_close_button(),
             tab_close_button_hover: defaults::tab_close_button_hover(),
+            dim_inactive_tabs: defaults::bool_true(),
+            inactive_tab_opacity: defaults::inactive_tab_opacity(),
             pause_shaders_on_blur: defaults::bool_true(),
             pause_refresh_on_blur: defaults::bool_false(),
             unfocused_fps: defaults::unfocused_fps(),
