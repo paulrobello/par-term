@@ -45,6 +45,8 @@ pub struct Tab {
     pub refresh_task: Option<JoinHandle<()>>,
     /// Working directory when tab was created (for inheriting)
     pub working_directory: Option<String>,
+    /// Custom tab color [R, G, B] (0-255), overrides config colors when set
+    pub custom_color: Option<[u8; 3]>,
 }
 
 impl Tab {
@@ -143,6 +145,7 @@ impl Tab {
             cache: RenderCache::new(initial_opacity),
             refresh_task: None,
             working_directory: working_directory.or_else(|| config.working_directory.clone()),
+            custom_color: None,
         })
     }
 
@@ -248,6 +251,22 @@ impl Tab {
         if let Some(handle) = self.refresh_task.take() {
             handle.abort();
         }
+    }
+
+    /// Set a custom color for this tab
+    pub fn set_custom_color(&mut self, color: [u8; 3]) {
+        self.custom_color = Some(color);
+    }
+
+    /// Clear the custom color for this tab (reverts to default config colors)
+    pub fn clear_custom_color(&mut self) {
+        self.custom_color = None;
+    }
+
+    /// Check if this tab has a custom color set
+    #[allow(dead_code)]
+    pub fn has_custom_color(&self) -> bool {
+        self.custom_color.is_some()
     }
 }
 

@@ -1703,6 +1703,30 @@ impl WindowState {
                     window.request_redraw();
                 }
             }
+            TabBarAction::SetColor(id, color) => {
+                if let Some(tab) = self.tab_manager.get_tab_mut(id) {
+                    tab.set_custom_color(color);
+                    log::info!(
+                        "Set custom color for tab {}: RGB({}, {}, {})",
+                        id,
+                        color[0],
+                        color[1],
+                        color[2]
+                    );
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::ClearColor(id) => {
+                if let Some(tab) = self.tab_manager.get_tab_mut(id) {
+                    tab.clear_custom_color();
+                    log::info!("Cleared custom color for tab {}", id);
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
             TabBarAction::None | TabBarAction::Reorder(_, _) => {}
         }
 

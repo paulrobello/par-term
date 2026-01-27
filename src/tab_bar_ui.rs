@@ -19,6 +19,10 @@ pub enum TabBarAction {
     /// Reorder a tab to a new position
     #[allow(dead_code)]
     Reorder(TabId, usize),
+    /// Set custom color for a tab
+    SetColor(TabId, [u8; 3]),
+    /// Clear custom color for a tab (revert to default)
+    ClearColor(TabId),
 }
 
 /// Tab bar UI state
@@ -33,6 +37,10 @@ pub struct TabBarUI {
     /// Tab being dragged
     #[allow(dead_code)]
     dragging_tab: Option<TabId>,
+    /// Tab ID for which context menu is open
+    context_menu_tab: Option<TabId>,
+    /// Color being edited in the color picker (for the context menu)
+    editing_color: [u8; 3],
 }
 
 impl TabBarUI {
@@ -43,6 +51,8 @@ impl TabBarUI {
             close_hovered: None,
             drag_in_progress: false,
             dragging_tab: None,
+            context_menu_tab: None,
+            editing_color: [100, 100, 100],
         }
     }
 
@@ -93,6 +103,7 @@ impl TabBarUI {
                             is_active,
                             tab.has_activity,
                             is_bell_active,
+                            tab.custom_color,
                             config,
                         );
 
@@ -119,6 +130,14 @@ impl TabBarUI {
                 });
             });
 
+        // Handle context menu (color picker popup)
+        if let Some(context_tab_id) = self.context_menu_tab {
+            let menu_action = self.render_context_menu(ctx, context_tab_id);
+            if menu_action != TabBarAction::None {
+                action = menu_action;
+            }
+        }
+
         action
     }
 
@@ -132,6 +151,7 @@ impl TabBarUI {
         is_active: bool,
         has_activity: bool,
         is_bell_active: bool,
+        custom_color: Option<[u8; 3]>,
         config: &Config,
     ) -> TabBarAction {
         let mut action = TabBarAction::None;
@@ -152,7 +172,31 @@ impl TabBarUI {
         };
 
         // Tab background color with opacity
-        let bg_color = if is_active {
+        // Custom color overrides config colors for inactive/active background
+        let bg_color = if let Some(custom) = custom_color {
+            // Use custom color with appropriate opacity/brightness adjustment
+            if is_active {
+                egui::Color32::from_rgba_unmultiplied(custom[0], custom[1], custom[2], 255)
+            } else if is_hovered {
+                // Lighten the custom color slightly for hover
+                let lighten = |c: u8| c.saturating_add(20);
+                egui::Color32::from_rgba_unmultiplied(
+                    lighten(custom[0]),
+                    lighten(custom[1]),
+                    lighten(custom[2]),
+                    255,
+                )
+            } else {
+                // Darken the custom color slightly for inactive
+                let darken = |c: u8| c.saturating_sub(30);
+                egui::Color32::from_rgba_unmultiplied(
+                    darken(custom[0]),
+                    darken(custom[1]),
+                    darken(custom[2]),
+                    opacity,
+                )
+            }
+        } else if is_active {
             let c = config.tab_active_background;
             egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
         } else if is_hovered {
@@ -172,6 +216,19 @@ impl TabBarUI {
         // Draw tab background
         if ui.is_rect_visible(tab_rect) {
             ui.painter().rect_filled(tab_rect, 0.0, bg_color);
+
+            // Draw a small color indicator dot if custom color is set (for inactive tabs)
+            if custom_color.is_some() && !is_active {
+                let dot_radius = 3.0;
+                let dot_center = egui::pos2(tab_rect.right() - 8.0, tab_rect.top() + 8.0);
+                if let Some(c) = custom_color {
+                    ui.painter().circle_filled(
+                        dot_center,
+                        dot_radius,
+                        egui::Color32::from_rgb(c[0], c[1], c[2]),
+                    );
+                }
+            }
 
             // Create a child UI for the tab content
             let mut content_ui = ui.new_child(
@@ -255,6 +312,13 @@ impl TabBarUI {
             action = TabBarAction::SwitchTo(id);
         }
 
+        // Handle right-click for context menu
+        if tab_response.secondary_clicked() {
+            // Initialize editing color from custom color or a default
+            self.editing_color = custom_color.unwrap_or([100, 100, 100]);
+            self.context_menu_tab = Some(id);
+        }
+
         // Update hover state
         if tab_response.hovered() {
             self.hovered_tab = Some(id);
@@ -264,12 +328,106 @@ impl TabBarUI {
 
         // Active tab indicator (bottom border)
         if is_active {
-            let c = config.tab_active_indicator;
+            // Use custom color for indicator if set, otherwise use config
+            let indicator_color = if let Some(c) = custom_color {
+                // Lighten the custom color for the indicator
+                let lighten = |v: u8| v.saturating_add(50);
+                [lighten(c[0]), lighten(c[1]), lighten(c[2])]
+            } else {
+                config.tab_active_indicator
+            };
             ui.painter().hline(
                 tab_rect.left()..=tab_rect.right(),
                 tab_rect.bottom() - 2.0,
-                egui::Stroke::new(2.0, egui::Color32::from_rgb(c[0], c[1], c[2])),
+                egui::Stroke::new(
+                    2.0,
+                    egui::Color32::from_rgb(
+                        indicator_color[0],
+                        indicator_color[1],
+                        indicator_color[2],
+                    ),
+                ),
             );
+        }
+
+        action
+    }
+
+    /// Render the context menu for tab color selection
+    fn render_context_menu(&mut self, ctx: &egui::Context, tab_id: TabId) -> TabBarAction {
+        let mut action = TabBarAction::None;
+        let mut close_menu = false;
+
+        egui::Window::new("Tab Color")
+            .id(egui::Id::new("tab_color_menu"))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.vertical(|ui| {
+                    ui.label("Set custom tab color:");
+                    ui.add_space(8.0);
+
+                    // Color picker
+                    ui.horizontal(|ui| {
+                        ui.label("Color:");
+                        ui.color_edit_button_srgb(&mut self.editing_color);
+                    });
+
+                    ui.add_space(8.0);
+
+                    // Preset colors
+                    ui.label("Presets:");
+                    ui.horizontal(|ui| {
+                        let presets: &[([u8; 3], &str)] = &[
+                            ([220, 50, 50], "Red"),
+                            ([50, 180, 50], "Green"),
+                            ([50, 100, 220], "Blue"),
+                            ([220, 180, 50], "Yellow"),
+                            ([180, 50, 180], "Purple"),
+                            ([50, 180, 180], "Cyan"),
+                            ([220, 130, 50], "Orange"),
+                        ];
+
+                        for (color, name) in presets {
+                            let btn = ui.add(
+                                egui::Button::new("")
+                                    .fill(egui::Color32::from_rgb(color[0], color[1], color[2]))
+                                    .min_size(egui::vec2(24.0, 24.0)),
+                            );
+                            if btn.clicked() {
+                                self.editing_color = *color;
+                            }
+                            if btn.hovered() {
+                                btn.on_hover_text(*name);
+                            }
+                        }
+                    });
+
+                    ui.add_space(12.0);
+
+                    // Action buttons
+                    ui.horizontal(|ui| {
+                        if ui.button("Apply").clicked() {
+                            action = TabBarAction::SetColor(tab_id, self.editing_color);
+                            close_menu = true;
+                        }
+
+                        if ui.button("Clear Color").clicked() {
+                            action = TabBarAction::ClearColor(tab_id);
+                            close_menu = true;
+                        }
+
+                        if ui.button("Cancel").clicked() {
+                            close_menu = true;
+                        }
+                    });
+                });
+            });
+
+        // Close menu if action taken or cancelled
+        if close_menu {
+            self.context_menu_tab = None;
         }
 
         action
