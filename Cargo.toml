@@ -23,7 +23,8 @@ exclude = [
 
 [dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.21.0", default-features = false }
+# TODO: Change back to version = "0.22.0" once published to crates.io
+par-term-emu-core-rust = { path = "../par-term-emu-core-rust", default-features = false }
 
 # Window management and rendering
 winit = "0.30"
