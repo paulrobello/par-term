@@ -296,10 +296,12 @@ impl CellRenderer {
                     #[allow(clippy::collapsible_if)]
                     if let Some(ch) = chars.first() {
                         // Classify the character for rendering optimization
+                        // Only classify based on first char for block drawing detection
                         let char_type = block_chars::classify_char(*ch);
 
                         // Check if we should render this character geometrically
-                        if block_chars::should_render_geometrically(char_type) {
+                        // (only for single-char graphemes that are block drawing chars)
+                        if chars.len() == 1 && block_chars::should_render_geometrically(char_type) {
                             let char_w = if is_wide {
                                 self.cell_width * 2.0
                             } else {
@@ -421,9 +423,16 @@ impl CellRenderer {
                             }
                         }
 
-                        if let Some((font_idx, glyph_id)) =
+                        // Use grapheme-aware glyph lookup for multi-character sequences
+                        // (flags, emoji with skin tones, ZWJ sequences, combining chars)
+                        let glyph_result = if chars.len() > 1 {
+                            self.font_manager
+                                .find_grapheme_glyph(&grapheme, bold, italic)
+                        } else {
                             self.font_manager.find_glyph(*ch, bold, italic)
-                        {
+                        };
+
+                        if let Some((font_idx, glyph_id)) = glyph_result {
                             let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
                             let info = if self.glyph_cache.contains_key(&cache_key) {
                                 // Move to front of LRU
@@ -468,17 +477,19 @@ impl CellRenderer {
                             let render_h = info.height as f32 * scale_y;
 
                             // For block characters that need font rendering (box drawing, etc.),
-                            // apply snapping to cell boundaries with sub-pixel extension
-                            let (final_left, final_top, final_w, final_h) =
-                                if block_chars::should_snap_to_boundaries(char_type) {
-                                    // Snap threshold of 3 pixels, extension of 0.5 pixels
-                                    block_chars::snap_glyph_to_cell(
-                                        glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1,
-                                        3.0, 0.5,
-                                    )
-                                } else {
-                                    (glyph_left, glyph_top, render_w, render_h)
-                                };
+                            // apply snapping to cell boundaries with sub-pixel extension.
+                            // Only apply to single-char graphemes (multi-char are never block chars)
+                            let (final_left, final_top, final_w, final_h) = if chars.len() == 1
+                                && block_chars::should_snap_to_boundaries(char_type)
+                            {
+                                // Snap threshold of 3 pixels, extension of 0.5 pixels
+                                block_chars::snap_glyph_to_cell(
+                                    glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1, 3.0,
+                                    0.5,
+                                )
+                            } else {
+                                (glyph_left, glyph_top, render_w, render_h)
+                            };
 
                             row_text.push(TextInstance {
                                 position: [
