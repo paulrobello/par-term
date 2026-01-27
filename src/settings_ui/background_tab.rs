@@ -1255,15 +1255,39 @@ fn show_per_shader_channel_settings(
             _ => continue,
         };
 
-        let effective_value = override_val.clone().or(meta_val).or(global_val);
-        let mut display_value = effective_value.unwrap_or_default();
+        // Check if override is explicitly empty (cleared)
+        let is_explicitly_cleared =
+            override_val.as_ref().is_some_and(|v| v.is_empty());
+
+        // For display, show empty if explicitly cleared, otherwise show effective value
+        let effective_value = if is_explicitly_cleared {
+            None
+        } else {
+            override_val.clone().or(meta_val.clone()).or(global_val.clone())
+        };
+        let mut display_value = effective_value.clone().unwrap_or_default();
         let has_override = override_val.is_some();
+
+        // Can clear if there's a value from metadata or global (and not already cleared)
+        let has_default_value = meta_val.is_some() || global_val.is_some();
+        let can_clear = has_default_value && !is_explicitly_cleared;
 
         ui.horizontal(|ui| {
             ui.label(format!("iChannel{}:", channel_num));
 
-            if ui.text_edit_singleline(&mut display_value).changed() {
+            // Show "(cleared)" placeholder when explicitly cleared
+            let response = if is_explicitly_cleared {
+                ui.add(
+                    egui::TextEdit::singleline(&mut display_value)
+                        .hint_text("(cleared)")
+                )
+            } else {
+                ui.text_edit_singleline(&mut display_value)
+            };
+
+            if response.changed() {
                 let override_entry = settings.config.get_or_create_shader_override(shader_name);
+                // When typing, set the value (empty removes override, non-empty sets it)
                 let new_val = if display_value.is_empty() {
                     None
                 } else {
@@ -1297,6 +1321,26 @@ fn show_per_shader_channel_settings(
                 *changes_this_frame = true;
             }
 
+            // Clear button - sets explicit empty override to disable default texture
+            if can_clear
+                && ui
+                    .button("×")
+                    .on_hover_text("Clear texture (override default)")
+                    .clicked()
+            {
+                let override_entry = settings.config.get_or_create_shader_override(shader_name);
+                match channel_num {
+                    0 => override_entry.channel0 = Some(String::new()),
+                    1 => override_entry.channel1 = Some(String::new()),
+                    2 => override_entry.channel2 = Some(String::new()),
+                    3 => override_entry.channel3 = Some(String::new()),
+                    _ => {}
+                }
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            // Reset button - removes override to restore default
             if show_reset_button(ui, has_override)
                 && let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name)
             {
@@ -1318,19 +1362,51 @@ fn show_per_shader_channel_settings(
     let cubemap_override = current_override.as_ref().and_then(|o| o.cubemap.clone());
     let cubemap_meta = meta_defaults.and_then(|m| m.cubemap.clone());
     let cubemap_global = settings.config.custom_shader_cubemap.clone();
-    let effective_cubemap = cubemap_override.clone().or(cubemap_meta).or(cubemap_global);
+
+    // Check if override is explicitly empty (cleared)
+    let is_cubemap_cleared = cubemap_override.as_ref().is_some_and(|v| v.is_empty());
+
+    let effective_cubemap = if is_cubemap_cleared {
+        None
+    } else {
+        cubemap_override.clone().or(cubemap_meta.clone()).or(cubemap_global.clone())
+    };
     let mut display_cubemap = effective_cubemap.unwrap_or_default();
     let has_cubemap_override = cubemap_override.is_some();
 
+    // Can clear if there's a default value and not already cleared
+    let has_cubemap_default = cubemap_meta.is_some() || cubemap_global.is_some();
+    let can_clear_cubemap = has_cubemap_default && !is_cubemap_cleared;
+
     ui.horizontal(|ui| {
         ui.label("Cubemap:");
-        if ui.text_edit_singleline(&mut display_cubemap).changed() {
+
+        let response = if is_cubemap_cleared {
+            ui.add(egui::TextEdit::singleline(&mut display_cubemap).hint_text("(cleared)"))
+        } else {
+            ui.text_edit_singleline(&mut display_cubemap)
+        };
+
+        if response.changed() {
             let override_entry = settings.config.get_or_create_shader_override(shader_name);
             override_entry.cubemap = if display_cubemap.is_empty() {
                 None
             } else {
                 Some(display_cubemap.clone())
             };
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        // Clear button
+        if can_clear_cubemap
+            && ui
+                .button("×")
+                .on_hover_text("Clear cubemap (override default)")
+                .clicked()
+        {
+            let override_entry = settings.config.get_or_create_shader_override(shader_name);
+            override_entry.cubemap = Some(String::new());
             settings.has_changes = true;
             *changes_this_frame = true;
         }

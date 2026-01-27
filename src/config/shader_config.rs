@@ -46,13 +46,25 @@ pub fn resolve_shader_config(
     }
 
     // Helper for Option<String> -> Option<PathBuf> with path resolution
+    // An explicit empty string means "no texture" (don't fall back to defaults)
     macro_rules! resolve_path {
         ($field:ident, $global:expr) => {{
-            let path_str: Option<String> = user_override
-                .and_then(|o| o.$field.clone())
-                .or_else(|| meta_defaults.and_then(|m| m.$field.clone()))
-                .or($global);
-            path_str.map(|p| Config::resolve_texture_path(&p))
+            // Check for user override first
+            if let Some(override_val) = user_override.and_then(|o| o.$field.clone()) {
+                if override_val.is_empty() {
+                    None // User explicitly cleared this channel
+                } else {
+                    Some(Config::resolve_texture_path(&override_val))
+                }
+            } else {
+                // No user override, fall back to metadata then global
+                let path_str: Option<String> = meta_defaults
+                    .and_then(|m| m.$field.clone())
+                    .or($global);
+                path_str
+                    .filter(|p| !p.is_empty())
+                    .map(|p| Config::resolve_texture_path(&p))
+            }
         }};
     }
 
