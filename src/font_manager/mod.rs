@@ -469,17 +469,6 @@ impl FontManager {
             .shape_text(text, font_data_arc.as_slice(), font_index, options)
     }
 
-    /// Get the font index for a given style combination.
-    #[allow(dead_code)]
-    fn get_styled_font_index(&self, bold: bool, italic: bool) -> usize {
-        match (bold, italic) {
-            (true, true) if self.bold_italic.is_some() => 3,
-            (true, false) if self.bold.is_some() => 1,
-            (false, true) if self.italic.is_some() => 2,
-            _ => 0,
-        }
-    }
-
     /// Clear the text shaping cache.
     #[allow(dead_code)]
     pub fn clear_shape_cache(&mut self) {
@@ -490,5 +479,125 @@ impl FontManager {
     #[allow(dead_code)]
     pub fn shape_cache_size(&self) -> usize {
         self.text_shaper.cache_size()
+    }
+
+    /// Find glyph(s) for an entire grapheme cluster.
+    ///
+    /// This is essential for rendering multi-character sequences like:
+    /// - Flag emoji (🇺🇸) - regional indicator pairs
+    /// - ZWJ sequences (👨‍👩‍👧‍👦) - family emoji
+    /// - Skin tone modifiers (👋🏽)
+    /// - Combining characters (é = e + acute accent)
+    ///
+    /// # Arguments
+    /// * `grapheme` - The grapheme cluster string (may be multiple Unicode codepoints)
+    /// * `bold` - Whether text should be bold
+    /// * `italic` - Whether text should be italic
+    ///
+    /// # Returns
+    /// `Some((font_index, glyph_id))` for the primary glyph representing the grapheme,
+    /// or `None` if no suitable glyph was found.
+    pub fn find_grapheme_glyph(
+        &mut self,
+        grapheme: &str,
+        bold: bool,
+        italic: bool,
+    ) -> Option<(usize, u16)> {
+        let chars: Vec<char> = grapheme.chars().collect();
+
+        // Fast path: single character graphemes use existing lookup
+        if chars.len() == 1 {
+            return self.find_glyph(chars[0], bold, italic);
+        }
+
+        // Multi-character grapheme: use text shaping to find the composed glyph
+        // First, determine which font to use based on the first character
+        let first_char = chars[0];
+        let char_code = first_char as u32;
+
+        // Check Unicode range-specific fonts first (emoji fonts)
+        for range_font in &self.range_fonts {
+            if char_code >= range_font.start && char_code <= range_font.end {
+                // Shape the grapheme with this font
+                let font_data = range_font.font.data.as_slice();
+                let options = ShapingOptions::default();
+                let shaped = self.text_shaper.shape_text(
+                    grapheme,
+                    font_data,
+                    range_font.font_index,
+                    options,
+                );
+
+                // Check if shaping produced a valid glyph
+                if !shaped.glyphs.is_empty() && shaped.glyphs[0].glyph_id != 0 {
+                    log::debug!(
+                        "Grapheme '{}' ({} chars) shaped to glyph {} in range font index {}",
+                        grapheme,
+                        chars.len(),
+                        shaped.glyphs[0].glyph_id,
+                        range_font.font_index
+                    );
+                    return Some((range_font.font_index, shaped.glyphs[0].glyph_id as u16));
+                }
+            }
+        }
+
+        // Try styled font
+        let font_index = self.get_styled_font_index(bold, italic);
+        let font_data_arc = self.get_font_data_arc(font_index);
+        let options = ShapingOptions::default();
+        let shaped =
+            self.text_shaper
+                .shape_text(grapheme, font_data_arc.as_slice(), font_index, options);
+
+        if !shaped.glyphs.is_empty() && shaped.glyphs[0].glyph_id != 0 {
+            log::debug!(
+                "Grapheme '{}' ({} chars) shaped to glyph {} in styled font index {}",
+                grapheme,
+                chars.len(),
+                shaped.glyphs[0].glyph_id,
+                font_index
+            );
+            return Some((font_index, shaped.glyphs[0].glyph_id as u16));
+        }
+
+        // Try fallback fonts
+        let fallback_start_index = 4 + self.range_fonts.len();
+        for (idx, fallback) in self.fallbacks.iter().enumerate() {
+            let font_idx = fallback_start_index + idx;
+            let options = ShapingOptions::default();
+            let shaped =
+                self.text_shaper
+                    .shape_text(grapheme, fallback.data.as_slice(), font_idx, options);
+
+            if !shaped.glyphs.is_empty() && shaped.glyphs[0].glyph_id != 0 {
+                log::debug!(
+                    "Grapheme '{}' ({} chars) shaped to glyph {} in fallback font index {}",
+                    grapheme,
+                    chars.len(),
+                    shaped.glyphs[0].glyph_id,
+                    font_idx
+                );
+                return Some((font_idx, shaped.glyphs[0].glyph_id as u16));
+            }
+        }
+
+        // Fallback: try to render just the first character
+        log::debug!(
+            "Grapheme '{}' ({} chars) not found as composed glyph, falling back to first char",
+            grapheme,
+            chars.len()
+        );
+        self.find_glyph(first_char, bold, italic)
+    }
+
+    /// Get the font index for a given style combination.
+    fn get_styled_font_index(&self, bold: bool, italic: bool) -> usize {
+        match (bold, italic) {
+            (true, true) if self.bold_italic.is_some() => 3,
+            (true, false) if self.bold.is_some() => 1,
+            (false, true) if self.italic.is_some() => 2,
+            _ => 0,
+        }
     }
 }

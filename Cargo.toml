@@ -23,7 +23,7 @@ exclude = [
 
 [dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.21.0", default-features = false }
+par-term-emu-core-rust = { version = "0.22.0", default-features = false }
 
 # Window management and rendering
 winit = "0.30"
