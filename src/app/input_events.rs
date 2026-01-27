@@ -476,11 +476,19 @@ impl WindowState {
             log::info!("Cycled cursor style to {:?}", self.config.cursor_style);
 
             // Map our config cursor style to terminal cursor style
-            // This ensures consistent behavior between configured style and runtime changes
-            let term_style = match self.config.cursor_style {
-                CursorStyle::Block => TermCursorStyle::BlinkingBlock, // Default to blinking
-                CursorStyle::Beam => TermCursorStyle::BlinkingBar,
-                CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
+            // Respect the cursor_blink setting when cycling styles
+            let term_style = if self.config.cursor_blink {
+                match self.config.cursor_style {
+                    CursorStyle::Block => TermCursorStyle::BlinkingBlock,
+                    CursorStyle::Beam => TermCursorStyle::BlinkingBar,
+                    CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
+                }
+            } else {
+                match self.config.cursor_style {
+                    CursorStyle::Block => TermCursorStyle::SteadyBlock,
+                    CursorStyle::Beam => TermCursorStyle::SteadyBar,
+                    CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
+                }
             };
 
             if let Some(tab) = self.tab_manager.active_tab()
