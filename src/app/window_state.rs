@@ -266,7 +266,10 @@ impl WindowState {
 
         // Create renderer using DRY init params
         let theme = self.config.load_theme();
-        let params = RendererInitParams::from_config(&self.config, &theme);
+        // Get shader metadata from cache for full 3-tier resolution
+        let metadata = self.config.custom_shader.as_ref()
+            .and_then(|name| self.settings_ui.shader_metadata_cache.get(name).cloned());
+        let params = RendererInitParams::from_config(&self.config, &theme, metadata.as_ref());
         let mut renderer = self
             .runtime
             .block_on(params.create_renderer(Arc::clone(&window)))?;
@@ -315,7 +318,10 @@ impl WindowState {
 
         // Create renderer using DRY init params
         let theme = self.config.load_theme();
-        let params = RendererInitParams::from_config(&self.config, &theme);
+        // Get shader metadata from cache for full 3-tier resolution
+        let metadata = self.config.custom_shader.as_ref()
+            .and_then(|name| self.settings_ui.shader_metadata_cache.get(name).cloned());
+        let params = RendererInitParams::from_config(&self.config, &theme, metadata.as_ref());
         let mut renderer = params.create_renderer(Arc::clone(&window)).await?;
 
         // macOS: Configure CAMetalLayer (transparency + performance)

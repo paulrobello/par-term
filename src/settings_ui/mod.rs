@@ -3,7 +3,7 @@
 //! This module provides an egui-based settings window for configuring
 //! terminal options at runtime.
 
-use crate::config::Config;
+use crate::config::{Config, ShaderMetadataCache};
 use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 use rfd::FileDialog;
 
@@ -124,6 +124,12 @@ pub struct SettingsUI {
     pub(crate) shader_search_current: usize,
     /// Whether search bar is visible
     pub(crate) shader_search_visible: bool,
+
+    // Per-shader configuration state
+    /// Cache for parsed shader metadata
+    pub(crate) shader_metadata_cache: ShaderMetadataCache,
+    /// Whether the per-shader settings section is expanded
+    pub(crate) shader_settings_expanded: bool,
 }
 
 impl SettingsUI {
@@ -178,6 +184,10 @@ impl SettingsUI {
             shader_search_matches: Vec::new(),
             shader_search_current: 0,
             shader_search_visible: false,
+            shader_metadata_cache: ShaderMetadataCache::with_shaders_dir(
+                crate::config::Config::shaders_dir(),
+            ),
+            shader_settings_expanded: true,
         }
     }
 

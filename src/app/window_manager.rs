@@ -4,7 +4,7 @@
 //! handles the native menu system, and manages shared resources.
 
 use crate::app::window_state::WindowState;
-use crate::config::Config;
+use crate::config::{Config, resolve_shader_config};
 use crate::menu::{MenuAction, MenuManager};
 use crate::settings_window::{SettingsWindow, SettingsWindowAction};
 use std::collections::HashMap;
@@ -512,25 +512,34 @@ impl WindowManager {
                 }
 
                 // Apply shader changes
-                if changes.any_shader_change() {
+                if changes.any_shader_change() || changes.shader_per_shader_config {
                     log::info!(
-                        "Shader change detected (window_manager): textures={} cubemap={} path={} enabled={}",
+                        "Shader change detected (window_manager): textures={} cubemap={} path={} enabled={} per_shader={}",
                         changes.shader_textures,
                         changes.shader_cubemap,
                         changes.shader_path,
-                        changes.shader_enabled
+                        changes.shader_enabled,
+                        changes.shader_per_shader_config
                     );
+                    // Resolve per-shader settings (user override -> metadata defaults -> global)
+                    let shader_override = config.custom_shader.as_ref()
+                        .and_then(|name| config.shader_configs.get(name));
+                    // Get shader metadata from cache for full 3-tier resolution
+                    let metadata = config.custom_shader.as_ref()
+                        .and_then(|name| window_state.settings_ui.shader_metadata_cache.get(name).cloned());
+                    let resolved = resolve_shader_config(shader_override, metadata.as_ref(), config);
+
                     let _ = renderer.set_custom_shader_enabled(
                         config.custom_shader_enabled,
                         config.custom_shader.as_deref(),
                         config.window_opacity,
-                        config.custom_shader_text_opacity,
+                        resolved.text_opacity,
                         config.custom_shader_animation,
-                        config.custom_shader_animation_speed,
-                        config.custom_shader_full_content,
-                        config.custom_shader_brightness,
-                        &config.shader_channel_paths(),
-                        config.shader_cubemap_path().as_deref(),
+                        resolved.animation_speed,
+                        resolved.full_content,
+                        resolved.brightness,
+                        &resolved.channel_paths(),
+                        resolved.cubemap_path().map(|p| p.as_path()),
                     );
                 }
 

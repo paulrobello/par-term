@@ -39,6 +39,18 @@ impl SettingsUI {
         self.available_shaders = Self::scan_shaders_folder();
     }
 
+    /// Invalidate cached metadata for a specific shader (for hot reload).
+    #[allow(dead_code)]
+    pub fn invalidate_shader_metadata(&mut self, shader_name: &str) {
+        self.shader_metadata_cache.invalidate(shader_name);
+    }
+
+    /// Invalidate all cached shader metadata.
+    #[allow(dead_code)]
+    pub fn invalidate_all_shader_metadata(&mut self) {
+        self.shader_metadata_cache.invalidate_all();
+    }
+
     /// Scan for cubemap prefixes in the textures/cubemaps folder.
     /// Returns relative paths like "textures/cubemaps/env-outside"
     pub(super) fn scan_cubemaps_folder() -> Vec<String> {

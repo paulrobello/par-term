@@ -4,7 +4,7 @@
 //! eliminating duplicate parameter passing between `rebuild_renderer()`
 //! and `initialize_async()`.
 
-use crate::config::{BackgroundImageMode, Config, FontRange, VsyncMode};
+use crate::config::{BackgroundImageMode, Config, FontRange, ShaderMetadata, VsyncMode, resolve_shader_config};
 use crate::renderer::Renderer;
 use crate::themes::Theme;
 use std::path::PathBuf;
@@ -53,8 +53,13 @@ pub(crate) struct RendererInitParams {
 }
 
 impl RendererInitParams {
-    /// Create renderer init params from config and theme
-    pub fn from_config(config: &Config, theme: &Theme) -> Self {
+    /// Create renderer init params from config, theme, and optional shader metadata
+    ///
+    /// The metadata parameter allows full 3-tier resolution:
+    /// 1. User per-shader override (from shader_configs)
+    /// 2. Shader metadata defaults (from the shader file)
+    /// 3. Global config defaults
+    pub fn from_config(config: &Config, theme: &Theme, metadata: Option<&ShaderMetadata>) -> Self {
         debug_log!(
             "cursor-shader",
             "Config snapshot: enabled={}, path={:?}, animation={}, speed={}, disable_alt_screen={}",
@@ -64,6 +69,12 @@ impl RendererInitParams {
             config.cursor_shader_animation_speed,
             config.cursor_shader_disable_in_alt_screen
         );
+
+        // Resolve per-shader settings (user override -> metadata defaults -> global)
+        let shader_override = config.custom_shader.as_ref()
+            .and_then(|name| config.shader_configs.get(name));
+        let resolved = resolve_shader_config(shader_override, metadata, config);
+
         Self {
             font_family: if config.font_family.is_empty() {
                 None
@@ -95,12 +106,12 @@ impl RendererInitParams {
             custom_shader_path: config.custom_shader.clone(),
             custom_shader_enabled: config.custom_shader_enabled,
             custom_shader_animation: config.custom_shader_animation,
-            custom_shader_animation_speed: config.custom_shader_animation_speed,
-            custom_shader_text_opacity: config.custom_shader_text_opacity,
-            custom_shader_full_content: config.custom_shader_full_content,
-            custom_shader_brightness: config.custom_shader_brightness,
-            custom_shader_channel_paths: config.shader_channel_paths(),
-            custom_shader_cubemap_path: config.shader_cubemap_path(),
+            custom_shader_animation_speed: resolved.animation_speed,
+            custom_shader_text_opacity: resolved.text_opacity,
+            custom_shader_full_content: resolved.full_content,
+            custom_shader_brightness: resolved.brightness,
+            custom_shader_channel_paths: resolved.channel_paths(),
+            custom_shader_cubemap_path: resolved.cubemap_path().cloned(),
             cursor_shader_path: config.cursor_shader.clone(),
             cursor_shader_enabled: config.cursor_shader_enabled,
             cursor_shader_animation: config.cursor_shader_animation,

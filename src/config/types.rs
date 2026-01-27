@@ -1,6 +1,7 @@
 //! Configuration types and enums.
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// VSync mode (presentation mode)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
@@ -78,4 +79,145 @@ pub struct FontRange {
     pub end: u32,
     /// Font family name to use for this range
     pub font_family: String,
+}
+
+// ============================================================================
+// Per-Shader Configuration Types
+// ============================================================================
+
+/// Metadata embedded in shader files via YAML block comments.
+///
+/// Parsed from `/*! par-term shader metadata ... */` blocks at the top of shader files.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ShaderMetadata {
+    /// Human-readable name for the shader (e.g., "CRT Effect")
+    pub name: Option<String>,
+    /// Author of the shader
+    pub author: Option<String>,
+    /// Description of what the shader does
+    pub description: Option<String>,
+    /// Version string (e.g., "1.0.0")
+    pub version: Option<String>,
+    /// Default configuration values for this shader
+    #[serde(default)]
+    pub defaults: ShaderConfig,
+}
+
+/// Per-shader configuration settings.
+///
+/// Used both for embedded defaults in shader files and for user overrides in config.yaml.
+/// All fields are optional to allow partial overrides.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ShaderConfig {
+    /// Animation speed multiplier (1.0 = normal speed)
+    pub animation_speed: Option<f32>,
+    /// Brightness multiplier (0.05-1.0)
+    pub brightness: Option<f32>,
+    /// Text opacity when using this shader (0.0-1.0)
+    pub text_opacity: Option<f32>,
+    /// When true, shader receives full terminal content for manipulation
+    pub full_content: Option<bool>,
+    /// Path to texture for iChannel0
+    pub channel0: Option<String>,
+    /// Path to texture for iChannel1
+    pub channel1: Option<String>,
+    /// Path to texture for iChannel2
+    pub channel2: Option<String>,
+    /// Path to texture for iChannel3
+    pub channel3: Option<String>,
+    /// Path prefix for cubemap faces
+    pub cubemap: Option<String>,
+    /// Whether cubemap sampling is enabled
+    pub cubemap_enabled: Option<bool>,
+}
+
+/// Cursor shader specific configuration.
+///
+/// Extends base ShaderConfig with cursor-specific settings.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CursorShaderConfig {
+    /// Base shader configuration
+    #[serde(flatten)]
+    pub base: ShaderConfig,
+    /// Cursor glow radius in pixels
+    pub glow_radius: Option<f32>,
+    /// Cursor glow intensity (0.0-1.0)
+    pub glow_intensity: Option<f32>,
+    /// Duration of cursor trail effect in seconds
+    pub trail_duration: Option<f32>,
+    /// Cursor color for shader effects [R, G, B] (0-255)
+    pub cursor_color: Option<[u8; 3]>,
+}
+
+/// Fully resolved shader configuration with all values filled in.
+///
+/// Created by merging user overrides, shader metadata defaults, and global defaults.
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct ResolvedShaderConfig {
+    /// Animation speed multiplier
+    pub animation_speed: f32,
+    /// Brightness multiplier
+    pub brightness: f32,
+    /// Text opacity
+    pub text_opacity: f32,
+    /// Full content mode enabled
+    pub full_content: bool,
+    /// Resolved path to iChannel0 texture
+    pub channel0: Option<PathBuf>,
+    /// Resolved path to iChannel1 texture
+    pub channel1: Option<PathBuf>,
+    /// Resolved path to iChannel2 texture
+    pub channel2: Option<PathBuf>,
+    /// Resolved path to iChannel3 texture
+    pub channel3: Option<PathBuf>,
+    /// Resolved cubemap path prefix
+    pub cubemap: Option<PathBuf>,
+    /// Cubemap sampling enabled
+    pub cubemap_enabled: bool,
+}
+
+impl Default for ResolvedShaderConfig {
+    fn default() -> Self {
+        Self {
+            animation_speed: 1.0,
+            brightness: 1.0,
+            text_opacity: 1.0,
+            full_content: false,
+            channel0: None,
+            channel1: None,
+            channel2: None,
+            channel3: None,
+            cubemap: None,
+            cubemap_enabled: true,
+        }
+    }
+}
+
+/// Fully resolved cursor shader configuration with all values filled in.
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct ResolvedCursorShaderConfig {
+    /// Base resolved shader config
+    pub base: ResolvedShaderConfig,
+    /// Cursor glow radius in pixels
+    pub glow_radius: f32,
+    /// Cursor glow intensity (0.0-1.0)
+    pub glow_intensity: f32,
+    /// Duration of cursor trail effect in seconds
+    pub trail_duration: f32,
+    /// Cursor color for shader effects [R, G, B] (0-255)
+    pub cursor_color: [u8; 3],
+}
+
+impl Default for ResolvedCursorShaderConfig {
+    fn default() -> Self {
+        Self {
+            base: ResolvedShaderConfig::default(),
+            glow_radius: 80.0,
+            glow_intensity: 0.3,
+            trail_duration: 0.5,
+            cursor_color: [255, 255, 255],
+        }
+    }
 }

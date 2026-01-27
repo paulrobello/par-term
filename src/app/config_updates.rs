@@ -22,6 +22,7 @@ pub(crate) struct ConfigChanges {
     pub shader_brightness: bool,
     pub shader_textures: bool,
     pub shader_cubemap: bool,
+    pub shader_per_shader_config: bool,
 
     // Cursor shader
     pub cursor_shader_config: bool,
@@ -81,6 +82,14 @@ impl ConfigChanges {
                 || new.custom_shader_channel3 != old.custom_shader_channel3,
             shader_cubemap: new.custom_shader_cubemap != old.custom_shader_cubemap
                 || new.custom_shader_cubemap_enabled != old.custom_shader_cubemap_enabled,
+            shader_per_shader_config: {
+                // Check if the per-shader config for the current shader changed
+                let old_override = old.custom_shader.as_ref()
+                    .and_then(|name| old.shader_configs.get(name));
+                let new_override = new.custom_shader.as_ref()
+                    .and_then(|name| new.shader_configs.get(name));
+                old_override != new_override
+            },
 
             cursor_shader_config: new.cursor_shader_color != old.cursor_shader_color
                 || (new.cursor_shader_trail_duration - old.cursor_shader_trail_duration).abs()
@@ -140,6 +149,7 @@ impl ConfigChanges {
             || self.shader_brightness
             || self.shader_textures
             || self.shader_cubemap
+            || self.shader_per_shader_config
     }
 
     /// Returns true if any cursor shader path/enabled/animation changed

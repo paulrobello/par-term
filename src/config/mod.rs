@@ -4,12 +4,28 @@
 //! for the terminal emulator.
 
 mod defaults;
+pub mod shader_config;
+pub mod shader_metadata;
 mod types;
 
-pub use types::{BackgroundImageMode, CursorStyle, FontRange, TabBarMode, VsyncMode};
+// Re-export shader config resolution functions (used by consumers)
+#[allow(unused_imports)]
+pub use shader_config::{resolve_cursor_shader_config, resolve_shader_config};
+// Re-export shader metadata types and functions
+pub use shader_metadata::ShaderMetadataCache;
+#[allow(unused_imports)]
+pub use shader_metadata::{parse_shader_metadata, update_shader_metadata_file};
+// Re-export config types
+pub use types::{
+    BackgroundImageMode, CursorShaderConfig, CursorStyle, FontRange, ShaderConfig, ShaderMetadata,
+    TabBarMode, VsyncMode,
+};
+#[allow(unused_imports)]
+pub use types::{ResolvedCursorShaderConfig, ResolvedShaderConfig};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -559,6 +575,18 @@ pub struct Config {
     /// Helps avoid multiple reloads during rapid saves from editors
     #[serde(default = "defaults::shader_hot_reload_delay")]
     pub shader_hot_reload_delay: u64,
+
+    // ========================================================================
+    // Per-Shader Configuration Overrides
+    // ========================================================================
+    /// Per-shader configuration overrides (key = shader filename)
+    /// These override settings embedded in shader metadata and global defaults
+    #[serde(default)]
+    pub shader_configs: HashMap<String, ShaderConfig>,
+
+    /// Per-cursor-shader configuration overrides (key = shader filename)
+    #[serde(default)]
+    pub cursor_shader_configs: HashMap<String, CursorShaderConfig>,
 }
 
 impl Default for Config {
@@ -672,6 +700,8 @@ impl Default for Config {
             unfocused_fps: defaults::unfocused_fps(),
             shader_hot_reload: defaults::bool_false(),
             shader_hot_reload_delay: defaults::shader_hot_reload_delay(),
+            shader_configs: HashMap::new(),
+            cursor_shader_configs: HashMap::new(),
         }
     }
 }
@@ -864,5 +894,46 @@ impl Config {
     /// Load theme configuration
     pub fn load_theme(&self) -> Theme {
         Theme::by_name(&self.theme).unwrap_or_default()
+    }
+
+    /// Get the user override config for a specific shader (if any)
+    #[allow(dead_code)]
+    pub fn get_shader_override(&self, shader_name: &str) -> Option<&ShaderConfig> {
+        self.shader_configs.get(shader_name)
+    }
+
+    /// Get the user override config for a specific cursor shader (if any)
+    #[allow(dead_code)]
+    pub fn get_cursor_shader_override(&self, shader_name: &str) -> Option<&CursorShaderConfig> {
+        self.cursor_shader_configs.get(shader_name)
+    }
+
+    /// Get or create a mutable reference to a shader's config override
+    pub fn get_or_create_shader_override(&mut self, shader_name: &str) -> &mut ShaderConfig {
+        self.shader_configs
+            .entry(shader_name.to_string())
+            .or_default()
+    }
+
+    /// Get or create a mutable reference to a cursor shader's config override
+    #[allow(dead_code)]
+    pub fn get_or_create_cursor_shader_override(
+        &mut self,
+        shader_name: &str,
+    ) -> &mut CursorShaderConfig {
+        self.cursor_shader_configs
+            .entry(shader_name.to_string())
+            .or_default()
+    }
+
+    /// Remove a shader config override (revert to defaults)
+    pub fn remove_shader_override(&mut self, shader_name: &str) {
+        self.shader_configs.remove(shader_name);
+    }
+
+    /// Remove a cursor shader config override (revert to defaults)
+    #[allow(dead_code)]
+    pub fn remove_cursor_shader_override(&mut self, shader_name: &str) {
+        self.cursor_shader_configs.remove(shader_name);
     }
 }

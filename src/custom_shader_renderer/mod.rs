@@ -13,6 +13,7 @@
 //! - `iPreviousCursorColor`: Previous cursor RGBA color
 //! - `iTimeCursorChange`: Time when cursor last moved (same timebase as iTime)
 
+use crate::config::ResolvedShaderConfig;
 use anyhow::{Context, Result};
 use par_term_emu_core_rust::cursor::CursorStyle;
 use std::path::Path;
@@ -683,6 +684,86 @@ impl CustomShaderRenderer {
                 .unwrap_or_else(|| "placeholder".to_string())
         );
 
+        Ok(())
+    }
+
+    /// Update shader configuration from a resolved config.
+    ///
+    /// This updates runtime parameters without reloading the shader itself.
+    /// Call this when per-shader settings change in the UI.
+    #[allow(dead_code)]
+    pub fn update_from_resolved_config(&mut self, config: &ResolvedShaderConfig) {
+        self.animation_speed = config.animation_speed;
+        self.brightness = config.brightness;
+        self.text_opacity = config.text_opacity;
+        self.full_content_mode = config.full_content;
+        log::debug!(
+            "Updated shader from resolved config: speed={}, brightness={}, text_opacity={}, full_content={}",
+            config.animation_speed,
+            config.brightness,
+            config.text_opacity,
+            config.full_content
+        );
+    }
+
+    /// Update channel textures from a resolved config.
+    ///
+    /// Call this when channel texture paths change. This reloads textures and
+    /// recreates the bind group.
+    #[allow(dead_code)]
+    pub fn update_channels_from_resolved_config(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        config: &ResolvedShaderConfig,
+    ) -> Result<()> {
+        let channel_paths = config.channel_paths();
+
+        // Reload each channel texture
+        for (i, path) in channel_paths.iter().enumerate() {
+            let new_texture = match path {
+                Some(p) => match ChannelTexture::from_file(device, queue, p) {
+                    Ok(tex) => tex,
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to load channel{} texture '{}': {}",
+                            i,
+                            p.display(),
+                            e
+                        );
+                        ChannelTexture::placeholder(device, queue)
+                    }
+                },
+                None => ChannelTexture::placeholder(device, queue),
+            };
+            self.channel_textures[i] = new_texture;
+        }
+
+        // Update cubemap if configured
+        if let Some(cubemap_path) = config.cubemap_path() {
+            match CubemapTexture::from_prefix(device, queue, cubemap_path) {
+                Ok(cm) => self.cubemap = cm,
+                Err(e) => {
+                    log::warn!("Failed to load cubemap '{}': {}", cubemap_path.display(), e);
+                    self.cubemap = CubemapTexture::placeholder(device, queue);
+                }
+            }
+        } else {
+            self.cubemap = CubemapTexture::placeholder(device, queue);
+        }
+
+        // Recreate bind group with new textures
+        self.bind_group = create_bind_group(
+            device,
+            &self.bind_group_layout,
+            &self.uniform_buffer,
+            &self.intermediate_texture_view,
+            &self.sampler,
+            &self.channel_textures,
+            &self.cubemap,
+        );
+
+        log::info!("Updated shader channel textures from resolved config");
         Ok(())
     }
 
