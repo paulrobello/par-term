@@ -1,3 +1,21 @@
+/*! par-term shader metadata
+name: bloom
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: null
+  text_opacity: null
+  full_content: true
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: ''
+  cubemap_enabled: false
+*/
+
 // source: https://gist.github.com/qwerasd205/c3da6c610c8ffe17d6d2d3cc7068f17f
 // credits: https://github.com/qwerasd205
 // Golden spiral samples, [x, y, weight] weight is inverse of distance.
@@ -28,24 +46,19 @@ const vec3[24] samples = {
   vec3(-2.8769733643574344, 3.9652268864187157, 0.20412414523193154)
   };
 
-float lum(vec4 c) {
-  return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
-}
+const vec3 LUM_WEIGHTS = vec3(0.299, 0.587, 0.114);
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   vec2 uv = fragCoord.xy / iResolution.xy;
-
   vec4 color = texture(iChannel4, uv);
-
-  vec2 step = vec2(1.414) / iResolution.xy;
+  vec2 sampleStep = vec2(1.414) / iResolution.xy;
 
   for (int i = 0; i < 24; i++) {
     vec3 s = samples[i];
-    vec4 c = texture(iChannel4, uv + s.xy * step);
-    float l = lum(c);
-    if (l > 0.2) {
-      color += l * s.z * c * 0.2;
-    }
+    vec4 c = texture(iChannel4, uv + s.xy * sampleStep);
+    float l = dot(c.rgb, LUM_WEIGHTS);
+    // Branchless: step returns 1.0 when l > 0.2, else 0.0
+    color += l * step(0.2, l) * s.z * c * 0.25;
   }
 
   fragColor = color;

@@ -1,3 +1,21 @@
+/*! par-term shader metadata
+name: fireworks-rockets
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: 0.33
+  text_opacity: null
+  full_content: null
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: ''
+  cubemap_enabled: false
+*/
+
 // This Ghostty shader is a lightly modified port of https://www.shadertoy.com/view/4dBGRw
 
 #define BLACK_BLEND_THRESHOLD .4
@@ -15,11 +33,36 @@ vec3 barberpole(vec2 pos, vec2 rocketpos) {
     return col;
 }
 
-vec3 rocket(vec2 pos, vec2 rocketpos) {
+vec3 rocketTrail(vec2 pos, vec2 rocketpos, float time) {
+    vec3 col = vec3(0.0);
+    float dx = pos.x - rocketpos.x;
+    float dy = rocketpos.y - pos.y;  // Below the rocket
+
+    if (dy > 0.0 && dy < 1.2) {
+        // Trail width narrows as it goes down
+        float width = 0.05 * (1.0 - dy * 0.7);
+        if (abs(dx) < width) {
+            // Flicker effect
+            float flicker = 0.8 + 0.2 * sin(time * 40.0 + dy * 20.0);
+            // Color gradient: bright white/yellow at top, orange at bottom
+            float t = dy * 0.8;
+            vec3 trailCol = mix(vec3(1.5, 1.4, 1.0), vec3(1.2, 0.5, 0.1), t);
+            // Fade out at edges and bottom - less aggressive fade
+            float fade = (1.0 - abs(dx) / width * 0.5) * (1.0 - dy * 0.5);
+            col = trailCol * fade * flicker * 2.0;
+        }
+    }
+    return col;
+}
+
+vec3 rocket(vec2 pos, vec2 rocketpos, float time) {
     vec3 col = vec3(0.0);
     float f = 0.;
     float absx = abs(rocketpos.x - pos.x);
     float absy = abs(rocketpos.y - pos.y);
+
+    // Rocket trail (flame exhaust)
+    col += rocketTrail(pos, rocketpos, time);
 
     // Wooden stick
     if (absx < 0.01 && absy < 0.22) {
@@ -31,9 +74,9 @@ vec3 rocket(vec2 pos, vec2 rocketpos) {
         col = barberpole(pos, rocketpos);
     }
 
-    // Rocket Point
-    float pointw = (rocketpos.y - pos.y - 0.25) * -0.7;
-    if ((rocketpos.y - pos.y) > 0.1) {
+    // Rocket Point (flipped to point upward)
+    float pointw = (pos.y - rocketpos.y - 0.25) * -0.7;
+    if ((pos.y - rocketpos.y) > 0.1) {
         f = smoothstep(pointw - 0.001, pointw + 0.001, absx);
 
         col = mix(vec3(1.0, 0.0, 0.0), col, f);
@@ -54,32 +97,37 @@ float distance2(in vec2 a, in vec2 b) {
     return dot(a - b, a - b);
 }
 
-mat2 rr = mat2(cos(1.0), -sin(1.0), sin(1.0), cos(1.0));
+// Precomputed rotation matrix for 1 radian
+const mat2 rr = mat2(0.5403, -0.8415, 0.8415, 0.5403);
 
 vec3 drawParticles(vec2 pos, vec3 particolor, float time, vec2 cpos, float gravity, float seed, float timelength) {
     vec3 col = vec3(0.0);
     vec2 pp = vec2(1.0, 0.0);
-    for (float i = 1.0; i <= 128.0; i++) {
+    for (float i = 1.0; i <= 64.0; i++) {
         float d = rand(i, seed);
-        float fade = (i / 128.0) * time;
+        float fade = (i / 64.0) * time;
         vec2 particpos = cpos + time * pp * d;
         pp = rr * pp;
-        col = mix(particolor / fade, col, smoothstep(0.0, 0.0001, distance2(particpos, pos)));
+        // Shimmer effect - simplified
+        float shimmer = sin(time * 50.0 + i * 7.0 + d * 20.0);
+        vec3 shimmerCol = particolor + vec3(0.3, 0.3, 0.5) * shimmer;
+        shimmerCol *= (1.0 + 0.8 * shimmer);
+        col = mix(shimmerCol / fade, col, smoothstep(0.0, 0.0001, distance2(particpos, pos)));
     }
     col *= smoothstep(0.0, 1.0, (timelength - time) / timelength);
 
     return col;
 }
 vec3 drawFireworks(float time, vec2 uv, vec3 particolor, float seed) {
-    float timeoffset = 2.0;
+    float timeoffset = 1.0;
     vec3 col = vec3(0.0);
     if (time <= 0.) {
         return col;
     }
     if (mod(time, 6.0) > timeoffset) {
-        col = drawParticles(uv, particolor, mod(time, 6.0) - timeoffset, vec2(rand(ceil(time / 6.0), seed), -0.5), 0.5, ceil(time / 6.0), seed);
+        col = drawParticles(uv, particolor, mod(time, 6.0) - timeoffset, vec2(rand(ceil(time / 6.0), seed), 0.0), 0.5, ceil(time / 6.0), seed);
     } else {
-        col = rocket(uv * 3., vec2(3. * rand(ceil(time / 6.0), seed), 3. * (-0.5 + (timeoffset - mod(time, 6.0)))));
+        col = rocket(uv * 3., vec2(3. * rand(ceil(time / 6.0), seed), 3. * (-1.0 + mod(time, 6.0) / timeoffset)), time);
     }
     return col;
 }

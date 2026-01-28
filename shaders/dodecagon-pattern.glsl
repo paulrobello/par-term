@@ -1,51 +1,32 @@
+/*! par-term shader metadata
+name: dodecagon-pattern
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.2
+  brightness: 0.17
+  text_opacity: null
+  full_content: null
+  channel0: textures/metalic1.jpg
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: textures/cubemaps/env-outside
+  cubemap_enabled: null
+*/
+
 /*
     Dodecagon Quad Pattern
     ----------------------
-    https://www.shadertoy.com/view/t3yyzD
 
-    Dodecagon-based quad pattern with overlapping frame and BRDF materials.
-
-    Original by Shane. Adapted for par-term with cubemap support.
+    Original by Shane (Shadertoy)
+    Adapted for par-term: uses iCubemap instead of iChannel1 for reflections
 */
 
 // PI and 2 PI.
 #define PI 3.14159265
 #define TAU 6.2831853
-
-////// Variable Defines ///////
-
-// Frame color -- Silver: 0, Copper: 1, Gold: 2.
-#define FRAME_COL 2
-
-// Frame style -- Single: 0, Double: 1.
-#define FRAME_STYLE 0
-
-// Display the metal rivots.
-#define RIVOTS
-
-// Beveling the tops of the frames.
-#define BEVELED
-
-// Rounded polygon edges.
-#define ROUNDED
-
-// Dodecagon subdivision.
-#define DOD_SUB 2
-
-// Concave octagon subdivision.
-#define OCT_SUB 1
-
-/////// Constant Defines ///////
-
-// Far plane.
-#define FAR 20.
-
-// Loop anti-unrolling hack.
-#define ZERO min(int(iFrame), 0)
-
-/////////////////////
-// Common tab functions
-/////////////////////
 
 // Standard 2D rotation formula.
 mat2 rot2(in float a){ float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
@@ -56,20 +37,13 @@ float smin(float a, float b, float k){
    return min(a, b) - k*.25*f*f;
 }
 
-// 2D vector version of smin.
-vec2 smin2(vec2 a, vec2 b, float k){
-   vec2 f = max(vec2(0), 1. - abs(b - a)/k);
-   return min(a, b) - k*.25*f*f;
-}
-
-// Hash function - 1 out, 2 in.
+// Hash functions
 float hash21(vec2 p){
     vec3 p3  = fract(vec3(p.xyx)*.1031);
     p3 += dot(p3, p3.yzx + 42.123);
     return fract((p3.x + p3.y) * p3.z);
 }
 
-// Hash function - 1 out, 3 in.
 float hash31(vec3 p3){
     p3  = fract(p3*vec3(.6031, .5030, .4973));
     p3 += dot(p3, p3.zyx + 43.527);
@@ -82,7 +56,7 @@ float distLineS(vec2 p, vec2 a, vec2 b){
     return dot(p - a, vec2(-b.y, b.x)/length(b));
 }
 
-// BRDF helper functions.
+// BRDF functions
 float GGX_Schlick(float nv, float rough) {
     float r = .5 + .5*rough;
     float k = (r*r)/2.;
@@ -109,7 +83,7 @@ vec3 getDiff(vec3 FS, float nl, float rough, float type){
     return diff*(1. - type);
 }
 
-// IQ's regular polygon distance formula.
+// IQ's regular polygon distance formula
 float sdRegularPolygon(in vec2 p, in float r, in int n){
     float an = PI/float(n);
     vec2  acs = vec2(cos(an), sin(an));
@@ -120,18 +94,15 @@ float sdRegularPolygon(in vec2 p, in float r, in int n){
     return length(p)*sign(p.x);
 }
 
-/////////////////////
-// Main shader code
-/////////////////////
-
-// Tri-Planar blending function using iChannel0.
-vec3 tex3D(sampler2D tex, in vec3 p, in vec3 n){
-    n = max(n*n - .2, .001);
-    n /= dot(n, vec3(1));
-    vec3 tx = texture(tex, p.zy).xyz;
-    vec3 ty = texture(tex, p.xz).xyz;
-    vec3 tz = texture(tex, p.xy).xyz;
-    return mat3(tx*tx, ty*ty, tz*tz)*n;
+// Optimized tri-planar: use dominant axis with single blend
+vec3 tex3D(in vec3 p, in vec3 n){
+    vec3 an = abs(n);
+    if(an.y > an.x && an.y > an.z) {
+        vec3 t = texture(iChannel0, p.xz).xyz;
+        return t*t;
+    }
+    vec3 tx = texture(iChannel0, an.x > an.z ? p.zy : p.xy).xyz;
+    return tx*tx;
 }
 
 // IQ's 2D box function.
@@ -140,7 +111,7 @@ float sBoxS(in vec2 p, in vec2 b, in float rf){
     return min(max(d.x, d.y), 0.) + length(max(d, 0.)) - rf;
 }
 
-// Path function.
+// Path function
 vec2 path(in float z){
     float a = sin(z*.11);
     float b = cos(z*.14);
@@ -153,7 +124,7 @@ float opExtrusion(in float sdf, in float pz, in float h, in float sf){
     return min(max(w.x, w.y), 0.) + length(max(w, 0.)) - sf;
 }
 
-// Polygon distance.
+// Polygon distance
 #define NV 12
 float sdPoly(in vec2 p, in vec2[NV] v, int num){
     float d = length(p - v[0]);
@@ -169,6 +140,34 @@ float sdPoly(in vec2 p, in vec2[NV] v, int num){
     }
     return -d;
 }
+
+////// Variable Defines ///////
+
+// Frame color -- Silver: 0, Copper: 1, Gold: 2.
+#define FRAME_COL 2
+
+// Frame style -- Single: 0, Double: 1.
+#define FRAME_STYLE 0
+
+// Display the metal rivots.
+#define RIVOTS
+
+// Beveling the tops of the frames.
+#define BEVELED
+
+// Rounded polygon edges.
+#define ROUNDED
+
+// Dodecagon subdivision.
+#define DOD_SUB 2
+
+// Concave octagon subdivision.
+#define OCT_SUB 1
+
+// Far plane.
+#define FAR 20.
+
+// Note: ZERO macro removed for naga compatibility
 
 // Edge and vertex ID values.
 const mat4x2 vID = mat4x2(vec2(-.5, -.5), vec2(-.5, .5), vec2(.5, .5), vec2(.5, -.5));
@@ -216,7 +215,6 @@ vec4 getGrid(vec2 p, inout vec2 sc){
         #if DOD_SUB>0
         float ang = atan(p.y, -p.x)/TAU + 1.5/12.;
         int i = int(mod(ang*6., 6.));
-
         float ln0 = distLineS(p, vec2(0), vP[(i*2 + 11)%12]);
         float ln1 = distLineS(p, vec2(0), vP[(i*2 + 1)%12]);
 
@@ -245,25 +243,25 @@ vec4 getGrid(vec2 p, inout vec2 sc){
         vP[0] = cntr;
 
         if(ln3.x<0.){
-            vP[1] = m1;
-            vP[2] = vec2(0);
-            vP[3] = m0;
-            ip -= cntr/2./sc;
-            polyID = 0;
+           vP[1] = m1;
+           vP[2] = vec2(0);
+           vP[3] = m0;
+           ip -= cntr/2./sc;
+           polyID = 0;
         }
         else if(ln3.y<0.){
-            ip += mix(cntr, vP[1], .5)/sc;
-            vP[3] = vP[2];
-            vP[2] = vP[1];
-            vP[1] = m0;
-            polyID = 1;
+           ip += mix(cntr, vP[1], .5)/sc;
+           vP[3] = vP[2];
+           vP[2] = vP[1];
+           vP[1] = m0;
+           polyID = 1;
         }
         else if(ln3.z<0.){
-            ip += mix(cntr, vP[3], .5)/sc;
-            vP[1] = vP[2];
-            vP[2] = vP[3];
-            vP[3] = m1;
-            polyID = 2;
+           ip += mix(cntr, vP[3], .5)/sc;
+           vP[1] = vP[2];
+           vP[2] = vP[3];
+           vP[3] = m1;
+           polyID = 2;
         }
         #endif
     }
@@ -349,10 +347,11 @@ float map(vec3 p3){
     #endif
 
     #ifdef RIVOTS
-    float dV2 = 1e5;
-    for(int i = 0; i<pID; i++){
-        dV2 = min(dV2, length(p4.xy - vP[i]) - .035);
-    }
+    // Optimize: check max 4 vertices (pID is typically 4 after subdivision)
+    float dV2 = length(p4.xy - vP[0]) - .035;
+    dV2 = min(dV2, length(p4.xy - vP[1]) - .035);
+    dV2 = min(dV2, length(p4.xy - vP[2]) - .035);
+    dV2 = min(dV2, length(p4.xy - vP[3]) - .035);
     float dV = opExtrusion(dV2, pY - h, th + .025, .01);
 
     dE = min(dE, dV - .015);
@@ -368,49 +367,43 @@ float map(vec3 p3){
 
 float trace(in vec3 ro, in vec3 rd){
     float d, t = 0.;
-    for(int i = ZERO; i<180; i++){
+    for(int i = 0; i<96; i++){
         d = map(ro + rd*t);
         if(abs(d)<.001 || t>FAR) break;
-        t += d*.8;
+        t += d*.9;
     }
     return min(t, FAR);
 }
 
+// Tetrahedron normal - 4 samples instead of 6
 vec3 normal(in vec3 p) {
-    float sgn = 1.;
-    vec3 e = vec3(.001, 0, 0), mp = e.zzz;
-    for(int i = ZERO; i<6; i++){
-        mp.x += map(p + sgn*e)*sgn;
-        sgn = -sgn;
-        if((i&1)==1){ mp = mp.yzx; e = e.zxy; }
-    }
-    return normalize(mp);
+    vec2 e = vec2(.001, -.001);
+    return normalize(
+        e.xyy*map(p + e.xyy) + e.yyx*map(p + e.yyx) +
+        e.yxy*map(p + e.yxy) + e.xxx*map(p + e.xxx));
 }
 
 float softShadow(vec3 ro, vec3 rd, vec3 n, float lDist, float k){
-    ro += n*.0015;
-    ro += rd*hash31(ro + n*57.13)*.01;
-
+    ro += n*.002;
     float shade = 1.;
-    float t = 0.;
+    float t = .02;
 
-    for (int i = min(0, int(iFrame)); i<48; i++){
+    for (int i = 0; i<24; i++){
         float d = map(ro + rd*t);
         shade = min(shade, k*d/t);
         if (d<0. || t>lDist) break;
-        t += clamp(d, .01, .2);
+        t += clamp(d, .02, .25);
     }
-
     return max(shade, 0.);
 }
 
 float calcAO(in vec3 p, in vec3 n){
     float sca = 2., occ = 0.;
-    for(int i = 0; i<5; i++){
-        float hr = float(i + 1)*.15/5.;
+    for(int i = 0; i<3; i++){
+        float hr = float(i + 1)*.15/3.;
         float d = map(p + n*hr);
         occ += (hr - d)*sca;
-        sca *= .75;
+        sca *= .7;
     }
     return clamp(1. - occ, 0., 1.);
 }
@@ -442,16 +435,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
     vec4 svVal = gVal;
     int svPolyID = polyID;
 
-    vec2 cntr = vec2(0);
-    float ln = 1e5;
-    float cir = 1e5;
-    for(int i = 0; i<pID; i++){
-        cntr += vP[i]/float(pID);
-    }
+    // Optimize: assume pID=4 for center calculation
+    vec2 cntr = (vP[0] + vP[1] + vP[2] + vP[3])*.25;
     svVal.xy -= cntr;
-    cir = min(cir, length(svVal.xy));
+    float cir = length(svVal.xy);
 
-    float dst = min(cir - .04, ln - .01);
+    float dst = cir - .04;
 
     vec3 sky = vec3(1, .7, .4);
     vec3 sceneCol = sky;
@@ -477,11 +466,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
 
         vec3 txP = sp;
         txP.xy *= rot2(-PI/4.);
-        vec3 tx = tex3D(iChannel0, txP/1., sn);
+        vec3 tx = tex3D(txP/1., sn);
         float gr = dot(tx, vec3(.299, .587, .114));
 
         float rnd = hash21(id + .1);
-        float range = hash21(id + .011);
         float saturation = .7;
         vec3 texCol = .5 + .45*cos(TAU*rnd/6. + vec3(0, PI/2., PI)*saturation);
 
@@ -503,13 +491,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
             texCol *= tx;
         }
         else{
-            texCol = texCol.yzx;
-            if(svPolyID==0 || svPolyID==3){
-                if(svPolyID==0) texCol = texCol.xzy;
-                else texCol = mix(texCol, texCol.zyx*1.4, .6);
-            }
-            texCol = mix(texCol, texCol*.02, 1. - smoothstep(0., 1./450., dst));
-            texCol *= tx*3. + .1;
+           texCol = texCol.yzx;
+           if(svPolyID==0 || svPolyID==3){
+              if(svPolyID==0) texCol = texCol.xzy;
+              else texCol = mix(texCol, texCol.zyx*1.4, .6);
+           }
+           texCol = mix(texCol, texCol*.02, 1. - smoothstep(0., 1./450., dst));
+           texCol *= tx*3. + .1;
         }
 
         float amb = length(sin(sn*2.)*.5 + .5)/sqrt(3.)*smoothstep(-1., 1., sn.y);
@@ -549,7 +537,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
 
         sceneCol = texCol*(diff*sh + amb*(sh*.5 + .5) + vec3(8)*spec*sh);
 
-        // Specular reflection using cubemap
+        // Specular reflection using iCubemap instead of iChannel1
         float speR = pow(max(dot(normalize(ld - rd), sn), 0.), 8.);
         vec3 rf = reflect(rd, sn);
         vec3 rTx = texture(iCubemap, rf).xyz; rTx *= rTx;
@@ -558,8 +546,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord){
 
         sceneCol *= atten*ao;
     }
-
-    sceneCol = mix(sceneCol, sky, smoothstep(.2, 1., t/FAR));
 
     fragColor = vec4(pow(max(sceneCol, 0.), vec3(1)/2.2), 1.0);
 }

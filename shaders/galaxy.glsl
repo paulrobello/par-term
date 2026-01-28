@@ -1,17 +1,31 @@
-float triangle(float x, float period) { 
-	return 2.0 * abs(3.0*   ((x / period) - floor((x / period) + 0.5))) - 1.0;
-}
- 
-float field(in vec3 position) {	
+/*! par-term shader metadata
+name: galaxy
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: null
+  text_opacity: null
+  full_content: null
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: ''
+  cubemap_enabled: false
+*/
+
+float field(in vec3 position) {
   float strength = 7.0 + 0.03 * log(1.0e-6 + fract(sin(iTime) * 373.11));
   float accumulated = 0.0;
   float previousMagnitude = 0.0;
   float totalWeight = 0.0;	
 
-  for (int i = 0; i < 6; ++i) {
+  for (int i = 0; i < 5; ++i) {
     float magnitude = dot(position, position);
     position = abs(position) / magnitude + vec3(-0.5, -0.8 + 0.1 * sin(-iTime * 0.1 + 2.0), -1.1 + 0.3 * cos(iTime * 0.3));
-    float weight = exp(-float(i) / 7.0);
+    float weight = exp(-float(i) / 6.0);
     accumulated += weight * exp(-strength * pow(abs(magnitude - previousMagnitude), 2.3));
     totalWeight += weight;
     previousMagnitude = magnitude;
@@ -22,9 +36,9 @@ float field(in vec3 position) {
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   const float baseSpeed = 0.02;
-  const int maxIterations = 16;
+  const int maxIterations = 14;
   const float formulaParameter = 0.79;
-  const float volumeSteps = 7.0;
+  const float volumeSteps = 6.0;
   const float stepSize = 0.24;
   const float zoomFactor = 0.1;
   const float tilingFactor = 0.85;
@@ -36,8 +50,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   const float cloudOpacity = 0.48;
   const float zoomSpeed = 0.0002;
 
-  vec2 normalizedCoordinates = 2.0 * fragCoord.xy / vec2(512) - 1.0;
-  vec2 scaledCoordinates = normalizedCoordinates * vec2(512) / 512.0;
+  vec2 normalizedCoordinates = 2.0 * fragCoord.xy / iResolution.xy - 1.0;
+  vec2 scaledCoordinates = normalizedCoordinates;
 
   float timeElapsed = iTime;               
   float speedAdjustment = -baseSpeed;

@@ -1,3 +1,21 @@
+/*! par-term shader metadata
+name: fireworks
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: 0.17
+  text_opacity: null
+  full_content: null
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: ''
+  cubemap_enabled: false
+*/
+
 // This Ghostty shader is a port of https://www.shadertoy.com/view/lscGRl
 
 // "Fireworks" by Martijn Steinrucken aka BigWings - 2015
@@ -12,10 +30,10 @@
 #define saturate(x) clamp(x,0.,1.)
 
 #define NUM_EXPLOSIONS 3.
-#define NUM_PARTICLES 42.
+#define NUM_PARTICLES 32.
 
 // Noise functions by Dave Hoskins
-#define MOD3 vec3(.1031,.11369,.13787)
+const vec3 MOD3 = vec3(.1031,.11369,.13787);
 vec3 hash31(float p) {
     vec3 p3 = fract(vec3(p) * MOD3);
     p3 += dot(p3, p3.yzx + 19.19);
@@ -57,8 +75,8 @@ vec3 explosion(vec2 uv, vec2 p, float seed, float t) {
         float size = mix(.01, .005, S(0., .1, pt));
         size *= S(1., .1, pt);
 
-        float sparkle = (sin((pt + n.z) * 21.) * .5 + .5);
-        sparkle = pow(sparkle, pow(en.x, 3.) * 50.) * mix(0.01, .01, en.y * n.y);
+        float sparkle = sin((pt + n.z) * 21.) * .5 + .5;
+        sparkle = pow(sparkle, en.x * en.x * en.x * 50.) * .01;
 
         //size += sparkle*B(.6, 1., .1, t);
         size += sparkle * B(en.x, en.y, en.z, t);

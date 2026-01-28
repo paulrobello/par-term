@@ -1,6 +1,35 @@
+/*! par-term shader metadata
+name: rain
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: null
+  text_opacity: null
+  full_content: null
+  channel0: textures/wallpaper/MagicMushrooms.png
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: ''
+  cubemap_enabled: false
+*/
+
 // Rain on Glass - based on Heartfelt by Martijn Steinrucken aka BigWings - 2017
 // Modified to remove heart, lightning, and mouse effects
 // Original: https://www.shadertoy.com/view/ltffzl
+
+// ============== ADJUSTABLE FOG SETTINGS ==============
+// FOG_ENABLED: Comment out to disable fog entirely (saves GPU cycles)
+#define FOG_ENABLED
+// FOG_AMOUNT: Controls overall glass fogginess (0.0 = clear, 1.0 = fully fogged)
+#define FOG_AMOUNT 0.4
+// FOG_CLEAR_AMOUNT: How much drops clear the fog (0.0 = no clearing, 1.0 = full clearing)
+#define FOG_CLEAR_AMOUNT 0.8
+// FOG_COLOR: The color of the fog (grayish-blue works well for window condensation)
+#define FOG_COLOR vec3(0.7, 0.75, 0.8)
+// =====================================================
 
 #define S(a, b, t) smoothstep(a, b, t)
 //#define CHEAP_NORMALS
@@ -125,8 +154,16 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
         vec2 n = vec2(cx-c.x, cy-c.x);        // expensive normals
     #endif
 
-    // Sample background without fog/blur
+    // Sample background
     vec3 col = texture(iChannel0, UV+n).rgb;
+
+    // Apply fog effect - drops and trails clear the fog
+    #ifdef FOG_ENABLED
+    float fogClear = c.y * FOG_CLEAR_AMOUNT;  // trails clear fog
+    fogClear = max(fogClear, S(.1, .3, c.x) * FOG_CLEAR_AMOUNT);  // drops clear fog more
+    float fogLevel = FOG_AMOUNT * (1.0 - fogClear);
+    col = mix(col, FOG_COLOR, fogLevel);
+    #endif
 
     #ifdef USE_POST_PROCESSING
     float colFade = sin(t*.2)*.5+.5;

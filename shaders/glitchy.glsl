@@ -1,3 +1,21 @@
+/*! par-term shader metadata
+name: glitchy
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: null
+  text_opacity: null
+  full_content: null
+  channel0: textures/metalic1.jpg
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: ''
+  cubemap_enabled: false
+*/
+
 // modified version of https://www.shadertoy.com/view/wld3WN
 // amount of seconds for which the glitch loop occurs
 #define DURATION 10.
@@ -61,25 +79,6 @@ float gnoise(vec3 x)
     
     return 2. * gNoise;
 }
-
-// gradient noise in range [0, 1]
-float gnoise01(vec3 x)
-{
-	return .5 + .5 * gnoise(x);   
-}
-
-// warp uvs for the crt effect
-vec2 crt(vec2 uv)
-{
-    float tht  = atan(uv.y, uv.x);
-    float r = length(uv);
-    // curve without distorting the center
-    r /= (1. - .1 * r * r);
-    uv.x = r * cos(tht);
-    uv.y = r * sin(tht);
-    return .5 * (uv + 1.);
-}
-
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {

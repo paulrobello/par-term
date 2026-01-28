@@ -1,3 +1,21 @@
+/*! par-term shader metadata
+name: crt
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: null
+  text_opacity: null
+  full_content: true
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: ''
+  cubemap_enabled: false
+*/
+
 // source: https://gist.github.com/qwerasd205/c3da6c610c8ffe17d6d2d3cc7068f17f
 // credits: https://github.com/qwerasd205
 //==============================================================
@@ -60,9 +78,9 @@
 // "Scanlines" per real screen pixel.
 // e.g. SCALE 0.5 means each scanline is 2 pixels.
 // Recommended values:
-//  o High DPI displays: 0.33333333
-//  - Low DPI displays:  0.66666666
-#define SCALE 0.33333333
+//  o High DPI displays: 0.5
+//  - Low DPI displays:  1.0
+#define SCALE 1.0
 
 // "Tube" warp
 #define CRTS_WARP 1
@@ -70,7 +88,7 @@
 // Darkness of vignette in corners after warping
 //  0.0 = completely black
 //  1.0 = no vignetting
-#define MIN_VIN 0.5
+#define MIN_VIN 0.7
 
 // Try different masks
 // #define CRTS_MASK_GRILLE 1
@@ -82,20 +100,20 @@
 //  0.50 = fused scanlines
 //  0.70 = recommended default
 //  1.00 = thinner scanlines (too thin)
-#define INPUT_THIN 0.75
+#define INPUT_THIN 0.60
 
 // Horizonal scan blur
 //  -3.0 = pixely
 //  -2.5 = default
 //  -2.0 = smooth
 //  -1.0 = too blurry
-#define INPUT_BLUR -2.75
+#define INPUT_BLUR -2.0
 
 // Shadow mask effect, ranges from,
 //  0.25 = large amount of mask (not recommended, too dark)
 //  0.50 = recommended default
 //  1.00 = no shadow mask
-#define INPUT_MASK 0.65
+#define INPUT_MASK 0.85
 
 float FromSrgb1(float c) {
   return (c <= 0.04045) ? c * (1.0 / 12.92) :

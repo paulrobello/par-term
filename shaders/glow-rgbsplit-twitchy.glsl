@@ -1,3 +1,21 @@
+/*! par-term shader metadata
+name: glow-rgbsplit-twitchy
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: null
+  text_opacity: null
+  full_content: null
+  channel0: textures/wallpaper/MagicMushrooms.png
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: ''
+  cubemap_enabled: false
+*/
+
 // First it does a "chromatic aberration" by splitting the rgb signals by a product of sin functions
 // over time, then it does a glow effect in a perceptual color space
 // Based on kalgynirae's Ghostty passable glow shader and NickWest's Chromatic Aberration shader demo
@@ -59,8 +77,8 @@ vec4 toRgb(vec4 oklab) {
     );
 }
 
-// Bloom samples from https://gist.github.com/qwerasd205/c3da6c610c8ffe17d6d2d3cc7068f17f
-const vec3[24] samples = {
+// Bloom samples (reduced from 24 to 16)
+const vec3[16] samples = vec3[16](
   vec3(0.1693761725038636, 0.9855514761735895, 1),
   vec3(-1.333070830962943, 0.4721463328627773, 0.7071067811865475),
   vec3(-0.8464394909806497, -1.51113870578065, 0.5773502691896258),
@@ -76,25 +94,15 @@ const vec3[24] samples = {
   vec3(2.888202648340422, -2.1583061557896213, 0.2773500981126146),
   vec3(2.7150778983300325, 2.5745586041105715, 0.2672612419124244),
   vec3(-2.1504069972377464, 3.2211410627650165, 0.2581988897471611),
-  vec3(-3.6548858794907493, -1.6253643308191343, 0.25),
-  vec3(1.0130775986052671, -3.9967078676335834, 0.24253562503633297),
-  vec3(4.229723673607257, 0.33081361055181563, 0.23570226039551587),
-  vec3(0.40107790291173834, 4.340407413572593, 0.22941573387056174),
-  vec3(-4.319124570236028, 1.159811599693438, 0.22360679774997896),
-  vec3(-1.9209044802827355, -4.160543952132907, 0.2182178902359924),
-  vec3(3.8639122286635708, -2.6589814382925123, 0.21320071635561041),
-  vec3(3.3486228404946234, 3.4331800232609, 0.20851441405707477),
-  vec3(-2.8769733643574344, 3.9652268864187157, 0.20412414523193154)
-};
+  vec3(-3.6548858794907493, -1.6253643308191343, 0.25)
+);
 
-float offsetFunction(float iTime) {
-	float amount = 1.0;
-	const float periods[4] = {6.0, 16.0, 19.0, 27.0};
-    for (int i = 0; i < 4; i++) {
-	    amount *= 1.0 + 0.5 * sin(iTime*periods[i]);
-	}
-	//return amount;
-	return amount * periods[3];
+float offsetFunction(float t) {
+	float amount = (1.0 + 0.5 * sin(t * 6.0)) *
+	               (1.0 + 0.5 * sin(t * 16.0)) *
+	               (1.0 + 0.5 * sin(t * 19.0)) *
+	               (1.0 + 0.5 * sin(t * 27.0));
+	return amount * 27.0;
 }
 
 const float DIM_CUTOFF = 0.35;
@@ -117,11 +125,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     if (source.x > DIM_CUTOFF) {
         dest.x *= 1.2;
-        // dest.x = 1.2;
     } else {
         vec2 step = vec2(1.414) / iResolution.xy;
         vec3 glow = vec3(0.0);
-        for (int i = 0; i < 24; i++) {
+        for (int i = 0; i < 16; i++) {
             vec3 s = samples[i];
             float weight = s.z;
             vec4 c = toOklab(texture(iChannel4, uv + s.xy * step));
@@ -134,9 +141,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                 }
             }
         }
-        // float lightness_diff = clamp(glow.x - dest.x, 0.0, 1.0);
-        // dest.x = lightness_diff;
-        // dest.yz = dest.yz * (1.0 - lightness_diff) + glow.yz * lightness_diff;
         dest.xyz += glow.xyz;
     }
 

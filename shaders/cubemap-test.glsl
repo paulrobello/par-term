@@ -1,3 +1,21 @@
+/*! par-term shader metadata
+name: cubemap-test
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: null
+  text_opacity: null
+  full_content: true
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: textures/cubemaps/env-outside
+  cubemap_enabled: null
+*/
+
 // Cubemap Test Shader
 // Simple skybox with rotating view to test cubemap functionality
 
@@ -23,8 +41,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         rayDir.x * s + rayDir.z * c
     );
 
-    // Also add slight pitch based on mouse Y (if available)
-    float pitch = iMouse.z > 0.0 ? (iMouse.y / iResolution.y - 0.5) * 1.5 : sin(iTime * 0.1) * 0.3;
+    // Pitch controlled by mouse Y position (inverted so up looks up)
+    float pitch = (0.5 - iMouse.y / iResolution.y) * 1.5;
     float cp = cos(pitch);
     float sp = sin(pitch);
     rayDir = vec3(
@@ -40,7 +58,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec3 mapped = skyColor.rgb / (skyColor.rgb + vec3(1.0));
 
     // Sample terminal content
-    vec4 terminal = texture(iChannel4, vec2(uv.x, 1.0 - uv.y));
+    vec4 terminal = texture(iChannel4, uv);
 
     // Composite: show terminal where there's content, skybox elsewhere
     if (terminal.a > 0.01) {

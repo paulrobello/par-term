@@ -1,3 +1,21 @@
+/*! par-term shader metadata
+name: clouds
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: 0.17
+  text_opacity: null
+  full_content: null
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: ''
+  cubemap_enabled: false
+*/
+
 // Animated clouds background shader
 // Based on Shadertoy cloud shader
 // Usage: Set custom_shader: "clouds.glsl" in config
@@ -34,7 +52,7 @@ float noise( in vec2 p ) {
 
 float fbm(vec2 n) {
     float total = 0.0, amplitude = 0.1;
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < 5; i++) {
         total += noise(n) * amplitude;
         n = m * n;
         amplitude *= 0.4;
@@ -42,9 +60,10 @@ float fbm(vec2 n) {
     return total;
 }
 
-void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 p = fragCoord.xy / iResolution.xy;
-    vec2 uv = p*vec2(iResolution.x/iResolution.y,1.0);
+    vec2 aspect = vec2(iResolution.x / iResolution.y, 1.0);
+    vec2 uv = p * aspect;
     float time = iTime * speed;
     float q = fbm(uv * cloudscale * 0.5);
 
@@ -53,21 +72,20 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     uv *= cloudscale;
     uv -= q - time;
     float weight = 0.8;
-    for (int i=0; i<8; i++){
-        r += abs(weight*noise( uv ));
-        uv = m*uv + time;
+    for (int i = 0; i < 6; i++) {
+        r += abs(weight * noise(uv));
+        uv = m * uv + time;
         weight *= 0.7;
     }
 
     // noise shape
     float f = 0.0;
-    uv = p*vec2(iResolution.x/iResolution.y,1.0);
-    uv *= cloudscale;
+    uv = p * aspect * cloudscale;
     uv -= q - time;
     weight = 0.7;
-    for (int i=0; i<8; i++){
-        f += weight*noise( uv );
-        uv = m*uv + time;
+    for (int i = 0; i < 6; i++) {
+        f += weight * noise(uv);
+        uv = m * uv + time;
         weight *= 0.6;
     }
 
@@ -76,37 +94,35 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
     // noise colour
     float c = 0.0;
     time = iTime * speed * 2.0;
-    uv = p*vec2(iResolution.x/iResolution.y,1.0);
-    uv *= cloudscale*2.0;
+    uv = p * aspect * cloudscale * 2.0;
     uv -= q - time;
     weight = 0.4;
-    for (int i=0; i<7; i++){
-        c += weight*noise( uv );
-        uv = m*uv + time;
+    for (int i = 0; i < 5; i++) {
+        c += weight * noise(uv);
+        uv = m * uv + time;
         weight *= 0.6;
     }
 
     // noise ridge colour
     float c1 = 0.0;
     time = iTime * speed * 3.0;
-    uv = p*vec2(iResolution.x/iResolution.y,1.0);
-    uv *= cloudscale*3.0;
+    uv = p * aspect * cloudscale * 3.0;
     uv -= q - time;
     weight = 0.4;
-    for (int i=0; i<7; i++){
-        c1 += abs(weight*noise( uv ));
-        uv = m*uv + time;
+    for (int i = 0; i < 5; i++) {
+        c1 += abs(weight * noise(uv));
+        uv = m * uv + time;
         weight *= 0.6;
     }
 
     c += c1;
 
     vec3 skycolour = mix(skycolour2, skycolour1, p.y);
-    vec3 cloudcolour = vec3(1.1, 1.1, 0.9) * clamp((clouddark + cloudlight*c), 0.0, 1.0);
+    vec3 cloudcolour = vec3(1.1, 1.1, 0.9) * clamp(clouddark + cloudlight * c, 0.0, 1.0);
 
-    f = cloudcover + cloudalpha*f*r;
+    f = cloudcover + cloudalpha * f * r;
 
     vec3 result = mix(skycolour, clamp(skytint * skycolour + cloudcolour, 0.0, 1.0), clamp(f + c, 0.0, 1.0));
 
-    fragColor = vec4( result, 1.0 );
+    fragColor = vec4(result, 1.0);
 }

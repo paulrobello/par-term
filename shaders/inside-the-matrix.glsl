@@ -1,3 +1,21 @@
+/*! par-term shader metadata
+name: inside-the-matrix
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: 0.2
+  text_opacity: null
+  full_content: null
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: ''
+  cubemap_enabled: false
+*/
+
 /*
   Feel free to do anything you want with this code.
   This shader uses "runes" code by FabriceNeyret2 (https://www.shadertoy.com/view/4ltyDM)
@@ -359,15 +377,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
         angle += fifth_turn_drift_angle * (1.5*min(1., (1.-t1)/turn_time) - 0.5*smoothstep1(1. - min(1.,t1/(1.-turn_time))));
     }
 
-    if (iMouse.x > 10. || iMouse.y > 10.) {
-        vec2 mouse = iMouse.xy / iResolution.xy * 2. - 1.;
-        up_down = -0.7 * mouse.y;
-        angle += mouse.x;
-        rotate_on_turns = 1.;
-        roll_on_turns = 0.;
-    } else {
-        angle += add_angel;
-    }
+    angle += add_angel;
 
     rd = rotateX(rd, up_down);
 
@@ -396,18 +406,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     ro += rd * 0.2;
     rd = normalize(rd);
 
-    // vec3 col = rain(ro, rd, time);
-    vec3 col = rain(ro, rd, time) * 0.25;
+    vec3 col = rain(ro, rd, time);
 
-  	// Sample the terminal screen texture including alpha channel
-  	vec4 terminalColor = texture(iChannel4, uv);
-  
-  	// Combine the matrix effect with the terminal color
-  	// vec3 blendedColor = terminalColor.rgb + col;
-
-    // Make a mask that is 1.0 where the terminal content is not black
-    float mask = 1.2 - step(0.5, dot(terminalColor.rgb, vec3(1.0)));
-    vec3 blendedColor = mix(terminalColor.rgb * 1.2, col, mask);
-
-    fragColor = vec4(blendedColor, terminalColor.a);
+    fragColor = vec4(col, 1.0);
 }
