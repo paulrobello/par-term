@@ -85,11 +85,17 @@ pub struct CellRenderer {
     pub(crate) window_opacity: f32,
     pub(crate) background_color: [f32; 4],
 
-    // Metrics
+    // Font configuration (base values, before scale factor)
+    pub(crate) base_font_size: f32,
+    pub(crate) line_spacing: f32,
+    pub(crate) char_spacing: f32,
+
+    // Font metrics (scaled by current scale_factor)
     pub(crate) font_ascent: f32,
     pub(crate) font_descent: f32,
     pub(crate) font_leading: f32,
     pub(crate) font_size_pixels: f32,
+    pub(crate) char_advance: f32,
 
     // Background image
     pub(crate) bg_image_texture: Option<wgpu::Texture>,
@@ -320,10 +326,14 @@ impl CellRenderer {
                 background_color[2] as f32 / 255.0,
                 1.0,
             ],
+            base_font_size: font_size,
+            line_spacing,
+            char_spacing,
             font_ascent,
             font_descent,
             font_leading,
             font_size_pixels,
+            char_advance,
             bg_image_texture: None,
             bg_image_mode: background_image_mode,
             bg_image_opacity: background_image_opacity,
@@ -615,8 +625,70 @@ impl CellRenderer {
         self.update_bg_image_uniforms();
     }
 
+    /// Update scale factor and recalculate all font metrics and cell dimensions.
+    /// This is called when the window is dragged between displays with different DPIs.
     pub fn update_scale_factor(&mut self, scale_factor: f64) {
-        self.scale_factor = scale_factor as f32;
+        let new_scale = scale_factor as f32;
+
+        // Skip if scale factor hasn't changed
+        if (self.scale_factor - new_scale).abs() < f32::EPSILON {
+            return;
+        }
+
+        log::info!(
+            "Recalculating font metrics for scale factor change: {} -> {}",
+            self.scale_factor,
+            new_scale
+        );
+
+        self.scale_factor = new_scale;
+
+        // Recalculate font_size_pixels based on new scale factor
+        let platform_dpi = if cfg!(target_os = "macos") {
+            72.0
+        } else {
+            96.0
+        };
+        let base_font_pixels = self.base_font_size * platform_dpi / 72.0;
+        self.font_size_pixels = (base_font_pixels * new_scale).max(1.0);
+
+        // Re-extract font metrics at new scale
+        let (font_ascent, font_descent, font_leading, char_advance) = {
+            let primary_font = self.font_manager.get_font(0).unwrap();
+            let metrics = primary_font.metrics(&[]);
+            let scale = self.font_size_pixels / metrics.units_per_em as f32;
+            let glyph_id = primary_font.charmap().map('m');
+            let advance = primary_font.glyph_metrics(&[]).advance_width(glyph_id) * scale;
+            (
+                metrics.ascent * scale,
+                metrics.descent * scale,
+                metrics.leading * scale,
+                advance,
+            )
+        };
+
+        self.font_ascent = font_ascent;
+        self.font_descent = font_descent;
+        self.font_leading = font_leading;
+        self.char_advance = char_advance;
+
+        // Recalculate cell dimensions
+        let natural_line_height = font_ascent + font_descent + font_leading;
+        self.cell_height = (natural_line_height * self.line_spacing).max(1.0);
+        self.cell_width = (char_advance * self.char_spacing).max(1.0);
+
+        log::info!(
+            "New cell dimensions: {}x{} (font_size_pixels: {})",
+            self.cell_width,
+            self.cell_height,
+            self.font_size_pixels
+        );
+
+        // Clear glyph cache - glyphs need to be re-rasterized at new DPI
+        self.clear_glyph_cache();
+
+        // Mark all rows as dirty to force re-rendering
+        self.dirty_rows.fill(true);
     }
 
     #[allow(dead_code)]
