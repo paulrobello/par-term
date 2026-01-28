@@ -54,14 +54,20 @@ pub(super) fn init_custom_shader(
                 window_padding,
             );
             renderer.set_brightness(custom_shader_brightness);
-            log::info!(
+            crate::debug_info!(
+                "SHADER",
                 "Custom shader renderer initialized from: {}",
                 path.display()
             );
             (Some(renderer), Some(shader_path.to_string()))
         }
         Err(e) => {
-            log::error!("Failed to load custom shader '{}': {}", path.display(), e);
+            crate::debug_info!(
+                "SHADER",
+                "ERROR: Failed to load custom shader '{}': {}",
+                path.display(),
+                e
+            );
             (None, None)
         }
     }
@@ -123,7 +129,8 @@ pub(super) fn init_cursor_shader(
             let cell_w = cell_renderer.cell_width();
             let cell_h = cell_renderer.cell_height();
             renderer.update_cell_dimensions(cell_w, cell_h, window_padding);
-            log::info!(
+            crate::debug_info!(
+                "SHADER",
                 "Cursor shader renderer initialized from: {} (cell={}x{}, padding={})",
                 path.display(),
                 cell_w,
@@ -133,7 +140,12 @@ pub(super) fn init_cursor_shader(
             (Some(renderer), Some(shader_path.to_string()))
         }
         Err(e) => {
-            log::error!("Failed to load cursor shader '{}': {}", path.display(), e);
+            crate::debug_info!(
+                "SHADER",
+                "ERROR: Failed to load cursor shader '{}': {}",
+                path.display(),
+                e
+            );
             (None, None)
         }
     }
@@ -407,18 +419,40 @@ impl Renderer {
                 // Check if the shader path has changed
                 let path_changed = self.custom_shader_path.as_deref() != Some(path);
 
-                // If we already have a shader renderer and path hasn't changed, just update flags
-                if let Some(renderer) = &mut self.custom_shader_renderer {
-                    if !path_changed {
-                        renderer.set_animation_enabled(animation_enabled);
-                        renderer.set_animation_speed(animation_speed);
-                        renderer.set_opacity(window_opacity);
-                        renderer.set_full_content_mode(full_content);
-                        renderer.set_brightness(brightness);
-                        return Ok(());
+                // If we already have a shader renderer and path hasn't changed, just update flags and textures
+                if let Some(renderer) = &mut self.custom_shader_renderer
+                    && !path_changed
+                {
+                    renderer.set_animation_enabled(animation_enabled);
+                    renderer.set_animation_speed(animation_speed);
+                    renderer.set_opacity(window_opacity);
+                    renderer.set_full_content_mode(full_content);
+                    renderer.set_brightness(brightness);
+
+                    // Update channel textures (they may have changed even if shader path didn't)
+                    for (i, path) in channel_paths.iter().enumerate() {
+                        if let Err(e) = renderer.update_channel_texture(
+                            self.cell_renderer.device(),
+                            self.cell_renderer.queue(),
+                            (i + 1) as u8, // channel indices are 1-4
+                            path.as_deref(),
+                        ) {
+                            log::warn!("Failed to update channel {} texture: {}", i, e);
+                        }
                     }
-                    // Path changed - we need to reload, so drop the old renderer
-                    log::info!("Shader path changed, reloading shader");
+
+                    // Update cubemap if provided
+                    if let Some(cubemap) = cubemap_path
+                        && let Err(e) = renderer.update_cubemap(
+                            self.cell_renderer.device(),
+                            self.cell_renderer.queue(),
+                            Some(cubemap),
+                        )
+                    {
+                        log::warn!("Failed to update cubemap: {}", e);
+                    }
+
+                    return Ok(());
                 }
 
                 let shader_path_full = crate::config::Config::shader_path(path);
@@ -446,7 +480,8 @@ impl Renderer {
                         );
                         // Apply brightness setting
                         renderer.set_brightness(brightness);
-                        log::info!(
+                        crate::debug_info!(
+                            "SHADER",
                             "Custom shader enabled at runtime: {}",
                             shader_path_full.display()
                         );
@@ -461,14 +496,14 @@ impl Renderer {
                             shader_path_full.display(),
                             e
                         );
-                        log::error!("{}", error_msg);
+                        crate::debug_info!("SHADER", "ERROR: {}", error_msg);
                         Err(error_msg)
                     }
                 }
             }
             _ => {
                 if self.custom_shader_renderer.is_some() {
-                    log::info!("Custom shader disabled at runtime");
+                    crate::debug_info!("SHADER", "Custom shader disabled at runtime");
                 }
                 self.custom_shader_renderer = None;
                 self.custom_shader_path = None;

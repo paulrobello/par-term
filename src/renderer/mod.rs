@@ -407,6 +407,7 @@ impl Renderer {
 
     /// Update window padding in real-time without full renderer rebuild
     /// Returns Some((cols, rows)) if grid size changed and terminal needs resize
+    #[allow(dead_code)]
     pub fn update_window_padding(&mut self, padding: f32) -> Option<(usize, usize)> {
         let result = self.cell_renderer.update_window_padding(padding);
         self.dirty = true;
@@ -414,6 +415,7 @@ impl Renderer {
     }
 
     /// Enable/disable background image and reload if needed
+    #[allow(dead_code)]
     pub fn set_background_image_enabled(
         &mut self,
         enabled: bool,
@@ -446,6 +448,7 @@ impl Renderer {
     }
 
     /// Update background image opacity in real-time
+    #[allow(dead_code)]
     pub fn update_background_image_opacity(&mut self, opacity: f32) {
         self.cell_renderer.update_background_image_opacity(opacity);
         self.dirty = true;
@@ -599,7 +602,8 @@ impl Renderer {
             + egui_render_time
             + present_time;
         if present_time.as_millis() > 10 || total.as_millis() > 10 {
-            log::info!(
+            crate::debug_info!(
+                "RENDER",
                 "RENDER_BREAKDOWN: CellRender={:.2}ms BgShader={:.2}ms CursorShader={:.2}ms Sixel={:.2}ms Egui={:.2}ms PRESENT={:.2}ms Total={:.2}ms",
                 cell_render_time.as_secs_f64() * 1000.0,
                 custom_shader_time.as_secs_f64() * 1000.0,
@@ -819,7 +823,7 @@ impl Renderer {
         if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
             cursor_shader.set_animation_enabled(false);
         }
-        log::debug!("Shader animations paused");
+        crate::debug_info!("SHADER", "Shader animations paused");
     }
 
     /// Resume shader animations (e.g., when window regains focus)
@@ -836,7 +840,8 @@ impl Renderer {
             cursor_shader.set_animation_enabled(cursor_shader_animation);
         }
         self.dirty = true;
-        log::debug!(
+        crate::debug_info!(
+            "SHADER",
             "Shader animations resumed (custom: {}, cursor: {})",
             custom_shader_animation,
             cursor_shader_animation

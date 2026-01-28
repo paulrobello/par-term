@@ -830,6 +830,7 @@ impl Config {
 
     /// Get the channel texture paths as an array of Options
     /// Returns [channel0, channel1, channel2, channel3] for iChannel0-3
+    #[allow(dead_code)]
     pub fn shader_channel_paths(&self) -> [Option<PathBuf>; 4] {
         [
             self.custom_shader_channel0
@@ -849,6 +850,7 @@ impl Config {
 
     /// Get the cubemap path prefix (resolved)
     /// Returns None if not configured, otherwise the resolved path prefix
+    #[allow(dead_code)]
     pub fn shader_cubemap_path(&self) -> Option<PathBuf> {
         self.custom_shader_cubemap
             .as_ref()

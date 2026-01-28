@@ -8,6 +8,7 @@ use crate::config::Config;
 /// Tracks which config fields changed between old and new config
 /// This replaces 21+ individual boolean variables with a structured approach
 #[derive(Default)]
+#[allow(dead_code)] // Fields reserved for future use
 pub(crate) struct ConfigChanges {
     // Theme
     pub theme: bool,
@@ -84,9 +85,13 @@ impl ConfigChanges {
                 || new.custom_shader_cubemap_enabled != old.custom_shader_cubemap_enabled,
             shader_per_shader_config: {
                 // Check if the per-shader config for the current shader changed
-                let old_override = old.custom_shader.as_ref()
+                let old_override = old
+                    .custom_shader
+                    .as_ref()
                     .and_then(|name| old.shader_configs.get(name));
-                let new_override = new.custom_shader.as_ref()
+                let new_override = new
+                    .custom_shader
+                    .as_ref()
                     .and_then(|name| new.shader_configs.get(name));
                 old_override != new_override
             },
@@ -162,6 +167,7 @@ impl ConfigChanges {
     }
 
     /// Returns true if any background image setting changed
+    #[allow(dead_code)] // Reserved for future use
     pub fn any_bg_change(&self) -> bool {
         self.bg_enabled || self.bg_path || self.bg_mode || self.bg_opacity
     }

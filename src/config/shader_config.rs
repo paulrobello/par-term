@@ -58,9 +58,8 @@ pub fn resolve_shader_config(
                 }
             } else {
                 // No user override, fall back to metadata then global
-                let path_str: Option<String> = meta_defaults
-                    .and_then(|m| m.$field.clone())
-                    .or($global);
+                let path_str: Option<String> =
+                    meta_defaults.and_then(|m| m.$field.clone()).or($global);
                 path_str
                     .filter(|p| !p.is_empty())
                     .map(|p| Config::resolve_texture_path(&p))

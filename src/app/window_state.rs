@@ -10,7 +10,7 @@ use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::renderer::Renderer;
 use crate::selection::SelectionMode;
-use crate::settings_ui::{CursorShaderEditorResult, SettingsUI, ShaderEditorResult};
+use crate::settings_ui::SettingsUI;
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::tab::TabManager;
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
@@ -78,6 +78,12 @@ pub struct WindowState {
     pub(crate) shader_watcher: Option<ShaderWatcher>,
     /// Last shader reload error message (for display in UI)
     pub(crate) shader_reload_error: Option<String>,
+    /// Background shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
+    /// Used to propagate hot reload results to standalone settings window
+    pub(crate) background_shader_reload_result: Option<Option<String>>,
+    /// Cursor shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
+    /// Used to propagate hot reload results to standalone settings window
+    pub(crate) cursor_shader_reload_result: Option<Option<String>>,
 
     /// Flag to signal that the settings window should be opened
     /// This is set by keyboard handlers and consumed by the window manager
@@ -122,6 +128,8 @@ impl WindowState {
 
             shader_watcher: None,
             shader_reload_error: None,
+            background_shader_reload_result: None,
+            cursor_shader_reload_result: None,
 
             open_settings_window_requested: false,
         }
@@ -267,7 +275,10 @@ impl WindowState {
         // Create renderer using DRY init params
         let theme = self.config.load_theme();
         // Get shader metadata from cache for full 3-tier resolution
-        let metadata = self.config.custom_shader.as_ref()
+        let metadata = self
+            .config
+            .custom_shader
+            .as_ref()
             .and_then(|name| self.settings_ui.shader_metadata_cache.get(name).cloned());
         let params = RendererInitParams::from_config(&self.config, &theme, metadata.as_ref());
         let mut renderer = self
@@ -319,7 +330,10 @@ impl WindowState {
         // Create renderer using DRY init params
         let theme = self.config.load_theme();
         // Get shader metadata from cache for full 3-tier resolution
-        let metadata = self.config.custom_shader.as_ref()
+        let metadata = self
+            .config
+            .custom_shader
+            .as_ref()
             .and_then(|name| self.settings_ui.shader_metadata_cache.get(name).cloned());
         let params = RendererInitParams::from_config(&self.config, &theme, metadata.as_ref());
         let mut renderer = params.create_renderer(Arc::clone(&window)).await?;
@@ -431,8 +445,9 @@ impl WindowState {
 
     /// Initialize the shader watcher for hot reload support
     pub(crate) fn init_shader_watcher(&mut self) {
-        log::info!(
-            "init_shader_watcher called, hot_reload={}",
+        debug_info!(
+            "SHADER",
+            "init_shader_watcher: hot_reload={}",
             self.config.shader_hot_reload
         );
 
@@ -455,14 +470,15 @@ impl WindowState {
             .filter(|_| self.config.cursor_shader_enabled)
             .map(|s| Config::shader_path(s));
 
-        log::info!(
+        debug_info!(
+            "SHADER",
             "Shader paths: background={:?}, cursor={:?}",
             background_path,
             cursor_path
         );
 
         if background_path.is_none() && cursor_path.is_none() {
-            log::debug!("No shaders to watch for hot reload");
+            debug_info!("SHADER", "No shaders to watch for hot reload");
             return;
         }
 
@@ -472,20 +488,27 @@ impl WindowState {
             self.config.shader_hot_reload_delay,
         ) {
             Ok(watcher) => {
-                log::info!(
+                debug_info!(
+                    "SHADER",
                     "Shader hot reload initialized (debounce: {}ms)",
                     self.config.shader_hot_reload_delay
                 );
                 self.shader_watcher = Some(watcher);
             }
             Err(e) => {
-                log::error!("Failed to initialize shader hot reload: {}", e);
+                debug_info!("SHADER", "Failed to initialize shader hot reload: {}", e);
             }
         }
     }
 
     /// Reinitialize shader watcher when shader paths change
     pub(crate) fn reinit_shader_watcher(&mut self) {
+        debug_info!(
+            "SHADER",
+            "reinit_shader_watcher CALLED: shader={:?}, cursor={:?}",
+            self.config.custom_shader,
+            self.config.cursor_shader
+        );
         // Drop existing watcher
         self.shader_watcher = None;
         self.shader_reload_error = None;
@@ -536,11 +559,16 @@ impl WindowState {
                 self.shader_reload_error = Some(error_msg.clone());
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.settings_ui.set_shader_error(Some(error_msg.clone()))
+                        self.settings_ui.set_shader_error(Some(error_msg.clone()));
+                        // Track error for standalone settings window propagation
+                        self.background_shader_reload_result = Some(Some(error_msg.clone()));
                     }
-                    ShaderType::Cursor => self
-                        .settings_ui
-                        .set_cursor_shader_error(Some(error_msg.clone())),
+                    ShaderType::Cursor => {
+                        self.settings_ui
+                            .set_cursor_shader_error(Some(error_msg.clone()));
+                        // Track error for standalone settings window propagation
+                        self.cursor_shader_reload_result = Some(Some(error_msg.clone()));
+                    }
                 }
                 // Notify user of the error
                 self.deliver_notification(
@@ -574,8 +602,16 @@ impl WindowState {
                 log::info!("{} reloaded successfully from {}", shader_name, file_name);
                 self.shader_reload_error = None;
                 match event.shader_type {
-                    ShaderType::Background => self.settings_ui.clear_shader_error(),
-                    ShaderType::Cursor => self.settings_ui.clear_cursor_shader_error(),
+                    ShaderType::Background => {
+                        self.settings_ui.clear_shader_error();
+                        // Track success for standalone settings window propagation
+                        self.background_shader_reload_result = Some(None);
+                    }
+                    ShaderType::Cursor => {
+                        self.settings_ui.clear_cursor_shader_error();
+                        // Track success for standalone settings window propagation
+                        self.cursor_shader_reload_result = Some(None);
+                    }
                 }
                 self.needs_redraw = true;
                 self.request_redraw();
@@ -601,11 +637,16 @@ impl WindowState {
                 self.shader_reload_error = Some(error_msg.clone());
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.settings_ui.set_shader_error(Some(error_msg.clone()))
+                        self.settings_ui.set_shader_error(Some(error_msg.clone()));
+                        // Track error for standalone settings window propagation
+                        self.background_shader_reload_result = Some(Some(error_msg.clone()));
                     }
-                    ShaderType::Cursor => self
-                        .settings_ui
-                        .set_cursor_shader_error(Some(error_msg.clone())),
+                    ShaderType::Cursor => {
+                        self.settings_ui
+                            .set_cursor_shader_error(Some(error_msg.clone()));
+                        // Track error for standalone settings window propagation
+                        self.cursor_shader_reload_result = Some(Some(error_msg.clone()));
+                    }
                 }
 
                 // Notify user of the compilation error
@@ -1190,18 +1231,6 @@ impl WindowState {
                 0.0
             };
 
-            // Track config changes from settings UI (to be applied after egui block)
-            #[allow(clippy::type_complexity)]
-            let mut pending_config_update: Option<(
-                Option<crate::config::Config>,
-                Option<crate::config::Config>,
-                Option<ShaderEditorResult>,
-                Option<CursorShaderEditorResult>,
-            )> = None;
-
-            // Flag to reinitialize shader watcher after renderer borrow ends
-            let mut needs_watcher_reinit = false;
-
             let egui_data = if let (Some(egui_ctx), Some(egui_state)) =
                 (&self.egui_ctx, &mut self.egui_state)
             {
@@ -1237,9 +1266,8 @@ impl WindowState {
                     pending_tab_action =
                         self.tab_bar_ui.render(ctx, &self.tab_manager, &self.config);
 
-                    // Show settings UI and store results for later processing
-                    let settings_result = self.settings_ui.show(ctx);
-                    pending_config_update = Some(settings_result);
+                    // Settings are now handled by standalone SettingsWindow only
+                    // No overlay settings UI rendering needed
 
                     // Show help UI
                     self.help_ui.show(ctx);
@@ -1260,330 +1288,9 @@ impl WindowState {
                 None
             };
 
-            // Process settings changes after egui block (to avoid borrow conflicts)
-            if let Some((
-                config_to_save,
-                config_for_live_update,
-                shader_apply,
-                cursor_shader_apply,
-            )) = pending_config_update
-            {
-                use crate::app::config_updates::ConfigChanges;
+            // Settings are now handled exclusively by standalone SettingsWindow
+            // Config changes are applied via window_manager.apply_config_to_windows()
 
-                // Handle shader apply requests from editors
-                if let Some(shader_result) = shader_apply {
-                    log::info!(
-                        "Applying background shader from editor ({} bytes)",
-                        shader_result.source.len()
-                    );
-                    match renderer.reload_shader_from_source(&shader_result.source) {
-                        Ok(()) => {
-                            log::info!("Background shader applied successfully from editor");
-                            self.settings_ui.clear_shader_error();
-                        }
-                        Err(e) => {
-                            let error_msg = format!("{:#}", e);
-                            log::error!("Background shader compilation failed: {}", error_msg);
-                            self.settings_ui.set_shader_error(Some(error_msg));
-                        }
-                    }
-                }
-                if let Some(cursor_shader_result) = cursor_shader_apply {
-                    log::info!(
-                        "Applying cursor shader from editor ({} bytes)",
-                        cursor_shader_result.source.len()
-                    );
-                    match renderer.reload_cursor_shader_from_source(&cursor_shader_result.source) {
-                        Ok(()) => {
-                            log::info!("Cursor shader applied successfully from editor");
-                            self.settings_ui.clear_cursor_shader_error();
-                        }
-                        Err(e) => {
-                            let error_msg = format!("{:#}", e);
-                            log::error!("Cursor shader compilation failed: {}", error_msg);
-                            self.settings_ui.set_cursor_shader_error(Some(error_msg));
-                        }
-                    }
-                }
-
-                // Apply live updates immediately (for visual feedback)
-                if let Some(live_config) = config_for_live_update {
-                    // Detect what changed using structured approach
-                    let changes = ConfigChanges::detect(&self.config, &live_config);
-
-                    log::info!(
-                        "Applying live config update - opacity: {}{}{}",
-                        live_config.window_opacity,
-                        if changes.theme {
-                            " (theme changed)"
-                        } else {
-                            ""
-                        },
-                        if changes.font { " (font changed)" } else { "" }
-                    );
-                    self.config = live_config;
-                    if let Some(tab) = self.tab_manager.active_tab_mut() {
-                        tab.scroll_state.last_activity = std::time::Instant::now();
-                    }
-
-                    // Apply window-related changes
-                    if let Some(window) = &self.window {
-                        window.set_window_level(if self.config.window_always_on_top {
-                            winit::window::WindowLevel::AlwaysOnTop
-                        } else {
-                            winit::window::WindowLevel::Normal
-                        });
-                        if changes.window_title {
-                            window.set_title(&self.config.window_title);
-                            log::info!("Updated window title to: {}", self.config.window_title);
-                        }
-                        if changes.window_decorations {
-                            window.set_decorations(self.config.window_decorations);
-                            log::info!(
-                                "Updated window decorations: {}",
-                                self.config.window_decorations
-                            );
-                        }
-                        window.request_redraw();
-                    }
-
-                    // Update max_fps for all tabs
-                    if changes.max_fps
-                        && let Some(window) = &self.window
-                    {
-                        for tab in self.tab_manager.tabs_mut() {
-                            tab.stop_refresh_task();
-                            tab.start_refresh_task(
-                                Arc::clone(&self.runtime),
-                                Arc::clone(window),
-                                self.config.max_fps,
-                            );
-                        }
-                        log::info!("Updated max_fps to {} for all tabs", self.config.max_fps);
-                    }
-
-                    // Update renderer with real-time settings
-                    renderer.update_opacity(self.config.window_opacity);
-                    renderer.update_scrollbar_appearance(
-                        self.config.scrollbar_width,
-                        self.config.scrollbar_thumb_color,
-                        self.config.scrollbar_track_color,
-                    );
-
-                    // Apply cursor style or blink change
-                    // Both style and blink settings affect the terminal's CursorStyle enum
-                    if changes.cursor_style || changes.cursor_blink {
-                        if let Some(tab) = self.tab_manager.active_tab()
-                            && let Ok(term_mgr) = tab.terminal.try_lock()
-                        {
-                            let terminal = term_mgr.terminal();
-                            if let Some(mut term) = terminal.try_lock() {
-                                use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
-                                // Combine shape and blink settings into the correct variant
-                                let term_style = if self.config.cursor_blink {
-                                    match self.config.cursor_style {
-                                        crate::config::CursorStyle::Block => {
-                                            TermCursorStyle::BlinkingBlock
-                                        }
-                                        crate::config::CursorStyle::Underline => {
-                                            TermCursorStyle::BlinkingUnderline
-                                        }
-                                        crate::config::CursorStyle::Beam => {
-                                            TermCursorStyle::BlinkingBar
-                                        }
-                                    }
-                                } else {
-                                    match self.config.cursor_style {
-                                        crate::config::CursorStyle::Block => {
-                                            TermCursorStyle::SteadyBlock
-                                        }
-                                        crate::config::CursorStyle::Underline => {
-                                            TermCursorStyle::SteadyUnderline
-                                        }
-                                        crate::config::CursorStyle::Beam => {
-                                            TermCursorStyle::SteadyBar
-                                        }
-                                    }
-                                };
-                                term.set_cursor_style(term_style);
-                            }
-                        }
-                        if let Some(tab) = self.tab_manager.active_tab_mut() {
-                            tab.cache.cells = None;
-                            tab.cache.cursor_pos = None;
-                        }
-                        if let Some(window) = &self.window {
-                            window.request_redraw();
-                        }
-                    }
-
-                    // Update cursor color
-                    if changes.cursor_color {
-                        renderer.update_cursor_color(self.config.cursor_color);
-                        if let Some(tab) = self.tab_manager.active_tab_mut() {
-                            tab.cache.cells = None;
-                            tab.cache.cursor_pos = None;
-                        }
-                        if let Some(window) = &self.window {
-                            window.request_redraw();
-                        }
-                    }
-
-                    // Update background image
-                    if self.config.background_image_enabled {
-                        renderer
-                            .update_background_image_opacity(self.config.background_image_opacity);
-                    }
-                    if changes.any_bg_change() {
-                        renderer.set_background_image_enabled(
-                            self.config.background_image_enabled,
-                            self.config.background_image.as_deref(),
-                            self.config.background_image_mode,
-                            self.config.background_image_opacity,
-                        );
-                    }
-
-                    // Apply shader changes
-                    if changes.any_shader_change() {
-                        log::info!(
-                            "Shader change detected: textures={} cubemap={} path={} enabled={}",
-                            changes.shader_textures,
-                            changes.shader_cubemap,
-                            changes.shader_path,
-                            changes.shader_enabled
-                        );
-                        match renderer.set_custom_shader_enabled(
-                            self.config.custom_shader_enabled,
-                            self.config.custom_shader.as_deref(),
-                            self.config.window_opacity,
-                            self.config.custom_shader_text_opacity,
-                            self.config.custom_shader_animation,
-                            self.config.custom_shader_animation_speed,
-                            self.config.custom_shader_full_content,
-                            self.config.custom_shader_brightness,
-                            &self.config.shader_channel_paths(),
-                            self.config.shader_cubemap_path().as_deref(),
-                        ) {
-                            Ok(()) => self.settings_ui.clear_shader_error(),
-                            Err(error_msg) => {
-                                log::error!("Shader compilation failed: {}", error_msg);
-                                self.settings_ui.set_shader_error(Some(error_msg));
-                            }
-                        }
-                    }
-
-                    // Update cursor shader configuration
-                    if changes.cursor_shader_config {
-                        renderer.update_cursor_shader_config(
-                            self.config.cursor_shader_color,
-                            self.config.cursor_shader_trail_duration,
-                            self.config.cursor_shader_glow_radius,
-                            self.config.cursor_shader_glow_intensity,
-                        );
-                    }
-
-                    // Handle cursor shader toggle changes
-                    if changes.any_cursor_shader_toggle() {
-                        match renderer.set_cursor_shader_enabled(
-                            self.config.cursor_shader_enabled,
-                            self.config.cursor_shader.as_deref(),
-                            self.config.window_opacity,
-                            self.config.cursor_shader_animation,
-                            self.config.cursor_shader_animation_speed,
-                        ) {
-                            Ok(()) => self.settings_ui.clear_cursor_shader_error(),
-                            Err(error_msg) => {
-                                log::error!("Cursor shader compilation failed: {}", error_msg);
-                                self.settings_ui.set_cursor_shader_error(Some(error_msg));
-                            }
-                        }
-                    }
-
-                    // Update cursor hidden state
-                    if changes.cursor_shader_enabled || changes.cursor_shader_hides_cursor {
-                        renderer.set_cursor_hidden_for_shader(
-                            self.config.cursor_shader_enabled
-                                && self.config.cursor_shader_hides_cursor,
-                        );
-                    }
-
-                    // Apply theme changes
-                    if changes.theme {
-                        if let Some(tab) = self.tab_manager.active_tab()
-                            && let Ok(mut term) = tab.terminal.try_lock()
-                        {
-                            term.set_theme(self.config.load_theme());
-                            log::info!("Applied live theme change: {}", self.config.theme);
-                        }
-                        if let Some(tab) = self.tab_manager.active_tab_mut() {
-                            tab.cache.cells = None;
-                        }
-                        if let Some(window) = &self.window {
-                            window.request_redraw();
-                        }
-                    }
-
-                    // Queue font rebuild
-                    if changes.font {
-                        self.pending_font_rebuild = true;
-                        log::info!("Queued renderer rebuild for font change");
-                    }
-
-                    // Apply padding change
-                    if changes.padding {
-                        if let Some((cols, rows)) =
-                            renderer.update_window_padding(self.config.window_padding)
-                        {
-                            let cell_width = renderer.cell_width();
-                            let cell_height = renderer.cell_height();
-                            let width_px = (cols as f32 * cell_width) as usize;
-                            let height_px = (rows as f32 * cell_height) as usize;
-                            for tab in self.tab_manager.tabs_mut() {
-                                if let Ok(mut term) = tab.terminal.try_lock() {
-                                    let _ =
-                                        term.resize_with_pixels(cols, rows, width_px, height_px);
-                                }
-                            }
-                            log::info!(
-                                "Resized terminals to {}x{} due to padding change",
-                                cols,
-                                rows
-                            );
-                        }
-                        log::info!("Updated window padding to {}", self.config.window_padding);
-                    }
-
-                    // Flag for shader watcher reinit (done outside renderer borrow)
-                    if changes.needs_watcher_reinit() {
-                        needs_watcher_reinit = true;
-                    }
-
-                    // Invalidate cell cache
-                    if let Some(tab) = self.tab_manager.active_tab_mut() {
-                        tab.cache.cells = None;
-                        tab.cache.applied_opacity = self.config.window_opacity;
-                    }
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
-                }
-
-                // Persist to disk if save was clicked
-                if let Some(new_config) = config_to_save {
-                    if let Err(e) = new_config.save() {
-                        log::error!("Failed to save config: {}", e);
-                    } else {
-                        log::info!("Configuration saved successfully");
-                        log::info!(
-                            "  Bell settings: sound={}, visual={}, desktop={}",
-                            new_config.notification_bell_sound,
-                            new_config.notification_bell_visual,
-                            new_config.notification_bell_desktop
-                        );
-                        self.settings_ui.update_config(new_config);
-                    }
-                }
-            }
             let debug_egui_time = egui_start.elapsed();
 
             // Calculate FPS and timing stats
@@ -1670,11 +1377,6 @@ impl WindowState {
             let _ = debug_actual_render_time;
 
             self.debug.render_time = render_start.elapsed();
-
-            // Reinitialize shader watcher if config changed (outside renderer borrow)
-            if needs_watcher_reinit {
-                self.reinit_shader_watcher();
-            }
         }
 
         // Handle tab bar actions collected during egui rendering

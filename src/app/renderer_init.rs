@@ -4,7 +4,9 @@
 //! eliminating duplicate parameter passing between `rebuild_renderer()`
 //! and `initialize_async()`.
 
-use crate::config::{BackgroundImageMode, Config, FontRange, ShaderMetadata, VsyncMode, resolve_shader_config};
+use crate::config::{
+    BackgroundImageMode, Config, FontRange, ShaderMetadata, VsyncMode, resolve_shader_config,
+};
 use crate::renderer::Renderer;
 use crate::themes::Theme;
 use std::path::PathBuf;
@@ -71,7 +73,9 @@ impl RendererInitParams {
         );
 
         // Resolve per-shader settings (user override -> metadata defaults -> global)
-        let shader_override = config.custom_shader.as_ref()
+        let shader_override = config
+            .custom_shader
+            .as_ref()
             .and_then(|name| config.shader_configs.get(name));
         let resolved = resolve_shader_config(shader_override, metadata, config);
 

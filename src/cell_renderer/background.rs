@@ -84,6 +84,7 @@ impl CellRenderer {
         );
     }
 
+    #[allow(dead_code)]
     pub fn set_background_image(
         &mut self,
         path: Option<&str>,
@@ -101,6 +102,7 @@ impl CellRenderer {
         self.update_bg_image_uniforms();
     }
 
+    #[allow(dead_code)]
     pub fn update_background_image_opacity(&mut self, opacity: f32) {
         self.bg_image_opacity = opacity;
         self.update_bg_image_uniforms();

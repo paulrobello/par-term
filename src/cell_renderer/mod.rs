@@ -619,6 +619,7 @@ impl CellRenderer {
         self.scale_factor = scale_factor as f32;
     }
 
+    #[allow(dead_code)]
     pub fn update_window_padding(&mut self, padding: f32) -> Option<(usize, usize)> {
         if (self.window_padding - padding).abs() > f32::EPSILON {
             self.window_padding = padding;

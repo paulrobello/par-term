@@ -479,6 +479,11 @@ impl WindowManager {
     pub fn apply_config_to_windows(&mut self, config: &Config) {
         use crate::app::config_updates::ConfigChanges;
 
+        // Track shader errors for the standalone settings window
+        // Option<Option<String>>: None = no change attempted, Some(None) = success, Some(Some(err)) = error
+        let mut last_shader_result: Option<Option<String>> = None;
+        let mut last_cursor_shader_result: Option<Option<String>> = None;
+
         for window_state in self.windows.values_mut() {
             // Detect what changed
             let changes = ConfigChanges::detect(&window_state.config, config);
@@ -486,8 +491,9 @@ impl WindowManager {
             // Update the config
             window_state.config = config.clone();
 
-            // Apply changes to renderer
-            if let Some(renderer) = &mut window_state.renderer {
+            // Apply changes to renderer and collect any shader errors
+            let (shader_result, cursor_result) = if let Some(renderer) = &mut window_state.renderer
+            {
                 // Update opacity
                 renderer.update_opacity(config.window_opacity);
 
@@ -511,48 +517,79 @@ impl WindowManager {
                     term.set_theme(config.load_theme());
                 }
 
-                // Apply shader changes
-                if changes.any_shader_change() || changes.shader_per_shader_config {
-                    log::info!(
-                        "Shader change detected (window_manager): textures={} cubemap={} path={} enabled={} per_shader={}",
-                        changes.shader_textures,
-                        changes.shader_cubemap,
-                        changes.shader_path,
-                        changes.shader_enabled,
-                        changes.shader_per_shader_config
-                    );
-                    // Resolve per-shader settings (user override -> metadata defaults -> global)
-                    let shader_override = config.custom_shader.as_ref()
-                        .and_then(|name| config.shader_configs.get(name));
-                    // Get shader metadata from cache for full 3-tier resolution
-                    let metadata = config.custom_shader.as_ref()
-                        .and_then(|name| window_state.settings_ui.shader_metadata_cache.get(name).cloned());
-                    let resolved = resolve_shader_config(shader_override, metadata.as_ref(), config);
+                // Apply shader changes - track if change was attempted and result
+                // Option<Option<String>>: None = no change attempted, Some(None) = success, Some(Some(err)) = error
+                let shader_result =
+                    if changes.any_shader_change() || changes.shader_per_shader_config {
+                        // Resolve per-shader settings (user override -> metadata defaults -> global)
+                        let shader_override = config
+                            .custom_shader
+                            .as_ref()
+                            .and_then(|name| config.shader_configs.get(name));
+                        // Get shader metadata from cache for full 3-tier resolution
+                        let metadata = config.custom_shader.as_ref().and_then(|name| {
+                            window_state
+                                .settings_ui
+                                .shader_metadata_cache
+                                .get(name)
+                                .cloned()
+                        });
+                        let resolved =
+                            resolve_shader_config(shader_override, metadata.as_ref(), config);
 
-                    let _ = renderer.set_custom_shader_enabled(
-                        config.custom_shader_enabled,
-                        config.custom_shader.as_deref(),
-                        config.window_opacity,
-                        resolved.text_opacity,
-                        config.custom_shader_animation,
-                        resolved.animation_speed,
-                        resolved.full_content,
-                        resolved.brightness,
-                        &resolved.channel_paths(),
-                        resolved.cubemap_path().map(|p| p.as_path()),
-                    );
-                }
+                        Some(
+                            renderer
+                                .set_custom_shader_enabled(
+                                    config.custom_shader_enabled,
+                                    config.custom_shader.as_deref(),
+                                    config.window_opacity,
+                                    resolved.text_opacity,
+                                    config.custom_shader_animation,
+                                    resolved.animation_speed,
+                                    resolved.full_content,
+                                    resolved.brightness,
+                                    &resolved.channel_paths(),
+                                    resolved.cubemap_path().map(|p| p.as_path()),
+                                )
+                                .err(),
+                        )
+                    } else {
+                        None // No change attempted
+                    };
 
                 // Apply cursor shader changes
-                if changes.any_cursor_shader_toggle() {
-                    let _ = renderer.set_cursor_shader_enabled(
-                        config.cursor_shader_enabled,
-                        config.cursor_shader.as_deref(),
-                        config.window_opacity,
-                        config.cursor_shader_animation,
-                        config.cursor_shader_animation_speed,
-                    );
-                }
+                let cursor_result = if changes.any_cursor_shader_toggle() {
+                    Some(
+                        renderer
+                            .set_cursor_shader_enabled(
+                                config.cursor_shader_enabled,
+                                config.cursor_shader.as_deref(),
+                                config.window_opacity,
+                                config.cursor_shader_animation,
+                                config.cursor_shader_animation_speed,
+                            )
+                            .err(),
+                    )
+                } else {
+                    None // No change attempted
+                };
+
+                (shader_result, cursor_result)
+            } else {
+                (None, None)
+            };
+
+            // Update settings UI with shader errors only when a change was attempted
+            // shader_result: None = no change attempted, Some(None) = success, Some(Some(err)) = error
+            if let Some(result) = shader_result {
+                window_state.settings_ui.set_shader_error(result.clone());
+                last_shader_result = Some(result);
+            }
+            if let Some(result) = cursor_result {
+                window_state
+                    .settings_ui
+                    .set_cursor_shader_error(result.clone());
+                last_cursor_shader_result = Some(result);
             }
 
             // Apply window-related changes
@@ -576,6 +613,11 @@ impl WindowManager {
                 window_state.pending_font_rebuild = true;
             }
 
+            // Reinitialize shader watcher if shader paths changed
+            if changes.needs_watcher_reinit() {
+                window_state.reinit_shader_watcher();
+            }
+
             // Invalidate cache
             if let Some(tab) = window_state.tab_manager.active_tab_mut() {
                 tab.cache.cells = None;
@@ -585,6 +627,16 @@ impl WindowManager {
 
         // Also update the shared config
         self.config = config.clone();
+
+        // Update standalone settings window with shader errors only when a change was attempted
+        if let Some(settings_window) = &mut self.settings_window {
+            if let Some(result) = last_shader_result {
+                settings_window.set_shader_error(result);
+            }
+            if let Some(result) = last_cursor_shader_result {
+                settings_window.set_cursor_shader_error(result);
+            }
+        }
     }
 
     /// Apply shader changes from settings window editor

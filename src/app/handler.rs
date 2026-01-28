@@ -605,18 +605,46 @@ impl ApplicationHandler for WindowManager {
         self.process_menu_events(event_loop, focused_window);
 
         // Check if any window requested opening the settings window
+        // Also collect shader reload results for propagation to standalone settings window
         let mut open_settings = false;
+        let mut background_shader_result: Option<Option<String>> = None;
+        let mut cursor_shader_result: Option<Option<String>> = None;
+
         for window_state in self.windows.values_mut() {
             if window_state.open_settings_window_requested {
                 window_state.open_settings_window_requested = false;
                 open_settings = true;
             }
             window_state.about_to_wait(event_loop);
+
+            // Collect shader reload results and clear them from window_state
+            if let Some(result) = window_state.background_shader_reload_result.take() {
+                background_shader_result = Some(result);
+            }
+            if let Some(result) = window_state.cursor_shader_reload_result.take() {
+                cursor_shader_result = Some(result);
+            }
         }
 
         // Open settings window if requested
         if open_settings {
             self.open_settings_window(event_loop);
+        }
+
+        // Propagate shader reload results to standalone settings window
+        if let Some(settings_window) = &mut self.settings_window {
+            if let Some(result) = background_shader_result {
+                match result {
+                    Some(err) => settings_window.set_shader_error(Some(err)),
+                    None => settings_window.clear_shader_error(),
+                }
+            }
+            if let Some(result) = cursor_shader_result {
+                match result {
+                    Some(err) => settings_window.set_cursor_shader_error(Some(err)),
+                    None => settings_window.clear_cursor_shader_error(),
+                }
+            }
         }
 
         // Request redraw for settings window if it needs continuous updates

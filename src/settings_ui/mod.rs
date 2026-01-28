@@ -281,6 +281,7 @@ impl SettingsUI {
     /// - Second Option: Some(config) if any changes were made (apply immediately)
     /// - Third Option: Some(ShaderEditorResult) if background shader Apply was clicked
     /// - Fourth Option: Some(CursorShaderEditorResult) if cursor shader Apply was clicked
+    #[allow(dead_code)]
     pub fn show(
         &mut self,
         ctx: &Context,
