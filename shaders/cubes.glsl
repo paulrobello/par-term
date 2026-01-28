@@ -106,7 +106,5 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         cubes = vec4(0.0);
     }
 
-    vec2 uv = fragCoord / iResolution.xy;
-    vec4 terminalColor = texture(iChannel4, uv);
-    fragColor = vec4(terminalColor.rgb + cubes.rgb, terminalColor.a);
+    fragColor = cubes;
 }

@@ -1,25 +1,31 @@
+/*! par-term shader metadata
+name: gradient-background
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: 0.25
+  text_opacity: null
+  full_content: null
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: textures/cubemaps/env-outside
+  cubemap_enabled: false
+*/
+
 // credits: https://github.com/unkn0wncode
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
-    // Normalize pixel coordinates (range from 0 to 1)
     vec2 uv = fragCoord.xy / iResolution.xy;
 
-    // Create a gradient from bottom right to top left as a function (x + y)/2
-    float gradientFactor = (uv.x + uv.y) / 2.0;
+    // Diagonal gradient from bottom-right to top-left
+    float gradientFactor = (uv.x + uv.y) * 0.5;
 
-    // Define gradient colors (adjust to your preference)
-    vec3 gradientStartColor = vec3(0.1, 0.1, 0.5); // Start color (e.g., dark blue)
-    vec3 gradientEndColor = vec3(0.5, 0.1, 0.1); //      End color (e.g., dark red)
+    vec3 gradientStartColor = vec3(0.1, 0.1, 0.5); // dark blue
+    vec3 gradientEndColor = vec3(0.5, 0.1, 0.1);   // dark red
 
-    vec3 gradientColor = mix(gradientStartColor, gradientEndColor, gradientFactor);
-
-    // Sample the terminal screen texture including alpha channel
-    vec4 terminalColor = texture(iChannel4, uv);
-
-    // Make a mask that is 1.0 where the terminal content is not black
-    float mask = 1 - step(0.5, dot(terminalColor.rgb, vec3(1.0)));
-    vec3 blendedColor = mix(terminalColor.rgb, gradientColor, mask);
-
-    // Apply terminal's alpha to control overall opacity
-    fragColor = vec4(blendedColor, terminalColor.a);
+    fragColor = vec4(mix(gradientStartColor, gradientEndColor, gradientFactor), 1.0);
 }

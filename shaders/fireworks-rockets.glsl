@@ -18,8 +18,6 @@ defaults:
 
 // This Ghostty shader is a lightly modified port of https://www.shadertoy.com/view/4dBGRw
 
-#define BLACK_BLEND_THRESHOLD .4
-
 //Creates a diagonal red-and-white striped pattern.
 vec3 barberpole(vec2 pos, vec2 rocketpos) {
     float d = (pos.x - rocketpos.x) + (pos.y - rocketpos.y);
@@ -144,11 +142,5 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     col += drawFireworks(iTime - 2.0, uv, vec3(0.0, 1.0, 0.5), 2.);
     col += drawFireworks(iTime - 4.0, uv, vec3(1.0, 1.0, 0.1), 3.);
 
-    vec2 termUV = fragCoord.xy / iResolution.xy;
-    vec4 terminalColor = texture(iChannel4, termUV);
-
-    float alpha = step(length(terminalColor.rgb), BLACK_BLEND_THRESHOLD);
-    vec3 blendedColor = mix(terminalColor.rgb * 1.0, col.rgb * 0.3, alpha);
-
-    fragColor = vec4(blendedColor, terminalColor.a);
+    fragColor = vec4(col, 1.0);
 }

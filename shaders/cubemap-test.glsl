@@ -57,15 +57,5 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Simple tone mapping for HDR cubemaps
     vec3 mapped = skyColor.rgb / (skyColor.rgb + vec3(1.0));
 
-    // Sample terminal content
-    vec4 terminal = texture(iChannel4, uv);
-
-    // Composite: show terminal where there's content, skybox elsewhere
-    if (terminal.a > 0.01) {
-        // Blend terminal with slight reflection of sky
-        vec3 finalColor = mix(mapped * 0.3, terminal.rgb, 0.85);
-        fragColor = vec4(finalColor, 1.0);
-    } else {
-        fragColor = vec4(mapped, 1.0);
-    }
+    fragColor = vec4(mapped, 1.0);
 }

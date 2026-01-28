@@ -276,12 +276,9 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     uv.y = -uv.y; // flip Y to correct orientation
     vec2 oriuv=uv;
     uv.y*=iResolution.y/iResolution.x;
-    vec2 mouse=(iMouse.xy/iResolution.xy-.5)*3.;
-    if (iMouse.z<1.) mouse=vec2(0.,-0.05);
     float fov=.9-max(0.,.7-iTime*.3);
     vec3 dir=normalize(vec3(uv*fov,1.));
-    dir.yz*=rot(mouse.y);
-    dir.xz*=rot(mouse.x);
+    dir.yz*=rot(-0.05);
     vec3 from=origin+move(dir);
     vec3 color=raymarch(from,dir);
     #ifdef BORDER

@@ -386,15 +386,8 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     col = drawBelt(p, col, size) * darkFactor;
     col = drawGearsAndItems(p, col, size) * darkFactor;
     
-    // Additional option: you can add a color tint to make it less stark white
-    vec3 tint = vec3(0.1, 0.12, 0.15); // Slight blue-ish dark tint
-    col = col * tint;
-    
-    vec2 uv = fragCoord/iResolution.xy;
-    vec4 terminalColor = texture(iChannel4, uv);
-    
-    // Blend with reduced opacity for the shader elements
-    vec3 blendedColor = terminalColor.rgb + col.rgb * 0.7; // Reduced blend factor
-    
-    fragColor = vec4(blendedColor, terminalColor.a);
+    // Color tint to make it less stark white
+    vec3 tint = vec3(0.1, 0.12, 0.15);
+
+    fragColor = vec4(col * tint, 1.0);
 }

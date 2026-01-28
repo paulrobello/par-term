@@ -1,3 +1,21 @@
+/*! par-term shader metadata
+name: singularity
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: 0.28
+  text_opacity: null
+  full_content: null
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: textures/cubemaps/env-outside
+  cubemap_enabled: false
+*/
+
 /*
     "Singularity" by @XorDev
     A whirling blackhole.
@@ -6,82 +24,48 @@
     Adapted for par-term background shader.
 */
 
-void mainImage(out vec4 O, vec2 F)
+void mainImage(out vec4 O, in vec2 fragCoord)
 {
-    // Iterator and attenuation (distance-squared)
-    float i = 0.2;
-    float a;
-    // Resolution for scaling and centering
+    // Resolution and centered coordinates
     vec2 r = iResolution.xy;
-    // Centered ratio-corrected coordinates
-    vec2 p = (F + F - r) / r.y / 0.7;
-    // Diagonal vector for skewing
+    vec2 p = (fragCoord * 2.0 - r) / (r.y * 0.7);
+
+    // Diagonal vector and blackhole center
     vec2 d = vec2(-1.0, 1.0);
-    // Blackhole center
-    vec2 b = p - i * d;
+    vec2 b = p - 0.2 * d;
 
-    // Rotate and apply perspective - expanded mat2 construction
-    float perspective = 0.1 + i / dot(b, b);
-    vec2 dScaled = d / perspective;
-    mat2 perspectiveMat = mat2(1.0, 1.0, dScaled.x, dScaled.y);
-    vec2 c = p * perspectiveMat;
+    // Perspective transformation
+    float perspective = 0.1 + 0.2 / dot(b, b);
+    vec2 c = p * mat2(1.0, 1.0, -1.0 / perspective, 1.0 / perspective);
 
-    // Compute spiral rotation angle
-    a = dot(c, c);
-    float angle = 0.5 * log(a) + iTime * i;
-
-    // Build rotation matrix - cos(angle + offset) for each component
-    float c0 = cos(angle);
-    float c1 = cos(angle + 33.0);
-    float c2 = cos(angle + 11.0);
-    float c3 = cos(angle);
-    mat2 spiralMat = mat2(c0, c1, c2, c3);
+    // Spiral rotation
+    float a = dot(c, c);
+    float angle = 0.5 * log(a) + iTime * 0.2;
+    float cosA = cos(angle);
+    mat2 spiralMat = mat2(cosA, cos(angle + 33.0), cos(angle + 11.0), cosA);
 
     // Rotate into spiraling coordinates
-    vec2 v = (c * spiralMat) / i;
+    vec2 v = (c * spiralMat) * 5.0;  // * 5.0 = / 0.2
 
-    // Waves cumulative total for coloring
+    // Wave accumulation loop
     vec4 w = vec4(0.0);
-
-    // Loop through waves
-    for (float j = 0.0; j < 9.0; j += 1.0) {
-        i = j + 1.0;
-        // Distort coordinates
-        v += 0.7 * sin(v.yx * i + iTime) / i + 0.5;
-        w += 1.0 + vec4(sin(v.x), sin(v.y), sin(v.x), sin(v.y));
+    for (float j = 1.0; j < 10.0; j += 1.0) {
+        float invJ = 1.0 / j;
+        v += 0.7 * sin(v.yx * j + iTime) * invJ + 0.5;
+        vec2 sv = sin(v);
+        w += 1.0 + sv.xyxy;
     }
 
-    // Accretion disk radius
-    float diskRadius = length(sin(v / 0.3) * 0.4 + c * (3.0 + d));
+    // Accretion disk
+    float diskRadius = length(sin(v * 3.333) * 0.4 + c * (3.0 + d));
+    float diskBright = 2.0 + diskRadius * (diskRadius * 0.25 - 1.0);
 
-    // Red/blue gradient
-    vec4 gradient = exp(c.x * vec4(0.6, -0.4, -1.0, 0.0));
-
-    // Wave coloring
-    vec4 waveColor = w.xyyx;
-
-    // Accretion disk brightness
-    float diskBright = 2.0 + diskRadius * diskRadius / 4.0 - diskRadius;
-
-    // Center darkness
+    // Lighting factors
     float centerDark = 0.5 + 1.0 / a;
-
-    // Rim highlight
     float rimLight = 0.03 + abs(length(p) - 0.7);
 
-    // Combine all factors
-    vec4 blackholeColor = 1.0 - exp(-gradient / waveColor / diskBright / centerDark / rimLight);
-
-    // Terminal integration
-    vec2 terminalUV = F / iResolution.xy;
-    vec4 terminalColor = texture(iChannel4, terminalUV);
-
-    float brightnessThreshold = 0.1;
-    float terminalBrightness = dot(terminalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-
-    if (terminalBrightness < brightnessThreshold) {
-        O = mix(terminalColor, blackholeColor, 0.7);
-    } else {
-        O = terminalColor;
-    }
+    // Combine: gradient / (waveColor * diskBright * centerDark * rimLight)
+    vec4 gradient = exp(c.x * vec4(0.6, -0.4, -1.0, 0.0));
+    float combined = diskBright * centerDark * rimLight;
+    O = 1.0 - exp(-gradient / (w.xyyx * combined));
 }

@@ -19,7 +19,6 @@ defaults:
 // INFO: This shader is a port of https://www.shadertoy.com/view/3sySRK
 // Optimized for par-term
 
-#define BLACK_BLEND_THRESHOLD 0.4
 #define NUM_SPHERES 12
 #define MARCH_STEPS 48
 
@@ -77,14 +76,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     col *= exp(-depth * 0.15);
 
     // Fade out background where rays miss blobs (fixes banding)
-    float hitFade = smoothstep(5.5, 4.0, depth);
-    col *= hitFade;
+    col *= smoothstep(5.5, 4.0, depth);
 
-    // Terminal blending
-    vec4 terminalColor = texture(iChannel4, uv);
-    float termBrightness = dot(terminalColor.rgb, vec3(0.299, 0.587, 0.114));
-    float blend = step(termBrightness, BLACK_BLEND_THRESHOLD) * max(hitFade, 0.5);
-    vec3 blendedColor = mix(terminalColor.rgb, col, blend);
-
-    fragColor = vec4(blendedColor, 1.0);
+    fragColor = vec4(col, 1.0);
 }

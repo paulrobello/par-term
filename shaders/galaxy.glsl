@@ -136,18 +136,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
   backgroundColor.b = 0.5 * mix(backgroundColor.g, backgroundColor.b, 0.8);
   backgroundColor.g = 0.0;
-  backgroundColor.bg = mix(backgroundColor.gb, backgroundColor.bg, 0.5 * (cos(iTime * 0.01) + 1.0));	
+  backgroundColor.bg = mix(backgroundColor.gb, backgroundColor.bg, 0.5 * (cos(iTime * 0.01) + 1.0));
 
-  vec2 terminalUV = fragCoord.xy / iResolution.xy;
-  vec4 terminalColor = texture(iChannel4, terminalUV);
-
-  float brightnessThreshold = 0.1;
-  float terminalBrightness = dot(terminalColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-
-  if (terminalBrightness < brightnessThreshold) {
-    fragColor = mix(terminalColor, vec4(foregroundColor.rgb + backgroundColor, 1.0), 0.24);
-  } else {
-    fragColor = terminalColor;
-  }
+  fragColor = vec4(foregroundColor.rgb + backgroundColor, 1.0);
 }
 

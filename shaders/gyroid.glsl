@@ -5,7 +5,7 @@ description: null
 version: 1.0.0
 defaults:
   animation_speed: 0.5
-  brightness: 0.28
+  brightness: 0.07
   text_opacity: null
   full_content: null
   channel0: ''

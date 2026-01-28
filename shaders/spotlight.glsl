@@ -1,42 +1,62 @@
+/*! par-term shader metadata
+name: spotlight
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: null
+  text_opacity: null
+  full_content: true
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: textures/cubemaps/env-outside
+  cubemap_enabled: false
+*/
+
 // Created by Paul Robello
 
-
-// Smooth oscillating function that varies over time
-float smoothOscillation(float t, float frequency, float phase) {
-    return sin(t * frequency + phase);
-}
+#define PI 3.14159265
+#define SPOTLIGHT_RADIUS 0.25
+#define SPOTLIGHT_SOFTNESS 0.05  // 1.0 / 20.0
+#define AMBIENT_LIGHT 0.5
+#define BACKGROUND_DIM 0.2  // Extra dimming for background outside spotlight
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    // Resolution and UV coordinates
-	vec2 uv = fragCoord.xy / iResolution.xy;
-
-    // Used to fix distortion when calculating distance to circle center
-    vec2 ratio = vec2(iResolution.x / iResolution.y, 1.0);
-
-    // Get the texture from iChannel0
+    vec2 uv = fragCoord.xy / iResolution.xy;
     vec4 texColor = texture(iChannel4, uv);
 
-    // Spotlight center moving based on a smooth random pattern
-    float time = iTime * 1.0; // Control speed of motion
+    // Aspect ratio correction
+    float aspect = iResolution.x / iResolution.y;
+
+    // Spotlight center moving with smooth oscillation
     vec2 spotlightCenter = vec2(
-        0.5 + 0.4 * smoothOscillation(time, 1.0, 0.0),  // Smooth X motion
-        0.5 + 0.4 * smoothOscillation(time, 1.3, 3.14159) // Smooth Y motion with different frequency and phase
+        0.5 + 0.4 * sin(iTime),           // X motion
+        0.5 + 0.4 * sin(iTime * 1.3 + PI) // Y motion with different frequency and phase
     );
 
-    // Distance from the spotlight center
-    float distanceToCenter = distance(uv * ratio, spotlightCenter);
+    // Distance from spotlight center (aspect-corrected)
+    float dist = distance(vec2(uv.x * aspect, uv.y), vec2(spotlightCenter.x * aspect, spotlightCenter.y));
 
-    // Spotlight intensity based on distance
-    float spotlightRadius = 0.25; // Spotlight radius
-    float softness = 20.0;       // Spotlight edge softness. Higher values have sharper edge
-    float spotlightIntensity = smoothstep(spotlightRadius, spotlightRadius - (1.0 / softness), distanceToCenter);
+    // Spotlight intensity with soft edge
+    float intensity = smoothstep(SPOTLIGHT_RADIUS, SPOTLIGHT_RADIUS - SPOTLIGHT_SOFTNESS, dist);
 
-    // Ambient light level
-    float ambientLight = 0.5; // Controls the minimum brightness across the texture
+    // Check if iChannel0 background is set
+    vec3 background = vec3(0.0);
+    if (iChannelResolution[0].x > 0.0) {
+        background = texture(iChannel0, uv).rgb;
+    }
 
-    // Combine the spotlight effect with the texture
-    vec3 spotlightEffect = texColor.rgb * mix(vec3(ambientLight), vec3(1.0), spotlightIntensity);
+    // Apply spotlight to terminal content
+    vec3 litTerminal = texColor.rgb * mix(AMBIENT_LIGHT, 1.0, intensity);
 
-    // Final color output
-    fragColor = vec4(spotlightEffect, texColor.a);
+    // Apply spotlight to background (with extra dimming outside spotlight)
+    vec3 litBackground = background * mix(BACKGROUND_DIM, 1.0, intensity);
+
+    // Composite: terminal over background (where terminal has content)
+    vec3 result = mix(litBackground, litTerminal, texColor.a);
+
+    fragColor = vec4(result, max(texColor.a, step(0.01, length(background))));
 }

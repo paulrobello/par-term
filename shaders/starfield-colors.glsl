@@ -1,8 +1,20 @@
-// transparent background
-const bool transparent = false;
-
-// terminal contents luminance threshold to be considered background (0.0 to 1.0)
-const float threshold = 0.15;
+/*! par-term shader metadata
+name: starfield-colors
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: 0.22
+  text_opacity: null
+  full_content: null
+  channel0: ''
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: textures/cubemaps/env-outside
+  cubemap_enabled: false
+*/
 
 // divisions of grid
 const float repeats = 30.;
@@ -11,34 +23,26 @@ const float repeats = 30.;
 const float layers = 21.;
 
 // star colours
-const vec3 blue = vec3(51., 64., 195.) / 255.;
-const vec3 cyan = vec3(117., 250., 254.) / 255.;
-const vec3 white = vec3(255., 255., 255.) / 255.;
-const vec3 yellow = vec3(251., 245., 44.) / 255.;
-const vec3 red = vec3(247, 2., 20.) / 255.;
-
-float luminance(vec3 color) {
-    return dot(color, vec3(0.2126, 0.7152, 0.0722));
-}
+const vec3 blue = vec3(0.2, 0.251, 0.765);
+const vec3 cyan = vec3(0.459, 0.98, 0.996);
+const vec3 yellow = vec3(0.984, 0.961, 0.173);
+const vec3 red = vec3(0.969, 0.008, 0.078);
 
 // spectrum function
 vec3 spectrum(vec2 pos) {
-    pos.x *= 4.;
-    vec3 outCol = vec3(0);
-    if (pos.x > 0.) {
-        outCol = mix(blue, cyan, fract(pos.x));
+    float x = pos.x * 4.0;
+    float f = fract(x);
+    vec3 outCol;
+    if (x < 1.0) {
+        outCol = mix(blue, cyan, f);
+    } else if (x < 2.0) {
+        outCol = mix(cyan, vec3(1.0), f);
+    } else if (x < 3.0) {
+        outCol = mix(vec3(1.0), yellow, f);
+    } else {
+        outCol = mix(yellow, red, f);
     }
-    if (pos.x > 1.) {
-        outCol = mix(cyan, white, fract(pos.x));
-    }
-    if (pos.x > 2.) {
-        outCol = mix(white, yellow, fract(pos.x));
-    }
-    if (pos.x > 3.) {
-        outCol = mix(yellow, red, fract(pos.x));
-    }
-
-    return 1. - (pos.y * (1. - outCol));
+    return 1.0 - pos.y * (1.0 - outCol);
 }
 
 float N21(vec2 p) {
@@ -52,48 +56,6 @@ vec2 N22(vec2 p) {
     return vec2(n, N21(p + n));
 }
 
-mat2 scale(vec2 _scale) {
-    return mat2(_scale.x, 0.0,
-        0.0, _scale.y);
-}
-
-// 2D Noise based on Morgan McGuire
-float noise(in vec2 st) {
-    vec2 i = floor(st);
-    vec2 f = fract(st);
-
-    // Four corners in 2D of a tile
-    float a = N21(i);
-    float b = N21(i + vec2(1.0, 0.0));
-    float c = N21(i + vec2(0.0, 1.0));
-    float d = N21(i + vec2(1.0, 1.0));
-
-    // Smooth Interpolation
-    vec2 u = f * f * (3.0 - 2.0 * f); // Cubic Hermite Curve
-
-    // Mix 4 corners percentages
-    return mix(a, b, u.x) +
-        (c - a) * u.y * (1.0 - u.x) +
-        (d - b) * u.x * u.y;
-}
-
-float perlin2(vec2 uv, int octaves, float pscale) {
-    float col = 1.;
-    float initScale = 4.;
-    for (int l; l < octaves; l++) {
-        float val = noise(uv * initScale);
-        if (col <= 0.01) {
-            col = 0.;
-            break;
-        }
-        val -= 0.01;
-        val *= 0.5;
-        col *= val;
-        initScale *= pscale;
-    }
-    return col;
-}
-
 vec3 stars(vec2 uv, float offset) {
     float timeScale = -(iTime + offset) / layers;
     float trans = fract(timeScale);
@@ -101,9 +63,7 @@ vec3 stars(vec2 uv, float offset) {
     vec3 col = vec3(0.);
 
     // Translate uv then scale for center
-    uv -= vec2(0.5);
-    uv = scale(vec2(trans)) * uv;
-    uv += vec2(0.5);
+    uv = (uv - 0.5) * trans + 0.5;
 
     // Create square aspect ratio
     uv.x *= iResolution.x / iResolution.y;
@@ -133,26 +93,12 @@ vec3 stars(vec2 uv, float offset) {
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
-    // Normalized pixel coordinates (from 0 to 1)
     vec2 uv = fragCoord / iResolution.xy;
 
-    vec3 col = vec3(0.);
-
-    for (float i = 0.; i < layers; i++) {
+    vec3 col = vec3(0.0);
+    for (float i = 0.0; i < layers; i++) {
         col += stars(uv, i);
     }
 
-    // Sample the terminal screen texture including alpha channel
-    vec4 terminalColor = texture(iChannel4, uv);
-
-    if (transparent) {
-        col += terminalColor.rgb;
-    }
-
-    // Make a mask that is 1.0 where the terminal content is not black
-    float mask = 1 - step(threshold, luminance(terminalColor.rgb));
-    vec3 blendedColor = mix(terminalColor.rgb, col, mask);
-
-    // Apply terminal's alpha to control overall opacity
-    fragColor = vec4(blendedColor, terminalColor.a);
+    fragColor = vec4(col, 1.0);
 }

@@ -52,10 +52,5 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec3 gradientEndColor = mix(mix(color2, color3, t1), color1, t3);
     vec3 gradientColor = mix(gradientStartColor, gradientEndColor, gradientFactor);
 
-    // Blend with terminal content (show gradient where terminal is dark)
-    vec4 terminalColor = texture(iChannel4, uv);
-    float brightness = terminalColor.r + terminalColor.g + terminalColor.b;
-    vec3 blendedColor = mix(gradientColor, terminalColor.rgb, step(0.5, brightness));
-
-    fragColor = vec4(blendedColor, terminalColor.a);
+    fragColor = vec4(gradientColor, 1.0);
 }
