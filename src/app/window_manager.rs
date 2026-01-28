@@ -426,9 +426,9 @@ impl WindowManager {
 
     /// Open the settings window (or focus if already open)
     pub fn open_settings_window(&mut self, event_loop: &ActiveEventLoop) {
-        // If already open, just request redraw to focus
+        // If already open, bring to front and focus
         if let Some(settings_window) = &self.settings_window {
-            settings_window.request_redraw();
+            settings_window.focus();
             return;
         }
 

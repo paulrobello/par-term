@@ -72,6 +72,8 @@ pub struct WindowState {
     // Focus state for power saving
     /// Whether the window currently has focus
     pub(crate) is_focused: bool,
+    /// Flag set when window gains focus (consumed by window manager to bring settings to front)
+    pub(crate) focus_gained: bool,
     /// Last time a frame was rendered (for FPS throttling when unfocused)
     pub(crate) last_render_time: Option<std::time::Instant>,
 
@@ -135,6 +137,7 @@ impl WindowState {
             pending_font_rebuild: false,
 
             is_focused: true, // Assume focused on creation
+            focus_gained: false,
             last_render_time: None,
 
             shader_watcher: None,

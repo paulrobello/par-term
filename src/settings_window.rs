@@ -400,4 +400,10 @@ impl SettingsWindow {
     pub fn request_redraw(&self) {
         self.window.request_redraw();
     }
+
+    /// Bring the window to the front and focus it
+    pub fn focus(&self) {
+        self.window.focus_window();
+        self.window.request_redraw();
+    }
 }
