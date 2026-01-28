@@ -284,6 +284,14 @@ impl WindowState {
                         let total_lines = rows + tab.cache.scrollback_len;
                         renderer.update_scrollbar(tab.scroll_state.offset, rows, total_lines);
                     }
+
+                    // Update resize overlay state
+                    self.resize_dimensions =
+                        Some((physical_size.width, physical_size.height, cols, rows));
+                    self.resize_overlay_visible = true;
+                    // Hide overlay 1 second after resize stops
+                    self.resize_overlay_hide_time =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(1));
                 }
             }
 
@@ -529,7 +537,28 @@ impl WindowState {
             }
         }
 
-        // 5. Custom Background Shaders
+        // 5. Resize Overlay
+        // Check if the resize overlay should be hidden (timer expired).
+        if self.resize_overlay_visible
+            && let Some(hide_time) = self.resize_overlay_hide_time
+        {
+            if now >= hide_time {
+                // Hide the overlay
+                self.resize_overlay_visible = false;
+                self.resize_overlay_hide_time = None;
+                self.needs_redraw = true;
+            } else {
+                // Overlay still visible - request redraw and schedule wake
+                if can_render {
+                    self.needs_redraw = true;
+                }
+                if hide_time < next_wake {
+                    next_wake = hide_time;
+                }
+            }
+        }
+
+        // 6. Custom Background Shaders
         // If a custom shader is animated, render at the calculated frame interval.
         // When unfocused with pause_refresh_on_blur, this uses the slower unfocused_fps rate.
         if let Some(renderer) = &self.renderer

@@ -90,6 +90,14 @@ pub struct WindowState {
     /// Flag to signal that the settings window should be opened
     /// This is set by keyboard handlers and consumed by the window manager
     pub(crate) open_settings_window_requested: bool,
+
+    // Resize overlay state
+    /// Whether the resize overlay is currently visible
+    pub(crate) resize_overlay_visible: bool,
+    /// When to hide the resize overlay (after resize stops)
+    pub(crate) resize_overlay_hide_time: Option<std::time::Instant>,
+    /// Current resize dimensions: (width_px, height_px, cols, rows)
+    pub(crate) resize_dimensions: Option<(u32, u32, usize, usize)>,
 }
 
 impl WindowState {
@@ -135,6 +143,10 @@ impl WindowState {
             cursor_shader_reload_result: None,
 
             open_settings_window_requested: false,
+
+            resize_overlay_visible: false,
+            resize_overlay_hide_time: None,
+            resize_dimensions: None,
         }
     }
 
@@ -1279,6 +1291,33 @@ impl WindowState {
                                             ))
                                             .monospace()
                                             .size(14.0),
+                                        );
+                                    });
+                            });
+                    }
+
+                    // Show resize overlay if active (centered)
+                    if self.resize_overlay_visible
+                        && let Some((width_px, height_px, cols, rows)) = self.resize_dimensions
+                    {
+                        egui::Area::new(egui::Id::new("resize_overlay"))
+                            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                            .order(egui::Order::Foreground)
+                            .show(ctx, |ui| {
+                                egui::Frame::NONE
+                                    .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 220))
+                                    .inner_margin(egui::Margin::same(16))
+                                    .corner_radius(8.0)
+                                    .show(ui, |ui| {
+                                        ui.style_mut().visuals.override_text_color =
+                                            Some(egui::Color32::from_rgb(255, 255, 255));
+                                        ui.label(
+                                            egui::RichText::new(format!(
+                                                "{}×{}\n{}×{} px",
+                                                cols, rows, width_px, height_px
+                                            ))
+                                            .monospace()
+                                            .size(24.0),
                                         );
                                     });
                             });
