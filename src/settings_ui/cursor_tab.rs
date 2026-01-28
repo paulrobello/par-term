@@ -69,5 +69,29 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                 *changes_this_frame = true;
             }
         });
+
+        ui.add_space(8.0);
+        ui.label("Application Control Locks:");
+
+        if ui
+            .checkbox(
+                &mut settings.config.lock_cursor_visibility,
+                "Lock cursor visibility",
+            )
+            .on_hover_text("Prevent applications from hiding the cursor")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(&mut settings.config.lock_cursor_style, "Lock cursor style")
+            .on_hover_text("Prevent applications from changing cursor style")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
     });
 }

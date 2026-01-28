@@ -125,6 +125,8 @@ window_decorations: true
 cursor_style: "Block"  # Block, Beam, or Underline
 cursor_blink: true
 cursor_blink_interval: 500
+lock_cursor_visibility: false  # Prevent apps from hiding cursor
+lock_cursor_style: false       # Prevent apps from changing cursor style
 
 # =============================================================================
 # Scrollbar

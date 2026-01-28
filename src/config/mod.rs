@@ -349,6 +349,16 @@ pub struct Config {
     #[serde(default = "defaults::cursor_color")]
     pub cursor_color: [u8; 3],
 
+    /// Lock cursor visibility - prevent applications from hiding the cursor
+    /// When true, the cursor remains visible regardless of DECTCEM escape sequences
+    #[serde(default = "defaults::bool_false")]
+    pub lock_cursor_visibility: bool,
+
+    /// Lock cursor style - prevent applications from changing the cursor style
+    /// When true, the cursor style from config is always used, ignoring DECSCUSR escape sequences
+    #[serde(default = "defaults::bool_false")]
+    pub lock_cursor_style: bool,
+
     // ========================================================================
     // Scrollbar
     // ========================================================================
@@ -637,6 +647,8 @@ impl Default for Config {
             cursor_blink_interval: defaults::cursor_blink_interval(),
             cursor_style: CursorStyle::default(),
             cursor_color: defaults::cursor_color(),
+            lock_cursor_visibility: defaults::bool_false(),
+            lock_cursor_style: defaults::bool_false(),
             scrollbar_autohide_delay: defaults::scrollbar_autohide_delay(),
             window_title: defaults::window_title(),
             allow_title_change: defaults::bool_true(),

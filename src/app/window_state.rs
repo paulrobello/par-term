@@ -5,7 +5,7 @@
 
 use crate::app::debug_state::DebugState;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
-use crate::config::Config;
+use crate::config::{Config, CursorStyle};
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::renderer::Renderer;
@@ -15,6 +15,7 @@ use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::tab::TabManager;
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
 use anyhow::Result;
+use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use wgpu::SurfaceError;
@@ -986,7 +987,9 @@ impl WindowState {
 
             // Get cursor position and opacity (only show if we're at the bottom with no scroll offset
             // and the cursor is visible - TUI apps hide cursor via DECTCEM escape sequence)
-            let current_cursor_pos = if scroll_offset == 0 && term.is_cursor_visible() {
+            // If lock_cursor_visibility is enabled, ignore the terminal's visibility state
+            let cursor_visible = self.config.lock_cursor_visibility || term.is_cursor_visible();
+            let current_cursor_pos = if scroll_offset == 0 && cursor_visible {
                 Some(term.cursor_position())
             } else {
                 None
@@ -995,8 +998,27 @@ impl WindowState {
             let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_opacity));
 
             // Get cursor style for geometric rendering
+            // If lock_cursor_style is enabled, use the config's cursor style instead of terminal's
             let cursor_style = if current_cursor_pos.is_some() {
-                Some(term.cursor_style())
+                if self.config.lock_cursor_style {
+                    // Convert config cursor style to terminal cursor style
+                    let style = if self.config.cursor_blink {
+                        match self.config.cursor_style {
+                            CursorStyle::Block => TermCursorStyle::BlinkingBlock,
+                            CursorStyle::Beam => TermCursorStyle::BlinkingBar,
+                            CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
+                        }
+                    } else {
+                        match self.config.cursor_style {
+                            CursorStyle::Block => TermCursorStyle::SteadyBlock,
+                            CursorStyle::Beam => TermCursorStyle::SteadyBar,
+                            CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
+                        }
+                    };
+                    Some(style)
+                } else {
+                    Some(term.cursor_style())
+                }
             } else {
                 None
             };
