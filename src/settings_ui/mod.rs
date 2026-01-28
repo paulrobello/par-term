@@ -663,6 +663,30 @@ impl SettingsUI {
             window_tab::show(ui, self, changes_this_frame);
         }
 
+        // Tab Bar (positioned after Window & Display)
+        if section_matches(
+            "Tab Bar",
+            &[
+                "Tab bar",
+                "Tab background",
+                "Tab text",
+                "Tab indicator",
+                "Tab close",
+                "Active tab",
+                "Inactive tab",
+                "Bell",
+                "Activity",
+                "Tab width",
+                "Tab min",
+                "Tab scroll",
+                "Tab border",
+            ],
+        ) {
+            insert_section_separator(ui, &mut section_shown);
+            matches_found = true;
+            tab_bar_tab::show(ui, self, changes_this_frame);
+        }
+
         // Terminal
         if section_matches(
             "Terminal",
@@ -807,26 +831,6 @@ impl SettingsUI {
             insert_section_separator(ui, &mut section_shown);
             matches_found = true;
             shell_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Tab Bar
-        if section_matches(
-            "Tab Bar",
-            &[
-                "Tab bar",
-                "Tab background",
-                "Tab text",
-                "Tab indicator",
-                "Tab close",
-                "Active tab",
-                "Inactive tab",
-                "Bell",
-                "Activity",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            tab_bar_tab::show(ui, self, changes_this_frame);
         }
 
         // Screenshot

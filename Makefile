@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install doc coverage test-fonts benchmark-shaping test-text-shaping bundle run-bundle
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install doc coverage test-fonts benchmark-shaping test-text-shaping bundle run-bundle
 
 # Default target
 .DEFAULT_GOAL := help
@@ -11,8 +11,8 @@ help:
 	@echo "par-term - Cross-platform Terminal Emulator"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  make build       - Build the project in debug mode"
-	@echo "  make release     - Build the project in release mode"
+	@echo "  make build       - Build the project in release mode"
+	@echo "  make build-debug - Build the project in debug mode"
 	@echo "  make run         - Run the application (release mode)"
 	@echo "  make run-debug   - Run with debug logging"
 	@echo ""
@@ -56,15 +56,18 @@ help:
 	@echo "  make coverage    - Generate test coverage report"
 	@echo ""
 
-# Build in debug mode
+# Build in release mode (default for faster runtime)
 build:
+	@echo "Building par-term (release mode)..."
+	cargo build --release
+
+# Build in debug mode
+build-debug:
 	@echo "Building par-term (debug mode)..."
 	cargo build
 
-# Build in release mode
-release:
-	@echo "Building par-term (release mode)..."
-	cargo build --release
+# Alias for build (release mode)
+release: build
 	@echo "Release binary: target/release/par-term"
 
 # Run the application (always use release mode for performance)

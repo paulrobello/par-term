@@ -537,6 +537,20 @@ pub struct Config {
     #[serde(default = "defaults::inactive_tab_opacity")]
     pub inactive_tab_opacity: f32,
 
+    /// Minimum tab width in pixels before horizontal scrolling is enabled
+    /// When tabs cannot fit at this width, scroll buttons appear
+    #[serde(default = "defaults::tab_min_width")]
+    pub tab_min_width: f32,
+
+    /// Tab border color [R, G, B] (0-255)
+    /// A thin border around each tab to help distinguish them
+    #[serde(default = "defaults::tab_border_color")]
+    pub tab_border_color: [u8; 3],
+
+    /// Tab border width in pixels (0 = no border)
+    #[serde(default = "defaults::tab_border_width")]
+    pub tab_border_width: f32,
+
     // ========================================================================
     // Focus/Blur Power Saving
     // ========================================================================
@@ -685,6 +699,9 @@ impl Default for Config {
             tab_close_button_hover: defaults::tab_close_button_hover(),
             dim_inactive_tabs: defaults::bool_true(),
             inactive_tab_opacity: defaults::inactive_tab_opacity(),
+            tab_min_width: defaults::tab_min_width(),
+            tab_border_color: defaults::tab_border_color(),
+            tab_border_width: defaults::tab_border_width(),
             pause_shaders_on_blur: defaults::bool_true(),
             pause_refresh_on_blur: defaults::bool_false(),
             unfocused_fps: defaults::unfocused_fps(),

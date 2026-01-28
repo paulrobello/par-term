@@ -2,8 +2,70 @@
 
 use super::SettingsUI;
 
+/// Show tab bar settings section
 pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.collapsing("Tab Bar", |ui| {
+        // Tab Layout section
+        ui.label("Tab Layout");
+        ui.indent("tab_layout", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Minimum tab width:");
+                if ui
+                    .add(
+                        egui::Slider::new(&mut settings.config.tab_min_width, 120.0..=512.0)
+                            .step_by(1.0)
+                            .suffix("px"),
+                    )
+                    .on_hover_text("Minimum width for tabs before horizontal scrolling is enabled")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+            ui.label(
+                egui::RichText::new(
+                    "Tabs spread equally; scroll buttons appear when space is limited",
+                )
+                .small()
+                .weak(),
+            );
+        });
+
+        ui.add_space(8.0);
+
+        // Tab Border section
+        ui.label("Tab Border");
+        ui.indent("tab_border", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Border width:");
+                if ui
+                    .add(
+                        egui::Slider::new(&mut settings.config.tab_border_width, 0.0..=3.0)
+                            .step_by(0.5)
+                            .suffix("px"),
+                    )
+                    .on_hover_text("Width of the border around each tab (0 = no border)")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Border color:");
+                let mut color = settings.config.tab_border_color;
+                if ui.color_edit_button_srgb(&mut color).changed() {
+                    settings.config.tab_border_color = color;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        });
+
+        ui.add_space(8.0);
+
         // Inactive Tab Dimming section
         ui.label("Inactive Tab Dimming");
         ui.indent("tab_dimming", |ui| {
@@ -110,7 +172,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         ui.label("Indicator Colors");
         ui.indent("tab_indicator_colors", |ui| {
             ui.horizontal(|ui| {
-                ui.label("Active indicator:");
+                ui.label("Active tab border:");
                 let mut color = settings.config.tab_active_indicator;
                 if ui.color_edit_button_srgb(&mut color).changed() {
                     settings.config.tab_active_indicator = color;

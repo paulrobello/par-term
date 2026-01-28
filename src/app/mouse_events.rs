@@ -68,6 +68,20 @@ impl WindowState {
             .map(|t| t.mouse.position)
             .unwrap_or((0.0, 0.0));
 
+        // Check if click is in the tab bar area - if so, let egui handle it
+        let tab_bar_height = self.tab_bar_ui.get_height(
+            self.tab_manager.tab_count(),
+            &self.config,
+        );
+        if mouse_position.1 < tab_bar_height as f64 {
+            return; // Click is on tab bar, don't process as terminal event
+        }
+
+        // Check if tab context menu is open - if so, let egui handle all clicks
+        if self.tab_bar_ui.is_context_menu_open() {
+            return;
+        }
+
         // --- 1. Shader Interaction ---
         // Update shader mouse state for left button (matches Shadertoy iMouse convention)
         if button == MouseButton::Left

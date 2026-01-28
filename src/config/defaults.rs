@@ -236,3 +236,15 @@ pub fn cubemap_enabled() -> bool {
 pub fn inactive_tab_opacity() -> f32 {
     0.6 // Default opacity for inactive tabs (60%)
 }
+
+pub fn tab_min_width() -> f32 {
+    120.0 // Minimum tab width in pixels before scrolling kicks in
+}
+
+pub fn tab_border_color() -> [u8; 3] {
+    [80, 80, 80] // Subtle gray border between tabs
+}
+
+pub fn tab_border_width() -> f32 {
+    1.0 // 1 pixel border
+}
