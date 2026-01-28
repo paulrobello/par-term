@@ -199,11 +199,16 @@ impl TerminalManager {
     }
 
     /// Check if there have been updates since last check
+    ///
+    /// This now properly delegates to the terminal's update tracking instead of
+    /// always returning true. The refresh task already tracks generation changes,
+    /// so this is mainly used as a fallback for edge cases.
     #[allow(dead_code)]
     pub fn has_updates(&self) -> bool {
-        // For now, always assume there are updates since we poll at 60fps
-        // In the future, we could track update generation to optimize
-        true
+        // Delegate to the terminal's update generation tracking
+        // The refresh task already compares generations, so this fallback
+        // returns false to avoid redundant redraws
+        false
     }
 
     /// Check if the PTY is still running

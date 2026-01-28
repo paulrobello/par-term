@@ -72,6 +72,8 @@ pub struct WindowState {
     // Focus state for power saving
     /// Whether the window currently has focus
     pub(crate) is_focused: bool,
+    /// Last time a frame was rendered (for FPS throttling when unfocused)
+    pub(crate) last_render_time: Option<std::time::Instant>,
 
     // Shader hot reload
     /// Shader file watcher for hot reload support
@@ -125,6 +127,7 @@ impl WindowState {
             pending_font_rebuild: false,
 
             is_focused: true, // Assume focused on creation
+            last_render_time: None,
 
             shader_watcher: None,
             shader_reload_error: None,
@@ -830,6 +833,25 @@ impl WindowState {
         if self.is_shutting_down {
             return;
         }
+
+        // FPS throttling when unfocused with pause_refresh_on_blur enabled
+        // This ensures rendering is capped at unfocused_fps even if multiple
+        // sources are requesting redraws (refresh task, shader animations, etc.)
+        if self.config.pause_refresh_on_blur && !self.is_focused {
+            let frame_interval_ms = 1000 / self.config.unfocused_fps.max(1);
+            let frame_interval = std::time::Duration::from_millis(frame_interval_ms as u64);
+
+            if let Some(last_render) = self.last_render_time {
+                let elapsed = last_render.elapsed();
+                if elapsed < frame_interval {
+                    // Not enough time has passed, skip this render
+                    return;
+                }
+            }
+        }
+
+        // Update last render time for FPS throttling
+        self.last_render_time = Some(std::time::Instant::now());
 
         let absolute_start = std::time::Instant::now();
 

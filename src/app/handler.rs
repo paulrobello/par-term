@@ -448,9 +448,28 @@ impl WindowState {
         let now = std::time::Instant::now();
         let mut next_wake = now + std::time::Duration::from_secs(1); // Default sleep for 1s of inactivity
 
+        // Calculate frame interval based on focus state for power saving
+        // When pause_refresh_on_blur is enabled and window is unfocused, use slower refresh rate
+        let frame_interval_ms = if self.config.pause_refresh_on_blur && !self.is_focused {
+            // Use unfocused FPS (e.g., 10 FPS = 100ms interval)
+            1000 / self.config.unfocused_fps.max(1)
+        } else {
+            // Use normal animation rate based on max_fps
+            1000 / self.config.max_fps.max(1)
+        };
+        let frame_interval = std::time::Duration::from_millis(frame_interval_ms as u64);
+
+        // Check if enough time has passed since last render for FPS throttling
+        let time_since_last_render = self
+            .last_render_time
+            .map(|t| now.duration_since(t))
+            .unwrap_or(frame_interval); // If no last render, allow immediate render
+        let can_render = time_since_last_render >= frame_interval;
+
         // 1. Cursor Blinking
         // Wake up exactly when the cursor needs to toggle visibility or fade.
-        if self.config.cursor_blink {
+        // Skip cursor blinking when unfocused with pause_refresh_on_blur to save power.
+        if self.config.cursor_blink && (self.is_focused || !self.config.pause_refresh_on_blur) {
             if self.cursor_blink_timer.is_none() {
                 let blink_interval =
                     std::time::Duration::from_millis(self.config.cursor_blink_interval);
@@ -459,8 +478,10 @@ impl WindowState {
 
             if let Some(next_blink) = self.cursor_blink_timer {
                 if now >= next_blink {
-                    // Time to toggle: trigger redraw and schedule next phase
-                    self.needs_redraw = true;
+                    // Time to toggle: trigger redraw (if throttle allows) and schedule next phase
+                    if can_render {
+                        self.needs_redraw = true;
+                    }
                     let blink_interval =
                         std::time::Duration::from_millis(self.config.cursor_blink_interval);
                     self.cursor_blink_timer = Some(now + blink_interval);
@@ -472,21 +493,25 @@ impl WindowState {
         }
 
         // 2. Smooth Scrolling & Animations
-        // If a scroll interpolation or terminal animation is active, target ~60 FPS (16.6ms).
+        // If a scroll interpolation or terminal animation is active, use calculated frame interval.
         if let Some(tab) = self.tab_manager.active_tab() {
             if tab.scroll_state.animation_start.is_some() {
-                self.needs_redraw = true;
-                let next_frame = now + std::time::Duration::from_millis(16);
+                if can_render {
+                    self.needs_redraw = true;
+                }
+                let next_frame = now + frame_interval;
                 if next_frame < next_wake {
                     next_wake = next_frame;
                 }
             }
 
             // 3. Visual Bell Feedback
-            // Maintain high frame rate during the visual flash fade-out.
+            // Maintain frame rate during the visual flash fade-out.
             if tab.bell.visual_flash.is_some() {
-                self.needs_redraw = true;
-                let next_frame = now + std::time::Duration::from_millis(16);
+                if can_render {
+                    self.needs_redraw = true;
+                }
+                let next_frame = now + frame_interval;
                 if next_frame < next_wake {
                     next_wake = next_frame;
                 }
@@ -494,6 +519,7 @@ impl WindowState {
 
             // 4. Interactive UI Elements
             // Ensure high responsiveness during mouse dragging (text selection or scrollbar).
+            // Always allow these for responsiveness, even if throttled.
             if (tab.mouse.is_selecting
                 || tab.mouse.selection.is_some()
                 || tab.scroll_state.dragging)
@@ -504,12 +530,25 @@ impl WindowState {
         }
 
         // 5. Custom Background Shaders
-        // If a custom shader is animated, we must render continuously at high FPS.
+        // If a custom shader is animated, render at the calculated frame interval.
+        // When unfocused with pause_refresh_on_blur, this uses the slower unfocused_fps rate.
         if let Some(renderer) = &self.renderer
             && renderer.needs_continuous_render()
         {
-            self.needs_redraw = true;
-            let next_frame = now + std::time::Duration::from_millis(16);
+            if can_render {
+                self.needs_redraw = true;
+            }
+            // Schedule next frame at the appropriate interval
+            let next_frame = self
+                .last_render_time
+                .map(|t| t + frame_interval)
+                .unwrap_or(now);
+            // Ensure we don't schedule in the past
+            let next_frame = if next_frame <= now {
+                now + frame_interval
+            } else {
+                next_frame
+            };
             if next_frame < next_wake {
                 next_wake = next_frame;
             }
