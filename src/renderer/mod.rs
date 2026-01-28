@@ -381,6 +381,11 @@ impl Renderer {
             custom_shader.set_opacity(opacity);
         }
 
+        // Propagate to cursor shader renderer if present
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_opacity(opacity);
+        }
+
         self.dirty = true;
     }
 

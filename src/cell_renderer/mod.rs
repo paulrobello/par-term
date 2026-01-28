@@ -207,13 +207,39 @@ impl CellRenderer {
             }
         };
 
+        // Select alpha mode for window transparency
+        // Prefer PreMultiplied (best for compositing) > PostMultiplied > Auto > first available
+        let alpha_mode = if surface_caps
+            .alpha_modes
+            .contains(&wgpu::CompositeAlphaMode::PreMultiplied)
+        {
+            wgpu::CompositeAlphaMode::PreMultiplied
+        } else if surface_caps
+            .alpha_modes
+            .contains(&wgpu::CompositeAlphaMode::PostMultiplied)
+        {
+            wgpu::CompositeAlphaMode::PostMultiplied
+        } else if surface_caps
+            .alpha_modes
+            .contains(&wgpu::CompositeAlphaMode::Auto)
+        {
+            wgpu::CompositeAlphaMode::Auto
+        } else {
+            surface_caps.alpha_modes[0]
+        };
+        log::info!(
+            "Selected alpha mode: {:?} (available: {:?})",
+            alpha_mode,
+            surface_caps.alpha_modes
+        );
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             width: size.width.max(1),
             height: size.height.max(1),
             present_mode,
-            alpha_mode: surface_caps.alpha_modes[0],
+            alpha_mode,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };

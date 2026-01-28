@@ -56,13 +56,12 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     // Sample glyph from atlas (RGBA for colored emoji support)
     let glyph = textureSample(glyph_texture, glyph_sampler, input.tex_coord);
 
-    // If glyph is colored (emoji), use it directly
-    // Otherwise use foreground color with alpha from glyph
+    // Output straight (non-premultiplied) colors for PostMultiplied alpha mode
     if (input.is_colored == 1u) {
-        // Colored glyph (emoji) - use glyph color with alpha
+        // Colored glyph (emoji) - use glyph color with combined alpha
         return vec4<f32>(glyph.rgb, glyph.a * input.color.a);
     } else {
-        // Monochrome glyph - use foreground color with glyph alpha
+        // Monochrome glyph - use foreground color with glyph alpha mask
         return vec4<f32>(input.color.rgb, input.color.a * glyph.a);
     }
 }

@@ -155,6 +155,7 @@ impl GraphicsRenderer {
                 entry_point: Some("fs_main"),
                 targets: &[Some(ColorTargetState {
                     format,
+                    // Use pre-multiplied alpha blending for window transparency
                     blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 })],

@@ -271,7 +271,7 @@ pub fn create_render_pipeline(
             entry_point: Some("fs_main"),
             targets: &[Some(ColorTargetState {
                 format: surface_format,
-                blend: Some(BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                blend: Some(BlendState::ALPHA_BLENDING),
                 write_mask: ColorWrites::ALL,
             })],
             compilation_options: Default::default(),

@@ -24,6 +24,7 @@ impl CellRenderer {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
+                        // For PostMultiplied alpha mode, use straight (non-premultiplied) colors
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: self.background_color[0] as f64,
                             g: self.background_color[1] as f64,
@@ -86,11 +87,12 @@ impl CellRenderer {
                     view: target_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
+                        // Use background color with window_opacity for proper transparency
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 0.0,
+                            r: self.background_color[0] as f64,
+                            g: self.background_color[1] as f64,
+                            b: self.background_color[2] as f64,
+                            a: self.window_opacity as f64,
                         }),
                         store: wgpu::StoreOp::Store,
                     },
@@ -207,11 +209,14 @@ impl CellRenderer {
                         continue;
                     }
 
+                    // Apply window_opacity to cell backgrounds for transparency support
+                    // Terminal backgrounds are treated as opaque (alpha=1.0) - only window_opacity
+                    // controls transparency. Cell alpha is typically 0 or undefined in terminals.
                     let bg_color = [
                         cell.bg_color[0] as f32 / 255.0,
                         cell.bg_color[1] as f32 / 255.0,
                         cell.bg_color[2] as f32 / 255.0,
-                        cell.bg_color[3] as f32 / 255.0,
+                        self.window_opacity,
                     ];
 
                     let x0 = self.window_padding + col as f32 * self.cell_width;
