@@ -292,6 +292,9 @@ impl WindowState {
                     // Hide overlay 1 second after resize stops
                     self.resize_overlay_hide_time =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(1));
+
+                    // Update settings UI with current terminal dimensions
+                    self.settings_ui.update_current_size(cols, rows);
                 }
             }
 

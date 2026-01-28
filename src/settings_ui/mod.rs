@@ -130,11 +130,27 @@ pub struct SettingsUI {
     pub(crate) shader_metadata_cache: ShaderMetadataCache,
     /// Whether the per-shader settings section is expanded
     pub(crate) shader_settings_expanded: bool,
+
+    // Current window state (for "Use Current Size" button)
+    /// Current terminal columns (actual rendered size, may differ from config)
+    pub(crate) current_cols: usize,
+    /// Current terminal rows (actual rendered size, may differ from config)
+    pub(crate) current_rows: usize,
+
+    // VSync mode support (for runtime validation)
+    /// Supported vsync modes for the current display
+    pub(crate) supported_vsync_modes: Vec<crate::config::VsyncMode>,
+    /// Warning message when an unsupported vsync mode is selected
+    pub(crate) vsync_warning: Option<String>,
 }
 
 impl SettingsUI {
     /// Create a new settings UI
     pub fn new(config: Config) -> Self {
+        // Extract values before moving config
+        let initial_cols = config.cols;
+        let initial_rows = config.rows;
+
         Self {
             visible: false,
             temp_font_bold: config.font_family_bold.clone().unwrap_or_default(),
@@ -164,6 +180,14 @@ impl SettingsUI {
             temp_shader_channel3: config.custom_shader_channel3.clone().unwrap_or_default(),
             temp_cubemap_path: config.custom_shader_cubemap.clone().unwrap_or_default(),
             last_live_opacity: config.window_opacity,
+            current_cols: initial_cols,
+            current_rows: initial_rows,
+            supported_vsync_modes: vec![
+                crate::config::VsyncMode::Immediate,
+                crate::config::VsyncMode::Mailbox,
+                crate::config::VsyncMode::Fifo,
+            ], // Will be updated when renderer is available
+            vsync_warning: None,
             config,
             has_changes: false,
             search_query: String::new(),
@@ -189,6 +213,29 @@ impl SettingsUI {
             ),
             shader_settings_expanded: true,
         }
+    }
+
+    /// Update the current terminal dimensions (called when window resizes)
+    pub fn update_current_size(&mut self, cols: usize, rows: usize) {
+        self.current_cols = cols;
+        self.current_rows = rows;
+    }
+
+    /// Update the list of supported vsync modes (called when renderer is initialized)
+    pub fn update_supported_vsync_modes(&mut self, modes: Vec<crate::config::VsyncMode>) {
+        self.supported_vsync_modes = modes;
+        // Clear any previous warning
+        self.vsync_warning = None;
+    }
+
+    /// Check if a vsync mode is supported
+    pub fn is_vsync_mode_supported(&self, mode: crate::config::VsyncMode) -> bool {
+        self.supported_vsync_modes.contains(&mode)
+    }
+
+    /// Set vsync warning message (called when an unsupported mode is detected)
+    pub fn set_vsync_warning(&mut self, warning: Option<String>) {
+        self.vsync_warning = warning;
     }
 
     pub(crate) fn pick_file_path(&self, title: &str) -> Option<String> {

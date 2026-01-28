@@ -8,6 +8,7 @@ mod clipboard_history_ui;
 mod config;
 mod custom_shader_renderer;
 mod font_manager;
+mod font_metrics;
 mod gpu_utils;
 mod graphics_renderer;
 mod help_ui;

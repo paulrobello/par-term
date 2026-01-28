@@ -37,7 +37,5 @@ scrollback_lines: 10000
 # Theme
 theme: "Default Dark"
 
-# Window settings
-window_width: 1024
-window_height: 768
+# Window settings (size is determined by cols × rows × cell_size)
 window_padding: 5.0

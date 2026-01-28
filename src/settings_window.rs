@@ -63,7 +63,11 @@ pub struct SettingsWindow {
 
 impl SettingsWindow {
     /// Create a new settings window
-    pub async fn new(event_loop: &ActiveEventLoop, config: Config) -> Result<Self> {
+    pub async fn new(
+        event_loop: &ActiveEventLoop,
+        config: Config,
+        supported_vsync_modes: Vec<crate::config::VsyncMode>,
+    ) -> Result<Self> {
         // Create the window
         let window_attrs = Window::default_attributes()
             .with_title("Settings")
@@ -150,6 +154,7 @@ impl SettingsWindow {
         // Create settings UI
         let mut settings_ui = SettingsUI::new(config);
         settings_ui.visible = true; // Always visible in settings window
+        settings_ui.update_supported_vsync_modes(supported_vsync_modes);
 
         Ok(Self {
             window,

@@ -19,6 +19,8 @@ pub struct CellRenderer {
     pub(crate) queue: Arc<wgpu::Queue>,
     pub(crate) surface: wgpu::Surface<'static>,
     pub(crate) config: wgpu::SurfaceConfiguration,
+    /// Supported present modes for this surface (for vsync mode validation)
+    pub(crate) supported_present_modes: Vec<wgpu::PresentMode>,
 
     // Pipelines
     pub(crate) bg_pipeline: wgpu::RenderPipeline,
@@ -182,12 +184,33 @@ impl CellRenderer {
             .find(|f| !f.is_srgb())
             .unwrap_or(surface_caps.formats[0]);
 
+        // Store supported present modes for runtime validation
+        let supported_present_modes = surface_caps.present_modes.clone();
+
+        // Select present mode with fallback if requested mode isn't supported
+        let requested_mode = vsync_mode.to_present_mode();
+        let present_mode = if supported_present_modes.contains(&requested_mode) {
+            requested_mode
+        } else {
+            // Fall back to Fifo (always supported) or first available
+            log::warn!(
+                "Requested present mode {:?} not supported (available: {:?}), falling back",
+                requested_mode,
+                supported_present_modes
+            );
+            if supported_present_modes.contains(&wgpu::PresentMode::Fifo) {
+                wgpu::PresentMode::Fifo
+            } else {
+                supported_present_modes[0]
+            }
+        };
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             width: size.width.max(1),
             height: size.height.max(1),
-            present_mode: vsync_mode.to_present_mode(),
+            present_mode,
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
@@ -279,6 +302,7 @@ impl CellRenderer {
             queue,
             surface,
             config,
+            supported_present_modes,
             bg_pipeline,
             text_pipeline,
             bg_image_pipeline,
@@ -733,6 +757,71 @@ impl CellRenderer {
 
     pub fn reconfigure_surface(&mut self) {
         self.surface.configure(&self.device, &self.config);
+    }
+
+    /// Get the list of supported present modes for this surface
+    #[allow(dead_code)]
+    pub fn supported_present_modes(&self) -> &[wgpu::PresentMode] {
+        &self.supported_present_modes
+    }
+
+    /// Check if a vsync mode is supported
+    pub fn is_vsync_mode_supported(&self, mode: crate::config::VsyncMode) -> bool {
+        self.supported_present_modes
+            .contains(&mode.to_present_mode())
+    }
+
+    /// Update the vsync mode. Returns the actual mode applied (may differ if requested mode unsupported).
+    /// Also returns whether the mode was changed.
+    pub fn update_vsync_mode(
+        &mut self,
+        mode: crate::config::VsyncMode,
+    ) -> (crate::config::VsyncMode, bool) {
+        let requested = mode.to_present_mode();
+        let current = self.config.present_mode;
+
+        // Determine the actual mode to use
+        let actual = if self.supported_present_modes.contains(&requested) {
+            requested
+        } else {
+            log::warn!(
+                "Requested present mode {:?} not supported, falling back to Fifo",
+                requested
+            );
+            wgpu::PresentMode::Fifo
+        };
+
+        // Only reconfigure if the mode actually changed
+        if actual != current {
+            self.config.present_mode = actual;
+            self.surface.configure(&self.device, &self.config);
+            log::info!("VSync mode changed to {:?}", actual);
+        }
+
+        // Convert back to VsyncMode for return
+        let actual_vsync = match actual {
+            wgpu::PresentMode::Immediate => crate::config::VsyncMode::Immediate,
+            wgpu::PresentMode::Mailbox => crate::config::VsyncMode::Mailbox,
+            wgpu::PresentMode::Fifo | wgpu::PresentMode::FifoRelaxed => {
+                crate::config::VsyncMode::Fifo
+            }
+            _ => crate::config::VsyncMode::Fifo,
+        };
+
+        (actual_vsync, actual != current)
+    }
+
+    /// Get the current vsync mode
+    #[allow(dead_code)]
+    pub fn current_vsync_mode(&self) -> crate::config::VsyncMode {
+        match self.config.present_mode {
+            wgpu::PresentMode::Immediate => crate::config::VsyncMode::Immediate,
+            wgpu::PresentMode::Mailbox => crate::config::VsyncMode::Mailbox,
+            wgpu::PresentMode::Fifo | wgpu::PresentMode::FifoRelaxed => {
+                crate::config::VsyncMode::Fifo
+            }
+            _ => crate::config::VsyncMode::Fifo,
+        }
     }
 
     #[allow(dead_code)]

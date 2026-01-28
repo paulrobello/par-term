@@ -15,12 +15,10 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         });
 
         ui.horizontal(|ui| {
-            ui.label("Width:");
+            ui.label("Columns:");
             if ui
-                .add(egui::Slider::new(
-                    &mut settings.config.window_width,
-                    400..=3840,
-                ))
+                .add(egui::Slider::new(&mut settings.config.cols, 40..=300))
+                .on_hover_text("Number of columns in the terminal grid (determines window width)")
                 .changed()
             {
                 settings.has_changes = true;
@@ -29,14 +27,39 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         });
 
         ui.horizontal(|ui| {
-            ui.label("Height:");
+            ui.label("Rows:");
             if ui
-                .add(egui::Slider::new(
-                    &mut settings.config.window_height,
-                    300..=2160,
-                ))
+                .add(egui::Slider::new(&mut settings.config.rows, 10..=100))
+                .on_hover_text("Number of rows in the terminal grid (determines window height)")
                 .changed()
             {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        // Show current size and button to use it
+        ui.horizontal(|ui| {
+            let current_size = format!(
+                "Current: {}×{}",
+                settings.current_cols, settings.current_rows
+            );
+            ui.label(&current_size);
+
+            // Show button (disabled if sizes already match)
+            let differs = settings.current_cols != settings.config.cols
+                || settings.current_rows != settings.config.rows;
+            if ui
+                .add_enabled(differs, egui::Button::new("Use Current Size"))
+                .on_hover_text(if differs {
+                    "Set the configured columns and rows to match the current window size"
+                } else {
+                    "Config already matches current window size"
+                })
+                .clicked()
+            {
+                settings.config.cols = settings.current_cols;
+                settings.config.rows = settings.current_rows;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
@@ -110,28 +133,71 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                 VsyncMode::Fifo => 2,
             };
             let mut selected = current;
+
+            // Helper to format mode name with support indicator
+            let format_mode = |mode: VsyncMode, name: &str| -> String {
+                if settings.is_vsync_mode_supported(mode) {
+                    name.to_string()
+                } else {
+                    format!("{} (not supported)", name)
+                }
+            };
+
             egui::ComboBox::from_id_salt("vsync_mode")
                 .selected_text(match current {
-                    0 => "Immediate (No VSync)",
-                    1 => "Mailbox (Balanced)",
-                    2 => "FIFO (VSync)",
-                    _ => "Unknown",
+                    0 => format_mode(VsyncMode::Immediate, "Immediate (No VSync)"),
+                    1 => format_mode(VsyncMode::Mailbox, "Mailbox (Balanced)"),
+                    2 => format_mode(VsyncMode::Fifo, "FIFO (VSync)"),
+                    _ => "Unknown".to_string(),
                 })
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut selected, 0, "Immediate (No VSync)");
-                    ui.selectable_value(&mut selected, 1, "Mailbox (Balanced)");
-                    ui.selectable_value(&mut selected, 2, "FIFO (VSync)");
+                    ui.selectable_value(
+                        &mut selected,
+                        0,
+                        format_mode(VsyncMode::Immediate, "Immediate (No VSync)"),
+                    );
+                    ui.selectable_value(
+                        &mut selected,
+                        1,
+                        format_mode(VsyncMode::Mailbox, "Mailbox (Balanced)"),
+                    );
+                    ui.selectable_value(
+                        &mut selected,
+                        2,
+                        format_mode(VsyncMode::Fifo, "FIFO (VSync)"),
+                    );
                 });
             if selected != current {
-                settings.config.vsync_mode = match selected {
+                let new_mode = match selected {
                     0 => VsyncMode::Immediate,
                     1 => VsyncMode::Mailbox,
                     2 => VsyncMode::Fifo,
                     _ => VsyncMode::Immediate,
                 };
-                settings.has_changes = true;
+
+                // Check if the mode is supported
+                if settings.is_vsync_mode_supported(new_mode) {
+                    settings.config.vsync_mode = new_mode;
+                    settings.vsync_warning = None;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                } else {
+                    // Set warning and revert to Fifo (always supported)
+                    settings.vsync_warning = Some(format!(
+                        "{:?} is not supported on this display. Using FIFO instead.",
+                        new_mode
+                    ));
+                    settings.config.vsync_mode = VsyncMode::Fifo;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
             }
         });
+
+        // Show vsync warning if present
+        if let Some(ref warning) = settings.vsync_warning {
+            ui.colored_label(egui::Color32::YELLOW, warning);
+        }
 
         ui.separator();
         ui.label("Power Saving (when window loses focus):");

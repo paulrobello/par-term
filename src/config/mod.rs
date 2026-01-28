@@ -135,14 +135,6 @@ pub struct Config {
     #[serde(default = "defaults::bool_true")]
     pub window_decorations: bool,
 
-    /// Initial window width in pixels
-    #[serde(default = "defaults::window_width")]
-    pub window_width: u32,
-
-    /// Initial window height in pixels
-    #[serde(default = "defaults::window_height")]
-    pub window_height: u32,
-
     /// Background image path (optional, supports ~ for home directory)
     #[serde(default)]
     pub background_image: Option<String>,
@@ -627,8 +619,6 @@ impl Default for Config {
             window_opacity: defaults::window_opacity(),
             window_always_on_top: defaults::bool_false(),
             window_decorations: defaults::bool_true(),
-            window_width: defaults::window_width(),
-            window_height: defaults::window_height(),
             background_image: None,
             background_image_enabled: defaults::bool_true(),
             background_image_mode: BackgroundImageMode::default(),

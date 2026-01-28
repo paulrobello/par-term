@@ -319,6 +319,18 @@ impl WindowState {
         // Apply cursor shader configuration
         self.apply_cursor_shader_config(&mut renderer);
 
+        // Update settings UI with supported vsync modes
+        let supported_modes: Vec<crate::config::VsyncMode> = [
+            crate::config::VsyncMode::Immediate,
+            crate::config::VsyncMode::Mailbox,
+            crate::config::VsyncMode::Fifo,
+        ]
+        .into_iter()
+        .filter(|mode| renderer.is_vsync_mode_supported(*mode))
+        .collect();
+        self.settings_ui
+            .update_supported_vsync_modes(supported_modes);
+
         self.renderer = Some(renderer);
         self.needs_redraw = true;
 
@@ -373,6 +385,18 @@ impl WindowState {
         // Apply cursor shader configuration
         self.apply_cursor_shader_config(&mut renderer);
 
+        // Update settings UI with supported vsync modes
+        let supported_modes: Vec<crate::config::VsyncMode> = [
+            crate::config::VsyncMode::Immediate,
+            crate::config::VsyncMode::Mailbox,
+            crate::config::VsyncMode::Fifo,
+        ]
+        .into_iter()
+        .filter(|mode| renderer.is_vsync_mode_supported(*mode))
+        .collect();
+        self.settings_ui
+            .update_supported_vsync_modes(supported_modes);
+
         self.window = Some(Arc::clone(&window));
         self.renderer = Some(renderer);
 
@@ -407,6 +431,10 @@ impl WindowState {
                         height_px
                     );
                 }
+
+                // Update settings UI with initial terminal dimensions
+                self.settings_ui
+                    .update_current_size(renderer_cols, renderer_rows);
             }
 
             // Start refresh task for the first tab

@@ -8,11 +8,11 @@ use std::path::PathBuf;
 #[serde(rename_all = "lowercase")]
 pub enum VsyncMode {
     /// No VSync - render as fast as possible (lowest latency, highest GPU usage)
-    #[default]
     Immediate,
     /// Mailbox VSync - cap at monitor refresh rate with triple buffering (balanced)
     Mailbox,
-    /// FIFO VSync - strict vsync with double buffering (lowest GPU usage, slight input lag)
+    /// FIFO VSync - strict vsync with double buffering (lowest GPU usage, most compatible)
+    #[default]
     Fifo,
 }
 

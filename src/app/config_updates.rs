@@ -38,6 +38,7 @@ pub(crate) struct ConfigChanges {
     pub window_title: bool,
     pub window_decorations: bool,
     pub max_fps: bool,
+    pub vsync_mode: bool,
 
     // Cursor appearance
     pub cursor_style: bool,
@@ -118,6 +119,7 @@ impl ConfigChanges {
             window_title: new.window_title != old.window_title,
             window_decorations: new.window_decorations != old.window_decorations,
             max_fps: new.max_fps != old.max_fps,
+            vsync_mode: new.vsync_mode != old.vsync_mode,
 
             cursor_style: new.cursor_style != old.cursor_style,
             cursor_blink: new.cursor_blink != old.cursor_blink,

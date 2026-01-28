@@ -113,10 +113,8 @@ theme: "Default Dark"
 #                   "Nord", "Monokai", "One Dark"
 
 # =============================================================================
-# Window Settings
+# Window Settings (size is determined by cols × rows × cell_size)
 # =============================================================================
-window_width: 1200
-window_height: 800
 window_padding: 5.0
 window_opacity: 1.0
 window_decorations: true

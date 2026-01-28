@@ -130,8 +130,8 @@ fn test_config_power_saving_defaults() {
     assert!(config.pause_shaders_on_blur);
     // Default: pause refresh on blur is disabled (maintain responsiveness)
     assert!(!config.pause_refresh_on_blur);
-    // Default unfocused FPS is 10
-    assert_eq!(config.unfocused_fps, 10);
+    // Default unfocused FPS is 30
+    assert_eq!(config.unfocused_fps, 30);
 }
 
 #[test]

@@ -10,6 +10,7 @@ pub mod clipboard_history_ui;
 pub mod config;
 pub mod custom_shader_renderer;
 pub mod font_manager;
+pub mod font_metrics;
 pub mod gpu_utils;
 pub mod graphics_renderer;
 pub mod help_ui;

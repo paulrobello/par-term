@@ -48,14 +48,19 @@ impl WindowManager {
 
     /// Create a new window with a fresh terminal session
     pub fn create_window(&mut self, event_loop: &ActiveEventLoop) {
+        use crate::font_metrics::window_size_from_config;
         use winit::window::Window;
+
+        // Calculate window size from cols/rows BEFORE window creation.
+        // This ensures the window opens at the exact correct size with no visible resize.
+        // We use scale_factor=1.0 here since we don't have the actual display scale yet;
+        // the window will be resized correctly once we know the actual scale factor.
+        // Fallback to reasonable defaults (800x600) if font metrics calculation fails.
+        let (width, height) = window_size_from_config(&self.config, 1.0).unwrap_or((800, 600));
 
         let mut window_attrs = Window::default_attributes()
             .with_title(&self.config.window_title)
-            .with_inner_size(winit::dpi::LogicalSize::new(
-                self.config.window_width,
-                self.config.window_height,
-            ))
+            .with_inner_size(winit::dpi::LogicalSize::new(width, height))
             .with_decorations(self.config.window_decorations);
 
         // Load and set the application icon
@@ -431,7 +436,29 @@ impl WindowManager {
         let config = self.config.clone();
         let runtime = Arc::clone(&self.runtime);
 
-        match runtime.block_on(SettingsWindow::new(event_loop, config)) {
+        // Get supported vsync modes from the first window's renderer
+        let supported_vsync_modes: Vec<crate::config::VsyncMode> = self
+            .windows
+            .values()
+            .next()
+            .and_then(|ws| ws.renderer.as_ref())
+            .map(|renderer| {
+                [
+                    crate::config::VsyncMode::Immediate,
+                    crate::config::VsyncMode::Mailbox,
+                    crate::config::VsyncMode::Fifo,
+                ]
+                .into_iter()
+                .filter(|mode| renderer.is_vsync_mode_supported(*mode))
+                .collect()
+            })
+            .unwrap_or_else(|| vec![crate::config::VsyncMode::Fifo]); // Fifo always supported
+
+        match runtime.block_on(SettingsWindow::new(
+            event_loop,
+            config,
+            supported_vsync_modes,
+        )) {
             Ok(settings_window) => {
                 log::info!("Opened settings window {:?}", settings_window.window_id());
                 self.settings_window = Some(settings_window);
@@ -496,6 +523,21 @@ impl WindowManager {
             {
                 // Update opacity
                 renderer.update_opacity(config.window_opacity);
+
+                // Update vsync mode if changed
+                if changes.vsync_mode {
+                    let (actual_mode, _changed) = renderer.update_vsync_mode(config.vsync_mode);
+                    // If the actual mode differs, update config and show warning
+                    if actual_mode != config.vsync_mode {
+                        window_state.config.vsync_mode = actual_mode;
+                        window_state.settings_ui.set_vsync_warning(Some(format!(
+                            "{:?} is not supported. Using {:?} instead.",
+                            config.vsync_mode, actual_mode
+                        )));
+                    } else {
+                        window_state.settings_ui.set_vsync_warning(None);
+                    }
+                }
 
                 // Update scrollbar appearance
                 renderer.update_scrollbar_appearance(

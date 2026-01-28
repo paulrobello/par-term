@@ -120,14 +120,6 @@ pub fn window_opacity() -> f32 {
     1.0 // Fully opaque by default
 }
 
-pub fn window_width() -> u32 {
-    1600 // Default initial width
-}
-
-pub fn window_height() -> u32 {
-    600 // Default initial height
-}
-
 pub fn background_image_opacity() -> f32 {
     1.0 // Fully opaque by default
 }
@@ -185,7 +177,7 @@ pub fn zero() -> usize {
 }
 
 pub fn unfocused_fps() -> u32 {
-    10 // Reduced FPS when window is not focused (10 FPS is plenty for background activity)
+    30 // Reduced FPS when window is not focused
 }
 
 pub fn shader_hot_reload_delay() -> u64 {

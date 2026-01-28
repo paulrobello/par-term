@@ -807,6 +807,30 @@ impl Renderer {
         self.dirty = true;
     }
 
+    /// Check if a vsync mode is supported
+    pub fn is_vsync_mode_supported(&self, mode: crate::config::VsyncMode) -> bool {
+        self.cell_renderer.is_vsync_mode_supported(mode)
+    }
+
+    /// Update the vsync mode. Returns the actual mode applied (may differ if requested mode unsupported).
+    /// Also returns whether the mode was changed.
+    pub fn update_vsync_mode(
+        &mut self,
+        mode: crate::config::VsyncMode,
+    ) -> (crate::config::VsyncMode, bool) {
+        let result = self.cell_renderer.update_vsync_mode(mode);
+        if result.1 {
+            self.dirty = true;
+        }
+        result
+    }
+
+    /// Get the current vsync mode
+    #[allow(dead_code)]
+    pub fn current_vsync_mode(&self) -> crate::config::VsyncMode {
+        self.cell_renderer.current_vsync_mode()
+    }
+
     /// Clear the glyph cache to force re-rasterization
     /// Useful after display changes where font rendering may differ
     pub fn clear_glyph_cache(&mut self) {

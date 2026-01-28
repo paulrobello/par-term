@@ -3,28 +3,6 @@ use super::SettingsUI;
 pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.collapsing("Terminal", |ui| {
         ui.horizontal(|ui| {
-            ui.label("Columns:");
-            if ui
-                .add(egui::Slider::new(&mut settings.config.cols, 40..=300))
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-
-        ui.horizontal(|ui| {
-            ui.label("Rows:");
-            if ui
-                .add(egui::Slider::new(&mut settings.config.rows, 10..=100))
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-
-        ui.horizontal(|ui| {
             ui.label("Scrollback lines:");
             if ui
                 .add(egui::Slider::new(
