@@ -595,13 +595,14 @@ impl TabBarUI {
 
         // Close menu if clicked outside (but not on the same frame it was opened)
         let current_frame = ctx.cumulative_frame_nr();
-        if current_frame > self.context_menu_opened_frame {
-            if ctx.input(|i| i.pointer.any_click()) && !area_response.response.hovered() {
-                // Only close if no action was taken (let button clicks register)
-                if !close_menu && action == TabBarAction::None {
-                    close_menu = true;
-                }
-            }
+        if current_frame > self.context_menu_opened_frame
+            && ctx.input(|i| i.pointer.any_click())
+            && !area_response.response.hovered()
+            // Only close if no action was taken (let button clicks register)
+            && !close_menu
+            && action == TabBarAction::None
+        {
+            close_menu = true;
         }
 
         // Close menu if action taken or cancelled

@@ -551,6 +551,34 @@ impl WindowManager {
                     renderer.update_cursor_color(config.cursor_color);
                 }
 
+                // Update cursor style and blink for all tabs
+                if changes.cursor_style || changes.cursor_blink {
+                    use crate::config::CursorStyle as ConfigCursorStyle;
+                    use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
+
+                    let term_style = if config.cursor_blink {
+                        match config.cursor_style {
+                            ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
+                            ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
+                            ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
+                        }
+                    } else {
+                        match config.cursor_style {
+                            ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
+                            ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,
+                            ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
+                        }
+                    };
+
+                    for tab in window_state.tab_manager.tabs_mut() {
+                        if let Ok(mut term) = tab.terminal.try_lock() {
+                            term.set_cursor_style(term_style);
+                        }
+                        tab.cache.cells = None; // Invalidate cache to redraw cursor
+                    }
+                    window_state.needs_redraw = true;
+                }
+
                 // Apply theme changes
                 if changes.theme
                     && let Some(tab) = window_state.tab_manager.active_tab()
