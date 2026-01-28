@@ -47,5 +47,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         alpha *= smoothstep(0.0, 0.5, edge_dist);
     }
 
-    return vec4<f32>(uniforms.color.rgb, alpha);
+    // Output premultiplied colors for PreMultiplied composite alpha mode
+    return vec4<f32>(uniforms.color.rgb * alpha, alpha);
 }

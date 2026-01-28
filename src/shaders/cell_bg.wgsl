@@ -34,5 +34,6 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+    // Output straight (non-premultiplied) colors
     return input.color;
 }

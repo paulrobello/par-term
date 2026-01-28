@@ -112,6 +112,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
     let color = textureSample(bg_texture, bg_sampler, tex_coord);
 
-    // Apply opacity
-    return vec4<f32>(color.rgb, color.a * uniforms.opacity);
+    // Apply opacity and output premultiplied colors for PreMultiplied composite alpha mode
+    let final_alpha = color.a * uniforms.opacity;
+    return vec4<f32>(color.rgb * final_alpha, final_alpha);
 }

@@ -43,7 +43,7 @@ pub fn create_bg_pipeline(device: &Device, surface_format: TextureFormat) -> Ren
             compilation_options: Default::default(),
             targets: &[Some(ColorTargetState {
                 format: surface_format,
-                // Use pre-multiplied alpha blending for window transparency
+                // Use standard alpha blending for cell backgrounds
                 blend: Some(BlendState::ALPHA_BLENDING),
                 write_mask: ColorWrites::ALL,
             })],
@@ -154,7 +154,7 @@ pub fn create_text_pipeline(
             compilation_options: Default::default(),
             targets: &[Some(ColorTargetState {
                 format: surface_format,
-                // Use pre-multiplied alpha blending for window transparency
+                // Use standard alpha blending since shader outputs non-premultiplied colors
                 blend: Some(BlendState::ALPHA_BLENDING),
                 write_mask: ColorWrites::ALL,
             })],
@@ -239,8 +239,8 @@ pub fn create_bg_image_pipeline(
             compilation_options: Default::default(),
             targets: &[Some(ColorTargetState {
                 format: surface_format,
-                // Use pre-multiplied alpha blending for window transparency
-                blend: Some(BlendState::ALPHA_BLENDING),
+                // Use premultiplied alpha blending since shader outputs premultiplied colors
+                blend: Some(BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                 write_mask: ColorWrites::ALL,
             })],
         }),
@@ -309,8 +309,8 @@ pub fn create_visual_bell_pipeline(
             compilation_options: Default::default(),
             targets: &[Some(ColorTargetState {
                 format: surface_format,
-                // Use pre-multiplied alpha blending for window transparency
-                blend: Some(BlendState::ALPHA_BLENDING),
+                // Use premultiplied alpha blending for visual bell overlay
+                blend: Some(BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                 write_mask: ColorWrites::ALL,
             })],
         }),

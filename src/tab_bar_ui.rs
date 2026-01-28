@@ -338,7 +338,8 @@ impl TabBarUI {
         let tab_draw_rect = tab_rect.shrink2(egui::vec2(0.0, 2.0));
         let tab_rounding = tab_draw_rect.height() / 2.0;
         if ui.is_rect_visible(tab_rect) {
-            ui.painter().rect_filled(tab_draw_rect, tab_rounding, bg_color);
+            ui.painter()
+                .rect_filled(tab_draw_rect, tab_rounding, bg_color);
 
             // Draw border around tab
             // Active tabs get a highlighted border using the indicator color
@@ -364,7 +365,11 @@ impl TabBarUI {
                         tab_rounding,
                         egui::Stroke::new(
                             border_width,
-                            egui::Color32::from_rgb(border_color[0], border_color[1], border_color[2]),
+                            egui::Color32::from_rgb(
+                                border_color[0],
+                                border_color[1],
+                                border_color[2],
+                            ),
                         ),
                         egui::StrokeKind::Middle,
                     );

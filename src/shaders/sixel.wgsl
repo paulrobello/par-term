@@ -53,6 +53,8 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     // Sample sixel image (full RGBA)
     let color = textureSample(sixel_texture, sixel_sampler, input.tex_coord);
 
-    // Apply global alpha multiplier
-    return vec4<f32>(color.rgb, color.a * input.alpha);
+    // Apply global alpha multiplier and output premultiplied colors
+    // for PreMultiplied composite alpha mode
+    let final_alpha = color.a * input.alpha;
+    return vec4<f32>(color.rgb * final_alpha, final_alpha);
 }

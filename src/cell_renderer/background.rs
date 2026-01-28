@@ -4,10 +4,12 @@ use anyhow::Result;
 impl CellRenderer {
     pub(crate) fn load_background_image(&mut self, path: &str) -> Result<()> {
         log::info!("Loading background image from: {}", path);
-        let img = image::open(path).map_err(|e| {
-            log::error!("Failed to open background image '{}': {}", path, e);
-            e
-        })?.to_rgba8();
+        let img = image::open(path)
+            .map_err(|e| {
+                log::error!("Failed to open background image '{}': {}", path, e);
+                e
+            })?
+            .to_rgba8();
         log::info!("Background image loaded: {}x{}", img.width(), img.height());
         let (width, height) = img.dimensions();
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -102,7 +104,8 @@ impl CellRenderer {
 
         // padding is already zeros
 
-        self.queue.write_buffer(&self.bg_image_uniform_buffer, 0, &data);
+        self.queue
+            .write_buffer(&self.bg_image_uniform_buffer, 0, &data);
     }
 
     pub fn set_background_image(
