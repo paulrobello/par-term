@@ -1,32 +1,34 @@
 # Custom Shaders Guide
 
-Par-term supports custom GLSL shaders for background effects and post-processing, compatible with Ghostty and Shadertoy shader formats. This guide covers installing included shaders and creating your own.
+Par-term supports custom GLSL shaders for background effects and post-processing, compatible with Ghostty and Shadertoy shader formats. This guide covers configuration, available uniforms, and creating your own shaders.
+
+For a list of all included shaders, see [SHADERS.md](SHADERS.md).
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Quick Start](#quick-start)
 - [Installing Shaders](#installing-shaders)
-  - [From the Included Collection](#from-the-included-collection)
-  - [Shader Directory Location](#shader-directory-location)
-- [Included Shaders](#included-shaders)
-  - [Background Effects](#background-effects)
-  - [CRT and Retro Effects](#crt-and-retro-effects)
-  - [Cursor Effects](#cursor-effects)
 - [Configuration](#configuration)
-  - [Background Shaders](#background-shaders)
+  - [Background Shader Settings](#background-shader-settings)
+  - [Cursor Shader Settings](#cursor-shader-settings)
   - [Channel Textures](#channel-textures)
-  - [Cursor Shaders](#cursor-shaders)
+  - [Cubemap Textures](#cubemap-textures)
+  - [Power Saving](#power-saving)
+  - [Shader Hot Reload](#shader-hot-reload)
+  - [Per-Shader Overrides](#per-shader-overrides)
+- [Available Uniforms](#available-uniforms)
+  - [Core Shadertoy Uniforms](#core-shadertoy-uniforms)
+  - [Window & Content Uniforms](#window--content-uniforms)
+  - [Texture Channel Uniforms](#texture-channel-uniforms)
+  - [Cursor Uniforms](#cursor-uniforms)
+  - [Cursor Shader Configuration Uniforms](#cursor-shader-configuration-uniforms)
 - [Creating Custom Shaders](#creating-custom-shaders)
   - [Basic Structure](#basic-structure)
-  - [Available Uniforms](#available-uniforms)
-  - [Cursor Shader Uniforms](#cursor-shader-uniforms)
   - [Shader Modes](#shader-modes)
+  - [Shader Metadata Format](#shader-metadata-format)
+  - [Porting Shadertoy Shaders](#porting-shadertoy-shaders)
 - [Examples](#examples)
-  - [Simple Background Gradient](#simple-background-gradient)
-  - [Animated Background](#animated-background)
-  - [Custom Cursor Trail](#custom-cursor-trail)
-  - [Using Channel Textures](#using-channel-textures)
 - [Troubleshooting](#troubleshooting)
 - [Related Documentation](#related-documentation)
 
@@ -61,7 +63,7 @@ Shaders are written in GLSL (OpenGL Shading Language) and automatically transpil
 
 ### From the Included Collection
 
-Par-term includes a collection of 40+ ready-to-use shaders in the `shaders/` directory. Copy any shader to your configuration directory to use it:
+Par-term includes 45+ ready-to-use shaders in the `shaders/` directory. See [SHADERS.md](SHADERS.md) for the complete list. Copy any shader to your configuration directory to use it:
 
 ```bash
 # macOS/Linux
@@ -80,78 +82,9 @@ Copy-Item shaders\crt.glsl $env:APPDATA\par-term\shaders\
 
 The directory is created automatically when par-term first starts.
 
-## Included Shaders
-
-### Background Effects
-
-| Shader | Description |
-|--------|-------------|
-| `starfield.glsl` | Animated starfield with parallax layers behind terminal text |
-| `starfield-colors.glsl` | Colorful variant of the starfield effect |
-| `galaxy.glsl` | Swirling galaxy background animation |
-| `animated-gradient-shader.glsl` | Smoothly animated color gradient background |
-| `gradient-background.glsl` | Static diagonal gradient background |
-| `underwater.glsl` | Caustic water effect with subtle distortion |
-| `water.glsl` | Simpler water caustic effect |
-| `water-bg.glsl` | Water effect optimized for background use |
-| `just-snow.glsl` | Falling snow particles overlay |
-| `fireworks.glsl` | Fireworks particle effect |
-| `fireworks-rockets.glsl` | Fireworks with rocket trails |
-| `sparks-from-fire.glsl` | Rising fire sparks effect |
-| `cubemap-skybox.glsl` | Cubemap environment with animated rotation |
-| `smoke-and-ghost.glsl` | Ethereal smoke and ghosting effect |
-| `cubes.glsl` | 3D rotating cubes background |
-| `gears-and-belts.glsl` | Mechanical gears animation |
-| `inside-the-matrix.glsl` | Matrix-style falling code effect |
-| `cineShader-Lava.glsl` | Flowing lava/plasma effect |
-| `sin-interference.glsl` | Wave interference pattern |
-| `happy_fractal.glsl` | Raymarched fractal landscape with animated happy face and rainbow trail |
-| `clouds.glsl` | Animated procedural clouds with blue sky gradient |
-| `bumped_sinusoidal_warp.glsl` | Bump-mapped sinusoidal warp effect with point lighting (uses iChannel1 texture) |
-| `gyroid.glsl` | Raymarched gyroid tunnel with colorful lighting and reflections |
-| `dodecagon-pattern.glsl` | Raymarched dodecagon tile pattern with BRDF metallic frames (uses iChannel1 texture) |
-| `convergence.glsl` | Two swirling voronoi patterns (teal/red) split by an animated lightning bolt |
-| `singularity.glsl` | Whirling blackhole with red/blue accretion disk and spiraling waves |
-| `universe-within.glsl` | Mystical neural network with pulsing nodes and connecting lines |
-
-### CRT and Retro Effects
-
-| Shader | Description |
-|--------|-------------|
-| `crt.glsl` | Full CRT simulation with curvature, scanlines, and phosphor mask |
-| `bettercrt.glsl` | Simplified CRT effect with scanlines |
-| `retro-terminal.glsl` | Classic green-tint terminal with scanlines |
-| `in-game-crt.glsl` | Game-style CRT effect |
-| `tft.glsl` | TFT/LCD subpixel simulation |
-| `bloom.glsl` | Soft glow/bloom around bright text |
-| `dither.glsl` | Retro dithering effect |
-| `glitchy.glsl` | Digital glitch distortion |
-| `glow-rgbsplit-twitchy.glsl` | RGB split with glow and glitch |
-| `drunkard.glsl` | Wobbly distortion effect |
-| `negative.glsl` | Simple color inversion |
-| `spotlight.glsl` | Spotlight/vignette effect |
-
-### Cursor Effects
-
-Cursor shaders create visual effects that follow your cursor position. These use special uniforms for cursor tracking.
-
-| Shader | Description |
-|--------|-------------|
-| `cursor_glow.glsl` | Soft radial glow around cursor |
-| `cursor_sweep.glsl` | Smooth trailing sweep when cursor moves |
-| `cursor_trail.glsl` | Persistent fading trail behind cursor |
-| `cursor_warp.glsl` | Space warp effect emanating from cursor |
-| `cursor_blaze.glsl` | Fire/blaze effect following cursor |
-| `cursor_ripple.glsl` | Ripple waves emanating from cursor position |
-| `cursor_ripple_rectangle.glsl` | Rectangular ripple variant |
-| `cursor_sonic_boom.glsl` | Shockwave effect on cursor movement |
-| `cursor_rectangle_boom.glsl` | Rectangular explosion effect |
-| `cursor_pacman.glsl` | Animated Pac-Man cursor that faces movement direction |
-| `cursor_orbit.glsl` | Ball with fading trail orbiting inside the cursor cell |
-
 ## Configuration
 
-### Background Shaders
+### Background Shader Settings
 
 Configure background/post-processing shaders in your config file:
 
@@ -165,9 +98,10 @@ custom_shader: "starfield.glsl"
 custom_shader_enabled: true
 
 # Enable animation (updates iTime uniform each frame)
+# When false, iTime remains at 0.0
 custom_shader_animation: true
 
-# Animation speed multiplier (1.0 = normal, 0.5 = half speed)
+# Animation speed multiplier (1.0 = normal, 0.5 = half speed, 2.0 = double)
 custom_shader_animation_speed: 1.0
 
 # Text opacity when shader is active (0.0 - 1.0)
@@ -179,87 +113,23 @@ custom_shader_brightness: 0.5
 
 # Full content mode: shader can distort/modify text
 # false = text composited on top of shader output (recommended)
-# true = shader receives and can modify terminal content
+# true = shader receives and can modify terminal content via iChannel4
 custom_shader_full_content: false
 ```
 
-### Channel Textures
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `custom_shader` | `String?` | `null` | Path to GLSL shader file (absolute or relative to shaders dir) |
+| `custom_shader_enabled` | `bool` | `true` | Enable/disable background shader rendering |
+| `custom_shader_animation` | `bool` | `true` | Enable animation (updates iTime each frame) |
+| `custom_shader_animation_speed` | `f32` | `1.0` | Animation speed multiplier |
+| `custom_shader_text_opacity` | `f32` | `1.0` | Text opacity when shader is active (0.0-1.0) |
+| `custom_shader_brightness` | `f32` | `1.0` | Brightness multiplier (0.05-1.0) |
+| `custom_shader_full_content` | `bool` | `false` | When true, shader can manipulate terminal content |
 
-Par-term supports Shadertoy-compatible texture channels (iChannel0-3) for passing custom images to shaders. This enables effects like noise textures, normal maps, or any image-based input.
+### Cursor Shader Settings
 
-```yaml
-# ~/.config/par-term/config.yaml
-
-# Texture paths for shader channels (supports ~ for home directory)
-custom_shader_channel0: "~/textures/noise.png"
-custom_shader_channel1: "~/textures/metal.jpg"
-custom_shader_channel2: null  # Not used
-custom_shader_channel3: null  # Not used
-```
-
-**Notes:**
-- `iChannel0-3` are user-defined texture inputs (Shadertoy compatible)
-- `iChannel4` is the terminal content texture (par-term specific)
-- Channels without a configured texture use a 1x1 transparent placeholder
-- Supports common image formats: PNG, JPEG, BMP, etc.
-- Textures can also be configured via Settings UI under "Shader Channel Textures"
-- Sample textures are included in `shaders/textures/` directory
-
-### Cubemap Textures
-
-Par-term supports cubemap textures for environment mapping and skybox effects via the `iCubemap` uniform. Cubemaps consist of 6 face images that form a seamless cube.
-
-```yaml
-# ~/.config/par-term/config.yaml
-
-# Path prefix for cubemap faces
-# Expects 6 files: {prefix}-px.{ext}, -nx.{ext}, -py.{ext}, -ny.{ext}, -pz.{ext}, -nz.{ext}
-# where {ext} is one of: png, jpg, jpeg, hdr
-custom_shader_cubemap: "shaders/textures/cubemaps/env-outside"
-
-# Enable cubemap sampling
-custom_shader_cubemap_enabled: true
-```
-
-**Face naming convention:**
-- `{prefix}-px.{ext}` - Positive X (+X, right)
-- `{prefix}-nx.{ext}` - Negative X (-X, left)
-- `{prefix}-py.{ext}` - Positive Y (+Y, top)
-- `{prefix}-ny.{ext}` - Negative Y (-Y, bottom)
-- `{prefix}-pz.{ext}` - Positive Z (+Z, front)
-- `{prefix}-nz.{ext}` - Negative Z (-Z, back)
-
-**Example usage in shader:**
-```glsl
-void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    vec2 uv = (fragCoord - 0.5 * iResolution.xy) / min(iResolution.x, iResolution.y);
-
-    // Create ray direction from camera
-    vec3 rayDir = normalize(vec3(uv.x, uv.y, -1.0));
-
-    // Rotate over time for animation
-    float angle = iTime * 0.2;
-    float c = cos(angle), s = sin(angle);
-    rayDir = vec3(rayDir.x * c - rayDir.z * s, rayDir.y, rayDir.x * s + rayDir.z * c);
-
-    // Sample cubemap
-    vec4 sky = texture(iCubemap, rayDir);
-
-    // Blend with terminal content
-    vec4 terminal = texture(iChannel4, fragCoord / iResolution.xy);
-    fragColor = terminal.a > 0.01 ? terminal : sky;
-}
-```
-
-**Notes:**
-- HDR cubemaps (.hdr) are supported with automatic Rgba16Float conversion
-- LDR cubemaps use Rgba8UnormSrgb format
-- Sample cubemaps are included in `shaders/textures/cubemaps/`
-- Use `iCubemapResolution.xy` for cubemap face dimensions
-
-### Cursor Shaders
-
-Cursor shaders are configured separately:
+Cursor shaders are configured separately and have additional controls:
 
 ```yaml
 # Cursor shader file name
@@ -273,12 +143,251 @@ cursor_shader_animation: true
 cursor_shader_animation_speed: 1.0
 
 # Visibility controls
-cursor_shader_hides_cursor: false          # Show normal cursor (set true to let shader fully replace it)
-cursor_shader_disable_in_alt_screen: true  # Pause cursor shader in alt-screen TUIs (vim/less/htop)
+cursor_shader_hides_cursor: false          # Hide default cursor (set true for replacement shaders)
+cursor_shader_disable_in_alt_screen: true  # Pause cursor shader in alt-screen apps (vim/less/htop)
 
-# Cursor color (used by shaders via iCurrentCursorColor)
-cursor_color: "#00ff00"
+# Cursor effect parameters
+cursor_shader_color: [255, 255, 255]       # Cursor color RGB (0-255)
+cursor_shader_trail_duration: 0.5          # Trail duration in seconds
+cursor_shader_glow_radius: 80.0            # Glow radius in pixels
+cursor_shader_glow_intensity: 0.3          # Glow intensity (0.0-1.0)
 ```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `cursor_shader` | `String?` | `null` | Path to cursor shader GLSL file |
+| `cursor_shader_enabled` | `bool` | `false` | Enable/disable cursor shader effects |
+| `cursor_shader_animation` | `bool` | `true` | Enable animation in cursor shader |
+| `cursor_shader_animation_speed` | `f32` | `1.0` | Animation speed multiplier |
+| `cursor_shader_color` | `[u8; 3]` | `[255, 255, 255]` | Cursor color RGB (0-255) |
+| `cursor_shader_trail_duration` | `f32` | `0.5` | Trail duration in seconds |
+| `cursor_shader_glow_radius` | `f32` | `80.0` | Glow radius in pixels |
+| `cursor_shader_glow_intensity` | `f32` | `0.3` | Glow intensity (0.0-1.0) |
+| `cursor_shader_hides_cursor` | `bool` | `false` | Hide default cursor when shader is enabled |
+| `cursor_shader_disable_in_alt_screen` | `bool` | `true` | Disable cursor shader in alt screen apps |
+
+### Channel Textures
+
+Par-term supports Shadertoy-compatible texture channels (iChannel0-3) for passing custom images to shaders:
+
+```yaml
+# Texture paths for shader channels (supports ~ for home directory)
+custom_shader_channel0: "~/textures/noise.png"
+custom_shader_channel1: "~/textures/metal.jpg"
+custom_shader_channel2: null  # Not used
+custom_shader_channel3: null  # Not used
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `custom_shader_channel0` | `String?` | `null` | Path to iChannel0 texture |
+| `custom_shader_channel1` | `String?` | `null` | Path to iChannel1 texture |
+| `custom_shader_channel2` | `String?` | `null` | Path to iChannel2 texture |
+| `custom_shader_channel3` | `String?` | `null` | Path to iChannel3 texture |
+
+**Notes:**
+- `iChannel0-3` are user-defined texture inputs (Shadertoy compatible)
+- `iChannel4` is the terminal content texture (par-term specific)
+- Channels without a configured texture use a 1x1 transparent placeholder
+- Supports common image formats: PNG, JPEG, BMP, etc.
+- Textures can also be configured via Settings UI under "Shader Channel Textures"
+- Sample textures are included in `shaders/textures/` directory
+
+### Cubemap Textures
+
+Par-term supports cubemap textures for environment mapping and skybox effects via the `iCubemap` uniform:
+
+```yaml
+# Path prefix for cubemap faces
+# Expects 6 files: {prefix}-px.{ext}, -nx.{ext}, -py.{ext}, -ny.{ext}, -pz.{ext}, -nz.{ext}
+custom_shader_cubemap: "shaders/textures/cubemaps/env-outside"
+
+# Enable cubemap sampling
+custom_shader_cubemap_enabled: true
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `custom_shader_cubemap` | `String?` | `null` | Path prefix for cubemap face files |
+| `custom_shader_cubemap_enabled` | `bool` | `true` | Enable cubemap sampling |
+
+**Face naming convention:**
+- `{prefix}-px.{ext}` - Positive X (+X, right)
+- `{prefix}-nx.{ext}` - Negative X (-X, left)
+- `{prefix}-py.{ext}` - Positive Y (+Y, top)
+- `{prefix}-ny.{ext}` - Negative Y (-Y, bottom)
+- `{prefix}-pz.{ext}` - Positive Z (+Z, front)
+- `{prefix}-nz.{ext}` - Negative Z (-Z, back)
+
+**Supported formats:** PNG, JPEG, HDR
+
+**Notes:**
+- HDR cubemaps (.hdr) are supported with automatic Rgba16Float conversion
+- LDR cubemaps use Rgba8UnormSrgb format
+- Sample cubemaps are included in `shaders/textures/cubemaps/`
+- Use `iCubemapResolution.xy` for cubemap face dimensions
+
+### Power Saving
+
+Control shader behavior when the window loses focus:
+
+```yaml
+# Pause shader animations when window loses focus
+pause_shaders_on_blur: true
+
+# Reduce refresh rate when unfocused
+pause_refresh_on_blur: false
+
+# Target FPS when unfocused (only if pause_refresh_on_blur=true)
+unfocused_fps: 10
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `pause_shaders_on_blur` | `bool` | `true` | Pause shader animations when window loses focus |
+| `pause_refresh_on_blur` | `bool` | `false` | Reduce refresh rate when unfocused |
+| `unfocused_fps` | `u32` | `10` | Target FPS when unfocused |
+
+### Shader Hot Reload
+
+Enable automatic shader reloading when files change:
+
+```yaml
+# Auto-reload shaders when files are modified
+shader_hot_reload: false
+
+# Debounce delay in milliseconds before reloading
+shader_hot_reload_delay: 100
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `shader_hot_reload` | `bool` | `false` | Auto-reload shaders when files are modified |
+| `shader_hot_reload_delay` | `u64` | `100` | Debounce delay in milliseconds |
+
+### Per-Shader Overrides
+
+Override settings for specific shaders without changing global defaults:
+
+```yaml
+# Per-shader configuration overrides
+shader_configs:
+  "crt.glsl":
+    animation_speed: 0.3
+    brightness: 0.8
+    full_content: true
+  "starfield.glsl":
+    brightness: 0.5
+
+# Per-cursor-shader configuration overrides
+cursor_shader_configs:
+  "cursor_glow.glsl":
+    glow_radius: 100.0
+    glow_intensity: 0.5
+  "cursor_trail.glsl":
+    trail_duration: 0.8
+```
+
+**Per-shader override fields:**
+- `animation_speed`: Override animation speed
+- `brightness`: Override brightness
+- `text_opacity`: Override text opacity
+- `full_content`: Override full content mode
+- `channel0`, `channel1`, `channel2`, `channel3`: Override texture paths
+- `cubemap`: Override cubemap path
+- `cubemap_enabled`: Override cubemap enable
+
+**Per-cursor-shader additional fields:**
+- `glow_radius`: Override glow radius
+- `glow_intensity`: Override glow intensity
+- `trail_duration`: Override trail duration
+- `cursor_color`: Override cursor color `[R, G, B]` (0-255)
+
+**Configuration resolution priority (highest to lowest):**
+1. User overrides from `shader_configs` / `cursor_shader_configs` map
+2. Shader metadata defaults embedded in shader file
+3. Global defaults from config
+
+---
+
+## Available Uniforms
+
+Par-term provides comprehensive Shadertoy-compatible uniforms plus Ghostty-compatible cursor uniforms.
+
+### Core Shadertoy Uniforms
+
+These are fully compatible with Shadertoy shaders:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iResolution` | `vec3` | Viewport size: `xy` = pixels, `z` = pixel aspect ratio (usually 1.0) |
+| `iTime` | `float` | Time in seconds since shader started (0.0 if animation disabled) |
+| `iTimeDelta` | `float` | Time elapsed since last frame in seconds |
+| `iFrame` | `float` | Frame counter (incremented each frame) |
+| `iFrameRate` | `float` | Current frame rate in FPS |
+| `iMouse` | `vec4` | Mouse state: `xy` = current position, `zw` = click position; sign indicates button state |
+| `iDate` | `vec4` | Date/time: `x` = year, `y` = month (0-11), `z` = day (1-31), `w` = seconds since midnight |
+
+### Window & Content Uniforms
+
+Par-term specific uniforms for terminal integration:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iOpacity` | `float` | Window opacity setting (0.0-1.0) |
+| `iTextOpacity` | `float` | Text opacity setting (0.0-1.0) |
+| `iBrightness` | `float` | Shader brightness multiplier (0.05-1.0) |
+| `iFullContentMode` | `float` | 1.0 = shader receives full terminal content; 0.0 = background only |
+| `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime). See [`keypress_pulse.glsl`](../shaders/keypress_pulse.glsl) for example. |
+
+### Texture Channel Uniforms
+
+Shadertoy-compatible texture channels:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iChannel0` | `sampler2D` | User texture channel 0. See [`rain.glsl`](../shaders/rain.glsl), [`bumped_sinusoidal_warp.glsl`](../shaders/bumped_sinusoidal_warp.glsl) for examples. |
+| `iChannel1` | `sampler2D` | User texture channel 1 |
+| `iChannel2` | `sampler2D` | User texture channel 2 |
+| `iChannel3` | `sampler2D` | User texture channel 3 |
+| `iChannel4` | `sampler2D` | Terminal content texture (par-term specific) |
+| `iChannelResolution[0]` | `vec4` | Channel 0 resolution `[width, height, 1.0, 0.0]` |
+| `iChannelResolution[1]` | `vec4` | Channel 1 resolution |
+| `iChannelResolution[2]` | `vec4` | Channel 2 resolution |
+| `iChannelResolution[3]` | `vec4` | Channel 3 resolution |
+| `iChannelResolution[4]` | `vec4` | Channel 4 (terminal) resolution |
+| `iCubemap` | `samplerCube` | Cubemap texture for environment mapping. See [`cubemap-skybox.glsl`](../shaders/cubemap-skybox.glsl) for example. |
+| `iCubemapResolution` | `vec4` | Cubemap face size `[size, size, 1.0, 0.0]` |
+
+### Cursor Uniforms
+
+Ghostty-compatible cursor tracking uniforms (available in both background and cursor shaders). See [`cursor_trail.glsl`](../shaders/cursor_trail.glsl) and [`cursor_glow.glsl`](../shaders/cursor_glow.glsl) for simple examples.
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iCurrentCursor` | `vec4` | Current cursor: `xy` = position (top-left, pixels), `zw` = cell size (pixels) |
+| `iPreviousCursor` | `vec4` | Previous cursor: `xy` = position, `zw` = cell size |
+| `iCurrentCursorColor` | `vec4` | Current cursor RGBA color (with blink opacity in alpha, 0.0-1.0) |
+| `iPreviousCursorColor` | `vec4` | Previous cursor RGBA color |
+| `iTimeCursorChange` | `float` | Time when cursor last moved (same timebase as iTime) |
+
+**Cursor position details:**
+- `iCurrentCursor.xy` is the top-left corner of the cursor cell in pixels
+- `iCurrentCursor.zw` is the cell width and height in pixels
+- To get cursor center: `iCurrentCursor.xy + iCurrentCursor.zw * 0.5`
+
+### Cursor Shader Configuration Uniforms
+
+These uniforms pass cursor shader configuration values to the shader:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iCursorTrailDuration` | `float` | Trail duration in seconds (from config) |
+| `iCursorGlowRadius` | `float` | Glow radius in pixels (from config) |
+| `iCursorGlowIntensity` | `float` | Glow intensity 0.0-1.0 (from config) |
+| `iCursorShaderColor` | `vec4` | User-configured cursor color `[R, G, B, 1.0]` (0.0-1.0 normalized) |
+
+---
 
 ## Creating Custom Shaders
 
@@ -303,47 +412,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 }
 ```
 
-### Available Uniforms
-
-Par-term provides Shadertoy-compatible uniforms:
-
-| Uniform | Type | Description |
-|---------|------|-------------|
-| `iResolution` | `vec2` | Viewport size in pixels |
-| `iTime` | `float` | Time in seconds since shader started |
-| `iTimeDelta` | `float` | Time since last frame |
-| `iFrame` | `float` | Frame counter |
-| `iFrameRate` | `float` | Current FPS |
-| `iMouse` | `vec4` | Mouse position and click state |
-| `iDate` | `vec4` | Year, month (0-11), day (1-31), seconds since midnight |
-| `iChannel0` | `sampler2D` | User texture channel 0 (Shadertoy compatible) |
-| `iChannel1` | `sampler2D` | User texture channel 1 (Shadertoy compatible) |
-| `iChannel2` | `sampler2D` | User texture channel 2 (Shadertoy compatible) |
-| `iChannel3` | `sampler2D` | User texture channel 3 (Shadertoy compatible) |
-| `iChannel4` | `sampler2D` | Terminal content texture |
-| `iChannelResolution[n]` | `vec3` | Resolution of channel n (width, height, 1.0) |
-| `iCubemap` | `samplerCube` | Cubemap texture for environment mapping |
-| `iCubemapResolution` | `vec4` | Cubemap face size (size, size, 1.0, 0.0) |
-| `iOpacity` | `float` | Window opacity setting |
-| `iTextOpacity` | `float` | Text opacity setting |
-| `iBrightness` | `float` | Shader brightness multiplier (0.05-1.0) |
-
-### Cursor Shader Uniforms
-
-Cursor shaders have additional uniforms:
-
-| Uniform | Type | Description |
-|---------|------|-------------|
-| `iCurrentCursor` | `vec4` | Current cursor: `xy` = position, `zw` = cell size |
-| `iPreviousCursor` | `vec4` | Previous cursor position and size |
-| `iCurrentCursorColor` | `vec4` | Cursor color (RGB) with blink opacity in alpha (0.0-1.0, animated by `cursor_blink` settings) |
-| `iTimeCursorChange` | `float` | Time when cursor last moved |
-
-**Cursor position details:**
-- `iCurrentCursor.xy` is the top-left corner of the cursor cell
-- `iCurrentCursor.zw` is the cell width and height in pixels
-- To get cursor center: `iCurrentCursor.xy + iCurrentCursor.zw * 0.5`
-
 ### Shader Modes
 
 **Background-Only Mode** (default, `custom_shader_full_content: false`):
@@ -355,6 +423,33 @@ Cursor shaders have additional uniforms:
 - Shader receives full terminal content via `iChannel4`
 - Shader can distort, warp, or transform text
 - Required for CRT curvature, underwater distortion, etc.
+- See [`crt.glsl`](../shaders/crt.glsl), [`bloom.glsl`](../shaders/bloom.glsl), [`dither.glsl`](../shaders/dither.glsl) for examples
+
+### Shader Metadata Format
+
+Shaders can include embedded configuration via YAML block comment at the start:
+
+```glsl
+/*! par-term shader metadata
+name: My Custom Shader
+author: Your Name
+description: Brief description of what this shader does
+version: 1.0.0
+defaults:
+  animation_speed: 0.5
+  brightness: 0.8
+  text_opacity: 0.9
+  full_content: false
+  channel0: textures/noise.png
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: true
+*/
+```
+
+All metadata fields are optional. Values that are `null` fall through to global defaults.
 
 ### Porting Shadertoy Shaders
 
@@ -364,6 +459,8 @@ Par-term is fully Shadertoy compatible. When adapting shaders:
 2. **Y-axis matches Shadertoy**: No modifications needed - fragCoord.y=0 at bottom, same as Shadertoy
 3. **iMouse is vec4**: Full Shadertoy compatibility (xy=current position, zw=click position)
 4. **mat2(vec4) construction**: May need to expand to `mat2(v.x, v.y, v.z, v.w)` for GLSL 450 compatibility
+
+---
 
 ## Examples
 
@@ -418,9 +515,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 Simple fading trail effect:
 
 ```glsl
-const float TRAIL_INTENSITY = 0.5;
-const float TRAIL_RADIUS = 50.0;
-
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord / iResolution.xy;
@@ -432,18 +526,66 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec2 cursorCenter = iCurrentCursor.xy + iCurrentCursor.zw * 0.5;
     vec2 prevCenter = iPreviousCursor.xy + iPreviousCursor.zw * 0.5;
 
-    // Distance from cursor path
-    vec2 toCursor = fragCoord - cursorCenter;
-    float dist = length(toCursor);
+    // Distance from cursor
+    float dist = length(fragCoord - cursorCenter);
 
-    // Glow falloff
-    float glow = 1.0 - smoothstep(0.0, TRAIL_RADIUS, dist);
-    glow = pow(glow, 2.0) * TRAIL_INTENSITY;
+    // Glow falloff using config values
+    float glow = 1.0 - smoothstep(0.0, iCursorGlowRadius, dist);
+    glow = pow(glow, 2.0) * iCursorGlowIntensity;
 
     // Blend glow with cursor color
-    vec3 color = terminal.rgb + iCurrentCursorColor.rgb * glow;
+    vec3 color = terminal.rgb + iCursorShaderColor.rgb * glow;
 
     fragColor = vec4(color, terminal.a);
+}
+```
+
+### Key Press Pulse Effect
+
+Visual feedback on keystrokes:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+    vec4 terminal = texture(iChannel4, uv);
+
+    // Calculate time since last key press
+    float timeSinceKey = iTime - iTimeKeyPress;
+
+    // Exponential decay for smooth falloff
+    float pulse = exp(-timeSinceKey * 6.0);
+    pulse *= step(timeSinceKey, 1.0);  // Only show for 1 second
+
+    // Screen-wide brightness flash
+    vec3 color = terminal.rgb * (1.0 + pulse * 0.15);
+
+    fragColor = vec4(color, terminal.a);
+}
+```
+
+### Using Cubemap Environment
+
+Skybox with animated rotation:
+
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+    vec2 uv = (fragCoord - 0.5 * iResolution.xy) / min(iResolution.x, iResolution.y);
+
+    // Create ray direction from camera
+    vec3 rayDir = normalize(vec3(uv.x, uv.y, -1.0));
+
+    // Rotate over time for animation
+    float angle = iTime * 0.2;
+    float c = cos(angle), s = sin(angle);
+    rayDir = vec3(rayDir.x * c - rayDir.z * s, rayDir.y, rayDir.x * s + rayDir.z * c);
+
+    // Sample cubemap
+    vec4 sky = texture(iCubemap, rayDir);
+
+    // Blend with terminal content
+    vec4 terminal = texture(iChannel4, fragCoord / iResolution.xy);
+    fragColor = terminal.a > 0.01 ? terminal : sky;
 }
 ```
 
@@ -473,12 +615,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 }
 ```
 
-**Configuration for the above shader:**
-```yaml
-custom_shader: "my_noise_shader.glsl"
-custom_shader_enabled: true
-custom_shader_channel0: "~/textures/noise.png"
-```
+---
 
 ## Troubleshooting
 
@@ -537,8 +674,17 @@ custom_shader_channel0: "~/textures/noise.png"
 - Arrays: `vec3[N] arr = vec3[N](...)`
 - No `#version` directive needed (added automatically)
 
+### Debugging Tips
+
+- Transpiled WGSL is written to `/tmp/par_term_<shader_name>_shader.wgsl`
+- Wrapped GLSL is written to `/tmp/par_term_debug_wrapped.glsl` (last shader only)
+- Enable `shader_hot_reload: true` for faster iteration
+
+---
+
 ## Related Documentation
 
+- [Included Shaders](SHADERS.md) - Complete list of all available shaders
 - [Compositor Details](COMPOSITOR.md) - Deep dive into the rendering pipeline
 - [README.md](../README.md) - Configuration reference
 - [Shadertoy](https://www.shadertoy.com) - Shader inspiration and examples
