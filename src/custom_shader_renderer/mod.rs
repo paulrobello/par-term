@@ -5,6 +5,7 @@
 //! - `iResolution`: Viewport resolution (width, height, 1.0)
 //! - `iChannel0-3`: User texture channels (Shadertoy compatible)
 //! - `iChannel4`: Terminal content texture
+//! - `iTimeKeyPress`: Time when last key was pressed (same timebase as iTime)
 //!
 //! Ghostty-compatible cursor uniforms (v1.2.0+):
 //! - `iCurrentCursor`: Current cursor position (xy) and size (zw) in pixels
@@ -120,6 +121,10 @@ pub struct CustomShaderRenderer {
     pub(crate) cursor_glow_radius: f32,
     /// Cursor glow intensity (0.0-1.0)
     pub(crate) cursor_glow_intensity: f32,
+
+    // ============ Key press tracking ============
+    /// Time when a key was last pressed (same timebase as iTime)
+    pub(crate) key_press_time: f32,
 
     // ============ Channel textures (iChannel0-3) ============
     /// Texture channels 0-3 (placeholders or loaded textures, Shadertoy compatible)
@@ -293,6 +298,7 @@ impl CustomShaderRenderer {
             cursor_trail_duration: 0.5,
             cursor_glow_radius: 80.0,
             cursor_glow_intensity: 0.3,
+            key_press_time: 0.0,
             channel_textures,
             cubemap,
         })
@@ -467,7 +473,7 @@ impl CustomShaderRenderer {
             frame_rate: self.current_frame_rate,
             resolution_z: 1.0,
             brightness: self.brightness,
-            _pad1: 0.0,
+            key_press_time: self.key_press_time,
             current_cursor: [
                 curr_x,
                 curr_y,
@@ -609,6 +615,19 @@ impl CustomShaderRenderer {
         if pressed {
             self.mouse_click_position = [x, y];
         }
+    }
+
+    /// Update key press time for shader effects
+    ///
+    /// Call this when a key is pressed to enable key-press-based shader effects
+    /// like screen pulses or typing animations.
+    pub fn update_key_press(&mut self) {
+        self.key_press_time = if self.animation_enabled {
+            self.start_time.elapsed().as_secs_f32() * self.animation_speed.max(0.0)
+        } else {
+            0.0
+        };
+        log::trace!("Key pressed at shader time={:.3}", self.key_press_time);
     }
 
     /// Update a channel texture at runtime

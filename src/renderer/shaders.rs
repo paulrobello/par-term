@@ -184,6 +184,19 @@ impl Renderer {
         }
     }
 
+    /// Update key press time for custom shaders (iTimeKeyPress uniform)
+    ///
+    /// Call this when a key is pressed to enable key-press-based shader effects
+    /// like screen pulses, typing animations, or keystroke visualizations.
+    pub fn update_key_press_time(&mut self) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.update_key_press();
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.update_key_press();
+        }
+    }
+
     /// Update cursor state for custom shader (Ghostty-compatible cursor uniforms)
     ///
     /// This enables cursor trail effects and other cursor-based animations in custom shaders.

@@ -65,6 +65,9 @@ fn preprocess_glsl_for_shadertoy(glsl_source: &str) -> String {
 /// - `iChannel4`: Terminal content texture
 /// - `iChannelResolution[0-4]`: Channel texture resolutions
 ///
+/// Key press uniform (par-term specific):
+/// - `iTimeKeyPress`: Time when last key was pressed (same timebase as iTime)
+///
 /// Ghostty-compatible cursor uniforms (v1.2.0+):
 /// - `iCurrentCursor`: xy=position, zw=size (pixels)
 /// - `iPreviousCursor`: xy=previous position, zw=size
@@ -105,7 +108,7 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     float iFrameRate;      // offset 64, size 4 - Current FPS
     float iResolutionZ;    // offset 68, size 4 - Pixel aspect ratio (usually 1.0)
     float iBrightness;     // offset 72, size 4 - Shader brightness multiplier (0.05-1.0)
-    float _pad1;           // offset 76, size 4 - Padding
+    float iTimeKeyPress;   // offset 76, size 4 - Time when last key was pressed
 
     // Cursor uniforms (Ghostty-compatible, v1.2.0+)
     vec4 iCurrentCursor;       // offset 80, size 16 - xy=position, zw=size (pixels)
@@ -362,7 +365,7 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     float iFrameRate;      // offset 64, size 4 - Current FPS
     float iResolutionZ;    // offset 68, size 4 - Pixel aspect ratio (usually 1.0)
     float iBrightness;     // offset 72, size 4 - Shader brightness multiplier (0.05-1.0)
-    float _pad1;           // offset 76, size 4 - Padding
+    float iTimeKeyPress;   // offset 76, size 4 - Time when last key was pressed
 
     // Cursor uniforms (Ghostty-compatible, v1.2.0+)
     vec4 iCurrentCursor;       // offset 80, size 16 - xy=position, zw=size (pixels)

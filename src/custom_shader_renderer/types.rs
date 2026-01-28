@@ -34,8 +34,8 @@ pub(crate) struct CustomShaderUniforms {
     pub resolution_z: f32,
     /// Brightness multiplier for shader output (0.05-1.0) - offset 72, size 4
     pub brightness: f32,
-    /// Padding to reach 80 bytes (multiple of 16) - offset 76, size 4
-    pub _pad1: f32,
+    /// Time when last key was pressed (same timebase as iTime) - offset 76, size 4
+    pub key_press_time: f32,
 
     // ============ Cursor uniforms (Ghostty-compatible, v1.2.0+) ============
     // Offsets 80-159
