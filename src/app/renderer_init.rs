@@ -7,6 +7,16 @@
 use crate::config::{
     BackgroundImageMode, Config, FontRange, ShaderMetadata, VsyncMode, resolve_shader_config,
 };
+
+/// Expand tilde in path to home directory
+fn expand_path(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix("~/")
+        && let Some(home) = dirs::home_dir()
+    {
+        return home.join(rest).to_string_lossy().to_string();
+    }
+    path.to_string()
+}
 use crate::renderer::Renderer;
 use crate::themes::Theme;
 use std::path::PathBuf;
@@ -103,7 +113,11 @@ impl RendererInitParams {
             vsync_mode: config.vsync_mode,
             window_opacity: config.window_opacity,
             background_color: theme.background.as_array(),
-            background_image_path: config.background_image.clone(),
+            background_image_path: {
+                let path = config.background_image.as_ref().map(|p| expand_path(p));
+                log::info!("RendererInitParams: background_image_path={:?}, enabled={}", path, config.background_image_enabled);
+                path
+            },
             background_image_enabled: config.background_image_enabled,
             background_image_mode: config.background_image_mode,
             background_image_opacity: config.background_image_opacity,

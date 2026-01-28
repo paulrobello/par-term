@@ -173,10 +173,14 @@ impl Renderer {
             vsync_mode,
             window_opacity,
             background_color,
-            if background_image_enabled {
-                background_image_path
-            } else {
-                None
+{
+                let bg_path = if background_image_enabled {
+                    background_image_path
+                } else {
+                    None
+                };
+                log::info!("Renderer::new: background_image_enabled={}, path={:?}", background_image_enabled, bg_path);
+                bg_path
             },
             background_image_mode,
             background_image_opacity,
@@ -415,7 +419,6 @@ impl Renderer {
     }
 
     /// Enable/disable background image and reload if needed
-    #[allow(dead_code)]
     pub fn set_background_image_enabled(
         &mut self,
         enabled: bool,

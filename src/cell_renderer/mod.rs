@@ -103,6 +103,8 @@ pub struct CellRenderer {
     pub(crate) bg_image_texture: Option<wgpu::Texture>,
     pub(crate) bg_image_mode: crate::config::BackgroundImageMode,
     pub(crate) bg_image_opacity: f32,
+    pub(crate) bg_image_width: u32,
+    pub(crate) bg_image_height: u32,
 
     // Metrics
     pub(crate) max_bg_instances: usize,
@@ -361,6 +363,8 @@ impl CellRenderer {
             bg_image_texture: None,
             bg_image_mode: background_image_mode,
             bg_image_opacity: background_image_opacity,
+            bg_image_width: 0,
+            bg_image_height: 0,
             max_bg_instances,
             max_text_instances,
             bg_instances: vec![
@@ -391,6 +395,7 @@ impl CellRenderer {
         // Upload a solid white 2x2 pixel block to the atlas for geometric block rendering
         renderer.upload_solid_pixel();
 
+        log::info!("CellRenderer::new: background_image_path={:?}", background_image_path);
         if let Some(path) = background_image_path {
             renderer.load_background_image(path)?;
         }

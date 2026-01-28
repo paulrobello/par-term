@@ -579,6 +579,26 @@ impl WindowManager {
                     window_state.needs_redraw = true;
                 }
 
+                // Apply background image changes
+                if changes.any_bg_change() {
+                    // Expand tilde in path
+                    let expanded_path = config.background_image.as_ref().map(|p| {
+                        if let Some(rest) = p.strip_prefix("~/")
+                            && let Some(home) = dirs::home_dir()
+                        {
+                            return home.join(rest).to_string_lossy().to_string();
+                        }
+                        p.clone()
+                    });
+                    renderer.set_background_image_enabled(
+                        config.background_image_enabled,
+                        expanded_path.as_deref(),
+                        config.background_image_mode,
+                        config.background_image_opacity,
+                    );
+                    window_state.needs_redraw = true;
+                }
+
                 // Apply theme changes
                 if changes.theme
                     && let Some(tab) = window_state.tab_manager.active_tab()

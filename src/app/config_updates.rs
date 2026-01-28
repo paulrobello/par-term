@@ -169,7 +169,6 @@ impl ConfigChanges {
     }
 
     /// Returns true if any background image setting changed
-    #[allow(dead_code)] // Reserved for future use
     pub fn any_bg_change(&self) -> bool {
         self.bg_enabled || self.bg_path || self.bg_mode || self.bg_opacity
     }
