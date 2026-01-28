@@ -65,6 +65,8 @@ pub struct CustomShaderRenderer {
     pub(crate) window_opacity: f32,
     /// Text opacity (separate from window opacity)
     pub(crate) text_opacity: f32,
+    /// When true, text is always rendered at full opacity (overrides text_opacity)
+    pub(crate) keep_text_opaque: bool,
     /// Full content mode - shader receives and can manipulate full terminal content
     pub(crate) full_content_mode: bool,
     /// Brightness multiplier for shader output (0.05-1.0)
@@ -272,6 +274,7 @@ impl CustomShaderRenderer {
             sampler,
             window_opacity,
             text_opacity,
+            keep_text_opaque: false,
             full_content_mode,
             brightness: 1.0,
             frame_count: 0,
@@ -467,7 +470,13 @@ impl CustomShaderRenderer {
             mouse,
             date,
             opacity: self.window_opacity,
-            text_opacity: self.text_opacity,
+            // When keep_text_opaque is true, text stays at full opacity (1.0)
+            // When false, text uses the same opacity as the window background
+            text_opacity: if self.keep_text_opaque {
+                1.0
+            } else {
+                self.window_opacity
+            },
             full_content_mode: if self.full_content_mode { 1.0 } else { 0.0 },
             frame: self.frame_count as f32,
             frame_rate: self.current_frame_rate,
@@ -602,6 +611,12 @@ impl CustomShaderRenderer {
     #[allow(dead_code)]
     pub fn full_content_mode(&self) -> bool {
         self.full_content_mode
+    }
+
+    /// Set whether text should always be rendered at full opacity
+    /// When true, overrides text_opacity to 1.0
+    pub fn set_keep_text_opaque(&mut self, keep_opaque: bool) {
+        self.keep_text_opaque = keep_opaque;
     }
 
     /// Update mouse position in pixel coordinates

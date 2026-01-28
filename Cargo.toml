@@ -88,6 +88,7 @@ notify = { version = "8.0", default-features = false, features = ["macos_kqueue"
 
 # Native window menus
 muda = "0.17"
+libc = "0.2.180"
 
 # Linux-specific: GTK for native menus (muda requires gtk feature on Linux)
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]

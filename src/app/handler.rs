@@ -386,11 +386,6 @@ impl WindowState {
 
         self.is_focused = focused;
 
-        // Set flag for window manager to bring settings window to front
-        if focused {
-            self.focus_gained = true;
-        }
-
         log::info!(
             "Window focus changed: {}",
             if focused { "focused" } else { "blurred" }
@@ -684,7 +679,6 @@ impl ApplicationHandler for WindowManager {
         // Check if any window requested opening the settings window
         // Also collect shader reload results for propagation to standalone settings window
         let mut open_settings = false;
-        let mut focus_settings = false;
         let mut background_shader_result: Option<Option<String>> = None;
         let mut cursor_shader_result: Option<Option<String>> = None;
 
@@ -692,12 +686,6 @@ impl ApplicationHandler for WindowManager {
             if window_state.open_settings_window_requested {
                 window_state.open_settings_window_requested = false;
                 open_settings = true;
-            }
-
-            // Check if window gained focus (bring settings window to front)
-            if window_state.focus_gained {
-                window_state.focus_gained = false;
-                focus_settings = true;
             }
 
             window_state.about_to_wait(event_loop);
@@ -711,16 +699,9 @@ impl ApplicationHandler for WindowManager {
             }
         }
 
-        // Open settings window if requested
+        // Open settings window if requested (F12 or Cmd+,)
         if open_settings {
             self.open_settings_window(event_loop);
-        }
-
-        // Bring settings window to front if a terminal window gained focus
-        if focus_settings
-            && let Some(settings_window) = &self.settings_window
-        {
-            settings_window.focus();
         }
 
         // Propagate shader reload results to standalone settings window

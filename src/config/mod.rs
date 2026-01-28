@@ -135,6 +135,27 @@ pub struct Config {
     #[serde(default = "defaults::bool_true")]
     pub window_decorations: bool,
 
+    /// When true, only the default terminal background is transparent.
+    /// Colored backgrounds (syntax highlighting, status bars, etc.) remain opaque.
+    /// This keeps text readable while allowing window transparency.
+    #[serde(default = "defaults::bool_true")]
+    pub transparency_affects_only_default_background: bool,
+
+    /// When true, text is always rendered at full opacity regardless of window transparency.
+    /// This ensures text remains crisp and readable even with transparent backgrounds.
+    #[serde(default = "defaults::bool_true")]
+    pub keep_text_opaque: bool,
+
+    /// Enable window blur effect (macOS only)
+    /// Blurs content behind the transparent window for better readability
+    #[serde(default = "defaults::bool_false")]
+    pub blur_enabled: bool,
+
+    /// Blur radius in points (0-64, macOS only)
+    /// Higher values = more blur. Default: 10
+    #[serde(default = "defaults::blur_radius")]
+    pub blur_radius: u32,
+
     /// Background image path (optional, supports ~ for home directory)
     #[serde(default)]
     pub background_image: Option<String>,
@@ -633,6 +654,10 @@ impl Default for Config {
             window_opacity: defaults::window_opacity(),
             window_always_on_top: defaults::bool_false(),
             window_decorations: defaults::bool_true(),
+            transparency_affects_only_default_background: defaults::bool_true(),
+            keep_text_opaque: defaults::bool_true(),
+            blur_enabled: defaults::bool_false(),
+            blur_radius: defaults::blur_radius(),
             background_image: None,
             background_image_enabled: defaults::bool_true(),
             background_image_mode: BackgroundImageMode::default(),

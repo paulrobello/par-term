@@ -3257,6 +3257,7 @@ dependencies = [
  "fontdb",
  "half",
  "image",
+ "libc",
  "log",
  "muda",
  "naga",

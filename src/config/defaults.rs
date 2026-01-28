@@ -248,3 +248,7 @@ pub fn tab_border_color() -> [u8; 3] {
 pub fn tab_border_width() -> f32 {
     1.0 // 1 pixel border
 }
+
+pub fn blur_radius() -> u32 {
+    8 // Default blur radius in points (macOS only)
+}

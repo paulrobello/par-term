@@ -72,8 +72,6 @@ pub struct WindowState {
     // Focus state for power saving
     /// Whether the window currently has focus
     pub(crate) is_focused: bool,
-    /// Flag set when window gains focus (consumed by window manager to bring settings to front)
-    pub(crate) focus_gained: bool,
     /// Last time a frame was rendered (for FPS throttling when unfocused)
     pub(crate) last_render_time: Option<std::time::Instant>,
 
@@ -137,7 +135,6 @@ impl WindowState {
             pending_font_rebuild: false,
 
             is_focused: true, // Assume focused on creation
-            focus_gained: false,
             last_render_time: None,
 
             shader_watcher: None,
@@ -382,6 +379,13 @@ impl WindowState {
             // Set initial layer opacity to match config (content only, frame unaffected)
             if let Err(e) = crate::macos_metal::set_layer_opacity(&window, 1.0) {
                 log::warn!("Failed to set initial Metal layer opacity: {}", e);
+            }
+            // Apply initial blur settings if enabled
+            if self.config.blur_enabled
+                && self.config.window_opacity < 1.0
+                && let Err(e) = crate::macos_blur::set_window_blur(&window, self.config.blur_radius)
+            {
+                log::warn!("Failed to set initial window blur: {}", e);
             }
         }
 

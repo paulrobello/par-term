@@ -203,8 +203,28 @@ void main() {{
     if (iFullContent > 0.5) {{
         // Full content mode: shader output is used directly
         // The shader has full control over the terminal content via iChannel4
-        // Apply window opacity to the shader's alpha output
-        outColor = vec4(dimmedShaderRgb * iOpacity, shaderColor.a * iOpacity);
+        //
+        // For keep_text_opaque (iTextOpacity = 1.0):
+        // - Where terminal has content (text or colored bg): keep opaque
+        // - Where terminal is empty (default bg): apply window opacity
+        //
+        // The terminal texture already has correct alpha values:
+        // - Default backgrounds: alpha ≈ 0 (skipped by cell renderer)
+        // - Colored backgrounds: alpha = 1.0 (when transparency_affects_only_default_background)
+        // - Text: alpha = 1.0
+        vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
+        float hasContent = step(0.01, terminalColor.a);
+
+        // When keep_text_opaque is enabled (iTextOpacity = 1.0):
+        //   - Content areas (text + colored bg): opacity = 1.0
+        //   - Empty areas (default bg): opacity = iOpacity
+        // When disabled (iTextOpacity = iOpacity):
+        //   - Everything uses iOpacity
+        float pixelOpacity = mix(iOpacity, iTextOpacity, hasContent);
+
+        // Use the shader's RGB output with the computed opacity
+        // The shader already applied any effects (like cursor glow) to the terminal content
+        outColor = vec4(dimmedShaderRgb * pixelOpacity, pixelOpacity);
     }} else {{
         // Background-only mode: text is composited cleanly on top
         // Sample terminal texture - flip v_uv.y since it appears inverted (y=1 at top)
@@ -212,12 +232,12 @@ void main() {{
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
         float hasText = step(0.01, terminalColor.a);
 
-        // Text pixels: use terminal color with text opacity
-        // Background pixels: use dimmed shader output with window opacity
-        vec3 textCol = terminalColor.rgb;
+        // Terminal texture contains premultiplied alpha (rgb * a, a)
+        // Unpremultiply to get original color for re-compositing
+        vec3 textCol = (terminalColor.a > 0.01) ? terminalColor.rgb / terminalColor.a : terminalColor.rgb;
         vec3 bgCol = dimmedShaderRgb;
 
-        // Composite: text over shader background
+        // Composite: text over shader background with premultiplied output
         float textA = hasText * iTextOpacity;
         float bgA = (1.0 - hasText) * iOpacity;
 
@@ -460,8 +480,28 @@ void main() {{
     if (iFullContent > 0.5) {{
         // Full content mode: shader output is used directly
         // The shader has full control over the terminal content via iChannel4
-        // Apply window opacity to the shader's alpha output
-        outColor = vec4(dimmedShaderRgb * iOpacity, shaderColor.a * iOpacity);
+        //
+        // For keep_text_opaque (iTextOpacity = 1.0):
+        // - Where terminal has content (text or colored bg): keep opaque
+        // - Where terminal is empty (default bg): apply window opacity
+        //
+        // The terminal texture already has correct alpha values:
+        // - Default backgrounds: alpha ≈ 0 (skipped by cell renderer)
+        // - Colored backgrounds: alpha = 1.0 (when transparency_affects_only_default_background)
+        // - Text: alpha = 1.0
+        vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
+        float hasContent = step(0.01, terminalColor.a);
+
+        // When keep_text_opaque is enabled (iTextOpacity = 1.0):
+        //   - Content areas (text + colored bg): opacity = 1.0
+        //   - Empty areas (default bg): opacity = iOpacity
+        // When disabled (iTextOpacity = iOpacity):
+        //   - Everything uses iOpacity
+        float pixelOpacity = mix(iOpacity, iTextOpacity, hasContent);
+
+        // Use the shader's RGB output with the computed opacity
+        // The shader already applied any effects (like cursor glow) to the terminal content
+        outColor = vec4(dimmedShaderRgb * pixelOpacity, pixelOpacity);
     }} else {{
         // Background-only mode: text is composited cleanly on top
         // Sample terminal texture - flip v_uv.y since it appears inverted (y=1 at top)
@@ -469,12 +509,12 @@ void main() {{
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
         float hasText = step(0.01, terminalColor.a);
 
-        // Text pixels: use terminal color with text opacity
-        // Background pixels: use dimmed shader output with window opacity
-        vec3 textCol = terminalColor.rgb;
+        // Terminal texture contains premultiplied alpha (rgb * a, a)
+        // Unpremultiply to get original color for re-compositing
+        vec3 textCol = (terminalColor.a > 0.01) ? terminalColor.rgb / terminalColor.a : terminalColor.rgb;
         vec3 bgCol = dimmedShaderRgb;
 
-        // Composite: text over shader background
+        // Composite: text over shader background with premultiplied output
         float textA = hasText * iTextOpacity;
         float bgA = (1.0 - hasText) * iOpacity;
 

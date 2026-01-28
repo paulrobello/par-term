@@ -13,6 +13,7 @@ mod gpu_utils;
 mod graphics_renderer;
 mod help_ui;
 mod input;
+mod macos_blur; // macOS window blur using private CGS API
 mod macos_metal; // macOS-specific CAMetalLayer configuration
 mod menu;
 mod renderer;

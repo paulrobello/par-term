@@ -122,6 +122,14 @@ pub struct CellRenderer {
 
     // Solid white pixel in atlas for geometric block rendering
     pub(crate) solid_pixel_offset: (u32, u32),
+
+    // Transparency mode
+    /// When true, only default background cells are transparent.
+    /// Non-default (colored) backgrounds remain opaque for readability.
+    pub(crate) transparency_affects_only_default_background: bool,
+
+    /// When true, text is always rendered at full opacity regardless of window transparency.
+    pub(crate) keep_text_opaque: bool,
 }
 
 impl CellRenderer {
@@ -416,12 +424,17 @@ impl CellRenderer {
             enable_ligatures,
             enable_kerning,
             solid_pixel_offset: (0, 0),
+            transparency_affects_only_default_background: false,
+            keep_text_opaque: true,
         };
 
         // Upload a solid white 2x2 pixel block to the atlas for geometric block rendering
         renderer.upload_solid_pixel();
 
-        log::info!("CellRenderer::new: background_image_path={:?}", background_image_path);
+        log::info!(
+            "CellRenderer::new: background_image_path={:?}",
+            background_image_path
+        );
         if let Some(path) = background_image_path {
             renderer.load_background_image(path)?;
         }
@@ -678,6 +691,39 @@ impl CellRenderer {
     pub fn update_opacity(&mut self, opacity: f32) {
         self.window_opacity = opacity;
         self.update_bg_image_uniforms();
+    }
+
+    /// Set whether transparency affects only default background cells.
+    /// When true, non-default (colored) backgrounds remain opaque for readability.
+    pub fn set_transparency_affects_only_default_background(&mut self, value: bool) {
+        if self.transparency_affects_only_default_background != value {
+            log::info!(
+                "transparency_affects_only_default_background: {} -> {} (window_opacity={})",
+                self.transparency_affects_only_default_background,
+                value,
+                self.window_opacity
+            );
+            self.transparency_affects_only_default_background = value;
+            // Mark all rows dirty to re-render with new transparency behavior
+            self.dirty_rows.fill(true);
+        }
+    }
+
+    /// Set whether text should always be rendered at full opacity.
+    /// When true, text remains opaque regardless of window transparency settings.
+    pub fn set_keep_text_opaque(&mut self, value: bool) {
+        if self.keep_text_opaque != value {
+            log::info!(
+                "keep_text_opaque: {} -> {} (window_opacity={}, transparency_affects_only_default_bg={})",
+                self.keep_text_opaque,
+                value,
+                self.window_opacity,
+                self.transparency_affects_only_default_background
+            );
+            self.keep_text_opaque = value;
+            // Mark all rows dirty to re-render with new text opacity behavior
+            self.dirty_rows.fill(true);
+        }
     }
 
     /// Update scale factor and recalculate all font metrics and cell dimensions.

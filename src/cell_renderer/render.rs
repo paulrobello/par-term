@@ -24,11 +24,12 @@ impl CellRenderer {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        // For PostMultiplied alpha mode, use straight (non-premultiplied) colors
+                        // Premultiply clear color for PreMultiplied composite alpha mode
+                        // This ensures correct compositing with the window manager
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: self.background_color[0] as f64,
-                            g: self.background_color[1] as f64,
-                            b: self.background_color[2] as f64,
+                            r: self.background_color[0] as f64 * self.window_opacity as f64,
+                            g: self.background_color[1] as f64 * self.window_opacity as f64,
+                            b: self.background_color[2] as f64 * self.window_opacity as f64,
                             a: self.window_opacity as f64,
                         }),
                         store: wgpu::StoreOp::Store,
@@ -87,13 +88,10 @@ impl CellRenderer {
                     view: target_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        // Use background color with window_opacity for proper transparency
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: self.background_color[0] as f64,
-                            g: self.background_color[1] as f64,
-                            b: self.background_color[2] as f64,
-                            a: self.window_opacity as f64,
-                        }),
+                        // Clear with fully transparent so the custom shader can distinguish
+                        // terminal content (text/colored backgrounds with alpha > 0) from
+                        // empty background (alpha = 0 which shader replaces with its effect)
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                         store: wgpu::StoreOp::Store,
                     },
                     depth_slice: None,
@@ -186,8 +184,11 @@ impl CellRenderer {
                 let mut row_bg = Vec::with_capacity(self.cols);
                 let mut row_text = Vec::with_capacity(self.cols);
 
-                // Background
-                for (col, cell) in row_cells.iter().enumerate() {
+                // Background - use RLE to merge consecutive cells with same color (like iTerm2)
+                // This eliminates seams between adjacent same-colored cells
+                let mut col = 0;
+                while col < row_cells.len() {
+                    let cell = &row_cells[col];
                     let is_default_bg =
                         (cell.bg_color[0] as f32 / 255.0 - self.background_color[0]).abs() < 0.001
                             && (cell.bg_color[1] as f32 / 255.0 - self.background_color[1]).abs()
@@ -201,59 +202,83 @@ impl CellRenderer {
                         && self.cursor_pos.0 == col;
 
                     if is_default_bg && !has_cursor {
-                        row_bg.push(BackgroundInstance {
-                            position: [0.0, 0.0],
-                            size: [0.0, 0.0],
-                            color: [0.0, 0.0, 0.0, 0.0],
-                        });
+                        col += 1;
                         continue;
                     }
 
-                    // Apply window_opacity to cell backgrounds for transparency support
-                    // Terminal backgrounds are treated as opaque (alpha=1.0) - only window_opacity
-                    // controls transparency. Cell alpha is typically 0 or undefined in terminals.
-                    let bg_color = [
+                    // Calculate background color with alpha
+                    let bg_alpha =
+                        if self.transparency_affects_only_default_background && !is_default_bg {
+                            1.0
+                        } else {
+                            self.window_opacity
+                        };
+                    let mut bg_color = [
                         cell.bg_color[0] as f32 / 255.0,
                         cell.bg_color[1] as f32 / 255.0,
                         cell.bg_color[2] as f32 / 255.0,
-                        self.window_opacity,
+                        bg_alpha,
                     ];
 
-                    let x0 = self.window_padding + col as f32 * self.cell_width;
-                    let x1 = self.window_padding + (col + 1) as f32 * self.cell_width;
-                    let y0 = self.window_padding + row as f32 * self.cell_height;
-                    let y1 = self.window_padding + (row + 1) as f32 * self.cell_height;
-
-                    // Extend cell backgrounds by 0.5 pixels on ALL sides to eliminate seams
-                    // Adjacent cells will overlap by 1 pixel total, ensuring no gaps
-                    let bg_overlap = 0.5;
-                    let x0 = (x0 - bg_overlap).floor();
-                    let x1 = (x1 + bg_overlap).ceil();
-                    let y0 = (y0 - bg_overlap).floor();
-                    let y1 = (y1 + bg_overlap).ceil();
-
-                    // Geometric cursor rendering based on cursor style
-                    // For block cursor, blend into cell background; for others, add overlay later
-                    let mut final_bg_color = bg_color;
+                    // Handle cursor at this position
                     if has_cursor && self.cursor_opacity > 0.0 {
                         use par_term_emu_core_rust::cursor::CursorStyle;
                         match self.cursor_style {
-                            // Block cursor: blend cursor color into background
                             CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
                                 for (bg, &cursor) in
-                                    final_bg_color.iter_mut().take(3).zip(&self.cursor_color)
+                                    bg_color.iter_mut().take(3).zip(&self.cursor_color)
                                 {
                                     *bg = *bg * (1.0 - self.cursor_opacity)
                                         + cursor * self.cursor_opacity;
                                 }
-                                final_bg_color[3] = final_bg_color[3].max(self.cursor_opacity);
+                                bg_color[3] = bg_color[3].max(self.cursor_opacity);
                             }
-                            // Beam/Bar and Underline: handled separately in cursor_instance
                             _ => {}
                         }
+                        // Cursor cell can't be merged, render it alone
+                        let x0 = self.window_padding + col as f32 * self.cell_width;
+                        let x1 = self.window_padding + (col + 1) as f32 * self.cell_width;
+                        let y0 = self.window_padding + row as f32 * self.cell_height;
+                        let y1 = y0 + self.cell_height;
+                        row_bg.push(BackgroundInstance {
+                            position: [
+                                x0 / self.config.width as f32 * 2.0 - 1.0,
+                                1.0 - (y0 / self.config.height as f32 * 2.0),
+                            ],
+                            size: [
+                                (x1 - x0) / self.config.width as f32 * 2.0,
+                                (y1 - y0) / self.config.height as f32 * 2.0,
+                            ],
+                            color: bg_color,
+                        });
+                        col += 1;
+                        continue;
                     }
 
-                    // Add cell background
+                    // RLE: Find run of consecutive cells with same background color
+                    let start_col = col;
+                    let run_color = cell.bg_color;
+                    col += 1;
+                    while col < row_cells.len() {
+                        let next_cell = &row_cells[col];
+                        let next_has_cursor = self.cursor_opacity > 0.0
+                            && !self.cursor_hidden_for_shader
+                            && self.cursor_pos.1 == row
+                            && self.cursor_pos.0 == col;
+                        // Stop run if color differs or cursor is here
+                        if next_cell.bg_color != run_color || next_has_cursor {
+                            break;
+                        }
+                        col += 1;
+                    }
+                    let run_length = col - start_col;
+
+                    // Create single quad spanning entire run (no per-cell rounding)
+                    let x0 = self.window_padding + start_col as f32 * self.cell_width;
+                    let x1 = self.window_padding + (start_col + run_length) as f32 * self.cell_width;
+                    let y0 = self.window_padding + row as f32 * self.cell_height;
+                    let y1 = y0 + self.cell_height;
+
                     row_bg.push(BackgroundInstance {
                         position: [
                             x0 / self.config.width as f32 * 2.0 - 1.0,
@@ -263,7 +288,17 @@ impl CellRenderer {
                             (x1 - x0) / self.config.width as f32 * 2.0,
                             (y1 - y0) / self.config.height as f32 * 2.0,
                         ],
-                        color: final_bg_color,
+                        color: bg_color,
+                    });
+                }
+
+                // Pad row_bg to expected size with empty instances
+                // (RLE creates fewer instances than cells, but buffer expects cols entries)
+                while row_bg.len() < self.cols {
+                    row_bg.push(BackgroundInstance {
+                        position: [0.0, 0.0],
+                        size: [0.0, 0.0],
+                        color: [0.0, 0.0, 0.0, 0.0],
                     });
                 }
 
@@ -296,6 +331,14 @@ impl CellRenderer {
                         x_offset += self.cell_width;
                         continue;
                     }
+
+                    // Compute text alpha - force opaque if keep_text_opaque is enabled,
+                    // otherwise use window opacity so text becomes transparent with the window
+                    let text_alpha = if self.keep_text_opaque {
+                        1.0
+                    } else {
+                        self.window_opacity
+                    };
 
                     let chars: Vec<char> = grapheme.chars().collect();
                     #[allow(clippy::collapsible_if)]
@@ -363,7 +406,7 @@ impl CellRenderer {
                                             fg_color[0] as f32 / 255.0,
                                             fg_color[1] as f32 / 255.0,
                                             fg_color[2] as f32 / 255.0,
-                                            fg_color[3] as f32 / 255.0,
+                                            text_alpha,
                                         ],
                                         is_colored: 0,
                                     });
@@ -418,7 +461,7 @@ impl CellRenderer {
                                         fg_color[0] as f32 / 255.0,
                                         fg_color[1] as f32 / 255.0,
                                         fg_color[2] as f32 / 255.0,
-                                        fg_color[3] as f32 / 255.0,
+                                        text_alpha,
                                     ],
                                     is_colored: 0,
                                 });
@@ -511,7 +554,7 @@ impl CellRenderer {
                                     fg_color[0] as f32 / 255.0,
                                     fg_color[1] as f32 / 255.0,
                                     fg_color[2] as f32 / 255.0,
-                                    fg_color[3] as f32 / 255.0,
+                                    text_alpha,
                                 ],
                                 is_colored: if info.is_colored { 1 } else { 0 },
                             });

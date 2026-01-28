@@ -524,6 +524,20 @@ impl WindowManager {
                 // Update opacity
                 renderer.update_opacity(config.window_opacity);
 
+                // Update transparency mode if changed
+                if changes.transparency_mode {
+                    renderer.set_transparency_affects_only_default_background(
+                        config.transparency_affects_only_default_background,
+                    );
+                    window_state.needs_redraw = true;
+                }
+
+                // Update text opacity mode if changed
+                if changes.keep_text_opaque {
+                    renderer.set_keep_text_opaque(config.keep_text_opaque);
+                    window_state.needs_redraw = true;
+                }
+
                 // Update vsync mode if changed
                 if changes.vsync_mode {
                     let (actual_mode, _changed) = renderer.update_vsync_mode(config.vsync_mode);
@@ -695,6 +709,20 @@ impl WindowManager {
                 } else {
                     winit::window::WindowLevel::Normal
                 });
+
+                // Apply blur changes (macOS only)
+                #[cfg(target_os = "macos")]
+                if changes.blur {
+                    let blur_radius = if config.blur_enabled && config.window_opacity < 1.0 {
+                        config.blur_radius
+                    } else {
+                        0 // Disable blur when not enabled or fully opaque
+                    };
+                    if let Err(e) = crate::macos_blur::set_window_blur(window, blur_radius) {
+                        log::warn!("Failed to set window blur: {}", e);
+                    }
+                }
+
                 window.request_redraw();
             }
 

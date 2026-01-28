@@ -173,13 +173,17 @@ impl Renderer {
             vsync_mode,
             window_opacity,
             background_color,
-{
+            {
                 let bg_path = if background_image_enabled {
                     background_image_path
                 } else {
                     None
                 };
-                log::info!("Renderer::new: background_image_enabled={}, path={:?}", background_image_enabled, bg_path);
+                log::info!(
+                    "Renderer::new: background_image_enabled={}, path={:?}",
+                    background_image_enabled,
+                    bg_path
+                );
                 bg_path
             },
             background_image_mode,
@@ -398,6 +402,32 @@ impl Renderer {
     /// Set whether cursor should be hidden when cursor shader is active
     pub fn set_cursor_hidden_for_shader(&mut self, hidden: bool) {
         self.cell_renderer.set_cursor_hidden_for_shader(hidden);
+        self.dirty = true;
+    }
+
+    /// Set whether transparency affects only default background cells.
+    /// When true, non-default (colored) backgrounds remain opaque for readability.
+    pub fn set_transparency_affects_only_default_background(&mut self, value: bool) {
+        self.cell_renderer
+            .set_transparency_affects_only_default_background(value);
+        self.dirty = true;
+    }
+
+    /// Set whether text should always be rendered at full opacity.
+    /// When true, text remains opaque regardless of window transparency settings.
+    pub fn set_keep_text_opaque(&mut self, value: bool) {
+        self.cell_renderer.set_keep_text_opaque(value);
+
+        // Also propagate to custom shader renderer if present
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_keep_text_opaque(value);
+        }
+
+        // And to cursor shader renderer if present
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_keep_text_opaque(value);
+        }
+
         self.dirty = true;
     }
 

@@ -62,6 +62,8 @@ pub(crate) struct RendererInitParams {
     pub cursor_shader_enabled: bool,
     pub cursor_shader_animation: bool,
     pub cursor_shader_animation_speed: f32,
+    pub transparency_affects_only_default_background: bool,
+    pub keep_text_opaque: bool,
 }
 
 impl RendererInitParams {
@@ -115,7 +117,11 @@ impl RendererInitParams {
             background_color: theme.background.as_array(),
             background_image_path: {
                 let path = config.background_image.as_ref().map(|p| expand_path(p));
-                log::info!("RendererInitParams: background_image_path={:?}, enabled={}", path, config.background_image_enabled);
+                log::info!(
+                    "RendererInitParams: background_image_path={:?}, enabled={}",
+                    path,
+                    config.background_image_enabled
+                );
                 path
             },
             background_image_enabled: config.background_image_enabled,
@@ -134,12 +140,15 @@ impl RendererInitParams {
             cursor_shader_enabled: config.cursor_shader_enabled,
             cursor_shader_animation: config.cursor_shader_animation,
             cursor_shader_animation_speed: config.cursor_shader_animation_speed,
+            transparency_affects_only_default_background: config
+                .transparency_affects_only_default_background,
+            keep_text_opaque: config.keep_text_opaque,
         }
     }
 
     /// Create a new Renderer using these params
     pub async fn create_renderer(&self, window: Arc<Window>) -> anyhow::Result<Renderer> {
-        Renderer::new(
+        let mut renderer = Renderer::new(
             window,
             self.font_family.as_deref(),
             self.font_family_bold.as_deref(),
@@ -178,7 +187,15 @@ impl RendererInitParams {
             self.cursor_shader_animation,
             self.cursor_shader_animation_speed,
         )
-        .await
+        .await?;
+
+        // Apply transparency mode settings
+        renderer.set_transparency_affects_only_default_background(
+            self.transparency_affects_only_default_background,
+        );
+        renderer.set_keep_text_opaque(self.keep_text_opaque);
+
+        Ok(renderer)
     }
 }
 
