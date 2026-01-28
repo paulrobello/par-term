@@ -203,6 +203,21 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         });
 
         ui.add_space(8.0);
+        ui.label("Close Button");
+        ui.indent("tab_close_button", |ui| {
+            if ui
+                .checkbox(
+                    &mut settings.config.tab_show_close_button,
+                    "Show close button on tabs",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        ui.add_space(8.0);
         ui.label("Close Button Colors");
         ui.indent("tab_close_colors", |ui| {
             ui.horizontal(|ui| {
