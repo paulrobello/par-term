@@ -1,0 +1,1 @@
+All art in this folder was created by me, Paul Rebello, MIT licenced along with the rest of the project. 
