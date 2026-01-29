@@ -129,6 +129,8 @@ pub struct ShaderConfig {
     pub cubemap: Option<String>,
     /// Whether cubemap sampling is enabled
     pub cubemap_enabled: Option<bool>,
+    /// Use the app's background image as iChannel0 instead of a separate texture
+    pub use_background_as_channel0: Option<bool>,
 }
 
 /// Cursor shader specific configuration.
@@ -175,6 +177,8 @@ pub struct ResolvedShaderConfig {
     pub cubemap: Option<PathBuf>,
     /// Cubemap sampling enabled
     pub cubemap_enabled: bool,
+    /// Use the app's background image as iChannel0
+    pub use_background_as_channel0: bool,
 }
 
 impl Default for ResolvedShaderConfig {
@@ -190,6 +194,7 @@ impl Default for ResolvedShaderConfig {
             channel3: None,
             cubemap: None,
             cubemap_enabled: true,
+            use_background_as_channel0: false,
         }
     }
 }

@@ -88,6 +88,8 @@ impl Renderer {
         custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
         // Cubemap texture path prefix for environment mapping (iCubemap)
         custom_shader_cubemap_path: Option<&std::path::Path>,
+        // Use background image as iChannel0 for custom shaders
+        use_background_as_channel0: bool,
         // Cursor shader settings (separate from background shader)
         cursor_shader_path: Option<&str>,
         cursor_shader_enabled: bool,
@@ -228,6 +230,7 @@ impl Renderer {
             custom_shader_brightness,
             custom_shader_channel_paths,
             custom_shader_cubemap_path,
+            use_background_as_channel0,
         );
 
         // Create cursor shader renderer if configured (separate from background shader)
@@ -463,6 +466,10 @@ impl Renderer {
     ) {
         let path = if enabled { path } else { None };
         self.cell_renderer.set_background_image(path, mode, opacity);
+
+        // Sync background texture to custom shader if it's using background as channel0
+        self.sync_background_texture_to_shader();
+
         self.dirty = true;
     }
 
@@ -533,20 +540,30 @@ impl Renderer {
         // Cell renderer renders terminal content
         let t1 = std::time::Instant::now();
         let surface_texture = if has_custom_shader {
+            // When custom shader is enabled, always skip rendering background image
+            // to the intermediate texture. The shader controls the background:
+            // - If user wants background image in shader, enable use_background_as_channel0
+            // - Otherwise, the shader's own effects provide the background
+            // This prevents the background image from being treated as "terminal content"
+            // and passed through unchanged by the shader.
+
             // Render terminal to intermediate texture for background shader
             self.cell_renderer.render_to_texture(
                 self.custom_shader_renderer
                     .as_ref()
                     .unwrap()
                     .intermediate_texture_view(),
+                true, // Always skip background image - shader handles background
             )?
         } else if use_cursor_shader {
             // Render terminal to intermediate texture for cursor shader
+            // Cursor shader doesn't use background as channel0, so always render it
             self.cell_renderer.render_to_texture(
                 self.cursor_shader_renderer
                     .as_ref()
                     .unwrap()
                     .intermediate_texture_view(),
+                false, // Don't skip background image
             )?
         } else {
             // Render directly to surface (no shaders, or cursor shader disabled for alt screen)

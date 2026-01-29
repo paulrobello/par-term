@@ -22,6 +22,7 @@ pub(super) fn init_custom_shader(
     custom_shader_brightness: f32,
     custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
     custom_shader_cubemap_path: Option<&std::path::Path>,
+    use_background_as_channel0: bool,
 ) -> (Option<CustomShaderRenderer>, Option<String>) {
     if !custom_shader_enabled {
         return (None, None);
@@ -54,10 +55,23 @@ pub(super) fn init_custom_shader(
                 window_padding,
             );
             renderer.set_brightness(custom_shader_brightness);
+
+            // Apply use_background_as_channel0 setting
+            if use_background_as_channel0 {
+                // Sync background texture and set flag
+                let bg_texture = cell_renderer.get_background_as_channel_texture();
+                renderer.set_background_texture(cell_renderer.device(), bg_texture);
+                renderer.update_use_background_as_channel0(
+                    cell_renderer.device(),
+                    use_background_as_channel0,
+                );
+            }
+
             crate::debug_info!(
                 "SHADER",
-                "Custom shader renderer initialized from: {}",
-                path.display()
+                "Custom shader renderer initialized from: {} (use_bg_as_ch0={})",
+                path.display(),
+                use_background_as_channel0
             );
             (Some(renderer), Some(shader_path.to_string()))
         }
@@ -527,6 +541,54 @@ impl Renderer {
                 self.dirty = true;
                 Ok(())
             }
+        }
+    }
+
+    /// Set whether to use the background image as iChannel0 for the custom shader.
+    ///
+    /// When enabled, the app's configured background image is bound as iChannel0
+    /// instead of the custom_shader_channel0 texture file.
+    #[allow(dead_code)]
+    pub fn set_use_background_as_channel0(&mut self, use_background: bool) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader
+                .update_use_background_as_channel0(self.cell_renderer.device(), use_background);
+            self.dirty = true;
+        }
+    }
+
+    /// Update the background texture for use as iChannel0 in shaders.
+    ///
+    /// Call this whenever the background image changes to sync the shader's
+    /// channel0 texture. This only has an effect if use_background_as_channel0
+    /// is enabled.
+    pub fn sync_background_texture_to_shader(&mut self) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            let bg_texture = self.cell_renderer.get_background_as_channel_texture();
+            custom_shader.set_background_texture(self.cell_renderer.device(), bg_texture);
+            self.dirty = true;
+        }
+    }
+
+    /// Update both the use_background_as_channel0 flag and sync the texture.
+    ///
+    /// This method should be called when:
+    /// - The use_background_as_channel0 setting changes
+    /// - The background image changes (to sync the new texture)
+    /// - Per-shader config changes
+    ///
+    /// The background texture is always synced to ensure changes are reflected.
+    pub fn update_background_as_channel0(&mut self, use_background: bool) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            // Always sync the background texture first - it may have changed
+            let bg_texture = self.cell_renderer.get_background_as_channel_texture();
+            custom_shader.set_background_texture(self.cell_renderer.device(), bg_texture);
+
+            // Then update the flag - this will recreate bind group if flag actually changed
+            custom_shader
+                .update_use_background_as_channel0(self.cell_renderer.device(), use_background);
+
+            self.dirty = true;
         }
     }
 }

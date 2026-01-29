@@ -621,26 +621,26 @@ impl WindowManager {
                     term.set_theme(config.load_theme());
                 }
 
+                // Resolve per-shader settings (user override -> metadata defaults -> global)
+                // This is computed once and used for both shader enable and background-as-channel0
+                let shader_override = config
+                    .custom_shader
+                    .as_ref()
+                    .and_then(|name| config.shader_configs.get(name));
+                // Get shader metadata from cache for full 3-tier resolution
+                let metadata = config.custom_shader.as_ref().and_then(|name| {
+                    window_state
+                        .settings_ui
+                        .shader_metadata_cache
+                        .get(name)
+                        .cloned()
+                });
+                let resolved = resolve_shader_config(shader_override, metadata.as_ref(), config);
+
                 // Apply shader changes - track if change was attempted and result
                 // Option<Option<String>>: None = no change attempted, Some(None) = success, Some(Some(err)) = error
                 let shader_result =
                     if changes.any_shader_change() || changes.shader_per_shader_config {
-                        // Resolve per-shader settings (user override -> metadata defaults -> global)
-                        let shader_override = config
-                            .custom_shader
-                            .as_ref()
-                            .and_then(|name| config.shader_configs.get(name));
-                        // Get shader metadata from cache for full 3-tier resolution
-                        let metadata = config.custom_shader.as_ref().and_then(|name| {
-                            window_state
-                                .settings_ui
-                                .shader_metadata_cache
-                                .get(name)
-                                .cloned()
-                        });
-                        let resolved =
-                            resolve_shader_config(shader_override, metadata.as_ref(), config);
-
                         Some(
                             renderer
                                 .set_custom_shader_enabled(
@@ -660,6 +660,17 @@ impl WindowManager {
                     } else {
                         None // No change attempted
                     };
+
+                // Apply use_background_as_channel0 setting
+                // This needs to be applied after the shader is loaded but before it renders
+                // Include any_shader_change() to ensure the setting is applied when a new shader is loaded
+                if changes.any_shader_change()
+                    || changes.shader_use_background_as_channel0
+                    || changes.any_bg_change()
+                    || changes.shader_per_shader_config
+                {
+                    renderer.update_background_as_channel0(resolved.use_background_as_channel0);
+                }
 
                 // Apply cursor shader changes
                 let cursor_result = if changes.any_cursor_shader_toggle() {

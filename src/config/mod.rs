@@ -241,6 +241,13 @@ pub struct Config {
     #[serde(default = "defaults::cubemap_enabled")]
     pub custom_shader_cubemap_enabled: bool,
 
+    /// Use the app's background image as iChannel0 for custom shaders
+    /// When enabled, the configured background image is bound as iChannel0 instead of
+    /// the custom_shader_channel0 texture. This allows shaders to incorporate the
+    /// background image without requiring a separate texture file.
+    #[serde(default = "defaults::use_background_as_channel0")]
+    pub custom_shader_use_background_as_channel0: bool,
+
     // ========================================================================
     // Cursor Shader Settings (separate from background shader)
     // ========================================================================
@@ -693,6 +700,7 @@ impl Default for Config {
             custom_shader_channel3: None,
             custom_shader_cubemap: None,
             custom_shader_cubemap_enabled: defaults::cubemap_enabled(),
+            custom_shader_use_background_as_channel0: defaults::use_background_as_channel0(),
             cursor_shader: None,
             cursor_shader_enabled: defaults::bool_false(),
             cursor_shader_animation: defaults::bool_true(),

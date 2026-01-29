@@ -10,8 +10,9 @@ use wgpu::*;
 /// A texture channel that can be bound to a custom shader
 pub struct ChannelTexture {
     /// The GPU texture (kept alive to ensure view/sampler remain valid)
+    /// When using an external texture (e.g., background image), this is None
     #[allow(dead_code)]
-    pub texture: Texture,
+    pub texture: Option<Texture>,
     /// View for binding to shaders
     pub view: TextureView,
     /// Sampler for texture filtering
@@ -77,11 +78,32 @@ impl ChannelTexture {
         });
 
         Self {
-            texture,
+            texture: Some(texture),
             view,
             sampler,
             width: 1,
             height: 1,
+        }
+    }
+
+    /// Create a ChannelTexture from an existing texture view and sampler.
+    ///
+    /// This is used when sharing a texture from another source (e.g., background image)
+    /// without creating a new copy. The caller is responsible for keeping the source
+    /// texture alive while this ChannelTexture is in use.
+    ///
+    /// # Arguments
+    /// * `view` - The texture view to use
+    /// * `sampler` - The sampler for texture filtering
+    /// * `width` - Texture width in pixels
+    /// * `height` - Texture height in pixels
+    pub fn from_view(view: TextureView, sampler: Sampler, width: u32, height: u32) -> Self {
+        Self {
+            texture: None,
+            view,
+            sampler,
+            width,
+            height,
         }
     }
 
@@ -163,7 +185,7 @@ impl ChannelTexture {
         );
 
         Ok(Self {
-            texture,
+            texture: Some(texture),
             view,
             sampler,
             width,

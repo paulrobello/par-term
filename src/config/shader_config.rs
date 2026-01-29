@@ -78,6 +78,10 @@ pub fn resolve_shader_config(
         channel3: resolve_path!(channel3, config.custom_shader_channel3.clone()),
         cubemap: resolve_path!(cubemap, config.custom_shader_cubemap.clone()),
         cubemap_enabled: resolve!(cubemap_enabled, config.custom_shader_cubemap_enabled),
+        use_background_as_channel0: resolve!(
+            use_background_as_channel0,
+            config.custom_shader_use_background_as_channel0
+        ),
     }
 }
 

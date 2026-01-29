@@ -135,6 +135,13 @@ pub struct CustomShaderRenderer {
     // ============ Cubemap texture (iCubemap) ============
     /// Cubemap texture for environment mapping (placeholder or loaded)
     pub(crate) cubemap: CubemapTexture,
+
+    // ============ Background image as iChannel0 ============
+    /// When true, use the background image texture as iChannel0 instead of the configured texture
+    pub(crate) use_background_as_channel0: bool,
+    /// Background texture to use as iChannel0 when use_background_as_channel0 is true
+    /// This is a reference texture (view + sampler + dimensions) from the cell renderer
+    pub(crate) background_channel_texture: Option<ChannelTexture>,
 }
 
 impl CustomShaderRenderer {
@@ -305,6 +312,8 @@ impl CustomShaderRenderer {
             key_press_time: 0.0,
             channel_textures,
             cubemap,
+            use_background_as_channel0: false,
+            background_channel_texture: None,
         })
     }
 
@@ -354,16 +363,8 @@ impl CustomShaderRenderer {
         self.intermediate_texture = texture;
         self.intermediate_texture_view = view;
 
-        // Recreate bind group with new texture view
-        self.bind_group = create_bind_group(
-            device,
-            &self.bind_group_layout,
-            &self.uniform_buffer,
-            &self.intermediate_texture_view,
-            &self.sampler,
-            &self.channel_textures,
-            &self.cubemap,
-        );
+        // Recreate bind group with new texture view (handles background as channel0 if enabled)
+        self.recreate_bind_group(device);
     }
 
     /// Render the custom shader effect to the output texture
@@ -535,7 +536,7 @@ impl CustomShaderRenderer {
             cursor_glow_radius: self.cursor_glow_radius,
             cursor_glow_intensity: self.cursor_glow_intensity,
             cursor_shader_color: self.cursor_shader_color,
-            channel0_resolution: self.channel_textures[0].resolution(),
+            channel0_resolution: self.effective_channel0_resolution(),
             channel1_resolution: self.channel_textures[1].resolution(),
             channel2_resolution: self.channel_textures[2].resolution(),
             channel3_resolution: self.channel_textures[3].resolution(),
@@ -690,15 +691,8 @@ impl CustomShaderRenderer {
 
         self.channel_textures[index] = new_texture;
 
-        self.bind_group = create_bind_group(
-            device,
-            &self.bind_group_layout,
-            &self.uniform_buffer,
-            &self.intermediate_texture_view,
-            &self.sampler,
-            &self.channel_textures,
-            &self.cubemap,
-        );
+        // Use recreate_bind_group to properly handle use_background_as_channel0 logic
+        self.recreate_bind_group(device);
 
         log::info!(
             "Updated iChannel{} texture: {}",
@@ -725,15 +719,8 @@ impl CustomShaderRenderer {
 
         self.cubemap = new_cubemap;
 
-        self.bind_group = create_bind_group(
-            device,
-            &self.bind_group_layout,
-            &self.uniform_buffer,
-            &self.intermediate_texture_view,
-            &self.sampler,
-            &self.channel_textures,
-            &self.cubemap,
-        );
+        // Use recreate_bind_group to properly handle use_background_as_channel0 logic
+        self.recreate_bind_group(device);
 
         log::info!(
             "Updated cubemap texture: {}",
@@ -809,19 +796,187 @@ impl CustomShaderRenderer {
             self.cubemap = CubemapTexture::placeholder(device, queue);
         }
 
-        // Recreate bind group with new textures
-        self.bind_group = create_bind_group(
-            device,
-            &self.bind_group_layout,
-            &self.uniform_buffer,
-            &self.intermediate_texture_view,
-            &self.sampler,
-            &self.channel_textures,
-            &self.cubemap,
-        );
+        // Use recreate_bind_group to properly handle use_background_as_channel0 logic
+        self.recreate_bind_group(device);
 
         log::info!("Updated shader channel textures from resolved config");
         Ok(())
+    }
+
+    /// Set whether to use the background image as iChannel0.
+    ///
+    /// When enabled and a background texture is set, the background image will be
+    /// used as iChannel0 instead of the configured channel0 texture file.
+    ///
+    /// Note: This only updates the flag. Use `update_use_background_as_channel0`
+    /// if you also need to recreate the bind group.
+    #[allow(dead_code)]
+    pub fn set_use_background_as_channel0(&mut self, use_background: bool) {
+        if self.use_background_as_channel0 != use_background {
+            self.use_background_as_channel0 = use_background;
+            log::info!("use_background_as_channel0 set to {}", use_background);
+        }
+    }
+
+    /// Check if using background image as iChannel0.
+    #[allow(dead_code)]
+    pub fn use_background_as_channel0(&self) -> bool {
+        self.use_background_as_channel0
+    }
+
+    /// Set the background texture to use as iChannel0 when enabled.
+    ///
+    /// Call this whenever the background image changes to update the shader's
+    /// channel0 binding. The device parameter is needed to recreate the bind group.
+    ///
+    /// When use_background_as_channel0 is enabled, the background texture takes
+    /// priority over any configured channel0 texture.
+    ///
+    /// # Arguments
+    /// * `device` - The wgpu device
+    /// * `texture` - The background texture (view, sampler, dimensions), or None to clear
+    pub fn set_background_texture(&mut self, device: &Device, texture: Option<ChannelTexture>) {
+        self.background_channel_texture = texture;
+
+        // Recreate bind group if we're using background as channel0
+        // The background texture takes priority over configured channel0 when enabled
+        if self.use_background_as_channel0 {
+            self.recreate_bind_group(device);
+        }
+    }
+
+    /// Check if channel0 has a real configured texture (not just a 1x1 placeholder).
+    fn channel0_has_real_texture(&self) -> bool {
+        let ch0 = &self.channel_textures[0];
+        // Placeholder textures are 1x1
+        ch0.width > 1 || ch0.height > 1
+    }
+
+    /// Get the effective channel0 resolution for the iChannelResolution uniform.
+    ///
+    /// This follows the same priority as texture selection:
+    /// 1. If use_background_as_channel0 is enabled and background exists, use its resolution
+    /// 2. Otherwise use channel0 texture resolution (whether configured or placeholder)
+    fn effective_channel0_resolution(&self) -> [f32; 4] {
+        if self.use_background_as_channel0 {
+            self.background_channel_texture
+                .as_ref()
+                .map(|t| t.resolution())
+                .unwrap_or_else(|| self.channel_textures[0].resolution())
+        } else {
+            self.channel_textures[0].resolution()
+        }
+    }
+
+    /// Recreate the bind group, using background texture for channel0 if enabled.
+    ///
+    /// Priority for iChannel0:
+    /// 1. If use_background_as_channel0 is enabled and background exists, use background
+    /// 2. If channel0 has a configured texture (not placeholder), use it
+    /// 3. Otherwise use the placeholder
+    ///
+    /// This is called when:
+    /// - The background texture changes (and use_background_as_channel0 is true)
+    /// - use_background_as_channel0 flag changes
+    /// - The window resizes (intermediate texture changes)
+    fn recreate_bind_group(&mut self, device: &Device) {
+        // Priority: use_background_as_channel0 (explicit override) > configured channel0 > placeholder
+        let channel0_texture = if self.use_background_as_channel0 {
+            // User explicitly wants background image as channel0
+            self.background_channel_texture
+                .as_ref()
+                .unwrap_or(&self.channel_textures[0])
+        } else if self.channel0_has_real_texture() {
+            // Channel0 has a real texture configured
+            &self.channel_textures[0]
+        } else {
+            // Use the placeholder
+            &self.channel_textures[0]
+        };
+
+        // Create a temporary array with the potentially swapped channel0
+        let effective_channels = [
+            channel0_texture,
+            &self.channel_textures[1],
+            &self.channel_textures[2],
+            &self.channel_textures[3],
+        ];
+
+        self.bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Custom Shader Bind Group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.uniform_buffer.as_entire_binding(),
+                },
+                // iChannel0 (background or configured texture)
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&effective_channels[0].view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&effective_channels[0].sampler),
+                },
+                // iChannel1
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&effective_channels[1].view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&effective_channels[1].sampler),
+                },
+                // iChannel2
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(&effective_channels[2].view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::Sampler(&effective_channels[2].sampler),
+                },
+                // iChannel3
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: wgpu::BindingResource::TextureView(&effective_channels[3].view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: wgpu::BindingResource::Sampler(&effective_channels[3].sampler),
+                },
+                // iChannel4 (terminal content)
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: wgpu::BindingResource::TextureView(&self.intermediate_texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                // iCubemap
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: wgpu::BindingResource::TextureView(&self.cubemap.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 12,
+                    resource: wgpu::BindingResource::Sampler(&self.cubemap.sampler),
+                },
+            ],
+        });
+    }
+
+    /// Update the use_background_as_channel0 setting and recreate bind group if needed.
+    ///
+    /// Call this when the setting changes in the UI or config.
+    pub fn update_use_background_as_channel0(&mut self, device: &Device, use_background: bool) {
+        if self.use_background_as_channel0 != use_background {
+            self.use_background_as_channel0 = use_background;
+            self.recreate_bind_group(device);
+            log::info!("use_background_as_channel0 toggled to {}", use_background);
+        }
     }
 
     /// Reload the shader from a source string

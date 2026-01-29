@@ -252,3 +252,7 @@ pub fn tab_border_width() -> f32 {
 pub fn blur_radius() -> u32 {
     8 // Default blur radius in points (macOS only)
 }
+
+pub fn use_background_as_channel0() -> bool {
+    false // By default, use configured channel0 texture, not background image
+}

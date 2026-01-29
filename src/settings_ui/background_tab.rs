@@ -575,6 +575,23 @@ pub fn show_background(
             ui.label("Terminal content is available as iChannel4");
             ui.label("Use iChannelResolution[n].xy for texture dimensions");
         });
+
+        // Use background image as iChannel0
+        ui.add_space(8.0);
+        if ui
+            .checkbox(
+                &mut settings.config.custom_shader_use_background_as_channel0,
+                "Use background image as iChannel0",
+            )
+            .on_hover_text(
+                "When enabled, the app's background image is bound as iChannel0 instead of a separate texture file.\n\
+                This allows shaders to incorporate the background image without requiring a separate texture."
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
     });
 }
 
@@ -1015,6 +1032,47 @@ fn show_per_shader_settings(
         });
     }
 
+    // Use Background Image as iChannel0
+    {
+        let effective_value = current_override
+            .as_ref()
+            .and_then(|o| o.use_background_as_channel0)
+            .or_else(|| {
+                meta_defaults
+                    .as_ref()
+                    .and_then(|m| m.use_background_as_channel0)
+            })
+            .unwrap_or(settings.config.custom_shader_use_background_as_channel0);
+        let has_override_val = current_override
+            .as_ref()
+            .and_then(|o| o.use_background_as_channel0)
+            .is_some();
+
+        let mut value = effective_value;
+        ui.horizontal(|ui| {
+            if ui
+                .checkbox(&mut value, "Use background as iChannel0")
+                .on_hover_text(
+                    "Use the app's background image as iChannel0 instead of a separate texture file",
+                )
+                .changed()
+            {
+                let override_entry = settings.config.get_or_create_shader_override(shader_name);
+                override_entry.use_background_as_channel0 = Some(value);
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if show_reset_button(ui, has_override_val)
+                && let Some(override_entry) = settings.config.shader_configs.get_mut(shader_name)
+            {
+                override_entry.use_background_as_channel0 = None;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+    }
+
     // Show channel texture overrides in a sub-collapsible
     ui.add_space(4.0);
     let meta_defaults_for_channels = meta_defaults.clone();
@@ -1214,6 +1272,15 @@ fn build_metadata_from_settings(
         .unwrap_or(settings.config.custom_shader_cubemap_enabled);
     if !effective_cubemap_enabled {
         new_defaults.cubemap_enabled = Some(false);
+    }
+
+    // Use background as channel0 - only save if true (false is default)
+    let effective_use_background = current_override
+        .and_then(|o| o.use_background_as_channel0)
+        .or_else(|| meta_defaults.and_then(|m| m.use_background_as_channel0))
+        .unwrap_or(settings.config.custom_shader_use_background_as_channel0);
+    if effective_use_background {
+        new_defaults.use_background_as_channel0 = Some(true);
     }
 
     metadata.defaults = new_defaults;

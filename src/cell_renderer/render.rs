@@ -68,9 +68,16 @@ impl CellRenderer {
         Ok(output)
     }
 
+    /// Render terminal content to an intermediate texture for shader processing.
+    ///
+    /// # Arguments
+    /// * `target_view` - The texture view to render to
+    /// * `skip_background_image` - If true, skip rendering the background image. Use this when
+    ///   a custom shader will handle the background image via iChannel0 instead.
     pub fn render_to_texture(
         &mut self,
         target_view: &wgpu::TextureView,
+        skip_background_image: bool,
     ) -> Result<wgpu::SurfaceTexture> {
         let output = self.surface.get_current_texture()?;
         self.build_instance_buffers()?;
@@ -101,7 +108,8 @@ impl CellRenderer {
                 occlusion_query_set: None,
             });
 
-            if let Some(ref bg_bind_group) = self.bg_image_bind_group {
+            // Only render background image if not skipping (shader will handle it via iChannel0)
+            if !skip_background_image && let Some(ref bg_bind_group) = self.bg_image_bind_group {
                 render_pass.set_pipeline(&self.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));

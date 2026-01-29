@@ -1,4 +1,5 @@
 use super::CellRenderer;
+use crate::custom_shader_renderer::textures::ChannelTexture;
 use anyhow::Result;
 
 impl CellRenderer {
@@ -140,5 +141,38 @@ impl CellRenderer {
     pub fn update_background_image_opacity_only(&mut self, opacity: f32) {
         self.bg_image_opacity = opacity;
         self.update_bg_image_uniforms();
+    }
+
+    /// Create a ChannelTexture from the current background image for use in custom shaders.
+    ///
+    /// Returns None if no background image is loaded.
+    /// The returned ChannelTexture shares the same underlying texture data with the
+    /// cell renderer's background image - no copy is made.
+    pub fn get_background_as_channel_texture(&self) -> Option<ChannelTexture> {
+        let texture = self.bg_image_texture.as_ref()?;
+
+        // Create a new view and sampler for use by the custom shader
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            ..Default::default()
+        });
+
+        Some(ChannelTexture::from_view(
+            view,
+            sampler,
+            self.bg_image_width,
+            self.bg_image_height,
+        ))
+    }
+
+    /// Check if a background image is currently loaded.
+    #[allow(dead_code)]
+    pub fn has_background_image(&self) -> bool {
+        self.bg_image_texture.is_some()
     }
 }
