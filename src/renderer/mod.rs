@@ -509,19 +509,28 @@ impl Renderer {
 
         // Sync to cursor shader
         if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
-            cursor_shader.set_background_color(normalized_color, is_solid_color);
+            // When background shader is enabled and chained into cursor shader,
+            // don't give cursor shader its own background - background shader handles it
+            let has_background_shader = self.custom_shader_renderer.is_some();
 
-            // For image mode, pass background image as iChannel0
-            if is_image_mode && image_enabled {
-                let bg_texture = self.cell_renderer.get_background_as_channel_texture();
-                cursor_shader.set_background_texture(self.cell_renderer.device(), bg_texture);
-                cursor_shader
-                    .update_use_background_as_channel0(self.cell_renderer.device(), true);
-            } else {
-                // Clear background texture when not in image mode
+            if has_background_shader {
+                // Background shader handles the background, cursor shader just passes through
+                cursor_shader.set_background_color([0.0, 0.0, 0.0], false);
                 cursor_shader.set_background_texture(self.cell_renderer.device(), None);
-                cursor_shader
-                    .update_use_background_as_channel0(self.cell_renderer.device(), false);
+                cursor_shader.update_use_background_as_channel0(self.cell_renderer.device(), false);
+            } else {
+                cursor_shader.set_background_color(normalized_color, is_solid_color);
+
+                // For image mode, pass background image as iChannel0
+                if is_image_mode && image_enabled {
+                    let bg_texture = self.cell_renderer.get_background_as_channel_texture();
+                    cursor_shader.set_background_texture(self.cell_renderer.device(), bg_texture);
+                    cursor_shader.update_use_background_as_channel0(self.cell_renderer.device(), true);
+                } else {
+                    // Clear background texture when not in image mode
+                    cursor_shader.set_background_texture(self.cell_renderer.device(), None);
+                    cursor_shader.update_use_background_as_channel0(self.cell_renderer.device(), false);
+                }
             }
         }
 

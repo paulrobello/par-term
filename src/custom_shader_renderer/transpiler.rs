@@ -253,7 +253,20 @@ void main() {{
         // Final color: properly composited terminal + glow effects
         vec3 finalRgb = termComposited + glowEffect;
 
-        outColor = vec4(finalRgb * pixelOpacity, pixelOpacity);
+        // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
+        float isChainMode = step(iOpacity, 0.001);
+
+        // In chain mode: preserve full RGB, output hasContent as alpha for transparency detection
+        // In final mode: apply pixelOpacity as normal (premultiplied output)
+        vec3 chainRgb = finalRgb;
+        float chainAlpha = hasContent;
+        vec3 finalModeRgb = finalRgb * pixelOpacity;
+        float finalModeAlpha = pixelOpacity;
+
+        outColor = vec4(
+            mix(finalModeRgb, chainRgb, isChainMode),
+            mix(finalModeAlpha, chainAlpha, isChainMode)
+        );
     }} else {{
         // Background-only mode: text is composited cleanly on top of shader background
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
@@ -270,15 +283,25 @@ void main() {{
         float useSolidBg = step(0.01, iBackgroundColor.a);
         vec3 bgColor = mix(dimmedShaderRgb, iBackgroundColor.rgb * iBrightness, useSolidBg);
 
-        // Background with window opacity (premultiplied)
+        // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
+        float isChainMode = step(iOpacity, 0.001);
+
+        // In chain mode: use full background color for RGB, terminal-only alpha
+        // In final mode: use premultiplied background with full alpha compositing
         vec3 bgPremul = bgColor * iOpacity;
         float bgA = iOpacity;
 
-        // Standard "over" compositing with premultiplied source and dest:
-        // out.rgb = src.rgb + dst.rgb * (1 - src.a)
-        // out.a = src.a + dst.a * (1 - src.a)
-        vec3 finalRgb = srcPremul + bgPremul * (1.0 - srcA);
-        float finalA = srcA + bgA * (1.0 - srcA);
+        // RGB: in chain mode use full bgColor, in final mode use premultiplied
+        vec3 effectiveBgRgb = mix(bgPremul, bgColor, isChainMode);
+
+        // Standard "over" compositing with the effective background
+        vec3 finalRgb = srcPremul + effectiveBgRgb * (1.0 - srcA);
+
+        // Alpha: in chain mode preserve terminal alpha only (for transparency detection)
+        // In final mode, composite with background opacity
+        float finalA_chain = srcA;
+        float finalA_final = srcA + bgA * (1.0 - srcA);
+        float finalA = mix(finalA_final, finalA_chain, isChainMode);
 
         outColor = vec4(finalRgb, finalA);
     }}
@@ -566,7 +589,20 @@ void main() {{
         // Final color: properly composited terminal + glow effects
         vec3 finalRgb = termComposited + glowEffect;
 
-        outColor = vec4(finalRgb * pixelOpacity, pixelOpacity);
+        // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
+        float isChainMode = step(iOpacity, 0.001);
+
+        // In chain mode: preserve full RGB, output hasContent as alpha for transparency detection
+        // In final mode: apply pixelOpacity as normal (premultiplied output)
+        vec3 chainRgb = finalRgb;
+        float chainAlpha = hasContent;
+        vec3 finalModeRgb = finalRgb * pixelOpacity;
+        float finalModeAlpha = pixelOpacity;
+
+        outColor = vec4(
+            mix(finalModeRgb, chainRgb, isChainMode),
+            mix(finalModeAlpha, chainAlpha, isChainMode)
+        );
     }} else {{
         // Background-only mode: text is composited cleanly on top of shader background
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
@@ -583,15 +619,25 @@ void main() {{
         float useSolidBg = step(0.01, iBackgroundColor.a);
         vec3 bgColor = mix(dimmedShaderRgb, iBackgroundColor.rgb * iBrightness, useSolidBg);
 
-        // Background with window opacity (premultiplied)
+        // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
+        float isChainMode = step(iOpacity, 0.001);
+
+        // In chain mode: use full background color for RGB, terminal-only alpha
+        // In final mode: use premultiplied background with full alpha compositing
         vec3 bgPremul = bgColor * iOpacity;
         float bgA = iOpacity;
 
-        // Standard "over" compositing with premultiplied source and dest:
-        // out.rgb = src.rgb + dst.rgb * (1 - src.a)
-        // out.a = src.a + dst.a * (1 - src.a)
-        vec3 finalRgb = srcPremul + bgPremul * (1.0 - srcA);
-        float finalA = srcA + bgA * (1.0 - srcA);
+        // RGB: in chain mode use full bgColor, in final mode use premultiplied
+        vec3 effectiveBgRgb = mix(bgPremul, bgColor, isChainMode);
+
+        // Standard "over" compositing with the effective background
+        vec3 finalRgb = srcPremul + effectiveBgRgb * (1.0 - srcA);
+
+        // Alpha: in chain mode preserve terminal alpha only (for transparency detection)
+        // In final mode, composite with background opacity
+        float finalA_chain = srcA;
+        float finalA_final = srcA + bgA * (1.0 - srcA);
+        float finalA = mix(finalA_final, finalA_chain, isChainMode);
 
         outColor = vec4(finalRgb, finalA);
     }}

@@ -346,23 +346,34 @@ impl Renderer {
                         );
                         // Sync keep_text_opaque from cell renderer
                         renderer.set_keep_text_opaque(self.cell_renderer.keep_text_opaque());
-                        // Sync background color for solid color mode
-                        renderer.set_background_color(
-                            self.cell_renderer.solid_background_color(),
-                            self.cell_renderer.is_solid_color_background(),
-                        );
-                        // Sync background image for image mode
-                        let is_image_mode = self.cell_renderer.has_background_image()
-                            && !self.cell_renderer.is_solid_color_background();
-                        if is_image_mode {
-                            let bg_texture =
-                                self.cell_renderer.get_background_as_channel_texture();
-                            renderer
-                                .set_background_texture(self.cell_renderer.device(), bg_texture);
-                            renderer.update_use_background_as_channel0(
-                                self.cell_renderer.device(),
-                                true,
+                        // When background shader is enabled and chained into cursor shader,
+                        // don't give cursor shader its own background - background shader handles it
+                        let has_background_shader = self.custom_shader_renderer.is_some();
+
+                        if has_background_shader {
+                            // Background shader handles the background, cursor shader just passes through
+                            renderer.set_background_color([0.0, 0.0, 0.0], false);
+                            renderer.set_background_texture(self.cell_renderer.device(), None);
+                            renderer.update_use_background_as_channel0(self.cell_renderer.device(), false);
+                        } else {
+                            // Sync background color for solid color mode
+                            renderer.set_background_color(
+                                self.cell_renderer.solid_background_color(),
+                                self.cell_renderer.is_solid_color_background(),
                             );
+                            // Sync background image for image mode
+                            let is_image_mode = self.cell_renderer.has_background_image()
+                                && !self.cell_renderer.is_solid_color_background();
+                            if is_image_mode {
+                                let bg_texture =
+                                    self.cell_renderer.get_background_as_channel_texture();
+                                renderer
+                                    .set_background_texture(self.cell_renderer.device(), bg_texture);
+                                renderer.update_use_background_as_channel0(
+                                    self.cell_renderer.device(),
+                                    true,
+                                );
+                            }
                         }
                         debug_info!(
                             "cursor-shader",
@@ -541,6 +552,10 @@ impl Renderer {
                         );
                         self.custom_shader_renderer = Some(renderer);
                         self.custom_shader_path = Some(path.to_string());
+
+                        // When background shader is enabled, cursor shader should not have its own background
+                        self.sync_cursor_shader_background_state();
+
                         self.dirty = true;
                         Ok(())
                     }
@@ -561,8 +576,49 @@ impl Renderer {
                 }
                 self.custom_shader_renderer = None;
                 self.custom_shader_path = None;
+
+                // When background shader is disabled, cursor shader should get its own background back
+                self.sync_cursor_shader_background_state();
+
                 self.dirty = true;
                 Ok(())
+            }
+        }
+    }
+
+    /// Sync the cursor shader's background state based on whether the background shader is enabled.
+    ///
+    /// When background shader is enabled, cursor shader should NOT have its own background
+    /// (the background shader handles it). When background shader is disabled, cursor shader
+    /// should have its own background.
+    fn sync_cursor_shader_background_state(&mut self) {
+        let Some(ref mut cursor_shader) = self.cursor_shader_renderer else {
+            return;
+        };
+
+        let has_background_shader = self.custom_shader_renderer.is_some();
+
+        if has_background_shader {
+            // Background shader handles the background, cursor shader just passes through
+            cursor_shader.set_background_color([0.0, 0.0, 0.0], false);
+            cursor_shader.set_background_texture(self.cell_renderer.device(), None);
+            cursor_shader.update_use_background_as_channel0(self.cell_renderer.device(), false);
+        } else {
+            // Cursor shader needs its own background
+            cursor_shader.set_background_color(
+                self.cell_renderer.solid_background_color(),
+                self.cell_renderer.is_solid_color_background(),
+            );
+
+            let is_image_mode = self.cell_renderer.has_background_image()
+                && !self.cell_renderer.is_solid_color_background();
+            if is_image_mode {
+                let bg_texture = self.cell_renderer.get_background_as_channel_texture();
+                cursor_shader.set_background_texture(self.cell_renderer.device(), bg_texture);
+                cursor_shader.update_use_background_as_channel0(self.cell_renderer.device(), true);
+            } else {
+                cursor_shader.set_background_texture(self.cell_renderer.device(), None);
+                cursor_shader.update_use_background_as_channel0(self.cell_renderer.device(), false);
             }
         }
     }

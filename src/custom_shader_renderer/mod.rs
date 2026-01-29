@@ -500,11 +500,14 @@ impl CustomShaderRenderer {
             self.cursor_to_pixels(self.previous_cursor_pos.0, self.previous_cursor_pos.1);
 
         // When rendering to intermediate texture (for further shader processing),
-        // don't apply opacity - let the final shader in the chain apply it once.
+        // use 0.0 to signal "chain mode" to the shader. This tells the shader to:
+        // - Use full background color for RGB (not premultiplied by opacity)
+        // - Output terminal-only alpha (so next shader can detect transparent areas)
+        // The final shader in the chain will apply actual window opacity.
         let effective_opacity = if apply_opacity {
             self.window_opacity
         } else {
-            1.0
+            0.0 // Chain mode: shader detects this and preserves transparency info
         };
 
         CustomShaderUniforms {
