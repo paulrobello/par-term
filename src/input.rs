@@ -34,7 +34,6 @@ impl InputHandler {
         }
 
         let ctrl = self.modifiers.state().control_key();
-        let shift = self.modifiers.state().shift_key();
         let alt = self.modifiers.state().alt_key();
 
         match event.logical_key {
@@ -44,10 +43,7 @@ impl InputHandler {
                     // Handle Ctrl+key combinations
                     let ch = s.chars().next()?;
 
-                    // Special case: Ctrl+V for paste
-                    if ch.eq_ignore_ascii_case(&'v') {
-                        return self.paste_from_clipboard();
-                    }
+                    // Note: Ctrl+V paste is handled at higher level for bracketed paste support
 
                     if ch.is_ascii_alphabetic() {
                         // Ctrl+A through Ctrl+Z map to ASCII 1-26
@@ -74,10 +70,7 @@ impl InputHandler {
                     return Some(vec![0x00]);
                 }
 
-                // Handle Shift+Insert for paste
-                if shift && matches!(named_key, NamedKey::Insert) {
-                    return self.paste_from_clipboard();
-                }
+                // Note: Shift+Insert paste is handled at higher level for bracketed paste support
 
                 let seq = match named_key {
                     NamedKey::Enter => "\r",
@@ -124,15 +117,13 @@ impl InputHandler {
         }
     }
 
-    /// Paste text from clipboard
-    pub fn paste_from_clipboard(&mut self) -> Option<Vec<u8>> {
+    /// Paste text from clipboard (returns raw text, caller handles terminal conversion)
+    pub fn paste_from_clipboard(&mut self) -> Option<String> {
         if let Some(ref mut clipboard) = self.clipboard {
             match clipboard.get_text() {
                 Ok(text) => {
                     log::debug!("Pasting from clipboard: {} chars", text.len());
-                    // Convert newlines to carriage returns for terminal
-                    let text = text.replace('\n', "\r");
-                    Some(text.as_bytes().to_vec())
+                    Some(text)
                 }
                 Err(e) => {
                     log::error!("Failed to get clipboard text: {}", e);
@@ -173,9 +164,9 @@ impl InputHandler {
         }
     }
 
-    /// Paste text from primary selection (Linux X11 only)
+    /// Paste text from primary selection (Linux X11 only, returns raw text)
     #[cfg(target_os = "linux")]
-    pub fn paste_from_primary_selection(&mut self) -> Option<Vec<u8>> {
+    pub fn paste_from_primary_selection(&mut self) -> Option<String> {
         use arboard::GetExtLinux;
 
         if let Some(ref mut clipboard) = self.clipboard {
@@ -186,9 +177,7 @@ impl InputHandler {
             {
                 Ok(text) => {
                     log::debug!("Pasting from primary selection: {} chars", text.len());
-                    // Convert newlines to carriage returns for terminal
-                    let text = text.replace('\n', "\r");
-                    Some(text.as_bytes().to_vec())
+                    Some(text)
                 }
                 Err(e) => {
                     log::error!("Failed to get primary selection text: {}", e);
@@ -209,7 +198,7 @@ impl InputHandler {
 
     /// Fallback for non-Linux platforms - paste from primary selection uses regular clipboard
     #[cfg(not(target_os = "linux"))]
-    pub fn paste_from_primary_selection(&mut self) -> Option<Vec<u8>> {
+    pub fn paste_from_primary_selection(&mut self) -> Option<String> {
         self.paste_from_clipboard()
     }
 }

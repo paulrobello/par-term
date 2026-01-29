@@ -275,9 +275,8 @@ impl WindowManager {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                     && let Some(text) = window_state.input_handler.paste_from_clipboard()
-                    && let Ok(text_str) = std::str::from_utf8(&text)
                 {
-                    window_state.paste_text(text_str);
+                    window_state.paste_text(&text);
                 }
             }
             MenuAction::SelectAll => {

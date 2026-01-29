@@ -129,6 +129,47 @@ impl TerminalManager {
         Ok(())
     }
 
+    /// Paste text to the terminal with proper bracketed paste handling.
+    /// Converts `\n` to `\r` and wraps with bracketed paste sequences if mode is enabled.
+    pub fn paste(&self, content: &str) -> Result<()> {
+        if content.is_empty() {
+            return Ok(());
+        }
+
+        // Convert newlines to carriage returns for terminal
+        let content = content.replace('\n', "\r");
+
+        log::debug!("Pasting {} chars (bracketed paste check)", content.len());
+
+        // Query bracketed paste state and copy sequences (release lock before writing)
+        let (start, end) = {
+            let pty = self.pty_session.lock();
+            let terminal = pty.terminal();
+            let term = terminal.lock();
+            (
+                term.bracketed_paste_start().to_vec(),
+                term.bracketed_paste_end().to_vec(),
+            )
+        };
+
+        // Write to PTY: [start] + content + [end]
+        let mut pty = self.pty_session.lock();
+        if !start.is_empty() {
+            log::debug!("Sending bracketed paste start sequence");
+            pty.write(&start)
+                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste start: {}", e))?;
+        }
+        pty.write(content.as_bytes())
+            .map_err(|e| anyhow::anyhow!("Failed to write paste content: {}", e))?;
+        if !end.is_empty() {
+            log::debug!("Sending bracketed paste end sequence");
+            pty.write(&end)
+                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste end: {}", e))?;
+        }
+
+        Ok(())
+    }
+
     /// Get the terminal content as a string
     #[allow(dead_code)]
     pub fn content(&self) -> Result<String> {

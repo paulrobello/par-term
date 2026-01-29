@@ -301,16 +301,16 @@ impl WindowState {
                     return; // Event consumed by terminal
                 }
 
-                // Handle middle-click paste if configured
+                // Handle middle-click paste if configured (with bracketed paste support)
                 if state == ElementState::Pressed
                     && self.config.middle_click_paste
-                    && let Some(bytes) = self.input_handler.paste_from_primary_selection()
+                    && let Some(text) = self.input_handler.paste_from_primary_selection()
                     && let Some(tab) = self.tab_manager.active_tab()
                 {
                     let terminal_clone = Arc::clone(&tab.terminal);
                     self.runtime.spawn(async move {
                         let term = terminal_clone.lock().await;
-                        let _ = term.write(&bytes);
+                        let _ = term.paste(&text);
                     });
                 }
             }

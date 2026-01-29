@@ -122,43 +122,53 @@ impl WindowState {
             return; // Key was handled by tab shortcut
         }
 
-        // Check for Cmd+V/Cmd+C on macOS (Ctrl+V/Ctrl+C handled in input.rs)
-        #[cfg(target_os = "macos")]
+        // Handle paste shortcuts with bracketed paste support
         if event.state == ElementState::Pressed {
-            let cmd = self.input_handler.modifiers.state().super_key();
-            if cmd {
-                if let Key::Character(ref c) = event.logical_key {
-                    match c.as_str() {
-                        "v" | "V" => {
-                            // Cmd+V: Paste
-                            if let Some(bytes) = self.input_handler.paste_from_clipboard()
-                                && let Some(tab) = self.tab_manager.active_tab()
-                            {
-                                let terminal_clone = Arc::clone(&tab.terminal);
-                                self.runtime.spawn(async move {
-                                    let term = terminal_clone.lock().await;
-                                    let _ = term.write(&bytes);
-                                });
-                            }
-                            return;
-                        }
-                        "c" | "C" => {
-                            // Cmd+C: Copy selection to clipboard
-                            if let Some(selected_text) = self.get_selected_text()
-                                && !selected_text.is_empty()
-                            {
-                                if let Err(e) = self.input_handler.copy_to_clipboard(&selected_text)
-                                {
-                                    log::error!("Failed to copy to clipboard: {}", e);
-                                } else {
-                                    log::debug!("Copied {} chars via Cmd+C", selected_text.len());
-                                }
-                            }
-                            return;
-                        }
-                        _ => {}
+            // Ctrl+V or Shift+Insert: Paste (non-macOS)
+            #[cfg(not(target_os = "macos"))]
+            let is_paste = {
+                let ctrl = self.input_handler.modifiers.state().control_key();
+                let shift = self.input_handler.modifiers.state().shift_key();
+                (ctrl
+                    && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("v")))
+                    || (shift && matches!(event.logical_key, Key::Named(NamedKey::Insert)))
+            };
+
+            // Cmd+V: Paste (macOS)
+            #[cfg(target_os = "macos")]
+            let is_paste = {
+                let cmd = self.input_handler.modifiers.state().super_key();
+                cmd && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("v"))
+            };
+
+            if is_paste {
+                if let Some(text) = self.input_handler.paste_from_clipboard()
+                    && let Some(tab) = self.tab_manager.active_tab()
+                {
+                    let terminal_clone = Arc::clone(&tab.terminal);
+                    self.runtime.spawn(async move {
+                        let term = terminal_clone.lock().await;
+                        let _ = term.paste(&text);
+                    });
+                }
+                return;
+            }
+
+            // Cmd+C: Copy (macOS only)
+            #[cfg(target_os = "macos")]
+            if self.input_handler.modifiers.state().super_key()
+                && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("c"))
+            {
+                if let Some(selected_text) = self.get_selected_text()
+                    && !selected_text.is_empty()
+                {
+                    if let Err(e) = self.input_handler.copy_to_clipboard(&selected_text) {
+                        log::error!("Failed to copy to clipboard: {}", e);
+                    } else {
+                        log::debug!("Copied {} chars via Cmd+C", selected_text.len());
                     }
                 }
+                return;
             }
         }
 
@@ -394,12 +404,11 @@ impl WindowState {
     pub(crate) fn paste_text(&mut self, text: &str) {
         if let Some(tab) = self.tab_manager.active_tab() {
             let terminal_clone = Arc::clone(&tab.terminal);
-            // Convert newlines to carriage returns for terminal
-            let text = text.replace('\n', "\r");
+            let text = text.to_string();
             self.runtime.spawn(async move {
                 let term = terminal_clone.lock().await;
-                let _ = term.write(text.as_bytes());
-                log::debug!("Pasted text from clipboard history ({} bytes)", text.len());
+                let _ = term.paste(&text);
+                log::debug!("Pasted text ({} chars)", text.len());
             });
         }
     }
