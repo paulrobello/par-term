@@ -226,23 +226,24 @@ void main() {{
         // The shader already applied any effects (like cursor glow) to the terminal content
         outColor = vec4(dimmedShaderRgb * pixelOpacity, pixelOpacity);
     }} else {{
-        // Background-only mode: text is composited cleanly on top
-        // Sample terminal texture - flip v_uv.y since it appears inverted (y=1 at top)
-        // but textures expect y=0 at top
+        // Background-only mode: text is composited cleanly on top of shader background
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
-        float hasText = step(0.01, terminalColor.a);
 
-        // Terminal texture contains premultiplied alpha (rgb * a, a)
-        // Unpremultiply to get original color for re-compositing
-        vec3 textCol = (terminalColor.a > 0.01) ? terminalColor.rgb / terminalColor.a : terminalColor.rgb;
-        vec3 bgCol = dimmedShaderRgb;
+        // Terminal texture is premultiplied alpha (rgb already multiplied by alpha)
+        // from GPU blending onto transparent background.
+        // Scale by iTextOpacity to allow fading terminal content.
+        vec3 srcPremul = terminalColor.rgb * iTextOpacity;
+        float srcA = terminalColor.a * iTextOpacity;
 
-        // Composite: text over shader background with premultiplied output
-        float textA = hasText * iTextOpacity;
-        float bgA = (1.0 - hasText) * iOpacity;
+        // Shader background with window opacity (premultiplied)
+        vec3 bgPremul = dimmedShaderRgb * iOpacity;
+        float bgA = iOpacity;
 
-        vec3 finalRgb = textCol * textA + bgCol * bgA;
-        float finalA = textA + bgA;
+        // Standard "over" compositing with premultiplied source and dest:
+        // out.rgb = src.rgb + dst.rgb * (1 - src.a)
+        // out.a = src.a + dst.a * (1 - src.a)
+        vec3 finalRgb = srcPremul + bgPremul * (1.0 - srcA);
+        float finalA = srcA + bgA * (1.0 - srcA);
 
         outColor = vec4(finalRgb, finalA);
     }}
@@ -503,23 +504,24 @@ void main() {{
         // The shader already applied any effects (like cursor glow) to the terminal content
         outColor = vec4(dimmedShaderRgb * pixelOpacity, pixelOpacity);
     }} else {{
-        // Background-only mode: text is composited cleanly on top
-        // Sample terminal texture - flip v_uv.y since it appears inverted (y=1 at top)
-        // but textures expect y=0 at top
+        // Background-only mode: text is composited cleanly on top of shader background
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
-        float hasText = step(0.01, terminalColor.a);
 
-        // Terminal texture contains premultiplied alpha (rgb * a, a)
-        // Unpremultiply to get original color for re-compositing
-        vec3 textCol = (terminalColor.a > 0.01) ? terminalColor.rgb / terminalColor.a : terminalColor.rgb;
-        vec3 bgCol = dimmedShaderRgb;
+        // Terminal texture is premultiplied alpha (rgb already multiplied by alpha)
+        // from GPU blending onto transparent background.
+        // Scale by iTextOpacity to allow fading terminal content.
+        vec3 srcPremul = terminalColor.rgb * iTextOpacity;
+        float srcA = terminalColor.a * iTextOpacity;
 
-        // Composite: text over shader background with premultiplied output
-        float textA = hasText * iTextOpacity;
-        float bgA = (1.0 - hasText) * iOpacity;
+        // Shader background with window opacity (premultiplied)
+        vec3 bgPremul = dimmedShaderRgb * iOpacity;
+        float bgA = iOpacity;
 
-        vec3 finalRgb = textCol * textA + bgCol * bgA;
-        float finalA = textA + bgA;
+        // Standard "over" compositing with premultiplied source and dest:
+        // out.rgb = src.rgb + dst.rgb * (1 - src.a)
+        // out.a = src.a + dst.a * (1 - src.a)
+        vec3 finalRgb = srcPremul + bgPremul * (1.0 - srcA);
+        float finalA = srcA + bgA * (1.0 - srcA);
 
         outColor = vec4(finalRgb, finalA);
     }}
