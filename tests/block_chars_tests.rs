@@ -241,7 +241,7 @@ fn test_snap_glyph_far_from_boundaries() {
 #[test]
 fn test_snap_glyph_middle_boundaries() {
     // Glyph that ends near vertical middle
-    let (left, top, w, h) = snap_glyph_to_cell(
+    let (_left, top, _w, h) = snap_glyph_to_cell(
         10.0, 20.0, // glyph at top-left
         10.0, 9.5, // height ends near middle (20 + 9.5 = 29.5, middle is 30)
         10.0, 20.0, // cell top-left

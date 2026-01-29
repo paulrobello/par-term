@@ -63,7 +63,7 @@ Shaders are written in GLSL (OpenGL Shading Language) and automatically transpil
 
 ### From the Included Collection
 
-Par-term includes 45+ ready-to-use shaders in the `shaders/` directory. See [SHADERS.md](SHADERS.md) for the complete list. Copy any shader to your configuration directory to use it:
+Par-term includes 49 ready-to-use shaders in the `shaders/` directory. See [SHADERS.md](SHADERS.md) for the complete list. Copy any shader to your configuration directory to use it:
 
 ```bash
 # macOS/Linux
@@ -239,14 +239,14 @@ pause_shaders_on_blur: true
 pause_refresh_on_blur: false
 
 # Target FPS when unfocused (only if pause_refresh_on_blur=true)
-unfocused_fps: 10
+unfocused_fps: 30
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `pause_shaders_on_blur` | `bool` | `true` | Pause shader animations when window loses focus |
 | `pause_refresh_on_blur` | `bool` | `false` | Reduce refresh rate when unfocused |
-| `unfocused_fps` | `u32` | `10` | Target FPS when unfocused |
+| `unfocused_fps` | `u32` | `30` | Target FPS when unfocused |
 
 ### Shader Hot Reload
 
@@ -296,6 +296,7 @@ cursor_shader_configs:
 - `channel0`, `channel1`, `channel2`, `channel3`: Override texture paths
 - `cubemap`: Override cubemap path
 - `cubemap_enabled`: Override cubemap enable
+- `use_background_as_channel0`: Use app's background image as iChannel0
 
 **Per-cursor-shader additional fields:**
 - `glow_radius`: Override glow radius
@@ -446,6 +447,7 @@ defaults:
   channel3: null
   cubemap: null
   cubemap_enabled: true
+  use_background_as_channel0: false
 */
 ```
 
@@ -664,7 +666,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 **Solution:**
 - Set `cursor_shader_hides_cursor: true` in config
 - This tells the renderer to skip drawing the default cursor when a cursor shader is active
-- Recommended for shaders that fully replace the cursor (e.g., `cursor_pacman`, `cursor_orbit`)
+- Recommended for shaders that fully replace the cursor (e.g., `cursor_pacman`, `cursor_orbit`, `cursor_water_tank`)
 
 ### Compilation Errors
 

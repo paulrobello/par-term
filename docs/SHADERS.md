@@ -114,8 +114,9 @@ These shaders demonstrate usage of [cursor uniforms](CUSTOM_SHADERS.md#cursor-un
 | `cursor_warp.glsl` | Space-time warp distortion around cursor |
 | `cursor_orbit.glsl` | Particles orbiting around cursor position with fading trail |
 | `cursor_pacman.glsl` | Animated Pac-Man character at cursor (faces movement direction) |
+| `cursor_water_tank.glsl` | Water tank at cursor with sloshing liquid that tilts based on movement |
 
-**Tip:** For shaders that fully replace the cursor (like `cursor_pacman` or `cursor_orbit`), set `cursor_shader_hides_cursor: true` in your config.
+**Tip:** For shaders that fully replace the cursor (like `cursor_pacman`, `cursor_orbit`, or `cursor_water_tank`), set `cursor_shader_hides_cursor: true` in your config.
 
 ---
 

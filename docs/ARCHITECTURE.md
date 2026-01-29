@@ -99,8 +99,8 @@ graph TB
 *   **TabBarUI (`src/tab_bar_ui.rs`)**: egui-based tab bar renderer with click handling, close buttons, activity indicators, and bell icons.
 *   **Input Handler (`src/input.rs`)**: Translates OS window events (keyboard, mouse) into terminal input sequences or application commands (e.g., shortcuts for copy/paste).
 *   **Menu (`src/menu/mod.rs`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).
-*   **Configuration (`src/config.rs`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`).
-*   **Settings UI (`src/settings_ui/mod.rs`)**: egui-based settings overlay with tabs for font, theme, window, terminal, cursor, shell, bell, mouse, scrollbar, and background configuration.
+*   **Configuration (`src/config/mod.rs`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`).
+*   **Settings UI (`src/settings_ui/mod.rs`)**: egui-based settings overlay with tabs for font, theme, window, terminal, cursor, shell, bell, mouse, scrollbar, background, screenshot, and tab bar configuration.
 
 ### Terminal Emulation
 
@@ -123,7 +123,7 @@ graph TB
 
 ### Text & Font Handling
 
-*   **Font Manager (`src/font_manager.rs`)**: Handles font discovery and fallback. It supports:
+*   **Font Manager (`src/font_manager/mod.rs`)**: Handles font discovery and fallback. It supports:
     *   **Primary Font**: The main user-configured monospace font.
     *   **Styled Variants**: Separate fonts for Bold, Italic, etc.
     *   **Range Fonts**: Specific fonts for Unicode ranges (e.g., CJK, Emoji).
