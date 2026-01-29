@@ -93,5 +93,21 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             settings.has_changes = true;
             *changes_this_frame = true;
         }
+
+        // Disable lock_cursor_blink when lock_cursor_style is enabled (style lock already controls blink)
+        ui.add_enabled_ui(!settings.config.lock_cursor_style, |ui| {
+            if ui
+                .checkbox(&mut settings.config.lock_cursor_blink, "Lock cursor blink")
+                .on_hover_text(if settings.config.lock_cursor_style {
+                    "Disabled: Lock cursor style already controls blink"
+                } else {
+                    "Prevent applications from enabling cursor blink"
+                })
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
     });
 }

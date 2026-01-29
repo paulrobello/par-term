@@ -806,8 +806,10 @@ impl WindowState {
     /// Update cursor blink state based on configured interval and DECSCUSR style
     ///
     /// The cursor blink state is determined by:
-    /// 1. The terminal's cursor style (set via DECSCUSR escape sequence) - this takes precedence
-    /// 2. The user's config setting (cursor_blink) - used as default
+    /// 1. If lock_cursor_style is enabled: use config.cursor_blink
+    /// 2. If lock_cursor_blink is enabled and cursor_blink is false: force no blink
+    /// 3. Otherwise: terminal's cursor style (set via DECSCUSR escape sequence)
+    /// 4. Fallback: user's config setting (cursor_blink)
     ///
     /// DECSCUSR values: odd = blinking, even = steady
     /// - 0/1: Blinking block (default)
@@ -817,8 +819,23 @@ impl WindowState {
     /// - 5: Blinking bar
     /// - 6: Steady bar
     pub(crate) fn update_cursor_blink(&mut self) {
+        // If cursor style is locked, use the config's blink setting directly
+        if self.config.lock_cursor_style {
+            if !self.config.cursor_blink {
+                self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
+                return;
+            }
+        } else if self.config.lock_cursor_blink && !self.config.cursor_blink {
+            // If blink is locked off, don't blink regardless of terminal style
+            self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
+            return;
+        }
+
         // Get cursor style from terminal to check if DECSCUSR specified blinking
-        let cursor_should_blink = if let Some(tab) = self.tab_manager.active_tab()
+        let cursor_should_blink = if self.config.lock_cursor_style {
+            // Style is locked, use config's blink setting
+            self.config.cursor_blink
+        } else if let Some(tab) = self.tab_manager.active_tab()
             && let Ok(term) = tab.terminal.try_lock()
         {
             use par_term_emu_core_rust::cursor::CursorStyle;
@@ -999,6 +1016,7 @@ impl WindowState {
 
             // Get cursor style for geometric rendering
             // If lock_cursor_style is enabled, use the config's cursor style instead of terminal's
+            // If lock_cursor_blink is enabled and cursor_blink is false, force steady cursor
             let cursor_style = if current_cursor_pos.is_some() {
                 if self.config.lock_cursor_style {
                     // Convert config cursor style to terminal cursor style
@@ -1017,7 +1035,17 @@ impl WindowState {
                     };
                     Some(style)
                 } else {
-                    Some(term.cursor_style())
+                    let mut style = term.cursor_style();
+                    // If blink is locked off, convert blinking styles to steady
+                    if self.config.lock_cursor_blink && !self.config.cursor_blink {
+                        style = match style {
+                            TermCursorStyle::BlinkingBlock => TermCursorStyle::SteadyBlock,
+                            TermCursorStyle::BlinkingBar => TermCursorStyle::SteadyBar,
+                            TermCursorStyle::BlinkingUnderline => TermCursorStyle::SteadyUnderline,
+                            other => other,
+                        };
+                    }
+                    Some(style)
                 }
             } else {
                 None

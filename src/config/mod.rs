@@ -359,6 +359,11 @@ pub struct Config {
     #[serde(default = "defaults::bool_false")]
     pub lock_cursor_style: bool,
 
+    /// Lock cursor blink - prevent applications from enabling cursor blink
+    /// When true and cursor_blink is false, applications cannot enable blinking cursor
+    #[serde(default = "defaults::bool_false")]
+    pub lock_cursor_blink: bool,
+
     // ========================================================================
     // Scrollbar
     // ========================================================================
@@ -649,6 +654,7 @@ impl Default for Config {
             cursor_color: defaults::cursor_color(),
             lock_cursor_visibility: defaults::bool_false(),
             lock_cursor_style: defaults::bool_false(),
+            lock_cursor_blink: defaults::bool_false(),
             scrollbar_autohide_delay: defaults::scrollbar_autohide_delay(),
             window_title: defaults::window_title(),
             allow_title_change: defaults::bool_true(),

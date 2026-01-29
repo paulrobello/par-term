@@ -127,6 +127,7 @@ cursor_blink: true
 cursor_blink_interval: 500
 lock_cursor_visibility: false  # Prevent apps from hiding cursor
 lock_cursor_style: false       # Prevent apps from changing cursor style
+lock_cursor_blink: false       # Prevent apps from enabling cursor blink
 
 # =============================================================================
 # Scrollbar
