@@ -122,8 +122,61 @@ impl WindowState {
             return; // Key was handled by tab shortcut
         }
 
-        // Clear selection on keyboard input (except for special keys handled above)
+        // Check for Cmd+V/Cmd+C on macOS (Ctrl+V/Ctrl+C handled in input.rs)
+        #[cfg(target_os = "macos")]
+        if event.state == ElementState::Pressed {
+            let cmd = self.input_handler.modifiers.state().super_key();
+            if cmd {
+                if let Key::Character(ref c) = event.logical_key {
+                    match c.as_str() {
+                        "v" | "V" => {
+                            // Cmd+V: Paste
+                            if let Some(bytes) = self.input_handler.paste_from_clipboard()
+                                && let Some(tab) = self.tab_manager.active_tab()
+                            {
+                                let terminal_clone = Arc::clone(&tab.terminal);
+                                self.runtime.spawn(async move {
+                                    let term = terminal_clone.lock().await;
+                                    let _ = term.write(&bytes);
+                                });
+                            }
+                            return;
+                        }
+                        "c" | "C" => {
+                            // Cmd+C: Copy selection to clipboard
+                            if let Some(selected_text) = self.get_selected_text()
+                                && !selected_text.is_empty()
+                            {
+                                if let Err(e) = self.input_handler.copy_to_clipboard(&selected_text)
+                                {
+                                    log::error!("Failed to copy to clipboard: {}", e);
+                                } else {
+                                    log::debug!("Copied {} chars via Cmd+C", selected_text.len());
+                                }
+                            }
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // Clear selection on keyboard input (except for modifier-only keys and special keys handled above)
+        // Don't clear selection when pressing just modifier keys (Ctrl, Alt, Shift, Cmd)
+        let is_modifier_only = matches!(
+            event.logical_key,
+            Key::Named(
+                NamedKey::Control
+                    | NamedKey::Alt
+                    | NamedKey::Shift
+                    | NamedKey::Super
+                    | NamedKey::Meta
+            )
+        );
+
         if event.state == ElementState::Pressed
+            && !is_modifier_only
             && let Some(tab) = self.tab_manager.active_tab_mut()
             && tab.mouse.selection.is_some()
         {

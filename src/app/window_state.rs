@@ -744,17 +744,8 @@ impl WindowState {
 
     /// Check if egui is currently using the pointer (mouse is over an egui UI element)
     pub(crate) fn is_egui_using_pointer(&self) -> bool {
-        // If any UI panel is visible, check if egui wants the pointer
-        let any_ui_visible = self.settings_ui.visible
-            || self.help_ui.visible
-            || self.clipboard_history_ui.visible
-            || self.settings_ui.is_shader_editor_visible()
-            || self.settings_ui.is_cursor_shader_editor_visible();
-        if !any_ui_visible {
-            return false;
-        }
-
-        // Check egui context for pointer usage
+        // Always check egui context - the tab bar is always rendered via egui
+        // and can consume pointer events (e.g., close button clicks)
         if let Some(ctx) = &self.egui_ctx {
             ctx.is_using_pointer() || ctx.wants_pointer_input()
         } else {
