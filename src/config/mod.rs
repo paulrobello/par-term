@@ -17,8 +17,8 @@ pub use shader_metadata::ShaderMetadataCache;
 pub use shader_metadata::{parse_shader_metadata, update_shader_metadata_file};
 // Re-export config types
 pub use types::{
-    BackgroundImageMode, CursorShaderConfig, CursorStyle, FontRange, ShaderConfig, ShaderMetadata,
-    TabBarMode, VsyncMode,
+    BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorStyle, FontRange, ShaderConfig,
+    ShaderMetadata, TabBarMode, VsyncMode,
 };
 #[allow(unused_imports)]
 pub use types::{ResolvedCursorShaderConfig, ResolvedShaderConfig};
@@ -176,6 +176,16 @@ pub struct Config {
     /// Background image opacity (0.0 = fully transparent, 1.0 = fully opaque)
     #[serde(default = "defaults::background_image_opacity")]
     pub background_image_opacity: f32,
+
+    /// Background mode selection (default, color, or image)
+    #[serde(default)]
+    pub background_mode: BackgroundMode,
+
+    /// Custom solid background color [R, G, B] (0-255)
+    /// Used when background_mode is "color"
+    /// Transparency is controlled by window_opacity
+    #[serde(default = "defaults::background_color")]
+    pub background_color: [u8; 3],
 
     /// Custom shader file path (GLSL format, relative to shaders folder or absolute)
     /// Shaders are loaded from ~/.config/par-term/shaders/ by default
@@ -687,6 +697,8 @@ impl Default for Config {
             background_image_enabled: defaults::bool_true(),
             background_image_mode: BackgroundImageMode::default(),
             background_image_opacity: defaults::background_image_opacity(),
+            background_mode: BackgroundMode::default(),
+            background_color: defaults::background_color(),
             custom_shader: None,
             custom_shader_enabled: defaults::bool_true(),
             custom_shader_animation: defaults::bool_true(),

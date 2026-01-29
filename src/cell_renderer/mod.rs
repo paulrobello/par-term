@@ -105,6 +105,13 @@ pub struct CellRenderer {
     pub(crate) bg_image_opacity: f32,
     pub(crate) bg_image_width: u32,
     pub(crate) bg_image_height: u32,
+    /// When true, current background is a solid color (not an image).
+    /// Solid colors should be rendered via clear color to respect window_opacity,
+    /// not via bg_image_pipeline which would cover the transparent background.
+    pub(crate) bg_is_solid_color: bool,
+    /// The solid background color [R, G, B] as floats (0.0-1.0).
+    /// Only used when bg_is_solid_color is true.
+    pub(crate) solid_bg_color: [f32; 3],
 
     // Metrics
     pub(crate) max_bg_instances: usize,
@@ -399,6 +406,8 @@ impl CellRenderer {
             bg_image_opacity: background_image_opacity,
             bg_image_width: 0,
             bg_image_height: 0,
+            bg_is_solid_color: false,
+            solid_bg_color: [0.0, 0.0, 0.0],
             max_bg_instances,
             max_text_instances,
             bg_instances: vec![
@@ -693,6 +702,8 @@ impl CellRenderer {
 
     pub fn update_opacity(&mut self, opacity: f32) {
         self.window_opacity = opacity;
+        // update_bg_image_uniforms() multiplies bg_image_opacity by window_opacity,
+        // so both images and solid colors respect window transparency
         self.update_bg_image_uniforms();
     }
 

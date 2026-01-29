@@ -76,11 +76,17 @@ pub(crate) struct CustomShaderUniforms {
     pub channel4_resolution: [f32; 4],
     /// Cubemap resolution [size, size, 1.0, 0.0] - offset 256, size 16
     pub cubemap_resolution: [f32; 4],
+
+    // ============ Background color uniform ============
+    /// Solid background color [R, G, B, A] - offset 272, size 16
+    /// When A > 0, this color is used as the background instead of shader output.
+    /// RGB values are NOT premultiplied. Alpha indicates solid color mode is active.
+    pub background_color: [f32; 4],
 }
-// Total size: 272 bytes
+// Total size: 288 bytes
 
 // Compile-time assertion to ensure uniform struct size matches expectations
 const _: () = assert!(
-    std::mem::size_of::<CustomShaderUniforms>() == 272,
-    "CustomShaderUniforms must be exactly 272 bytes for GPU compatibility"
+    std::mem::size_of::<CustomShaderUniforms>() == 288,
+    "CustomShaderUniforms must be exactly 288 bytes for GPU compatibility"
 );

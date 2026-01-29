@@ -130,7 +130,11 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     vec4 iChannelResolution3;  // offset 224, size 16 - iChannel3 resolution
     vec4 iChannelResolution4;  // offset 240, size 16 - iChannel4 resolution
     vec4 iCubemapResolution;   // offset 256, size 16 - Cubemap resolution [size, size, 1, 0]
-}};                            // total: 272 bytes
+
+    // Background color uniform
+    vec4 iBackgroundColor;     // offset 272, size 16 - Solid background color [R, G, B, A]
+                               // When A > 0, use this as background instead of shader output
+}};                            // total: 288 bytes
 
 // Shadertoy-compatible iChannelResolution array accessor
 // Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.
@@ -222,9 +226,34 @@ void main() {{
         //   - Everything uses iOpacity
         float pixelOpacity = mix(iOpacity, iTextOpacity, hasContent);
 
-        // Use the shader's RGB output with the computed opacity
-        // The shader already applied any effects (like cursor glow) to the terminal content
-        outColor = vec4(dimmedShaderRgb * pixelOpacity, pixelOpacity);
+        // Determine background: solid color, image (iChannel0), or none
+        float useSolidBg = step(0.01, iBackgroundColor.a);
+        // Check if background image is in iChannel0 (resolution > 1x1 means real texture)
+        float useImageBg = step(2.0, iChannelResolution0.x) * (1.0 - useSolidBg);
+
+        // Sample background image if available
+        vec3 imageBgRgb = texture(iChannel0, vec2(v_uv.x, 1.0 - v_uv.y)).rgb * iBrightness;
+        vec3 solidBgRgb = iBackgroundColor.rgb * iBrightness;
+
+        // Select background: solid color takes priority, then image, then black
+        vec3 bgRgb = mix(mix(vec3(0.0), imageBgRgb, useImageBg), solidBgRgb, useSolidBg);
+        float hasBg = max(useSolidBg, useImageBg);
+
+        // Properly composite terminal over background to fix text edge artifacts
+        // Terminal texture is premultiplied alpha, so: out = term.rgb + bg * (1 - term.a)
+        vec3 termOverBg = terminalColor.rgb + bgRgb * (1.0 - terminalColor.a);
+        vec3 termOverBlack = terminalColor.rgb; // Original behavior when no background
+        vec3 termComposited = mix(termOverBlack, termOverBg, hasBg);
+
+        // Extract shader's glow effect (cursor glow, etc.)
+        // Glow = shader output minus terminal contribution
+        // This preserves cursor effects while allowing proper text compositing
+        vec3 glowEffect = max(dimmedShaderRgb - terminalColor.rgb, vec3(0.0));
+
+        // Final color: properly composited terminal + glow effects
+        vec3 finalRgb = termComposited + glowEffect;
+
+        outColor = vec4(finalRgb * pixelOpacity, pixelOpacity);
     }} else {{
         // Background-only mode: text is composited cleanly on top of shader background
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
@@ -235,8 +264,14 @@ void main() {{
         vec3 srcPremul = terminalColor.rgb * iTextOpacity;
         float srcA = terminalColor.a * iTextOpacity;
 
-        // Shader background with window opacity (premultiplied)
-        vec3 bgPremul = dimmedShaderRgb * iOpacity;
+        // Determine background color:
+        // - If iBackgroundColor.a > 0, use it as solid background (with brightness applied)
+        // - Otherwise, use shader output (dimmedShaderRgb) as background
+        float useSolidBg = step(0.01, iBackgroundColor.a);
+        vec3 bgColor = mix(dimmedShaderRgb, iBackgroundColor.rgb * iBrightness, useSolidBg);
+
+        // Background with window opacity (premultiplied)
+        vec3 bgPremul = bgColor * iOpacity;
         float bgA = iOpacity;
 
         // Standard "over" compositing with premultiplied source and dest:
@@ -408,7 +443,11 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     vec4 iChannelResolution3;  // offset 224, size 16 - iChannel3 resolution
     vec4 iChannelResolution4;  // offset 240, size 16 - iChannel4 resolution
     vec4 iCubemapResolution;   // offset 256, size 16 - Cubemap resolution [size, size, 1, 0]
-}};                            // total: 272 bytes
+
+    // Background color uniform
+    vec4 iBackgroundColor;     // offset 272, size 16 - Solid background color [R, G, B, A]
+                               // When A > 0, use this as background instead of shader output
+}};                            // total: 288 bytes
 
 // Shadertoy-compatible iChannelResolution array accessor
 // Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.
@@ -500,9 +539,34 @@ void main() {{
         //   - Everything uses iOpacity
         float pixelOpacity = mix(iOpacity, iTextOpacity, hasContent);
 
-        // Use the shader's RGB output with the computed opacity
-        // The shader already applied any effects (like cursor glow) to the terminal content
-        outColor = vec4(dimmedShaderRgb * pixelOpacity, pixelOpacity);
+        // Determine background: solid color, image (iChannel0), or none
+        float useSolidBg = step(0.01, iBackgroundColor.a);
+        // Check if background image is in iChannel0 (resolution > 1x1 means real texture)
+        float useImageBg = step(2.0, iChannelResolution0.x) * (1.0 - useSolidBg);
+
+        // Sample background image if available
+        vec3 imageBgRgb = texture(iChannel0, vec2(v_uv.x, 1.0 - v_uv.y)).rgb * iBrightness;
+        vec3 solidBgRgb = iBackgroundColor.rgb * iBrightness;
+
+        // Select background: solid color takes priority, then image, then black
+        vec3 bgRgb = mix(mix(vec3(0.0), imageBgRgb, useImageBg), solidBgRgb, useSolidBg);
+        float hasBg = max(useSolidBg, useImageBg);
+
+        // Properly composite terminal over background to fix text edge artifacts
+        // Terminal texture is premultiplied alpha, so: out = term.rgb + bg * (1 - term.a)
+        vec3 termOverBg = terminalColor.rgb + bgRgb * (1.0 - terminalColor.a);
+        vec3 termOverBlack = terminalColor.rgb; // Original behavior when no background
+        vec3 termComposited = mix(termOverBlack, termOverBg, hasBg);
+
+        // Extract shader's glow effect (cursor glow, etc.)
+        // Glow = shader output minus terminal contribution
+        // This preserves cursor effects while allowing proper text compositing
+        vec3 glowEffect = max(dimmedShaderRgb - terminalColor.rgb, vec3(0.0));
+
+        // Final color: properly composited terminal + glow effects
+        vec3 finalRgb = termComposited + glowEffect;
+
+        outColor = vec4(finalRgb * pixelOpacity, pixelOpacity);
     }} else {{
         // Background-only mode: text is composited cleanly on top of shader background
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
@@ -513,8 +577,14 @@ void main() {{
         vec3 srcPremul = terminalColor.rgb * iTextOpacity;
         float srcA = terminalColor.a * iTextOpacity;
 
-        // Shader background with window opacity (premultiplied)
-        vec3 bgPremul = dimmedShaderRgb * iOpacity;
+        // Determine background color:
+        // - If iBackgroundColor.a > 0, use it as solid background (with brightness applied)
+        // - Otherwise, use shader output (dimmedShaderRgb) as background
+        float useSolidBg = step(0.01, iBackgroundColor.a);
+        vec3 bgColor = mix(dimmedShaderRgb, iBackgroundColor.rgb * iBrightness, useSolidBg);
+
+        // Background with window opacity (premultiplied)
+        vec3 bgPremul = bgColor * iOpacity;
         float bgA = iOpacity;
 
         // Standard "over" compositing with premultiplied source and dest:

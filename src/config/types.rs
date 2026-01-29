@@ -57,6 +57,19 @@ pub enum BackgroundImageMode {
     Center,
 }
 
+/// Background source selection
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum BackgroundMode {
+    /// Use theme's default background color
+    #[default]
+    Default,
+    /// Use a custom solid color
+    Color,
+    /// Use a background image
+    Image,
+}
+
 /// Tab bar visibility mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]

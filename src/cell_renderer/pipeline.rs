@@ -7,6 +7,23 @@ use wgpu::*;
 
 use super::types::{BackgroundInstance, TextInstance, Vertex};
 
+/// Custom blend state that blends RGB normally but replaces alpha.
+/// This prevents alpha accumulation across multiple layers, ensuring
+/// the final alpha equals window_opacity for proper window transparency.
+const ALPHA_BLEND_RGB_REPLACE_ALPHA: BlendState = BlendState {
+    color: BlendComponent {
+        src_factor: BlendFactor::SrcAlpha,
+        dst_factor: BlendFactor::OneMinusSrcAlpha,
+        operation: BlendOperation::Add,
+    },
+    alpha: BlendComponent {
+        // Replace alpha instead of accumulating: src * 1 + dst * 0 = src
+        src_factor: BlendFactor::One,
+        dst_factor: BlendFactor::Zero,
+        operation: BlendOperation::Add,
+    },
+};
+
 /// Create the background pipeline for cell backgrounds
 pub fn create_bg_pipeline(device: &Device, surface_format: TextureFormat) -> RenderPipeline {
     let bg_shader = device.create_shader_module(include_wgsl!("../shaders/cell_bg.wgsl"));
@@ -43,8 +60,9 @@ pub fn create_bg_pipeline(device: &Device, surface_format: TextureFormat) -> Ren
             compilation_options: Default::default(),
             targets: &[Some(ColorTargetState {
                 format: surface_format,
-                // Use standard alpha blending for cell backgrounds
-                blend: Some(BlendState::ALPHA_BLENDING),
+                // Use custom blend that replaces alpha to prevent accumulation
+                // This ensures window_opacity is preserved across layers
+                blend: Some(ALPHA_BLEND_RGB_REPLACE_ALPHA),
                 write_mask: ColorWrites::ALL,
             })],
         }),
@@ -154,7 +172,8 @@ pub fn create_text_pipeline(
             compilation_options: Default::default(),
             targets: &[Some(ColorTargetState {
                 format: surface_format,
-                // Use standard alpha blending since shader outputs non-premultiplied colors
+                // Use standard alpha blending for text - text renders last on specific
+                // glyph pixels only, so accumulation isn't an issue here
                 blend: Some(BlendState::ALPHA_BLENDING),
                 write_mask: ColorWrites::ALL,
             })],

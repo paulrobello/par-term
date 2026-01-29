@@ -142,6 +142,12 @@ pub struct CustomShaderRenderer {
     /// Background texture to use as iChannel0 when use_background_as_channel0 is true
     /// This is a reference texture (view + sampler + dimensions) from the cell renderer
     pub(crate) background_channel_texture: Option<ChannelTexture>,
+
+    // ============ Solid background color ============
+    /// Solid background color [R, G, B, A] for shader compositing.
+    /// When A > 0, the shader uses this color as background instead of shader output.
+    /// RGB values are NOT premultiplied.
+    pub(crate) background_color: [f32; 4],
 }
 
 impl CustomShaderRenderer {
@@ -314,6 +320,7 @@ impl CustomShaderRenderer {
             cubemap,
             use_background_as_channel0: false,
             background_channel_texture: None,
+            background_color: [0.0, 0.0, 0.0, 0.0], // No solid background by default
         })
     }
 
@@ -383,6 +390,19 @@ impl CustomShaderRenderer {
         output_view: &TextureView,
         apply_opacity: bool,
     ) -> Result<()> {
+        self.render_with_clear_color(device, queue, output_view, apply_opacity, Color::TRANSPARENT)
+    }
+
+    /// Render the custom shader with a specified clear color.
+    /// Use this for solid background colors where the clear color provides the background.
+    pub fn render_with_clear_color(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        output_view: &TextureView,
+        apply_opacity: bool,
+        clear_color: Color,
+    ) -> Result<()> {
         let now = Instant::now();
 
         // Calculate time value
@@ -423,7 +443,7 @@ impl CustomShaderRenderer {
                     view: output_view,
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Clear(Color::TRANSPARENT),
+                        load: LoadOp::Clear(clear_color),
                         store: StoreOp::Store,
                     },
                     depth_slice: None,
@@ -547,6 +567,7 @@ impl CustomShaderRenderer {
                 0.0,
             ],
             cubemap_resolution: self.cubemap.resolution(),
+            background_color: self.background_color,
         }
     }
 
@@ -843,6 +864,18 @@ impl CustomShaderRenderer {
         if self.use_background_as_channel0 {
             self.recreate_bind_group(device);
         }
+    }
+
+    /// Set the solid background color for shader compositing.
+    ///
+    /// When set (alpha > 0), the shader uses this color as background instead of shader output.
+    /// This allows solid background colors to show through properly with window transparency.
+    ///
+    /// # Arguments
+    /// * `color` - RGB color values [R, G, B] (0.0-1.0, NOT premultiplied)
+    /// * `active` - Whether solid color mode is active (sets alpha to 1.0 or 0.0)
+    pub fn set_background_color(&mut self, color: [f32; 3], active: bool) {
+        self.background_color = [color[0], color[1], color[2], if active { 1.0 } else { 0.0 }];
     }
 
     /// Check if channel0 has a real configured texture (not just a 1x1 placeholder).

@@ -1,5 +1,5 @@
 use super::SettingsUI;
-use crate::config::{BackgroundImageMode, ShaderConfig, ShaderMetadata};
+use crate::config::{BackgroundImageMode, BackgroundMode, ShaderConfig, ShaderMetadata};
 use arboard::Clipboard;
 use egui::Color32;
 use std::path::Path;
@@ -29,94 +29,169 @@ pub fn show_background(
     changes_this_frame: &mut bool,
 ) {
     ui.collapsing("Background & Effects", |ui| {
+        // Background mode selector
         ui.horizontal(|ui| {
-            ui.label("Background image path:");
-            if ui
-                .text_edit_singleline(&mut settings.temp_background_image)
-                .changed()
-            {
-                settings.config.background_image =
-                    if settings.temp_background_image.is_empty() {
-                        None
-                    } else {
-                        Some(settings.temp_background_image.clone())
-                    };
-                settings.has_changes = true;
-            }
-
-            if ui.button("Browse…").clicked()
-                && let Some(path) =
-                    settings.pick_file_path("Select background image")
-            {
-                settings.temp_background_image = path.clone();
-                settings.config.background_image = Some(path);
-                settings.has_changes = true;
-            }
-        });
-
-        if ui
-            .checkbox(
-                &mut settings.config.background_image_enabled,
-                "Enable background image",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.horizontal(|ui| {
-            ui.label("Background image mode:");
-            let current = match settings.config.background_image_mode {
-                BackgroundImageMode::Fit => 0,
-                BackgroundImageMode::Fill => 1,
-                BackgroundImageMode::Stretch => 2,
-                BackgroundImageMode::Tile => 3,
-                BackgroundImageMode::Center => 4,
+            ui.label("Background mode:");
+            let current = match settings.config.background_mode {
+                BackgroundMode::Default => 0,
+                BackgroundMode::Color => 1,
+                BackgroundMode::Image => 2,
             };
             let mut selected = current;
-            egui::ComboBox::from_id_salt("bg_mode")
+            egui::ComboBox::from_id_salt("bg_source_mode")
                 .selected_text(match current {
-                    0 => "Fit",
-                    1 => "Fill",
-                    2 => "Stretch",
-                    3 => "Tile",
-                    4 => "Center",
+                    0 => "Default (Theme)",
+                    1 => "Solid Color",
+                    2 => "Image",
                     _ => "Unknown",
                 })
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut selected, 0, "Fit");
-                    ui.selectable_value(&mut selected, 1, "Fill");
-                    ui.selectable_value(&mut selected, 2, "Stretch");
-                    ui.selectable_value(&mut selected, 3, "Tile");
-                    ui.selectable_value(&mut selected, 4, "Center");
+                    ui.selectable_value(&mut selected, 0, "Default (Theme)");
+                    ui.selectable_value(&mut selected, 1, "Solid Color");
+                    ui.selectable_value(&mut selected, 2, "Image");
                 });
             if selected != current {
-                settings.config.background_image_mode = match selected {
-                    0 => BackgroundImageMode::Fit,
-                    1 => BackgroundImageMode::Fill,
-                    2 => BackgroundImageMode::Stretch,
-                    3 => BackgroundImageMode::Tile,
-                    4 => BackgroundImageMode::Center,
-                    _ => BackgroundImageMode::Stretch,
+                settings.config.background_mode = match selected {
+                    0 => BackgroundMode::Default,
+                    1 => BackgroundMode::Color,
+                    2 => BackgroundMode::Image,
+                    _ => BackgroundMode::Default,
                 };
-                settings.has_changes = true;
-            }
-        });
-
-        ui.horizontal(|ui| {
-            ui.label("Background image opacity:");
-            if ui
-                .add(egui::Slider::new(
-                    &mut settings.config.background_image_opacity,
-                    0.0..=1.0,
-                ))
-                .changed()
-            {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
         });
+
+        ui.add_space(4.0);
+
+        // Mode-specific settings
+        match settings.config.background_mode {
+            BackgroundMode::Default => {
+                ui.label("Using theme background color.");
+            }
+            BackgroundMode::Color => {
+                // Solid color settings
+                ui.horizontal(|ui| {
+                    ui.label("Background color:");
+                    // Convert [u8; 3] to egui Color32 for color picker
+                    let mut color = Color32::from_rgb(
+                        settings.temp_background_color[0],
+                        settings.temp_background_color[1],
+                        settings.temp_background_color[2],
+                    );
+                    if ui.color_edit_button_srgba(&mut color).changed() {
+                        settings.temp_background_color = [color.r(), color.g(), color.b()];
+                        settings.config.background_color = settings.temp_background_color;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+
+                    // Show hex value
+                    ui.label(format!(
+                        "#{:02X}{:02X}{:02X}",
+                        settings.temp_background_color[0],
+                        settings.temp_background_color[1],
+                        settings.temp_background_color[2]
+                    ));
+                });
+                ui.label("Transparency controlled by Window Opacity setting.");
+            }
+            BackgroundMode::Image => {
+                // Image settings
+                ui.horizontal(|ui| {
+                    ui.label("Background image path:");
+                    if ui
+                        .text_edit_singleline(&mut settings.temp_background_image)
+                        .changed()
+                    {
+                        settings.config.background_image =
+                            if settings.temp_background_image.is_empty() {
+                                None
+                            } else {
+                                Some(settings.temp_background_image.clone())
+                            };
+                        settings.has_changes = true;
+                    }
+
+                    if ui.button("Browse…").clicked()
+                        && let Some(path) =
+                            settings.pick_file_path("Select background image")
+                    {
+                        settings.temp_background_image = path.clone();
+                        settings.config.background_image = Some(path);
+                        settings.has_changes = true;
+                    }
+                });
+
+                if ui
+                    .checkbox(
+                        &mut settings.config.background_image_enabled,
+                        "Enable background image",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                ui.horizontal(|ui| {
+                    ui.label("Background image mode:");
+                    let current = match settings.config.background_image_mode {
+                        BackgroundImageMode::Fit => 0,
+                        BackgroundImageMode::Fill => 1,
+                        BackgroundImageMode::Stretch => 2,
+                        BackgroundImageMode::Tile => 3,
+                        BackgroundImageMode::Center => 4,
+                    };
+                    let mut selected = current;
+                    egui::ComboBox::from_id_salt("bg_mode")
+                        .selected_text(match current {
+                            0 => "Fit",
+                            1 => "Fill",
+                            2 => "Stretch",
+                            3 => "Tile",
+                            4 => "Center",
+                            _ => "Unknown",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut selected, 0, "Fit");
+                            ui.selectable_value(&mut selected, 1, "Fill");
+                            ui.selectable_value(&mut selected, 2, "Stretch");
+                            ui.selectable_value(&mut selected, 3, "Tile");
+                            ui.selectable_value(&mut selected, 4, "Center");
+                        });
+                    if selected != current {
+                        settings.config.background_image_mode = match selected {
+                            0 => BackgroundImageMode::Fit,
+                            1 => BackgroundImageMode::Fill,
+                            2 => BackgroundImageMode::Stretch,
+                            3 => BackgroundImageMode::Tile,
+                            4 => BackgroundImageMode::Center,
+                            _ => BackgroundImageMode::Stretch,
+                        };
+                        settings.has_changes = true;
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Background image opacity:");
+                    if ui
+                        .add(egui::Slider::new(
+                            &mut settings.config.background_image_opacity,
+                            0.0..=1.0,
+                        ))
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+            }
+        }
+
+        ui.add_space(8.0);
+        ui.separator();
+        ui.add_space(4.0);
 
         // Shader selection dropdown
         ui.horizontal(|ui| {
@@ -576,16 +651,16 @@ pub fn show_background(
             ui.label("Use iChannelResolution[n].xy for texture dimensions");
         });
 
-        // Use background image as iChannel0
+        // Use background as iChannel0
         ui.add_space(8.0);
         if ui
             .checkbox(
                 &mut settings.config.custom_shader_use_background_as_channel0,
-                "Use background image as iChannel0",
+                "Use background as iChannel0",
             )
             .on_hover_text(
-                "When enabled, the app's background image is bound as iChannel0 instead of a separate texture file.\n\
-                This allows shaders to incorporate the background image without requiring a separate texture."
+                "When enabled, the app's background (image or solid color) is bound as iChannel0 instead of a separate texture file.\n\
+                This allows shaders to incorporate the background without requiring a separate texture."
             )
             .changed()
         {
@@ -1053,7 +1128,7 @@ fn show_per_shader_settings(
             if ui
                 .checkbox(&mut value, "Use background as iChannel0")
                 .on_hover_text(
-                    "Use the app's background image as iChannel0 instead of a separate texture file",
+                    "Use the app's background (image or solid color) as iChannel0 instead of a separate texture file",
                 )
                 .changed()
             {

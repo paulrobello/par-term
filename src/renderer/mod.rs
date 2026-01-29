@@ -457,6 +457,7 @@ impl Renderer {
     }
 
     /// Enable/disable background image and reload if needed
+    #[allow(dead_code)]
     pub fn set_background_image_enabled(
         &mut self,
         enabled: bool,
@@ -469,6 +470,65 @@ impl Renderer {
 
         // Sync background texture to custom shader if it's using background as channel0
         self.sync_background_texture_to_shader();
+
+        self.dirty = true;
+    }
+
+    /// Set background based on mode (Default, Color, or Image).
+    ///
+    /// This unified method handles all background types and syncs with shaders.
+    pub fn set_background(
+        &mut self,
+        mode: crate::config::BackgroundMode,
+        color: [u8; 3],
+        image_path: Option<&str>,
+        image_mode: crate::config::BackgroundImageMode,
+        image_opacity: f32,
+        image_enabled: bool,
+    ) {
+        self.cell_renderer.set_background(
+            mode,
+            color,
+            image_path,
+            image_mode,
+            image_opacity,
+            image_enabled,
+        );
+
+        // Sync background texture to custom shader if it's using background as channel0
+        self.sync_background_texture_to_shader();
+
+        // Sync background to shaders for proper compositing
+        let is_solid_color = matches!(mode, crate::config::BackgroundMode::Color);
+        let is_image_mode = matches!(mode, crate::config::BackgroundMode::Image);
+        let normalized_color = [
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0,
+        ];
+
+        // Sync to cursor shader
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_background_color(normalized_color, is_solid_color);
+
+            // For image mode, pass background image as iChannel0
+            if is_image_mode && image_enabled {
+                let bg_texture = self.cell_renderer.get_background_as_channel_texture();
+                cursor_shader.set_background_texture(self.cell_renderer.device(), bg_texture);
+                cursor_shader
+                    .update_use_background_as_channel0(self.cell_renderer.device(), true);
+            } else {
+                // Clear background texture when not in image mode
+                cursor_shader.set_background_texture(self.cell_renderer.device(), None);
+                cursor_shader
+                    .update_use_background_as_channel0(self.cell_renderer.device(), false);
+            }
+        }
+
+        // Sync to custom shader
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_background_color(normalized_color, is_solid_color);
+        }
 
         self.dirty = true;
     }
@@ -557,13 +617,14 @@ impl Renderer {
             )?
         } else if use_cursor_shader {
             // Render terminal to intermediate texture for cursor shader
-            // Cursor shader doesn't use background as channel0, so always render it
+            // Skip background image - it will be handled via iBackgroundColor uniform
+            // or passed as iChannel0. This ensures proper opacity handling.
             self.cell_renderer.render_to_texture(
                 self.cursor_shader_renderer
                     .as_ref()
                     .unwrap()
                     .intermediate_texture_view(),
-                false, // Don't skip background image
+                true, // Skip background image - shader handles it
             )?
         } else {
             // Render directly to surface (no shaders, or cursor shader disabled for alt screen)
@@ -616,6 +677,7 @@ impl Renderer {
             let surface_view = surface_texture
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
+
             cursor_shader.render(
                 self.cell_renderer.device(),
                 self.cell_renderer.queue(),

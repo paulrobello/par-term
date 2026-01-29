@@ -46,11 +46,13 @@ pub(crate) struct ConfigChanges {
     pub cursor_blink: bool,
     pub cursor_color: bool,
 
-    // Background image
-    pub bg_enabled: bool,
-    pub bg_path: bool,
+    // Background (mode, image, and solid color)
     pub bg_mode: bool,
-    pub bg_opacity: bool,
+    pub bg_color: bool,
+    pub bg_image_enabled: bool,
+    pub bg_image_path: bool,
+    pub bg_image_mode: bool,
+    pub bg_image_opacity: bool,
 
     // Font/spacing (requires rebuild)
     pub font: bool,
@@ -135,10 +137,12 @@ impl ConfigChanges {
             cursor_blink: new.cursor_blink != old.cursor_blink,
             cursor_color: new.cursor_color != old.cursor_color,
 
-            bg_enabled: new.background_image_enabled != old.background_image_enabled,
-            bg_path: new.background_image != old.background_image,
-            bg_mode: new.background_image_mode != old.background_image_mode,
-            bg_opacity: (new.background_image_opacity - old.background_image_opacity).abs()
+            bg_mode: new.background_mode != old.background_mode,
+            bg_color: new.background_color != old.background_color,
+            bg_image_enabled: new.background_image_enabled != old.background_image_enabled,
+            bg_image_path: new.background_image != old.background_image,
+            bg_image_mode: new.background_image_mode != old.background_image_mode,
+            bg_image_opacity: (new.background_image_opacity - old.background_image_opacity).abs()
                 > f32::EPSILON,
 
             font: new.font_family != old.font_family
@@ -185,9 +189,14 @@ impl ConfigChanges {
             || self.cursor_shader_disable_in_alt_screen
     }
 
-    /// Returns true if any background image setting changed
+    /// Returns true if any background setting changed (mode, color, or image)
     pub fn any_bg_change(&self) -> bool {
-        self.bg_enabled || self.bg_path || self.bg_mode || self.bg_opacity
+        self.bg_mode
+            || self.bg_color
+            || self.bg_image_enabled
+            || self.bg_image_path
+            || self.bg_image_mode
+            || self.bg_image_opacity
     }
 
     /// Returns true if shader watcher needs to be reinitialized

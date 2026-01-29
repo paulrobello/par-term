@@ -76,6 +76,7 @@ impl CellRenderer {
         self.bg_image_texture = Some(texture);
         self.bg_image_width = width;
         self.bg_image_height = height;
+        self.bg_is_solid_color = false; // This is an image, not a solid color
         self.update_bg_image_uniforms();
         Ok(())
     }
@@ -100,8 +101,10 @@ impl CellRenderer {
         // mode (u32)
         data[16..20].copy_from_slice(&(self.bg_image_mode as u32).to_le_bytes());
 
-        // opacity (f32)
-        data[20..24].copy_from_slice(&self.bg_image_opacity.to_le_bytes());
+        // opacity (f32) - combine bg_image_opacity with window_opacity
+        // so background images/solid colors respect window transparency
+        let effective_opacity = self.bg_image_opacity * self.window_opacity;
+        data[20..24].copy_from_slice(&effective_opacity.to_le_bytes());
 
         // padding is already zeros
 
@@ -122,11 +125,13 @@ impl CellRenderer {
             if let Err(e) = self.load_background_image(p) {
                 log::error!("Failed to load background image '{}': {}", p, e);
             }
+            // Note: bg_is_solid_color is set in load_background_image
         } else {
             self.bg_image_texture = None;
             self.bg_image_bind_group = None;
             self.bg_image_width = 0;
             self.bg_image_height = 0;
+            self.bg_is_solid_color = false;
         }
         self.update_bg_image_uniforms();
     }
@@ -174,5 +179,256 @@ impl CellRenderer {
     #[allow(dead_code)]
     pub fn has_background_image(&self) -> bool {
         self.bg_image_texture.is_some()
+    }
+
+    /// Check if a solid color background is currently set.
+    pub fn is_solid_color_background(&self) -> bool {
+        self.bg_is_solid_color
+    }
+
+    /// Get the solid background color as normalized RGB values.
+    /// Returns the color even if not in solid color mode.
+    pub fn solid_background_color(&self) -> [f32; 3] {
+        self.solid_bg_color
+    }
+
+    /// Get the solid background color as a wgpu::Color with window_opacity applied.
+    /// Returns None if not in solid color mode.
+    #[allow(dead_code)]
+    pub fn get_solid_color_as_clear(&self) -> Option<wgpu::Color> {
+        if self.bg_is_solid_color {
+            Some(wgpu::Color {
+                r: self.solid_bg_color[0] as f64 * self.window_opacity as f64,
+                g: self.solid_bg_color[1] as f64 * self.window_opacity as f64,
+                b: self.solid_bg_color[2] as f64 * self.window_opacity as f64,
+                a: self.window_opacity as f64,
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Create a solid color texture for use as background.
+    ///
+    /// Creates a small (4x4) texture filled with the specified color.
+    /// Uses Stretch mode for solid colors to fill the entire window.
+    /// Transparency is controlled by window_opacity, not the texture alpha.
+    pub fn create_solid_color_texture(&mut self, color: [u8; 3]) {
+        debug_info!(
+            "BACKGROUND",
+            "create_solid_color_texture: RGB({}, {}, {}) -> normalized ({:.3}, {:.3}, {:.3})",
+            color[0],
+            color[1],
+            color[2],
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0
+        );
+        let size = 4u32; // 4x4 for proper linear filtering
+        let mut pixels = Vec::with_capacity((size * size * 4) as usize);
+        for _ in 0..(size * size) {
+            pixels.push(color[0]);
+            pixels.push(color[1]);
+            pixels.push(color[2]);
+            pixels.push(255); // Fully opaque - window_opacity controls transparency
+        }
+
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("bg solid color"),
+            size: wgpu::Extent3d {
+                width: size,
+                height: size,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * size),
+                rows_per_image: Some(size),
+            },
+            wgpu::Extent3d {
+                width: size,
+                height: size,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        self.bg_image_bind_group =
+            Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("bg solid color bind group"),
+                layout: &self.bg_image_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: self.bg_image_uniform_buffer.as_entire_binding(),
+                    },
+                ],
+            }));
+
+        self.bg_image_texture = Some(texture);
+        self.bg_image_width = size;
+        self.bg_image_height = size;
+        // Use Stretch mode for solid colors to fill the window
+        self.bg_image_mode = crate::config::BackgroundImageMode::Stretch;
+        // Use 1.0 as base opacity - window_opacity is applied in update_bg_image_uniforms()
+        self.bg_image_opacity = 1.0;
+        // Mark this as a solid color for tracking purposes
+        self.bg_is_solid_color = true;
+        self.solid_bg_color = [
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0,
+        ];
+        self.update_bg_image_uniforms();
+    }
+
+    /// Create a ChannelTexture from a solid color for shader iChannel0.
+    ///
+    /// Creates a small texture with the specified color that can be used
+    /// as a channel texture in custom shaders. The texture is fully opaque;
+    /// window_opacity controls overall transparency.
+    pub fn get_solid_color_as_channel_texture(&self, color: [u8; 3]) -> ChannelTexture {
+        log::info!(
+            "get_solid_color_as_channel_texture: RGB({},{},{})",
+            color[0],
+            color[1],
+            color[2]
+        );
+        let size = 4u32;
+        let mut pixels = Vec::with_capacity((size * size * 4) as usize);
+        for _ in 0..(size * size) {
+            pixels.push(color[0]);
+            pixels.push(color[1]);
+            pixels.push(color[2]);
+            pixels.push(255); // Fully opaque
+        }
+
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("solid color channel texture"),
+            size: wgpu::Extent3d {
+                width: size,
+                height: size,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * size),
+                rows_per_image: Some(size),
+            },
+            wgpu::Extent3d {
+                width: size,
+                height: size,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            ..Default::default()
+        });
+
+        ChannelTexture::from_view_and_texture(view, sampler, size, size, texture)
+    }
+
+    /// Set background based on mode (Default, Color, or Image).
+    ///
+    /// This unified method handles all background types and should be used
+    /// instead of calling individual methods directly.
+    pub fn set_background(
+        &mut self,
+        mode: crate::config::BackgroundMode,
+        color: [u8; 3],
+        image_path: Option<&str>,
+        image_mode: crate::config::BackgroundImageMode,
+        image_opacity: f32,
+        image_enabled: bool,
+    ) {
+        debug_info!(
+            "BACKGROUND",
+            "set_background: mode={:?}, color=RGB({}, {}, {}), image_path={:?}",
+            mode,
+            color[0],
+            color[1],
+            color[2],
+            image_path
+        );
+        match mode {
+            crate::config::BackgroundMode::Default => {
+                // Clear background texture - use theme default
+                self.bg_image_texture = None;
+                self.bg_image_bind_group = None;
+                self.bg_image_width = 0;
+                self.bg_image_height = 0;
+                self.bg_is_solid_color = false;
+            }
+            crate::config::BackgroundMode::Color => {
+                // create_solid_color_texture sets bg_is_solid_color = true
+                self.create_solid_color_texture(color);
+            }
+            crate::config::BackgroundMode::Image => {
+                if image_enabled {
+                    // set_background_image sets bg_is_solid_color = false
+                    self.set_background_image(image_path, image_mode, image_opacity);
+                } else {
+                    // Image disabled - clear texture
+                    self.bg_image_texture = None;
+                    self.bg_image_bind_group = None;
+                    self.bg_image_width = 0;
+                    self.bg_image_height = 0;
+                    self.bg_is_solid_color = false;
+                }
+            }
+        }
     }
 }

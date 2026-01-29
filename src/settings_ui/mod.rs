@@ -80,6 +80,9 @@ pub struct SettingsUI {
     /// Temporary string for cubemap path prefix (iCubemap)
     pub(crate) temp_cubemap_path: String,
 
+    /// Temporary color for solid background color editing
+    pub(crate) temp_background_color: [u8; 3],
+
     /// Search query used to filter settings sections
     pub(crate) search_query: String,
 
@@ -179,6 +182,7 @@ impl SettingsUI {
             temp_shader_channel2: config.custom_shader_channel2.clone().unwrap_or_default(),
             temp_shader_channel3: config.custom_shader_channel3.clone().unwrap_or_default(),
             temp_cubemap_path: config.custom_shader_cubemap.clone().unwrap_or_default(),
+            temp_background_color: config.background_color,
             last_live_opacity: config.window_opacity,
             current_cols: initial_cols,
             current_rows: initial_rows,

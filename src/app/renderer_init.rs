@@ -5,7 +5,8 @@
 //! and `initialize_async()`.
 
 use crate::config::{
-    BackgroundImageMode, Config, FontRange, ShaderMetadata, VsyncMode, resolve_shader_config,
+    BackgroundImageMode, BackgroundMode, Config, FontRange, ShaderMetadata, VsyncMode,
+    resolve_shader_config,
 };
 
 /// Expand tilde in path to home directory
@@ -44,7 +45,12 @@ pub(crate) struct RendererInitParams {
     pub enable_kerning: bool,
     pub vsync_mode: VsyncMode,
     pub window_opacity: f32,
+    /// Theme background color (used for Default mode and cell backgrounds)
     pub background_color: [u8; 3],
+    /// Background mode: Default (theme), Color (solid), or Image
+    pub background_mode: BackgroundMode,
+    /// Solid background color from config (used when background_mode is Color)
+    pub solid_background_color: [u8; 3],
     pub background_image_path: Option<String>,
     pub background_image_enabled: bool,
     pub background_image_mode: BackgroundImageMode,
@@ -116,10 +122,14 @@ impl RendererInitParams {
             vsync_mode: config.vsync_mode,
             window_opacity: config.window_opacity,
             background_color: theme.background.as_array(),
+            background_mode: config.background_mode,
+            solid_background_color: config.background_color,
             background_image_path: {
                 let path = config.background_image.as_ref().map(|p| expand_path(p));
                 log::info!(
-                    "RendererInitParams: background_image_path={:?}, enabled={}",
+                    "RendererInitParams: background_mode={:?}, solid_color={:?}, image_path={:?}, enabled={}",
+                    config.background_mode,
+                    config.background_color,
                     path,
                     config.background_image_enabled
                 );
@@ -197,6 +207,27 @@ impl RendererInitParams {
             self.transparency_affects_only_default_background,
         );
         renderer.set_keep_text_opaque(self.keep_text_opaque);
+
+        // Apply background mode (Default, Color, or Image)
+        // This must be called after renderer creation to properly set up solid color mode
+        renderer.set_background(
+            self.background_mode,
+            self.solid_background_color,
+            self.background_image_path.as_deref(),
+            self.background_image_mode,
+            self.background_image_opacity,
+            self.background_image_enabled,
+        );
+
+        // Sync background texture with shader if use_background_as_channel0 is enabled
+        // This must be called AFTER set_background() so the texture exists for Color mode
+        if self.use_background_as_channel0 {
+            renderer.update_background_as_channel0_with_mode(
+                true,
+                self.background_mode,
+                self.solid_background_color,
+            );
+        }
 
         Ok(renderer)
     }

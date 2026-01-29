@@ -107,6 +107,33 @@ impl ChannelTexture {
         }
     }
 
+    /// Create a ChannelTexture from a view, sampler, and owned texture.
+    ///
+    /// This is used when creating a new texture that should be kept alive
+    /// by this ChannelTexture instance (e.g., solid color textures).
+    ///
+    /// # Arguments
+    /// * `view` - The texture view to use
+    /// * `sampler` - The sampler for texture filtering
+    /// * `width` - Texture width in pixels
+    /// * `height` - Texture height in pixels
+    /// * `texture` - The owned texture to keep alive
+    pub fn from_view_and_texture(
+        view: TextureView,
+        sampler: Sampler,
+        width: u32,
+        height: u32,
+        texture: Texture,
+    ) -> Self {
+        Self {
+            texture: Some(texture),
+            view,
+            sampler,
+            width,
+            height,
+        }
+    }
+
     /// Load a texture from an image file
     ///
     /// Supports common image formats (PNG, JPEG, etc.) via the `image` crate.

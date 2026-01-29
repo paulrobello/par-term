@@ -593,7 +593,7 @@ impl WindowManager {
                     window_state.needs_redraw = true;
                 }
 
-                // Apply background image changes
+                // Apply background changes (mode, color, or image)
                 if changes.any_bg_change() {
                     // Expand tilde in path
                     let expanded_path = config.background_image.as_ref().map(|p| {
@@ -604,11 +604,13 @@ impl WindowManager {
                         }
                         p.clone()
                     });
-                    renderer.set_background_image_enabled(
-                        config.background_image_enabled,
+                    renderer.set_background(
+                        config.background_mode,
+                        config.background_color,
                         expanded_path.as_deref(),
                         config.background_image_mode,
                         config.background_image_opacity,
+                        config.background_image_enabled,
                     );
                     window_state.needs_redraw = true;
                 }
@@ -669,7 +671,11 @@ impl WindowManager {
                     || changes.any_bg_change()
                     || changes.shader_per_shader_config
                 {
-                    renderer.update_background_as_channel0(resolved.use_background_as_channel0);
+                    renderer.update_background_as_channel0_with_mode(
+                        resolved.use_background_as_channel0,
+                        config.background_mode,
+                        config.background_color,
+                    );
                 }
 
                 // Apply cursor shader changes

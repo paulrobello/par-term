@@ -17,6 +17,46 @@ impl CellRenderer {
                 label: Some("render encoder"),
             });
 
+        // Determine clear color and whether to use bg_image pipeline:
+        // - Solid color mode: use clear color directly (same as Default mode for proper transparency)
+        // - Image mode: use TRANSPARENT clear, let bg_image_pipeline handle background
+        // - Default mode: use theme background with window_opacity
+        let (clear_color, use_bg_image_pipeline) = if self.bg_is_solid_color {
+            // Solid color mode: use clear color directly for proper window transparency
+            // This works the same as Default mode - LoadOp::Clear sets alpha correctly
+            debug_info!(
+                "BACKGROUND",
+                "Solid color mode: RGB({:.3}, {:.3}, {:.3}) * opacity {:.3}",
+                self.solid_bg_color[0],
+                self.solid_bg_color[1],
+                self.solid_bg_color[2],
+                self.window_opacity
+            );
+            (
+                wgpu::Color {
+                    r: self.solid_bg_color[0] as f64 * self.window_opacity as f64,
+                    g: self.solid_bg_color[1] as f64 * self.window_opacity as f64,
+                    b: self.solid_bg_color[2] as f64 * self.window_opacity as f64,
+                    a: self.window_opacity as f64,
+                },
+                false,
+            )
+        } else if self.bg_image_bind_group.is_some() {
+            // Image mode: use TRANSPARENT, let bg_image_pipeline handle background
+            (wgpu::Color::TRANSPARENT, true)
+        } else {
+            // Default mode: use theme background with window_opacity
+            (
+                wgpu::Color {
+                    r: self.background_color[0] as f64 * self.window_opacity as f64,
+                    g: self.background_color[1] as f64 * self.window_opacity as f64,
+                    b: self.background_color[2] as f64 * self.window_opacity as f64,
+                    a: self.window_opacity as f64,
+                },
+                false,
+            )
+        };
+
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("render pass"),
@@ -24,14 +64,7 @@ impl CellRenderer {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        // Premultiply clear color for PreMultiplied composite alpha mode
-                        // This ensures correct compositing with the window manager
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: self.background_color[0] as f64 * self.window_opacity as f64,
-                            g: self.background_color[1] as f64 * self.window_opacity as f64,
-                            b: self.background_color[2] as f64 * self.window_opacity as f64,
-                            a: self.window_opacity as f64,
-                        }),
+                        load: wgpu::LoadOp::Clear(clear_color),
                         store: wgpu::StoreOp::Store,
                     },
                     depth_slice: None,
@@ -41,7 +74,10 @@ impl CellRenderer {
                 occlusion_query_set: None,
             });
 
-            if let Some(ref bg_bind_group) = self.bg_image_bind_group {
+            // Render background image if present (not used for solid color mode)
+            if use_bg_image_pipeline
+                && let Some(ref bg_bind_group) = self.bg_image_bind_group
+            {
                 render_pass.set_pipeline(&self.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -74,6 +110,9 @@ impl CellRenderer {
     /// * `target_view` - The texture view to render to
     /// * `skip_background_image` - If true, skip rendering the background image. Use this when
     ///   a custom shader will handle the background image via iChannel0 instead.
+    ///
+    /// Note: Solid color backgrounds are NOT rendered here. For cursor shaders, the solid color
+    /// is passed to the shader's render function as the clear color instead.
     pub fn render_to_texture(
         &mut self,
         target_view: &wgpu::TextureView,
@@ -82,11 +121,27 @@ impl CellRenderer {
         let output = self.surface.get_current_texture()?;
         self.build_instance_buffers()?;
 
+        // Only render background IMAGE to intermediate texture (not solid color).
+        // Solid colors are handled by the shader's clear color for proper compositing.
+        let render_background_image =
+            !skip_background_image && !self.bg_is_solid_color && self.bg_image_bind_group.is_some();
+        let saved_window_opacity = self.window_opacity;
+
+        if render_background_image {
+            // Temporarily set window_opacity to 1.0 for the background render
+            // The shader wrapper will apply window_opacity at the end
+            self.window_opacity = 1.0;
+            self.update_bg_image_uniforms();
+        }
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("render to texture encoder"),
             });
+
+        // Always clear with TRANSPARENT for intermediate textures
+        let clear_color = wgpu::Color::TRANSPARENT;
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -95,10 +150,7 @@ impl CellRenderer {
                     view: target_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        // Clear with fully transparent so the custom shader can distinguish
-                        // terminal content (text/colored backgrounds with alpha > 0) from
-                        // empty background (alpha = 0 which shader replaces with its effect)
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        load: wgpu::LoadOp::Clear(clear_color),
                         store: wgpu::StoreOp::Store,
                     },
                     depth_slice: None,
@@ -108,8 +160,13 @@ impl CellRenderer {
                 occlusion_query_set: None,
             });
 
-            // Only render background image if not skipping (shader will handle it via iChannel0)
-            if !skip_background_image && let Some(ref bg_bind_group) = self.bg_image_bind_group {
+            // Render background IMAGE (not solid color) via bg_image_pipeline at full opacity
+            if render_background_image && let Some(ref bg_bind_group) = self.bg_image_bind_group {
+                debug_info!(
+                    "BACKGROUND",
+                    "render_to_texture: bg_image_pipeline (image, window_opacity={:.3} applied by shader)",
+                    saved_window_opacity
+                );
                 render_pass.set_pipeline(&self.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -129,6 +186,13 @@ impl CellRenderer {
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
+
+        // Restore window_opacity and update uniforms
+        if render_background_image {
+            self.window_opacity = saved_window_opacity;
+            self.update_bg_image_uniforms();
+        }
+
         Ok(output)
     }
 

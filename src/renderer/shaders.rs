@@ -346,6 +346,24 @@ impl Renderer {
                         );
                         // Sync keep_text_opaque from cell renderer
                         renderer.set_keep_text_opaque(self.cell_renderer.keep_text_opaque());
+                        // Sync background color for solid color mode
+                        renderer.set_background_color(
+                            self.cell_renderer.solid_background_color(),
+                            self.cell_renderer.is_solid_color_background(),
+                        );
+                        // Sync background image for image mode
+                        let is_image_mode = self.cell_renderer.has_background_image()
+                            && !self.cell_renderer.is_solid_color_background();
+                        if is_image_mode {
+                            let bg_texture =
+                                self.cell_renderer.get_background_as_channel_texture();
+                            renderer
+                                .set_background_texture(self.cell_renderer.device(), bg_texture);
+                            renderer.update_use_background_as_channel0(
+                                self.cell_renderer.device(),
+                                true,
+                            );
+                        }
                         debug_info!(
                             "cursor-shader",
                             "Enabled at runtime: {}",
@@ -511,6 +529,11 @@ impl Renderer {
                         renderer.set_brightness(brightness);
                         // Sync keep_text_opaque from cell renderer
                         renderer.set_keep_text_opaque(self.cell_renderer.keep_text_opaque());
+                        // Sync background color for solid color mode
+                        renderer.set_background_color(
+                            self.cell_renderer.solid_background_color(),
+                            self.cell_renderer.is_solid_color_background(),
+                        );
                         crate::debug_info!(
                             "SHADER",
                             "Custom shader enabled at runtime: {}",
@@ -574,10 +597,11 @@ impl Renderer {
     ///
     /// This method should be called when:
     /// - The use_background_as_channel0 setting changes
-    /// - The background image changes (to sync the new texture)
+    /// - The background image or solid color changes (to sync the new texture)
     /// - Per-shader config changes
     ///
     /// The background texture is always synced to ensure changes are reflected.
+    #[allow(dead_code)]
     pub fn update_background_as_channel0(&mut self, use_background: bool) {
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
             // Always sync the background texture first - it may have changed
@@ -587,6 +611,64 @@ impl Renderer {
             // Then update the flag - this will recreate bind group if flag actually changed
             custom_shader
                 .update_use_background_as_channel0(self.cell_renderer.device(), use_background);
+
+            self.dirty = true;
+        }
+    }
+
+    /// Update background as channel0 with solid color support.
+    ///
+    /// This method handles the case where background_mode is Color and we need to
+    /// create a solid color texture to pass as iChannel0 instead of an image.
+    ///
+    /// # Arguments
+    /// * `use_background` - Whether to use background as iChannel0
+    /// * `background_mode` - The current background mode (Default, Color, or Image)
+    /// * `color` - The solid background color (used if mode is Color)
+    pub fn update_background_as_channel0_with_mode(
+        &mut self,
+        use_background: bool,
+        background_mode: crate::config::BackgroundMode,
+        color: [u8; 3],
+    ) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            // Get the appropriate texture based on background mode
+            let bg_texture = match background_mode {
+                crate::config::BackgroundMode::Default => {
+                    log::info!("update_background_as_channel0_with_mode: Default mode, no texture");
+                    None
+                }
+                crate::config::BackgroundMode::Color => {
+                    // Create a solid color texture for the shader
+                    log::info!(
+                        "update_background_as_channel0_with_mode: Color mode, creating solid color texture RGB({},{},{})",
+                        color[0],
+                        color[1],
+                        color[2]
+                    );
+                    Some(self.cell_renderer.get_solid_color_as_channel_texture(color))
+                }
+                crate::config::BackgroundMode::Image => {
+                    // Use the existing background image texture
+                    let tex = self.cell_renderer.get_background_as_channel_texture();
+                    log::info!(
+                        "update_background_as_channel0_with_mode: Image mode, texture={}",
+                        if tex.is_some() { "Some" } else { "None" }
+                    );
+                    tex
+                }
+            };
+
+            let has_texture = bg_texture.is_some();
+            custom_shader.set_background_texture(self.cell_renderer.device(), bg_texture);
+            custom_shader
+                .update_use_background_as_channel0(self.cell_renderer.device(), use_background);
+
+            log::info!(
+                "update_background_as_channel0_with_mode: use_background={}, has_texture={}",
+                use_background,
+                has_texture
+            );
 
             self.dirty = true;
         }
