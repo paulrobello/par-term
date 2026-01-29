@@ -75,9 +75,7 @@ impl CellRenderer {
             });
 
             // Render background image if present (not used for solid color mode)
-            if use_bg_image_pipeline
-                && let Some(ref bg_bind_group) = self.bg_image_bind_group
-            {
+            if use_bg_image_pipeline && let Some(ref bg_bind_group) = self.bg_image_bind_group {
                 render_pass.set_pipeline(&self.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));

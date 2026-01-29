@@ -390,7 +390,13 @@ impl CustomShaderRenderer {
         output_view: &TextureView,
         apply_opacity: bool,
     ) -> Result<()> {
-        self.render_with_clear_color(device, queue, output_view, apply_opacity, Color::TRANSPARENT)
+        self.render_with_clear_color(
+            device,
+            queue,
+            output_view,
+            apply_opacity,
+            Color::TRANSPARENT,
+        )
     }
 
     /// Render the custom shader with a specified clear color.

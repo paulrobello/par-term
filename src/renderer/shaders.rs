@@ -354,7 +354,10 @@ impl Renderer {
                             // Background shader handles the background, cursor shader just passes through
                             renderer.set_background_color([0.0, 0.0, 0.0], false);
                             renderer.set_background_texture(self.cell_renderer.device(), None);
-                            renderer.update_use_background_as_channel0(self.cell_renderer.device(), false);
+                            renderer.update_use_background_as_channel0(
+                                self.cell_renderer.device(),
+                                false,
+                            );
                         } else {
                             // Sync background color for solid color mode
                             renderer.set_background_color(
@@ -367,8 +370,10 @@ impl Renderer {
                             if is_image_mode {
                                 let bg_texture =
                                     self.cell_renderer.get_background_as_channel_texture();
-                                renderer
-                                    .set_background_texture(self.cell_renderer.device(), bg_texture);
+                                renderer.set_background_texture(
+                                    self.cell_renderer.device(),
+                                    bg_texture,
+                                );
                                 renderer.update_use_background_as_channel0(
                                     self.cell_renderer.device(),
                                     true,
