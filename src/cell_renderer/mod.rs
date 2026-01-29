@@ -497,6 +497,9 @@ impl CellRenderer {
     pub fn grid_size(&self) -> (usize, usize) {
         (self.cols, self.rows)
     }
+    pub fn keep_text_opaque(&self) -> bool {
+        self.keep_text_opaque
+    }
 
     pub fn resize(&mut self, width: u32, height: u32) -> (usize, usize) {
         if width == 0 || height == 0 {

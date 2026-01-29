@@ -330,6 +330,8 @@ impl Renderer {
                             self.cell_renderer.cell_height(),
                             self.cell_renderer.window_padding(),
                         );
+                        // Sync keep_text_opaque from cell renderer
+                        renderer.set_keep_text_opaque(self.cell_renderer.keep_text_opaque());
                         debug_info!(
                             "cursor-shader",
                             "Enabled at runtime: {}",
@@ -493,6 +495,8 @@ impl Renderer {
                         );
                         // Apply brightness setting
                         renderer.set_brightness(brightness);
+                        // Sync keep_text_opaque from cell renderer
+                        renderer.set_keep_text_opaque(self.cell_renderer.keep_text_opaque());
                         crate::debug_info!(
                             "SHADER",
                             "Custom shader enabled at runtime: {}",
