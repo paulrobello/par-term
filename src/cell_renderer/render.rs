@@ -275,7 +275,8 @@ impl CellRenderer {
 
                     // Create single quad spanning entire run (no per-cell rounding)
                     let x0 = self.window_padding + start_col as f32 * self.cell_width;
-                    let x1 = self.window_padding + (start_col + run_length) as f32 * self.cell_width;
+                    let x1 =
+                        self.window_padding + (start_col + run_length) as f32 * self.cell_width;
                     let y0 = self.window_padding + row as f32 * self.cell_height;
                     let y1 = y0 + self.cell_height;
 
