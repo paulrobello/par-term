@@ -367,11 +367,20 @@ impl CustomShaderRenderer {
     }
 
     /// Render the custom shader effect to the output texture
+    ///
+    /// # Arguments
+    /// * `device` - The GPU device
+    /// * `queue` - The command queue
+    /// * `output_view` - The texture view to render to
+    /// * `apply_opacity` - Whether to apply window opacity. Set to `false` when rendering
+    ///   to an intermediate texture that will be processed by another shader (to avoid
+    ///   double-applying opacity).
     pub fn render(
         &mut self,
         device: &Device,
         queue: &Queue,
         output_view: &TextureView,
+        apply_opacity: bool,
     ) -> Result<()> {
         let now = Instant::now();
 
@@ -398,7 +407,7 @@ impl CustomShaderRenderer {
         self.frame_count = self.frame_count.wrapping_add(1);
 
         // Calculate uniforms
-        let uniforms = self.build_uniforms(time, time_delta);
+        let uniforms = self.build_uniforms(time, time_delta, apply_opacity);
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[uniforms]));
 
         // Create command encoder and render
@@ -433,7 +442,12 @@ impl CustomShaderRenderer {
     }
 
     /// Build the uniform buffer data
-    fn build_uniforms(&self, time: f32, time_delta: f32) -> CustomShaderUniforms {
+    fn build_uniforms(
+        &self,
+        time: f32,
+        time_delta: f32,
+        apply_opacity: bool,
+    ) -> CustomShaderUniforms {
         // Calculate iMouse uniform
         let height = self.texture_height as f32;
         let mouse_y_flipped = height - self.mouse_position[1];
@@ -464,16 +478,24 @@ impl CustomShaderRenderer {
         let (prev_x, prev_y) =
             self.cursor_to_pixels(self.previous_cursor_pos.0, self.previous_cursor_pos.1);
 
+        // When rendering to intermediate texture (for further shader processing),
+        // don't apply opacity - let the final shader in the chain apply it once.
+        let effective_opacity = if apply_opacity {
+            self.window_opacity
+        } else {
+            1.0
+        };
+
         CustomShaderUniforms {
             resolution: [self.texture_width as f32, self.texture_height as f32],
             time,
             time_delta,
             mouse,
             date,
-            opacity: self.window_opacity,
+            opacity: effective_opacity,
             // When keep_text_opaque is true, text stays at full opacity (1.0)
             // When false, text uses the same opacity as the window background
-            text_opacity: if self.keep_text_opaque {
+            text_opacity: if self.keep_text_opaque || !apply_opacity {
                 1.0
             } else {
                 self.window_opacity

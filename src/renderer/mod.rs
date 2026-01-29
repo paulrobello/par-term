@@ -559,6 +559,7 @@ impl Renderer {
         let custom_shader_time = if let Some(ref mut custom_shader) = self.custom_shader_renderer {
             if use_cursor_shader {
                 // Background shader renders to cursor shader's intermediate texture
+                // Don't apply opacity here - cursor shader will apply it when rendering to surface
                 custom_shader.render(
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),
@@ -566,6 +567,7 @@ impl Renderer {
                         .as_ref()
                         .unwrap()
                         .intermediate_texture_view(),
+                    false, // Don't apply opacity - cursor shader will do it
                 )?;
             } else {
                 // Background shader renders directly to surface
@@ -577,6 +579,7 @@ impl Renderer {
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),
                     &surface_view,
+                    true, // Apply opacity - this is the final render
                 )?;
 
                 // Render overlays (scrollbar, visual bell) on top after shader
@@ -600,6 +603,7 @@ impl Renderer {
                 self.cell_renderer.device(),
                 self.cell_renderer.queue(),
                 &surface_view,
+                true, // Apply opacity - this is the final render to surface
             )?;
 
             // Render overlays (scrollbar, visual bell) on top after cursor shader
