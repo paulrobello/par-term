@@ -1,3 +1,27 @@
+/*! par-term shader metadata
+name: cursor_pacman
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: null
+  brightness: null
+  text_opacity: null
+  full_content: null
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
+  hides_cursor: true
+  glow_radius: null
+  glow_intensity: null
+  trail_duration: null
+  cursor_color: null
+*/
+
 // Pac-Man Cursor Shader
 // Draws a Pac-Man at the cursor position that faces left or right
 // based on cursor movement direction. Defaults to facing right.

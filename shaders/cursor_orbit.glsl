@@ -1,3 +1,27 @@
+/*! par-term shader metadata
+name: cursor_orbit
+author: null
+description: null
+version: 1.0.0
+defaults:
+  animation_speed: null
+  brightness: null
+  text_opacity: null
+  full_content: null
+  channel0: null
+  channel1: null
+  channel2: null
+  channel3: null
+  cubemap: null
+  cubemap_enabled: null
+  use_background_as_channel0: null
+  hides_cursor: true
+  glow_radius: null
+  glow_intensity: null
+  trail_duration: null
+  cursor_color: null
+*/
+
 // Orbiting Ball Cursor Shader
 // A ball that traces the inside edge of the cursor cell with a fading trail
 //
