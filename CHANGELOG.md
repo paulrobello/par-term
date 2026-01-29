@@ -7,6 +7,162 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-01-29
+
+### Added
+
+#### Settings & Configuration
+- **Standalone Settings Window**: Moved settings UI from overlay to dedicated window
+  - `F12` or `Cmd+,` (macOS) / `Ctrl+,` (Linux/Windows) to open
+  - Automatically brought to front when terminal gains focus
+  - View and edit settings while terminal content remains visible
+- **Per-Shader Configuration System**: 3-tier configuration for background and cursor shaders
+  - Shader metadata defaults embedded in GLSL files (`/*! par-term shader metadata ... */`)
+  - Per-shader user overrides in `shader_configs` section of config.yaml
+  - Global config fallback for unspecified values
+  - "Save Defaults to Shader" button to write settings back to shader files
+  - Per-shader UI controls for animation_speed, brightness, text_opacity, texture channels
+- **Shader Hot Reload**: Automatic shader reloading when files are modified on disk
+  - Configurable via `shader_hot_reload` (default: false) and `shader_hot_reload_delay` (default: 100ms)
+  - Desktop notifications on reload success/failure
+  - Visual bell on compilation errors when enabled
+- **Power Saving Options**: Reduce resource usage when window is unfocused
+  - `pause_shaders_on_blur` (default: true): Pause shader animations when unfocused
+  - `pause_refresh_on_blur` (default: false): Reduce refresh rate when unfocused
+  - `unfocused_fps` (default: 30): Target FPS when window is unfocused
+- **Cursor Lock Options**: Prevent applications from overriding cursor preferences
+  - `lock_cursor_visibility`: Prevent apps from hiding cursor via DECTCEM
+  - `lock_cursor_style`: Prevent apps from changing cursor style via DECSCUSR
+  - `lock_cursor_blink`: Prevent apps from enabling cursor blink when user has it disabled
+- **Background Mode Options**: Choose between theme default, solid color, or background image
+  - `background_mode`: "default", "color", or "image"
+  - `background_color`: Custom solid color with color picker in UI
+  - Solid color passed to shaders via `iBackgroundColor` uniform
+- **Resize Overlay**: Centered overlay during window resize showing dimensions
+  - Displays both character (cols×rows) and pixel dimensions
+  - Auto-hides 1 second after resize stops
+- **Grid-Based Window Sizing**: Calculate initial window size from cols×rows
+  - No visible resize on startup (like iTerm2)
+  - "Use Current Size" button in settings to save current dimensions
+
+#### Terminal Features
+- **Bracketed Paste Mode Support**: Proper paste handling for shells that support it
+  - Wraps pasted content with `ESC[200~`/`ESC[201~` sequences
+  - Prevents accidental command execution when pasting text with newlines
+  - Works with bash 4.4+, zsh, fish, and other modern shells
+- **DECSCUSR Cursor Shape Support**: Dynamic cursor changes via escape sequences
+  - Applications can change cursor style (block/underline/bar) and blink state
+  - Respects user's `lock_cursor_style` and `lock_cursor_blink` settings
+- **Multi-Character Grapheme Cluster Rendering**: Proper handling of complex Unicode
+  - Flag emoji (🇺🇸) using regional indicator pairs
+  - ZWJ sequences (👨‍👩‍👧‍👦) for family/profession emoji
+  - Skin tone modifiers (👋🏽)
+  - Combining characters (diacritics)
+  - Requires par-term-emu-core-rust v0.22.0
+- **Box Drawing Geometric Rendering**: Pixel-perfect TUI borders and block characters
+  - Light/heavy horizontal and vertical lines (─ ━ │ ┃)
+  - All corners, T-junctions, and crosses (┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ etc.)
+  - Double lines and corners (═ ║ ╔ ╗ ╚ ╝ etc.)
+  - Rounded corners (╭ ╮ ╯ ╰)
+  - Solid, partial, and quadrant block elements (█ ▄ ▀ ▐ ▌ etc.)
+  - Eliminates gaps between adjacent cells
+
+#### Tab Bar Enhancements
+- **Tab Bar Color Configuration**: 11 new options for full color customization
+  - Background, active/inactive/hover tab colors
+  - Text colors, indicator colors, close button colors
+  - Settings UI panel for live color editing
+- **Per-Tab Custom Colors**: Right-click context menu to set individual tab colors
+  - Color presets row with custom color picker
+  - Color indicator dot on inactive tabs with custom colors
+- **Tab Layout Improvements**:
+  - Equal-width tabs that spread across available space
+  - Horizontal scrolling with arrow buttons when tabs exceed minimum width
+  - Configurable `tab_min_width` (default: 120px, range: 120-512px)
+  - Tab borders with configurable width and color
+  - Toggle for tab close button visibility
+- **Inactive Tab Dimming**: Visual distinction for active tab
+  - `dim_inactive_tabs` (default: true)
+  - `inactive_tab_opacity` (default: 0.6)
+
+#### Shader System
+- **Cubemap Support**: Load 6-face cubemap textures for environment reflections
+  - Auto-discovery of cubemap folders in settings UI dropdown
+  - Standard naming convention: px/nx/py/ny/pz/nz
+- **iTimeKeyPress Uniform**: Track when last key was pressed for typing effects
+  - Enables screen pulses, typing animations, keystroke visualizations
+  - Included keypress_pulse.glsl demo shader
+- **use_background_as_channel0**: Option to use app's background image as iChannel0
+  - Allows shaders to incorporate configured background image into effects
+- **New Background Shaders**:
+  - `rain.glsl`: Rain on glass post-processing effect
+  - `singularity.glsl`: Whirling blackhole with red/blue accretion disk
+  - `universe-within.glsl`: Mystical neural network with pulsing nodes
+  - `convergence.glsl`: Swirling voronoi patterns with lightning bolt
+  - `gyroid.glsl`: Raymarched gyroid tunnel with colorful lighting
+  - `dodecagon-pattern.glsl`: BRDF metallic tile pattern
+  - `arcane-portal.glsl`: Animated portal with swirling energy
+  - `bumped_sinusoidal_warp.glsl`: Warped texture effect
+- **Cursor Shader Overrides**: Per-shader settings for cursor effects
+  - animation_speed, hides_cursor, disable_in_alt_screen
+
+#### Window Transparency
+- **Proper Window Transparency Support**: Correct alpha handling across platforms
+  - Appropriate alpha mode selection based on surface capabilities
+  - macOS window blur support via CGS private API
+  - `transparency_affects_only_default_background` (default: true)
+  - `keep_text_opaque` option to maintain text clarity
+  - RLE background rendering to eliminate seams between cells
+
+#### macOS Improvements
+- **macOS Clipboard Shortcuts**: `Cmd+C` and `Cmd+V` support
+- **Keyboard Shortcuts in Shader Editors**: Fixed `Cmd+A/C/V/X` in text editors
+
+### Changed
+- **Core Library Update**: Bumped `par-term-emu-core-rust` to v0.22.0 for grapheme cluster support
+- **Default VSync Mode**: Changed to FIFO (most compatible across platforms)
+- **Default Unfocused FPS**: Changed from 10 to 30 for better background responsiveness
+- **Default Blur Radius**: Changed to 8 for better visual effect
+- **Build Target**: `make build` now uses release mode; added `make build-debug` for debug builds
+- **Shader Optimizations**:
+  - Removed iChannel4 terminal blending dependencies from background shaders
+  - Replaced pow(x, n) with multiplications
+  - Precomputed constants and reduced loop iterations
+
+### Fixed
+- **Text Clarity with Shaders**: Use nearest filtering instead of linear for terminal texture
+- **Shader Transparency Chaining**: Preserve transparency when both background and cursor shaders enabled
+- **Double Opacity Bug**: Fixed background getting darker when cursor shader enabled with opacity < 100%
+- **DPI Scaling**: Properly recalculate font metrics when moving between displays with different DPIs
+- **Background Image Loading**: Fixed tilde expansion and uniform buffer layout
+- **Cursor Settings**: Cursor style and blink changes now apply to running terminals
+- **FPS Throttling**: Properly throttle when window unfocused with pause_refresh_on_blur
+- **Selection Bug**: Modifier keys (Ctrl/Alt/Cmd) alone no longer clear text selection
+- **Tab Bar Click-Through**: Tab close button clicks no longer leak to terminal
+- **Alt Screen Rendering**: Fixed black screen when cursor shader disabled for alt screen apps
+- **Animation Resume**: Respect user's animation settings when resuming from blur
+- **Box Drawing Lines**: Adjusted thickness for cell aspect ratio consistency
+
+### Refactored
+- **Large File Extraction**: Decomposed monolithic files into focused modules
+  - `config/` module directory with types.rs, defaults.rs
+  - `font_manager/` with types.rs, loader.rs, fallbacks.rs
+  - `settings_ui/` with shader_editor.rs, cursor_shader_editor.rs, shader_dialogs.rs
+  - `custom_shader_renderer/` with pipeline.rs, cursor.rs
+  - `cell_renderer/` with pipeline.rs
+  - `window_state/` with tab_ops.rs, scroll_ops.rs, keyboard_handlers.rs
+  - `mouse_events/` with text_selection.rs, url_hover.rs
+  - `app/handler/` with notifications.rs
+- **DRY Helpers**: RendererInitParams, ConfigChanges structs for cleaner code
+- **GPU Utilities**: New gpu_utils.rs module with reusable sampler and texture helpers
+
+### Documentation
+- Added `docs/SHADERS.md` with complete list of 49 included shaders by category
+- Updated `docs/CUSTOM_SHADERS.md` with all uniforms and configuration options
+- Added code organization guidelines to CLAUDE.md
+
+---
+
 ## [0.4.0] - 2026-01-23
 
 ### Added
@@ -325,7 +481,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/paulrobello/par-term/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/paulrobello/par-term/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/paulrobello/par-term/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/paulrobello/par-term/compare/v0.1.1...v0.2.0

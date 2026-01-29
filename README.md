@@ -12,97 +12,131 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.4.0
+## What's New in 0.5.0
 
-### 🗂️ Multi-Tab Support
+### 🪟 Standalone Settings Window
 
-Each window now supports multiple terminal tabs, each with its own independent PTY session.
+Settings moved from an overlay to a dedicated window for a better editing experience.
 
-- **New Tab**: `Cmd+T` (macOS) / `Ctrl+T` to create a new tab
-- **Close Tab**: `Cmd+W` closes tab (or window if single tab)
-- **Tab Switching**: `Cmd+Shift+[` / `Cmd+Shift+]` or `Ctrl+Tab` / `Ctrl+Shift+Tab`
-- **Direct Tab Access**: `Cmd+1` through `Cmd+9` to switch to specific tabs
-- **Tab Reordering**: `Cmd+Shift+Left/Right` to move tabs
-- **Duplicate Tab**: Create new tab with same working directory
-- **Tab Bar**: Visual tab bar with close buttons, activity indicators, and bell icons
-- **Configurable**: Tab bar visibility (always, when_multiple, never), height, and styling
+- **Keyboard Shortcuts**: `F12` or `Cmd+,` (macOS) / `Ctrl+,` (Linux/Windows)
+- **Stay Visible**: Settings window automatically brought to front when terminal gains focus
+- **Edit While Viewing**: Configure settings while terminal content remains fully visible
 
-### 🪟 Multi-Window Support
+### 🎨 Per-Shader Configuration System
 
-Spawn multiple independent terminal windows, each with its own PTY session and tabs.
+Advanced 3-tier configuration for background and cursor shaders.
 
-- **New Window**: `Cmd+N` (macOS) / `Ctrl+N` to open a new terminal window
-- **Close Window**: `Cmd+W` (macOS) / `Ctrl+W` to close the current window
-- **Independent Sessions**: Each window runs its own shell process with separate scrollback and state
-- **Clean Shutdown**: Application exits when the last window is closed
+- **Shader Metadata**: Embed defaults directly in GLSL files (`/*! par-term shader metadata ... */`)
+- **Per-Shader Overrides**: Customize each shader independently in `shader_configs` section
+- **Global Fallback**: Unspecified values fall back to global config
+- **Save to Shader**: "Save Defaults to Shader" button writes settings back to shader files
+- **Shader Hot Reload**: Auto-reload shaders when files change (`shader_hot_reload: true`)
 
-### 📋 Native Menu Bar
+### 🔤 Enhanced Unicode Rendering
 
-Cross-platform native menu support using the [muda](https://github.com/tauri-apps/muda) crate.
+Pixel-perfect rendering for complex Unicode and TUI applications.
 
-- **macOS**: Global application menu bar with standard macOS conventions
-- **Windows/Linux**: Per-window menu bar with GTK integration on Linux
-- **Full Keyboard Accelerators**: All menu items have proper keyboard shortcuts
+- **Grapheme Clusters**: Proper rendering of flag emoji (🇺🇸), ZWJ sequences (👨‍👩‍👧‍👦), skin tone modifiers (👋🏽)
+- **Box Drawing**: Geometric rendering for all box drawing characters (─ │ ┌ ┐ └ ┘ ├ ┤ etc.)
+- **Block Elements**: Solid, partial, and quadrant blocks (█ ▄ ▀ ▐ ▌) render without gaps
+- **DECSCUSR**: Applications can change cursor style dynamically via escape sequences
 
-#### Menu Structure
+### 🗂️ Tab Bar Enhancements
 
-| Menu | Items |
-|------|-------|
-| **File** | New Window, New Tab, Close Tab, Close Window, Quit (Windows/Linux) |
-| **Edit** | Copy, Paste, Select All, Clear Scrollback, Clipboard History |
-| **View** | Toggle Fullscreen, Font Size (+/-/Reset), FPS Overlay, Settings |
-| **Tab** | New Tab, Close Tab, Next/Previous Tab, Move Tab Left/Right, Duplicate Tab |
-| **Window** (macOS) | Minimize, Zoom |
-| **Help** | Keyboard Shortcuts, About |
+Improved tab management with full color customization.
 
-### 🎨 Custom Shader Enhancements
+- **Color Configuration**: 11 new options for complete tab bar styling
+- **Per-Tab Colors**: Right-click context menu to set individual tab colors
+- **Equal-Width Layout**: Tabs spread evenly with horizontal scrolling when needed
+- **Inactive Dimming**: Visual distinction with configurable opacity for inactive tabs
+- **Border Styling**: Configurable tab borders with active tab highlighting
 
-- **Texture Channels**: Shadertoy-compatible iChannel1-4 texture support for custom images in shaders
-- **Brightness Control**: `custom_shader_brightness` setting to dim shader backgrounds for better text readability
-- **Cursor Shader Options**: `cursor_shader_hides_cursor` allows shaders to fully replace cursor rendering
-- **New Shaders**: Added clouds, happy_fractal, bumped_sinusoidal_warp, cursor_orbit effects
+### 🔒 Window Transparency
 
-### 🏗️ Architecture Improvements
+Proper transparency support across platforms.
 
-- **TabManager**: New multi-tab coordinator manages tab lifecycle within each window
-- **WindowManager**: Multi-window coordinator handles window lifecycle and menu events
-- **WindowState**: Per-window state cleanly separated from application-level state
-- **Event Routing**: Events properly routed to the correct window and tab
+- **macOS Blur**: Window blur effect via CGS private API
+- **Alpha Handling**: Correct alpha mode selection based on surface capabilities
+- **Text Clarity**: `keep_text_opaque` option maintains readable text at low opacity
+- **Selective Transparency**: `transparency_affects_only_default_background` preserves colored backgrounds
 
-## What's New in 0.3.0
+### 🎮 Shader System Improvements
 
-### 🎨 Ghostty-Compatible Cursor Shaders
+- **Cubemap Support**: Load 6-face cubemap textures for environment reflections
+- **iTimeKeyPress**: Track key presses for typing effect shaders
+- **use_background_as_channel0**: Use app's background image in shader effects
+- **9 New Shaders**: rain, singularity, universe-within, convergence, gyroid, dodecagon-pattern, arcane-portal, bumped_sinusoidal_warp, keypress_pulse
 
-Full support for cursor-based shader animations compatible with [Ghostty](https://ghostty.org/) custom shaders.
+### 🔋 Power Saving
 
-- **Cursor Uniforms**: `iCurrentCursor`, `iPreviousCursor`, `iCurrentCursorColor`, `iTimeCursorChange` uniforms for cursor trail effects
-- **Configurable Cursor Color**: New cursor color setting in the UI, exposed as `iCurrentCursorColor` to shaders
-- **Cursor Style Toggle**: `Cmd+,` (macOS) / `Ctrl+,` to cycle through Block, Beam, and Underline cursor styles
-- **Built-in Cursor Shaders**: Includes sweep, warp, glow, blaze, trail, ripple, and boom effects
-- **Geometric Cursor Rendering**: Proper visual rendering for all cursor styles (Block, Beam, Underline)
+- **pause_shaders_on_blur**: Pause shader animations when window unfocused (default: true)
+- **pause_refresh_on_blur**: Reduce refresh rate when unfocused
+- **unfocused_fps**: Configurable FPS when not in focus (default: 30)
 
-### 🐚 Shell & Terminal Fixes
+### 🖱️ Cursor Lock Options
 
-- **Login Shell Support**: Fixed issues with login shell initialization and environment loading
+Prevent applications from overriding your cursor preferences.
 
-### 🖼️ Shader Editor Improvements
+- **lock_cursor_visibility**: Block apps from hiding cursor
+- **lock_cursor_style**: Block apps from changing cursor shape
+- **lock_cursor_blink**: Block apps from enabling blink when you've disabled it
 
-- **Filename Display**: Background and cursor shader editors now show the filename being edited in the window header
+### 📋 Terminal Improvements
 
-## What's New in 0.2.0
+- **Bracketed Paste**: Proper paste handling for modern shells (bash 4.4+, zsh, fish)
+- **Resize Overlay**: Shows cols×rows and pixel dimensions during window resize
+- **Grid-Based Sizing**: Initial window size calculated from cols×rows (no startup resize flash)
 
-### 🔋 Intelligent Redraw Loop (Power Efficiency)
+<details>
+<summary><strong>What's New in 0.4.0</strong></summary>
 
-Significantly reduced CPU and GPU usage by switching from continuous polling to event-driven rendering.
+### Multi-Tab Support
+- `Cmd/Ctrl+T` new tab, `Cmd/Ctrl+W` close tab
+- `Cmd/Ctrl+Shift+[/]` or `Ctrl+Tab` to switch tabs
+- `Cmd/Ctrl+1-9` direct tab access
+- Tab bar with close buttons, activity indicators, bell icons
 
-- **Smart Redraws**: Redraws are only requested when terminal content changes or when animations (scrolling, cursor blink, shaders) are active.
-- **Improved Battery Life**: Implemented `ControlFlow::Wait` logic, allowing the application to sleep during inactivity instead of maxing out VSync.
+### Multi-Window Support
+- `Cmd/Ctrl+N` new window with independent PTY session
+- Each window has its own tabs, scrollback, and state
 
-### 🛡️ Robustness & Stability
+### Native Menu Bar
+- Cross-platform menus via [muda](https://github.com/tauri-apps/muda)
+- Full keyboard accelerators for all menu items
 
-- **Fixed Dropped Input**: Resolved a critical issue where keystrokes and paste operations could be silently discarded during heavy rendering.
-- **parking_lot Mutex Migration**: Migrated to `parking_lot` to eliminate Mutex poisoning risks.
-- **Graceful Audio Fallback**: Prevents crashes if audio output devices are missing; the terminal bell now fails gracefully.
+### Custom Shader Enhancements
+- Shadertoy-compatible iChannel1-4 texture support
+- `custom_shader_brightness` for better text readability
+- `cursor_shader_hides_cursor` for shader-controlled cursors
+
+</details>
+
+<details>
+<summary><strong>What's New in 0.3.0</strong></summary>
+
+### Ghostty-Compatible Cursor Shaders
+- `iCurrentCursor`, `iPreviousCursor`, `iCurrentCursorColor`, `iTimeCursorChange` uniforms
+- Built-in cursor shaders: sweep, warp, glow, blaze, trail, ripple, boom
+- Geometric cursor rendering for all styles
+
+### Fixes
+- Login shell initialization and environment loading
+
+</details>
+
+<details>
+<summary><strong>What's New in 0.2.0</strong></summary>
+
+### Power Efficiency
+- Event-driven rendering with `ControlFlow::Wait`
+- Smart redraws only when content changes
+
+### Stability
+- Fixed dropped input during heavy rendering
+- `parking_lot` mutex migration
+- Graceful audio fallback
+
+</details>
 
 ## Features
 
@@ -116,16 +150,19 @@ Significantly reduced CPU and GPU usage by switching from continuous polling to 
 - **Intelligent Reflow**: Full content reflow on window resize, preserving scrollback and visible state.
 
 ### Modern UI & Visuals
-- **Custom WGSL Shaders**: High-performance scrollbar and post-processing effects.
+- **Custom GLSL Shaders**: 49+ included shaders with hot reload, per-shader config, and cubemap support.
 - **Background Images**: Support for PNG/JPEG backgrounds with configurable opacity and scaling modes.
-- **Transparency**: True per-pixel alpha transparency (macOS CAMetalLayer optimization).
+- **Window Transparency**: True per-pixel alpha with macOS blur support and text clarity options.
 - **Visual Bell**: Flash-based alerts for terminal bell events.
 - **Dynamic Themes**: Support for iTerm2-style color schemes (Dracula, Monokai, Solarized, etc.).
+- **Standalone Settings**: Dedicated settings window (F12) for live configuration editing.
 
 ### Typography & Fonts
 - **Styled Font Variants**: Explicit support for separate Bold, Italic, and Bold-Italic font families.
 - **Unicode Range Mapping**: Assign specific fonts to Unicode ranges (perfect for CJK, Emoji, or Symbols).
 - **Text Shaping**: HarfBuzz-powered shaping for ligatures, complex scripts, and emoji sequences.
+- **Grapheme Clusters**: Proper rendering of flag emoji, ZWJ sequences, skin tone modifiers.
+- **Box Drawing**: Geometric rendering for pixel-perfect TUI borders and block characters.
 - **Smart Fallback**: Automatic system font discovery and fallback chain.
 
 ### Selection & Clipboard
@@ -143,7 +180,8 @@ Significantly reduced CPU and GPU usage by switching from continuous polling to 
 
 - **[Quick Start Guide](QUICK_START_FONTS.md)** - Get up and running with custom fonts.
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - High-level system architecture and components.
-- **[Custom Shaders Guide](docs/CUSTOM_SHADERS.md)** - Install and create custom GLSL shaders for backgrounds and cursor effects.
+- **[Shader Gallery](docs/SHADERS.md)** - Complete list of 49+ included shaders organized by category.
+- **[Custom Shaders Guide](docs/CUSTOM_SHADERS.md)** - Create custom GLSL shaders with hot reload and per-shader config.
 - **[Compositor Details](docs/COMPOSITOR.md)** - Deep dive into the rendering architecture.
 - **[Examples](examples/README.md)** - Comprehensive configuration examples.
 - **[Core Library](https://github.com/paulrobello/par-term-emu-core-rust)** - Documentation for the underlying terminal engine.
@@ -221,7 +259,6 @@ sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev
 | `Ctrl + L` | Clear visible screen |
 | `Cmd/Ctrl + +/-/0` | Adjust font size / Reset |
 | `Ctrl + Shift + S` | Take screenshot |
-| `Cmd + ,` / `Ctrl + ,` | Cycle cursor style (Block/Beam/Underline) |
 
 ### UI Toggles
 
@@ -231,7 +268,8 @@ sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev
 | `F3` | Toggle FPS overlay |
 | `F5` | Reload configuration |
 | `F11` | Toggle fullscreen |
-| `F12` | Toggle Settings UI |
+| `F12` | Open Settings window |
+| `Cmd + ,` / `Ctrl + ,` | Open Settings window (alternative) |
 
 ## Configuration
 
@@ -253,12 +291,33 @@ tab_bar_mode: "when_multiple"  # always, when_multiple, never
 tab_bar_height: 28.0
 tab_show_close_button: true
 tab_inherit_cwd: true
+dim_inactive_tabs: true
+inactive_tab_opacity: 0.6
+
+# Transparency settings
+keep_text_opaque: true
+transparency_affects_only_default_background: true
+blur_radius: 8  # macOS only
+
+# Power saving
+pause_shaders_on_blur: true
+unfocused_fps: 30
+
+# Cursor lock options (prevent apps from overriding)
+lock_cursor_visibility: false
+lock_cursor_style: false
+lock_cursor_blink: false
 
 # Custom shader settings
 custom_shader: "starfield.glsl"
 custom_shader_enabled: true
-custom_shader_brightness: 0.3  # Dim shader for readability
-custom_shader_channel1: "~/textures/noise.png"  # Optional texture
+shader_hot_reload: true  # Auto-reload on file changes
+
+# Per-shader overrides (optional)
+shader_configs:
+  starfield.glsl:
+    animation_speed: 0.8
+    brightness: 0.3
 ```
 
 See `examples/config-complete.yaml` for a full list of options.
