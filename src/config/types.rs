@@ -149,11 +149,15 @@ pub struct ShaderConfig {
 /// Cursor shader specific configuration.
 ///
 /// Extends base ShaderConfig with cursor-specific settings.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct CursorShaderConfig {
     /// Base shader configuration
     #[serde(flatten)]
     pub base: ShaderConfig,
+    /// Hide the default cursor when this shader is enabled
+    pub hides_cursor: Option<bool>,
+    /// Disable cursor shader while in alt screen (vim, less, htop)
+    pub disable_in_alt_screen: Option<bool>,
     /// Cursor glow radius in pixels
     pub glow_radius: Option<f32>,
     /// Cursor glow intensity (0.0-1.0)
@@ -162,6 +166,25 @@ pub struct CursorShaderConfig {
     pub trail_duration: Option<f32>,
     /// Cursor color for shader effects [R, G, B] (0-255)
     pub cursor_color: Option<[u8; 3]>,
+}
+
+/// Metadata embedded in cursor shader files via YAML block comments.
+///
+/// Parsed from `/*! par-term shader metadata ... */` blocks at the top of cursor shader files.
+/// Similar to `ShaderMetadata` but with cursor-specific defaults.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CursorShaderMetadata {
+    /// Human-readable name for the shader (e.g., "Cursor Glow Effect")
+    pub name: Option<String>,
+    /// Author of the shader
+    pub author: Option<String>,
+    /// Description of what the shader does
+    pub description: Option<String>,
+    /// Version string (e.g., "1.0.0")
+    pub version: Option<String>,
+    /// Default configuration values for this cursor shader
+    #[serde(default)]
+    pub defaults: CursorShaderConfig,
 }
 
 /// Fully resolved shader configuration with all values filled in.
@@ -218,6 +241,10 @@ impl Default for ResolvedShaderConfig {
 pub struct ResolvedCursorShaderConfig {
     /// Base resolved shader config
     pub base: ResolvedShaderConfig,
+    /// Hide the default cursor when this shader is enabled
+    pub hides_cursor: bool,
+    /// Disable cursor shader while in alt screen (vim, less, htop)
+    pub disable_in_alt_screen: bool,
     /// Cursor glow radius in pixels
     pub glow_radius: f32,
     /// Cursor glow intensity (0.0-1.0)
@@ -232,6 +259,8 @@ impl Default for ResolvedCursorShaderConfig {
     fn default() -> Self {
         Self {
             base: ResolvedShaderConfig::default(),
+            hides_cursor: false,
+            disable_in_alt_screen: true,
             glow_radius: 80.0,
             glow_intensity: 0.3,
             trail_duration: 0.5,

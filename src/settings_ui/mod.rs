@@ -3,7 +3,7 @@
 //! This module provides an egui-based settings window for configuring
 //! terminal options at runtime.
 
-use crate::config::{Config, ShaderMetadataCache};
+use crate::config::{Config, CursorShaderMetadataCache, ShaderMetadataCache};
 use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 use rfd::FileDialog;
 
@@ -131,8 +131,12 @@ pub struct SettingsUI {
     // Per-shader configuration state
     /// Cache for parsed shader metadata
     pub(crate) shader_metadata_cache: ShaderMetadataCache,
+    /// Cache for parsed cursor shader metadata
+    pub(crate) cursor_shader_metadata_cache: CursorShaderMetadataCache,
     /// Whether the per-shader settings section is expanded
     pub(crate) shader_settings_expanded: bool,
+    /// Whether the per-cursor-shader settings section is expanded
+    pub(crate) cursor_shader_settings_expanded: bool,
 
     // Current window state (for "Use Current Size" button)
     /// Current terminal columns (actual rendered size, may differ from config)
@@ -215,7 +219,11 @@ impl SettingsUI {
             shader_metadata_cache: ShaderMetadataCache::with_shaders_dir(
                 crate::config::Config::shaders_dir(),
             ),
+            cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(
+                crate::config::Config::shaders_dir(),
+            ),
             shader_settings_expanded: true,
+            cursor_shader_settings_expanded: true,
         }
     }
 

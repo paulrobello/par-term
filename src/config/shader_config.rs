@@ -6,8 +6,8 @@
 //! 3. Global defaults (from defaults.rs / Config struct)
 
 use super::types::{
-    CursorShaderConfig, ResolvedCursorShaderConfig, ResolvedShaderConfig, ShaderConfig,
-    ShaderMetadata,
+    CursorShaderConfig, CursorShaderMetadata, ResolvedCursorShaderConfig, ResolvedShaderConfig,
+    ShaderConfig, ShaderMetadata,
 };
 use crate::config::Config;
 use std::path::PathBuf;
@@ -87,42 +87,76 @@ pub fn resolve_shader_config(
 
 /// Resolve a cursor shader configuration by merging sources in priority order.
 ///
+/// Priority (highest to lowest):
+/// 1. User overrides from config.yaml cursor_shader_configs
+/// 2. Defaults embedded in cursor shader metadata
+/// 3. Global defaults from Config
+///
 /// # Arguments
 /// * `user_override` - Optional user overrides from config.yaml
-/// * `metadata` - Optional shader metadata with embedded defaults
+/// * `metadata` - Optional cursor shader metadata with embedded defaults
 /// * `config` - Global config for fallback values
 ///
 /// # Returns
 /// A fully resolved cursor shader configuration with all values filled in
-#[allow(dead_code)]
 pub fn resolve_cursor_shader_config(
     user_override: Option<&CursorShaderConfig>,
-    metadata: Option<&ShaderMetadata>,
+    metadata: Option<&CursorShaderMetadata>,
     config: &Config,
 ) -> ResolvedCursorShaderConfig {
-    // Resolve base shader config first
-    let base_override = user_override.map(|o| &o.base);
-    let base = resolve_shader_config(base_override, metadata, config);
+    // Extract metadata defaults if available
+    let meta_defaults = metadata.map(|m| &m.defaults);
 
-    // Extract cursor-specific values from user override
-    let glow_radius = user_override
-        .and_then(|o| o.glow_radius)
-        .unwrap_or(config.cursor_shader_glow_radius);
+    // Helper to resolve a cursor-specific value through the priority chain
+    macro_rules! resolve_cursor {
+        ($field:ident, $global:expr) => {
+            user_override
+                .and_then(|o| o.$field)
+                .or_else(|| meta_defaults.and_then(|m| m.$field))
+                .unwrap_or($global)
+        };
+    }
 
-    let glow_intensity = user_override
-        .and_then(|o| o.glow_intensity)
-        .unwrap_or(config.cursor_shader_glow_intensity);
+    // Resolve base shader settings (animation_speed comes from base)
+    let animation_speed = user_override
+        .and_then(|o| o.base.animation_speed)
+        .or_else(|| meta_defaults.and_then(|m| m.base.animation_speed))
+        .unwrap_or(config.cursor_shader_animation_speed);
 
-    let trail_duration = user_override
-        .and_then(|o| o.trail_duration)
-        .unwrap_or(config.cursor_shader_trail_duration);
+    // Build a minimal resolved base config for cursor shader
+    // (cursor shaders don't use most of the base shader features)
+    let base = ResolvedShaderConfig {
+        animation_speed,
+        brightness: 1.0,
+        text_opacity: 1.0,
+        full_content: true, // Cursor shaders always use full content
+        channel0: None,
+        channel1: None,
+        channel2: None,
+        channel3: None,
+        cubemap: None,
+        cubemap_enabled: false,
+        use_background_as_channel0: false,
+    };
 
+    // Resolve cursor-specific values
+    let hides_cursor = resolve_cursor!(hides_cursor, config.cursor_shader_hides_cursor);
+    let disable_in_alt_screen = resolve_cursor!(
+        disable_in_alt_screen,
+        config.cursor_shader_disable_in_alt_screen
+    );
+    let glow_radius = resolve_cursor!(glow_radius, config.cursor_shader_glow_radius);
+    let glow_intensity = resolve_cursor!(glow_intensity, config.cursor_shader_glow_intensity);
+    let trail_duration = resolve_cursor!(trail_duration, config.cursor_shader_trail_duration);
     let cursor_color = user_override
         .and_then(|o| o.cursor_color)
+        .or_else(|| meta_defaults.and_then(|m| m.cursor_color))
         .unwrap_or(config.cursor_shader_color);
 
     ResolvedCursorShaderConfig {
         base,
+        hides_cursor,
+        disable_in_alt_screen,
         glow_radius,
         glow_intensity,
         trail_duration,
@@ -176,11 +210,11 @@ impl ResolvedCursorShaderConfig {
     ///
     /// # Arguments
     /// * `shader_name` - Name of the cursor shader file
-    /// * `metadata` - Optional shader metadata
+    /// * `metadata` - Optional cursor shader metadata
     /// * `config` - Global config
     pub fn for_shader(
         shader_name: &str,
-        metadata: Option<&ShaderMetadata>,
+        metadata: Option<&CursorShaderMetadata>,
         config: &Config,
     ) -> Self {
         let user_override = config.get_cursor_shader_override(shader_name);

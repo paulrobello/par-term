@@ -12,13 +12,16 @@ mod types;
 #[allow(unused_imports)]
 pub use shader_config::{resolve_cursor_shader_config, resolve_shader_config};
 // Re-export shader metadata types and functions
-pub use shader_metadata::ShaderMetadataCache;
+pub use shader_metadata::{CursorShaderMetadataCache, ShaderMetadataCache};
 #[allow(unused_imports)]
-pub use shader_metadata::{parse_shader_metadata, update_shader_metadata_file};
+pub use shader_metadata::{
+    parse_cursor_shader_metadata, parse_shader_metadata, update_cursor_shader_metadata_file,
+    update_shader_metadata_file,
+};
 // Re-export config types
 pub use types::{
-    BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorStyle, FontRange, ShaderConfig,
-    ShaderMetadata, TabBarMode, VsyncMode,
+    BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
+    FontRange, ShaderConfig, ShaderMetadata, TabBarMode, VsyncMode,
 };
 #[allow(unused_imports)]
 pub use types::{ResolvedCursorShaderConfig, ResolvedShaderConfig};

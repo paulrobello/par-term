@@ -296,7 +296,19 @@ impl WindowState {
             .custom_shader
             .as_ref()
             .and_then(|name| self.settings_ui.shader_metadata_cache.get(name).cloned());
-        let params = RendererInitParams::from_config(&self.config, &theme, metadata.as_ref());
+        // Get cursor shader metadata from cache for full 3-tier resolution
+        let cursor_metadata = self.config.cursor_shader.as_ref().and_then(|name| {
+            self.settings_ui
+                .cursor_shader_metadata_cache
+                .get(name)
+                .cloned()
+        });
+        let params = RendererInitParams::from_config(
+            &self.config,
+            &theme,
+            metadata.as_ref(),
+            cursor_metadata.as_ref(),
+        );
         let mut renderer = self
             .runtime
             .block_on(params.create_renderer(Arc::clone(&window)))?;
@@ -318,7 +330,7 @@ impl WindowState {
         }
 
         // Apply cursor shader configuration
-        self.apply_cursor_shader_config(&mut renderer);
+        self.apply_cursor_shader_config(&mut renderer, &params);
 
         // Update settings UI with supported vsync modes
         let supported_modes: Vec<crate::config::VsyncMode> = [
@@ -363,7 +375,19 @@ impl WindowState {
             .custom_shader
             .as_ref()
             .and_then(|name| self.settings_ui.shader_metadata_cache.get(name).cloned());
-        let params = RendererInitParams::from_config(&self.config, &theme, metadata.as_ref());
+        // Get cursor shader metadata from cache for full 3-tier resolution
+        let cursor_metadata = self.config.cursor_shader.as_ref().and_then(|name| {
+            self.settings_ui
+                .cursor_shader_metadata_cache
+                .get(name)
+                .cloned()
+        });
+        let params = RendererInitParams::from_config(
+            &self.config,
+            &theme,
+            metadata.as_ref(),
+            cursor_metadata.as_ref(),
+        );
         let mut renderer = params.create_renderer(Arc::clone(&window)).await?;
 
         // macOS: Configure CAMetalLayer (transparency + performance)
@@ -391,7 +415,7 @@ impl WindowState {
         }
 
         // Apply cursor shader configuration
-        self.apply_cursor_shader_config(&mut renderer);
+        self.apply_cursor_shader_config(&mut renderer, &params);
 
         // Update settings UI with supported vsync modes
         let supported_modes: Vec<crate::config::VsyncMode> = [
@@ -1093,9 +1117,39 @@ impl WindowState {
 
         // Ensure cursor visibility flag for cell renderer reflects current config every frame
         // (so toggling "Hide default cursor" takes effect immediately even if no other changes)
+        // Resolve hides_cursor: per-shader override -> metadata defaults -> global config
+        let resolved_hides_cursor = self
+            .config
+            .cursor_shader
+            .as_ref()
+            .and_then(|name| self.config.cursor_shader_configs.get(name))
+            .and_then(|override_cfg| override_cfg.hides_cursor)
+            .or_else(|| {
+                self.config
+                    .cursor_shader
+                    .as_ref()
+                    .and_then(|name| self.settings_ui.cursor_shader_metadata_cache.get(name))
+                    .and_then(|meta| meta.defaults.hides_cursor)
+            })
+            .unwrap_or(self.config.cursor_shader_hides_cursor);
+        // Resolve disable_in_alt_screen: per-shader override -> metadata defaults -> global config
+        let resolved_disable_in_alt_screen = self
+            .config
+            .cursor_shader
+            .as_ref()
+            .and_then(|name| self.config.cursor_shader_configs.get(name))
+            .and_then(|override_cfg| override_cfg.disable_in_alt_screen)
+            .or_else(|| {
+                self.config
+                    .cursor_shader
+                    .as_ref()
+                    .and_then(|name| self.settings_ui.cursor_shader_metadata_cache.get(name))
+                    .and_then(|meta| meta.defaults.disable_in_alt_screen)
+            })
+            .unwrap_or(self.config.cursor_shader_disable_in_alt_screen);
         let hide_cursor_for_shader = self.config.cursor_shader_enabled
-            && self.config.cursor_shader_hides_cursor
-            && !(self.config.cursor_shader_disable_in_alt_screen && is_alt_screen);
+            && resolved_hides_cursor
+            && !(resolved_disable_in_alt_screen && is_alt_screen);
         if let Some(renderer) = &mut self.renderer {
             renderer.set_cursor_hidden_for_shader(hide_cursor_for_shader);
         }

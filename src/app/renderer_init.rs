@@ -5,8 +5,8 @@
 //! and `initialize_async()`.
 
 use crate::config::{
-    BackgroundImageMode, BackgroundMode, Config, FontRange, ShaderMetadata, VsyncMode,
-    resolve_shader_config,
+    BackgroundImageMode, BackgroundMode, Config, CursorShaderMetadata, FontRange, ShaderMetadata,
+    VsyncMode, resolve_cursor_shader_config, resolve_shader_config,
 };
 
 /// Expand tilde in path to home directory
@@ -26,6 +26,7 @@ use winit::window::Window;
 
 /// Captures all parameters needed for Renderer::new()
 /// Built from Config and Theme to eliminate duplicate parameter extraction
+#[allow(dead_code)]
 pub(crate) struct RendererInitParams {
     pub font_family: Option<String>,
     pub font_family_bold: Option<String>,
@@ -69,6 +70,12 @@ pub(crate) struct RendererInitParams {
     pub cursor_shader_enabled: bool,
     pub cursor_shader_animation: bool,
     pub cursor_shader_animation_speed: f32,
+    pub cursor_shader_hides_cursor: bool,
+    pub cursor_shader_disable_in_alt_screen: bool,
+    pub cursor_shader_glow_radius: f32,
+    pub cursor_shader_glow_intensity: f32,
+    pub cursor_shader_trail_duration: f32,
+    pub cursor_shader_color: [u8; 3],
     pub transparency_affects_only_default_background: bool,
     pub keep_text_opaque: bool,
 }
@@ -76,11 +83,16 @@ pub(crate) struct RendererInitParams {
 impl RendererInitParams {
     /// Create renderer init params from config, theme, and optional shader metadata
     ///
-    /// The metadata parameter allows full 3-tier resolution:
-    /// 1. User per-shader override (from shader_configs)
+    /// The metadata parameters allow full 3-tier resolution:
+    /// 1. User per-shader override (from shader_configs / cursor_shader_configs)
     /// 2. Shader metadata defaults (from the shader file)
     /// 3. Global config defaults
-    pub fn from_config(config: &Config, theme: &Theme, metadata: Option<&ShaderMetadata>) -> Self {
+    pub fn from_config(
+        config: &Config,
+        theme: &Theme,
+        metadata: Option<&ShaderMetadata>,
+        cursor_metadata: Option<&CursorShaderMetadata>,
+    ) -> Self {
         debug_log!(
             "cursor-shader",
             "Config snapshot: enabled={}, path={:?}, animation={}, speed={}, disable_alt_screen={}",
@@ -97,6 +109,14 @@ impl RendererInitParams {
             .as_ref()
             .and_then(|name| config.shader_configs.get(name));
         let resolved = resolve_shader_config(shader_override, metadata, config);
+
+        // Resolve per-cursor-shader settings
+        let cursor_shader_override = config
+            .cursor_shader
+            .as_ref()
+            .and_then(|name| config.cursor_shader_configs.get(name));
+        let resolved_cursor =
+            resolve_cursor_shader_config(cursor_shader_override, cursor_metadata, config);
 
         Self {
             font_family: if config.font_family.is_empty() {
@@ -151,7 +171,13 @@ impl RendererInitParams {
             cursor_shader_path: config.cursor_shader.clone(),
             cursor_shader_enabled: config.cursor_shader_enabled,
             cursor_shader_animation: config.cursor_shader_animation,
-            cursor_shader_animation_speed: config.cursor_shader_animation_speed,
+            cursor_shader_animation_speed: resolved_cursor.base.animation_speed,
+            cursor_shader_hides_cursor: resolved_cursor.hides_cursor,
+            cursor_shader_disable_in_alt_screen: resolved_cursor.disable_in_alt_screen,
+            cursor_shader_glow_radius: resolved_cursor.glow_radius,
+            cursor_shader_glow_intensity: resolved_cursor.glow_intensity,
+            cursor_shader_trail_duration: resolved_cursor.trail_duration,
+            cursor_shader_color: resolved_cursor.cursor_color,
             transparency_affects_only_default_background: config
                 .transparency_affects_only_default_background,
             keep_text_opaque: config.keep_text_opaque,
@@ -237,13 +263,20 @@ use super::window_state::WindowState;
 
 impl WindowState {
     /// Apply cursor shader configuration to the renderer
-    pub(crate) fn apply_cursor_shader_config(&self, renderer: &mut Renderer) {
-        // Initialize cursor shader config
+    ///
+    /// Uses the resolved cursor shader settings from RendererInitParams,
+    /// which properly resolves user overrides -> metadata defaults -> global config.
+    pub(crate) fn apply_cursor_shader_config(
+        &self,
+        renderer: &mut Renderer,
+        params: &RendererInitParams,
+    ) {
+        // Initialize cursor shader config using resolved values
         renderer.update_cursor_shader_config(
-            self.config.cursor_shader_color,
-            self.config.cursor_shader_trail_duration,
-            self.config.cursor_shader_glow_radius,
-            self.config.cursor_shader_glow_intensity,
+            params.cursor_shader_color,
+            params.cursor_shader_trail_duration,
+            params.cursor_shader_glow_radius,
+            params.cursor_shader_glow_intensity,
         );
 
         // Initialize cursor color from config
@@ -251,7 +284,7 @@ impl WindowState {
 
         // Hide cursor if cursor shader is enabled and configured to hide
         renderer.set_cursor_hidden_for_shader(
-            self.config.cursor_shader_enabled && self.config.cursor_shader_hides_cursor,
+            params.cursor_shader_enabled && params.cursor_shader_hides_cursor,
         );
     }
 
