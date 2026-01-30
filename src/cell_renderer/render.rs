@@ -347,10 +347,22 @@ impl CellRenderer {
                             && (cell.bg_color[2] as f32 / 255.0 - self.background_color[2]).abs()
                                 < 0.001;
 
-                    let has_cursor = self.cursor_opacity > 0.0
+                    // Check for cursor at this position, accounting for unfocused state
+                    let cursor_visible = self.cursor_opacity > 0.0
                         && !self.cursor_hidden_for_shader
                         && self.cursor_pos.1 == row
                         && self.cursor_pos.0 == col;
+
+                    // Handle unfocused cursor visibility
+                    let has_cursor = if cursor_visible && !self.is_focused {
+                        match self.unfocused_cursor_style {
+                            crate::config::UnfocusedCursorStyle::Hidden => false,
+                            crate::config::UnfocusedCursorStyle::Hollow
+                            | crate::config::UnfocusedCursorStyle::Same => true,
+                        }
+                    } else {
+                        cursor_visible
+                    };
 
                     if is_default_bg && !has_cursor {
                         col += 1;
@@ -374,15 +386,27 @@ impl CellRenderer {
                     // Handle cursor at this position
                     if has_cursor && self.cursor_opacity > 0.0 {
                         use par_term_emu_core_rust::cursor::CursorStyle;
+
+                        // Check if we should render hollow cursor (unfocused hollow style)
+                        let render_hollow = !self.is_focused
+                            && self.unfocused_cursor_style
+                                == crate::config::UnfocusedCursorStyle::Hollow;
+
                         match self.cursor_style {
                             CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
-                                for (bg, &cursor) in
-                                    bg_color.iter_mut().take(3).zip(&self.cursor_color)
-                                {
-                                    *bg = *bg * (1.0 - self.cursor_opacity)
-                                        + cursor * self.cursor_opacity;
+                                if render_hollow {
+                                    // Hollow cursor: don't fill the cell, outline will be added later
+                                    // Keep original background color
+                                } else {
+                                    // Solid block cursor
+                                    for (bg, &cursor) in
+                                        bg_color.iter_mut().take(3).zip(&self.cursor_color)
+                                    {
+                                        *bg = *bg * (1.0 - self.cursor_opacity)
+                                            + cursor * self.cursor_opacity;
+                                    }
+                                    bg_color[3] = bg_color[3].max(self.cursor_opacity);
                                 }
-                                bg_color[3] = bg_color[3].max(self.cursor_opacity);
                             }
                             _ => {}
                         }
@@ -762,18 +786,183 @@ impl CellRenderer {
             }
         }
 
-        // Write cursor overlay to the last slot of bg_instances (for beam/underline cursors)
-        let cursor_overlay_index = self.cols * self.rows;
-        let cursor_overlay_instance = self.cursor_overlay.unwrap_or(BackgroundInstance {
+        // Write cursor-related overlays to extra slots at the end of bg_instances
+        // Slot layout: [0] cursor overlay (beam/underline), [1] guide, [2] shadow, [3-6] boost glow, [7-10] hollow outline
+        let base_overlay_index = self.cols * self.rows;
+        let mut overlay_instances = vec![
+            BackgroundInstance {
+                position: [0.0, 0.0],
+                size: [0.0, 0.0],
+                color: [0.0, 0.0, 0.0, 0.0],
+            };
+            10
+        ];
+
+        // Check if cursor should be visible
+        let cursor_visible = self.cursor_opacity > 0.0
+            && !self.cursor_hidden_for_shader
+            && (self.is_focused
+                || self.unfocused_cursor_style != crate::config::UnfocusedCursorStyle::Hidden);
+
+        // Calculate cursor pixel positions
+        let cursor_col = self.cursor_pos.0;
+        let cursor_row = self.cursor_pos.1;
+        let cursor_x0 = self.window_padding + cursor_col as f32 * self.cell_width;
+        let cursor_x1 = cursor_x0 + self.cell_width;
+        let cursor_y0 =
+            self.window_padding + self.content_offset_y + cursor_row as f32 * self.cell_height;
+        let cursor_y1 = cursor_y0 + self.cell_height;
+
+        // Slot 0: Cursor overlay (beam/underline) - handled by existing cursor_overlay
+        overlay_instances[0] = self.cursor_overlay.unwrap_or(BackgroundInstance {
             position: [0.0, 0.0],
             size: [0.0, 0.0],
             color: [0.0, 0.0, 0.0, 0.0],
         });
-        self.bg_instances[cursor_overlay_index] = cursor_overlay_instance;
+
+        // Slot 1: Cursor guide (horizontal line spanning full width at cursor row)
+        if cursor_visible && self.cursor_guide_enabled {
+            let guide_x0 = self.window_padding;
+            let guide_x1 = self.config.width as f32 - self.window_padding;
+            overlay_instances[1] = BackgroundInstance {
+                position: [
+                    guide_x0 / self.config.width as f32 * 2.0 - 1.0,
+                    1.0 - (cursor_y0 / self.config.height as f32 * 2.0),
+                ],
+                size: [
+                    (guide_x1 - guide_x0) / self.config.width as f32 * 2.0,
+                    (cursor_y1 - cursor_y0) / self.config.height as f32 * 2.0,
+                ],
+                color: self.cursor_guide_color,
+            };
+        }
+
+        // Slot 2: Cursor shadow (offset rectangle behind cursor)
+        if cursor_visible && self.cursor_shadow_enabled {
+            let shadow_x0 = cursor_x0 + self.cursor_shadow_offset[0];
+            let shadow_y0 = cursor_y0 + self.cursor_shadow_offset[1];
+            overlay_instances[2] = BackgroundInstance {
+                position: [
+                    shadow_x0 / self.config.width as f32 * 2.0 - 1.0,
+                    1.0 - (shadow_y0 / self.config.height as f32 * 2.0),
+                ],
+                size: [
+                    self.cell_width / self.config.width as f32 * 2.0,
+                    self.cell_height / self.config.height as f32 * 2.0,
+                ],
+                color: self.cursor_shadow_color,
+            };
+        }
+
+        // Slot 3: Cursor boost glow (larger rectangle around cursor with low opacity)
+        if cursor_visible && self.cursor_boost > 0.0 {
+            let glow_expand = 4.0 * self.cursor_boost; // Expand by up to 4 pixels
+            let glow_x0 = cursor_x0 - glow_expand;
+            let glow_y0 = cursor_y0 - glow_expand;
+            let glow_w = self.cell_width + glow_expand * 2.0;
+            let glow_h = self.cell_height + glow_expand * 2.0;
+            overlay_instances[3] = BackgroundInstance {
+                position: [
+                    glow_x0 / self.config.width as f32 * 2.0 - 1.0,
+                    1.0 - (glow_y0 / self.config.height as f32 * 2.0),
+                ],
+                size: [
+                    glow_w / self.config.width as f32 * 2.0,
+                    glow_h / self.config.height as f32 * 2.0,
+                ],
+                color: [
+                    self.cursor_boost_color[0],
+                    self.cursor_boost_color[1],
+                    self.cursor_boost_color[2],
+                    self.cursor_boost * 0.3 * self.cursor_opacity, // Max 30% alpha
+                ],
+            };
+        }
+
+        // Slots 4-7: Hollow cursor outline (4 thin rectangles forming a border)
+        // Rendered when unfocused with hollow style and block cursor
+        let render_hollow = cursor_visible
+            && !self.is_focused
+            && self.unfocused_cursor_style == crate::config::UnfocusedCursorStyle::Hollow;
+
+        if render_hollow {
+            use par_term_emu_core_rust::cursor::CursorStyle;
+            let is_block = matches!(
+                self.cursor_style,
+                CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock
+            );
+
+            if is_block {
+                let border_width = 2.0; // 2 pixel border
+                let color = [
+                    self.cursor_color[0],
+                    self.cursor_color[1],
+                    self.cursor_color[2],
+                    self.cursor_opacity,
+                ];
+
+                // Top border
+                overlay_instances[4] = BackgroundInstance {
+                    position: [
+                        cursor_x0 / self.config.width as f32 * 2.0 - 1.0,
+                        1.0 - (cursor_y0 / self.config.height as f32 * 2.0),
+                    ],
+                    size: [
+                        self.cell_width / self.config.width as f32 * 2.0,
+                        border_width / self.config.height as f32 * 2.0,
+                    ],
+                    color,
+                };
+
+                // Bottom border
+                overlay_instances[5] = BackgroundInstance {
+                    position: [
+                        cursor_x0 / self.config.width as f32 * 2.0 - 1.0,
+                        1.0 - ((cursor_y1 - border_width) / self.config.height as f32 * 2.0),
+                    ],
+                    size: [
+                        self.cell_width / self.config.width as f32 * 2.0,
+                        border_width / self.config.height as f32 * 2.0,
+                    ],
+                    color,
+                };
+
+                // Left border
+                overlay_instances[6] = BackgroundInstance {
+                    position: [
+                        cursor_x0 / self.config.width as f32 * 2.0 - 1.0,
+                        1.0 - ((cursor_y0 + border_width) / self.config.height as f32 * 2.0),
+                    ],
+                    size: [
+                        border_width / self.config.width as f32 * 2.0,
+                        (self.cell_height - border_width * 2.0) / self.config.height as f32 * 2.0,
+                    ],
+                    color,
+                };
+
+                // Right border
+                overlay_instances[7] = BackgroundInstance {
+                    position: [
+                        (cursor_x1 - border_width) / self.config.width as f32 * 2.0 - 1.0,
+                        1.0 - ((cursor_y0 + border_width) / self.config.height as f32 * 2.0),
+                    ],
+                    size: [
+                        border_width / self.config.width as f32 * 2.0,
+                        (self.cell_height - border_width * 2.0) / self.config.height as f32 * 2.0,
+                    ],
+                    color,
+                };
+            }
+        }
+
+        // Write all overlay instances to GPU buffer
+        for (i, instance) in overlay_instances.iter().enumerate() {
+            self.bg_instances[base_overlay_index + i] = *instance;
+        }
         self.queue.write_buffer(
             &self.bg_instance_buffer,
-            (cursor_overlay_index * std::mem::size_of::<BackgroundInstance>()) as u64,
-            bytemuck::cast_slice(&[cursor_overlay_instance]),
+            (base_overlay_index * std::mem::size_of::<BackgroundInstance>()) as u64,
+            bytemuck::cast_slice(&overlay_instances),
         );
 
         Ok(())

@@ -21,7 +21,8 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
-    FontRange, KeyBinding, ShaderConfig, ShaderMetadata, TabBarMode, VsyncMode,
+    FontRange, KeyBinding, ShaderConfig, ShaderMetadata, TabBarMode, UnfocusedCursorStyle,
+    VsyncMode,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -388,6 +389,49 @@ pub struct Config {
     pub lock_cursor_blink: bool,
 
     // ========================================================================
+    // Cursor Enhancements (iTerm2-style features)
+    // ========================================================================
+    /// Enable horizontal guide line at cursor row for better tracking in wide terminals
+    #[serde(default = "defaults::bool_false")]
+    pub cursor_guide_enabled: bool,
+
+    /// Cursor guide color [R, G, B, A] (0-255), subtle highlight spanning full terminal width
+    #[serde(default = "defaults::cursor_guide_color")]
+    pub cursor_guide_color: [u8; 4],
+
+    /// Enable drop shadow behind cursor for better visibility against varying backgrounds
+    #[serde(default = "defaults::bool_false")]
+    pub cursor_shadow_enabled: bool,
+
+    /// Cursor shadow color [R, G, B, A] (0-255)
+    #[serde(default = "defaults::cursor_shadow_color")]
+    pub cursor_shadow_color: [u8; 4],
+
+    /// Cursor shadow offset in pixels [x, y]
+    #[serde(default = "defaults::cursor_shadow_offset")]
+    pub cursor_shadow_offset: [f32; 2],
+
+    /// Cursor shadow blur radius in pixels
+    #[serde(default = "defaults::cursor_shadow_blur")]
+    pub cursor_shadow_blur: f32,
+
+    /// Cursor boost (glow) intensity (0.0 = off, 1.0 = maximum boost)
+    /// Adds a glow/highlight effect around the cursor for visibility
+    #[serde(default = "defaults::cursor_boost")]
+    pub cursor_boost: f32,
+
+    /// Cursor boost glow color [R, G, B] (0-255)
+    #[serde(default = "defaults::cursor_boost_color")]
+    pub cursor_boost_color: [u8; 3],
+
+    /// Cursor appearance when window is unfocused
+    /// - hollow: Show outline-only block cursor (default, standard terminal behavior)
+    /// - same: Keep same cursor style as when focused
+    /// - hidden: Hide cursor completely when unfocused
+    #[serde(default)]
+    pub unfocused_cursor_style: UnfocusedCursorStyle,
+
+    // ========================================================================
     // Scrollbar
     // ========================================================================
     /// Auto-hide scrollbar after inactivity (milliseconds, 0 = never hide)
@@ -686,6 +730,15 @@ impl Default for Config {
             lock_cursor_visibility: defaults::bool_false(),
             lock_cursor_style: defaults::bool_false(),
             lock_cursor_blink: defaults::bool_false(),
+            cursor_guide_enabled: defaults::bool_false(),
+            cursor_guide_color: defaults::cursor_guide_color(),
+            cursor_shadow_enabled: defaults::bool_false(),
+            cursor_shadow_color: defaults::cursor_shadow_color(),
+            cursor_shadow_offset: defaults::cursor_shadow_offset(),
+            cursor_shadow_blur: defaults::cursor_shadow_blur(),
+            cursor_boost: defaults::cursor_boost(),
+            cursor_boost_color: defaults::cursor_boost_color(),
+            unfocused_cursor_style: UnfocusedCursorStyle::default(),
             scrollbar_autohide_delay: defaults::scrollbar_autohide_delay(),
             window_title: defaults::window_title(),
             allow_title_change: defaults::bool_true(),

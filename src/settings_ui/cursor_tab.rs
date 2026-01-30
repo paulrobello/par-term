@@ -1,5 +1,5 @@
 use super::SettingsUI;
-use crate::config::CursorStyle;
+use crate::config::{CursorStyle, UnfocusedCursorStyle};
 
 pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.collapsing("Cursor", |ui| {
@@ -109,5 +109,169 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                 *changes_this_frame = true;
             }
         });
+
+        // Cursor Enhancements section
+        ui.add_space(8.0);
+        ui.separator();
+        ui.label("Cursor Enhancements:");
+
+        // Unfocused cursor style
+        ui.horizontal(|ui| {
+            ui.label("When unfocused:");
+            let current = match settings.config.unfocused_cursor_style {
+                UnfocusedCursorStyle::Hollow => 0,
+                UnfocusedCursorStyle::Same => 1,
+                UnfocusedCursorStyle::Hidden => 2,
+            };
+            let mut selected = current;
+            egui::ComboBox::from_id_salt("unfocused_cursor_style")
+                .selected_text(match current {
+                    0 => "Hollow (outline)",
+                    1 => "Same",
+                    2 => "Hidden",
+                    _ => "Unknown",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut selected, 0, "Hollow (outline)");
+                    ui.selectable_value(&mut selected, 1, "Same");
+                    ui.selectable_value(&mut selected, 2, "Hidden");
+                });
+            if selected != current {
+                settings.config.unfocused_cursor_style = match selected {
+                    0 => UnfocusedCursorStyle::Hollow,
+                    1 => UnfocusedCursorStyle::Same,
+                    2 => UnfocusedCursorStyle::Hidden,
+                    _ => UnfocusedCursorStyle::Hollow,
+                };
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        // Cursor Guide
+        ui.add_space(4.0);
+        if ui
+            .checkbox(
+                &mut settings.config.cursor_guide_enabled,
+                "Cursor guide (horizontal line)",
+            )
+            .on_hover_text("Show a subtle horizontal line at the cursor row")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if settings.config.cursor_guide_enabled {
+            ui.horizontal(|ui| {
+                ui.label("Guide color:");
+                let mut color = [
+                    settings.config.cursor_guide_color[0],
+                    settings.config.cursor_guide_color[1],
+                    settings.config.cursor_guide_color[2],
+                    settings.config.cursor_guide_color[3],
+                ];
+                if ui
+                    .color_edit_button_srgba_unmultiplied(&mut color)
+                    .changed()
+                {
+                    settings.config.cursor_guide_color = color;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        }
+
+        // Cursor Shadow
+        ui.add_space(4.0);
+        if ui
+            .checkbox(&mut settings.config.cursor_shadow_enabled, "Cursor shadow")
+            .on_hover_text("Add a drop shadow behind the cursor")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if settings.config.cursor_shadow_enabled {
+            ui.horizontal(|ui| {
+                ui.label("Shadow color:");
+                let mut color = [
+                    settings.config.cursor_shadow_color[0],
+                    settings.config.cursor_shadow_color[1],
+                    settings.config.cursor_shadow_color[2],
+                    settings.config.cursor_shadow_color[3],
+                ];
+                if ui
+                    .color_edit_button_srgba_unmultiplied(&mut color)
+                    .changed()
+                {
+                    settings.config.cursor_shadow_color = color;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Shadow offset X:");
+                if ui
+                    .add(egui::Slider::new(
+                        &mut settings.config.cursor_shadow_offset[0],
+                        0.0..=10.0,
+                    ))
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Shadow offset Y:");
+                if ui
+                    .add(egui::Slider::new(
+                        &mut settings.config.cursor_shadow_offset[1],
+                        0.0..=10.0,
+                    ))
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        }
+
+        // Cursor Boost (Glow)
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label("Cursor boost (glow):");
+            if ui
+                .add(egui::Slider::new(
+                    &mut settings.config.cursor_boost,
+                    0.0..=1.0,
+                ))
+                .on_hover_text("Add a glow effect around the cursor for visibility")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        if settings.config.cursor_boost > 0.0 {
+            ui.horizontal(|ui| {
+                ui.label("Boost color:");
+                let mut color = [
+                    settings.config.cursor_boost_color[0],
+                    settings.config.cursor_boost_color[1],
+                    settings.config.cursor_boost_color[2],
+                ];
+                if ui.color_edit_button_srgb(&mut color).changed() {
+                    settings.config.cursor_boost_color = color;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        }
     });
 }

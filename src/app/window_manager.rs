@@ -749,6 +749,23 @@ impl WindowManager {
                     window_state.needs_redraw = true;
                 }
 
+                // Apply cursor enhancement changes
+                if changes.cursor_enhancements {
+                    renderer.update_cursor_guide(
+                        config.cursor_guide_enabled,
+                        config.cursor_guide_color,
+                    );
+                    renderer.update_cursor_shadow(
+                        config.cursor_shadow_enabled,
+                        config.cursor_shadow_color,
+                        config.cursor_shadow_offset,
+                        config.cursor_shadow_blur,
+                    );
+                    renderer.update_cursor_boost(config.cursor_boost, config.cursor_boost_color);
+                    renderer.update_unfocused_cursor_style(config.unfocused_cursor_style);
+                    window_state.needs_redraw = true;
+                }
+
                 // Apply background changes (mode, color, or image)
                 if changes.any_bg_change() {
                     // Expand tilde in path

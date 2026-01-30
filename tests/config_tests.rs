@@ -1,4 +1,4 @@
-use par_term::config::Config;
+use par_term::config::{Config, UnfocusedCursorStyle};
 
 #[test]
 fn test_config_defaults() {
@@ -302,4 +302,104 @@ inactive_tab_opacity: 0.3
 "#;
     let config: Config = serde_yaml::from_str(yaml).unwrap();
     assert!((config.inactive_tab_opacity - 0.3).abs() < f32::EPSILON);
+}
+
+#[test]
+fn test_config_cursor_enhancement_defaults() {
+    let config = Config::default();
+    // Unfocused cursor style defaults to Hollow
+    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
+    // Cursor guide disabled by default
+    assert!(!config.cursor_guide_enabled);
+    // Default guide color: white with low alpha
+    assert_eq!(config.cursor_guide_color, [255, 255, 255, 20]);
+    // Cursor shadow disabled by default
+    assert!(!config.cursor_shadow_enabled);
+    // Default shadow color: black with 50% alpha
+    assert_eq!(config.cursor_shadow_color, [0, 0, 0, 128]);
+    // Default shadow offset
+    assert!((config.cursor_shadow_offset[0] - 2.0).abs() < f32::EPSILON);
+    assert!((config.cursor_shadow_offset[1] - 2.0).abs() < f32::EPSILON);
+    // Default shadow blur
+    assert!((config.cursor_shadow_blur - 3.0).abs() < f32::EPSILON);
+    // Cursor boost (glow) disabled by default (0.0)
+    assert!((config.cursor_boost).abs() < f32::EPSILON);
+    // Default boost color: white
+    assert_eq!(config.cursor_boost_color, [255, 255, 255]);
+}
+
+#[test]
+fn test_config_cursor_enhancement_yaml_deserialization() {
+    let yaml = r#"
+unfocused_cursor_style: hidden
+cursor_guide_enabled: true
+cursor_guide_color: [200, 200, 255, 40]
+cursor_shadow_enabled: true
+cursor_shadow_color: [0, 0, 0, 200]
+cursor_shadow_offset: [3.0, 3.0]
+cursor_shadow_blur: 5.0
+cursor_boost: 0.5
+cursor_boost_color: [255, 200, 100]
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hidden);
+    assert!(config.cursor_guide_enabled);
+    assert_eq!(config.cursor_guide_color, [200, 200, 255, 40]);
+    assert!(config.cursor_shadow_enabled);
+    assert_eq!(config.cursor_shadow_color, [0, 0, 0, 200]);
+    assert!((config.cursor_shadow_offset[0] - 3.0).abs() < f32::EPSILON);
+    assert!((config.cursor_shadow_offset[1] - 3.0).abs() < f32::EPSILON);
+    assert!((config.cursor_shadow_blur - 5.0).abs() < f32::EPSILON);
+    assert!((config.cursor_boost - 0.5).abs() < f32::EPSILON);
+    assert_eq!(config.cursor_boost_color, [255, 200, 100]);
+}
+
+#[test]
+fn test_config_unfocused_cursor_style_variants() {
+    // Test hollow variant
+    let yaml = r#"unfocused_cursor_style: hollow"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
+
+    // Test same variant
+    let yaml = r#"unfocused_cursor_style: same"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Same);
+
+    // Test hidden variant
+    let yaml = r#"unfocused_cursor_style: hidden"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hidden);
+}
+
+#[test]
+fn test_config_cursor_enhancement_yaml_serialization() {
+    let mut config = Config::default();
+    config.unfocused_cursor_style = UnfocusedCursorStyle::Same;
+    config.cursor_guide_enabled = true;
+    config.cursor_guide_color = [100, 150, 200, 50];
+    config.cursor_shadow_enabled = true;
+    config.cursor_boost = 0.7;
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("unfocused_cursor_style: same"));
+    assert!(yaml.contains("cursor_guide_enabled: true"));
+    assert!(yaml.contains("cursor_shadow_enabled: true"));
+    assert!(yaml.contains("cursor_boost: 0.7"));
+}
+
+#[test]
+fn test_config_cursor_enhancement_partial_yaml() {
+    // Test that default values are used for missing cursor enhancement fields
+    let yaml = r#"
+cursor_guide_enabled: true
+cursor_boost: 0.3
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.cursor_guide_enabled);
+    assert!((config.cursor_boost - 0.3).abs() < f32::EPSILON);
+    // Other fields should have defaults
+    assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
+    assert!(!config.cursor_shadow_enabled);
+    assert_eq!(config.cursor_guide_color, [255, 255, 255, 20]);
 }

@@ -273,3 +273,28 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
         },
     ]
 }
+
+// Cursor enhancement defaults
+pub fn cursor_guide_color() -> [u8; 4] {
+    [255, 255, 255, 20] // Subtle white highlight
+}
+
+pub fn cursor_shadow_color() -> [u8; 4] {
+    [0, 0, 0, 128] // Semi-transparent black
+}
+
+pub fn cursor_shadow_offset() -> [f32; 2] {
+    [2.0, 2.0] // 2 pixels offset in both directions
+}
+
+pub fn cursor_shadow_blur() -> f32 {
+    3.0 // 3 pixel blur radius
+}
+
+pub fn cursor_boost() -> f32 {
+    0.0 // Disabled by default
+}
+
+pub fn cursor_boost_color() -> [u8; 3] {
+    [255, 255, 255] // White glow
+}

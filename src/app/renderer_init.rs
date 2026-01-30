@@ -6,7 +6,7 @@
 
 use crate::config::{
     BackgroundImageMode, BackgroundMode, Config, CursorShaderMetadata, FontRange, ShaderMetadata,
-    VsyncMode, resolve_cursor_shader_config, resolve_shader_config,
+    UnfocusedCursorStyle, VsyncMode, resolve_cursor_shader_config, resolve_shader_config,
 };
 
 /// Expand tilde in path to home directory
@@ -78,6 +78,16 @@ pub(crate) struct RendererInitParams {
     pub cursor_shader_color: [u8; 3],
     pub transparency_affects_only_default_background: bool,
     pub keep_text_opaque: bool,
+    // Cursor enhancements
+    pub cursor_guide_enabled: bool,
+    pub cursor_guide_color: [u8; 4],
+    pub cursor_shadow_enabled: bool,
+    pub cursor_shadow_color: [u8; 4],
+    pub cursor_shadow_offset: [f32; 2],
+    pub cursor_shadow_blur: f32,
+    pub cursor_boost: f32,
+    pub cursor_boost_color: [u8; 3],
+    pub unfocused_cursor_style: UnfocusedCursorStyle,
 }
 
 impl RendererInitParams {
@@ -181,6 +191,15 @@ impl RendererInitParams {
             transparency_affects_only_default_background: config
                 .transparency_affects_only_default_background,
             keep_text_opaque: config.keep_text_opaque,
+            cursor_guide_enabled: config.cursor_guide_enabled,
+            cursor_guide_color: config.cursor_guide_color,
+            cursor_shadow_enabled: config.cursor_shadow_enabled,
+            cursor_shadow_color: config.cursor_shadow_color,
+            cursor_shadow_offset: config.cursor_shadow_offset,
+            cursor_shadow_blur: config.cursor_shadow_blur,
+            cursor_boost: config.cursor_boost,
+            cursor_boost_color: config.cursor_boost_color,
+            unfocused_cursor_style: config.unfocused_cursor_style,
         }
     }
 
@@ -254,6 +273,17 @@ impl RendererInitParams {
                 self.solid_background_color,
             );
         }
+
+        // Apply cursor enhancement settings
+        renderer.update_cursor_guide(self.cursor_guide_enabled, self.cursor_guide_color);
+        renderer.update_cursor_shadow(
+            self.cursor_shadow_enabled,
+            self.cursor_shadow_color,
+            self.cursor_shadow_offset,
+            self.cursor_shadow_blur,
+        );
+        renderer.update_cursor_boost(self.cursor_boost, self.cursor_boost_color);
+        renderer.update_unfocused_cursor_style(self.unfocused_cursor_style);
 
         Ok(renderer)
     }
