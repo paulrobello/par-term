@@ -204,16 +204,19 @@ fn get_shaders_download_url(repo: &str) -> anyhow::Result<String> {
         .read_to_string()
         .map_err(|e| anyhow::anyhow!("Failed to read response body: {}", e))?;
 
-    // Parse JSON to find shaders.zip URL
-    // Look for "browser_download_url": "...shaders.zip"
-    if let Some(pos) = body_str.find("shaders.zip") {
-        // Search backwards for the URL start
-        let search_start = pos.saturating_sub(200);
-        let search_str = &body_str[search_start..pos + 11];
-        if let Some(url_start) = search_str.rfind("https://") {
-            let url_slice = &search_str[url_start..];
-            if let Some(url_end) = url_slice.find('"') {
-                return Ok(url_slice[..url_end].to_string());
+    // Parse JSON to find shaders.zip browser_download_url
+    // Look for "browser_download_url":"...shaders.zip"
+    // We need the browser_download_url, not the api url
+    let search_pattern = "\"browser_download_url\":\"";
+    let target_file = "shaders.zip";
+
+    // Find the shaders.zip entry by looking for browser_download_url containing shaders.zip
+    for (i, _) in body_str.match_indices(search_pattern) {
+        let url_start = i + search_pattern.len();
+        if let Some(url_end) = body_str[url_start..].find('"') {
+            let url = &body_str[url_start..url_start + url_end];
+            if url.ends_with(target_file) {
+                return Ok(url.to_string());
             }
         }
     }
