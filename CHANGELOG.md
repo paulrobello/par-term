@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0] - 2026-01-29
+
+### Added
+
+- **Shader Gallery**: Visual gallery with screenshots of all 49+ included shaders
+  - Hosted on GitHub Pages at https://paulrobello.github.io/par-term/
+  - Auto-deploys on changes to shader-gallery folder
+- **CLI Options**: New command-line flags for automation and scripting
+  - `--screenshot <path>`: Take screenshot and save to file
+  - `--shader <name>`: Override background shader
+  - `--exit-after <seconds>`: Exit after specified duration
+  - `--command <cmd>`: Run command instead of default shell
+- **Configurable Keybindings**: Customize all keyboard shortcuts
+  - Edit `~/.config/par-term/keybindings.yaml`
+  - Support for modifier keys (Ctrl, Alt, Shift, Super)
+- **Shader Distribution System**: Easy shader installation
+  - `par-term install-shaders` CLI command
+  - Downloads shaders from latest GitHub release
+  - Options: `-y` (no prompt), `--force` (overwrite existing)
+
+### Fixed
+
+- **Custom Shader Background Handling**: Preserve solid color background when custom shader is disabled
+- **Full Content Mode Compositing**: Shader output used directly without re-compositing terminal content on top
+
+### Documentation
+
+- Synced COMPOSITOR.md and CUSTOM_SHADERS.md with current implementation
+- Updated README with CLI shader installer instructions
+
+---
+
 ## [0.5.0] - 2026-01-29
 
 ### Added
