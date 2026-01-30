@@ -97,7 +97,7 @@ sequenceDiagram
 
     alt Background Shader Only
         Renderer->>CR: render_to_texture(bg_shader_intermediate)
-        CR->>CR: Render background image + cells + cursor
+        CR->>CR: Render cells + cursor (skip background)
         Renderer->>BSR: render(surface_view)
         BSR->>Surface: Apply background shader effect
         Renderer->>CR: render_overlays(surface)

@@ -231,9 +231,24 @@ sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev
 
 par-term includes 49+ custom GLSL shaders for background effects and cursor animations. These need to be installed to your config directory.
 
-### Quick Install (Recommended)
+### Built-in Installer (Recommended)
 
-Run the install script to download and install all shaders from the latest release:
+Use the built-in CLI command to download and install all shaders from the latest release:
+
+```bash
+# Install shaders (with confirmation prompt)
+par-term install-shaders
+
+# Install without prompts
+par-term install-shaders -y
+
+# Force overwrite existing shaders
+par-term install-shaders --force
+```
+
+### Shell Script
+
+Alternatively, use the shell script installer:
 
 ```bash
 # Download and run the installer
