@@ -644,17 +644,18 @@ impl ApplicationHandler for WindowManager {
         }
 
         // Route event to the appropriate terminal window
-        let (should_close, shader_states) = if let Some(window_state) = self.windows.get_mut(&window_id) {
-            let close = window_state.handle_window_event(event_loop, event);
-            // Capture shader states to sync to settings window
-            let states = (
-                window_state.config.custom_shader_enabled,
-                window_state.config.cursor_shader_enabled,
-            );
-            (close, Some(states))
-        } else {
-            (false, None)
-        };
+        let (should_close, shader_states) =
+            if let Some(window_state) = self.windows.get_mut(&window_id) {
+                let close = window_state.handle_window_event(event_loop, event);
+                // Capture shader states to sync to settings window
+                let states = (
+                    window_state.config.custom_shader_enabled,
+                    window_state.config.cursor_shader_enabled,
+                );
+                (close, Some(states))
+            } else {
+                (false, None)
+            };
 
         // Sync shader states to settings window to prevent it from overwriting keybinding toggles
         if let (Some(settings_window), Some((custom_enabled, cursor_enabled))) =

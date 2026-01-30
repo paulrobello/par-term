@@ -446,7 +446,6 @@ impl WindowState {
                         height_px
                     );
                 }
-
             }
 
             // Start refresh task for the first tab
