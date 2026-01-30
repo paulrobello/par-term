@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>par-term Shader Gallery</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #00d4ff;
+            margin-bottom: 30px;
+        }
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .shader-card {
+            background: #16213e;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .shader-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 212, 255, 0.2);
+        }
+        .shader-card img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .shader-name {
+            padding: 15px;
+            text-align: center;
+            font-weight: 500;
+            color: #00d4ff;
+            background: #0f0f23;
+        }
+    </style>
+</head>
+<body>
+    <h1>par-term Shader Gallery</h1>
+    <div class="gallery">
+        <div class="shader-card">
+            <img src="animated-gradient-shader.png" alt="animated-gradient-shader" loading="lazy">
+            <div class="shader-name">animated-gradient-shader</div>
+        </div>
+        <div class="shader-card">
+            <img src="arcane-portal.png" alt="arcane-portal" loading="lazy">
+            <div class="shader-name">arcane-portal</div>
+        </div>
+        <div class="shader-card">
+            <img src="bloom.png" alt="bloom" loading="lazy">
+            <div class="shader-name">bloom</div>
+        </div>
+        <div class="shader-card">
+            <img src="bumped_sinusoidal_warp.png" alt="bumped_sinusoidal_warp" loading="lazy">
+            <div class="shader-name">bumped_sinusoidal_warp</div>
+        </div>
+        <div class="shader-card">
+            <img src="cineShader-Lava.png" alt="cineShader-Lava" loading="lazy">
+            <div class="shader-name">cineShader-Lava</div>
+        </div>
+        <div class="shader-card">
+            <img src="clouds.png" alt="clouds" loading="lazy">
+            <div class="shader-name">clouds</div>
+        </div>
+        <div class="shader-card">
+            <img src="convergence.png" alt="convergence" loading="lazy">
+            <div class="shader-name">convergence</div>
+        </div>
+        <div class="shader-card">
+            <img src="crt.png" alt="crt" loading="lazy">
+            <div class="shader-name">crt</div>
+        </div>
+        <div class="shader-card">
+            <img src="cubemap-skybox.png" alt="cubemap-skybox" loading="lazy">
+            <div class="shader-name">cubemap-skybox</div>
+        </div>
+        <div class="shader-card">
+            <img src="cubemap-test.png" alt="cubemap-test" loading="lazy">
+            <div class="shader-name">cubemap-test</div>
+        </div>
+        <div class="shader-card">
+            <img src="cubes.png" alt="cubes" loading="lazy">
+            <div class="shader-name">cubes</div>
+        </div>
+        <div class="shader-card">
+            <img src="dither.png" alt="dither" loading="lazy">
+            <div class="shader-name">dither</div>
+        </div>
+        <div class="shader-card">
+            <img src="dodecagon-pattern.png" alt="dodecagon-pattern" loading="lazy">
+            <div class="shader-name">dodecagon-pattern</div>
+        </div>
+        <div class="shader-card">
+            <img src="drunkard.png" alt="drunkard" loading="lazy">
+            <div class="shader-name">drunkard</div>
+        </div>
+        <div class="shader-card">
+            <img src="fireworks-rockets.png" alt="fireworks-rockets" loading="lazy">
+            <div class="shader-name">fireworks-rockets</div>
+        </div>
+        <div class="shader-card">
+            <img src="fireworks.png" alt="fireworks" loading="lazy">
+            <div class="shader-name">fireworks</div>
+        </div>
+        <div class="shader-card">
+            <img src="galaxy.png" alt="galaxy" loading="lazy">
+            <div class="shader-name">galaxy</div>
+        </div>
+        <div class="shader-card">
+            <img src="gears-and-belts.png" alt="gears-and-belts" loading="lazy">
+            <div class="shader-name">gears-and-belts</div>
+        </div>
+        <div class="shader-card">
+            <img src="glitchy.png" alt="glitchy" loading="lazy">
+            <div class="shader-name">glitchy</div>
+        </div>
+        <div class="shader-card">
+            <img src="glow-rgbsplit-twitchy.png" alt="glow-rgbsplit-twitchy" loading="lazy">
+            <div class="shader-name">glow-rgbsplit-twitchy</div>
+        </div>
+        <div class="shader-card">
+            <img src="gradient-background.png" alt="gradient-background" loading="lazy">
+            <div class="shader-name">gradient-background</div>
+        </div>
+        <div class="shader-card">
+            <img src="gyroid.png" alt="gyroid" loading="lazy">
+            <div class="shader-name">gyroid</div>
+        </div>
+        <div class="shader-card">
+            <img src="happy_fractal.png" alt="happy_fractal" loading="lazy">
+            <div class="shader-name">happy_fractal</div>
+        </div>
+        <div class="shader-card">
+            <img src="inside-the-matrix.png" alt="inside-the-matrix" loading="lazy">
+            <div class="shader-name">inside-the-matrix</div>
+        </div>
+        <div class="shader-card">
+            <img src="just-snow.png" alt="just-snow" loading="lazy">
+            <div class="shader-name">just-snow</div>
+        </div>
+        <div class="shader-card">
+            <img src="keypress_pulse.png" alt="keypress_pulse" loading="lazy">
+            <div class="shader-name">keypress_pulse</div>
+        </div>
+        <div class="shader-card">
+            <img src="rain.png" alt="rain" loading="lazy">
+            <div class="shader-name">rain</div>
+        </div>
+        <div class="shader-card">
+            <img src="retro-terminal.png" alt="retro-terminal" loading="lazy">
+            <div class="shader-name">retro-terminal</div>
+        </div>
+        <div class="shader-card">
+            <img src="sin-interference.png" alt="sin-interference" loading="lazy">
+            <div class="shader-name">sin-interference</div>
+        </div>
+        <div class="shader-card">
+            <img src="singularity.png" alt="singularity" loading="lazy">
+            <div class="shader-name">singularity</div>
+        </div>
+        <div class="shader-card">
+            <img src="sparks-from-fire.png" alt="sparks-from-fire" loading="lazy">
+            <div class="shader-name">sparks-from-fire</div>
+        </div>
+        <div class="shader-card">
+            <img src="spotlight.png" alt="spotlight" loading="lazy">
+            <div class="shader-name">spotlight</div>
+        </div>
+        <div class="shader-card">
+            <img src="starfield-colors.png" alt="starfield-colors" loading="lazy">
+            <div class="shader-name">starfield-colors</div>
+        </div>
+        <div class="shader-card">
+            <img src="starfield.png" alt="starfield" loading="lazy">
+            <div class="shader-name">starfield</div>
+        </div>
+        <div class="shader-card">
+            <img src="underwater.png" alt="underwater" loading="lazy">
+            <div class="shader-name">underwater</div>
+        </div>
+        <div class="shader-card">
+            <img src="universe-within.png" alt="universe-within" loading="lazy">
+            <div class="shader-name">universe-within</div>
+        </div>
+        <div class="shader-card">
+            <img src="water.png" alt="water" loading="lazy">
+            <div class="shader-name">water</div>
+        </div>
+    </div>
+</body>
+</html>
