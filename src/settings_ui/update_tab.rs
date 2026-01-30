@@ -169,13 +169,19 @@ pub fn show(
         }
 
         ui.add_space(4.0);
+        #[cfg(target_os = "macos")]
+        let help_text = "par-term only checks for updates and notifies you. \
+            If installed via Homebrew: brew upgrade --cask par-term. \
+            Otherwise, download from GitHub releases.";
+
+        #[cfg(not(target_os = "macos"))]
+        let help_text = "par-term only checks for updates and notifies you. \
+            Download from GitHub releases or your package manager.";
+
         ui.label(
-            egui::RichText::new(
-                "par-term only checks for updates and notifies you. \
-                Download and install updates manually from GitHub.",
-            )
-            .small()
-            .color(egui::Color32::GRAY),
+            egui::RichText::new(help_text)
+                .small()
+                .color(egui::Color32::GRAY),
         );
     });
 }
@@ -247,13 +253,19 @@ pub fn show_simple(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_fr
         }
 
         ui.add_space(4.0);
+        #[cfg(target_os = "macos")]
+        let help_text = "par-term only checks for updates and notifies you. \
+            If installed via Homebrew: brew upgrade --cask par-term. \
+            Otherwise, download from GitHub releases.";
+
+        #[cfg(not(target_os = "macos"))]
+        let help_text = "par-term only checks for updates and notifies you. \
+            Download from GitHub releases or your package manager.";
+
         ui.label(
-            egui::RichText::new(
-                "par-term only checks for updates and notifies you. \
-                Download and install updates manually from GitHub.",
-            )
-            .small()
-            .color(egui::Color32::GRAY),
+            egui::RichText::new(help_text)
+                .small()
+                .color(egui::Color32::GRAY),
         );
     });
 }

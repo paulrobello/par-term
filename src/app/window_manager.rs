@@ -177,13 +177,26 @@ impl WindowManager {
 
         let version_str = info.version.strip_prefix('v').unwrap_or(&info.version);
 
+        #[cfg(target_os = "macos")]
+        let body = format!(
+            "Version {} is available (you have {})\n\
+            If installed via Homebrew: brew upgrade --cask par-term\n\
+            Otherwise, download from GitHub releases.",
+            version_str,
+            env!("CARGO_PKG_VERSION")
+        );
+
+        #[cfg(not(target_os = "macos"))]
+        let body = format!(
+            "Version {} is available (you have {})\n\
+            Download from GitHub releases or your package manager.",
+            version_str,
+            env!("CARGO_PKG_VERSION")
+        );
+
         let _ = Notification::new()
             .summary("par-term Update Available")
-            .body(&format!(
-                "Version {} is available (you have {})\nOpen Settings > Updates to learn more.",
-                version_str,
-                env!("CARGO_PKG_VERSION")
-            ))
+            .body(&body)
             .appname("par-term")
             .show();
     }
