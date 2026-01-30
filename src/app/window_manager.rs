@@ -405,6 +405,27 @@ impl WindowManager {
                 log::info!("About par-term v{}", env!("CARGO_PKG_VERSION"));
                 // Could show an about dialog here
             }
+            MenuAction::ToggleBackgroundShader => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.toggle_background_shader();
+                }
+            }
+            MenuAction::ToggleCursorShader => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.toggle_cursor_shader();
+                }
+            }
+            MenuAction::ReloadConfig => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.reload_config();
+                }
+            }
         }
     }
 
@@ -517,6 +538,16 @@ impl WindowManager {
             // Update the config
             window_state.config = config.clone();
 
+            // Rebuild keybinding registry if keybindings changed
+            if changes.keybindings {
+                window_state.keybinding_registry =
+                    crate::keybindings::KeybindingRegistry::from_config(&config.keybindings);
+                log::info!(
+                    "Keybinding registry rebuilt with {} bindings",
+                    config.keybindings.len()
+                );
+            }
+
             // Apply changes to renderer and collect any shader errors
             let (shader_result, cursor_result) = if let Some(renderer) = &mut window_state.renderer
             {
@@ -540,15 +571,14 @@ impl WindowManager {
                 // Update vsync mode if changed
                 if changes.vsync_mode {
                     let (actual_mode, _changed) = renderer.update_vsync_mode(config.vsync_mode);
-                    // If the actual mode differs, update config and show warning
+                    // If the actual mode differs, update config
                     if actual_mode != config.vsync_mode {
                         window_state.config.vsync_mode = actual_mode;
-                        window_state.settings_ui.set_vsync_warning(Some(format!(
-                            "{:?} is not supported. Using {:?} instead.",
-                            config.vsync_mode, actual_mode
-                        )));
-                    } else {
-                        window_state.settings_ui.set_vsync_warning(None);
+                        log::warn!(
+                            "Vsync mode {:?} is not supported. Using {:?} instead.",
+                            config.vsync_mode,
+                            actual_mode
+                        );
                     }
                 }
 
@@ -629,13 +659,10 @@ impl WindowManager {
                     .as_ref()
                     .and_then(|name| config.shader_configs.get(name));
                 // Get shader metadata from cache for full 3-tier resolution
-                let metadata = config.custom_shader.as_ref().and_then(|name| {
-                    window_state
-                        .settings_ui
-                        .shader_metadata_cache
-                        .get(name)
-                        .cloned()
-                });
+                let metadata = config
+                    .custom_shader
+                    .as_ref()
+                    .and_then(|name| window_state.shader_metadata_cache.get(name).cloned());
                 let resolved = resolve_shader_config(shader_override, metadata.as_ref(), config);
 
                 // Apply shader changes - track if change was attempted and result
@@ -699,16 +726,12 @@ impl WindowManager {
                 (None, None)
             };
 
-            // Update settings UI with shader errors only when a change was attempted
+            // Track shader errors for propagation to standalone settings window
             // shader_result: None = no change attempted, Some(None) = success, Some(Some(err)) = error
             if let Some(result) = shader_result {
-                window_state.settings_ui.set_shader_error(result.clone());
                 last_shader_result = Some(result);
             }
             if let Some(result) = cursor_result {
-                window_state
-                    .settings_ui
-                    .set_cursor_shader_error(result.clone());
                 last_cursor_shader_result = Some(result);
             }
 

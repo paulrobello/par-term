@@ -21,8 +21,11 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
-    FontRange, ShaderConfig, ShaderMetadata, TabBarMode, VsyncMode,
+    FontRange, KeyBinding, ShaderConfig, ShaderMetadata, TabBarMode, VsyncMode,
 };
+// KeyModifier is exported for potential future use (e.g., custom keybinding UI)
+#[allow(unused_imports)]
+pub use types::KeyModifier;
 #[allow(unused_imports)]
 pub use types::{ResolvedCursorShaderConfig, ResolvedShaderConfig};
 
@@ -649,6 +652,14 @@ pub struct Config {
     /// Per-cursor-shader configuration overrides (key = shader filename)
     #[serde(default)]
     pub cursor_shader_configs: HashMap<String, CursorShaderConfig>,
+
+    // ========================================================================
+    // Keybindings
+    // ========================================================================
+    /// Custom keybindings (checked before built-in shortcuts)
+    /// Format: key = "CmdOrCtrl+Shift+B", action = "toggle_background_shader"
+    #[serde(default = "defaults::keybindings")]
+    pub keybindings: Vec<KeyBinding>,
 }
 
 impl Default for Config {
@@ -775,6 +786,7 @@ impl Default for Config {
             shader_hot_reload_delay: defaults::shader_hot_reload_delay(),
             shader_configs: HashMap::new(),
             cursor_shader_configs: HashMap::new(),
+            keybindings: defaults::keybindings(),
         }
     }
 }

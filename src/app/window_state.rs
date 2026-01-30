@@ -5,12 +5,12 @@
 
 use crate::app::debug_state::DebugState;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
-use crate::config::{Config, CursorStyle};
+use crate::config::{Config, CursorShaderMetadataCache, CursorStyle, ShaderMetadataCache};
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
+use crate::keybindings::KeybindingRegistry;
 use crate::renderer::Renderer;
 use crate::selection::SelectionMode;
-use crate::settings_ui::SettingsUI;
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::tab::TabManager;
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
@@ -48,8 +48,10 @@ pub struct WindowState {
     pub(crate) egui_ctx: Option<egui::Context>,
     /// egui-winit state for event handling
     pub(crate) egui_state: Option<egui_winit::State>,
-    /// Settings UI manager
-    pub(crate) settings_ui: SettingsUI,
+    /// Cache for parsed shader metadata (used for config resolution)
+    pub(crate) shader_metadata_cache: ShaderMetadataCache,
+    /// Cache for parsed cursor shader metadata (used for config resolution)
+    pub(crate) cursor_shader_metadata_cache: CursorShaderMetadataCache,
     /// Help UI manager
     pub(crate) help_ui: HelpUI,
     /// Clipboard history UI manager
@@ -99,12 +101,16 @@ pub struct WindowState {
     pub(crate) resize_overlay_hide_time: Option<std::time::Instant>,
     /// Current resize dimensions: (width_px, height_px, cols, rows)
     pub(crate) resize_dimensions: Option<(u32, u32, usize, usize)>,
+
+    /// Keybinding registry for user-defined keyboard shortcuts
+    pub(crate) keybinding_registry: KeybindingRegistry,
 }
 
 impl WindowState {
     /// Create a new window state with the given configuration
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
-        let settings_ui = SettingsUI::new(config.clone());
+        let keybinding_registry = KeybindingRegistry::from_config(&config.keybindings);
+        let shaders_dir = Config::shaders_dir();
 
         Self {
             config,
@@ -124,7 +130,8 @@ impl WindowState {
             is_fullscreen: false,
             egui_ctx: None,
             egui_state: None,
-            settings_ui,
+            shader_metadata_cache: ShaderMetadataCache::with_shaders_dir(shaders_dir.clone()),
+            cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
             help_ui: HelpUI::new(),
             clipboard_history_ui: ClipboardHistoryUI::new(),
             is_recording: false,
@@ -148,6 +155,8 @@ impl WindowState {
             resize_overlay_visible: false,
             resize_overlay_hide_time: None,
             resize_dimensions: None,
+
+            keybinding_registry,
         }
     }
 
@@ -295,14 +304,13 @@ impl WindowState {
             .config
             .custom_shader
             .as_ref()
-            .and_then(|name| self.settings_ui.shader_metadata_cache.get(name).cloned());
+            .and_then(|name| self.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
-        let cursor_metadata = self.config.cursor_shader.as_ref().and_then(|name| {
-            self.settings_ui
-                .cursor_shader_metadata_cache
-                .get(name)
-                .cloned()
-        });
+        let cursor_metadata = self
+            .config
+            .cursor_shader
+            .as_ref()
+            .and_then(|name| self.cursor_shader_metadata_cache.get(name).cloned());
         let params = RendererInitParams::from_config(
             &self.config,
             &theme,
@@ -331,18 +339,6 @@ impl WindowState {
 
         // Apply cursor shader configuration
         self.apply_cursor_shader_config(&mut renderer, &params);
-
-        // Update settings UI with supported vsync modes
-        let supported_modes: Vec<crate::config::VsyncMode> = [
-            crate::config::VsyncMode::Immediate,
-            crate::config::VsyncMode::Mailbox,
-            crate::config::VsyncMode::Fifo,
-        ]
-        .into_iter()
-        .filter(|mode| renderer.is_vsync_mode_supported(*mode))
-        .collect();
-        self.settings_ui
-            .update_supported_vsync_modes(supported_modes);
 
         self.renderer = Some(renderer);
         self.needs_redraw = true;
@@ -374,14 +370,13 @@ impl WindowState {
             .config
             .custom_shader
             .as_ref()
-            .and_then(|name| self.settings_ui.shader_metadata_cache.get(name).cloned());
+            .and_then(|name| self.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
-        let cursor_metadata = self.config.cursor_shader.as_ref().and_then(|name| {
-            self.settings_ui
-                .cursor_shader_metadata_cache
-                .get(name)
-                .cloned()
-        });
+        let cursor_metadata = self
+            .config
+            .cursor_shader
+            .as_ref()
+            .and_then(|name| self.cursor_shader_metadata_cache.get(name).cloned());
         let params = RendererInitParams::from_config(
             &self.config,
             &theme,
@@ -416,18 +411,6 @@ impl WindowState {
 
         // Apply cursor shader configuration
         self.apply_cursor_shader_config(&mut renderer, &params);
-
-        // Update settings UI with supported vsync modes
-        let supported_modes: Vec<crate::config::VsyncMode> = [
-            crate::config::VsyncMode::Immediate,
-            crate::config::VsyncMode::Mailbox,
-            crate::config::VsyncMode::Fifo,
-        ]
-        .into_iter()
-        .filter(|mode| renderer.is_vsync_mode_supported(*mode))
-        .collect();
-        self.settings_ui
-            .update_supported_vsync_modes(supported_modes);
 
         self.window = Some(Arc::clone(&window));
         self.renderer = Some(renderer);
@@ -464,9 +447,6 @@ impl WindowState {
                     );
                 }
 
-                // Update settings UI with initial terminal dimensions
-                self.settings_ui
-                    .update_current_size(renderer_cols, renderer_rows);
             }
 
             // Start refresh task for the first tab
@@ -632,16 +612,12 @@ impl WindowState {
                 let error_msg = format!("Cannot read '{}': {}", file_name, e);
                 log::error!("Shader hot reload failed: {}", error_msg);
                 self.shader_reload_error = Some(error_msg.clone());
+                // Track error for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.settings_ui.set_shader_error(Some(error_msg.clone()));
-                        // Track error for standalone settings window propagation
                         self.background_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                     ShaderType::Cursor => {
-                        self.settings_ui
-                            .set_cursor_shader_error(Some(error_msg.clone()));
-                        // Track error for standalone settings window propagation
                         self.cursor_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                 }
@@ -676,15 +652,12 @@ impl WindowState {
             Ok(()) => {
                 log::info!("{} reloaded successfully from {}", shader_name, file_name);
                 self.shader_reload_error = None;
+                // Track success for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.settings_ui.clear_shader_error();
-                        // Track success for standalone settings window propagation
                         self.background_shader_reload_result = Some(None);
                     }
                     ShaderType::Cursor => {
-                        self.settings_ui.clear_cursor_shader_error();
-                        // Track success for standalone settings window propagation
                         self.cursor_shader_reload_result = Some(None);
                     }
                 }
@@ -710,16 +683,12 @@ impl WindowState {
                 log::debug!("Full error chain: {:#}", e);
 
                 self.shader_reload_error = Some(error_msg.clone());
+                // Track error for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.settings_ui.set_shader_error(Some(error_msg.clone()));
-                        // Track error for standalone settings window propagation
                         self.background_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                     ShaderType::Cursor => {
-                        self.settings_ui
-                            .set_cursor_shader_error(Some(error_msg.clone()));
-                        // Track error for standalone settings window propagation
                         self.cursor_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                 }
@@ -756,11 +725,8 @@ impl WindowState {
     /// Check if egui is currently using keyboard input (e.g., text input or ComboBox has focus)
     pub(crate) fn is_egui_using_keyboard(&self) -> bool {
         // If any UI panel is visible, check if egui wants keyboard input
-        let any_ui_visible = self.settings_ui.visible
-            || self.help_ui.visible
-            || self.clipboard_history_ui.visible
-            || self.settings_ui.is_shader_editor_visible()
-            || self.settings_ui.is_cursor_shader_editor_visible();
+        // Note: Settings are handled by standalone SettingsWindow, not embedded UI
+        let any_ui_visible = self.help_ui.visible || self.clipboard_history_ui.visible;
         if !any_ui_visible {
             return false;
         }
@@ -1119,7 +1085,7 @@ impl WindowState {
                 self.config
                     .cursor_shader
                     .as_ref()
-                    .and_then(|name| self.settings_ui.cursor_shader_metadata_cache.get(name))
+                    .and_then(|name| self.cursor_shader_metadata_cache.get(name))
                     .and_then(|meta| meta.defaults.hides_cursor)
             })
             .unwrap_or(self.config.cursor_shader_hides_cursor);
@@ -1134,7 +1100,7 @@ impl WindowState {
                 self.config
                     .cursor_shader
                     .as_ref()
-                    .and_then(|name| self.settings_ui.cursor_shader_metadata_cache.get(name))
+                    .and_then(|name| self.cursor_shader_metadata_cache.get(name))
                     .and_then(|meta| meta.defaults.disable_in_alt_screen)
             })
             .unwrap_or(self.config.cursor_shader_disable_in_alt_screen);
@@ -1274,28 +1240,6 @@ impl WindowState {
                 renderer.update_shader_cursor(pos.0, pos.1, opacity, cursor_color, style);
             } else {
                 renderer.clear_cursor();
-            }
-
-            // If settings UI is visible, sync app config to UI working copy and push opacity
-            if self.settings_ui.visible {
-                let ui_cfg = self.settings_ui.current_config().clone();
-                if (ui_cfg.window_opacity - self.config.window_opacity).abs() > 1e-4 {
-                    log::info!(
-                        "Syncing live opacity from UI {:.3} (app {:.3})",
-                        ui_cfg.window_opacity,
-                        self.config.window_opacity
-                    );
-                    self.config.window_opacity = ui_cfg.window_opacity;
-                }
-
-                renderer.update_opacity(self.config.window_opacity);
-                if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.cache.applied_opacity = self.config.window_opacity;
-                    tab.cache.cells = None;
-                }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
             }
 
             // Update scrollbar
@@ -1528,7 +1472,8 @@ impl WindowState {
 
             // Render (with dirty tracking optimization)
             let actual_render_start = std::time::Instant::now();
-            match renderer.render(egui_data, self.settings_ui.visible, show_scrollbar) {
+            // Settings are handled by standalone SettingsWindow, not embedded UI
+            match renderer.render(egui_data, false, show_scrollbar) {
                 Ok(rendered) => {
                     if !rendered {
                         log::trace!("Skipped rendering - no changes");

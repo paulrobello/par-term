@@ -73,4 +73,15 @@ pub enum MenuAction {
     ShowHelp,
     /// Show about dialog
     About,
+
+    // Keybinding actions (triggered by user-defined keybindings or menu)
+    /// Toggle background/custom shader on/off
+    #[allow(dead_code)]
+    ToggleBackgroundShader,
+    /// Toggle cursor shader on/off
+    #[allow(dead_code)]
+    ToggleCursorShader,
+    /// Reload configuration from disk (same as F5)
+    #[allow(dead_code)]
+    ReloadConfig,
 }

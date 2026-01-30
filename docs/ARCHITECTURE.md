@@ -38,7 +38,9 @@ graph TB
         TabUI[Tab Bar UI]
         Menu[Native Menu]
         Input[Input Handler]
+        Keybind[Keybinding Registry]
         Config[Configuration]
+        SettingsWin[Settings Window]
     end
 
     subgraph "Emulation Layer"
@@ -59,7 +61,9 @@ graph TB
     App --> WM
     WM --> WS
     WM --> Menu
+    WM --> SettingsWin
     Input --> WS
+    Keybind --> WS
     WS --> TabMgr
     WS --> TabUI
     TabMgr --> Tab
@@ -80,6 +84,8 @@ graph TB
     style TabMgr fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
     style TabUI fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Menu fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Keybind fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style SettingsWin fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Tab fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style TM fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Renderer fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
@@ -92,15 +98,17 @@ graph TB
 ### Application Logic
 
 *   **App (`src/app/mod.rs`)**: The entry point that initializes configuration and runs the event loop via `winit`.
-*   **WindowManager (`src/app/window_manager.rs`)**: Coordinates multiple terminal windows, handles native menu events, and manages shared resources.
-*   **WindowState (`src/app/window_state.rs`)**: Per-window state containing tab manager, renderer, input handler, and UI components.
+*   **WindowManager (`src/app/window_manager.rs`)**: Coordinates multiple terminal windows, handles native menu events, manages the standalone settings window, and applies configuration changes across all windows.
+*   **WindowState (`src/app/window_state.rs`)**: Per-window state containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches.
 *   **TabManager (`src/tab/manager.rs`)**: Manages multiple terminal tabs within a window, handling tab creation, switching, reordering, and cleanup.
 *   **Tab (`src/tab/mod.rs`)**: Represents a single terminal session with its own terminal, scroll state, mouse state, bell state, and render cache.
 *   **TabBarUI (`src/tab_bar_ui.rs`)**: egui-based tab bar renderer with click handling, close buttons, activity indicators, and bell icons.
 *   **Input Handler (`src/input.rs`)**: Translates OS window events (keyboard, mouse) into terminal input sequences or application commands (e.g., shortcuts for copy/paste).
+*   **Keybindings (`src/keybindings/`)**: Configurable keyboard shortcut system with key combo parsing, platform-aware modifier handling (`CmdOrCtrl`), and action registry.
 *   **Menu (`src/menu/mod.rs`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).
 *   **Configuration (`src/config/mod.rs`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`).
-*   **Settings UI (`src/settings_ui/mod.rs`)**: egui-based settings overlay with tabs for font, theme, window, terminal, cursor, shell, bell, mouse, scrollbar, background, screenshot, and tab bar configuration.
+*   **Settings Window (`src/settings_window.rs`)**: Standalone egui window for configuration, separate from the main terminal window for better usability.
+*   **Settings UI (`src/settings_ui/mod.rs`)**: egui-based settings interface with tabs for font, theme, window, terminal, cursor, shell, bell, mouse, scrollbar, background, keybindings, screenshot, and tab bar configuration.
 
 ### Terminal Emulation
 

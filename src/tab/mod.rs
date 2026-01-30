@@ -57,8 +57,6 @@ impl Tab {
         _runtime: Arc<Runtime>,
         working_directory: Option<String>,
     ) -> anyhow::Result<Self> {
-        let initial_opacity = config.window_opacity;
-
         // Create terminal with scrollback from config
         let mut terminal = TerminalManager::new_with_scrollback(
             config.cols,
@@ -142,7 +140,7 @@ impl Tab {
             scroll_state: ScrollState::new(),
             mouse: MouseState::new(),
             bell: BellState::new(),
-            cache: RenderCache::new(initial_opacity),
+            cache: RenderCache::new(),
             refresh_task: None,
             working_directory: working_directory.or_else(|| config.working_directory.clone()),
             custom_color: None,

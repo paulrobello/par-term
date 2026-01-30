@@ -260,3 +260,16 @@ pub fn blur_radius() -> u32 {
 pub fn use_background_as_channel0() -> bool {
     false // By default, use configured channel0 texture, not background image
 }
+
+pub fn keybindings() -> Vec<super::types::KeyBinding> {
+    vec![
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+B".to_string(),
+            action: "toggle_background_shader".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+U".to_string(),
+            action: "toggle_cursor_shader".to_string(),
+        },
+    ]
+}

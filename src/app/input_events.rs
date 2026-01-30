@@ -1,5 +1,5 @@
 use crate::app::window_state::WindowState;
-use crate::config::Config;
+use crate::config::{Config, resolve_shader_config};
 use crate::terminal::ClipboardSlot;
 use std::sync::Arc;
 use winit::event::ElementState;
@@ -10,11 +10,8 @@ use winit::keyboard::{Key, NamedKey};
 impl WindowState {
     pub(crate) fn handle_key_event(&mut self, event: KeyEvent, event_loop: &ActiveEventLoop) {
         // Check if any UI panel is visible
-        let any_ui_visible = self.settings_ui.visible
-            || self.help_ui.visible
-            || self.clipboard_history_ui.visible
-            || self.settings_ui.is_shader_editor_visible()
-            || self.settings_ui.is_cursor_shader_editor_visible();
+        // Note: Settings are handled by standalone SettingsWindow, not embedded UI
+        let any_ui_visible = self.help_ui.visible || self.clipboard_history_ui.visible;
 
         // When UI panels are visible, block ALL keys from going to terminal
         // except for UI control keys (Escape handled by egui, F1/F2/F3 for toggles)
@@ -69,6 +66,19 @@ impl WindowState {
             // Update shader key press time for visual effects (iTimeKeyPress uniform)
             if let Some(renderer) = &mut self.renderer {
                 renderer.update_key_press_time();
+            }
+        }
+
+        // Check user-defined keybindings first (before hardcoded shortcuts)
+        if event.state == ElementState::Pressed
+            && let Some(action) = self
+                .keybinding_registry
+                .lookup(&event, &self.input_handler.modifiers)
+        {
+            // Clone to avoid borrow conflict
+            let action = action.to_string();
+            if self.execute_keybinding_action(&action) {
+                return; // Key was handled by user-defined keybinding
             }
         }
 
@@ -262,7 +272,8 @@ impl WindowState {
         false
     }
 
-    fn reload_config(&mut self) {
+    /// Reload configuration from disk (called internally from F5 handler).
+    pub(crate) fn reload_config(&mut self) {
         match Config::load() {
             Ok(new_config) => {
                 log::info!("Configuration reloaded successfully");
@@ -309,6 +320,15 @@ impl WindowState {
 
                 if new_config.cols != self.config.cols || new_config.rows != self.config.rows {
                     log::warn!("Terminal dimensions change requires restart");
+                }
+
+                // Refresh keybinding registry if keybindings changed
+                if new_config.keybindings != self.config.keybindings {
+                    self.keybinding_registry = crate::keybindings::KeybindingRegistry::from_config(
+                        &new_config.keybindings,
+                    );
+                    self.config.keybindings = new_config.keybindings;
+                    log::info!("Keybindings reloaded");
                 }
 
                 // Request redraw to apply theme changes
@@ -682,5 +702,183 @@ impl WindowState {
         }
 
         false
+    }
+
+    /// Execute a keybinding action by name.
+    ///
+    /// Returns true if the action was handled, false if unknown.
+    fn execute_keybinding_action(&mut self, action: &str) -> bool {
+        match action {
+            "toggle_background_shader" => {
+                self.toggle_background_shader();
+                true
+            }
+            "toggle_cursor_shader" => {
+                self.toggle_cursor_shader();
+                true
+            }
+            "reload_config" => {
+                self.reload_config();
+                true
+            }
+            "open_settings" => {
+                self.open_settings_window_requested = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                log::info!("Settings window requested via keybinding");
+                true
+            }
+            "toggle_fullscreen" => {
+                if let Some(window) = &self.window {
+                    self.is_fullscreen = !self.is_fullscreen;
+                    if self.is_fullscreen {
+                        window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+                        log::info!("Entering fullscreen mode via keybinding");
+                    } else {
+                        window.set_fullscreen(None);
+                        log::info!("Exiting fullscreen mode via keybinding");
+                    }
+                }
+                true
+            }
+            "toggle_help" => {
+                self.help_ui.toggle();
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                log::info!(
+                    "Help UI toggled via keybinding: {}",
+                    if self.help_ui.visible {
+                        "visible"
+                    } else {
+                        "hidden"
+                    }
+                );
+                true
+            }
+            "toggle_fps_overlay" => {
+                self.debug.show_fps_overlay = !self.debug.show_fps_overlay;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                log::info!(
+                    "FPS overlay toggled via keybinding: {}",
+                    if self.debug.show_fps_overlay {
+                        "visible"
+                    } else {
+                        "hidden"
+                    }
+                );
+                true
+            }
+            "new_tab" => {
+                self.new_tab();
+                log::info!("New tab created via keybinding");
+                true
+            }
+            "close_tab" => {
+                if self.has_multiple_tabs() {
+                    self.close_current_tab();
+                    log::info!("Tab closed via keybinding");
+                }
+                true
+            }
+            "next_tab" => {
+                self.next_tab();
+                log::debug!("Switched to next tab via keybinding");
+                true
+            }
+            "prev_tab" => {
+                self.prev_tab();
+                log::debug!("Switched to previous tab via keybinding");
+                true
+            }
+            _ => {
+                log::warn!("Unknown keybinding action: {}", action);
+                false
+            }
+        }
+    }
+
+    /// Toggle the background/custom shader on/off.
+    pub(crate) fn toggle_background_shader(&mut self) {
+        self.config.custom_shader_enabled = !self.config.custom_shader_enabled;
+
+        if let Some(renderer) = &mut self.renderer {
+            // Get shader metadata from cache for resolution
+            let metadata = self
+                .config
+                .custom_shader
+                .as_ref()
+                .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+
+            // Get per-shader overrides
+            let shader_override = self
+                .config
+                .custom_shader
+                .as_ref()
+                .and_then(|name| self.config.shader_configs.get(name).cloned());
+
+            // Resolve config with 3-tier system
+            let resolved =
+                resolve_shader_config(shader_override.as_ref(), metadata.as_ref(), &self.config);
+
+            let _ = renderer.set_custom_shader_enabled(
+                self.config.custom_shader_enabled,
+                self.config.custom_shader.as_deref(),
+                self.config.window_opacity,
+                resolved.text_opacity,
+                self.config.custom_shader_animation,
+                resolved.animation_speed,
+                resolved.full_content,
+                resolved.brightness,
+                &resolved.channel_paths(),
+                resolved.cubemap_path().map(|p| p.as_path()),
+            );
+        }
+
+        self.needs_redraw = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+
+        log::info!(
+            "Background shader {}",
+            if self.config.custom_shader_enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        );
+    }
+
+    /// Toggle the cursor shader on/off.
+    pub(crate) fn toggle_cursor_shader(&mut self) {
+        self.config.cursor_shader_enabled = !self.config.cursor_shader_enabled;
+
+        if let Some(renderer) = &mut self.renderer {
+            let _ = renderer.set_cursor_shader_enabled(
+                self.config.cursor_shader_enabled,
+                self.config.cursor_shader.as_deref(),
+                self.config.window_opacity,
+                self.config.cursor_shader_animation,
+                self.config.cursor_shader_animation_speed,
+            );
+        }
+
+        self.needs_redraw = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+
+        log::info!(
+            "Cursor shader {}",
+            if self.config.cursor_shader_enabled {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        );
     }
 }

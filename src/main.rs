@@ -4,6 +4,7 @@ mod debug;
 mod app;
 mod audio_bell;
 mod cell_renderer;
+mod cli;
 mod clipboard_history_ui;
 mod config;
 mod custom_shader_renderer;
@@ -13,6 +14,7 @@ mod gpu_utils;
 mod graphics_renderer;
 mod help_ui;
 mod input;
+mod keybindings;
 mod macos_blur; // macOS window blur using private CGS API
 mod macos_metal; // macOS-specific CAMetalLayer configuration
 mod menu;
@@ -37,6 +39,13 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 fn main() -> Result<()> {
+    // Process CLI arguments first (before logging init for cleaner output)
+    match cli::process_cli() {
+        cli::CliResult::Exit(code) => {
+            std::process::exit(code);
+        }
+        cli::CliResult::Continue => {}
+    }
     // Initialize logging - respect RUST_LOG env var, suppress verbose wgpu logs
     env_logger::Builder::from_default_env()
         .filter_module("wgpu_core", log::LevelFilter::Warn)

@@ -12,6 +12,7 @@ pub mod bell_tab;
 mod cursor_shader_editor;
 pub mod cursor_tab;
 pub mod font_tab;
+pub mod keybindings_tab;
 pub mod mouse_tab;
 pub mod screenshot_tab;
 pub mod scrollbar_tab;
@@ -149,6 +150,12 @@ pub struct SettingsUI {
     pub(crate) supported_vsync_modes: Vec<crate::config::VsyncMode>,
     /// Warning message when an unsupported vsync mode is selected
     pub(crate) vsync_warning: Option<String>,
+
+    // Keybinding recording state
+    /// Index of the keybinding currently being recorded (None = not recording)
+    pub(crate) keybinding_recording_index: Option<usize>,
+    /// The recorded key combination string (displayed during recording)
+    pub(crate) keybinding_recorded_combo: Option<String>,
 }
 
 impl SettingsUI {
@@ -224,10 +231,13 @@ impl SettingsUI {
             ),
             shader_settings_expanded: true,
             cursor_shader_settings_expanded: true,
+            keybinding_recording_index: None,
+            keybinding_recorded_combo: None,
         }
     }
 
     /// Update the current terminal dimensions (called when window resizes)
+    #[allow(dead_code)]
     pub fn update_current_size(&mut self, cols: usize, rows: usize) {
         self.current_cols = cols;
         self.current_rows = rows;
@@ -246,6 +256,7 @@ impl SettingsUI {
     }
 
     /// Set vsync warning message (called when an unsupported mode is detected)
+    #[allow(dead_code)]
     pub fn set_vsync_warning(&mut self, warning: Option<String>) {
         self.vsync_warning = warning;
     }
@@ -331,6 +342,7 @@ impl SettingsUI {
     }
 
     /// Get a reference to the working config (for live sync)
+    #[allow(dead_code)]
     pub fn current_config(&self) -> &Config {
         &self.config
     }
@@ -650,6 +662,27 @@ impl SettingsUI {
             let q = query.as_str();
             title.to_lowercase().contains(q) || fields.iter().any(|f| f.to_lowercase().contains(q))
         };
+
+        // Keybindings (positioned at the top for easy access)
+        if section_matches(
+            "Keybindings",
+            &[
+                "Keyboard",
+                "Shortcut",
+                "Hotkey",
+                "Binding",
+                "Key",
+                "Toggle shader",
+                "Reload config",
+                "New tab",
+                "Close tab",
+                "Fullscreen",
+            ],
+        ) {
+            insert_section_separator(ui, &mut section_shown);
+            matches_found = true;
+            keybindings_tab::show(ui, self, changes_this_frame);
+        }
 
         // Window & Display
         if section_matches(
