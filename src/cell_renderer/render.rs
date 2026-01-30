@@ -194,6 +194,87 @@ impl CellRenderer {
         Ok(output)
     }
 
+    /// Render terminal content to a view for screenshots.
+    /// This renders without requiring the surface texture.
+    pub fn render_to_view(&self, target_view: &wgpu::TextureView) -> Result<()> {
+        // Note: We don't rebuild instance buffers here since this is typically called
+        // right after a normal render, and the buffers should already be up to date.
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("screenshot render encoder"),
+            });
+
+        // Determine clear color and whether to use bg_image pipeline
+        let (clear_color, use_bg_image_pipeline) = if self.bg_is_solid_color {
+            (
+                wgpu::Color {
+                    r: self.solid_bg_color[0] as f64 * self.window_opacity as f64,
+                    g: self.solid_bg_color[1] as f64 * self.window_opacity as f64,
+                    b: self.solid_bg_color[2] as f64 * self.window_opacity as f64,
+                    a: self.window_opacity as f64,
+                },
+                false,
+            )
+        } else if self.bg_image_bind_group.is_some() {
+            (wgpu::Color::TRANSPARENT, true)
+        } else {
+            (
+                wgpu::Color {
+                    r: self.background_color[0] as f64 * self.window_opacity as f64,
+                    g: self.background_color[1] as f64 * self.window_opacity as f64,
+                    b: self.background_color[2] as f64 * self.window_opacity as f64,
+                    a: self.window_opacity as f64,
+                },
+                false,
+            )
+        };
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("screenshot render pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: target_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear_color),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            // Render background image if present
+            if use_bg_image_pipeline && let Some(ref bg_bind_group) = self.bg_image_bind_group {
+                render_pass.set_pipeline(&self.bg_image_pipeline);
+                render_pass.set_bind_group(0, bg_bind_group, &[]);
+                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.draw(0..4, 0..1);
+            }
+
+            render_pass.set_pipeline(&self.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..self.max_bg_instances as u32);
+
+            render_pass.set_pipeline(&self.text_pipeline);
+            render_pass.set_bind_group(0, &self.text_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.text_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..self.max_text_instances as u32);
+
+            // Render scrollbar
+            self.scrollbar.render(&mut render_pass);
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        Ok(())
+    }
+
     pub fn render_overlays(
         &mut self,
         surface_texture: &wgpu::SurfaceTexture,

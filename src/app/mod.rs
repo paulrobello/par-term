@@ -5,6 +5,7 @@
 //! - `WindowManager`: Manages multiple windows and coordinates menu events
 //! - `WindowState`: Per-window state including terminal, renderer, and UI
 
+use crate::cli::RuntimeOptions;
 use crate::config::Config;
 use anyhow::Result;
 use std::sync::Arc;
@@ -35,13 +36,26 @@ pub use window_manager::WindowManager;
 pub struct App {
     config: Config,
     runtime: Arc<Runtime>,
+    runtime_options: RuntimeOptions,
 }
 
 impl App {
     /// Create a new application
-    pub fn new(runtime: Arc<Runtime>) -> Result<Self> {
-        let config = Config::load()?;
-        Ok(Self { config, runtime })
+    pub fn new(runtime: Arc<Runtime>, runtime_options: RuntimeOptions) -> Result<Self> {
+        let mut config = Config::load()?;
+
+        // Apply CLI shader override if specified
+        if let Some(ref shader) = runtime_options.shader {
+            config.custom_shader = Some(shader.clone());
+            config.custom_shader_enabled = true;
+            log::info!("CLI override: using shader '{}'", shader);
+        }
+
+        Ok(Self {
+            config,
+            runtime,
+            runtime_options,
+        })
     }
 
     /// Run the application
@@ -51,7 +65,8 @@ impl App {
         // Combined with WaitUntil in about_to_wait for precise timing
         event_loop.set_control_flow(ControlFlow::Wait);
 
-        let mut window_manager = WindowManager::new(self.config, self.runtime);
+        let mut window_manager =
+            WindowManager::new(self.config, self.runtime, self.runtime_options);
 
         event_loop.run_app(&mut window_manager)?;
 

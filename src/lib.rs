@@ -6,6 +6,7 @@ pub mod debug;
 pub mod app;
 pub mod audio_bell;
 pub mod cell_renderer;
+pub mod cli;
 pub mod clipboard_history_ui;
 pub mod config;
 pub mod custom_shader_renderer;

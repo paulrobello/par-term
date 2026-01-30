@@ -4,7 +4,7 @@
 
 use clap::{Parser, Subcommand};
 use std::io::{self, Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// par-term - A GPU-accelerated terminal emulator
 #[derive(Parser)]
@@ -13,6 +13,22 @@ use std::path::Path;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
+
+    /// Background shader to use (filename from shaders directory)
+    #[arg(long, value_name = "SHADER")]
+    pub shader: Option<String>,
+
+    /// Exit after the specified number of seconds
+    #[arg(long, value_name = "SECONDS")]
+    pub exit_after: Option<f64>,
+
+    /// Take a screenshot and save to the specified path (default: timestamped PNG in current dir)
+    #[arg(long, value_name = "PATH", num_args = 0..=1, default_missing_value = "")]
+    pub screenshot: Option<PathBuf>,
+
+    /// Send a command to the shell after 1 second delay
+    #[arg(long, value_name = "COMMAND")]
+    pub command_to_send: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -29,10 +45,23 @@ pub enum Commands {
     },
 }
 
+/// Runtime options passed from CLI to the application
+#[derive(Clone, Debug, Default)]
+pub struct RuntimeOptions {
+    /// Background shader to use
+    pub shader: Option<String>,
+    /// Exit after this many seconds
+    pub exit_after: Option<f64>,
+    /// Take a screenshot (Some(empty path) = auto-name, Some(path) = specific path, None = no screenshot)
+    pub screenshot: Option<PathBuf>,
+    /// Command to send to shell after delay
+    pub command_to_send: Option<String>,
+}
+
 /// Result of CLI processing
 pub enum CliResult {
-    /// Continue with normal application startup
-    Continue,
+    /// Continue with normal application startup, with optional runtime options
+    Continue(RuntimeOptions),
     /// Exit with the given code (subcommand completed)
     Exit(i32),
 }
@@ -46,7 +75,16 @@ pub fn process_cli() -> CliResult {
             let result = install_shaders(yes || force);
             CliResult::Exit(if result.is_ok() { 0 } else { 1 })
         }
-        None => CliResult::Continue,
+        None => {
+            // Extract runtime options from CLI flags
+            let options = RuntimeOptions {
+                shader: cli.shader,
+                exit_after: cli.exit_after,
+                screenshot: cli.screenshot,
+                command_to_send: cli.command_to_send,
+            };
+            CliResult::Continue(options)
+        }
     }
 }
 

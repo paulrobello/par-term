@@ -2,6 +2,8 @@
 //!
 //! This module provides the UI for configuring custom keybindings.
 
+#![allow(clippy::type_complexity)]
+
 use super::SettingsUI;
 use crate::config::KeyBinding;
 

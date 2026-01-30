@@ -675,6 +675,9 @@ impl ApplicationHandler for WindowManager {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // Check CLI timing-based options (exit-after, screenshot, command)
+        self.check_cli_timers();
+
         // Process menu events
         // Find focused window (for now, use the first window if any)
         let focused_window = self.windows.keys().next().copied();
