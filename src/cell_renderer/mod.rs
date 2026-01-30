@@ -632,10 +632,9 @@ impl CellRenderer {
                 let row = pos.1;
                 let x0 = (self.window_padding + col as f32 * self.cell_width).round();
                 let x1 = (self.window_padding + (col + 1) as f32 * self.cell_width).round();
-                let y0 = (self.window_padding
-                    + self.content_offset_y
-                    + row as f32 * self.cell_height)
-                    .round();
+                let y0 =
+                    (self.window_padding + self.content_offset_y + row as f32 * self.cell_height)
+                        .round();
                 let y1 = (self.window_padding
                     + self.content_offset_y
                     + (row + 1) as f32 * self.cell_height)

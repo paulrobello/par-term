@@ -6,7 +6,6 @@
 use crate::app::debug_state::DebugState;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::config::{Config, CursorShaderMetadataCache, CursorStyle, ShaderMetadataCache};
-use crate::settings_ui::SettingsUI;
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::keybindings::KeybindingRegistry;
@@ -52,8 +51,6 @@ pub struct WindowState {
     /// Whether egui has completed its first ctx.run() call
     /// Before first run, egui's is_using_pointer() returns unreliable results
     pub(crate) egui_initialized: bool,
-    /// Settings UI manager
-    pub(crate) settings_ui: SettingsUI,
     /// Cache for parsed shader metadata (used for config resolution)
     pub(crate) shader_metadata_cache: ShaderMetadataCache,
     /// Cache for parsed cursor shader metadata (used for config resolution)
@@ -117,7 +114,6 @@ impl WindowState {
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
         let keybinding_registry = KeybindingRegistry::from_config(&config.keybindings);
         let shaders_dir = Config::shaders_dir();
-        let settings_ui = SettingsUI::new(config.clone());
 
         Self {
             config,
@@ -138,7 +134,6 @@ impl WindowState {
             egui_ctx: None,
             egui_state: None,
             egui_initialized: false,
-            settings_ui,
             shader_metadata_cache: ShaderMetadataCache::with_shaders_dir(shaders_dir.clone()),
             cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
             help_ui: HelpUI::new(),

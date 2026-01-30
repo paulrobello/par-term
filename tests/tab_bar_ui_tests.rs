@@ -245,7 +245,10 @@ fn test_close_vs_switch_action_distinction() {
     let close = TabBarAction::Close(1);
 
     // They should not be equal even for the same tab ID
-    assert_ne!(switch, close, "Close and SwitchTo must be different actions");
+    assert_ne!(
+        switch, close,
+        "Close and SwitchTo must be different actions"
+    );
 
     // Verify we can pattern match correctly
     match switch {

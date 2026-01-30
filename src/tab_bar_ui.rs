@@ -496,7 +496,11 @@ impl TabBarUI {
 
         // Handle tab click (switch to tab)
         // Use egui's built-in interact() for proper hit testing
-        let tab_response = ui.interact(tab_rect, egui::Id::new(("tab_click", id)), egui::Sense::click());
+        let tab_response = ui.interact(
+            tab_rect,
+            egui::Id::new(("tab_click", id)),
+            egui::Sense::click(),
+        );
 
         // Use egui's response for click detection
         let pointer_in_tab = tab_response.hovered();

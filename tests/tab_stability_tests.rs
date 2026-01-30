@@ -79,8 +79,14 @@ fn test_tab_bar_height_many_tabs() {
     let height_10 = tab_bar.get_height(10, &config);
     let height_100 = tab_bar.get_height(100, &config);
 
-    assert_eq!(height_2, height_10, "Height should be constant for multiple tabs");
-    assert_eq!(height_10, height_100, "Height should be constant regardless of tab count");
+    assert_eq!(
+        height_2, height_10,
+        "Height should be constant for multiple tabs"
+    );
+    assert_eq!(
+        height_10, height_100,
+        "Height should be constant regardless of tab count"
+    );
 }
 
 // ============================================================================
@@ -95,7 +101,10 @@ fn test_close_action_distinct_from_switch() {
     let switch_action = TabBarAction::SwitchTo(5);
     let close_action = TabBarAction::Close(5);
 
-    assert_ne!(switch_action, close_action, "Close and SwitchTo should be different actions");
+    assert_ne!(
+        switch_action, close_action,
+        "Close and SwitchTo should be different actions"
+    );
 }
 
 #[test]
@@ -106,7 +115,10 @@ fn test_close_action_equality() {
     let close3 = TabBarAction::Close(2);
 
     assert_eq!(close1, close2, "Same tab close actions should be equal");
-    assert_ne!(close1, close3, "Different tab close actions should be different");
+    assert_ne!(
+        close1, close3,
+        "Different tab close actions should be different"
+    );
 }
 
 // ============================================================================
@@ -134,7 +146,10 @@ fn test_reorder_action_different_positions() {
     let action1 = TabBarAction::Reorder(1, 0);
     let action2 = TabBarAction::Reorder(1, 2);
 
-    assert_ne!(action1, action2, "Reorder to different positions should differ");
+    assert_ne!(
+        action1, action2,
+        "Reorder to different positions should differ"
+    );
 }
 
 #[test]
@@ -292,7 +307,10 @@ fn test_content_offset_documented() {
     let tab_bar = TabBarUI::new();
     let config = Config::default();
     let height = tab_bar.get_height(2, &config);
-    assert!(height > 0.0, "Tab bar height should be positive when visible");
+    assert!(
+        height > 0.0,
+        "Tab bar height should be positive when visible"
+    );
 }
 
 /// Verify that mouse event timing behavior is documented correctly.

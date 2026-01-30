@@ -389,7 +389,8 @@ impl CellRenderer {
                         // Cursor cell can't be merged, render it alone
                         let x0 = self.window_padding + col as f32 * self.cell_width;
                         let x1 = self.window_padding + (col + 1) as f32 * self.cell_width;
-                        let y0 = self.window_padding + self.content_offset_y
+                        let y0 = self.window_padding
+                            + self.content_offset_y
                             + row as f32 * self.cell_height;
                         let y1 = y0 + self.cell_height;
                         row_bg.push(BackgroundInstance {
@@ -429,8 +430,8 @@ impl CellRenderer {
                     let x0 = self.window_padding + start_col as f32 * self.cell_width;
                     let x1 =
                         self.window_padding + (start_col + run_length) as f32 * self.cell_width;
-                    let y0 = self.window_padding + self.content_offset_y
-                        + row as f32 * self.cell_height;
+                    let y0 =
+                        self.window_padding + self.content_offset_y + row as f32 * self.cell_height;
                     let y1 = y0 + self.cell_height;
 
                     row_bg.push(BackgroundInstance {
@@ -511,7 +512,8 @@ impl CellRenderer {
                                 self.cell_width
                             };
                             let x0 = (self.window_padding + x_offset).round();
-                            let y0 = (self.window_padding + self.content_offset_y
+                            let y0 = (self.window_padding
+                                + self.content_offset_y
                                 + row as f32 * self.cell_height)
                                 .round();
 
@@ -661,7 +663,8 @@ impl CellRenderer {
                             };
                             let x0 = (self.window_padding + x_offset).round();
                             let x1 = (self.window_padding + x_offset + char_w).round();
-                            let y0 = (self.window_padding + self.content_offset_y
+                            let y0 = (self.window_padding
+                                + self.content_offset_y
                                 + row as f32 * self.cell_height)
                                 .round();
                             let y1 = (self.window_padding

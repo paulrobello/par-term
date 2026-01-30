@@ -350,9 +350,9 @@ impl GraphicsRenderer {
             if let Some(tex_info) = self.texture_cache.get(&id) {
                 // Calculate screen position (normalized 0-1, origin top-left)
                 let x = (self.window_padding + col as f32 * self.cell_width) / window_width;
-                let y = (self.window_padding + self.content_offset_y
-                    + row as f32 * self.cell_height)
-                    / window_height;
+                let y =
+                    (self.window_padding + self.content_offset_y + row as f32 * self.cell_height)
+                        / window_height;
 
                 // Calculate texture V offset for scrolled graphics
                 // scroll_offset_rows = terminal rows scrolled off top
