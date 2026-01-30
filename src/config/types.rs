@@ -180,6 +180,22 @@ pub enum ThinStrokesMode {
     Always,
 }
 
+/// Shader install prompt mode
+///
+/// Controls whether the user is prompted to install shaders when the shaders
+/// folder is missing or empty on startup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ShaderInstallPrompt {
+    /// Ask the user if they want to install shaders (default)
+    #[default]
+    Ask,
+    /// Never ask - user declined installation
+    Never,
+    /// Shaders have been installed
+    Installed,
+}
+
 // ============================================================================
 // Per-Shader Configuration Types
 // ============================================================================

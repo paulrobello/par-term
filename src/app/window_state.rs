@@ -5,12 +5,15 @@
 
 use crate::app::debug_state::DebugState;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
-use crate::config::{Config, CursorShaderMetadataCache, CursorStyle, ShaderMetadataCache};
+use crate::config::{
+    Config, CursorShaderMetadataCache, CursorStyle, ShaderInstallPrompt, ShaderMetadataCache,
+};
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::keybindings::KeybindingRegistry;
 use crate::renderer::Renderer;
 use crate::selection::SelectionMode;
+use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::tab::TabManager;
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
@@ -59,6 +62,8 @@ pub struct WindowState {
     pub(crate) help_ui: HelpUI,
     /// Clipboard history UI manager
     pub(crate) clipboard_history_ui: ClipboardHistoryUI,
+    /// Shader install prompt UI
+    pub(crate) shader_install_ui: ShaderInstallUI,
     /// Whether terminal session recording is active
     pub(crate) is_recording: bool,
     /// When recording started
@@ -143,6 +148,7 @@ impl WindowState {
             cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
             help_ui: HelpUI::new(),
             clipboard_history_ui: ClipboardHistoryUI::new(),
+            shader_install_ui: ShaderInstallUI::new(),
             is_recording: false,
             recording_start_time: None,
             is_shutting_down: false,
@@ -465,6 +471,12 @@ impl WindowState {
             );
         }
 
+        // Check if we should prompt user to install shaders
+        if self.config.should_prompt_shader_install() {
+            log::info!("Shaders folder is missing or empty - showing install prompt");
+            self.shader_install_ui.show_dialog();
+        }
+
         Ok(())
     }
 
@@ -738,7 +750,9 @@ impl WindowState {
     pub(crate) fn is_egui_using_keyboard(&self) -> bool {
         // If any UI panel is visible, check if egui wants keyboard input
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
-        let any_ui_visible = self.help_ui.visible || self.clipboard_history_ui.visible;
+        let any_ui_visible = self.help_ui.visible
+            || self.clipboard_history_ui.visible
+            || self.shader_install_ui.visible;
         if !any_ui_visible {
             return false;
         }
@@ -1266,6 +1280,8 @@ impl WindowState {
         let mut pending_clipboard_action = ClipboardHistoryAction::None;
         // Tab bar action to handle after rendering (declared here to survive renderer borrow)
         let mut pending_tab_action = TabBarAction::None;
+        // Shader install response to handle after rendering
+        let mut pending_shader_install_response = ShaderInstallResponse::None;
 
         let show_scrollbar = self.should_show_scrollbar();
 
@@ -1468,6 +1484,9 @@ impl WindowState {
 
                     // Show clipboard history UI and collect action
                     pending_clipboard_action = self.clipboard_history_ui.show(ctx);
+
+                    // Show shader install dialog if visible
+                    pending_shader_install_response = self.shader_install_ui.show(ctx);
                 });
 
                 // Handle egui platform output (clipboard, cursor changes, etc.)
@@ -1663,6 +1682,52 @@ impl WindowState {
                 }
             }
             ClipboardHistoryAction::None => {}
+        }
+
+        // Handle shader install responses
+        match pending_shader_install_response {
+            ShaderInstallResponse::Install => {
+                log::info!("User requested shader installation");
+                self.shader_install_ui
+                    .set_installing("Downloading shaders...");
+                self.needs_redraw = true;
+
+                // Run installation in a blocking context
+                // (We're already in sync context, so this is fine)
+                match crate::shader_install_ui::install_shaders_headless() {
+                    Ok(count) => {
+                        log::info!("Successfully installed {} shaders", count);
+                        self.shader_install_ui
+                            .set_success(&format!("Installed {} shaders!", count));
+
+                        // Update config to mark as installed
+                        self.config.shader_install_prompt = ShaderInstallPrompt::Installed;
+                        if let Err(e) = self.config.save() {
+                            log::error!("Failed to save config after shader install: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to install shaders: {}", e);
+                        self.shader_install_ui.set_error(&e);
+                    }
+                }
+            }
+            ShaderInstallResponse::Never => {
+                log::info!("User declined shader installation (never ask again)");
+                self.shader_install_ui.hide();
+
+                // Update config to never ask again
+                self.config.shader_install_prompt = ShaderInstallPrompt::Never;
+                if let Err(e) = self.config.save() {
+                    log::error!("Failed to save config after declining shaders: {}", e);
+                }
+            }
+            ShaderInstallResponse::Later => {
+                log::info!("User deferred shader installation");
+                self.shader_install_ui.hide();
+                // Config remains "ask" - will prompt again on next startup
+            }
+            ShaderInstallResponse::None => {}
         }
 
         let absolute_total = absolute_start.elapsed();

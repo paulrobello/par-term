@@ -21,8 +21,8 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
-    FontRange, KeyBinding, OptionKeyMode, ShaderConfig, ShaderMetadata, TabBarMode,
-    ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
+    FontRange, KeyBinding, OptionKeyMode, ShaderConfig, ShaderInstallPrompt, ShaderMetadata,
+    TabBarMode, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -743,6 +743,16 @@ pub struct Config {
     /// Format: key = "CmdOrCtrl+Shift+B", action = "toggle_background_shader"
     #[serde(default = "defaults::keybindings")]
     pub keybindings: Vec<KeyBinding>,
+
+    // ========================================================================
+    // Shader Installation
+    // ========================================================================
+    /// Shader install prompt preference
+    /// - ask: Prompt user to install shaders if folder is missing/empty (default)
+    /// - never: User declined, don't ask again
+    /// - installed: Shaders have been installed
+    #[serde(default)]
+    pub shader_install_prompt: ShaderInstallPrompt,
 }
 
 impl Default for Config {
@@ -884,6 +894,7 @@ impl Default for Config {
             shader_configs: HashMap::new(),
             cursor_shader_configs: HashMap::new(),
             keybindings: defaults::keybindings(),
+            shader_install_prompt: ShaderInstallPrompt::default(),
         }
     }
 }
@@ -1119,5 +1130,34 @@ impl Config {
     #[allow(dead_code)]
     pub fn remove_cursor_shader_override(&mut self, shader_name: &str) {
         self.cursor_shader_configs.remove(shader_name);
+    }
+
+    /// Check if the shaders folder is missing or empty
+    /// Returns true if user should be prompted to install shaders
+    pub fn should_prompt_shader_install(&self) -> bool {
+        // Only prompt if the preference is set to "ask"
+        if self.shader_install_prompt != ShaderInstallPrompt::Ask {
+            return false;
+        }
+
+        let shaders_dir = Self::shaders_dir();
+
+        // Check if directory doesn't exist
+        if !shaders_dir.exists() {
+            return true;
+        }
+
+        // Check if directory is empty or has no .glsl files
+        if let Ok(entries) = std::fs::read_dir(&shaders_dir) {
+            for entry in entries.flatten() {
+                if let Some(ext) = entry.path().extension()
+                    && ext == "glsl"
+                {
+                    return false; // Found at least one shader
+                }
+            }
+        }
+
+        true // Directory exists but has no .glsl files
     }
 }

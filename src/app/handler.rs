@@ -121,7 +121,9 @@ impl WindowState {
 
         // Debug: Log when egui consumes events but we ignore it
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
-        let any_ui_visible = self.help_ui.visible || self.clipboard_history_ui.visible;
+        let any_ui_visible = self.help_ui.visible
+            || self.clipboard_history_ui.visible
+            || self.shader_install_ui.visible;
         if egui_consumed
             && !any_ui_visible
             && let WindowEvent::KeyboardInput {
