@@ -14,8 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shader Install Prompt on First Startup**: Automatic detection and install offer when shaders folder is missing (#33)
   - Modal dialog appears on first launch if `~/.config/par-term/shaders/` is empty or missing
   - Three options: "Yes, Install" (download shaders), "Never" (save preference), "Later" (dismiss for session)
-  - Downloads shader pack from GitHub releases automatically
+  - Downloads shader pack from GitHub releases automatically with progress spinner
+  - Installation runs in background thread for responsive UI during download
   - New config option: `shader_install_prompt` (ask/never/installed)
+  - Escape key closes dialog (when not installing)
   - Can still install manually via `par-term install-shaders` CLI command
 
 - **Font Rendering Options**: Anti-aliasing and thin strokes controls for improved text appearance (#32)
