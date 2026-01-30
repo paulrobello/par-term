@@ -1,13 +1,42 @@
 #!/bin/bash
 # Generate a gallery of screenshots for all background shaders
-# Usage: ./scripts/generate_shader_gallery.sh [output_dir]
+# Usage: ./scripts/generate_shader_gallery.sh [-f|--force] [output_dir]
+#
+# Options:
+#   -f, --force    Overwrite existing screenshots (default: skip existing)
+#   output_dir     Output directory (default: shader-gallery)
 
 set -e
+
+# Parse arguments
+FORCE=false
+OUTPUT_DIR=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -f|--force)
+            FORCE=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [-f|--force] [output_dir]"
+            echo ""
+            echo "Options:"
+            echo "  -f, --force    Overwrite existing screenshots (default: skip existing)"
+            echo "  output_dir     Output directory (default: shader-gallery)"
+            exit 0
+            ;;
+        *)
+            OUTPUT_DIR="$1"
+            shift
+            ;;
+    esac
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SHADERS_DIR="$PROJECT_ROOT/shaders"
-OUTPUT_DIR="${1:-$PROJECT_ROOT/shader-gallery}"
+OUTPUT_DIR="${OUTPUT_DIR:-$PROJECT_ROOT/shader-gallery}"
 
 # Build release version for better performance
 echo "Building par-term in release mode..."
@@ -33,11 +62,20 @@ echo ""
 
 # Counter for progress
 CURRENT=0
+SKIPPED=0
+GENERATED=0
 
 for SHADER in $SHADERS; do
     CURRENT=$((CURRENT + 1))
     SHADER_NAME="${SHADER%.glsl}"
     OUTPUT_FILE="$OUTPUT_DIR/${SHADER_NAME}.png"
+
+    # Skip if file exists and force is not enabled
+    if [ -f "$OUTPUT_FILE" ] && [ "$FORCE" = false ]; then
+        echo "[$CURRENT/$SHADER_COUNT] Skipping $SHADER_NAME (exists)"
+        SKIPPED=$((SKIPPED + 1))
+        continue
+    fi
 
     echo "[$CURRENT/$SHADER_COUNT] Capturing $SHADER_NAME..."
 
@@ -55,6 +93,7 @@ for SHADER in $SHADERS; do
 
     if [ -f "$OUTPUT_FILE" ]; then
         echo "  Saved: $OUTPUT_FILE"
+        GENERATED=$((GENERATED + 1))
     else
         echo "  Warning: Screenshot not created for $SHADER_NAME"
     fi
@@ -62,7 +101,14 @@ done
 
 echo ""
 echo "Gallery generation complete!"
+echo "  Generated: $GENERATED"
+echo "  Skipped:   $SKIPPED"
+echo "  Total:     $SHADER_COUNT"
 echo "Screenshots saved to: $OUTPUT_DIR"
+if [ "$SKIPPED" -gt 0 ] && [ "$FORCE" = false ]; then
+    echo ""
+    echo "Tip: Use -f or --force to regenerate existing screenshots"
+fi
 echo ""
 
 # Generate a simple HTML index if there are screenshots
