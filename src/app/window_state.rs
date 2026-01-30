@@ -475,6 +475,8 @@ impl WindowState {
         if self.config.should_prompt_shader_install() {
             log::info!("Shaders folder is missing or empty - showing install prompt");
             self.shader_install_ui.show_dialog();
+            self.needs_redraw = true;
+            window.request_redraw();
         }
 
         Ok(())

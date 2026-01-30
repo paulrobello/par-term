@@ -496,7 +496,14 @@ impl CellRenderer {
             background_image_path
         );
         if let Some(path) = background_image_path {
-            renderer.load_background_image(path)?;
+            // Handle missing background image gracefully - don't crash, just log and continue
+            if let Err(e) = renderer.load_background_image(path) {
+                log::warn!(
+                    "Could not load background image '{}': {} - continuing without background image",
+                    path,
+                    e
+                );
+            }
         }
 
         Ok(renderer)
