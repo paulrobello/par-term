@@ -80,6 +80,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tab Numbering**: Changed to position-based numbering that automatically renumbers when tabs are closed or reordered
   - Tabs now show "Tab 1, Tab 2, Tab 3" instead of keeping original IDs
 - **Mouse Event Handling**: Fixed event ordering to check tab bar area before updating terminal mouse state
+- **Startup Crash with Missing Background Image**: App no longer crashes when configured background image file is missing
+  - Now logs a warning and continues without the background image
+  - Fixes blank screen issue when shaders folder is missing but config references images inside it
 
 ### Added
 
