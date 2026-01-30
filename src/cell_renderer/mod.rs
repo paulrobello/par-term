@@ -63,6 +63,9 @@ pub struct CellRenderer {
     pub(crate) cell_width: f32,
     pub(crate) cell_height: f32,
     pub(crate) window_padding: f32,
+    /// Vertical offset for terminal content (e.g., tab bar height).
+    /// Content is rendered starting at y = window_padding + content_offset_y.
+    pub(crate) content_offset_y: f32,
     #[allow(dead_code)]
     pub(crate) scale_factor: f32,
 
@@ -373,6 +376,7 @@ impl CellRenderer {
             cell_width,
             cell_height,
             window_padding,
+            content_offset_y: 0.0,
             scale_factor,
             font_manager,
             scrollbar,
@@ -503,6 +507,20 @@ impl CellRenderer {
     pub fn window_padding(&self) -> f32 {
         self.window_padding
     }
+    pub fn content_offset_y(&self) -> f32 {
+        self.content_offset_y
+    }
+    /// Set the vertical content offset (e.g., tab bar height).
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_offset_y(&mut self, offset: f32) -> Option<(usize, usize)> {
+        if (self.content_offset_y - offset).abs() > f32::EPSILON {
+            self.content_offset_y = offset;
+            // Recalculate grid size with new offset
+            let size = (self.config.width, self.config.height);
+            return Some(self.resize(size.0, size.1));
+        }
+        None
+    }
     pub fn grid_size(&self) -> (usize, usize) {
         (self.cols, self.rows)
     }
@@ -519,7 +537,9 @@ impl CellRenderer {
         self.surface.configure(&self.device, &self.config);
 
         let available_width = (width as f32 - self.window_padding * 2.0).max(0.0);
-        let available_height = (height as f32 - self.window_padding * 2.0).max(0.0);
+        // Subtract content_offset_y (tab bar height) from available height
+        let available_height =
+            (height as f32 - self.window_padding * 2.0 - self.content_offset_y).max(0.0);
         let new_cols = (available_width / self.cell_width).max(1.0) as usize;
         let new_rows = (available_height / self.cell_height).max(1.0) as usize;
 
@@ -612,8 +632,14 @@ impl CellRenderer {
                 let row = pos.1;
                 let x0 = (self.window_padding + col as f32 * self.cell_width).round();
                 let x1 = (self.window_padding + (col + 1) as f32 * self.cell_width).round();
-                let y0 = (self.window_padding + row as f32 * self.cell_height).round();
-                let y1 = (self.window_padding + (row + 1) as f32 * self.cell_height).round();
+                let y0 = (self.window_padding
+                    + self.content_offset_y
+                    + row as f32 * self.cell_height)
+                    .round();
+                let y1 = (self.window_padding
+                    + self.content_offset_y
+                    + (row + 1) as f32 * self.cell_height)
+                    .round();
 
                 match style {
                     CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => None,

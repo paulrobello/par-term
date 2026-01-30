@@ -314,15 +314,25 @@ impl WindowState {
             }
 
             WindowEvent::MouseInput { button, state, .. } => {
-                // Skip if egui UI is handling mouse
-                if !self.is_egui_using_pointer() {
+                // Skip terminal handling if egui UI is handling mouse
+                if self.is_egui_using_pointer() {
+                    // Request redraw so egui can process the click
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                } else {
                     self.handle_mouse_button(button, state);
                 }
             }
 
             WindowEvent::CursorMoved { position, .. } => {
-                // Skip if egui UI is handling mouse
-                if !self.is_egui_using_pointer() {
+                // Skip terminal handling if egui UI is handling mouse
+                if self.is_egui_using_pointer() {
+                    // Request redraw so egui can update hover states
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                } else {
                     self.handle_mouse_move((position.x, position.y));
                 }
             }
