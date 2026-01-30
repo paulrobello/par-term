@@ -13,6 +13,7 @@ mod cursor_shader_editor;
 pub mod cursor_tab;
 pub mod font_tab;
 pub mod keybindings_tab;
+pub mod keyboard_tab;
 pub mod mouse_tab;
 pub mod screenshot_tab;
 pub mod scrollbar_tab;
@@ -682,6 +683,25 @@ impl SettingsUI {
             insert_section_separator(ui, &mut section_shown);
             matches_found = true;
             keybindings_tab::show(ui, self, changes_this_frame);
+        }
+
+        // Keyboard Input (Option/Alt key behavior)
+        if section_matches(
+            "Keyboard Input",
+            &[
+                "Option key",
+                "Alt key",
+                "Meta",
+                "Esc",
+                "Escape",
+                "Emacs",
+                "Vim",
+                "Terminal input",
+            ],
+        ) {
+            insert_section_separator(ui, &mut section_shown);
+            matches_found = true;
+            keyboard_tab::show(ui, self, changes_this_frame);
         }
 
         // Window & Display

@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Option Key as Meta/Esc Configuration**: Essential feature for emacs/vim users (#23)
+  - Configure left and right Option/Alt key behavior independently
+  - Three modes: Normal (special characters), Meta (high bit), Esc (ESC prefix)
+  - Default mode is "Esc" for best terminal compatibility (M-x, M-f, M-b, etc.)
+  - New "Keyboard Input" section in Settings UI
+  - Config options: `left_option_key_mode` and `right_option_key_mode`
+
 - **Cursor Enhancements**: iTerm2-style cursor visibility improvements (#26)
   - **Cursor Guide**: Horizontal line spanning terminal width at cursor row
     - Configurable RGBA color with low default alpha

@@ -21,8 +21,8 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
-    FontRange, KeyBinding, ShaderConfig, ShaderMetadata, TabBarMode, UnfocusedCursorStyle,
-    VsyncMode,
+    FontRange, KeyBinding, OptionKeyMode, ShaderConfig, ShaderMetadata, TabBarMode,
+    UnfocusedCursorStyle, VsyncMode,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -315,6 +315,24 @@ pub struct Config {
     /// Keeps current behavior by default for TUI compatibility
     #[serde(default = "defaults::cursor_shader_disable_in_alt_screen")]
     pub cursor_shader_disable_in_alt_screen: bool,
+
+    // ========================================================================
+    // Keyboard Input
+    // ========================================================================
+    /// Left Option key (macOS) / Left Alt key (Linux/Windows) behavior
+    /// - normal: Sends special characters (default macOS behavior)
+    /// - meta: Sets the high bit (8th bit) on the character
+    /// - esc: Sends Escape prefix before the character (most compatible for emacs/vim)
+    #[serde(default)]
+    pub left_option_key_mode: OptionKeyMode,
+
+    /// Right Option key (macOS) / Right Alt key (Linux/Windows) behavior
+    /// Can be configured independently from left Option key
+    /// - normal: Sends special characters (default macOS behavior)
+    /// - meta: Sets the high bit (8th bit) on the character
+    /// - esc: Sends Escape prefix before the character (most compatible for emacs/vim)
+    #[serde(default)]
+    pub right_option_key_mode: OptionKeyMode,
 
     // ========================================================================
     // Selection & Clipboard
@@ -743,6 +761,8 @@ impl Default for Config {
             window_title: defaults::window_title(),
             allow_title_change: defaults::bool_true(),
             theme: defaults::theme(),
+            left_option_key_mode: OptionKeyMode::default(),
+            right_option_key_mode: OptionKeyMode::default(),
             auto_copy_selection: defaults::bool_true(),
             copy_trailing_newline: defaults::bool_false(),
             middle_click_paste: defaults::bool_true(),

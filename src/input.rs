@@ -1,11 +1,22 @@
 use arboard::Clipboard;
 use winit::event::{ElementState, KeyEvent, Modifiers};
-use winit::keyboard::{Key, NamedKey};
+use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
+
+use crate::config::OptionKeyMode;
 
 /// Input handler for converting winit events to terminal input
 pub struct InputHandler {
     pub modifiers: Modifiers,
     clipboard: Option<Clipboard>,
+    /// Option key mode for left Option/Alt key
+    pub left_option_key_mode: OptionKeyMode,
+    /// Option key mode for right Option/Alt key
+    pub right_option_key_mode: OptionKeyMode,
+    /// Track which Alt key is currently pressed (for determining mode on character input)
+    /// True = left Alt is pressed, False = right Alt or no Alt
+    left_alt_pressed: bool,
+    /// True = right Alt is pressed
+    right_alt_pressed: bool,
 }
 
 impl InputHandler {
@@ -19,12 +30,89 @@ impl InputHandler {
         Self {
             modifiers: Modifiers::default(),
             clipboard,
+            left_option_key_mode: OptionKeyMode::default(),
+            right_option_key_mode: OptionKeyMode::default(),
+            left_alt_pressed: false,
+            right_alt_pressed: false,
         }
     }
 
     /// Update the current modifier state
     pub fn update_modifiers(&mut self, modifiers: Modifiers) {
         self.modifiers = modifiers;
+    }
+
+    /// Update Option/Alt key modes from config
+    pub fn update_option_key_modes(&mut self, left: OptionKeyMode, right: OptionKeyMode) {
+        self.left_option_key_mode = left;
+        self.right_option_key_mode = right;
+    }
+
+    /// Track Alt key press/release to know which Alt is active
+    pub fn track_alt_key(&mut self, event: &KeyEvent) {
+        // Check if this is an Alt key event by physical key
+        let is_left_alt = matches!(event.physical_key, PhysicalKey::Code(KeyCode::AltLeft));
+        let is_right_alt = matches!(event.physical_key, PhysicalKey::Code(KeyCode::AltRight));
+
+        if is_left_alt {
+            self.left_alt_pressed = event.state == ElementState::Pressed;
+        } else if is_right_alt {
+            self.right_alt_pressed = event.state == ElementState::Pressed;
+        }
+    }
+
+    /// Get the active Option key mode based on which Alt key is pressed
+    fn get_active_option_mode(&self) -> OptionKeyMode {
+        // If both are pressed, prefer left (arbitrary but consistent)
+        // If only one is pressed, use that one's mode
+        // If neither is pressed (shouldn't happen when alt modifier is set), default to left
+        if self.left_alt_pressed {
+            self.left_option_key_mode
+        } else if self.right_alt_pressed {
+            self.right_option_key_mode
+        } else {
+            // Fallback: both modes are the same in most configs, so use left
+            self.left_option_key_mode
+        }
+    }
+
+    /// Apply Option/Alt key transformation based on the configured mode
+    fn apply_option_key_mode(&self, bytes: &mut Vec<u8>, original_char: char) {
+        let mode = self.get_active_option_mode();
+
+        match mode {
+            OptionKeyMode::Normal => {
+                // Normal mode: the character is already the special character from the OS
+                // (e.g., Option+f = ƒ on macOS). Don't modify it.
+                // The bytes already contain the correct character from winit.
+            }
+            OptionKeyMode::Meta => {
+                // Meta mode: set the high bit (8th bit) on the character
+                // This only works for ASCII characters (0-127)
+                if original_char.is_ascii() {
+                    let meta_byte = (original_char as u8) | 0x80;
+                    bytes.clear();
+                    bytes.push(meta_byte);
+                }
+                // For non-ASCII, fall through to ESC mode behavior
+                else {
+                    bytes.insert(0, 0x1b);
+                }
+            }
+            OptionKeyMode::Esc => {
+                // Esc mode: send ESC prefix before the character
+                // First, we need to use the base character, not the special character
+                // This requires getting the unmodified key
+                if original_char.is_ascii() {
+                    bytes.clear();
+                    bytes.push(0x1b); // ESC
+                    bytes.push(original_char as u8);
+                } else {
+                    // For non-ASCII original characters, just prepend ESC to what we have
+                    bytes.insert(0, 0x1b);
+                }
+            }
+        }
     }
 
     /// Convert a keyboard event to terminal input bytes
@@ -52,12 +140,22 @@ impl InputHandler {
                     }
                 }
 
+                // Get the base character (without Alt modification) for Option key modes
+                // We need to look at the physical key to get the unmodified character
+                let base_char = self.get_base_character(&event);
+
                 // Regular character input
                 let mut bytes = s.as_bytes().to_vec();
 
-                // Handle Alt key (sends ESC prefix)
+                // Handle Alt/Option key based on configured mode
                 if alt {
-                    bytes.insert(0, 0x1b);
+                    if let Some(base) = base_char {
+                        self.apply_option_key_mode(&mut bytes, base);
+                    } else {
+                        // Fallback: if we can't determine base character, use the first char
+                        let ch = s.chars().next().unwrap_or('\0');
+                        self.apply_option_key_mode(&mut bytes, ch);
+                    }
                 }
 
                 Some(bytes)
@@ -113,6 +211,67 @@ impl InputHandler {
                 Some(seq.as_bytes().to_vec())
             }
 
+            _ => None,
+        }
+    }
+
+    /// Get the base character from a key event (the character without Alt modification)
+    /// This maps physical key codes to their unmodified ASCII characters
+    fn get_base_character(&self, event: &KeyEvent) -> Option<char> {
+        // Map physical key codes to their base characters
+        // This is needed because on macOS, Option+key produces a different logical character
+        match event.physical_key {
+            PhysicalKey::Code(code) => match code {
+                KeyCode::KeyA => Some('a'),
+                KeyCode::KeyB => Some('b'),
+                KeyCode::KeyC => Some('c'),
+                KeyCode::KeyD => Some('d'),
+                KeyCode::KeyE => Some('e'),
+                KeyCode::KeyF => Some('f'),
+                KeyCode::KeyG => Some('g'),
+                KeyCode::KeyH => Some('h'),
+                KeyCode::KeyI => Some('i'),
+                KeyCode::KeyJ => Some('j'),
+                KeyCode::KeyK => Some('k'),
+                KeyCode::KeyL => Some('l'),
+                KeyCode::KeyM => Some('m'),
+                KeyCode::KeyN => Some('n'),
+                KeyCode::KeyO => Some('o'),
+                KeyCode::KeyP => Some('p'),
+                KeyCode::KeyQ => Some('q'),
+                KeyCode::KeyR => Some('r'),
+                KeyCode::KeyS => Some('s'),
+                KeyCode::KeyT => Some('t'),
+                KeyCode::KeyU => Some('u'),
+                KeyCode::KeyV => Some('v'),
+                KeyCode::KeyW => Some('w'),
+                KeyCode::KeyX => Some('x'),
+                KeyCode::KeyY => Some('y'),
+                KeyCode::KeyZ => Some('z'),
+                KeyCode::Digit0 => Some('0'),
+                KeyCode::Digit1 => Some('1'),
+                KeyCode::Digit2 => Some('2'),
+                KeyCode::Digit3 => Some('3'),
+                KeyCode::Digit4 => Some('4'),
+                KeyCode::Digit5 => Some('5'),
+                KeyCode::Digit6 => Some('6'),
+                KeyCode::Digit7 => Some('7'),
+                KeyCode::Digit8 => Some('8'),
+                KeyCode::Digit9 => Some('9'),
+                KeyCode::Minus => Some('-'),
+                KeyCode::Equal => Some('='),
+                KeyCode::BracketLeft => Some('['),
+                KeyCode::BracketRight => Some(']'),
+                KeyCode::Backslash => Some('\\'),
+                KeyCode::Semicolon => Some(';'),
+                KeyCode::Quote => Some('\''),
+                KeyCode::Backquote => Some('`'),
+                KeyCode::Comma => Some(','),
+                KeyCode::Period => Some('.'),
+                KeyCode::Slash => Some('/'),
+                KeyCode::Space => Some(' '),
+                _ => None,
+            },
             _ => None,
         }
     }
