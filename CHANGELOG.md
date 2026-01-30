@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Activity and Idle Notifications**: Desktop notifications for terminal activity (#29)
+  - **Activity notification**: Triggers when terminal output resumes after inactivity
+    - Useful for alerting when long-running commands complete
+    - Configurable threshold (default 10 seconds of inactivity)
+    - Enable via `notification_activity_enabled` config option
+  - **Silence/Idle notification**: Triggers when terminal has been idle too long
+    - Useful for detecting stalled processes or completed commands
+    - Configurable threshold (default 300 seconds / 5 minutes)
+    - Enable via `notification_silence_enabled` config option
+  - Both accessible in Settings UI under "Bell & Notifications"
+
 - **Option Key as Meta/Esc Configuration**: Essential feature for emacs/vim users (#23)
   - Configure left and right Option/Alt key behavior independently
   - Three modes: Normal (special characters), Meta (high bit), Esc (ESC prefix)

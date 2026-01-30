@@ -450,6 +450,9 @@ impl WindowState {
         // Check for bell events and play audio/visual feedback
         self.check_bell();
 
+        // Check for activity/idle notifications
+        self.check_activity_idle_notifications();
+
         // Check for shader hot reload events
         if self.check_shader_reload() {
             log::debug!("Shader hot reload triggered redraw");

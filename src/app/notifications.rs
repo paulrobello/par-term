@@ -201,6 +201,89 @@ impl WindowState {
         );
     }
 
+    /// Check for activity/idle notifications across all tabs.
+    ///
+    /// This method handles two types of notifications:
+    /// - **Activity notification**: Triggered when terminal output resumes after a period of
+    ///   inactivity (useful for long-running commands completing).
+    /// - **Silence notification**: Triggered when a terminal has been idle for longer than the
+    ///   configured threshold (useful for detecting stalled processes).
+    pub(crate) fn check_activity_idle_notifications(&mut self) {
+        // Skip if both notification types are disabled
+        if !self.config.notification_activity_enabled && !self.config.notification_silence_enabled {
+            return;
+        }
+
+        let now = std::time::Instant::now();
+        let activity_threshold =
+            std::time::Duration::from_secs(self.config.notification_activity_threshold);
+        let silence_threshold =
+            std::time::Duration::from_secs(self.config.notification_silence_threshold);
+
+        // Collect notification data for all tabs to avoid borrow conflicts
+        let mut notifications_to_send: Vec<(String, String)> = Vec::new();
+
+        for tab in self.tab_manager.tabs_mut() {
+            // Get current terminal generation to detect new output
+            let current_generation = if let Ok(term) = tab.terminal.try_lock() {
+                term.update_generation()
+            } else {
+                continue; // Skip if terminal is locked
+            };
+
+            let time_since_activity = now.duration_since(tab.last_activity_time);
+
+            // Check if there's new terminal output
+            if current_generation > tab.last_seen_generation {
+                // New output detected - this is "activity"
+                let was_idle = time_since_activity >= activity_threshold;
+
+                // Update tracking state
+                tab.last_seen_generation = current_generation;
+                tab.last_activity_time = now;
+                tab.silence_notified = false; // Reset silence notification flag
+
+                // Activity notification: notify if we were idle long enough
+                if self.config.notification_activity_enabled && was_idle {
+                    let title = format!("Activity in {}", tab.title);
+                    let message = format!(
+                        "Terminal output resumed after {} seconds of inactivity",
+                        time_since_activity.as_secs()
+                    );
+                    log::info!(
+                        "Activity notification: {} idle for {}s, now active",
+                        tab.title,
+                        time_since_activity.as_secs()
+                    );
+                    notifications_to_send.push((title, message));
+                }
+            } else {
+                // No new output - check for silence notification
+                if self.config.notification_silence_enabled
+                    && !tab.silence_notified
+                    && time_since_activity >= silence_threshold
+                {
+                    // Terminal has been silent for longer than threshold
+                    tab.silence_notified = true;
+                    let title = format!("Silence in {}", tab.title);
+                    let message =
+                        format!("No output for {} seconds", time_since_activity.as_secs());
+                    log::info!(
+                        "Silence notification: {} silent for {}s",
+                        tab.title,
+                        time_since_activity.as_secs()
+                    );
+                    notifications_to_send.push((title, message));
+                }
+            }
+        }
+
+        // Send collected notifications (after releasing mutable borrow)
+        for (title, message) in notifications_to_send {
+            self.deliver_notification(&title, &message);
+        }
+    }
+
     /// Deliver a notification via desktop notification system and logs.
     pub(crate) fn deliver_notification(&self, title: &str, message: &str) {
         // Always log notifications
