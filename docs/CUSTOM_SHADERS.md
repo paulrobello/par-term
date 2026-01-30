@@ -61,16 +61,37 @@ Shaders are written in GLSL (OpenGL Shading Language) and automatically transpil
 
 ## Installing Shaders
 
+### Install All Shaders (Recommended)
+
+Use the built-in CLI command to download and install all 49+ shaders from the latest release:
+
+```bash
+# Install shaders (with confirmation prompt)
+par-term install-shaders
+
+# Install without prompts
+par-term install-shaders -y
+
+# Force overwrite existing shaders
+par-term install-shaders --force
+```
+
+Alternatively, use the shell script installer:
+
+```bash
+curl -sL https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh | sh
+```
+
 ### From the Included Collection
 
-Par-term includes 49 ready-to-use shaders in the `shaders/` directory. See [SHADERS.md](SHADERS.md) for the complete list. Copy any shader to your configuration directory to use it:
+If building from source, the `shaders/` directory contains all ready-to-use shaders. See [SHADERS.md](SHADERS.md) for the complete list. Copy shaders to your configuration directory:
 
 ```bash
 # macOS/Linux
-cp shaders/crt.glsl ~/.config/par-term/shaders/
+cp -r shaders ~/.config/par-term/
 
 # Windows (PowerShell)
-Copy-Item shaders\crt.glsl $env:APPDATA\par-term\shaders\
+Copy-Item -Recurse shaders $env:APPDATA\par-term\
 ```
 
 ### Shader Directory Location
@@ -83,6 +104,13 @@ Copy-Item shaders\crt.glsl $env:APPDATA\par-term\shaders\
 The directory is created automatically when par-term first starts.
 
 ## Configuration
+
+All shader settings can be configured via the YAML config file or through the **Settings UI** (press `F2` or use the menu). The Settings UI provides:
+- **Background & Effects** section: Background shader selection, animation controls, brightness, texture channels, and cubemap settings
+- **Cursor Shader** section: Cursor shader selection and effect parameters
+- **Window** section: Power saving options (pause shaders on blur)
+
+The UI also supports per-shader overrides and saving settings directly to shader metadata.
 
 ### Background Shader Settings
 
@@ -338,7 +366,8 @@ Par-term specific uniforms for terminal integration:
 | `iOpacity` | `float` | Window opacity setting (0.0-1.0) |
 | `iTextOpacity` | `float` | Text opacity setting (0.0-1.0) |
 | `iBrightness` | `float` | Shader brightness multiplier (0.05-1.0) |
-| `iFullContentMode` | `float` | 1.0 = shader receives full terminal content; 0.0 = background only |
+| `iFullContent` | `float` | 1.0 = shader receives full terminal content; 0.0 = background only |
+| `iBackgroundColor` | `vec4` | Solid background color `[R, G, B, A]` (0.0-1.0 normalized). When A > 0, indicates solid color mode is active |
 | `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime). See [`keypress_pulse.glsl`](../shaders/keypress_pulse.glsl) for example. |
 
 ### Texture Channel Uniforms
