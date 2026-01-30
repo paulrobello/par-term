@@ -446,4 +446,8 @@ Both use the same transpiler (`src/custom_shader_renderer/transpiler.rs`) and GL
 3. Update `Default` impl for `Config`
 4. Add serde attributes: `#[serde(default = "default_my_option")]`
 5. Use config value in relevant component
-6. Optionally add to `settings_ui.rs` for runtime editing
+6. **REQUIRED**: Add UI controls to the appropriate tab in `src/settings_ui/`
+   - All user-configurable options MUST be exposed in the Settings UI
+   - Choose the appropriate tab (e.g., `bell_tab.rs` for notifications, `window_tab.rs` for display)
+   - Use checkboxes for booleans, sliders for numeric ranges, dropdowns for enums
+   - Remember to set `settings.has_changes = true` and `*changes_this_frame = true` on change

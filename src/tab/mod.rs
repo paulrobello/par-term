@@ -49,6 +49,12 @@ pub struct Tab {
     pub custom_color: Option<[u8; 3]>,
     /// Whether the tab has its default "Tab N" title (not set by OSC, CWD, or user)
     pub has_default_title: bool,
+    /// Last time terminal output (activity) was detected
+    pub last_activity_time: std::time::Instant,
+    /// Last terminal update generation seen (to detect new output)
+    pub last_seen_generation: u64,
+    /// Whether silence notification has been sent for current idle period
+    pub silence_notified: bool,
 }
 
 impl Tab {
@@ -148,6 +154,9 @@ impl Tab {
             working_directory: working_directory.or_else(|| config.working_directory.clone()),
             custom_color: None,
             has_default_title: true,
+            last_activity_time: std::time::Instant::now(),
+            last_seen_generation: 0,
+            silence_notified: false,
         })
     }
 
