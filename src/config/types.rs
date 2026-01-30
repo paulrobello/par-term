@@ -72,6 +72,19 @@ pub enum CursorStyle {
     Underline,
 }
 
+/// Unfocused cursor style - how the cursor appears when window loses focus
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum UnfocusedCursorStyle {
+    /// Show outline-only (hollow) block cursor when unfocused
+    #[default]
+    Hollow,
+    /// Keep same cursor style when unfocused
+    Same,
+    /// Hide cursor completely when unfocused
+    Hidden,
+}
+
 /// Background image display mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]

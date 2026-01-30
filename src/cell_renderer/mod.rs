@@ -86,6 +86,29 @@ pub struct CellRenderer {
     pub(crate) cursor_color: [f32; 3],
     /// Hide cursor when cursor shader is active (let shader handle cursor rendering)
     pub(crate) cursor_hidden_for_shader: bool,
+    /// Whether the window is currently focused (for unfocused cursor style)
+    pub(crate) is_focused: bool,
+
+    // Cursor enhancement settings
+    /// Enable cursor guide (horizontal line at cursor row)
+    pub(crate) cursor_guide_enabled: bool,
+    /// Cursor guide color [R, G, B, A] as floats (0.0-1.0)
+    pub(crate) cursor_guide_color: [f32; 4],
+    /// Enable cursor shadow
+    pub(crate) cursor_shadow_enabled: bool,
+    /// Cursor shadow color [R, G, B, A] as floats (0.0-1.0)
+    pub(crate) cursor_shadow_color: [f32; 4],
+    /// Cursor shadow offset in pixels [x, y]
+    pub(crate) cursor_shadow_offset: [f32; 2],
+    /// Cursor shadow blur radius (not fully supported yet, but stores config)
+    #[allow(dead_code)]
+    pub(crate) cursor_shadow_blur: f32,
+    /// Cursor boost (glow) intensity (0.0-1.0)
+    pub(crate) cursor_boost: f32,
+    /// Cursor boost glow color [R, G, B] as floats (0.0-1.0)
+    pub(crate) cursor_boost_color: [f32; 3],
+    /// Unfocused cursor style (hollow, same, hidden)
+    pub(crate) unfocused_cursor_style: crate::config::UnfocusedCursorStyle,
     pub(crate) visual_bell_intensity: f32,
     pub(crate) window_opacity: f32,
     pub(crate) background_color: [f32; 4],
@@ -338,7 +361,7 @@ impl CellRenderer {
         let vertex_buffer = pipeline::create_vertex_buffer(&device);
 
         // Instance buffers
-        let max_bg_instances = cols * rows + 1;
+        let max_bg_instances = cols * rows + 10; // Extra slots for cursor overlays (guide, shadow, boost, hollow)
         let max_text_instances = cols * rows * 2;
         let (bg_instance_buffer, text_instance_buffer) =
             pipeline::create_instance_buffers(&device, max_bg_instances, max_text_instances);
@@ -389,6 +412,16 @@ impl CellRenderer {
             cursor_overlay: None,
             cursor_color: [1.0, 1.0, 1.0],
             cursor_hidden_for_shader: false,
+            is_focused: true,
+            cursor_guide_enabled: false,
+            cursor_guide_color: [1.0, 1.0, 1.0, 0.08],
+            cursor_shadow_enabled: false,
+            cursor_shadow_color: [0.0, 0.0, 0.0, 0.5],
+            cursor_shadow_offset: [2.0, 2.0],
+            cursor_shadow_blur: 3.0,
+            cursor_boost: 0.0,
+            cursor_boost_color: [1.0, 1.0, 1.0],
+            unfocused_cursor_style: crate::config::UnfocusedCursorStyle::default(),
             visual_bell_intensity: 0.0,
             window_opacity,
             background_color: [
@@ -557,7 +590,7 @@ impl CellRenderer {
     }
 
     fn recreate_instance_buffers(&mut self) {
-        self.max_bg_instances = self.cols * self.rows + 1;
+        self.max_bg_instances = self.cols * self.rows + 10; // Extra slots for cursor overlays
         self.max_text_instances = self.cols * self.rows * 2;
         let (bg_buf, text_buf) = pipeline::create_instance_buffers(
             &self.device,
@@ -701,6 +734,71 @@ impl CellRenderer {
     pub fn set_cursor_hidden_for_shader(&mut self, hidden: bool) {
         if self.cursor_hidden_for_shader != hidden {
             self.cursor_hidden_for_shader = hidden;
+            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+        }
+    }
+
+    /// Set window focus state (affects unfocused cursor rendering)
+    pub fn set_focused(&mut self, focused: bool) {
+        if self.is_focused != focused {
+            self.is_focused = focused;
+            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+        }
+    }
+
+    /// Update cursor guide settings
+    pub fn update_cursor_guide(&mut self, enabled: bool, color: [u8; 4]) {
+        self.cursor_guide_enabled = enabled;
+        self.cursor_guide_color = [
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0,
+            color[3] as f32 / 255.0,
+        ];
+        if enabled {
+            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+        }
+    }
+
+    /// Update cursor shadow settings
+    pub fn update_cursor_shadow(
+        &mut self,
+        enabled: bool,
+        color: [u8; 4],
+        offset: [f32; 2],
+        blur: f32,
+    ) {
+        self.cursor_shadow_enabled = enabled;
+        self.cursor_shadow_color = [
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0,
+            color[3] as f32 / 255.0,
+        ];
+        self.cursor_shadow_offset = offset;
+        self.cursor_shadow_blur = blur;
+        if enabled {
+            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+        }
+    }
+
+    /// Update cursor boost settings
+    pub fn update_cursor_boost(&mut self, intensity: f32, color: [u8; 3]) {
+        self.cursor_boost = intensity.clamp(0.0, 1.0);
+        self.cursor_boost_color = [
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0,
+        ];
+        if intensity > 0.0 {
+            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+        }
+    }
+
+    /// Update unfocused cursor style
+    pub fn update_unfocused_cursor_style(&mut self, style: crate::config::UnfocusedCursorStyle) {
+        self.unfocused_cursor_style = style;
+        if !self.is_focused {
             self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
         }
     }

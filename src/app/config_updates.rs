@@ -46,6 +46,9 @@ pub(crate) struct ConfigChanges {
     pub cursor_blink: bool,
     pub cursor_color: bool,
 
+    // Cursor enhancements
+    pub cursor_enhancements: bool,
+
     // Background (mode, image, and solid color)
     pub bg_mode: bool,
     pub bg_color: bool,
@@ -139,6 +142,16 @@ impl ConfigChanges {
             cursor_style: new.cursor_style != old.cursor_style,
             cursor_blink: new.cursor_blink != old.cursor_blink,
             cursor_color: new.cursor_color != old.cursor_color,
+
+            cursor_enhancements: new.cursor_guide_enabled != old.cursor_guide_enabled
+                || new.cursor_guide_color != old.cursor_guide_color
+                || new.cursor_shadow_enabled != old.cursor_shadow_enabled
+                || new.cursor_shadow_color != old.cursor_shadow_color
+                || new.cursor_shadow_offset != old.cursor_shadow_offset
+                || (new.cursor_shadow_blur - old.cursor_shadow_blur).abs() > f32::EPSILON
+                || (new.cursor_boost - old.cursor_boost).abs() > f32::EPSILON
+                || new.cursor_boost_color != old.cursor_boost_color
+                || new.unfocused_cursor_style != old.unfocused_cursor_style,
 
             bg_mode: new.background_mode != old.background_mode,
             bg_color: new.background_color != old.background_color,

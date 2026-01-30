@@ -408,6 +408,43 @@ impl Renderer {
         self.dirty = true;
     }
 
+    /// Set window focus state (affects unfocused cursor rendering)
+    pub fn set_focused(&mut self, focused: bool) {
+        self.cell_renderer.set_focused(focused);
+        self.dirty = true;
+    }
+
+    /// Update cursor guide settings
+    pub fn update_cursor_guide(&mut self, enabled: bool, color: [u8; 4]) {
+        self.cell_renderer.update_cursor_guide(enabled, color);
+        self.dirty = true;
+    }
+
+    /// Update cursor shadow settings
+    pub fn update_cursor_shadow(
+        &mut self,
+        enabled: bool,
+        color: [u8; 4],
+        offset: [f32; 2],
+        blur: f32,
+    ) {
+        self.cell_renderer
+            .update_cursor_shadow(enabled, color, offset, blur);
+        self.dirty = true;
+    }
+
+    /// Update cursor boost settings
+    pub fn update_cursor_boost(&mut self, intensity: f32, color: [u8; 3]) {
+        self.cell_renderer.update_cursor_boost(intensity, color);
+        self.dirty = true;
+    }
+
+    /// Update unfocused cursor style
+    pub fn update_unfocused_cursor_style(&mut self, style: crate::config::UnfocusedCursorStyle) {
+        self.cell_renderer.update_unfocused_cursor_style(style);
+        self.dirty = true;
+    }
+
     /// Set whether transparency affects only default background cells.
     /// When true, non-default (colored) backgrounds remain opaque for readability.
     pub fn set_transparency_affects_only_default_background(&mut self, value: bool) {

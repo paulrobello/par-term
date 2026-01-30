@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Cursor Enhancements**: iTerm2-style cursor visibility improvements (#26)
+  - **Cursor Guide**: Horizontal line spanning terminal width at cursor row
+    - Configurable RGBA color with low default alpha
+    - Toggle via `cursor_guide_enabled` config option
+  - **Cursor Shadow**: Drop shadow behind cursor for visibility
+    - Configurable RGBA shadow color and X/Y offset
+    - Toggle via `cursor_shadow_enabled` config option
+  - **Cursor Boost**: Glow effect around cursor
+    - Adjustable intensity slider (0.0-1.0)
+    - Configurable RGB boost color
+  - **Unfocused Cursor Style**: Control cursor appearance when window loses focus
+    - `hollow`: Outline-only block cursor (default)
+    - `same`: Keep normal cursor style
+    - `hidden`: Hide cursor completely when unfocused
+  - All enhancements configurable via Settings > Cursor tab
+
 ### Fixed
 
 - **Tab Bar Click Reliability**: Fixed missed clicks and wrong-tab-selection issues

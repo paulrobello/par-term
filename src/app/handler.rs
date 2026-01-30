@@ -392,6 +392,11 @@ impl WindowState {
             if focused { "focused" } else { "blurred" }
         );
 
+        // Update renderer focus state for unfocused cursor styling
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_focused(focused);
+        }
+
         // Handle shader animation pause/resume
         if self.config.pause_shaders_on_blur
             && let Some(renderer) = &mut self.renderer
