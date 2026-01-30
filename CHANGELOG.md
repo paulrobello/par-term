@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Shader Install Prompt on First Startup**: Automatic detection and install offer when shaders folder is missing (#33)
+  - Modal dialog appears on first launch if `~/.config/par-term/shaders/` is empty or missing
+  - Three options: "Yes, Install" (download shaders), "Never" (save preference), "Later" (dismiss for session)
+  - Downloads shader pack from GitHub releases automatically
+  - New config option: `shader_install_prompt` (ask/never/installed)
+  - Can still install manually via `par-term install-shaders` CLI command
+
 - **Font Rendering Options**: Anti-aliasing and thin strokes controls for improved text appearance (#32)
   - **Anti-aliasing**: Toggle font smoothing on/off for crisp or smooth text
     - Disable for sharp, pixelated text at small sizes

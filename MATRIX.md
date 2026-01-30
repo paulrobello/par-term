@@ -51,8 +51,8 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Text shaping (HarfBuzz) | ✅ | ✅ `enable_text_shaping` | ✅ | - | - | - |
 | Ligatures | ✅ `ASCII Ligatures`, `Non-ASCII Ligatures` | ✅ `enable_ligatures` | ✅ | - | - | - |
 | Kerning | ✅ | ✅ `enable_kerning` | ✅ | - | - | - |
-| Anti-aliasing control | ✅ `ASCII/Non-ASCII Anti Aliased` | ❌ | ❌ | ⭐ | 🟢 | Minor visual tuning |
-| Thin strokes | ✅ Multiple modes | ❌ | ❌ | ⭐ | 🟢 | Retina display optimization |
+| Anti-aliasing control | ✅ `ASCII/Non-ASCII Anti Aliased` | ✅ `font_antialias`, `font_hinting` | ✅ | - | - | Toggle anti-aliasing and hinting |
+| Thin strokes | ✅ Multiple modes | ✅ `font_thin_strokes` | ✅ | - | - | 5 modes: never/retina_only/dark_backgrounds_only/retina_dark_backgrounds_only/always |
 | Powerline glyphs | ✅ `Draw Powerline Glyphs` | ✅ | ✅ | - | - | Built into font rendering |
 | Use bold color | ✅ `Use Bold Color` | ✅ | ✅ | - | - | Theme-controlled |
 | Brighten bold text | ✅ `Use Bright Bold` | ✅ | ✅ | - | - | Theme-controlled |
@@ -210,7 +210,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 |---------|--------|----------|--------|--------|--------|-------|
 | Custom keybindings | ✅ Full keyboard map | ✅ `keybindings` | ✅ | - | - | - |
 | Modifier remapping | ✅ Per-modifier remapping | ❌ | ❌ | ⭐⭐ | 🟡 | Remap Ctrl/Alt/Cmd |
-| Option as Meta/Esc | ✅ `Option Key Sends` | ❌ | ❌ | ⭐⭐⭐ | 🟢 | Essential for emacs/vim |
+| Option as Meta/Esc | ✅ `Option Key Sends` | ✅ `left/right_option_key_mode` | ✅ | - | - | Normal/Meta/Esc modes per key |
 | Hotkey window | ✅ Global hotkey | ❌ | ❌ | ⭐⭐⭐ | 🔴 | Quake-style dropdown |
 | Haptic/sound feedback for Esc | ✅ | ❌ | ❌ | ⭐ | 🟢 | Touch Bar feedback |
 | Language-agnostic key bindings | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Non-US keyboard support |
@@ -444,6 +444,7 @@ Full tmux control mode integration would require:
 | Snippets | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Saved text snippets |
 | Search in terminal | ✅ Cmd+F | ❌ | ❌ | ⭐⭐⭐ | 🟡 | Find text in scrollback |
 | CLI command (`par-term`) | ❌ | ✅ Full CLI | ✅ | - | - | par-term exclusive |
+| First-run shader install prompt | ❌ | ✅ Auto-detect & install | ✅ | - | - | par-term exclusive |
 | Shader gallery | ❌ | ✅ Online gallery | ✅ | - | - | par-term exclusive |
 
 ---
@@ -455,6 +456,7 @@ Full tmux control mode integration would require:
 - 12 cursor shader effects (GPU-powered cursor animations)
 - Per-shader configuration system with metadata
 - Shadertoy-compatible texture channels and cubemaps
+- First-run shader install prompt (auto-detect missing shaders)
 - Scrollbar customization (position, colors, width, auto-hide)
 - FPS control and VSync modes
 - Power saving options (pause shaders/refresh on blur)
@@ -471,27 +473,25 @@ Full tmux control mode integration would require:
 - Selection foreground color (separate from background)
 
 ### High-Priority Missing Features (⭐⭐⭐)
-1. **Option as Meta/Esc** - Essential for emacs/vim users - 🟢 Low effort
-2. **Hotkey window** - Quake-style dropdown - 🔴 High effort
-3. **Multiple profiles** - Named configurations - 🔵 Very high effort
-4. **Split panes** - Divide terminal - 🔵 Very high effort
-5. **Shell integration** - Command tracking - 🔵 Very high effort
-6. **tmux control mode** - Native tmux integration (not basic compatibility) - 🔵 Very high effort
-7. **Search in terminal** - Find in scrollback - 🟡 Medium effort
+1. **Hotkey window** - Quake-style dropdown - 🔴 High effort
+2. **Multiple profiles** - Named configurations - 🔵 Very high effort
+3. **Split panes** - Divide terminal - 🔵 Very high effort
+4. **Shell integration** - Command tracking - 🔵 Very high effort
+5. **tmux control mode** - Native tmux integration (not basic compatibility) - 🔵 Very high effort
+6. **Search in terminal** - Find in scrollback - 🟡 Medium effort
 
 ### Recommended Implementation Priority
 
 **Phase 1 - Quick Wins (Low Effort, High Value)**
-1. Option as Meta/Esc (⭐⭐⭐, 🟢)
-2. Cursor text color (⭐⭐, 🟢)
-3. Smart cursor color (⭐⭐, 🟢)
-4. Option+click moves cursor (⭐⭐, 🟢)
-5. Word boundary characters (⭐⭐, 🟢)
-6. Session ended notification (⭐⭐, 🟢)
-7. Suppress alerts when focused (⭐⭐, 🟢)
-8. Initial text to send on start (⭐⭐, 🟢)
-9. Anti-idle keep-alive (⭐⭐, 🟢)
-10. Tab index number rendering (⭐⭐, 🟢) - config exists, just needs rendering
+1. Cursor text color (⭐⭐, 🟢)
+2. Smart cursor color (⭐⭐, 🟢)
+3. Option+click moves cursor (⭐⭐, 🟢)
+4. Word boundary characters (⭐⭐, 🟢)
+5. Session ended notification (⭐⭐, 🟢)
+6. Suppress alerts when focused (⭐⭐, 🟢)
+7. Initial text to send on start (⭐⭐, 🟢)
+8. Anti-idle keep-alive (⭐⭐, 🟢)
+9. Tab index number rendering (⭐⭐, 🟢) - config exists, just needs rendering
 
 **Phase 2 - Medium Effort, High Value**
 1. Search in terminal (⭐⭐⭐, 🟡)
@@ -518,6 +518,6 @@ Full tmux control mode integration would require:
 
 ---
 
-*Generated: 2026-01-30*
+*Updated: 2026-01-30*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.6.0*
