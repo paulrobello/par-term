@@ -6,6 +6,7 @@
 use crate::app::debug_state::DebugState;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::config::{Config, CursorShaderMetadataCache, CursorStyle, ShaderMetadataCache};
+use crate::settings_ui::SettingsUI;
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::keybindings::KeybindingRegistry;
@@ -116,6 +117,7 @@ impl WindowState {
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
         let keybinding_registry = KeybindingRegistry::from_config(&config.keybindings);
         let shaders_dir = Config::shaders_dir();
+        let settings_ui = SettingsUI::new(config.clone());
 
         Self {
             config,
