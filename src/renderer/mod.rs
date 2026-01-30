@@ -537,8 +537,11 @@ impl Renderer {
         }
 
         // Sync to custom shader
+        // Note: We don't pass is_solid_color=true to custom shaders because
+        // that would replace the shader output with a solid color, making the
+        // shader invisible. Custom shaders handle their own background.
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            custom_shader.set_background_color(normalized_color, is_solid_color);
+            custom_shader.set_background_color(normalized_color, false);
         }
 
         self.dirty = true;

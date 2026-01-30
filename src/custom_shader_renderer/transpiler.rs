@@ -212,8 +212,6 @@ void main() {{
         // The shader output (shaderColor/dimmedShaderRgb) contains:
         // - CRT effects, distortion, scanlines, color grading, etc.
         // - The shader's own sampling and processing of iChannel4
-        //
-        // We only need to handle opacity for window transparency.
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
         float hasContent = step(0.01, terminalColor.a);
 
@@ -224,8 +222,16 @@ void main() {{
         //   - Everything uses iOpacity
         float pixelOpacity = mix(iOpacity, iTextOpacity, hasContent);
 
-        // Use shader output directly - it contains all the effects
-        vec3 finalRgb = dimmedShaderRgb;
+        // Determine if we need to composite over a background color
+        // This is needed for cursor shaders when no background shader is active
+        float useSolidBg = step(0.01, iBackgroundColor.a);
+        vec3 bgColor = iBackgroundColor.rgb * iBrightness;
+
+        // Composite shader output over background color where there's no content
+        // For areas with content (terminal text), use shader output directly
+        // For empty areas, blend shader output over background
+        vec3 shaderOverBg = dimmedShaderRgb + bgColor * (1.0 - terminalColor.a);
+        vec3 finalRgb = mix(dimmedShaderRgb, shaderOverBg, useSolidBg);
 
         // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
         float isChainMode = step(iOpacity, 0.001);
@@ -522,8 +528,6 @@ void main() {{
         // The shader output (shaderColor/dimmedShaderRgb) contains:
         // - CRT effects, distortion, scanlines, color grading, etc.
         // - The shader's own sampling and processing of iChannel4
-        //
-        // We only need to handle opacity for window transparency.
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
         float hasContent = step(0.01, terminalColor.a);
 
@@ -534,8 +538,16 @@ void main() {{
         //   - Everything uses iOpacity
         float pixelOpacity = mix(iOpacity, iTextOpacity, hasContent);
 
-        // Use shader output directly - it contains all the effects
-        vec3 finalRgb = dimmedShaderRgb;
+        // Determine if we need to composite over a background color
+        // This is needed for cursor shaders when no background shader is active
+        float useSolidBg = step(0.01, iBackgroundColor.a);
+        vec3 bgColor = iBackgroundColor.rgb * iBrightness;
+
+        // Composite shader output over background color where there's no content
+        // For areas with content (terminal text), use shader output directly
+        // For empty areas, blend shader output over background
+        vec3 shaderOverBg = dimmedShaderRgb + bgColor * (1.0 - terminalColor.a);
+        vec3 finalRgb = mix(dimmedShaderRgb, shaderOverBg, useSolidBg);
 
         // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
         float isChainMode = step(iOpacity, 0.001);
