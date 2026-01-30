@@ -128,6 +128,27 @@ pub enum TabBarMode {
     Never,
 }
 
+/// Option/Alt key behavior mode
+///
+/// Controls what happens when Option (macOS) or Alt (Linux/Windows) key is pressed
+/// with a character key. This is essential for emacs and vim users who rely on
+/// Meta key combinations (M-x, M-f, M-b, etc.).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum OptionKeyMode {
+    /// Normal - sends special characters (default macOS behavior)
+    /// Option+f → ƒ (special character)
+    Normal,
+    /// Meta - sets the high bit (8th bit) on the character
+    /// Option+f → 0xE6 (f with high bit set)
+    Meta,
+    /// Esc - sends Escape prefix before the character (most compatible)
+    /// Option+f → ESC f (escape then f)
+    /// This is the most compatible mode for terminal applications like emacs and vim
+    #[default]
+    Esc,
+}
+
 /// Font mapping for a specific Unicode range
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FontRange {

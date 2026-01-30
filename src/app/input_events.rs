@@ -9,6 +9,9 @@ use winit::keyboard::{Key, NamedKey};
 
 impl WindowState {
     pub(crate) fn handle_key_event(&mut self, event: KeyEvent, event_loop: &ActiveEventLoop) {
+        // Track Alt key press/release for Option key mode detection
+        self.input_handler.track_alt_key(&event);
+
         // Check if any UI panel is visible
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
         let any_ui_visible = self.help_ui.visible || self.clipboard_history_ui.visible;
@@ -279,6 +282,14 @@ impl WindowState {
                 log::info!("Configuration reloaded successfully");
 
                 // Apply settings that can be changed at runtime
+
+                // Update Option/Alt key modes
+                self.config.left_option_key_mode = new_config.left_option_key_mode;
+                self.config.right_option_key_mode = new_config.right_option_key_mode;
+                self.input_handler.update_option_key_modes(
+                    new_config.left_option_key_mode,
+                    new_config.right_option_key_mode,
+                );
 
                 // Update auto_copy_selection
                 self.config.auto_copy_selection = new_config.auto_copy_selection;

@@ -115,11 +115,16 @@ impl WindowState {
         let keybinding_registry = KeybindingRegistry::from_config(&config.keybindings);
         let shaders_dir = Config::shaders_dir();
 
+        let mut input_handler = InputHandler::new();
+        // Initialize Option/Alt key modes from config
+        input_handler
+            .update_option_key_modes(config.left_option_key_mode, config.right_option_key_mode);
+
         Self {
             config,
             window: None,
             renderer: None,
-            input_handler: InputHandler::new(),
+            input_handler,
             runtime,
 
             tab_manager: TabManager::new(),
