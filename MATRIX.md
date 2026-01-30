@@ -446,6 +446,7 @@ Full tmux control mode integration would require:
 | CLI command (`par-term`) | ❌ | ✅ Full CLI | ✅ | - | - | par-term exclusive |
 | First-run shader install prompt | ❌ | ✅ Auto-detect & install | ✅ | - | - | par-term exclusive |
 | Shader gallery | ❌ | ✅ Online gallery | ✅ | - | - | par-term exclusive |
+| Automatic update checking | ✅ Built-in updater | ✅ `update_check_frequency` | ✅ | - | - | Notify-only (no auto-install) |
 
 ---
 
@@ -471,6 +472,7 @@ Full tmux control mode integration would require:
 - 17 built-in color themes
 - 13+ tab bar color customization options
 - Selection foreground color (separate from background)
+- Configurable update check frequency (never/daily/weekly/monthly)
 
 ### High-Priority Missing Features (⭐⭐⭐)
 1. **Hotkey window** - Quake-style dropdown - 🔴 High effort

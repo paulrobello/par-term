@@ -35,4 +35,5 @@ pub mod tab_bar_ui;
 pub mod terminal;
 pub mod text_shaper;
 pub mod themes;
+pub mod update_checker;
 pub mod url_detection;

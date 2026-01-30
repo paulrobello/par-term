@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Automatic Update Checking**: Configurable update check frequency with desktop notifications (#34)
+  - Check for new par-term releases from GitHub automatically
+  - Four frequency options: Never, Daily, Weekly (default), Monthly
+  - Desktop notification when updates are available (one notification per version)
+  - Platform-specific instructions: macOS users see Homebrew update command
+  - "Skip This Version" option to suppress notifications for specific releases
+  - New config options: `update_check_frequency`, `last_update_check`, `skipped_version`
+  - Settings UI section under "Updates" with version info and "Check Now" button
+  - Checks run on startup (5 second delay) and periodically while running
+
 - **Shader Install Prompt on First Startup**: Automatic detection and install offer when shaders folder is missing (#33)
   - Modal dialog appears on first launch if `~/.config/par-term/shaders/` is empty or missing
   - Three options: "Yes, Install" (download shaders), "Never" (save preference), "Later" (dismiss for session)

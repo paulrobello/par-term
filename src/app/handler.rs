@@ -714,6 +714,9 @@ impl ApplicationHandler for WindowManager {
         // Check CLI timing-based options (exit-after, screenshot, command)
         self.check_cli_timers();
 
+        // Check for updates (respects configured frequency)
+        self.check_for_updates();
+
         // Process menu events
         // Find focused window (for now, use the first window if any)
         let focused_window = self.windows.keys().next().copied();

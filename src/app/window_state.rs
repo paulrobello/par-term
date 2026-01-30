@@ -1690,28 +1690,28 @@ impl WindowState {
         }
 
         // Check for shader installation completion from background thread
-        if let Some(ref rx) = self.shader_install_receiver {
-            if let Ok(result) = rx.try_recv() {
-                match result {
-                    Ok(count) => {
-                        log::info!("Successfully installed {} shaders", count);
-                        self.shader_install_ui
-                            .set_success(&format!("Installed {} shaders!", count));
+        if let Some(ref rx) = self.shader_install_receiver
+            && let Ok(result) = rx.try_recv()
+        {
+            match result {
+                Ok(count) => {
+                    log::info!("Successfully installed {} shaders", count);
+                    self.shader_install_ui
+                        .set_success(&format!("Installed {} shaders!", count));
 
-                        // Update config to mark as installed
-                        self.config.shader_install_prompt = ShaderInstallPrompt::Installed;
-                        if let Err(e) = self.config.save() {
-                            log::error!("Failed to save config after shader install: {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Failed to install shaders: {}", e);
-                        self.shader_install_ui.set_error(&e);
+                    // Update config to mark as installed
+                    self.config.shader_install_prompt = ShaderInstallPrompt::Installed;
+                    if let Err(e) = self.config.save() {
+                        log::error!("Failed to save config after shader install: {}", e);
                     }
                 }
-                self.shader_install_receiver = None;
-                self.needs_redraw = true;
+                Err(e) => {
+                    log::error!("Failed to install shaders: {}", e);
+                    self.shader_install_ui.set_error(&e);
+                }
             }
+            self.shader_install_receiver = None;
+            self.needs_redraw = true;
         }
 
         // Handle shader install responses
