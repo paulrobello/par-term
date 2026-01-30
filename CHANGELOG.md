@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **Tab Bar Click Reliability**: Fixed missed clicks and wrong-tab-selection issues
+  - Close button now renders as overlay with manual hit-testing for reliable clicks
+  - Uses `clicked_by(PointerButton::Primary)` to prevent keyboard focus from triggering tab switches
+  - Added `egui_initialized` flag to prevent unreliable pointer state before first render
+- **Terminal Content Overlap**: Added content offset system to prevent terminal content from overlapping with tab bar
+  - Propagated `content_offset_y` through cell renderer, graphics renderer, and custom shader renderer
+- **Tab Numbering**: Changed to position-based numbering that automatically renumbers when tabs are closed or reordered
+  - Tabs now show "Tab 1, Tab 2, Tab 3" instead of keeping original IDs
+- **Mouse Event Handling**: Fixed event ordering to check tab bar area before updating terminal mouse state
+
+### Added
+
+- Comprehensive tab bar UI tests (`tests/tab_bar_ui_tests.rs`)
+- Tab stability integration tests (`tests/tab_stability_tests.rs`)
+
+---
+
 ## [0.6.0] - 2026-01-29
 
 ### Added
