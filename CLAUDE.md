@@ -63,6 +63,59 @@ make watch-graphics # Monitor graphics-related logs only
 make clean-logs     # Clean debug logs
 ```
 
+### Live Debugging Workflow
+When debugging UI issues (tab clicks, mouse events, etc.), use this workflow:
+
+```bash
+# 1. Kill any running debug builds
+pkill -f "target/debug/par-term" 2>/dev/null || true
+
+# 2. Build with changes
+cargo build
+
+# 3. Start debug build in background
+DEBUG_LEVEL=4 cargo run &>/dev/null &
+
+# 4. Watch logs in real-time (filter by component)
+tail -f /tmp/par_term_debug.log | grep --line-buffered "TAB\|CLICK\|MOUSE"
+
+# Or check specific log entries after testing
+grep -E "TAB|CLICK" /tmp/par_term_debug.log | tail -30
+```
+
+**Important**: When testing, use the **debug build window** (started via `cargo run`), not the app bundle (`/Applications/par-term.app`). The app bundle won't have your code changes.
+
+### Adding Debug Logging
+
+The project uses custom debug macros (not the standard `log` crate). **Do NOT use `log::info!` etc.**
+
+```rust
+// Correct - use crate:: prefix for the custom macros
+crate::debug_info!("CATEGORY", "message {}", var);   // INFO level (DEBUG_LEVEL=2+)
+crate::debug_log!("CATEGORY", "message");            // DEBUG level (DEBUG_LEVEL=3+)
+crate::debug_trace!("CATEGORY", "message");          // TRACE level (DEBUG_LEVEL=4)
+crate::debug_error!("CATEGORY", "message");          // ERROR level (DEBUG_LEVEL=1+)
+
+// Wrong - these won't appear in /tmp/par_term_debug.log
+log::info!("message");  // Goes to stdout, not debug log
+```
+
+Log entries appear as: `[timestamp] [LEVEL] [CATEGORY] message`
+
+### Interactive Debugging Session (for Claude)
+
+When the user reports a UI issue, follow this workflow:
+
+1. **Add targeted debug logging** to the suspected code path
+2. **Kill existing debug builds**: `pkill -f "target/debug/par-term"`
+3. **Build**: `cargo build`
+4. **Start the debug build**: `DEBUG_LEVEL=4 cargo run &`
+5. **Ask user to interact** with the debug window (not the app bundle!)
+6. **Check logs**: `grep "CATEGORY" /tmp/par_term_debug.log | tail -30`
+7. **Analyze** what the logs reveal about the issue
+
+Common log categories: `TAB`, `TAB_BAR`, `TAB_ACTION`, `MOUSE`, `RENDER`, `SHADER`, `TERMINAL`, `APP`
+
 ### Graphics & Shader Testing
 ```bash
 make test-graphics     # Test graphics with debug logging

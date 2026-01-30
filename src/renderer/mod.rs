@@ -881,6 +881,32 @@ impl Renderer {
         self.cell_renderer.window_padding()
     }
 
+    /// Get the vertical content offset (e.g., tab bar height)
+    pub fn content_offset_y(&self) -> f32 {
+        self.cell_renderer.content_offset_y()
+    }
+
+    /// Set the vertical content offset (e.g., tab bar height).
+    /// This affects both grid size calculation and cell positioning.
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_offset_y(&mut self, offset: f32) -> Option<(usize, usize)> {
+        let result = self.cell_renderer.set_content_offset_y(offset);
+        // Always update graphics renderer offset, even if grid size didn't change
+        self.graphics_renderer.set_content_offset_y(offset);
+        // Update custom shader renderer content offset
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_content_offset_y(offset);
+        }
+        // Update cursor shader renderer content offset
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_content_offset_y(offset);
+        }
+        if result.is_some() {
+            self.dirty = true;
+        }
+        result
+    }
+
     /// Check if a point (in pixel coordinates) is within the scrollbar bounds
     ///
     /// # Arguments
