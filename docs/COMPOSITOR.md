@@ -35,12 +35,13 @@ This document describes how par-term's GPU compositor handles rendering layers, 
 Par-term uses a GPU-accelerated compositor built on wgpu (Vulkan/Metal/DirectX 12) that manages multiple render layers. The compositor supports:
 
 - **Background images** with various display modes (fit, fill, stretch, tile, center)
-- **Custom GLSL shaders** for animated backgrounds and post-processing effects
+- **Background shaders** for animated backgrounds and post-processing effects
+- **Cursor shaders** for cursor-specific effects (trails, glows, ripples)
 - **Per-pixel transparency** for window transparency effects
 - **Sixel/iTerm2/Kitty graphics** inline image rendering
 - **Settings UI overlay** via egui
 
-The custom shader system is compatible with Ghostty/Shadertoy-style GLSL shaders, making it easy to adapt existing shader code.
+The custom shader system is compatible with Ghostty/Shadertoy-style GLSL shaders, making it easy to adapt existing shader code. Both background and cursor shaders share the same uniform interface and can be enabled independently.
 
 ## Compositor Architecture
 
@@ -53,10 +54,11 @@ graph TB
     subgraph "Compositor Layer Stack"
         L0[Background Image Layer]
         L1[Terminal Content Layer<br/>Backgrounds + Text + Cursor]
-        L2[Custom Shader Layer<br/>Post-processing Effects]
-        L3[Overlay Layer<br/>Scrollbar + Visual Bell]
-        L4[Graphics Layer<br/>Sixel/iTerm2/Kitty Images]
-        L5[UI Layer<br/>egui Settings Panel]
+        L2[Background Shader Layer<br/>Post-processing Effects]
+        L3[Cursor Shader Layer<br/>Cursor Trails + Glows]
+        L4[Overlay Layer<br/>Scrollbar + Visual Bell]
+        L5[Graphics Layer<br/>Sixel/iTerm2/Kitty Images]
+        L6[UI Layer<br/>egui Settings Panel]
     end
 
     L0 --> L1
@@ -64,16 +66,18 @@ graph TB
     L2 --> L3
     L3 --> L4
     L4 --> L5
+    L5 --> L6
 
     style L0 fill:#1a237e,stroke:#3f51b5,stroke-width:2px,color:#ffffff
     style L1 fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style L2 fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
-    style L3 fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
-    style L4 fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
-    style L5 fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style L3 fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style L4 fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style L5 fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style L6 fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
 ```
 
-> **Note:** When a custom shader is enabled, the terminal content (L0-L1) is first rendered to an intermediate texture. The shader then processes this texture and outputs to the surface. Overlays (L3) are rendered after the shader to ensure they remain unaffected by shader effects.
+> **Note:** Par-term supports two independent custom shaders: a **background shader** for post-processing effects and a **cursor shader** for cursor-specific effects (trails, glows). When shaders are enabled, terminal content is first rendered to an intermediate texture, then processed by the background shader (if enabled), then by the cursor shader (if enabled). Overlays are rendered after shaders to ensure they remain unaffected.
 
 ### Render Order
 
@@ -83,21 +87,38 @@ The rendering pipeline executes in this sequence:
 sequenceDiagram
     participant Renderer as Renderer
     participant CR as CellRenderer
-    participant CSR as CustomShaderRenderer
+    participant BSR as Background Shader
+    participant CSR as Cursor Shader
     participant GR as GraphicsRenderer
     participant Egui as egui Renderer
     participant Surface as Surface Texture
 
-    Renderer->>Renderer: Check if custom shader enabled
+    Renderer->>Renderer: Check shader configuration
 
-    alt Custom Shader Enabled
-        Renderer->>CR: render_to_texture(intermediate_view)
+    alt Background Shader Only
+        Renderer->>CR: render_to_texture(bg_shader_intermediate)
         CR->>CR: Render background image + cells + cursor
-        Renderer->>CSR: render(surface_view)
-        CSR->>Surface: Apply shader effect to intermediate texture
+        Renderer->>BSR: render(surface_view)
+        BSR->>Surface: Apply background shader effect
         Renderer->>CR: render_overlays(surface)
         CR->>Surface: Render scrollbar + visual bell
-    else No Custom Shader
+    else Both Shaders Enabled
+        Renderer->>CR: render_to_texture(bg_shader_intermediate)
+        CR->>CR: Render cells + cursor (skip background)
+        Renderer->>BSR: render(cursor_shader_intermediate)
+        BSR->>BSR: Apply background shader
+        Renderer->>CSR: render(surface_view)
+        CSR->>Surface: Apply cursor shader effect
+        Renderer->>CR: render_overlays(surface)
+        CR->>Surface: Render scrollbar + visual bell
+    else Cursor Shader Only
+        Renderer->>CR: render_to_texture(cursor_shader_intermediate)
+        CR->>CR: Render cells + cursor (skip background)
+        Renderer->>CSR: render(surface_view)
+        CSR->>Surface: Apply cursor shader effect
+        Renderer->>CR: render_overlays(surface)
+        CR->>Surface: Render scrollbar + visual bell
+    else No Shaders
         Renderer->>CR: render(show_scrollbar)
         CR->>Surface: Render all content directly
     end
@@ -170,6 +191,13 @@ graph LR
 
 ## Custom Shader System
 
+Par-term supports two independent shader systems that can be enabled separately or together:
+
+1. **Background Shaders** (`custom_shader`): Post-processing effects applied to the entire terminal
+2. **Cursor Shaders** (`cursor_shader`): Visual effects that follow the cursor
+
+Both use the same GLSL format and share uniforms.
+
 ### Shader Location
 
 Custom shaders are stored in the par-term configuration directory:
@@ -203,15 +231,21 @@ Par-term provides a comprehensive set of Shadertoy-compatible uniforms:
 
 | Uniform | Type | Description |
 |---------|------|-------------|
-| `iResolution` | `vec2` | Viewport resolution in pixels (width, height) |
-| `iResolutionZ` | `float` | Pixel aspect ratio (usually 1.0) |
+| `iResolution` | `vec3` | Viewport resolution: `xy` = pixels, `z` = pixel aspect ratio (usually 1.0) |
 | `iTime` | `float` | Time in seconds since shader started (animated) |
 | `iTimeDelta` | `float` | Time since last frame in seconds |
 | `iFrame` | `float` | Frame counter (increments each frame) |
 | `iFrameRate` | `float` | Current frame rate in FPS |
 | `iMouse` | `vec4` | Mouse state (see below) |
 | `iDate` | `vec4` | Date/time (year, month 0-11, day 1-31, seconds since midnight) |
-| `iChannel0` | `sampler2D` | Terminal content texture |
+| `iChannel0` | `sampler2D` | User texture channel 0 (Shadertoy compatible) |
+| `iChannel1` | `sampler2D` | User texture channel 1 |
+| `iChannel2` | `sampler2D` | User texture channel 2 |
+| `iChannel3` | `sampler2D` | User texture channel 3 |
+| `iChannel4` | `sampler2D` | Terminal content texture (par-term specific) |
+| `iChannelResolution[0-4]` | `vec4` | Channel resolutions `[width, height, 1.0, 0.0]` |
+| `iCubemap` | `samplerCube` | Cubemap texture for environment mapping |
+| `iCubemapResolution` | `vec4` | Cubemap face size `[size, size, 1.0, 0.0]` |
 
 #### iMouse Behavior
 
@@ -236,7 +270,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         }
     }
 
-    fragColor = texture(iChannel0, uv);
+    fragColor = texture(iChannel4, uv);
 }
 ```
 
@@ -246,7 +280,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 |---------|------|-------------|
 | `iOpacity` | `float` | Window opacity (0.0 - 1.0) |
 | `iTextOpacity` | `float` | Text opacity (0.0 - 1.0) |
+| `iBrightness` | `float` | Shader brightness multiplier (0.05 - 1.0) |
 | `iFullContent` | `float` | Full content mode flag (0.0 or 1.0) |
+| `iBackgroundColor` | `vec4` | Solid background color `[R, G, B, A]` (0.0-1.0). When A > 0, solid color mode is active |
+| `iTimeKeyPress` | `float` | Time when last key was pressed (same timebase as iTime) |
 
 #### Cursor Uniforms (Ghostty-Compatible)
 
@@ -300,7 +337,7 @@ graph TB
 
 In this mode (`iFullContent = 1.0`):
 
-- Shader receives **full terminal content** (text + background) via `iChannel0`
+- Shader receives **full terminal content** (text + background) via `iChannel4`
 - Shader output is used **directly** - no automatic text compositing
 - Enables text distortion, warping, color manipulation
 - Best for CRT effects, underwater distortion, glitch effects
@@ -333,8 +370,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     // 1. Normalize coordinates to 0-1 range
     vec2 uv = fragCoord / iResolution.xy;
 
-    // 2. Sample terminal content (optional)
-    vec4 terminal = texture(iChannel0, uv);
+    // 2. Sample terminal content (iChannel4 in par-term)
+    vec4 terminal = texture(iChannel4, uv);
 
     // 3. Apply your effect
     vec3 color = /* your effect */;
@@ -382,8 +419,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     float wave = sin(uv.y * 20.0 + iTime * 2.0) * 0.01;
     vec2 distorted_uv = uv + vec2(wave, 0.0);
 
-    // Sample distorted terminal content
-    vec4 color = texture(iChannel0, distorted_uv);
+    // Sample distorted terminal content (iChannel4)
+    vec4 color = texture(iChannel4, distorted_uv);
 
     // Apply blue tint
     color.rgb *= vec3(0.8, 0.9, 1.0);
@@ -414,7 +451,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec3 gradientColor = mix(startColor, endColor, gradientFactor);
 
     // Sample terminal to detect content
-    vec4 terminal = texture(iChannel0, uv);
+    vec4 terminal = texture(iChannel4, uv);
 
     // Blend: use terminal color where content exists
     float mask = 1.0 - step(0.5, dot(terminal.rgb, vec3(1.0)));
@@ -462,7 +499,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
     vec2 tc = vec2(cos(c) - 0.75, sin(c) - 0.75) * 0.04;
     uv = clamp(uv + tc, 0.0, 1.0);
 
-    fragColor = texture(iChannel0, uv);
+    fragColor = texture(iChannel4, uv);
     if (fragColor.a == 0.0) fragColor = vec4(1.0);
     fragColor *= vec4(color, 1.0);
 }
@@ -501,7 +538,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
         float apply = abs(sin(fragCoord.y) * 0.5 * scan);
 
         // Sample and apply color tint
-        vec3 color = texture(iChannel0, uv).rgb;
+        vec3 color = texture(iChannel4, uv).rgb;
         vec3 tint = vec3(0.0, 0.8, 0.6);  // Teal/green tint
 
         fragColor = vec4(mix(color * tint, vec3(0.0), apply), 1.0);
@@ -531,14 +568,14 @@ float lum(vec4 c) {
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord.xy / iResolution.xy;
-    vec4 color = texture(iChannel0, uv);
+    vec4 color = texture(iChannel4, uv);
 
     vec2 step = vec2(1.414) / iResolution.xy;
 
     // Sample surrounding pixels for bloom
     for (int i = 0; i < 24; i++) {
         vec3 s = samples[i];
-        vec4 c = texture(iChannel0, uv + s.xy * step);
+        vec4 c = texture(iChannel4, uv + s.xy * step);
         float l = lum(c);
         if (l > 0.2) {
             color += l * s.z * c * 0.2;
@@ -558,7 +595,7 @@ Simple color inversion effect (use with full content mode):
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord / iResolution.xy;
-    vec4 color = texture(iChannel0, uv);
+    vec4 color = texture(iChannel4, uv);
 
     // Invert RGB, preserve alpha
     fragColor = vec4(1.0 - color.rgb, color.a);
@@ -570,10 +607,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
 Custom shader settings in `~/.config/par-term/config.yaml`:
 
 ```yaml
+# ========== Background Shader Settings ==========
 # Path to shader file (relative to shaders/ or absolute)
 custom_shader: "water.glsl"
 
-# Enable/disable the custom shader
+# Enable/disable the background shader
 custom_shader_enabled: true
 
 # Enable animation (updates iTime each frame)
@@ -585,9 +623,49 @@ custom_shader_animation_speed: 1.0
 # Text opacity when using shader (0.0 - 1.0)
 custom_shader_text_opacity: 1.0
 
+# Brightness multiplier (0.05 - 1.0)
+custom_shader_brightness: 1.0
+
 # Full content mode - shader can manipulate text
 custom_shader_full_content: false
 
+# Texture channels (iChannel0-3, Shadertoy compatible)
+custom_shader_channel0: "~/textures/noise.png"
+custom_shader_channel1: null
+custom_shader_channel2: null
+custom_shader_channel3: null
+
+# Cubemap texture for environment mapping
+custom_shader_cubemap: "shaders/textures/cubemaps/env-outside"
+custom_shader_cubemap_enabled: true
+
+# Use background image as iChannel0
+custom_shader_use_background_as_channel0: false
+
+# ========== Cursor Shader Settings ==========
+# Path to cursor shader file
+cursor_shader: "cursor_glow.glsl"
+
+# Enable/disable cursor shader
+cursor_shader_enabled: false
+
+# Animation settings
+cursor_shader_animation: true
+cursor_shader_animation_speed: 1.0
+
+# Cursor effect parameters
+cursor_shader_color: [255, 255, 255]
+cursor_shader_trail_duration: 0.5
+cursor_shader_glow_radius: 80.0
+cursor_shader_glow_intensity: 0.3
+
+# Hide default cursor when shader is active
+cursor_shader_hides_cursor: false
+
+# Disable cursor shader in alt screen apps (vim, less, htop)
+cursor_shader_disable_in_alt_screen: true
+
+# ========== General Settings ==========
 # Window opacity (affects shader background)
 window_opacity: 1.0
 
@@ -651,6 +729,7 @@ background_image_opacity: 1.0
 
 - [README.md](../README.md) - Project overview and configuration reference
 - [Custom Shaders Guide](CUSTOM_SHADERS.md) - Installing and creating custom shaders
+- [Included Shaders](SHADERS.md) - Complete list of all available shaders
 - [Architecture](ARCHITECTURE.md) - System architecture overview
 - [Shadertoy](https://www.shadertoy.com) - Shader inspiration and examples
 - [Ghostty Shaders](https://ghostty.org/) - Compatible shader format reference
