@@ -70,6 +70,9 @@ impl Renderer {
         enable_text_shaping: bool,
         enable_ligatures: bool,
         enable_kerning: bool,
+        font_antialias: bool,
+        font_hinting: bool,
+        font_thin_strokes: crate::config::ThinStrokesMode,
         vsync_mode: crate::config::VsyncMode,
         window_opacity: f32,
         background_color: [u8; 3],
@@ -172,6 +175,9 @@ impl Renderer {
             enable_text_shaping,
             enable_ligatures,
             enable_kerning,
+            font_antialias,
+            font_hinting,
+            font_thin_strokes,
             vsync_mode,
             window_opacity,
             background_color,
@@ -1034,6 +1040,36 @@ impl Renderer {
     pub fn clear_glyph_cache(&mut self) {
         self.cell_renderer.clear_glyph_cache();
         self.dirty = true;
+    }
+
+    /// Update font anti-aliasing setting
+    /// Returns true if the setting changed (requiring glyph cache clear)
+    pub fn update_font_antialias(&mut self, enabled: bool) -> bool {
+        let changed = self.cell_renderer.update_font_antialias(enabled);
+        if changed {
+            self.dirty = true;
+        }
+        changed
+    }
+
+    /// Update font hinting setting
+    /// Returns true if the setting changed (requiring glyph cache clear)
+    pub fn update_font_hinting(&mut self, enabled: bool) -> bool {
+        let changed = self.cell_renderer.update_font_hinting(enabled);
+        if changed {
+            self.dirty = true;
+        }
+        changed
+    }
+
+    /// Update thin strokes mode
+    /// Returns true if the setting changed (requiring glyph cache clear)
+    pub fn update_font_thin_strokes(&mut self, mode: crate::config::ThinStrokesMode) -> bool {
+        let changed = self.cell_renderer.update_font_thin_strokes(mode);
+        if changed {
+            self.dirty = true;
+        }
+        changed
     }
 
     /// Pause shader animations (e.g., when window loses focus)

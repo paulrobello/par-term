@@ -6,7 +6,8 @@
 
 use crate::config::{
     BackgroundImageMode, BackgroundMode, Config, CursorShaderMetadata, FontRange, ShaderMetadata,
-    UnfocusedCursorStyle, VsyncMode, resolve_cursor_shader_config, resolve_shader_config,
+    ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, resolve_cursor_shader_config,
+    resolve_shader_config,
 };
 
 /// Expand tilde in path to home directory
@@ -44,6 +45,9 @@ pub(crate) struct RendererInitParams {
     pub enable_text_shaping: bool,
     pub enable_ligatures: bool,
     pub enable_kerning: bool,
+    pub font_antialias: bool,
+    pub font_hinting: bool,
+    pub font_thin_strokes: ThinStrokesMode,
     pub vsync_mode: VsyncMode,
     pub window_opacity: f32,
     /// Theme background color (used for Default mode and cell backgrounds)
@@ -149,6 +153,9 @@ impl RendererInitParams {
             enable_text_shaping: config.enable_text_shaping,
             enable_ligatures: config.enable_ligatures,
             enable_kerning: config.enable_kerning,
+            font_antialias: config.font_antialias,
+            font_hinting: config.font_hinting,
+            font_thin_strokes: config.font_thin_strokes,
             vsync_mode: config.vsync_mode,
             window_opacity: config.window_opacity,
             background_color: theme.background.as_array(),
@@ -223,6 +230,9 @@ impl RendererInitParams {
             self.enable_text_shaping,
             self.enable_ligatures,
             self.enable_kerning,
+            self.font_antialias,
+            self.font_hinting,
+            self.font_thin_strokes,
             self.vsync_mode,
             self.window_opacity,
             self.background_color,

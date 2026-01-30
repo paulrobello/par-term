@@ -22,7 +22,7 @@ pub use shader_metadata::{
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
     FontRange, KeyBinding, OptionKeyMode, ShaderConfig, ShaderMetadata, TabBarMode,
-    UnfocusedCursorStyle, VsyncMode,
+    ThinStrokesMode, UnfocusedCursorStyle, VsyncMode,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -99,6 +99,27 @@ pub struct Config {
     /// Enable kerning adjustments (requires enable_text_shaping)
     #[serde(default = "defaults::bool_true")]
     pub enable_kerning: bool,
+
+    /// Enable anti-aliasing for font rendering
+    /// When false, text is rendered without smoothing (aliased/pixelated)
+    #[serde(default = "defaults::bool_true")]
+    pub font_antialias: bool,
+
+    /// Enable hinting for font rendering
+    /// Hinting improves text clarity at small sizes by aligning glyphs to pixel boundaries
+    /// Disable for a softer, more "true to design" appearance
+    #[serde(default = "defaults::bool_true")]
+    pub font_hinting: bool,
+
+    /// Thin strokes / font smoothing mode
+    /// Controls stroke weight adjustment for improved rendering on different displays.
+    /// - never: Standard stroke weight everywhere
+    /// - retina_only: Lighter strokes on HiDPI displays (default)
+    /// - dark_backgrounds_only: Lighter strokes on dark backgrounds
+    /// - retina_dark_backgrounds_only: Lighter strokes only on HiDPI + dark backgrounds
+    /// - always: Always use lighter strokes
+    #[serde(default)]
+    pub font_thin_strokes: ThinStrokesMode,
 
     /// Window title
     #[serde(default = "defaults::window_title")]
@@ -740,6 +761,9 @@ impl Default for Config {
             enable_text_shaping: defaults::text_shaping(),
             enable_ligatures: defaults::bool_true(),
             enable_kerning: defaults::bool_true(),
+            font_antialias: defaults::bool_true(),
+            font_hinting: defaults::bool_true(),
+            font_thin_strokes: ThinStrokesMode::default(),
             scrollback_lines: defaults::scrollback(),
             cursor_blink: defaults::bool_false(),
             cursor_blink_interval: defaults::cursor_blink_interval(),

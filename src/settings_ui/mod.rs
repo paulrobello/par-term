@@ -775,6 +775,12 @@ impl SettingsUI {
                 "Text shaping",
                 "Ligatures",
                 "Kerning",
+                "Anti-aliasing",
+                "Antialias",
+                "Hinting",
+                "Thin strokes",
+                "Retina",
+                "Font smoothing",
             ],
         ) {
             insert_section_separator(ui, &mut section_shown);
