@@ -300,15 +300,18 @@ impl WindowState {
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
-                // Skip if egui UI is handling mouse
-                if !self.is_egui_using_pointer() {
+                // Skip terminal handling if egui UI is visible or using the pointer
+                // Note: any_ui_visible check is needed because is_egui_using_pointer()
+                // returns false before egui is initialized (e.g., at startup when
+                // shader_install_ui is shown before first render)
+                if !any_ui_visible && !self.is_egui_using_pointer() {
                     self.handle_mouse_wheel(delta);
                 }
             }
 
             WindowEvent::MouseInput { button, state, .. } => {
-                // Skip terminal handling if egui UI is handling mouse
-                if self.is_egui_using_pointer() {
+                // Skip terminal handling if egui UI is visible or using the pointer
+                if any_ui_visible || self.is_egui_using_pointer() {
                     // Request redraw so egui can process the click
                     if let Some(window) = &self.window {
                         window.request_redraw();
@@ -319,8 +322,8 @@ impl WindowState {
             }
 
             WindowEvent::CursorMoved { position, .. } => {
-                // Skip terminal handling if egui UI is handling mouse
-                if self.is_egui_using_pointer() {
+                // Skip terminal handling if egui UI is visible or using the pointer
+                if any_ui_visible || self.is_egui_using_pointer() {
                     // Request redraw so egui can update hover states
                     if let Some(window) = &self.window {
                         window.request_redraw();
