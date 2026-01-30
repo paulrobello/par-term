@@ -228,6 +228,13 @@ impl SettingsWindow {
         self.settings_ui.clear_cursor_shader_error();
     }
 
+    /// Sync shader enabled states from external source (e.g., keybinding toggle)
+    /// This prevents the settings window from overwriting externally toggled states
+    pub fn sync_shader_states(&mut self, custom_shader_enabled: bool, cursor_shader_enabled: bool) {
+        self.settings_ui.config.custom_shader_enabled = custom_shader_enabled;
+        self.settings_ui.config.cursor_shader_enabled = cursor_shader_enabled;
+    }
+
     /// Handle a window event
     pub fn handle_window_event(&mut self, event: WindowEvent) -> SettingsWindowAction {
         // Let egui handle the event

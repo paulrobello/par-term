@@ -120,8 +120,10 @@ impl WindowState {
             };
 
         // Debug: Log when egui consumes events but we ignore it
+        // Note: Settings are handled by standalone SettingsWindow, not embedded UI
+        let any_ui_visible = self.help_ui.visible || self.clipboard_history_ui.visible;
         if egui_consumed
-            && !self.settings_ui.visible
+            && !any_ui_visible
             && let WindowEvent::KeyboardInput {
                 event: key_event, ..
             } = &event
@@ -129,14 +131,6 @@ impl WindowState {
         {
             log::debug!("egui tried to consume Space (UI closed, ignoring)");
         }
-
-        // Only honor egui's consumption if an egui UI panel is actually visible
-        // This prevents egui from stealing Tab/Space when UI is closed
-        let any_ui_visible = self.settings_ui.visible
-            || self.help_ui.visible
-            || self.clipboard_history_ui.visible
-            || self.settings_ui.is_shader_editor_visible()
-            || self.settings_ui.is_cursor_shader_editor_visible();
 
         // When shader editor is visible, block keyboard events from terminal
         // even if egui didn't consume them (egui might not have focus)
@@ -292,9 +286,6 @@ impl WindowState {
                     // Hide overlay 1 second after resize stops
                     self.resize_overlay_hide_time =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(1));
-
-                    // Update settings UI with current terminal dimensions
-                    self.settings_ui.update_current_size(cols, rows);
                 }
             }
 
@@ -663,11 +654,25 @@ impl ApplicationHandler for WindowManager {
         }
 
         // Route event to the appropriate terminal window
-        let should_close = if let Some(window_state) = self.windows.get_mut(&window_id) {
-            window_state.handle_window_event(event_loop, event)
-        } else {
-            false
-        };
+        let (should_close, shader_states) =
+            if let Some(window_state) = self.windows.get_mut(&window_id) {
+                let close = window_state.handle_window_event(event_loop, event);
+                // Capture shader states to sync to settings window
+                let states = (
+                    window_state.config.custom_shader_enabled,
+                    window_state.config.cursor_shader_enabled,
+                );
+                (close, Some(states))
+            } else {
+                (false, None)
+            };
+
+        // Sync shader states to settings window to prevent it from overwriting keybinding toggles
+        if let (Some(settings_window), Some((custom_enabled, cursor_enabled))) =
+            (&mut self.settings_window, shader_states)
+        {
+            settings_window.sync_shader_states(custom_enabled, cursor_enabled);
+        }
 
         // Close window if requested
         if should_close {
@@ -681,6 +686,9 @@ impl ApplicationHandler for WindowManager {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // Check CLI timing-based options (exit-after, screenshot, command)
+        self.check_cli_timers();
+
         // Process menu events
         // Find focused window (for now, use the first window if any)
         let focused_window = self.windows.keys().next().copied();

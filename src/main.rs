@@ -1,42 +1,17 @@
-#[macro_use]
-mod debug;
-
-mod app;
-mod audio_bell;
-mod cell_renderer;
-mod clipboard_history_ui;
-mod config;
-mod custom_shader_renderer;
-mod font_manager;
-mod font_metrics;
-mod gpu_utils;
-mod graphics_renderer;
-mod help_ui;
-mod input;
-mod macos_blur; // macOS window blur using private CGS API
-mod macos_metal; // macOS-specific CAMetalLayer configuration
-mod menu;
-mod renderer;
-mod scroll_state;
-mod scrollbar;
-mod selection;
-mod settings_ui;
-mod settings_window;
-mod shader_watcher;
-mod styled_content;
-mod tab;
-mod tab_bar_ui;
-mod terminal;
-mod text_shaper;
-mod themes;
-mod url_detection;
-
 use anyhow::Result;
-use app::App;
+use par_term::app::App;
+use par_term::cli;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 fn main() -> Result<()> {
+    // Process CLI arguments first (before logging init for cleaner output)
+    let runtime_options = match cli::process_cli() {
+        cli::CliResult::Exit(code) => {
+            std::process::exit(code);
+        }
+        cli::CliResult::Continue(options) => options,
+    };
     // Initialize logging - respect RUST_LOG env var, suppress verbose wgpu logs
     env_logger::Builder::from_default_env()
         .filter_module("wgpu_core", log::LevelFilter::Warn)
@@ -51,7 +26,7 @@ fn main() -> Result<()> {
     let runtime = Arc::new(Runtime::new()?);
 
     // Create and run the application
-    let app = App::new(Arc::clone(&runtime))?;
+    let app = App::new(Arc::clone(&runtime), runtime_options)?;
     let result = app.run();
 
     // Explicitly shutdown the runtime to ensure all tasks are terminated

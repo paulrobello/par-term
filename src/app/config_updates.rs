@@ -68,6 +68,9 @@ pub(crate) struct ConfigChanges {
 
     // Blur settings (macOS only)
     pub blur: bool,
+
+    // Keybindings
+    pub keybindings: bool,
 }
 
 impl ConfigChanges {
@@ -162,6 +165,8 @@ impl ConfigChanges {
             keep_text_opaque: new.keep_text_opaque != old.keep_text_opaque,
 
             blur: new.blur_enabled != old.blur_enabled || new.blur_radius != old.blur_radius,
+
+            keybindings: new.keybindings != old.keybindings,
         }
     }
 

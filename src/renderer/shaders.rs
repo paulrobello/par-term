@@ -545,10 +545,11 @@ impl Renderer {
                         renderer.set_brightness(brightness);
                         // Sync keep_text_opaque from cell renderer
                         renderer.set_keep_text_opaque(self.cell_renderer.keep_text_opaque());
-                        // Sync background color for solid color mode
+                        // Pass background color but don't activate solid color mode
+                        // Custom shaders handle their own background
                         renderer.set_background_color(
                             self.cell_renderer.solid_background_color(),
-                            self.cell_renderer.is_solid_color_background(),
+                            false,
                         );
                         crate::debug_info!(
                             "SHADER",

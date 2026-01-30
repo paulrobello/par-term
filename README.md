@@ -12,80 +12,66 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.5.0
+## What's New in 0.6.0
 
-### 🪟 Standalone Settings Window
+### 🖼️ Shader Gallery
 
-Settings moved from an overlay to a dedicated window for a better editing experience.
+Visual gallery showcasing all 49+ included shaders with screenshots.
 
-- **Keyboard Shortcuts**: `F12` or `Cmd+,` (macOS) / `Ctrl+,` (Linux/Windows)
-- **Stay Visible**: Settings window automatically brought to front when terminal gains focus
-- **Edit While Viewing**: Configure settings while terminal content remains fully visible
+- **[Browse the Gallery](https://paulrobello.github.io/par-term/)**: See all shaders before installing
+- **Auto-Updated**: Gallery automatically deploys when shaders are added or modified
 
-### 🎨 Per-Shader Configuration System
+### ⌨️ Configurable Keybindings
 
-Advanced 3-tier configuration for background and cursor shaders.
+Customize all keyboard shortcuts to match your workflow.
 
-- **Shader Metadata**: Embed defaults directly in GLSL files (`/*! par-term shader metadata ... */`)
-- **Per-Shader Overrides**: Customize each shader independently in `shader_configs` section
-- **Global Fallback**: Unspecified values fall back to global config
-- **Save to Shader**: "Save Defaults to Shader" button writes settings back to shader files
-- **Shader Hot Reload**: Auto-reload shaders when files change (`shader_hot_reload: true`)
+- **Custom Bindings**: Edit `~/.config/par-term/keybindings.yaml`
+- **Modifier Support**: Ctrl, Alt, Shift, Super in any combination
+- **Full Coverage**: Remap any action including tabs, clipboard, scrolling
 
-### 🔤 Enhanced Unicode Rendering
+### 🖥️ CLI Enhancements
 
-Pixel-perfect rendering for complex Unicode and TUI applications.
+New command-line options for automation and scripting.
 
-- **Grapheme Clusters**: Proper rendering of flag emoji (🇺🇸), ZWJ sequences (👨‍👩‍👧‍👦), skin tone modifiers (👋🏽)
-- **Box Drawing**: Geometric rendering for all box drawing characters (─ │ ┌ ┐ └ ┘ ├ ┤ etc.)
-- **Block Elements**: Solid, partial, and quadrant blocks (█ ▄ ▀ ▐ ▌) render without gaps
-- **DECSCUSR**: Applications can change cursor style dynamically via escape sequences
+- **`--screenshot <path>`**: Capture terminal to image file
+- **`--shader <name>`**: Override background shader on launch
+- **`--exit-after <seconds>`**: Auto-exit after duration (useful with --screenshot)
+- **`--command <cmd>`**: Run specific command instead of default shell
+- **`par-term install-shaders`**: Download and install all shaders from latest release
 
-### 🗂️ Tab Bar Enhancements
+### 🐛 Bug Fixes
 
-Improved tab management with full color customization.
+- **Shader Background**: Solid color background now preserved when custom shader is disabled
+- **Full Content Mode**: Fixed compositing issue where terminal content was rendered twice
 
-- **Color Configuration**: 11 new options for complete tab bar styling
-- **Per-Tab Colors**: Right-click context menu to set individual tab colors
-- **Equal-Width Layout**: Tabs spread evenly with horizontal scrolling when needed
-- **Inactive Dimming**: Visual distinction with configurable opacity for inactive tabs
-- **Border Styling**: Configurable tab borders with active tab highlighting
+<details>
+<summary><strong>What's New in 0.5.0</strong></summary>
 
-### 🔒 Window Transparency
+#### 🪟 Standalone Settings Window
+- `F12` or `Cmd+,` (macOS) / `Ctrl+,` (Linux/Windows) to open
+- Settings window stays visible when terminal gains focus
 
-Proper transparency support across platforms.
+#### 🎨 Per-Shader Configuration System
+- Shader metadata in GLSL files, per-shader overrides, global fallback
+- Shader hot reload with desktop notifications
 
-- **macOS Blur**: Window blur effect via CGS private API
-- **Alpha Handling**: Correct alpha mode selection based on surface capabilities
-- **Text Clarity**: `keep_text_opaque` option maintains readable text at low opacity
-- **Selective Transparency**: `transparency_affects_only_default_background` preserves colored backgrounds
+#### 🔤 Enhanced Unicode Rendering
+- Grapheme clusters (flag emoji, ZWJ sequences, skin tones)
+- Geometric box drawing and block elements
 
-### 🎮 Shader System Improvements
+#### 🗂️ Tab Bar Enhancements
+- 11 color options, per-tab colors, equal-width layout
 
-- **Cubemap Support**: Load 6-face cubemap textures for environment reflections
-- **iTimeKeyPress**: Track key presses for typing effect shaders
-- **use_background_as_channel0**: Use app's background image in shader effects
-- **9 New Shaders**: rain, singularity, universe-within, convergence, gyroid, dodecagon-pattern, arcane-portal, bumped_sinusoidal_warp, keypress_pulse
+#### 🔒 Window Transparency
+- macOS blur, proper alpha handling, keep_text_opaque option
 
-### 🔋 Power Saving
+#### 🎮 Shader System
+- Cubemap support, iTimeKeyPress, 9 new shaders
 
-- **pause_shaders_on_blur**: Pause shader animations when window unfocused (default: true)
-- **pause_refresh_on_blur**: Reduce refresh rate when unfocused
-- **unfocused_fps**: Configurable FPS when not in focus (default: 30)
+#### 🔋 Power Saving
+- pause_shaders_on_blur, pause_refresh_on_blur, unfocused_fps
 
-### 🖱️ Cursor Lock Options
-
-Prevent applications from overriding your cursor preferences.
-
-- **lock_cursor_visibility**: Block apps from hiding cursor
-- **lock_cursor_style**: Block apps from changing cursor shape
-- **lock_cursor_blink**: Block apps from enabling blink when you've disabled it
-
-### 📋 Terminal Improvements
-
-- **Bracketed Paste**: Proper paste handling for modern shells (bash 4.4+, zsh, fish)
-- **Resize Overlay**: Shows cols×rows and pixel dimensions during window resize
-- **Grid-Based Sizing**: Initial window size calculated from cols×rows (no startup resize flash)
+</details>
 
 <details>
 <summary><strong>What's New in 0.4.0</strong></summary>
@@ -180,7 +166,7 @@ Prevent applications from overriding your cursor preferences.
 
 - **[Quick Start Guide](QUICK_START_FONTS.md)** - Get up and running with custom fonts.
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - High-level system architecture and components.
-- **[Shader Gallery](docs/SHADERS.md)** - Complete list of 49+ included shaders organized by category.
+- **[Shader Gallery](https://paulrobello.github.io/par-term/)** - Visual gallery of 49+ included shaders with screenshots.
 - **[Custom Shaders Guide](docs/CUSTOM_SHADERS.md)** - Create custom GLSL shaders with hot reload and per-shader config.
 - **[Compositor Details](docs/COMPOSITOR.md)** - Deep dive into the rendering architecture.
 - **[Examples](examples/README.md)** - Comprehensive configuration examples.
@@ -226,6 +212,74 @@ On Linux (Ubuntu/Debian), you need GTK3 and X11/Wayland libraries:
 ```bash
 sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev
 ```
+
+## Installing Shaders
+
+par-term includes 49+ custom GLSL shaders for background effects and cursor animations. These need to be installed to your config directory.
+
+### Built-in Installer (Recommended)
+
+Use the built-in CLI command to download and install all shaders from the latest release:
+
+```bash
+# Install shaders (with confirmation prompt)
+par-term install-shaders
+
+# Install without prompts
+par-term install-shaders -y
+
+# Force overwrite existing shaders
+par-term install-shaders --force
+```
+
+### Shell Script
+
+Alternatively, use the shell script installer:
+
+```bash
+# Download and run the installer
+curl -sL https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh | sh
+```
+
+Or download and run manually:
+```bash
+curl -O https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh
+chmod +x install_shaders.sh
+./install_shaders.sh
+```
+
+### Manual Install
+
+1. Download `shaders.zip` from the [latest release](https://github.com/paulrobello/par-term/releases/latest)
+2. Extract to your config directory:
+   - **macOS/Linux**: `~/.config/par-term/shaders/`
+   - **Windows**: `%APPDATA%\par-term\shaders\`
+
+### From Source
+
+If building from source, copy the shaders folder manually:
+```bash
+# macOS/Linux
+cp -r shaders ~/.config/par-term/
+
+# Windows (PowerShell)
+Copy-Item -Recurse shaders $env:APPDATA\par-term\
+```
+
+### Using Shaders
+
+Once installed, enable shaders in your `config.yaml`:
+```yaml
+# Background shader
+custom_shader: "starfield.glsl"
+custom_shader_enabled: true
+
+# Cursor shader
+cursor_shader: "cursor_glow.glsl"
+cursor_shader_enabled: true
+```
+
+See the [Shader Gallery](docs/SHADERS.md) for previews of all included shaders.
 
 ## Keyboard Shortcuts
 

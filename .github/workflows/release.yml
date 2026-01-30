@@ -373,6 +373,12 @@ jobs:
           path: binaries
           merge-multiple: true
 
+      - name: Create shaders archive
+        run: |
+          zip -r binaries/shaders.zip shaders/ -x "*.DS_Store"
+          echo "Created shaders.zip with contents:"
+          unzip -l binaries/shaders.zip | tail -20
+
       - name: List downloaded binaries
         run: ls -lh binaries/
 

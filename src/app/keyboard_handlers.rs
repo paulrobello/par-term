@@ -108,37 +108,11 @@ impl WindowState {
         false
     }
 
-    /// Handle F11 key to toggle shader editor
-    pub(crate) fn handle_shader_editor_toggle(&mut self, event: &KeyEvent) -> bool {
-        use winit::event::ElementState;
-        use winit::keyboard::{Key, NamedKey};
-
-        if event.state != ElementState::Pressed {
-            return false;
-        }
-
-        // F11: Toggle shader editor
-        if matches!(event.logical_key, Key::Named(NamedKey::F11)) {
-            if self.settings_ui.is_shader_editor_visible() {
-                // Close shader editor - handled by the UI itself
-                log::info!("Shader editor close requested via F11");
-            } else {
-                // Open shader editor
-                if self.settings_ui.open_shader_editor() {
-                    log::info!("Shader editor opened via F11");
-                } else {
-                    log::warn!("Cannot open shader editor: no shader path configured in settings");
-                }
-            }
-
-            // Request redraw to show/hide shader editor
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
-
-            return true;
-        }
-
+    /// Handle F11 key - shader editor toggle is now handled via standalone settings window
+    /// This function is kept for backwards compatibility but no longer does anything
+    pub(crate) fn handle_shader_editor_toggle(&mut self, _event: &KeyEvent) -> bool {
+        // Shader editor is now accessed through the standalone settings window
+        // F11 may be used for fullscreen via keybindings
         false
     }
 
