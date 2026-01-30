@@ -8,6 +8,7 @@ use crate::cli::RuntimeOptions;
 use crate::config::{Config, resolve_shader_config};
 use crate::menu::{MenuAction, MenuManager};
 use crate::settings_window::{SettingsWindow, SettingsWindowAction};
+use crate::update_checker::{UpdateCheckResult, UpdateChecker};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -41,6 +42,12 @@ pub struct WindowManager {
     pub(crate) command_sent: bool,
     /// Whether the screenshot has been taken
     pub(crate) screenshot_taken: bool,
+    /// Update checker for checking GitHub releases
+    pub(crate) update_checker: UpdateChecker,
+    /// Time of next scheduled update check
+    pub(crate) next_update_check: Option<Instant>,
+    /// Last update check result (for display in settings)
+    pub(crate) last_update_result: Option<UpdateCheckResult>,
 }
 
 impl WindowManager {
@@ -58,6 +65,9 @@ impl WindowManager {
             start_time: None,
             command_sent: false,
             screenshot_taken: false,
+            update_checker: UpdateChecker::new(),
+            next_update_check: None,
+            last_update_result: None,
         }
     }
 
@@ -97,6 +107,119 @@ impl WindowManager {
         {
             log::info!("Exit-after timer expired ({:.1}s), exiting", exit_after);
             self.should_exit = true;
+        }
+    }
+
+    /// Check for updates (called periodically from about_to_wait)
+    pub fn check_for_updates(&mut self) {
+        use crate::update_checker::current_timestamp;
+        use std::time::Duration;
+
+        let now = Instant::now();
+
+        // Schedule initial check shortly after startup (5 seconds delay)
+        if self.next_update_check.is_none() {
+            self.next_update_check = Some(now + Duration::from_secs(5));
+            return;
+        }
+
+        // Check if it's time for scheduled check
+        if let Some(next_check) = self.next_update_check
+            && now >= next_check
+        {
+            // Perform the check
+            let (result, should_save) = self.update_checker.check_now(&self.config, false);
+
+            // Log the result
+            match &result {
+                UpdateCheckResult::UpdateAvailable(info) => {
+                    log::info!(
+                        "Update available: {} (current: {})",
+                        info.version,
+                        env!("CARGO_PKG_VERSION")
+                    );
+                    // Show desktop notification for new version
+                    self.notify_update_available(info);
+                }
+                UpdateCheckResult::UpToDate => {
+                    log::info!("par-term is up to date ({})", env!("CARGO_PKG_VERSION"));
+                }
+                UpdateCheckResult::Error(e) => {
+                    log::warn!("Update check failed: {}", e);
+                }
+                UpdateCheckResult::Disabled | UpdateCheckResult::Skipped => {
+                    // Silent
+                }
+            }
+
+            self.last_update_result = Some(result);
+
+            // Save config with updated timestamp if check was successful
+            if should_save {
+                self.config.last_update_check = Some(current_timestamp());
+                if let Err(e) = self.config.save() {
+                    log::warn!("Failed to save config after update check: {}", e);
+                }
+            }
+
+            // Schedule next check based on frequency
+            self.next_update_check = self
+                .config
+                .update_check_frequency
+                .as_seconds()
+                .map(|secs| now + Duration::from_secs(secs));
+        }
+    }
+
+    /// Show desktop notification when update is available
+    fn notify_update_available(&self, info: &crate::update_checker::UpdateInfo) {
+        use notify_rust::Notification;
+
+        let version_str = info.version.strip_prefix('v').unwrap_or(&info.version);
+
+        let _ = Notification::new()
+            .summary("par-term Update Available")
+            .body(&format!(
+                "Version {} is available (you have {})\nOpen Settings > Updates to learn more.",
+                version_str,
+                env!("CARGO_PKG_VERSION")
+            ))
+            .appname("par-term")
+            .show();
+    }
+
+    /// Force an immediate update check (triggered from UI)
+    pub fn force_update_check(&mut self) {
+        use crate::update_checker::current_timestamp;
+
+        let (result, should_save) = self.update_checker.check_now(&self.config, true);
+
+        // Log the result
+        match &result {
+            UpdateCheckResult::UpdateAvailable(info) => {
+                log::info!(
+                    "Update available: {} (current: {})",
+                    info.version,
+                    env!("CARGO_PKG_VERSION")
+                );
+            }
+            UpdateCheckResult::UpToDate => {
+                log::info!("par-term is up to date ({})", env!("CARGO_PKG_VERSION"));
+            }
+            UpdateCheckResult::Error(e) => {
+                log::warn!("Update check failed: {}", e);
+            }
+            _ => {}
+        }
+
+        self.last_update_result = Some(result);
+
+        // Save config with updated timestamp
+        if should_save {
+            self.config.last_update_check = Some(current_timestamp());
+            if let Err(e) = self.config.save() {
+                log::warn!("Failed to save config after update check: {}", e);
+            }
         }
     }
 

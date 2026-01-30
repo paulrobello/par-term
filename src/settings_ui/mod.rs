@@ -24,6 +24,7 @@ pub mod shell_tab;
 pub mod tab_bar_tab;
 pub mod terminal_tab;
 pub mod theme_tab;
+pub mod update_tab;
 pub mod window_tab;
 
 /// Result of shader editor actions
@@ -909,6 +910,22 @@ impl SettingsUI {
             insert_section_separator(ui, &mut section_shown);
             matches_found = true;
             screenshot_tab::show(ui, self, changes_this_frame);
+        }
+
+        // Updates
+        if section_matches(
+            "Updates",
+            &[
+                "Update check",
+                "Check for updates",
+                "Version",
+                "Release",
+                "Download",
+            ],
+        ) {
+            insert_section_separator(ui, &mut section_shown);
+            matches_found = true;
+            update_tab::show_simple(ui, self, changes_this_frame);
         }
 
         if !matches_found && !query.is_empty() {

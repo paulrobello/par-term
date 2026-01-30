@@ -196,6 +196,45 @@ pub enum ShaderInstallPrompt {
     Installed,
 }
 
+/// Update check frequency
+///
+/// Controls how often par-term checks GitHub for new releases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateCheckFrequency {
+    /// Never check for updates
+    Never,
+    /// Check once per day
+    Daily,
+    /// Check once per week (default)
+    #[default]
+    Weekly,
+    /// Check once per month
+    Monthly,
+}
+
+impl UpdateCheckFrequency {
+    /// Get the duration in seconds for this frequency
+    pub fn as_seconds(&self) -> Option<u64> {
+        match self {
+            UpdateCheckFrequency::Never => None,
+            UpdateCheckFrequency::Daily => Some(24 * 60 * 60), // 86400
+            UpdateCheckFrequency::Weekly => Some(7 * 24 * 60 * 60), // 604800
+            UpdateCheckFrequency::Monthly => Some(30 * 24 * 60 * 60), // 2592000
+        }
+    }
+
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            UpdateCheckFrequency::Never => "Never",
+            UpdateCheckFrequency::Daily => "Daily",
+            UpdateCheckFrequency::Weekly => "Weekly",
+            UpdateCheckFrequency::Monthly => "Monthly",
+        }
+    }
+}
+
 // ============================================================================
 // Per-Shader Configuration Types
 // ============================================================================

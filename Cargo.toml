@@ -92,6 +92,7 @@ libc = "0.2.180"
 clap = { version = "4.5.56", features = ["derive"] }
 ureq = "3.1.4"
 zip = "7.2.0"
+semver = "1.0"  # Semantic version parsing for update checks
 
 # Linux-specific: GTK for native menus (muda requires gtk feature on Linux)
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]

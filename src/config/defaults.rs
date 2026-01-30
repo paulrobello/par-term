@@ -298,3 +298,7 @@ pub fn cursor_boost() -> f32 {
 pub fn cursor_boost_color() -> [u8; 3] {
     [255, 255, 255] // White glow
 }
+
+pub fn update_check_frequency() -> super::types::UpdateCheckFrequency {
+    super::types::UpdateCheckFrequency::Weekly
+}

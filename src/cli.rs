@@ -131,7 +131,8 @@ fn install_shaders_cli(skip_prompt: bool) -> anyhow::Result<()> {
     println!();
 
     // Download the zip file
-    let zip_data = shader_installer::download_file(&download_url).map_err(|e| anyhow::anyhow!(e))?;
+    let zip_data =
+        shader_installer::download_file(&download_url).map_err(|e| anyhow::anyhow!(e))?;
 
     // Create shaders directory if it doesn't exist
     std::fs::create_dir_all(&shaders_dir)?;
