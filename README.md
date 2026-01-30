@@ -227,6 +227,59 @@ On Linux (Ubuntu/Debian), you need GTK3 and X11/Wayland libraries:
 sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev
 ```
 
+## Installing Shaders
+
+par-term includes 49+ custom GLSL shaders for background effects and cursor animations. These need to be installed to your config directory.
+
+### Quick Install (Recommended)
+
+Run the install script to download and install all shaders from the latest release:
+
+```bash
+# Download and run the installer
+curl -sL https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh | sh
+```
+
+Or download and run manually:
+```bash
+curl -O https://raw.githubusercontent.com/paulrobello/par-term/main/install_shaders.sh
+chmod +x install_shaders.sh
+./install_shaders.sh
+```
+
+### Manual Install
+
+1. Download `shaders.zip` from the [latest release](https://github.com/paulrobello/par-term/releases/latest)
+2. Extract to your config directory:
+   - **macOS/Linux**: `~/.config/par-term/shaders/`
+   - **Windows**: `%APPDATA%\par-term\shaders\`
+
+### From Source
+
+If building from source, copy the shaders folder manually:
+```bash
+# macOS/Linux
+cp -r shaders ~/.config/par-term/
+
+# Windows (PowerShell)
+Copy-Item -Recurse shaders $env:APPDATA\par-term\
+```
+
+### Using Shaders
+
+Once installed, enable shaders in your `config.yaml`:
+```yaml
+# Background shader
+custom_shader: "starfield.glsl"
+custom_shader_enabled: true
+
+# Cursor shader
+cursor_shader: "cursor_glow.glsl"
+cursor_shader_enabled: true
+```
+
+See the [Shader Gallery](docs/SHADERS.md) for previews of all included shaders.
+
 ## Keyboard Shortcuts
 
 ### Window & Tab Management
