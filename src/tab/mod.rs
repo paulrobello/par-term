@@ -47,12 +47,15 @@ pub struct Tab {
     pub working_directory: Option<String>,
     /// Custom tab color [R, G, B] (0-255), overrides config colors when set
     pub custom_color: Option<[u8; 3]>,
+    /// Whether the tab has its default "Tab N" title (not set by OSC, CWD, or user)
+    pub has_default_title: bool,
 }
 
 impl Tab {
     /// Create a new tab with a terminal session
     pub fn new(
         id: TabId,
+        tab_number: usize,
         config: &Config,
         _runtime: Arc<Runtime>,
         working_directory: Option<String>,
@@ -129,8 +132,8 @@ impl Tab {
 
         let terminal = Arc::new(Mutex::new(terminal));
 
-        // Generate initial title
-        let title = format!("Tab {}", id);
+        // Generate initial title based on current tab count, not unique ID
+        let title = format!("Tab {}", tab_number);
 
         Ok(Self {
             id,
@@ -144,6 +147,7 @@ impl Tab {
             refresh_task: None,
             working_directory: working_directory.or_else(|| config.working_directory.clone()),
             custom_color: None,
+            has_default_title: true,
         })
     }
 
@@ -163,6 +167,7 @@ impl Tab {
             let osc_title = term.get_title();
             if !osc_title.is_empty() {
                 self.title = osc_title;
+                self.has_default_title = false;
             } else if let Some(cwd) = term.shell_integration_cwd() {
                 // Abbreviate home directory to ~
                 let abbreviated = if let Some(home) = dirs::home_dir() {
@@ -180,8 +185,16 @@ impl Tab {
                 } else {
                     self.title = abbreviated;
                 }
+                self.has_default_title = false;
             }
             // Otherwise keep the existing title (e.g., "Tab N")
+        }
+    }
+
+    /// Set the tab's default title based on its position
+    pub fn set_default_title(&mut self, tab_number: usize) {
+        if self.has_default_title {
+            self.title = format!("Tab {}", tab_number);
         }
     }
 

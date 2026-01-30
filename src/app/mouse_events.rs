@@ -56,11 +56,6 @@ impl WindowState {
     }
 
     pub(crate) fn handle_mouse_button(&mut self, button: MouseButton, state: ElementState) {
-        // Track button press state for motion tracking logic (drag selection, motion reporting)
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.button_pressed = state == ElementState::Pressed;
-        }
-
         // Get mouse position from active tab for shader interaction
         let mouse_position = self
             .tab_manager
@@ -69,11 +64,22 @@ impl WindowState {
             .unwrap_or((0.0, 0.0));
 
         // Check if click is in the tab bar area - if so, let egui handle it
+        // IMPORTANT: Do this BEFORE setting button_pressed to avoid selection state issues
         let tab_bar_height = self
             .tab_bar_ui
             .get_height(self.tab_manager.tab_count(), &self.config);
         if mouse_position.1 < tab_bar_height as f64 {
+            // Request redraw so egui can process the click event
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
             return; // Click is on tab bar, don't process as terminal event
+        }
+
+        // Track button press state for motion tracking logic (drag selection, motion reporting)
+        // Only set this for clicks in the terminal area, not on tab bar
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.mouse.button_pressed = state == ElementState::Pressed;
         }
 
         // Check if tab context menu is open - if so, let egui handle all clicks
@@ -327,6 +333,19 @@ impl WindowState {
         // Update mouse position in active tab
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             tab.mouse.position = position;
+        }
+
+        // Check if mouse is in the tab bar area - if so, skip terminal-specific processing
+        // Position update above is still needed for proper event handling
+        let tab_bar_height = self
+            .tab_bar_ui
+            .get_height(self.tab_manager.tab_count(), &self.config);
+        if position.1 < tab_bar_height as f64 {
+            // Request redraw so egui can update hover states
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            return; // Mouse is on tab bar, let egui handle it
         }
 
         // --- 1. Shader Uniform Updates ---
@@ -642,10 +661,11 @@ impl WindowState {
             let cell_width = renderer.cell_width() as f64;
             let cell_height = renderer.cell_height() as f64;
             let padding = renderer.window_padding() as f64;
+            let content_offset_y = renderer.content_offset_y() as f64;
 
-            // Account for window padding (all sides)
+            // Account for window padding (all sides) and content offset (tab bar height)
             let adjusted_x = (x - padding).max(0.0);
-            let adjusted_y = (y - padding).max(0.0);
+            let adjusted_y = (y - padding - content_offset_y).max(0.0);
 
             let col = (adjusted_x / cell_width) as usize;
             let row = (adjusted_y / cell_height) as usize;

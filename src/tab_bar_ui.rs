@@ -98,6 +98,7 @@ impl TabBarUI {
 
         // Tab bar area at the top
         let bar_bg = config.tab_bar_background;
+
         egui::TopBottomPanel::top("tab_bar")
             .exact_height(config.tab_bar_height)
             .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2])))
@@ -242,7 +243,8 @@ impl TabBarUI {
                             .fill(egui::Color32::TRANSPARENT),
                     );
 
-                    if new_tab_btn.clicked() {
+                    // Use clicked_by() to only respond to mouse clicks, not keyboard
+                    if new_tab_btn.clicked_by(egui::PointerButton::Primary) {
                         action = TabBarAction::NewTab;
                     }
 
@@ -326,10 +328,10 @@ impl TabBarUI {
             egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
         };
 
-        // Tab frame - use allocate_ui_with_layout to get a proper interactive response
-        let (tab_rect, tab_response) = ui.allocate_exact_size(
+        // Tab frame - allocate space for the tab
+        let (tab_rect, _) = ui.allocate_exact_size(
             egui::vec2(tab_width, config.tab_bar_height),
-            egui::Sense::click(),
+            egui::Sense::hover(),
         );
 
         // Draw tab background with pill shape
@@ -419,38 +421,12 @@ impl TabBarUI {
 
                 ui.label(egui::RichText::new(&display_title).color(text_color));
 
-                // Spacer to push close button and hotkey to the right
+                // Hotkey indicator (only for tabs 1-9) - show on right side, leave space for close button
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Close button
+                    // Add space for close button if shown
                     if config.tab_show_close_button {
-                        let close_color = if self.close_hovered == Some(id) {
-                            let c = config.tab_close_button_hover;
-                            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
-                        } else {
-                            let c = config.tab_close_button;
-                            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
-                        };
-
-                        let close_btn = ui.add(
-                            egui::Button::new(
-                                egui::RichText::new("×").color(close_color).size(14.0),
-                            )
-                            .fill(egui::Color32::TRANSPARENT)
-                            .frame(false),
-                        );
-
-                        if close_btn.hovered() {
-                            self.close_hovered = Some(id);
-                        } else if self.close_hovered == Some(id) {
-                            self.close_hovered = None;
-                        }
-
-                        if close_btn.clicked() {
-                            action = TabBarAction::Close(id);
-                        }
+                        ui.add_space(24.0);
                     }
-
-                    // Hotkey indicator (only for tabs 1-9)
                     if index < 9 {
                         // Use ⌘ on macOS, ^ on other platforms
                         let modifier_symbol = if cfg!(target_os = "macos") {
@@ -461,7 +437,6 @@ impl TabBarUI {
                         let hotkey_text = format!("{}{}", modifier_symbol, index + 1);
                         let hotkey_color =
                             egui::Color32::from_rgba_unmultiplied(180, 180, 180, opacity);
-                        ui.add_space(4.0);
                         ui.label(
                             egui::RichText::new(hotkey_text)
                                 .color(hotkey_color)
@@ -472,9 +447,71 @@ impl TabBarUI {
             });
         }
 
+        // Close button - render AFTER the content so it's on top
+        // Position at far right edge of tab
+        let close_btn_size = 20.0;
+        let close_btn_rect = if config.tab_show_close_button {
+            Some(egui::Rect::from_min_size(
+                egui::pos2(
+                    tab_rect.right() - close_btn_size - 4.0,
+                    tab_rect.center().y - close_btn_size / 2.0,
+                ),
+                egui::vec2(close_btn_size, close_btn_size),
+            ))
+        } else {
+            None
+        };
+
+        // Check if pointer is over close button using egui's input state
+        let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
+        let close_hovered = close_btn_rect
+            .zip(pointer_pos)
+            .is_some_and(|(rect, pos)| rect.contains(pos));
+
+        if close_hovered {
+            self.close_hovered = Some(id);
+        } else if self.close_hovered == Some(id) {
+            self.close_hovered = None;
+        }
+
+        // Draw close button if configured
+        if let Some(close_rect) = close_btn_rect {
+            let close_color = if self.close_hovered == Some(id) {
+                let c = config.tab_close_button_hover;
+                egui::Color32::from_rgb(c[0], c[1], c[2])
+            } else {
+                let c = config.tab_close_button;
+                egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
+            };
+
+            // Draw the × character centered in the close button rect
+            ui.painter().text(
+                close_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "×",
+                egui::FontId::proportional(14.0),
+                close_color,
+            );
+        }
+
         // Handle tab click (switch to tab)
-        if tab_response.clicked() && action == TabBarAction::None {
+        // Use egui's built-in interact() for proper hit testing
+        let tab_response = ui.interact(tab_rect, egui::Id::new(("tab_click", id)), egui::Sense::click());
+
+        // Use egui's response for click detection
+        let pointer_in_tab = tab_response.hovered();
+        let clicked = tab_response.clicked_by(egui::PointerButton::Primary);
+
+        // Detect click using clicked_by() to only respond to mouse clicks, not keyboard
+        // This prevents Enter key from triggering tab switches when a tab has keyboard focus
+        // IMPORTANT: Skip if close button is hovered - let the close button handle the click
+        if clicked && action == TabBarAction::None && self.close_hovered != Some(id) {
             action = TabBarAction::SwitchTo(id);
+        }
+
+        // Handle close button click - check if close button is hovered
+        if clicked && self.close_hovered == Some(id) {
+            action = TabBarAction::Close(id);
         }
 
         // Handle right-click for context menu
@@ -490,8 +527,8 @@ impl TabBarUI {
             self.context_menu_opened_frame = ui.ctx().cumulative_frame_nr();
         }
 
-        // Update hover state
-        if tab_response.hovered() {
+        // Update hover state (using manual detection)
+        if pointer_in_tab {
             self.hovered_tab = Some(id);
         } else if self.hovered_tab == Some(id) {
             self.hovered_tab = None;

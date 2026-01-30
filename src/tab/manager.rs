@@ -43,7 +43,9 @@ impl TabManager {
         let id = self.next_tab_id;
         self.next_tab_id += 1;
 
-        let tab = Tab::new(id, config, runtime, working_dir)?;
+        // Tab number is based on current count, not unique ID
+        let tab_number = self.tabs.len() + 1;
+        let tab = Tab::new(id, tab_number, config, runtime, working_dir)?;
         self.tabs.push(tab);
 
         // Always switch to the new tab
@@ -75,9 +77,19 @@ impl TabManager {
                     Some(self.tabs[new_idx].id)
                 };
             }
+
+            // Renumber tabs that still have default titles
+            self.renumber_default_tabs();
         }
 
         self.tabs.is_empty()
+    }
+
+    /// Renumber tabs that have default titles based on their current position
+    fn renumber_default_tabs(&mut self) {
+        for (idx, tab) in self.tabs.iter_mut().enumerate() {
+            tab.set_default_title(idx + 1);
+        }
     }
 
     /// Get a reference to the active tab
@@ -172,6 +184,8 @@ impl TabManager {
                 let tab = self.tabs.remove(current_idx);
                 self.tabs.insert(new_idx, tab);
                 log::debug!("Moved tab {} from index {} to {}", id, current_idx, new_idx);
+                // Renumber tabs that still have default titles
+                self.renumber_default_tabs();
             }
         }
     }
@@ -256,7 +270,9 @@ impl TabManager {
             let id = self.next_tab_id;
             self.next_tab_id += 1;
 
-            let tab = Tab::new(id, config, runtime, working_dir)?;
+            // Tab number is based on current count, not unique ID
+            let tab_number = self.tabs.len() + 1;
+            let tab = Tab::new(id, tab_number, config, runtime, working_dir)?;
 
             // Insert after active tab
             if let Some(active_id) = self.active_tab_id {

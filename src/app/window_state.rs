@@ -6,6 +6,7 @@
 use crate::app::debug_state::DebugState;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::config::{Config, CursorShaderMetadataCache, CursorStyle, ShaderMetadataCache};
+use crate::settings_ui::SettingsUI;
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::keybindings::KeybindingRegistry;
@@ -48,6 +49,11 @@ pub struct WindowState {
     pub(crate) egui_ctx: Option<egui::Context>,
     /// egui-winit state for event handling
     pub(crate) egui_state: Option<egui_winit::State>,
+    /// Whether egui has completed its first ctx.run() call
+    /// Before first run, egui's is_using_pointer() returns unreliable results
+    pub(crate) egui_initialized: bool,
+    /// Settings UI manager
+    pub(crate) settings_ui: SettingsUI,
     /// Cache for parsed shader metadata (used for config resolution)
     pub(crate) shader_metadata_cache: ShaderMetadataCache,
     /// Cache for parsed cursor shader metadata (used for config resolution)
@@ -111,6 +117,7 @@ impl WindowState {
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
         let keybinding_registry = KeybindingRegistry::from_config(&config.keybindings);
         let shaders_dir = Config::shaders_dir();
+        let settings_ui = SettingsUI::new(config.clone());
 
         Self {
             config,
@@ -130,6 +137,8 @@ impl WindowState {
             is_fullscreen: false,
             egui_ctx: None,
             egui_state: None,
+            egui_initialized: false,
+            settings_ui,
             shader_metadata_cache: ShaderMetadataCache::with_shaders_dir(shaders_dir.clone()),
             cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
             help_ui: HelpUI::new(),
@@ -712,6 +721,10 @@ impl WindowState {
 
     /// Check if egui is currently using the pointer (mouse is over an egui UI element)
     pub(crate) fn is_egui_using_pointer(&self) -> bool {
+        // Before first render, egui state is unreliable - allow mouse events through
+        if !self.egui_initialized {
+            return false;
+        }
         // Always check egui context - the tab bar is always rendered via egui
         // and can consume pointer events (e.g., close button clicks)
         if let Some(ctx) = &self.egui_ctx {
@@ -933,6 +946,53 @@ impl WindowState {
                 log::error!("Failed to rebuild renderer after font change: {}", e);
             }
             self.pending_font_rebuild = false;
+        }
+
+        // Sync tab bar height with renderer's content offset
+        // This ensures the terminal grid correctly accounts for the tab bar
+        let tab_count = self.tab_manager.tab_count();
+        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
+        crate::debug_trace!(
+            "TAB_SYNC",
+            "Tab count={}, tab_bar_height={:.0}, mode={:?}",
+            tab_count,
+            tab_bar_height,
+            self.config.tab_bar_mode
+        );
+        if let Some(renderer) = &mut self.renderer {
+            let current_offset = renderer.content_offset_y();
+            if (current_offset - tab_bar_height).abs() > 0.1 {
+                crate::debug_info!(
+                    "TAB_SYNC",
+                    "Content offset changing: {:.0} -> {:.0}",
+                    current_offset,
+                    tab_bar_height
+                );
+            }
+            if let Some((new_cols, new_rows)) = renderer.set_content_offset_y(tab_bar_height) {
+                // Grid size changed - resize all tab terminals
+                let cell_width = renderer.cell_width();
+                let cell_height = renderer.cell_height();
+                let size = renderer.size();
+                let width_px = size.width as usize;
+                let height_px = size.height as usize;
+
+                for tab in self.tab_manager.tabs_mut() {
+                    if let Ok(mut term) = tab.terminal.try_lock() {
+                        term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                        let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
+                    }
+                    // Invalidate cache since grid size changed
+                    tab.cache.cells = None;
+                }
+                crate::debug_info!(
+                    "TAB_SYNC",
+                    "Tab bar height changed to {:.0}, resized terminals to {}x{}",
+                    tab_bar_height,
+                    new_cols,
+                    new_rows
+                );
+            }
         }
 
         let (renderer_size, visible_lines) = if let Some(renderer) = &self.renderer {
@@ -1422,6 +1482,11 @@ impl WindowState {
                 None
             };
 
+            // Mark egui as initialized after first ctx.run() - makes is_using_pointer() reliable
+            if !self.egui_initialized && egui_data.is_some() {
+                self.egui_initialized = true;
+            }
+
             // Settings are now handled exclusively by standalone SettingsWindow
             // Config changes are applied via window_manager.apply_config_to_windows()
 
@@ -1526,6 +1591,7 @@ impl WindowState {
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
                     tab.cache.cells = None;
                 }
+                self.needs_redraw = true;
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }

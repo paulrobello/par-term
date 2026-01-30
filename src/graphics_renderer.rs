@@ -46,6 +46,8 @@ pub struct GraphicsRenderer {
     cell_width: f32,
     cell_height: f32,
     window_padding: f32,
+    /// Vertical offset for content (e.g., tab bar height)
+    content_offset_y: f32,
 
     // Surface format for pipeline compatibility
     #[allow(dead_code)]
@@ -111,6 +113,7 @@ impl GraphicsRenderer {
             cell_width,
             cell_height,
             window_padding,
+            content_offset_y: 0.0,
             surface_format,
         })
     }
@@ -347,7 +350,9 @@ impl GraphicsRenderer {
             if let Some(tex_info) = self.texture_cache.get(&id) {
                 // Calculate screen position (normalized 0-1, origin top-left)
                 let x = (self.window_padding + col as f32 * self.cell_width) / window_width;
-                let y = (self.window_padding + row as f32 * self.cell_height) / window_height;
+                let y = (self.window_padding + self.content_offset_y
+                    + row as f32 * self.cell_height)
+                    / window_height;
 
                 // Calculate texture V offset for scrolled graphics
                 // scroll_offset_rows = terminal rows scrolled off top
@@ -459,5 +464,10 @@ impl GraphicsRenderer {
         self.cell_width = cell_width;
         self.cell_height = cell_height;
         self.window_padding = window_padding;
+    }
+
+    /// Set vertical content offset (e.g., tab bar height)
+    pub fn set_content_offset_y(&mut self, offset: f32) {
+        self.content_offset_y = offset;
     }
 }

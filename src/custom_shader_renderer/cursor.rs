@@ -74,12 +74,19 @@ impl CustomShaderRenderer {
         self.cursor_window_padding = padding;
     }
 
+    /// Set vertical content offset (e.g., tab bar height)
+    pub fn set_content_offset_y(&mut self, offset: f32) {
+        self.cursor_content_offset_y = offset;
+    }
+
     /// Convert cursor cell coordinates to pixel coordinates
     ///
     /// Returns (x, y) in pixels from top-left corner of the window.
     pub(super) fn cursor_to_pixels(&self, col: usize, row: usize) -> (f32, f32) {
         let x = self.cursor_window_padding + (col as f32 * self.cursor_cell_width);
-        let y = self.cursor_window_padding + (row as f32 * self.cursor_cell_height);
+        let y = self.cursor_window_padding
+            + self.cursor_content_offset_y
+            + (row as f32 * self.cursor_cell_height);
         (x, y)
     }
 

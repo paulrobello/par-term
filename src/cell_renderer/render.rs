@@ -389,7 +389,8 @@ impl CellRenderer {
                         // Cursor cell can't be merged, render it alone
                         let x0 = self.window_padding + col as f32 * self.cell_width;
                         let x1 = self.window_padding + (col + 1) as f32 * self.cell_width;
-                        let y0 = self.window_padding + row as f32 * self.cell_height;
+                        let y0 = self.window_padding + self.content_offset_y
+                            + row as f32 * self.cell_height;
                         let y1 = y0 + self.cell_height;
                         row_bg.push(BackgroundInstance {
                             position: [
@@ -428,7 +429,8 @@ impl CellRenderer {
                     let x0 = self.window_padding + start_col as f32 * self.cell_width;
                     let x1 =
                         self.window_padding + (start_col + run_length) as f32 * self.cell_width;
-                    let y0 = self.window_padding + row as f32 * self.cell_height;
+                    let y0 = self.window_padding + self.content_offset_y
+                        + row as f32 * self.cell_height;
                     let y1 = y0 + self.cell_height;
 
                     row_bg.push(BackgroundInstance {
@@ -474,6 +476,7 @@ impl CellRenderer {
                 let natural_line_height = self.font_ascent + self.font_descent + self.font_leading;
                 let vertical_padding = (self.cell_height - natural_line_height).max(0.0) / 2.0;
                 let baseline_y_unrounded = self.window_padding
+                    + self.content_offset_y
                     + (row as f32 * self.cell_height)
                     + vertical_padding
                     + self.font_ascent;
@@ -508,7 +511,9 @@ impl CellRenderer {
                                 self.cell_width
                             };
                             let x0 = (self.window_padding + x_offset).round();
-                            let y0 = (self.window_padding + row as f32 * self.cell_height).round();
+                            let y0 = (self.window_padding + self.content_offset_y
+                                + row as f32 * self.cell_height)
+                                .round();
 
                             // Try box drawing geometry first (for lines, corners, junctions)
                             // Pass aspect ratio so vertical lines have same visual thickness as horizontal
@@ -656,9 +661,13 @@ impl CellRenderer {
                             };
                             let x0 = (self.window_padding + x_offset).round();
                             let x1 = (self.window_padding + x_offset + char_w).round();
-                            let y0 = (self.window_padding + row as f32 * self.cell_height).round();
-                            let y1 =
-                                (self.window_padding + (row + 1) as f32 * self.cell_height).round();
+                            let y0 = (self.window_padding + self.content_offset_y
+                                + row as f32 * self.cell_height)
+                                .round();
+                            let y1 = (self.window_padding
+                                + self.content_offset_y
+                                + (row + 1) as f32 * self.cell_height)
+                                .round();
 
                             let cell_w = x1 - x0;
                             let cell_h = y1 - y0;
@@ -668,7 +677,9 @@ impl CellRenderer {
 
                             // Position glyph relative to snapped cell top-left
                             let baseline_offset = baseline_y_unrounded
-                                - (self.window_padding + row as f32 * self.cell_height);
+                                - (self.window_padding
+                                    + self.content_offset_y
+                                    + row as f32 * self.cell_height);
                             let glyph_left = x0 + (info.bearing_x * scale_x).round();
                             let glyph_top =
                                 y0 + ((baseline_offset - info.bearing_y) * scale_y).round();
