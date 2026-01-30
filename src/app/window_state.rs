@@ -64,6 +64,8 @@ pub struct WindowState {
     pub(crate) clipboard_history_ui: ClipboardHistoryUI,
     /// Shader install prompt UI
     pub(crate) shader_install_ui: ShaderInstallUI,
+    /// Receiver for shader installation results (from background thread)
+    pub(crate) shader_install_receiver: Option<std::sync::mpsc::Receiver<Result<usize, String>>>,
     /// Whether terminal session recording is active
     pub(crate) is_recording: bool,
     /// When recording started
@@ -149,6 +151,7 @@ impl WindowState {
             help_ui: HelpUI::new(),
             clipboard_history_ui: ClipboardHistoryUI::new(),
             shader_install_ui: ShaderInstallUI::new(),
+            shader_install_receiver: None,
             is_recording: false,
             recording_start_time: None,
             is_shutting_down: false,
@@ -1686,17 +1689,10 @@ impl WindowState {
             ClipboardHistoryAction::None => {}
         }
 
-        // Handle shader install responses
-        match pending_shader_install_response {
-            ShaderInstallResponse::Install => {
-                log::info!("User requested shader installation");
-                self.shader_install_ui
-                    .set_installing("Downloading shaders...");
-                self.needs_redraw = true;
-
-                // Run installation in a blocking context
-                // (We're already in sync context, so this is fine)
-                match crate::shader_install_ui::install_shaders_headless() {
+        // Check for shader installation completion from background thread
+        if let Some(ref rx) = self.shader_install_receiver {
+            if let Ok(result) = rx.try_recv() {
+                match result {
                     Ok(count) => {
                         log::info!("Successfully installed {} shaders", count);
                         self.shader_install_ui
@@ -1712,6 +1708,32 @@ impl WindowState {
                         log::error!("Failed to install shaders: {}", e);
                         self.shader_install_ui.set_error(&e);
                     }
+                }
+                self.shader_install_receiver = None;
+                self.needs_redraw = true;
+            }
+        }
+
+        // Handle shader install responses
+        match pending_shader_install_response {
+            ShaderInstallResponse::Install => {
+                log::info!("User requested shader installation");
+                self.shader_install_ui
+                    .set_installing("Downloading shaders...");
+                self.needs_redraw = true;
+
+                // Spawn installation in background thread so UI can show progress
+                let (tx, rx) = std::sync::mpsc::channel();
+                self.shader_install_receiver = Some(rx);
+
+                std::thread::spawn(move || {
+                    let result = crate::shader_install_ui::install_shaders_headless();
+                    let _ = tx.send(result);
+                });
+
+                // Request redraw so the spinner shows
+                if let Some(window) = &self.window {
+                    window.request_redraw();
                 }
             }
             ShaderInstallResponse::Never => {

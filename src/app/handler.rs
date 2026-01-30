@@ -601,6 +601,18 @@ impl WindowState {
             }
         }
 
+        // 7. Shader Install Dialog
+        // Force continuous redraws when shader install dialog is visible (for spinner animation)
+        // and when installation is in progress (to check for completion)
+        if self.shader_install_ui.visible {
+            self.needs_redraw = true;
+            // Schedule frequent redraws for smooth spinner animation
+            let next_frame = now + std::time::Duration::from_millis(16); // ~60fps
+            if next_frame < next_wake {
+                next_wake = next_frame;
+            }
+        }
+
         // --- TRIGGER REDRAW ---
         // Request a redraw if any of the logic above determined an update is due.
         if self.needs_redraw

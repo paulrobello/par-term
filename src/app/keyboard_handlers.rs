@@ -105,6 +105,21 @@ impl WindowState {
             return true;
         }
 
+        // Escape: Close shader install UI if visible (only when not installing)
+        if matches!(event.logical_key, Key::Named(NamedKey::Escape))
+            && self.shader_install_ui.visible
+            && !self.shader_install_ui.installing
+        {
+            self.shader_install_ui.visible = false;
+            log::info!("Shader install UI closed via Escape");
+
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+
+            return true;
+        }
+
         false
     }
 
