@@ -27,6 +27,7 @@ pub mod selection;
 pub mod settings_ui;
 pub mod settings_window;
 pub mod shader_install_ui;
+pub mod shader_installer;
 pub mod shader_watcher;
 pub mod styled_content;
 pub mod tab;

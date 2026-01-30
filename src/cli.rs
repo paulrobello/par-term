@@ -2,9 +2,10 @@
 //!
 //! This module handles CLI argument parsing and subcommands like shader installation.
 
+use crate::shader_installer;
 use clap::{Parser, Subcommand};
-use std::io::{self, Read, Write};
-use std::path::{Path, PathBuf};
+use std::io::{self, Write};
+use std::path::PathBuf;
 
 /// par-term - A GPU-accelerated terminal emulator
 #[derive(Parser)]
@@ -72,7 +73,7 @@ pub fn process_cli() -> CliResult {
 
     match cli.command {
         Some(Commands::InstallShaders { yes, force }) => {
-            let result = install_shaders(yes || force);
+            let result = install_shaders_cli(yes || force);
             CliResult::Exit(if result.is_ok() { 0 } else { 1 })
         }
         None => {
@@ -88,10 +89,8 @@ pub fn process_cli() -> CliResult {
     }
 }
 
-/// Install shaders from the latest GitHub release
-fn install_shaders(skip_prompt: bool) -> anyhow::Result<()> {
-    const REPO: &str = "paulrobello/par-term";
-
+/// Install shaders from the latest GitHub release (CLI version with prompts and output)
+fn install_shaders_cli(skip_prompt: bool) -> anyhow::Result<()> {
     let shaders_dir = crate::config::Config::shaders_dir();
 
     println!("=============================================");
@@ -102,7 +101,7 @@ fn install_shaders(skip_prompt: bool) -> anyhow::Result<()> {
     println!();
 
     // Check if directory has existing shaders
-    if shaders_dir.exists() && has_shader_files(&shaders_dir) && !skip_prompt {
+    if shaders_dir.exists() && shader_installer::has_shader_files(&shaders_dir) && !skip_prompt {
         println!("WARNING: This will overwrite existing shaders in:");
         println!("  {}", shaders_dir.display());
         println!();
@@ -123,22 +122,26 @@ fn install_shaders(skip_prompt: bool) -> anyhow::Result<()> {
     // Fetch latest release info
     println!("Fetching latest release information...");
 
-    let download_url = get_shaders_download_url(REPO)?;
+    const REPO: &str = "paulrobello/par-term";
+    let api_url = format!("https://api.github.com/repos/{}/releases/latest", REPO);
+    let download_url = shader_installer::get_shaders_download_url(&api_url, REPO)
+        .map_err(|e| anyhow::anyhow!(e))?;
+
     println!("Downloading shaders from: {}", download_url);
     println!();
 
     // Download the zip file
-    let zip_data = download_file(&download_url)?;
+    let zip_data = shader_installer::download_file(&download_url).map_err(|e| anyhow::anyhow!(e))?;
 
     // Create shaders directory if it doesn't exist
     std::fs::create_dir_all(&shaders_dir)?;
 
     // Extract shaders
     println!("Extracting shaders to {}...", shaders_dir.display());
-    extract_shaders(&zip_data, &shaders_dir)?;
+    shader_installer::extract_shaders(&zip_data, &shaders_dir).map_err(|e| anyhow::anyhow!(e))?;
 
     // Count installed shaders
-    let shader_count = count_shader_files(&shaders_dir);
+    let shader_count = shader_installer::count_shader_files(&shaders_dir);
 
     println!();
     println!("=============================================");
@@ -157,132 +160,6 @@ fn install_shaders(skip_prompt: bool) -> anyhow::Result<()> {
     println!("  cursor_shader_enabled: true");
     println!();
     println!("See docs/SHADERS.md for the full shader gallery.");
-
-    Ok(())
-}
-
-/// Check if directory contains any .glsl files
-fn has_shader_files(dir: &Path) -> bool {
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            if let Some(ext) = entry.path().extension()
-                && ext == "glsl"
-            {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-/// Count .glsl files in directory
-fn count_shader_files(dir: &Path) -> usize {
-    let mut count = 0;
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            if let Some(ext) = entry.path().extension()
-                && ext == "glsl"
-            {
-                count += 1;
-            }
-        }
-    }
-    count
-}
-
-/// Get the download URL for shaders.zip from the latest release
-fn get_shaders_download_url(repo: &str) -> anyhow::Result<String> {
-    let api_url = format!("https://api.github.com/repos/{}/releases/latest", repo);
-
-    let mut body = ureq::get(&api_url)
-        .header("User-Agent", "par-term")
-        .call()
-        .map_err(|e| anyhow::anyhow!("Failed to fetch release info: {}", e))?
-        .into_body();
-
-    let body_str = body
-        .read_to_string()
-        .map_err(|e| anyhow::anyhow!("Failed to read response body: {}", e))?;
-
-    // Parse JSON to find shaders.zip browser_download_url
-    // Look for "browser_download_url":"...shaders.zip"
-    // We need the browser_download_url, not the api url
-    let search_pattern = "\"browser_download_url\":\"";
-    let target_file = "shaders.zip";
-
-    // Find the shaders.zip entry by looking for browser_download_url containing shaders.zip
-    for (i, _) in body_str.match_indices(search_pattern) {
-        let url_start = i + search_pattern.len();
-        if let Some(url_end) = body_str[url_start..].find('"') {
-            let url = &body_str[url_start..url_start + url_end];
-            if url.ends_with(target_file) {
-                return Ok(url.to_string());
-            }
-        }
-    }
-
-    anyhow::bail!(
-        "Could not find shaders.zip in the latest release.\n\
-         Please check https://github.com/{}/releases",
-        repo
-    )
-}
-
-/// Download a file from URL and return its contents
-fn download_file(url: &str) -> anyhow::Result<Vec<u8>> {
-    let mut body = ureq::get(url)
-        .header("User-Agent", "par-term")
-        .call()
-        .map_err(|e| anyhow::anyhow!("Failed to download file: {}", e))?
-        .into_body();
-
-    let mut bytes = Vec::new();
-    body.as_reader()
-        .read_to_end(&mut bytes)
-        .map_err(|e| anyhow::anyhow!("Failed to read download: {}", e))?;
-
-    Ok(bytes)
-}
-
-/// Extract shaders from zip data to target directory
-fn extract_shaders(zip_data: &[u8], target_dir: &Path) -> anyhow::Result<()> {
-    use std::io::Cursor;
-    use zip::ZipArchive;
-
-    let reader = Cursor::new(zip_data);
-    let mut archive = ZipArchive::new(reader)?;
-
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i)?;
-        let outpath = match file.enclosed_name() {
-            Some(path) => path.to_owned(),
-            None => continue,
-        };
-
-        // Skip directories and non-glsl files, but keep textures folder
-        if file.is_dir() {
-            continue;
-        }
-
-        // Handle paths - the zip contains "shaders/" prefix
-        let relative_path = outpath.strip_prefix("shaders/").unwrap_or(&outpath);
-
-        // Skip if empty path
-        if relative_path.as_os_str().is_empty() {
-            continue;
-        }
-
-        let final_path = target_dir.join(relative_path);
-
-        // Create parent directories if needed
-        if let Some(parent) = final_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        // Extract file
-        let mut outfile = std::fs::File::create(&final_path)?;
-        std::io::copy(&mut file, &mut outfile)?;
-    }
 
     Ok(())
 }
