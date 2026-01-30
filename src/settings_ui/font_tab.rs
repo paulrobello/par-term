@@ -1,4 +1,5 @@
 use super::SettingsUI;
+use crate::config::ThinStrokesMode;
 
 pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.collapsing("Font", |ui| {
@@ -101,6 +102,92 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         {
             settings.font_pending_changes = true;
         }
+
+        ui.separator();
+        ui.label("Rendering Options");
+
+        if ui
+            .checkbox(
+                &mut settings.config.font_antialias,
+                "Anti-aliasing",
+            )
+            .on_hover_text("Enable smooth font edges. Disable for crisp, pixelated text.")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.font_hinting,
+                "Hinting",
+            )
+            .on_hover_text("Align glyphs to pixel boundaries for sharper text at small sizes.")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.horizontal(|ui| {
+            ui.label("Thin strokes:");
+            let current_mode = settings.config.font_thin_strokes;
+            let mode_label = match current_mode {
+                ThinStrokesMode::Never => "Never",
+                ThinStrokesMode::RetinaOnly => "Retina Only",
+                ThinStrokesMode::DarkBackgroundsOnly => "Dark Backgrounds Only",
+                ThinStrokesMode::RetinaDarkBackgroundsOnly => "Retina + Dark BG",
+                ThinStrokesMode::Always => "Always",
+            };
+
+            egui::ComboBox::from_id_salt("thin_strokes_mode")
+                .selected_text(mode_label)
+                .show_ui(ui, |ui| {
+                    if ui.selectable_label(
+                        current_mode == ThinStrokesMode::Never,
+                        "Never",
+                    ).clicked() {
+                        settings.config.font_thin_strokes = ThinStrokesMode::Never;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                    if ui.selectable_label(
+                        current_mode == ThinStrokesMode::RetinaOnly,
+                        "Retina Only",
+                    ).clicked() {
+                        settings.config.font_thin_strokes = ThinStrokesMode::RetinaOnly;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                    if ui.selectable_label(
+                        current_mode == ThinStrokesMode::DarkBackgroundsOnly,
+                        "Dark Backgrounds Only",
+                    ).clicked() {
+                        settings.config.font_thin_strokes = ThinStrokesMode::DarkBackgroundsOnly;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                    if ui.selectable_label(
+                        current_mode == ThinStrokesMode::RetinaDarkBackgroundsOnly,
+                        "Retina + Dark BG",
+                    ).clicked() {
+                        settings.config.font_thin_strokes = ThinStrokesMode::RetinaDarkBackgroundsOnly;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                    if ui.selectable_label(
+                        current_mode == ThinStrokesMode::Always,
+                        "Always",
+                    ).clicked() {
+                        settings.config.font_thin_strokes = ThinStrokesMode::Always;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+        });
+        ui.label("  Lighter font strokes for improved readability on HiDPI displays.")
+            .on_hover_text("Similar to macOS font smoothing. Works best on Retina/HiDPI displays with dark backgrounds.");
 
         ui.horizontal(|ui| {
             if ui.button("Apply font changes").clicked() {

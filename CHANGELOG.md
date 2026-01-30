@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Font Rendering Options**: Anti-aliasing and thin strokes controls for improved text appearance (#32)
+  - **Anti-aliasing**: Toggle font smoothing on/off for crisp or smooth text
+    - Disable for sharp, pixelated text at small sizes
+    - Config option: `font_antialias` (default: true)
+  - **Hinting**: Control font hinting for pixel-aligned glyphs
+    - Improves text clarity at small sizes by aligning to pixel boundaries
+    - Config option: `font_hinting` (default: true)
+  - **Thin Strokes Mode**: iTerm2-inspired font smoothing modes for HiDPI displays
+    - `never`: Standard stroke weight everywhere
+    - `retina_only`: Lighter strokes on HiDPI displays (default)
+    - `dark_backgrounds_only`: Lighter strokes on dark backgrounds
+    - `retina_dark_backgrounds_only`: Lighter strokes only on HiDPI + dark backgrounds
+    - `always`: Always use lighter strokes
+    - Config option: `font_thin_strokes`
+  - All options accessible in Settings > Font > Rendering Options
+  - Changes take effect immediately by clearing and re-rasterizing the glyph cache
+
 - **Activity and Idle Notifications**: Desktop notifications for terminal activity (#29)
   - **Activity notification**: Triggers when terminal output resumes after inactivity
     - Useful for alerting when long-running commands complete

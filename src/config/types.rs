@@ -160,6 +160,26 @@ pub struct FontRange {
     pub font_family: String,
 }
 
+/// Thin strokes / font smoothing mode
+///
+/// Controls font stroke weight adjustment for improved rendering,
+/// particularly on high-DPI/Retina displays. Inspired by iTerm2's thin strokes feature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ThinStrokesMode {
+    /// Never apply thin strokes
+    Never,
+    /// Apply thin strokes only on Retina/HiDPI displays (default)
+    #[default]
+    RetinaOnly,
+    /// Apply thin strokes only on dark backgrounds
+    DarkBackgroundsOnly,
+    /// Apply thin strokes only on Retina displays with dark backgrounds
+    RetinaDarkBackgroundsOnly,
+    /// Always apply thin strokes
+    Always,
+}
+
 // ============================================================================
 // Per-Shader Configuration Types
 // ============================================================================

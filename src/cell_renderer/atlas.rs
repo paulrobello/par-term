@@ -65,17 +65,36 @@ impl CellRenderer {
         // Use swash to rasterize
         use swash::scale::image::Content;
         use swash::scale::{Render, ScaleContext};
+        use swash::zeno::Format;
+
         let mut context = ScaleContext::new();
+
+        // Apply hinting based on config setting
         let mut scaler = context
             .builder(*font)
             .size(self.font_size_pixels)
-            .hint(true)
+            .hint(self.font_hinting)
             .build();
+
+        // Determine render format based on anti-aliasing and thin strokes settings
+        let use_thin_strokes = self.should_use_thin_strokes();
+        let render_format = if !self.font_antialias {
+            // No anti-aliasing: render as alpha mask (will be thresholded)
+            Format::Alpha
+        } else if use_thin_strokes {
+            // Thin strokes: use subpixel rendering for lighter appearance
+            Format::Subpixel
+        } else {
+            // Standard anti-aliased rendering
+            Format::Alpha
+        };
+
         let image = Render::new(&[
             swash::scale::Source::ColorOutline(0),
             swash::scale::Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
             swash::scale::Source::Outline,
         ])
+        .format(render_format)
         .render(&mut scaler, glyph_id)?;
 
         let mut pixels = Vec::with_capacity(image.data.len() * 4);
@@ -85,15 +104,47 @@ impl CellRenderer {
                 true
             }
             Content::Mask => {
+                // Standard alpha mask rendering
                 for &mask in &image.data {
+                    // If anti-aliasing is disabled, threshold the alpha to create crisp edges
+                    let alpha = if !self.font_antialias {
+                        if mask > 127 { 255 } else { 0 }
+                    } else {
+                        mask
+                    };
                     pixels.push(255);
                     pixels.push(255);
                     pixels.push(255);
-                    pixels.push(mask);
+                    pixels.push(alpha);
                 }
                 false
             }
-            _ => return None,
+            Content::SubpixelMask => {
+                // Subpixel rendering produces RGB data (3 bytes per pixel)
+                // For thin strokes effect, we average the subpixel values to create
+                // a lighter appearance while maintaining compatibility with our shader
+                let width = image.placement.width as usize;
+                let height = image.placement.height as usize;
+                for y in 0..height {
+                    for x in 0..width {
+                        let idx = (y * width + x) * 3;
+                        if idx + 2 < image.data.len() {
+                            let r = image.data[idx];
+                            let g = image.data[idx + 1];
+                            let b = image.data[idx + 2];
+                            // Use luminance-weighted average for perceptually accurate brightness
+                            // This creates a lighter stroke effect similar to macOS thin strokes
+                            let alpha =
+                                ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u8;
+                            pixels.push(255);
+                            pixels.push(255);
+                            pixels.push(255);
+                            pixels.push(alpha);
+                        }
+                    }
+                }
+                false
+            }
         };
 
         Some(RasterizedGlyph {

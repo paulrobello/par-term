@@ -153,6 +153,14 @@ pub struct CellRenderer {
     pub(crate) enable_ligatures: bool,
     pub(crate) enable_kerning: bool,
 
+    // Font rendering options
+    /// Enable anti-aliasing for font rendering
+    pub(crate) font_antialias: bool,
+    /// Enable hinting for font rendering
+    pub(crate) font_hinting: bool,
+    /// Thin strokes mode for font rendering
+    pub(crate) font_thin_strokes: crate::config::ThinStrokesMode,
+
     // Solid white pixel in atlas for geometric block rendering
     pub(crate) solid_pixel_offset: (u32, u32),
 
@@ -187,6 +195,9 @@ impl CellRenderer {
         enable_text_shaping: bool,
         enable_ligatures: bool,
         enable_kerning: bool,
+        font_antialias: bool,
+        font_hinting: bool,
+        font_thin_strokes: crate::config::ThinStrokesMode,
         vsync_mode: crate::config::VsyncMode,
         window_opacity: f32,
         background_color: [u8; 3],
@@ -469,6 +480,9 @@ impl CellRenderer {
             enable_text_shaping,
             enable_ligatures,
             enable_kerning,
+            font_antialias,
+            font_hinting,
+            font_thin_strokes,
             solid_pixel_offset: (0, 0),
             transparency_affects_only_default_background: false,
             keep_text_opaque: true,
@@ -971,6 +985,66 @@ impl CellRenderer {
 
     pub fn reconfigure_surface(&mut self) {
         self.surface.configure(&self.device, &self.config);
+    }
+
+    /// Update font anti-aliasing setting
+    /// Returns true if the setting changed (requiring glyph cache clear)
+    pub fn update_font_antialias(&mut self, enabled: bool) -> bool {
+        if self.font_antialias != enabled {
+            self.font_antialias = enabled;
+            self.clear_glyph_cache();
+            self.dirty_rows.fill(true);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Update font hinting setting
+    /// Returns true if the setting changed (requiring glyph cache clear)
+    pub fn update_font_hinting(&mut self, enabled: bool) -> bool {
+        if self.font_hinting != enabled {
+            self.font_hinting = enabled;
+            self.clear_glyph_cache();
+            self.dirty_rows.fill(true);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Update thin strokes mode
+    /// Returns true if the setting changed (requiring glyph cache clear)
+    pub fn update_font_thin_strokes(&mut self, mode: crate::config::ThinStrokesMode) -> bool {
+        if self.font_thin_strokes != mode {
+            self.font_thin_strokes = mode;
+            self.clear_glyph_cache();
+            self.dirty_rows.fill(true);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Check if thin strokes should be applied based on current mode and context
+    pub(crate) fn should_use_thin_strokes(&self) -> bool {
+        use crate::config::ThinStrokesMode;
+
+        // Check if we're on a Retina/HiDPI display (scale factor > 1.5)
+        let is_retina = self.scale_factor > 1.5;
+
+        // Check if background is dark (average < 128)
+        let bg_brightness =
+            (self.background_color[0] + self.background_color[1] + self.background_color[2]) / 3.0;
+        let is_dark_background = bg_brightness < 0.5;
+
+        match self.font_thin_strokes {
+            ThinStrokesMode::Never => false,
+            ThinStrokesMode::Always => true,
+            ThinStrokesMode::RetinaOnly => is_retina,
+            ThinStrokesMode::DarkBackgroundsOnly => is_dark_background,
+            ThinStrokesMode::RetinaDarkBackgroundsOnly => is_retina && is_dark_background,
+        }
     }
 
     /// Get the list of supported present modes for this surface
