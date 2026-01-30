@@ -772,6 +772,10 @@ pub struct Config {
     /// Version that user chose to skip notifications for
     #[serde(default)]
     pub skipped_version: Option<String>,
+
+    /// Last version we notified the user about (prevents repeat notifications)
+    #[serde(default)]
+    pub last_notified_version: Option<String>,
 }
 
 impl Default for Config {
@@ -917,6 +921,7 @@ impl Default for Config {
             update_check_frequency: defaults::update_check_frequency(),
             last_update_check: None,
             skipped_version: None,
+            last_notified_version: None,
         }
     }
 }

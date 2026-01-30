@@ -130,16 +130,34 @@ impl WindowManager {
             // Perform the check
             let (result, should_save) = self.update_checker.check_now(&self.config, false);
 
-            // Log the result
+            // Log the result and notify if appropriate
+            let mut config_changed = should_save;
             match &result {
                 UpdateCheckResult::UpdateAvailable(info) => {
+                    let version_str = info
+                        .version
+                        .strip_prefix('v')
+                        .unwrap_or(&info.version)
+                        .to_string();
+
                     log::info!(
                         "Update available: {} (current: {})",
-                        info.version,
+                        version_str,
                         env!("CARGO_PKG_VERSION")
                     );
-                    // Show desktop notification for new version
-                    self.notify_update_available(info);
+
+                    // Only notify if we haven't already notified about this version
+                    let already_notified = self
+                        .config
+                        .last_notified_version
+                        .as_ref()
+                        .is_some_and(|v| v == &version_str);
+
+                    if !already_notified {
+                        self.notify_update_available(info);
+                        self.config.last_notified_version = Some(version_str);
+                        config_changed = true;
+                    }
                 }
                 UpdateCheckResult::UpToDate => {
                     log::info!("par-term is up to date ({})", env!("CARGO_PKG_VERSION"));
@@ -155,7 +173,7 @@ impl WindowManager {
             self.last_update_result = Some(result);
 
             // Save config with updated timestamp if check was successful
-            if should_save {
+            if config_changed {
                 self.config.last_update_check = Some(current_timestamp());
                 if let Err(e) = self.config.save() {
                     log::warn!("Failed to save config after update check: {}", e);
