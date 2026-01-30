@@ -180,7 +180,7 @@ Prevent applications from overriding your cursor preferences.
 
 - **[Quick Start Guide](QUICK_START_FONTS.md)** - Get up and running with custom fonts.
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - High-level system architecture and components.
-- **[Shader Gallery](docs/SHADERS.md)** - Complete list of 49+ included shaders organized by category.
+- **[Shader Gallery](/shader-gallery/index.html)** - Visual gallery of 49+ included shaders with screenshots.
 - **[Custom Shaders Guide](docs/CUSTOM_SHADERS.md)** - Create custom GLSL shaders with hot reload and per-shader config.
 - **[Compositor Details](docs/COMPOSITOR.md)** - Deep dive into the rendering architecture.
 - **[Examples](examples/README.md)** - Comprehensive configuration examples.

@@ -2,6 +2,8 @@
 
 Par-term includes 45+ ready-to-use GLSL shaders. This document lists all available shaders organized by category.
 
+**[View Shader Gallery with Screenshots](/shader-gallery/index.html)**
+
 For information on how to use and configure shaders, see [CUSTOM_SHADERS.md](CUSTOM_SHADERS.md).
 
 ## Table of Contents
