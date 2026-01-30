@@ -205,53 +205,27 @@ void main() {{
     vec3 dimmedShaderRgb = shaderColor.rgb * iBrightness;
 
     if (iFullContent > 0.5) {{
-        // Full content mode: shader output is used directly
-        // The shader has full control over the terminal content via iChannel4
+        // Full content mode: shader has full control over terminal content
+        // The shader receives terminal content via iChannel4 and returns processed output.
+        // We use the shader's output directly - it has already done its own compositing.
         //
-        // For keep_text_opaque (iTextOpacity = 1.0):
-        // - Where terminal has content (text or colored bg): keep opaque
-        // - Where terminal is empty (default bg): apply window opacity
+        // The shader output (shaderColor/dimmedShaderRgb) contains:
+        // - CRT effects, distortion, scanlines, color grading, etc.
+        // - The shader's own sampling and processing of iChannel4
         //
-        // The terminal texture already has correct alpha values:
-        // - Default backgrounds: alpha ≈ 0 (skipped by cell renderer)
-        // - Colored backgrounds: alpha = 1.0 (when transparency_affects_only_default_background)
-        // - Text: alpha = 1.0
+        // We only need to handle opacity for window transparency.
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
         float hasContent = step(0.01, terminalColor.a);
 
         // When keep_text_opaque is enabled (iTextOpacity = 1.0):
-        //   - Content areas (text + colored bg): opacity = 1.0
+        //   - Content areas (text or colored bg): opacity = 1.0
         //   - Empty areas (default bg): opacity = iOpacity
         // When disabled (iTextOpacity = iOpacity):
         //   - Everything uses iOpacity
         float pixelOpacity = mix(iOpacity, iTextOpacity, hasContent);
 
-        // Determine background: solid color, image (iChannel0), or none
-        float useSolidBg = step(0.01, iBackgroundColor.a);
-        // Check if background image is in iChannel0 (resolution > 1x1 means real texture)
-        float useImageBg = step(2.0, iChannelResolution0.x) * (1.0 - useSolidBg);
-
-        // Sample background image if available
-        vec3 imageBgRgb = texture(iChannel0, vec2(v_uv.x, 1.0 - v_uv.y)).rgb * iBrightness;
-        vec3 solidBgRgb = iBackgroundColor.rgb * iBrightness;
-
-        // Select background: solid color takes priority, then image, then black
-        vec3 bgRgb = mix(mix(vec3(0.0), imageBgRgb, useImageBg), solidBgRgb, useSolidBg);
-        float hasBg = max(useSolidBg, useImageBg);
-
-        // Properly composite terminal over background to fix text edge artifacts
-        // Terminal texture is premultiplied alpha, so: out = term.rgb + bg * (1 - term.a)
-        vec3 termOverBg = terminalColor.rgb + bgRgb * (1.0 - terminalColor.a);
-        vec3 termOverBlack = terminalColor.rgb; // Original behavior when no background
-        vec3 termComposited = mix(termOverBlack, termOverBg, hasBg);
-
-        // Extract shader's glow effect (cursor glow, etc.)
-        // Glow = shader output minus terminal contribution
-        // This preserves cursor effects while allowing proper text compositing
-        vec3 glowEffect = max(dimmedShaderRgb - terminalColor.rgb, vec3(0.0));
-
-        // Final color: properly composited terminal + glow effects
-        vec3 finalRgb = termComposited + glowEffect;
+        // Use shader output directly - it contains all the effects
+        vec3 finalRgb = dimmedShaderRgb;
 
         // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
         float isChainMode = step(iOpacity, 0.001);
@@ -541,53 +515,27 @@ void main() {{
     vec3 dimmedShaderRgb = shaderColor.rgb * iBrightness;
 
     if (iFullContent > 0.5) {{
-        // Full content mode: shader output is used directly
-        // The shader has full control over the terminal content via iChannel4
+        // Full content mode: shader has full control over terminal content
+        // The shader receives terminal content via iChannel4 and returns processed output.
+        // We use the shader's output directly - it has already done its own compositing.
         //
-        // For keep_text_opaque (iTextOpacity = 1.0):
-        // - Where terminal has content (text or colored bg): keep opaque
-        // - Where terminal is empty (default bg): apply window opacity
+        // The shader output (shaderColor/dimmedShaderRgb) contains:
+        // - CRT effects, distortion, scanlines, color grading, etc.
+        // - The shader's own sampling and processing of iChannel4
         //
-        // The terminal texture already has correct alpha values:
-        // - Default backgrounds: alpha ≈ 0 (skipped by cell renderer)
-        // - Colored backgrounds: alpha = 1.0 (when transparency_affects_only_default_background)
-        // - Text: alpha = 1.0
+        // We only need to handle opacity for window transparency.
         vec4 terminalColor = texture(iChannel4, vec2(v_uv.x, 1.0 - v_uv.y));
         float hasContent = step(0.01, terminalColor.a);
 
         // When keep_text_opaque is enabled (iTextOpacity = 1.0):
-        //   - Content areas (text + colored bg): opacity = 1.0
+        //   - Content areas (text or colored bg): opacity = 1.0
         //   - Empty areas (default bg): opacity = iOpacity
         // When disabled (iTextOpacity = iOpacity):
         //   - Everything uses iOpacity
         float pixelOpacity = mix(iOpacity, iTextOpacity, hasContent);
 
-        // Determine background: solid color, image (iChannel0), or none
-        float useSolidBg = step(0.01, iBackgroundColor.a);
-        // Check if background image is in iChannel0 (resolution > 1x1 means real texture)
-        float useImageBg = step(2.0, iChannelResolution0.x) * (1.0 - useSolidBg);
-
-        // Sample background image if available
-        vec3 imageBgRgb = texture(iChannel0, vec2(v_uv.x, 1.0 - v_uv.y)).rgb * iBrightness;
-        vec3 solidBgRgb = iBackgroundColor.rgb * iBrightness;
-
-        // Select background: solid color takes priority, then image, then black
-        vec3 bgRgb = mix(mix(vec3(0.0), imageBgRgb, useImageBg), solidBgRgb, useSolidBg);
-        float hasBg = max(useSolidBg, useImageBg);
-
-        // Properly composite terminal over background to fix text edge artifacts
-        // Terminal texture is premultiplied alpha, so: out = term.rgb + bg * (1 - term.a)
-        vec3 termOverBg = terminalColor.rgb + bgRgb * (1.0 - terminalColor.a);
-        vec3 termOverBlack = terminalColor.rgb; // Original behavior when no background
-        vec3 termComposited = mix(termOverBlack, termOverBg, hasBg);
-
-        // Extract shader's glow effect (cursor glow, etc.)
-        // Glow = shader output minus terminal contribution
-        // This preserves cursor effects while allowing proper text compositing
-        vec3 glowEffect = max(dimmedShaderRgb - terminalColor.rgb, vec3(0.0));
-
-        // Final color: properly composited terminal + glow effects
-        vec3 finalRgb = termComposited + glowEffect;
+        // Use shader output directly - it contains all the effects
+        vec3 finalRgb = dimmedShaderRgb;
 
         // Detect chain mode (iOpacity ≈ 0 signals rendering to intermediate for another shader)
         float isChainMode = step(iOpacity, 0.001);
