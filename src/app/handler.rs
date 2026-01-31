@@ -471,6 +471,9 @@ impl WindowState {
         // Check for activity/idle notifications
         self.check_activity_idle_notifications();
 
+        // Check for session exit notifications
+        self.check_session_exit_notifications();
+
         // Check for shader hot reload events
         if self.check_shader_reload() {
             log::debug!("Shader hot reload triggered redraw");

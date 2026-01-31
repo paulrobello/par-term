@@ -61,6 +61,8 @@ pub struct Tab {
     pub anti_idle_last_generation: u64,
     /// Whether silence notification has been sent for current idle period
     pub silence_notified: bool,
+    /// Whether exit notification has been sent for this tab
+    pub exit_notified: bool,
 }
 
 impl Tab {
@@ -188,6 +190,7 @@ impl Tab {
             anti_idle_last_activity: std::time::Instant::now(),
             anti_idle_last_generation: 0,
             silence_notified: false,
+            exit_notified: false,
         })
     }
 

@@ -201,6 +201,45 @@ impl WindowState {
         );
     }
 
+    /// Check for session exit notifications across all tabs.
+    ///
+    /// Notifies the user when a shell/process exits, useful for long-running commands
+    /// where the user may have switched to other applications.
+    pub(crate) fn check_session_exit_notifications(&mut self) {
+        if !self.config.notification_session_ended {
+            return;
+        }
+
+        let mut notifications_to_send: Vec<(String, String)> = Vec::new();
+
+        for tab in self.tab_manager.tabs_mut() {
+            // Skip if already notified for this tab
+            if tab.exit_notified {
+                continue;
+            }
+
+            // Check if the terminal has exited
+            let has_exited = if let Ok(term) = tab.terminal.try_lock() {
+                !term.is_running()
+            } else {
+                continue; // Skip if terminal is locked
+            };
+
+            if has_exited {
+                tab.exit_notified = true;
+                let title = format!("Session Ended: {}", tab.title);
+                let message = "The shell process has exited".to_string();
+                log::info!("Session exit notification: {} has exited", tab.title);
+                notifications_to_send.push((title, message));
+            }
+        }
+
+        // Send collected notifications (after releasing mutable borrow)
+        for (title, message) in notifications_to_send {
+            self.deliver_notification(&title, &message);
+        }
+    }
+
     /// Check for activity/idle notifications across all tabs.
     ///
     /// This method handles two types of notifications:
@@ -285,6 +324,10 @@ impl WindowState {
     }
 
     /// Deliver a notification via desktop notification system and logs.
+    ///
+    /// If `suppress_notifications_when_focused` is enabled and the window is focused,
+    /// only log the notification without sending a desktop notification (since the user
+    /// is already looking at the terminal).
     pub(crate) fn deliver_notification(&self, title: &str, message: &str) {
         // Always log notifications
         if !title.is_empty() {
@@ -297,7 +340,16 @@ impl WindowState {
             log::info!("===================");
         }
 
-        // Send desktop notification if enabled
+        // Skip desktop notification if window is focused and suppression is enabled
+        if self.config.suppress_notifications_when_focused && self.is_focused {
+            log::debug!(
+                "Suppressing desktop notification (window is focused): {}",
+                title
+            );
+            return;
+        }
+
+        // Send desktop notification
         #[cfg(not(target_os = "macos"))]
         {
             use notify_rust::Notification;
