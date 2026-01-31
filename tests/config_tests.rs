@@ -403,3 +403,54 @@ cursor_boost: 0.3
     assert!(!config.cursor_shadow_enabled);
     assert_eq!(config.cursor_guide_color, [255, 255, 255, 20]);
 }
+
+// ============================================================================
+// Answerback String Tests
+// ============================================================================
+
+#[test]
+fn test_config_answerback_string_default() {
+    let config = Config::default();
+    // Answerback should be empty by default for security
+    assert!(config.answerback_string.is_empty());
+}
+
+#[test]
+fn test_config_answerback_string_yaml_deserialization() {
+    let yaml = r#"
+answerback_string: "par-term"
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.answerback_string, "par-term");
+}
+
+#[test]
+fn test_config_answerback_string_yaml_serialization() {
+    let mut config = Config::default();
+    config.answerback_string = "vt100".to_string();
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("answerback_string: vt100"));
+}
+
+#[test]
+fn test_config_answerback_string_empty_by_default_yaml() {
+    // Empty string should deserialize correctly
+    let yaml = r#"
+answerback_string: ""
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.answerback_string.is_empty());
+}
+
+#[test]
+fn test_config_answerback_string_partial_yaml() {
+    // Test that default value is used when field is missing
+    let yaml = r#"
+cols: 120
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    // Answerback should use default (empty)
+    assert!(config.answerback_string.is_empty());
+    assert_eq!(config.cols, 120);
+}

@@ -322,3 +322,7 @@ pub fn word_characters() -> String {
 pub fn smart_selection_enabled() -> bool {
     true // Smart selection enabled by default
 }
+
+pub fn answerback_string() -> String {
+    String::new() // Empty/disabled by default for security
+}

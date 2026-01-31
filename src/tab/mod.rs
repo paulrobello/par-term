@@ -80,6 +80,11 @@ impl Tab {
         terminal.set_max_clipboard_sync_events(config.clipboard_max_sync_events);
         terminal.set_max_clipboard_event_bytes(config.clipboard_max_event_bytes);
 
+        // Set answerback string for ENQ response (if configured)
+        if !config.answerback_string.is_empty() {
+            terminal.set_answerback_string(Some(config.answerback_string.clone()));
+        }
+
         // Initialize cursor style from config
         // Convert config cursor style to terminal cursor style
         {
