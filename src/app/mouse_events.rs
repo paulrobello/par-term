@@ -76,12 +76,6 @@ impl WindowState {
             return; // Click is on tab bar, don't process as terminal event
         }
 
-        // Track button press state for motion tracking logic (drag selection, motion reporting)
-        // Only set this for clicks in the terminal area, not on tab bar
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.button_pressed = state == ElementState::Pressed;
-        }
-
         // Check if tab context menu is open - if so, let egui handle all clicks
         if self.tab_bar_ui.is_context_menu_open() {
             return;
@@ -102,9 +96,16 @@ impl WindowState {
         match button {
             MouseButton::Left => {
                 // --- 2. URL Clicking ---
-                // Check for Ctrl+Click on URL to open it in default browser
+                // Check for modifier+Click on URL to open it in default browser
+                // macOS: Cmd+Click (matches iTerm2 and system conventions)
+                // Windows/Linux: Ctrl+Click (matches platform conventions)
+                #[cfg(target_os = "macos")]
+                let url_modifier_pressed = self.input_handler.modifiers.state().super_key();
+                #[cfg(not(target_os = "macos"))]
+                let url_modifier_pressed = self.input_handler.modifiers.state().control_key();
+
                 if state == ElementState::Pressed
-                    && self.input_handler.modifiers.state().control_key()
+                    && url_modifier_pressed
                     && let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
                     && let Some(tab) = self.tab_manager.active_tab()
                 {
@@ -122,14 +123,74 @@ impl WindowState {
                     }
                 }
 
-                // --- 3. Mouse Tracking Forwarding ---
+                // --- 3. Option+Click Cursor Positioning ---
+                // NOTE: This must be checked BEFORE setting button_pressed to avoid triggering selection
+                // Move cursor to clicked position when Option/Alt is pressed (without Cmd/Super)
+                // This sends arrow key sequences to move the cursor within the shell line
+                // macOS: Option+Click (matches iTerm2)
+                // Windows/Linux: Alt+Click
+                // Note: Option+Cmd is reserved for rectangular selection (matching iTerm2)
+                if state == ElementState::Pressed
+                    && self.config.option_click_moves_cursor
+                    && self.input_handler.modifiers.state().alt_key()
+                    && !self.input_handler.modifiers.state().super_key() // Not Cmd/Super (that's for rectangular selection)
+                    && let Some((target_col, _target_row)) =
+                        self.pixel_to_cell(mouse_position.0, mouse_position.1)
+                    && let Some(tab) = self.tab_manager.active_tab()
+                {
+                    // Only move cursor if we're at the bottom of scrollback (current view)
+                    // and not on the alternate screen (where apps handle their own cursor)
+                    let at_bottom = tab.scroll_state.offset == 0;
+                    let (is_alt_screen, current_col) = tab
+                        .terminal
+                        .try_lock()
+                        .ok()
+                        .map(|t| (t.is_alt_screen_active(), t.cursor_position().0))
+                        .unwrap_or((true, 0));
+
+                    if at_bottom && !is_alt_screen {
+                        // Calculate horizontal movement needed
+                        // Send arrow keys: \x1b[C (right) or \x1b[D (left)
+                        let move_seq = if target_col > current_col {
+                            // Move right
+                            let count = target_col - current_col;
+                            "\x1b[C".repeat(count)
+                        } else if target_col < current_col {
+                            // Move left
+                            let count = current_col - target_col;
+                            "\x1b[D".repeat(count)
+                        } else {
+                            // Already at target column
+                            String::new()
+                        };
+
+                        if !move_seq.is_empty() {
+                            let terminal_clone = Arc::clone(&tab.terminal);
+                            let runtime = Arc::clone(&self.runtime);
+                            runtime.spawn(async move {
+                                let t = terminal_clone.lock().await;
+                                let _ = t.write(move_seq.as_bytes());
+                            });
+                        }
+                        return; // Exit early: cursor move handled
+                    }
+                }
+
+                // --- 4. Mouse Tracking Forwarding ---
                 // Forward events to the PTY if terminal application requested tracking
                 if self.try_send_mouse_event(0, state == ElementState::Pressed) {
                     return; // Exit early: terminal app handled the input
                 }
 
+                // Track button press state for motion tracking logic (drag selection, motion reporting)
+                // This is set AFTER special handlers (URL click, Option+click, mouse tracking) to avoid
+                // triggering selection when those features handle the click
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.mouse.button_pressed = state == ElementState::Pressed;
+                }
+
                 if state == ElementState::Pressed {
-                    // --- 4. Scrollbar Interaction ---
+                    // --- 5. Scrollbar Interaction ---
                     // Check if clicking/dragging the scrollbar track or thumb
                     let mouse_x = mouse_position.0 as f32;
                     let mouse_y = mouse_position.1 as f32;
@@ -161,7 +222,7 @@ impl WindowState {
                         return; // Exit early: scrollbar handling takes precedence over selection
                     }
 
-                    // --- 5. Selection Anchoring & Click Counting ---
+                    // --- 6. Selection Anchoring & Click Counting ---
                     // Handle complex selection modes based on click sequence
                     if let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
                     {
@@ -487,8 +548,11 @@ impl WindowState {
                 && click_pos != (col, row)
             {
                 // Initial drag move: Start selection if we've moved past the click threshold
-                // Alt key triggers Rectangular/Block selection mode
-                let mode = if self.input_handler.modifiers.state().alt_key() {
+                // Option+Cmd (Alt+Super) triggers Rectangular/Block selection mode (matches iTerm2)
+                // Option alone is for cursor positioning, not selection
+                let mode = if self.input_handler.modifiers.state().alt_key()
+                    && self.input_handler.modifiers.state().super_key()
+                {
                     SelectionMode::Rectangular
                 } else {
                     SelectionMode::Normal
@@ -536,10 +600,10 @@ impl WindowState {
         });
 
         if is_mouse_tracking {
-            // Calculate scroll lines based on delta type (Line vs Pixel)
-            let scroll_lines = match delta {
-                MouseScrollDelta::LineDelta(_x, y) => y as i32,
-                MouseScrollDelta::PixelDelta(pos) => (pos.y / 20.0) as i32,
+            // Calculate scroll amounts based on delta type (Line vs Pixel)
+            let (scroll_x, scroll_y) = match delta {
+                MouseScrollDelta::LineDelta(x, y) => (x as i32, y as i32),
+                MouseScrollDelta::PixelDelta(pos) => ((pos.x / 20.0) as i32, (pos.y / 20.0) as i32),
             };
 
             // Get mouse position and terminal from active tab
@@ -551,31 +615,56 @@ impl WindowState {
 
             // Map pixel position to terminal cell coordinates
             if let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1) {
-                // XTerm mouse protocol buttons: 64 = scroll up, 65 = scroll down
-                let button = if scroll_lines > 0 { 64 } else { 65 };
-                // Limit burst to 10 events to avoid flooding the PTY
-                let count = scroll_lines.unsigned_abs().min(10);
+                let mut all_encoded = Vec::new();
 
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
-                {
-                    // Encode and send to terminal via async task
-                    let mut all_encoded = Vec::new();
-                    for _ in 0..count {
-                        let encoded = term.encode_mouse_event(button, col, row, true, 0);
-                        if !encoded.is_empty() {
-                            all_encoded.extend(encoded);
+                // --- 1a. Vertical scroll events ---
+                // XTerm mouse protocol buttons: 64 = scroll up, 65 = scroll down
+                if scroll_y != 0 {
+                    let button = if scroll_y > 0 { 64 } else { 65 };
+                    // Limit burst to 10 events to avoid flooding the PTY
+                    let count = scroll_y.unsigned_abs().min(10);
+
+                    if let Some(tab) = self.tab_manager.active_tab()
+                        && let Ok(term) = tab.terminal.try_lock()
+                    {
+                        for _ in 0..count {
+                            let encoded = term.encode_mouse_event(button, col, row, true, 0);
+                            if !encoded.is_empty() {
+                                all_encoded.extend(encoded);
+                            }
                         }
                     }
+                }
 
-                    if !all_encoded.is_empty() {
-                        let terminal_clone = Arc::clone(&tab.terminal);
-                        let runtime = Arc::clone(&self.runtime);
-                        runtime.spawn(async move {
-                            let t = terminal_clone.lock().await;
-                            let _ = t.write(&all_encoded);
-                        });
+                // --- 1b. Horizontal scroll events (if enabled) ---
+                // XTerm mouse protocol buttons: 66 = scroll left, 67 = scroll right
+                if self.config.report_horizontal_scroll && scroll_x != 0 {
+                    let button = if scroll_x > 0 { 67 } else { 66 };
+                    // Limit burst to 10 events to avoid flooding the PTY
+                    let count = scroll_x.unsigned_abs().min(10);
+
+                    if let Some(tab) = self.tab_manager.active_tab()
+                        && let Ok(term) = tab.terminal.try_lock()
+                    {
+                        for _ in 0..count {
+                            let encoded = term.encode_mouse_event(button, col, row, true, 0);
+                            if !encoded.is_empty() {
+                                all_encoded.extend(encoded);
+                            }
+                        }
                     }
+                }
+
+                // Send all encoded events to terminal
+                if !all_encoded.is_empty()
+                    && let Some(tab) = self.tab_manager.active_tab()
+                {
+                    let terminal_clone = Arc::clone(&tab.terminal);
+                    let runtime = Arc::clone(&self.runtime);
+                    runtime.spawn(async move {
+                        let t = terminal_clone.lock().await;
+                        let _ = t.write(&all_encoded);
+                    });
                 }
             }
             return; // Exit early: terminal app handled the input

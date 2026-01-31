@@ -486,3 +486,57 @@ cols: 120
     assert!(config.answerback_string.is_empty());
     assert_eq!(config.cols, 120);
 }
+
+// ============================================================================
+// Advanced Mouse Features Tests
+// ============================================================================
+
+#[test]
+fn test_config_advanced_mouse_defaults() {
+    let config = Config::default();
+    // Option+Click moves cursor should be enabled by default
+    assert!(config.option_click_moves_cursor);
+    // Focus follows mouse should be disabled by default (opt-in)
+    assert!(!config.focus_follows_mouse);
+    // Horizontal scroll reporting should be enabled by default
+    assert!(config.report_horizontal_scroll);
+}
+
+#[test]
+fn test_config_advanced_mouse_yaml_deserialization() {
+    let yaml = r#"
+option_click_moves_cursor: false
+focus_follows_mouse: true
+report_horizontal_scroll: false
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(!config.option_click_moves_cursor);
+    assert!(config.focus_follows_mouse);
+    assert!(!config.report_horizontal_scroll);
+}
+
+#[test]
+fn test_config_advanced_mouse_yaml_serialization() {
+    let mut config = Config::default();
+    config.option_click_moves_cursor = false;
+    config.focus_follows_mouse = true;
+    config.report_horizontal_scroll = false;
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("option_click_moves_cursor: false"));
+    assert!(yaml.contains("focus_follows_mouse: true"));
+    assert!(yaml.contains("report_horizontal_scroll: false"));
+}
+
+#[test]
+fn test_config_advanced_mouse_partial_yaml() {
+    // Test that default values are used for missing fields
+    let yaml = r#"
+focus_follows_mouse: true
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.focus_follows_mouse);
+    // Other fields should have defaults
+    assert!(config.option_click_moves_cursor);
+    assert!(config.report_horizontal_scroll);
+}

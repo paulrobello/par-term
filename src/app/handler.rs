@@ -382,6 +382,15 @@ impl WindowState {
                 self.handle_dropped_file(path);
             }
 
+            WindowEvent::CursorEntered { .. } => {
+                // Focus follows mouse: auto-focus window when cursor enters
+                if self.config.focus_follows_mouse
+                    && let Some(window) = &self.window
+                {
+                    window.focus_window();
+                }
+            }
+
             _ => {}
         }
 
