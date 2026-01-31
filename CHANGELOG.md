@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Session Ended Notification**: Desktop notification when a shell process exits (#54)
   - Useful for long-running commands where users switch to other applications
   - Per-tab tracking ensures notification fires only once per session
-  - Config option: `notification_session_ended` (default: true)
+  - Config option: `notification_session_ended` (default: false)
   - Settings UI checkbox in Bell & Notifications section
 
 - **Suppress Notifications When Focused**: Smart notification filtering (#54)

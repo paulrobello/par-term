@@ -11,8 +11,8 @@ use par_term::config::Config;
 fn test_session_ended_notification_config_defaults() {
     let config = Config::default();
 
-    // Session ended notifications are enabled by default
-    assert!(config.notification_session_ended);
+    // Session ended notifications are disabled by default
+    assert!(!config.notification_session_ended);
 }
 
 /// Test that suppress notifications when focused config defaults are correct.
@@ -79,7 +79,7 @@ fn test_session_notification_config_yaml_serialization() {
     let yaml = serde_yaml::to_string(&config).unwrap();
 
     // Check that the fields are present in serialization
-    assert!(yaml.contains("notification_session_ended: true"));
+    assert!(yaml.contains("notification_session_ended: false"));
     assert!(yaml.contains("suppress_notifications_when_focused: true"));
 }
 
@@ -193,6 +193,6 @@ fn test_empty_yaml_uses_defaults() {
     let yaml = "";
     let config: Config = serde_yaml::from_str(yaml).unwrap();
 
-    assert!(config.notification_session_ended);
+    assert!(!config.notification_session_ended);
     assert!(config.suppress_notifications_when_focused);
 }
