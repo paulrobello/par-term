@@ -76,6 +76,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New "Keyboard Input" section in Settings UI
   - Config options: `left_option_key_mode` and `right_option_key_mode`
 
+- **Cursor Text Color**: Configurable text color under block cursor (#25)
+  - New `cursor_text_color` option to customize text visibility under block cursor
+  - Optional: When not set, uses automatic contrast calculation (dark text on bright cursor, bright text on dark cursor)
+  - Settings UI with checkbox toggle and color picker in Cursor tab
+  - Only affects block cursor style (beam and underline don't obscure text)
+
 - **Cursor Enhancements**: iTerm2-style cursor visibility improvements (#26)
   - **Cursor Guide**: Horizontal line spanning terminal width at cursor row
     - Configurable RGBA color with low default alpha
