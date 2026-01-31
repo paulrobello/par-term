@@ -22,7 +22,8 @@ pub use shader_metadata::{
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
     FontRange, KeyBinding, OptionKeyMode, ShaderConfig, ShaderInstallPrompt, ShaderMetadata,
-    TabBarMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode,
+    SmartSelectionPrecision, SmartSelectionRule, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle,
+    UpdateCheckFrequency, VsyncMode, default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -388,6 +389,27 @@ pub struct Config {
     /// Triple-click timing threshold in milliseconds (typically same as double-click)
     #[serde(default = "defaults::triple_click_threshold")]
     pub mouse_triple_click_threshold: u64,
+
+    // ========================================================================
+    // Word Selection
+    // ========================================================================
+    /// Characters considered part of a word for double-click selection (in addition to alphanumeric)
+    /// Default: "/-+\\~_." (matches iTerm2)
+    /// Example: If you want to select entire paths, add "/" to include path separators
+    #[serde(default = "defaults::word_characters")]
+    pub word_characters: String,
+
+    /// Enable smart selection rules for pattern-based double-click selection
+    /// When enabled, double-click will try to match patterns like URLs, emails, paths
+    /// before falling back to word boundary selection
+    #[serde(default = "defaults::smart_selection_enabled")]
+    pub smart_selection_enabled: bool,
+
+    /// Smart selection rules for pattern-based double-click selection
+    /// Rules are evaluated by precision (highest first). If a pattern matches
+    /// at the cursor position, that text is selected instead of using word boundaries.
+    #[serde(default = "types::default_smart_selection_rules")]
+    pub smart_selection_rules: Vec<SmartSelectionRule>,
 
     // ========================================================================
     // Scrollback & Cursor
@@ -856,6 +878,9 @@ impl Default for Config {
             mouse_scroll_speed: defaults::scroll_speed(),
             mouse_double_click_threshold: defaults::double_click_threshold(),
             mouse_triple_click_threshold: defaults::triple_click_threshold(),
+            word_characters: defaults::word_characters(),
+            smart_selection_enabled: defaults::smart_selection_enabled(),
+            smart_selection_rules: default_smart_selection_rules(),
             screenshot_format: defaults::screenshot_format(),
             max_fps: defaults::max_fps(),
             vsync_mode: VsyncMode::default(),

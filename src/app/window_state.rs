@@ -16,6 +16,7 @@ use crate::search::SearchUI;
 use crate::selection::SelectionMode;
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
+use crate::smart_selection::SmartSelectionCache;
 use crate::tab::TabManager;
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
 use anyhow::Result;
@@ -117,6 +118,9 @@ pub struct WindowState {
 
     /// Keybinding registry for user-defined keyboard shortcuts
     pub(crate) keybinding_registry: KeybindingRegistry,
+
+    /// Cache for compiled smart selection regex patterns
+    pub(crate) smart_selection_cache: SmartSelectionCache,
 }
 
 impl WindowState {
@@ -179,6 +183,8 @@ impl WindowState {
             resize_dimensions: None,
 
             keybinding_registry,
+
+            smart_selection_cache: SmartSelectionCache::new(),
         }
     }
 
