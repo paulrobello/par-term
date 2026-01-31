@@ -13,15 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Advanced Mouse Features**: Implement mouse/pointer features from iTerm2 (#43)
   - **Platform-appropriate URL modifier**: Cmd+click on macOS, Ctrl+click on Windows/Linux to open URLs
-  - **Option+Click moves cursor**: Position cursor at clicked location using escape sequences
+  - **Option+Click moves cursor**: Position cursor at clicked location using arrow key sequences
     - Config option: `option_click_moves_cursor` (default: true)
     - Only works at bottom of scrollback (not scrolled back)
     - Disabled on alternate screen (TUI apps handle their own cursor)
+    - Uses shell's cursor position to calculate movement delta
   - **Focus follows mouse**: Auto-focus window when cursor enters
     - Config option: `focus_follows_mouse` (default: false, opt-in)
   - **Horizontal scroll reporting**: Report horizontal scroll to apps with mouse tracking
     - Uses button codes 66 (left) and 67 (right)
     - Config option: `report_horizontal_scroll` (default: true)
+  - **Rectangular selection**: Now uses Option+Cmd (matching iTerm2), freeing Option alone for cursor positioning
   - Settings UI controls in Mouse Behavior section
 
 - **Auto-Quote Dropped Files**: Automatically quote file paths when dragging and dropping files into the terminal (#39)
@@ -204,6 +206,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Option+Click Cursor Movement**: Use arrow key sequences instead of absolute cursor positioning
+  - Shells interpret arrow keys correctly for cursor movement within command line
+  - Queries terminal's actual cursor position to calculate movement delta
+- **Option+Click Selection Conflict**: Prevent text selection when Option+click moves cursor
+  - Button press state now set after special click handlers return
+  - Rectangular selection changed to Option+Cmd (matching iTerm2)
 - **Custom Shader Background Handling**: Preserve solid color background when custom shader is disabled
 - **Full Content Mode Compositing**: Shader output used directly without re-compositing terminal content on top
 

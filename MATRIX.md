@@ -174,7 +174,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Copy trailing newline | ✅ `Copy Last Newline` | ✅ `copy_trailing_newline` | ✅ | - | - | - |
 | Middle-click paste | ✅ | ✅ `middle_click_paste` | ✅ | - | - | - |
 | Clipboard history | ✅ | ✅ Cmd/Ctrl+Shift+H | ✅ | - | - | - |
-| Block/rectangular selection | ✅ | ✅ | ✅ | - | - | - |
+| Block/rectangular selection | ✅ | ✅ | ✅ | - | - | Option+Cmd (matches iTerm2) |
 | Word selection | ✅ | ✅ | ✅ | - | - | - |
 | Line selection | ✅ | ✅ | ✅ | - | - | - |
 | Triple-click selects wrapped lines | ✅ `Triple Click Selects Full Wrapped Lines` | ✅ | ✅ | - | - | - |
@@ -196,7 +196,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Triple-click threshold | ✅ | ✅ `mouse_triple_click_threshold` | ✅ | - | - | - |
 | Mouse reporting | ✅ `Mouse Reporting` | ✅ | ✅ | - | - | ANSI mouse sequences |
 | Cmd+click opens URLs | ✅ `Cmd Click Opens URLs` | ✅ Cmd/Ctrl+click | ✅ | - | - | Cmd on macOS, Ctrl elsewhere |
-| Option+click moves cursor | ✅ `Option Click Moves Cursor` | ✅ `option_click_moves_cursor` | ✅ | - | - | Option/Alt+click positions cursor |
+| Option+click moves cursor | ✅ `Option Click Moves Cursor` | ✅ `option_click_moves_cursor` | ✅ | - | - | Uses arrow keys for shell compatibility |
 | Focus follows mouse | ✅ `Focus Follows Mouse` | ✅ `focus_follows_mouse` | ✅ | - | - | Auto-focus on hover (opt-in) |
 | Three-finger middle click | ✅ `Three Finger Emulates Middle` | ❌ | ❌ | ⭐ | 🟡 | Requires platform gesture APIs |
 | Right-click context menu | ✅ | ✅ | ✅ | - | - | - |
