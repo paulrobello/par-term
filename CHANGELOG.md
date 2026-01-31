@@ -121,6 +121,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `hidden`: Hide cursor completely when unfocused
   - All enhancements configurable via Settings > Cursor tab
 
+### Changed
+
+- **Core Library Update**: Now depends on published `par-term-emu-core-rust` v0.23.0 from crates.io (includes ENQ answerback support) instead of the local path override
+
 ### Fixed
 
 - **Tab Bar Click Reliability**: Fixed missed clicks and wrong-tab-selection issues

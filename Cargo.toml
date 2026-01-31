@@ -22,10 +22,8 @@ exclude = [
 ]
 
 [dependencies]
-# Terminal emulator core
-# TODO: Update to crates.io version after par-term-emu-core-rust publishes answerback support
-# Currently using local path for answerback feature (issue #45)
-par-term-emu-core-rust = { path = "../par-term-emu-core-rust", default-features = false }
+# Terminal emulator core (ENQ answerback support)
+par-term-emu-core-rust = { version = "0.23.0", default-features = false, features = ["rust-only"] }
 
 # Window management and rendering
 winit = "0.30"

@@ -955,6 +955,20 @@ impl WindowManager {
                     term.set_theme(config.load_theme());
                 }
 
+                // Update ENQ answerback string across all tabs when changed
+                if changes.answerback_string {
+                    let answerback = if config.answerback_string.is_empty() {
+                        None
+                    } else {
+                        Some(config.answerback_string.clone())
+                    };
+                    for tab in window_state.tab_manager.tabs_mut() {
+                        if let Ok(term) = tab.terminal.try_lock() {
+                            term.set_answerback_string(answerback.clone());
+                        }
+                    }
+                }
+
                 // Resolve per-shader settings (user override -> metadata defaults -> global)
                 // This is computed once and used for both shader enable and background-as-channel0
                 let shader_override = config

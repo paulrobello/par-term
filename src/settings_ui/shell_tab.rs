@@ -76,35 +76,4 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, _changes_this_frame: &
             settings.has_changes = true;
         }
     });
-
-    ui.add_space(8.0);
-
-    ui.collapsing("Terminal Identification", |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Answerback string:");
-            if ui
-                .text_edit_singleline(&mut settings.config.answerback_string)
-                .on_hover_text(
-                    "String sent in response to ENQ (0x05) control character.\n\
-                     Used for legacy terminal identification.\n\
-                     Leave empty (default) for security.\n\
-                     Common values: \"par-term\", \"vt100\"",
-                )
-                .changed()
-            {
-                settings.has_changes = true;
-            }
-        });
-
-        ui.horizontal(|ui| {
-            ui.add_space(4.0);
-            ui.label(
-                egui::RichText::new(
-                    "⚠ Security: Setting this may expose terminal identification to applications",
-                )
-                .small()
-                .color(egui::Color32::YELLOW),
-            );
-        });
-    });
 }
