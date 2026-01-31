@@ -730,6 +730,22 @@ impl TerminalManager {
         let mut term = terminal.lock();
         term.set_answerback_string(answerback);
     }
+
+    /// Set the Unicode width configuration for character width calculations
+    ///
+    /// This affects how the terminal calculates character widths for cursor
+    /// positioning and text layout, particularly for:
+    /// - Emoji (different Unicode versions have different width assignments)
+    /// - East Asian Ambiguous characters (can be narrow or wide)
+    ///
+    /// # Arguments
+    /// * `config` - The width configuration to use
+    pub fn set_width_config(&self, config: par_term_emu_core_rust::WidthConfig) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.set_width_config(config);
+    }
 }
 
 impl Drop for TerminalManager {

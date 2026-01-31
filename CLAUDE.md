@@ -140,6 +140,45 @@ make coverage       # Generate test coverage (requires cargo-tarpaulin)
 make bundle         # Create macOS .app bundle (macOS only)
 ```
 
+## Task Tracking Requirements
+
+**IMPORTANT**: Always use the task system (TaskCreate/TaskUpdate) for ALL work, even small jobs. This enables external monitoring of progress.
+
+### When to Create Tasks
+- **Always** create tasks before starting any work
+- Single-step tasks are fine - the goal is visibility, not complexity
+- Break multi-step work into individual tasks
+
+### Task Workflow
+1. **Create tasks** at the start of any request using `TaskCreate`
+2. **Mark in_progress** when starting work on a task using `TaskUpdate`
+3. **Mark completed** when the task is done
+4. **Use TaskList** to show current progress
+
+### Example Task Flow
+```
+User: "Fix the scrollbar rendering bug"
+
+1. TaskCreate: "Investigate scrollbar rendering issue"
+2. TaskUpdate: status=in_progress
+3. [Do investigation work]
+4. TaskUpdate: status=completed
+5. TaskCreate: "Fix scrollbar calculation in renderer"
+6. TaskUpdate: status=in_progress
+7. [Make the fix]
+8. TaskUpdate: status=completed
+9. TaskCreate: "Verify scrollbar fix with tests"
+10. TaskUpdate: status=in_progress
+11. [Run tests]
+12. TaskUpdate: status=completed
+```
+
+### Why This Matters
+- External tools can monitor Claude's progress in real-time
+- Users can see what Claude is currently working on
+- Provides audit trail of completed work
+- Enables progress reporting for long-running tasks
+
 ## Architecture Overview
 
 ### Core Components

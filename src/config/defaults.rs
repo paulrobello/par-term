@@ -350,3 +350,11 @@ pub fn smart_selection_enabled() -> bool {
 pub fn answerback_string() -> String {
     String::new() // Empty/disabled by default for security
 }
+
+pub fn unicode_version() -> par_term_emu_core_rust::UnicodeVersion {
+    par_term_emu_core_rust::UnicodeVersion::Auto
+}
+
+pub fn ambiguous_width() -> par_term_emu_core_rust::AmbiguousWidth {
+    par_term_emu_core_rust::AmbiguousWidth::Narrow
+}
