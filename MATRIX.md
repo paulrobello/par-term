@@ -183,7 +183,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Paste bracketing | ✅ `Allow Paste Bracketing` | ✅ | ✅ | - | - | - |
 | Paste special options | ✅ Many transformations | ❌ | ❌ | ⭐⭐ | 🟡 | Tab→spaces, escape, etc. |
 | Allow terminal clipboard access | ✅ `Allow Clipboard Access From Terminal` | ✅ OSC 52 | ✅ | - | - | - |
-| Wrap filenames in quotes | ✅ | ❌ | ❌ | ⭐ | 🟢 | Auto-quote dropped files |
+| Wrap filenames in quotes | ✅ | ✅ `dropped_file_quote_style` | ✅ | - | - | Auto-quote dropped files with configurable style |
 
 ---
 

@@ -3,8 +3,8 @@
 //! This module contains `WindowState`, which holds all state specific to a single window,
 //! including its renderer, tab manager, input handler, and UI components.
 
-use crate::app::debug_state::DebugState;
 use crate::app::anti_idle::should_send_keep_alive;
+use crate::app::debug_state::DebugState;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::config::{
     Config, CursorShaderMetadataCache, CursorStyle, ShaderInstallPrompt, ShaderMetadataCache,
@@ -619,8 +619,7 @@ impl WindowState {
             return None;
         }
 
-        let idle_threshold =
-            std::time::Duration::from_secs(self.config.anti_idle_seconds.max(1));
+        let idle_threshold = std::time::Duration::from_secs(self.config.anti_idle_seconds.max(1));
         let keep_alive_code = [self.config.anti_idle_code];
         let mut next_due: Option<std::time::Instant> = None;
 

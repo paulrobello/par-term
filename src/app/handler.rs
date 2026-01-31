@@ -378,6 +378,10 @@ impl WindowState {
                 self.render();
             }
 
+            WindowEvent::DroppedFile(path) => {
+                self.handle_dropped_file(path);
+            }
+
             _ => {}
         }
 

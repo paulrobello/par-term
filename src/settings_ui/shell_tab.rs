@@ -113,7 +113,9 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, _changes_this_frame: &
     });
 
     ui.collapsing("Anti-Idle Keep-Alive", |ui| {
-        ui.label("Prevents SSH and connection timeouts by periodically sending invisible characters.");
+        ui.label(
+            "Prevents SSH and connection timeouts by periodically sending invisible characters.",
+        );
         ui.add_space(4.0);
 
         if ui
@@ -156,28 +158,44 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, _changes_this_frame: &
                 })
                 .show_ui(ui, |ui| {
                     if ui
-                        .selectable_value(&mut settings.config.anti_idle_code, 0, "NUL (0x00) - Null character, most common")
+                        .selectable_value(
+                            &mut settings.config.anti_idle_code,
+                            0,
+                            "NUL (0x00) - Null character, most common",
+                        )
                         .changed()
                     {
                         settings.has_changes = true;
                         *_changes_this_frame = true;
                     }
                     if ui
-                        .selectable_value(&mut settings.config.anti_idle_code, 27, "ESC (0x1B) - Escape, safe for most apps")
+                        .selectable_value(
+                            &mut settings.config.anti_idle_code,
+                            27,
+                            "ESC (0x1B) - Escape, safe for most apps",
+                        )
                         .changed()
                     {
                         settings.has_changes = true;
                         *_changes_this_frame = true;
                     }
                     if ui
-                        .selectable_value(&mut settings.config.anti_idle_code, 5, "ENQ (0x05) - Enquiry, may trigger answerback")
+                        .selectable_value(
+                            &mut settings.config.anti_idle_code,
+                            5,
+                            "ENQ (0x05) - Enquiry, may trigger answerback",
+                        )
                         .changed()
                     {
                         settings.has_changes = true;
                         *_changes_this_frame = true;
                     }
                     if ui
-                        .selectable_value(&mut settings.config.anti_idle_code, 32, "Space (0x20) - Visible but harmless")
+                        .selectable_value(
+                            &mut settings.config.anti_idle_code,
+                            32,
+                            "Space (0x20) - Visible but harmless",
+                        )
                         .changed()
                     {
                         settings.has_changes = true;
