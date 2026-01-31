@@ -53,6 +53,11 @@ pub(crate) struct ConfigChanges {
     // Terminal identification
     pub answerback_string: bool,
 
+    // Anti-idle keep-alive
+    pub anti_idle_enabled: bool,
+    pub anti_idle_seconds: bool,
+    pub anti_idle_code: bool,
+
     // Background (mode, image, and solid color)
     pub bg_mode: bool,
     pub bg_color: bool,
@@ -161,6 +166,10 @@ impl ConfigChanges {
                 || new.unfocused_cursor_style != old.unfocused_cursor_style,
 
             answerback_string: new.answerback_string != old.answerback_string,
+
+            anti_idle_enabled: new.anti_idle_enabled != old.anti_idle_enabled,
+            anti_idle_seconds: new.anti_idle_seconds != old.anti_idle_seconds,
+            anti_idle_code: new.anti_idle_code != old.anti_idle_code,
 
             bg_mode: new.background_mode != old.background_mode,
             bg_color: new.background_color != old.background_color,

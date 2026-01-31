@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Anti-Idle Keep-Alive**: Prevent SSH and connection timeouts by periodically sending invisible characters (#47)
+  - Configurable idle threshold (10-3600 seconds, default: 60)
+  - Configurable keep-alive character (NUL, ESC, ENQ, Space, or custom ASCII code)
+  - Tracks both keyboard input and terminal output as activity
+  - Per-tab activity tracking with automatic keep-alive on idle
+  - Config options: `anti_idle_enabled`, `anti_idle_seconds`, `anti_idle_code`
+  - Settings UI in Shell tab with presets dropdown and custom code input
+
 - **Initial Startup Text**: Auto-send configurable text/commands when a session starts (#48)
   - Config options: `initial_text`, `initial_text_delay_ms`, `initial_text_send_newline`
   - Escape support: `\n`, `\r`, `\t`, `\xHH`, `\e`; normalizes to CR for Enter behavior

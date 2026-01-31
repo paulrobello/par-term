@@ -4,6 +4,7 @@
 //! including its renderer, tab manager, input handler, and UI components.
 
 use crate::app::debug_state::DebugState;
+use crate::app::anti_idle::should_send_keep_alive;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::config::{
     Config, CursorShaderMetadataCache, CursorStyle, ShaderInstallPrompt, ShaderMetadataCache,
@@ -605,6 +606,59 @@ impl WindowState {
 
         // Reinitialize if hot reload is still enabled
         self.init_shader_watcher();
+    }
+
+    /// Check anti-idle timers and send keep-alive codes when due.
+    ///
+    /// Returns the next Instant when anti-idle should run, or None if disabled.
+    pub(crate) fn handle_anti_idle(
+        &mut self,
+        now: std::time::Instant,
+    ) -> Option<std::time::Instant> {
+        if !self.config.anti_idle_enabled {
+            return None;
+        }
+
+        let idle_threshold =
+            std::time::Duration::from_secs(self.config.anti_idle_seconds.max(1));
+        let keep_alive_code = [self.config.anti_idle_code];
+        let mut next_due: Option<std::time::Instant> = None;
+
+        for tab in self.tab_manager.tabs_mut() {
+            if let Ok(term) = tab.terminal.try_lock() {
+                // Treat new terminal output as activity
+                let current_generation = term.update_generation();
+                if current_generation > tab.anti_idle_last_generation {
+                    tab.anti_idle_last_generation = current_generation;
+                    tab.anti_idle_last_activity = now;
+                }
+
+                // If idle long enough, send keep-alive code
+                if should_send_keep_alive(tab.anti_idle_last_activity, now, idle_threshold) {
+                    if let Err(e) = term.write(&keep_alive_code) {
+                        log::warn!(
+                            "Failed to send anti-idle keep-alive for tab {}: {}",
+                            tab.id,
+                            e
+                        );
+                    } else {
+                        tab.anti_idle_last_activity = now;
+                    }
+                }
+
+                // Compute next due time for this tab
+                let elapsed = now.duration_since(tab.anti_idle_last_activity);
+                let remaining = if elapsed >= idle_threshold {
+                    idle_threshold
+                } else {
+                    idle_threshold - elapsed
+                };
+                let candidate = now + remaining;
+                next_due = Some(next_due.map_or(candidate, |prev| prev.min(candidate)));
+            }
+        }
+
+        next_due
     }
 
     /// Check for and handle shader reload events

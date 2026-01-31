@@ -628,6 +628,18 @@ pub struct Config {
     #[serde(default = "defaults::activity_threshold", alias = "activity_threshold")]
     pub notification_activity_threshold: u64,
 
+    /// Enable anti-idle keep-alive (sends code after idle period)
+    #[serde(default = "defaults::bool_false")]
+    pub anti_idle_enabled: bool,
+
+    /// Seconds of inactivity before sending keep-alive code
+    #[serde(default = "defaults::anti_idle_seconds")]
+    pub anti_idle_seconds: u64,
+
+    /// ASCII code to send as keep-alive (e.g., 0 = NUL, 27 = ESC)
+    #[serde(default = "defaults::anti_idle_code")]
+    pub anti_idle_code: u8,
+
     /// Enable notifications after prolonged silence
     #[serde(default = "defaults::bool_false", alias = "silence_notifications")]
     pub notification_silence_enabled: bool,
@@ -964,6 +976,9 @@ impl Default for Config {
             notification_bell_visual: defaults::bool_true(),
             notification_activity_enabled: defaults::bool_false(),
             notification_activity_threshold: defaults::activity_threshold(),
+            anti_idle_enabled: defaults::bool_false(),
+            anti_idle_seconds: defaults::anti_idle_seconds(),
+            anti_idle_code: defaults::anti_idle_code(),
             notification_silence_enabled: defaults::bool_false(),
             notification_silence_threshold: defaults::silence_threshold(),
             notification_max_buffer: defaults::notification_max_buffer(),

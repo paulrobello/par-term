@@ -231,7 +231,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Environment variables | ✅ | ✅ `shell_env` | ✅ | - | - | - |
 | Exit behavior | ✅ Close/Restart | ✅ `exit_on_shell_exit` | 🔶 | ⭐⭐ | 🟢 | Add restart option |
 | Initial text to send | ✅ `Initial Text` | ✅ `initial_text` | ✅ | ⭐⭐ | 🟢 | Send text on start with delay/newline + escapes |
-| Anti-idle (keep-alive) | ✅ `Send Code When Idle` | ❌ | ❌ | ⭐⭐ | 🟢 | Prevent SSH timeouts |
+| Anti-idle (keep-alive) | ✅ `Send Code When Idle` | ✅ `anti_idle_enabled` | ✅ | ⭐⭐ | 🟢 | Prevent SSH timeouts |
 | Jobs to ignore | ✅ | ❌ | ❌ | ⭐ | 🟢 | Ignore specific processes |
 | Session close undo timeout | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Recover closed tabs |
 | TERM variable | ✅ `Terminal Type` | ✅ | ✅ | - | - | Set via environment |
@@ -488,7 +488,6 @@ Full tmux control mode integration would require:
 2. Option+click moves cursor (⭐⭐, 🟢)
 3. Session ended notification (⭐⭐, 🟢)
 4. Suppress alerts when focused (⭐⭐, 🟢)
-5. Anti-idle keep-alive (⭐⭐, 🟢)
 
 **Phase 2 - Medium Effort, High Value**
 1. Tab bar position options (⭐⭐, 🟡)

@@ -613,6 +613,14 @@ impl WindowState {
             }
         }
 
+        // 8. Anti-idle Keep-alive
+        // Periodically send keep-alive codes to prevent SSH/connection timeouts.
+        if let Some(next_anti_idle) = self.handle_anti_idle(now)
+            && next_anti_idle < next_wake
+        {
+            next_wake = next_anti_idle;
+        }
+
         // --- TRIGGER REDRAW ---
         // Request a redraw if any of the logic above determined an update is due.
         if self.needs_redraw

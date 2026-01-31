@@ -217,8 +217,11 @@ impl WindowState {
 
         // Normal key handling - send to terminal
         if let Some(bytes) = self.input_handler.handle_key_event(event)
-            && let Some(tab) = self.tab_manager.active_tab()
+            && let Some(tab) = self.tab_manager.active_tab_mut()
         {
+            // Reset anti-idle timer on keyboard input
+            tab.anti_idle_last_activity = std::time::Instant::now();
+
             let terminal_clone = Arc::clone(&tab.terminal);
 
             self.runtime.spawn(async move {

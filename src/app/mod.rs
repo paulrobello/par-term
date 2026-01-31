@@ -20,6 +20,7 @@ pub mod input_events;
 pub mod keyboard_handlers;
 pub mod mouse;
 pub mod mouse_events;
+pub mod anti_idle;
 mod notifications;
 pub mod render_cache;
 pub mod renderer_init;
