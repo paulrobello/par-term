@@ -195,12 +195,12 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Double-click threshold | ✅ | ✅ `mouse_double_click_threshold` | ✅ | - | - | - |
 | Triple-click threshold | ✅ | ✅ `mouse_triple_click_threshold` | ✅ | - | - | - |
 | Mouse reporting | ✅ `Mouse Reporting` | ✅ | ✅ | - | - | ANSI mouse sequences |
-| Cmd+click opens URLs | ✅ `Cmd Click Opens URLs` | ✅ Ctrl+click | ✅ | - | - | Different modifier |
-| Option+click moves cursor | ✅ `Option Click Moves Cursor` | ❌ | ❌ | ⭐⭐ | 🟢 | Position cursor at click |
-| Focus follows mouse | ✅ `Focus Follows Mouse` | ❌ | ❌ | ⭐ | 🟢 | Auto-focus on hover |
-| Three-finger middle click | ✅ `Three Finger Emulates Middle` | ❌ | ❌ | ⭐ | 🟢 | Trackpad gesture |
+| Cmd+click opens URLs | ✅ `Cmd Click Opens URLs` | ✅ Cmd/Ctrl+click | ✅ | - | - | Cmd on macOS, Ctrl elsewhere |
+| Option+click moves cursor | ✅ `Option Click Moves Cursor` | ✅ `option_click_moves_cursor` | ✅ | - | - | Option/Alt+click positions cursor |
+| Focus follows mouse | ✅ `Focus Follows Mouse` | ✅ `focus_follows_mouse` | ✅ | - | - | Auto-focus on hover (opt-in) |
+| Three-finger middle click | ✅ `Three Finger Emulates Middle` | ❌ | ❌ | ⭐ | 🟡 | Requires platform gesture APIs |
 | Right-click context menu | ✅ | ✅ | ✅ | - | - | - |
-| Horizontal scroll reporting | ✅ `Report Horizontal Scroll Events` | ❌ | ❌ | ⭐ | 🟢 | Niche use case |
+| Horizontal scroll reporting | ✅ `Report Horizontal Scroll Events` | ✅ `report_horizontal_scroll` | ✅ | - | - | Button codes 66/67 |
 
 ---
 
@@ -485,9 +485,9 @@ Full tmux control mode integration would require:
 
 **Phase 1 - Quick Wins (Low Effort, High Value)**
 1. Smart cursor color (⭐⭐, 🟢)
-2. Option+click moves cursor (⭐⭐, 🟢)
-3. Session ended notification (⭐⭐, 🟢)
-4. Suppress alerts when focused (⭐⭐, 🟢)
+2. Session ended notification (⭐⭐, 🟢)
+3. Suppress alerts when focused (⭐⭐, 🟢)
+4. Faint text alpha (⭐, 🟢)
 
 **Phase 2 - Medium Effort, High Value**
 1. Tab bar position options (⭐⭐, 🟡)
