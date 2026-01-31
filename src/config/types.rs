@@ -539,7 +539,8 @@ pub fn default_smart_selection_rules() -> Vec<SmartSelectionRule> {
         ),
         SmartSelectionRule::new(
             "Java/Python import",
-            r"(?:[a-zA-Z_][a-zA-Z0-9_]*\.)+[a-zA-Z_][a-zA-Z0-9_]*",
+            // Require at least 2 dots to avoid matching simple filenames like "file.txt"
+            r"(?:[a-zA-Z_][a-zA-Z0-9_]*\.){2,}[a-zA-Z_][a-zA-Z0-9_]*",
             SmartSelectionPrecision::Normal,
         ),
         SmartSelectionRule::new(
