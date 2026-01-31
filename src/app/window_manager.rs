@@ -1052,6 +1052,21 @@ impl WindowManager {
                 last_cursor_shader_result = Some(result);
             }
 
+            // Apply font rendering changes that can update live
+            if changes.font_rendering {
+                if let Some(renderer) = &mut window_state.renderer {
+                    let mut updated = false;
+                    updated |= renderer.update_font_antialias(config.font_antialias);
+                    updated |= renderer.update_font_hinting(config.font_hinting);
+                    updated |= renderer.update_font_thin_strokes(config.font_thin_strokes);
+                    if updated {
+                        window_state.needs_redraw = true;
+                    }
+                } else {
+                    window_state.pending_font_rebuild = true;
+                }
+            }
+
             // Apply window-related changes
             if let Some(window) = &window_state.window {
                 if changes.window_title {

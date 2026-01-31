@@ -63,6 +63,8 @@ pub(crate) struct ConfigChanges {
 
     // Font/spacing (requires rebuild)
     pub font: bool,
+    // Font rendering options that can be applied live without full rebuild
+    pub font_rendering: bool,
     pub padding: bool,
 
     // Shader hot reload
@@ -175,6 +177,9 @@ impl ConfigChanges {
                 || (new.font_size - old.font_size).abs() > f32::EPSILON
                 || (new.line_spacing - old.line_spacing).abs() > f32::EPSILON
                 || (new.char_spacing - old.char_spacing).abs() > f32::EPSILON,
+            font_rendering: new.font_antialias != old.font_antialias
+                || new.font_hinting != old.font_hinting
+                || new.font_thin_strokes != old.font_thin_strokes,
             padding: (new.window_padding - old.window_padding).abs() > f32::EPSILON,
 
             shader_hot_reload: new.shader_hot_reload != old.shader_hot_reload,
