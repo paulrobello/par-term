@@ -1079,7 +1079,11 @@ impl Config {
         if config_path.exists() {
             log::info!("Loading existing config from {:?}", config_path);
             let contents = fs::read_to_string(&config_path)?;
-            let config: Config = serde_yaml::from_str(&contents)?;
+            let mut config: Config = serde_yaml::from_str(&contents)?;
+
+            // Merge in any new default keybindings that don't exist in user's config
+            config.merge_default_keybindings();
+
             Ok(config)
         } else {
             log::info!(
@@ -1094,6 +1098,41 @@ impl Config {
             }
             log::info!("Default config created successfully");
             Ok(config)
+        }
+    }
+
+    /// Merge default keybindings into the user's config.
+    /// Only adds keybindings for actions that don't already exist in the user's config.
+    /// This ensures new features with default keybindings are available to existing users.
+    fn merge_default_keybindings(&mut self) {
+        let default_keybindings = defaults::keybindings();
+
+        // Get the set of actions already configured by the user (owned strings to avoid borrow issues)
+        let existing_actions: std::collections::HashSet<String> = self
+            .keybindings
+            .iter()
+            .map(|kb| kb.action.clone())
+            .collect();
+
+        // Add any default keybindings whose actions are not already configured
+        let mut added_count = 0;
+        for default_kb in default_keybindings {
+            if !existing_actions.contains(&default_kb.action) {
+                log::info!(
+                    "Adding new default keybinding: {} -> {}",
+                    default_kb.key,
+                    default_kb.action
+                );
+                self.keybindings.push(default_kb);
+                added_count += 1;
+            }
+        }
+
+        if added_count > 0 {
+            log::info!(
+                "Merged {} new default keybinding(s) into user config",
+                added_count
+            );
         }
     }
 

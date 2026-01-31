@@ -12,6 +12,7 @@ use crate::config::{
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::keybindings::KeybindingRegistry;
+use crate::paste_special_ui::{PasteSpecialAction, PasteSpecialUI};
 use crate::renderer::Renderer;
 use crate::search::SearchUI;
 use crate::selection::SelectionMode;
@@ -65,6 +66,8 @@ pub struct WindowState {
     pub(crate) help_ui: HelpUI,
     /// Clipboard history UI manager
     pub(crate) clipboard_history_ui: ClipboardHistoryUI,
+    /// Paste special UI manager (text transformations)
+    pub(crate) paste_special_ui: PasteSpecialUI,
     /// Search UI manager
     pub(crate) search_ui: SearchUI,
     /// Shader install prompt UI
@@ -158,6 +161,7 @@ impl WindowState {
             cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
             help_ui: HelpUI::new(),
             clipboard_history_ui: ClipboardHistoryUI::new(),
+            paste_special_ui: PasteSpecialUI::new(),
             search_ui: SearchUI::new(),
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
@@ -1374,6 +1378,8 @@ impl WindowState {
         let _ = &debug_actual_render_time;
         // Clipboard action to handle after rendering (declared here to survive renderer borrow)
         let mut pending_clipboard_action = ClipboardHistoryAction::None;
+        // Paste special action to handle after rendering
+        let mut pending_paste_special_action = PasteSpecialAction::None;
         // Tab bar action to handle after rendering (declared here to survive renderer borrow)
         let mut pending_tab_action = TabBarAction::None;
         // Shader install response to handle after rendering
@@ -1583,6 +1589,9 @@ impl WindowState {
                     // Show clipboard history UI and collect action
                     pending_clipboard_action = self.clipboard_history_ui.show(ctx);
 
+                    // Show paste special UI and collect action
+                    pending_paste_special_action = self.paste_special_ui.show(ctx);
+
                     // Show search UI and collect action
                     pending_search_action = self.search_ui.show(ctx, visible_lines, scrollback_len);
 
@@ -1783,6 +1792,15 @@ impl WindowState {
                 }
             }
             ClipboardHistoryAction::None => {}
+        }
+
+        // Handle paste special actions collected during egui rendering
+        match pending_paste_special_action {
+            PasteSpecialAction::Paste(content) => {
+                self.paste_text(&content);
+                log::debug!("Pasted transformed text ({} chars)", content.len());
+            }
+            PasteSpecialAction::None => {}
         }
 
         // Handle search actions collected during egui rendering
