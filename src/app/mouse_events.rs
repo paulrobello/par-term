@@ -130,36 +130,53 @@ impl WindowState {
                 }
 
                 // --- 3. Option+Click Cursor Positioning ---
-                // Move cursor to clicked position when Option/Alt is pressed
+                // Move cursor to clicked position when Option/Alt is pressed (without Cmd/Super)
+                // This sends arrow key sequences to move the cursor within the shell line
                 // macOS: Option+Click (matches iTerm2)
                 // Windows/Linux: Alt+Click
+                // Note: Option+Cmd is reserved for rectangular selection (matching iTerm2)
                 if state == ElementState::Pressed
                     && self.config.option_click_moves_cursor
                     && self.input_handler.modifiers.state().alt_key()
-                    && let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
+                    && !self.input_handler.modifiers.state().super_key() // Not Cmd/Super (that's for rectangular selection)
+                    && let Some((target_col, _target_row)) =
+                        self.pixel_to_cell(mouse_position.0, mouse_position.1)
                     && let Some(tab) = self.tab_manager.active_tab()
                 {
                     // Only move cursor if we're at the bottom of scrollback (current view)
                     // and not on the alternate screen (where apps handle their own cursor)
                     let at_bottom = tab.scroll_state.offset == 0;
-                    let is_alt_screen = tab
+                    let (is_alt_screen, current_col) = tab
                         .terminal
                         .try_lock()
                         .ok()
-                        .is_some_and(|t| t.is_alt_screen_active());
+                        .map(|t| (t.is_alt_screen_active(), t.cursor_position().0))
+                        .unwrap_or((true, 0));
 
                     if at_bottom && !is_alt_screen {
-                        // Generate cursor movement escape sequences
-                        // We use absolute positioning via CSI row;colH
-                        // Terminal row/col are 1-indexed in escape sequences
-                        let move_seq = format!("\x1b[{};{}H", row + 1, col + 1);
+                        // Calculate horizontal movement needed
+                        // Send arrow keys: \x1b[C (right) or \x1b[D (left)
+                        let move_seq = if target_col > current_col {
+                            // Move right
+                            let count = target_col - current_col;
+                            "\x1b[C".repeat(count)
+                        } else if target_col < current_col {
+                            // Move left
+                            let count = current_col - target_col;
+                            "\x1b[D".repeat(count)
+                        } else {
+                            // Already at target column
+                            String::new()
+                        };
 
-                        let terminal_clone = Arc::clone(&tab.terminal);
-                        let runtime = Arc::clone(&self.runtime);
-                        runtime.spawn(async move {
-                            let t = terminal_clone.lock().await;
-                            let _ = t.write(move_seq.as_bytes());
-                        });
+                        if !move_seq.is_empty() {
+                            let terminal_clone = Arc::clone(&tab.terminal);
+                            let runtime = Arc::clone(&self.runtime);
+                            runtime.spawn(async move {
+                                let t = terminal_clone.lock().await;
+                                let _ = t.write(move_seq.as_bytes());
+                            });
+                        }
                         return; // Exit early: cursor move handled
                     }
                 }
@@ -529,8 +546,11 @@ impl WindowState {
                 && click_pos != (col, row)
             {
                 // Initial drag move: Start selection if we've moved past the click threshold
-                // Alt key triggers Rectangular/Block selection mode
-                let mode = if self.input_handler.modifiers.state().alt_key() {
+                // Option+Cmd (Alt+Super) triggers Rectangular/Block selection mode (matches iTerm2)
+                // Option alone is for cursor positioning, not selection
+                let mode = if self.input_handler.modifiers.state().alt_key()
+                    && self.input_handler.modifiers.state().super_key()
+                {
                     SelectionMode::Rectangular
                 } else {
                     SelectionMode::Normal
