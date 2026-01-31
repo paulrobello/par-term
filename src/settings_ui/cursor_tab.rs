@@ -70,6 +70,49 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             }
         });
 
+        // Cursor text color (only affects block cursor)
+        ui.horizontal(|ui| {
+            ui.label("Text color (block cursor):");
+
+            // Checkbox to enable/disable custom cursor text color
+            let mut use_custom_color = settings.config.cursor_text_color.is_some();
+            if ui
+                .checkbox(&mut use_custom_color, "")
+                .on_hover_text(
+                    "Enable custom text color under block cursor. \
+                     When disabled, uses automatic contrast color.",
+                )
+                .changed()
+            {
+                if use_custom_color {
+                    // Enable: use default black text color
+                    settings.config.cursor_text_color = Some([0, 0, 0]);
+                } else {
+                    // Disable: use auto-contrast
+                    settings.config.cursor_text_color = None;
+                }
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            // Color picker (only shown when enabled)
+            if let Some(ref mut text_color) = settings.config.cursor_text_color {
+                let mut color = *text_color;
+                if ui
+                    .color_edit_button_srgb(&mut color)
+                    .on_hover_text("Color of text displayed under the block cursor")
+                    .changed()
+                {
+                    *text_color = color;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            } else {
+                ui.label("(auto)")
+                    .on_hover_text("Using automatic contrast color based on cursor brightness");
+            }
+        });
+
         ui.add_space(8.0);
         ui.label("Application Control Locks:");
 

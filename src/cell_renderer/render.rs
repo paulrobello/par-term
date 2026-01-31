@@ -506,9 +506,27 @@ impl CellRenderer {
                     + vertical_padding
                     + self.font_ascent;
 
+                // Check if this row has the cursor and it's a visible block cursor
+                // (for cursor text color override)
+                let cursor_is_block_on_this_row = {
+                    use par_term_emu_core_rust::cursor::CursorStyle;
+                    self.cursor_pos.1 == row
+                        && self.cursor_opacity > 0.0
+                        && !self.cursor_hidden_for_shader
+                        && matches!(
+                            self.cursor_style,
+                            CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock
+                        )
+                        && (self.is_focused
+                            || self.unfocused_cursor_style
+                                == crate::config::UnfocusedCursorStyle::Same)
+                };
+
+                let mut current_col = 0usize;
                 for (grapheme, bold, italic, fg_color, is_spacer, is_wide) in cell_data {
                     if is_spacer || grapheme == " " {
                         x_offset += self.cell_width;
+                        current_col += 1;
                         continue;
                     }
 
@@ -519,6 +537,34 @@ impl CellRenderer {
                     } else {
                         self.window_opacity
                     };
+
+                    // Determine text color - use cursor_text_color if this is the cursor position
+                    // with a block cursor, otherwise use the cell's foreground color
+                    let render_fg_color: [f32; 4] =
+                        if cursor_is_block_on_this_row && current_col == self.cursor_pos.0 {
+                            if let Some(cursor_text) = self.cursor_text_color {
+                                [cursor_text[0], cursor_text[1], cursor_text[2], text_alpha]
+                            } else {
+                                // Auto-contrast: use cursor color as a starting point
+                                // Simple inversion: if cursor is bright, use dark text; if dark, use bright
+                                let cursor_brightness = (self.cursor_color[0]
+                                    + self.cursor_color[1]
+                                    + self.cursor_color[2])
+                                    / 3.0;
+                                if cursor_brightness > 0.5 {
+                                    [0.0, 0.0, 0.0, text_alpha] // Dark text on bright cursor
+                                } else {
+                                    [1.0, 1.0, 1.0, text_alpha] // Bright text on dark cursor
+                                }
+                            }
+                        } else {
+                            [
+                                fg_color[0] as f32 / 255.0,
+                                fg_color[1] as f32 / 255.0,
+                                fg_color[2] as f32 / 255.0,
+                                text_alpha,
+                            ]
+                        };
 
                     let chars: Vec<char> = grapheme.chars().collect();
                     #[allow(clippy::collapsible_if)]
@@ -585,16 +631,12 @@ impl CellRenderer {
                                             self.solid_pixel_offset.1 as f32 / 2048.0,
                                         ],
                                         tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
-                                        color: [
-                                            fg_color[0] as f32 / 255.0,
-                                            fg_color[1] as f32 / 255.0,
-                                            fg_color[2] as f32 / 255.0,
-                                            text_alpha,
-                                        ],
+                                        color: render_fg_color,
                                         is_colored: 0,
                                     });
                                 }
                                 x_offset += self.cell_width;
+                                current_col += 1;
                                 continue;
                             }
 
@@ -640,16 +682,12 @@ impl CellRenderer {
                                         self.solid_pixel_offset.1 as f32 / 2048.0,
                                     ],
                                     tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
-                                    color: [
-                                        fg_color[0] as f32 / 255.0,
-                                        fg_color[1] as f32 / 255.0,
-                                        fg_color[2] as f32 / 255.0,
-                                        text_alpha,
-                                    ],
+                                    color: render_fg_color,
                                     is_colored: 0,
                                 });
 
                                 x_offset += self.cell_width;
+                                current_col += 1;
                                 continue;
                             }
                         }
@@ -740,17 +778,13 @@ impl CellRenderer {
                                 ],
                                 tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
                                 tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
-                                color: [
-                                    fg_color[0] as f32 / 255.0,
-                                    fg_color[1] as f32 / 255.0,
-                                    fg_color[2] as f32 / 255.0,
-                                    text_alpha,
-                                ],
+                                color: render_fg_color,
                                 is_colored: if info.is_colored { 1 } else { 0 },
                             });
                         }
                     }
                     x_offset += self.cell_width;
+                    current_col += 1;
                 }
 
                 // Update CPU-side buffers

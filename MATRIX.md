@@ -65,7 +65,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 |---------|--------|----------|--------|--------|--------|-------|
 | Cursor style (block/beam/underline) | ✅ `Cursor Type` | ✅ `cursor_style` | ✅ | - | - | - |
 | Cursor color | ✅ `Cursor Color` | ✅ `cursor_color` | ✅ | - | - | - |
-| Cursor text color | ✅ `Cursor Text Color` | ❌ | ❌ | ⭐⭐ | 🟢 | Text color under block cursor |
+| Cursor text color | ✅ `Cursor Text Color` | ✅ `cursor_text_color` | ✅ | - | - | Text color under block cursor |
 | Cursor blinking | ✅ `Blinking Cursor` | ✅ `cursor_blink` | ✅ | - | - | - |
 | Blink interval | ✅ | ✅ `cursor_blink_interval` | ✅ | - | - | - |
 | Allow app to change cursor blink | ✅ `Allow Change Cursor Blink` | ✅ `lock_cursor_blink` | ✅ | - | - | Inverted logic |
@@ -133,7 +133,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Tab bar position | ✅ Top/Bottom/Left | ❌ Top only | 🔶 | ⭐⭐ | 🟡 | Left tabs are useful |
 | Tab bar height | ✅ | ✅ `tab_bar_height` | ✅ | - | - | - |
 | Tab close button | ✅ `Tabs Have Close Button` | ✅ `tab_show_close_button` | ✅ | - | - | - |
-| Tab index numbers | ✅ `Hide Tab Number` | 🔶 `tab_show_index` | 🔶 | ⭐⭐ | 🟢 | Config exists, rendering stubbed |
+| Tab index numbers | ✅ `Hide Tab Number` | ✅ Hotkey indicators (⌘1-9) | ✅ | - | - | Shows shortcut on tab right side |
 | New output indicator | ✅ `Show New Output Indicator` | ✅ Activity indicator | ✅ | - | - | - |
 | Bell indicator | ✅ | ✅ `tab_bell_indicator` | ✅ | - | - | - |
 | Activity indicator | ✅ `Hide Tab Activity Indicator` | ✅ `tab_activity_indicator` | ✅ | - | - | - |
@@ -484,15 +484,13 @@ Full tmux control mode integration would require:
 ### Recommended Implementation Priority
 
 **Phase 1 - Quick Wins (Low Effort, High Value)**
-1. Cursor text color (⭐⭐, 🟢)
-2. Smart cursor color (⭐⭐, 🟢)
-3. Option+click moves cursor (⭐⭐, 🟢)
-4. Word boundary characters (⭐⭐, 🟢)
-5. Session ended notification (⭐⭐, 🟢)
-6. Suppress alerts when focused (⭐⭐, 🟢)
-7. Initial text to send on start (⭐⭐, 🟢)
-8. Anti-idle keep-alive (⭐⭐, 🟢)
-9. Tab index number rendering (⭐⭐, 🟢) - config exists, just needs rendering
+1. Smart cursor color (⭐⭐, 🟢)
+2. Option+click moves cursor (⭐⭐, 🟢)
+3. Word boundary characters (⭐⭐, 🟢)
+4. Session ended notification (⭐⭐, 🟢)
+5. Suppress alerts when focused (⭐⭐, 🟢)
+6. Initial text to send on start (⭐⭐, 🟢)
+7. Anti-idle keep-alive (⭐⭐, 🟢)
 
 **Phase 2 - Medium Effort, High Value**
 1. Tab bar position options (⭐⭐, 🟡)

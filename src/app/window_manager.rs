@@ -875,6 +875,11 @@ impl WindowManager {
                     renderer.update_cursor_color(config.cursor_color);
                 }
 
+                // Update cursor text color
+                if changes.cursor_text_color {
+                    renderer.update_cursor_text_color(config.cursor_text_color);
+                }
+
                 // Update cursor style and blink for all tabs
                 if changes.cursor_style || changes.cursor_blink {
                     use crate::config::CursorStyle as ConfigCursorStyle;
