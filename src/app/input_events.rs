@@ -388,11 +388,22 @@ impl WindowState {
                         return true;
                     }
                     Key::Named(winit::keyboard::NamedKey::Enter) => {
-                        // Paste the selected entry
+                        // Check if Shift is held for paste special
+                        let shift = self.input_handler.modifiers.state().shift_key();
                         if let Some(entry) = self.clipboard_history_ui.selected_entry() {
                             let content = entry.content.clone();
                             self.clipboard_history_ui.visible = false;
-                            self.paste_text(&content);
+
+                            if shift {
+                                // Shift+Enter: Open paste special UI with the selected content
+                                self.paste_special_ui.open(content);
+                                log::info!(
+                                    "Paste special UI opened from clipboard history"
+                                );
+                            } else {
+                                // Enter: Paste directly
+                                self.paste_text(&content);
+                            }
                             self.needs_redraw = true;
                         }
                         return true;

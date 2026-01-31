@@ -208,8 +208,9 @@ impl ClipboardHistoryUI {
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label("Hints:");
-                    ui.label("Up/Down Navigate");
+                    ui.label("↑↓ Navigate");
                     ui.label("Enter Paste");
+                    ui.label("Shift+Enter Transform");
                     ui.label("Esc Close");
                 });
             });
