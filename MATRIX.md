@@ -178,8 +178,8 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Word selection | ✅ | ✅ | ✅ | - | - | - |
 | Line selection | ✅ | ✅ | ✅ | - | - | - |
 | Triple-click selects wrapped lines | ✅ `Triple Click Selects Full Wrapped Lines` | ✅ | ✅ | - | - | - |
-| Smart selection rules | ✅ Custom regex patterns | ✅ `smart_selection_rules` | ✅ | - | - | 12 default patterns with precision levels |
-| Word boundary characters | ✅ `Characters Considered Part of Word` | ✅ `word_characters` | ✅ | - | - | Default: `/-+\~_.` (iTerm2 compatible) |
+| Smart selection rules | ✅ Custom regex patterns | ✅ `smart_selection_rules` | ✅ | - | - | 11 default patterns with precision levels, Settings UI with enable/disable per rule |
+| Word boundary characters | ✅ `Characters Considered Part of Word` | ✅ `word_characters` | ✅ | - | - | Default: `/-+\~_.` (iTerm2 compatible), Settings UI |
 | Paste bracketing | ✅ `Allow Paste Bracketing` | ✅ | ✅ | - | - | - |
 | Paste special options | ✅ Many transformations | ❌ | ❌ | ⭐⭐ | 🟡 | Tab→spaces, escape, etc. |
 | Allow terminal clipboard access | ✅ `Allow Clipboard Access From Terminal` | ✅ OSC 52 | ✅ | - | - | - |
@@ -486,22 +486,20 @@ Full tmux control mode integration would require:
 **Phase 1 - Quick Wins (Low Effort, High Value)**
 1. Smart cursor color (⭐⭐, 🟢)
 2. Option+click moves cursor (⭐⭐, 🟢)
-3. Word boundary characters (⭐⭐, 🟢)
-4. Session ended notification (⭐⭐, 🟢)
-5. Suppress alerts when focused (⭐⭐, 🟢)
-6. Initial text to send on start (⭐⭐, 🟢)
-7. Anti-idle keep-alive (⭐⭐, 🟢)
+3. Session ended notification (⭐⭐, 🟢)
+4. Suppress alerts when focused (⭐⭐, 🟢)
+5. Initial text to send on start (⭐⭐, 🟢)
+6. Anti-idle keep-alive (⭐⭐, 🟢)
 
 **Phase 2 - Medium Effort, High Value**
 1. Tab bar position options (⭐⭐, 🟡)
-3. Light/Dark mode theme switching (⭐⭐, 🟡)
-4. Minimum contrast (⭐⭐, 🟡)
-5. Timestamps in scrollback (⭐⭐, 🟡)
-6. Mark indicators (⭐⭐, 🟡)
-7. Smart selection rules (⭐⭐, 🟡)
-8. Paste special options (⭐⭐, 🟡)
-9. Session undo timeout (⭐⭐, 🟡)
-10. Window arrangements (⭐⭐, 🟡)
+2. Light/Dark mode theme switching (⭐⭐, 🟡)
+3. Minimum contrast (⭐⭐, 🟡)
+4. Timestamps in scrollback (⭐⭐, 🟡)
+5. Mark indicators (⭐⭐, 🟡)
+6. Paste special options (⭐⭐, 🟡)
+7. Session undo timeout (⭐⭐, 🟡)
+8. Window arrangements (⭐⭐, 🟡)
 
 **Phase 3 - High Effort, High Value**
 1. Hotkey window (⭐⭐⭐, 🔴)

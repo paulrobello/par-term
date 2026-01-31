@@ -20,7 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - 5 precision levels: VeryHigh, High, Normal, Low, VeryLow (higher precision patterns match first)
     - Enable/disable individual rules or smart selection entirely
     - Config options: `smart_selection_enabled`, `smart_selection_rules`
-  - Settings UI controls in Mouse tab for word characters and smart selection toggle
+  - **Settings UI** in Mouse tab:
+    - Word characters text field
+    - Smart selection toggle
+    - List of rules with enable/disable checkboxes (hover for regex/precision details)
+    - "Reset rules to defaults" button
   - Cached regex compilation for optimal performance
 
 - **Terminal Search** (Cmd/Ctrl+F): Search through scrollback buffer with match highlighting (#24)
