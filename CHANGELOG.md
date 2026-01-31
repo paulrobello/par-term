@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Initial Startup Text**: Auto-send configurable text/commands when a session starts (#48)
+  - Config options: `initial_text`, `initial_text_delay_ms`, `initial_text_send_newline`
+  - Escape support: `\n`, `\r`, `\t`, `\xHH`, `\e`; normalizes to CR for Enter behavior
+  - Optional delay before send to let the shell initialize; optional auto-newline to execute
+  - Settings UI: Shell tab provides multi-line input, delay, and newline toggle
+
 - **Answerback String**: Configurable answerback string for terminal identification (#45)
   - Responds to ENQ (0x05) control character with user-defined string
   - Used for legacy terminal identification in multi-terminal environments
