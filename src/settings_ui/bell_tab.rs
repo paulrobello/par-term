@@ -120,6 +120,29 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             *changes_this_frame = true;
         }
 
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            if ui
+                .button("Test Notification")
+                .on_hover_text("Send a test notification to verify permissions are granted")
+                .clicked()
+            {
+                settings.test_notification_requested = true;
+            }
+            #[cfg(target_os = "macos")]
+            {
+                if ui
+                    .button("Open System Preferences")
+                    .on_hover_text("Open macOS notification settings")
+                    .clicked()
+                {
+                    let _ = std::process::Command::new("open")
+                        .arg("x-apple.systempreferences:com.apple.preference.notifications")
+                        .spawn();
+                }
+            }
+        });
+
         ui.separator();
         ui.horizontal(|ui| {
             ui.label("Max notification buffer:");

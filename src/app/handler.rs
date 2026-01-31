@@ -716,6 +716,10 @@ impl ApplicationHandler for WindowManager {
                     SettingsWindowAction::ApplyCursorShader(cursor_shader_result) => {
                         let _ = self.apply_cursor_shader_from_editor(&cursor_shader_result.source);
                     }
+                    SettingsWindowAction::TestNotification => {
+                        // Send a test notification to verify permissions
+                        self.send_test_notification();
+                    }
                     SettingsWindowAction::None => {}
                 }
             }

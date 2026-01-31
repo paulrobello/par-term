@@ -1198,4 +1198,36 @@ impl WindowManager {
             settings_window.request_redraw();
         }
     }
+
+    /// Send a test notification to verify notification permissions
+    pub fn send_test_notification(&self) {
+        log::info!("Sending test notification");
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            use notify_rust::Notification;
+            if let Err(e) = Notification::new()
+                .summary("par-term Test Notification")
+                .body("If you see this, notifications are working!")
+                .timeout(notify_rust::Timeout::Milliseconds(5000))
+                .show()
+            {
+                log::warn!("Failed to send test notification: {}", e);
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // macOS notifications via osascript
+            let script = r#"display notification "If you see this, notifications are working!" with title "par-term Test Notification""#;
+
+            if let Err(e) = std::process::Command::new("osascript")
+                .arg("-e")
+                .arg(script)
+                .output()
+            {
+                log::warn!("Failed to send macOS test notification: {}", e);
+            }
+        }
+    }
 }

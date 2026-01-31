@@ -160,6 +160,10 @@ pub struct SettingsUI {
     pub(crate) keybinding_recording_index: Option<usize>,
     /// The recorded key combination string (displayed during recording)
     pub(crate) keybinding_recorded_combo: Option<String>,
+
+    // Notification test state
+    /// Flag to request sending a test notification
+    pub(crate) test_notification_requested: bool,
 }
 
 impl SettingsUI {
@@ -238,6 +242,7 @@ impl SettingsUI {
             cursor_shader_settings_expanded: true,
             keybinding_recording_index: None,
             keybinding_recorded_combo: None,
+            test_notification_requested: false,
         }
     }
 
@@ -350,6 +355,13 @@ impl SettingsUI {
     #[allow(dead_code)]
     pub fn current_config(&self) -> &Config {
         &self.config
+    }
+
+    /// Check if a test notification was requested and clear the flag
+    pub fn take_test_notification_request(&mut self) -> bool {
+        let requested = self.test_notification_requested;
+        self.test_notification_requested = false;
+        requested
     }
 
     /// Show the settings window and return results
