@@ -96,6 +96,14 @@ pub fn activity_threshold() -> u64 {
     10 // Aligned with sister project (10 seconds)
 }
 
+pub fn anti_idle_seconds() -> u64 {
+    60 // Default keep-alive interval: 60 seconds
+}
+
+pub fn anti_idle_code() -> u8 {
+    0 // Default keep-alive code: NUL (0x00)
+}
+
 pub fn silence_threshold() -> u64 {
     300 // 5 minutes
 }

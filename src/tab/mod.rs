@@ -55,6 +55,10 @@ pub struct Tab {
     pub last_activity_time: std::time::Instant,
     /// Last terminal update generation seen (to detect new output)
     pub last_seen_generation: u64,
+    /// Last activity time for anti-idle keep-alive
+    pub anti_idle_last_activity: std::time::Instant,
+    /// Last terminal generation recorded for anti-idle tracking
+    pub anti_idle_last_generation: u64,
     /// Whether silence notification has been sent for current idle period
     pub silence_notified: bool,
 }
@@ -181,6 +185,8 @@ impl Tab {
             has_default_title: true,
             last_activity_time: std::time::Instant::now(),
             last_seen_generation: 0,
+            anti_idle_last_activity: std::time::Instant::now(),
+            anti_idle_last_generation: 0,
             silence_notified: false,
         })
     }
