@@ -284,6 +284,8 @@ impl Tab {
             last_activity_time: std::time::Instant::now(),
             last_seen_generation: 0,
             silence_notified: false,
+            anti_idle_last_activity: std::time::Instant::now(),
+            anti_idle_last_generation: 0,
         })
     }
 
