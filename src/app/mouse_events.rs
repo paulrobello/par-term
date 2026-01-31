@@ -102,9 +102,16 @@ impl WindowState {
         match button {
             MouseButton::Left => {
                 // --- 2. URL Clicking ---
-                // Check for Ctrl+Click on URL to open it in default browser
+                // Check for modifier+Click on URL to open it in default browser
+                // macOS: Cmd+Click (matches iTerm2 and system conventions)
+                // Windows/Linux: Ctrl+Click (matches platform conventions)
+                #[cfg(target_os = "macos")]
+                let url_modifier_pressed = self.input_handler.modifiers.state().super_key();
+                #[cfg(not(target_os = "macos"))]
+                let url_modifier_pressed = self.input_handler.modifiers.state().control_key();
+
                 if state == ElementState::Pressed
-                    && self.input_handler.modifiers.state().control_key()
+                    && url_modifier_pressed
                     && let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
                     && let Some(tab) = self.tab_manager.active_tab()
                 {
@@ -122,14 +129,49 @@ impl WindowState {
                     }
                 }
 
-                // --- 3. Mouse Tracking Forwarding ---
+                // --- 3. Option+Click Cursor Positioning ---
+                // Move cursor to clicked position when Option/Alt is pressed
+                // macOS: Option+Click (matches iTerm2)
+                // Windows/Linux: Alt+Click
+                if state == ElementState::Pressed
+                    && self.config.option_click_moves_cursor
+                    && self.input_handler.modifiers.state().alt_key()
+                    && let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
+                    && let Some(tab) = self.tab_manager.active_tab()
+                {
+                    // Only move cursor if we're at the bottom of scrollback (current view)
+                    // and not on the alternate screen (where apps handle their own cursor)
+                    let at_bottom = tab.scroll_state.offset == 0;
+                    let is_alt_screen = tab
+                        .terminal
+                        .try_lock()
+                        .ok()
+                        .is_some_and(|t| t.is_alt_screen_active());
+
+                    if at_bottom && !is_alt_screen {
+                        // Generate cursor movement escape sequences
+                        // We use absolute positioning via CSI row;colH
+                        // Terminal row/col are 1-indexed in escape sequences
+                        let move_seq = format!("\x1b[{};{}H", row + 1, col + 1);
+
+                        let terminal_clone = Arc::clone(&tab.terminal);
+                        let runtime = Arc::clone(&self.runtime);
+                        runtime.spawn(async move {
+                            let t = terminal_clone.lock().await;
+                            let _ = t.write(move_seq.as_bytes());
+                        });
+                        return; // Exit early: cursor move handled
+                    }
+                }
+
+                // --- 4. Mouse Tracking Forwarding ---
                 // Forward events to the PTY if terminal application requested tracking
                 if self.try_send_mouse_event(0, state == ElementState::Pressed) {
                     return; // Exit early: terminal app handled the input
                 }
 
                 if state == ElementState::Pressed {
-                    // --- 4. Scrollbar Interaction ---
+                    // --- 5. Scrollbar Interaction ---
                     // Check if clicking/dragging the scrollbar track or thumb
                     let mouse_x = mouse_position.0 as f32;
                     let mouse_y = mouse_position.1 as f32;
@@ -161,7 +203,7 @@ impl WindowState {
                         return; // Exit early: scrollbar handling takes precedence over selection
                     }
 
-                    // --- 5. Selection Anchoring & Click Counting ---
+                    // --- 6. Selection Anchoring & Click Counting ---
                     // Handle complex selection modes based on click sequence
                     if let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
                     {
@@ -536,10 +578,10 @@ impl WindowState {
         });
 
         if is_mouse_tracking {
-            // Calculate scroll lines based on delta type (Line vs Pixel)
-            let scroll_lines = match delta {
-                MouseScrollDelta::LineDelta(_x, y) => y as i32,
-                MouseScrollDelta::PixelDelta(pos) => (pos.y / 20.0) as i32,
+            // Calculate scroll amounts based on delta type (Line vs Pixel)
+            let (scroll_x, scroll_y) = match delta {
+                MouseScrollDelta::LineDelta(x, y) => (x as i32, y as i32),
+                MouseScrollDelta::PixelDelta(pos) => ((pos.x / 20.0) as i32, (pos.y / 20.0) as i32),
             };
 
             // Get mouse position and terminal from active tab
@@ -551,31 +593,56 @@ impl WindowState {
 
             // Map pixel position to terminal cell coordinates
             if let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1) {
-                // XTerm mouse protocol buttons: 64 = scroll up, 65 = scroll down
-                let button = if scroll_lines > 0 { 64 } else { 65 };
-                // Limit burst to 10 events to avoid flooding the PTY
-                let count = scroll_lines.unsigned_abs().min(10);
+                let mut all_encoded = Vec::new();
 
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
-                {
-                    // Encode and send to terminal via async task
-                    let mut all_encoded = Vec::new();
-                    for _ in 0..count {
-                        let encoded = term.encode_mouse_event(button, col, row, true, 0);
-                        if !encoded.is_empty() {
-                            all_encoded.extend(encoded);
+                // --- 1a. Vertical scroll events ---
+                // XTerm mouse protocol buttons: 64 = scroll up, 65 = scroll down
+                if scroll_y != 0 {
+                    let button = if scroll_y > 0 { 64 } else { 65 };
+                    // Limit burst to 10 events to avoid flooding the PTY
+                    let count = scroll_y.unsigned_abs().min(10);
+
+                    if let Some(tab) = self.tab_manager.active_tab()
+                        && let Ok(term) = tab.terminal.try_lock()
+                    {
+                        for _ in 0..count {
+                            let encoded = term.encode_mouse_event(button, col, row, true, 0);
+                            if !encoded.is_empty() {
+                                all_encoded.extend(encoded);
+                            }
                         }
                     }
+                }
 
-                    if !all_encoded.is_empty() {
-                        let terminal_clone = Arc::clone(&tab.terminal);
-                        let runtime = Arc::clone(&self.runtime);
-                        runtime.spawn(async move {
-                            let t = terminal_clone.lock().await;
-                            let _ = t.write(&all_encoded);
-                        });
+                // --- 1b. Horizontal scroll events (if enabled) ---
+                // XTerm mouse protocol buttons: 66 = scroll left, 67 = scroll right
+                if self.config.report_horizontal_scroll && scroll_x != 0 {
+                    let button = if scroll_x > 0 { 67 } else { 66 };
+                    // Limit burst to 10 events to avoid flooding the PTY
+                    let count = scroll_x.unsigned_abs().min(10);
+
+                    if let Some(tab) = self.tab_manager.active_tab()
+                        && let Ok(term) = tab.terminal.try_lock()
+                    {
+                        for _ in 0..count {
+                            let encoded = term.encode_mouse_event(button, col, row, true, 0);
+                            if !encoded.is_empty() {
+                                all_encoded.extend(encoded);
+                            }
+                        }
                     }
+                }
+
+                // Send all encoded events to terminal
+                if !all_encoded.is_empty()
+                    && let Some(tab) = self.tab_manager.active_tab()
+                {
+                    let terminal_clone = Arc::clone(&tab.terminal);
+                    let runtime = Arc::clone(&self.runtime);
+                    runtime.spawn(async move {
+                        let t = terminal_clone.lock().await;
+                        let _ = t.write(&all_encoded);
+                    });
                 }
             }
             return; // Exit early: terminal app handled the input

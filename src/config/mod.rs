@@ -398,6 +398,22 @@ pub struct Config {
     #[serde(default = "defaults::triple_click_threshold")]
     pub mouse_triple_click_threshold: u64,
 
+    /// Option+Click (macOS) / Alt+Click (Linux/Windows) moves cursor to clicked position
+    /// Sends cursor movement escape sequences to position text cursor at click location
+    /// Useful for quick cursor positioning in shells and editors
+    #[serde(default = "defaults::bool_true")]
+    pub option_click_moves_cursor: bool,
+
+    /// Focus window automatically when mouse enters (without requiring a click)
+    /// This is an accessibility feature that some users prefer
+    #[serde(default = "defaults::bool_false")]
+    pub focus_follows_mouse: bool,
+
+    /// Report horizontal scroll events to terminal applications when mouse reporting is enabled
+    /// Horizontal scroll uses button codes 6 (left) and 7 (right) in the mouse protocol
+    #[serde(default = "defaults::bool_true")]
+    pub report_horizontal_scroll: bool,
+
     // ========================================================================
     // Word Selection
     // ========================================================================
@@ -920,6 +936,9 @@ impl Default for Config {
             mouse_scroll_speed: defaults::scroll_speed(),
             mouse_double_click_threshold: defaults::double_click_threshold(),
             mouse_triple_click_threshold: defaults::triple_click_threshold(),
+            option_click_moves_cursor: defaults::bool_true(),
+            focus_follows_mouse: defaults::bool_false(),
+            report_horizontal_scroll: defaults::bool_true(),
             word_characters: defaults::word_characters(),
             smart_selection_enabled: defaults::smart_selection_enabled(),
             smart_selection_rules: default_smart_selection_rules(),

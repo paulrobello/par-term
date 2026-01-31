@@ -228,5 +228,59 @@ pub fn show_mouse_behavior(
                 *changes_this_frame = true;
             }
         });
+
+        ui.separator();
+        ui.label("Advanced Mouse Features");
+
+        #[cfg(target_os = "macos")]
+        let option_click_label = "Option+Click moves cursor";
+        #[cfg(not(target_os = "macos"))]
+        let option_click_label = "Alt+Click moves cursor";
+
+        if ui
+            .checkbox(
+                &mut settings.config.option_click_moves_cursor,
+                option_click_label,
+            )
+            .on_hover_text(
+                "Position the text cursor at the clicked location.\n\
+                 Useful for quick cursor positioning in shells and editors.\n\
+                 Only works when viewing the current terminal (not scrolled back).",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.focus_follows_mouse,
+                "Focus follows mouse",
+            )
+            .on_hover_text(
+                "Automatically focus the terminal window when the mouse enters it.\n\
+                 No click required - the window gains focus on mouse hover.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.report_horizontal_scroll,
+                "Report horizontal scroll events",
+            )
+            .on_hover_text(
+                "Report horizontal scroll (trackpad swipe, tilt wheel) to applications.\n\
+                 Uses mouse button codes 6 (left) and 7 (right) when mouse tracking is enabled.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
     });
 }
