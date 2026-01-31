@@ -75,12 +75,9 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, _changes_this_frame: &
         {
             settings.has_changes = true;
         }
-    });
+        ui.separator();
 
-    ui.separator();
-
-    ui.collapsing("Initial Text", |ui| {
-        ui.label("Send text automatically when the session starts:");
+        ui.label("Initial text to send when a session starts:");
         if ui
             .text_edit_multiline(&mut settings.temp_initial_text)
             .changed()
