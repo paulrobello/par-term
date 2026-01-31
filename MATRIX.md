@@ -442,7 +442,7 @@ Full tmux control mode integration would require:
 | Browser profile | ✅ | ❌ | ❌ | ⭐ | 🔴 | Web browser integration |
 | Progress bar | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Show command progress |
 | Snippets | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Saved text snippets |
-| Search in terminal | ✅ Cmd+F | ❌ | ❌ | ⭐⭐⭐ | 🟡 | Find text in scrollback |
+| Search in terminal | ✅ Cmd+F | ✅ Cmd/Ctrl+F | ✅ | - | - | Regex, case, whole word options |
 | CLI command (`par-term`) | ❌ | ✅ Full CLI | ✅ | - | - | par-term exclusive |
 | First-run shader install prompt | ❌ | ✅ Auto-detect & install | ✅ | - | - | par-term exclusive |
 | Shader gallery | ❌ | ✅ Online gallery | ✅ | - | - | par-term exclusive |
@@ -480,7 +480,6 @@ Full tmux control mode integration would require:
 3. **Split panes** - Divide terminal - 🔵 Very high effort
 4. **Shell integration** - Command tracking - 🔵 Very high effort
 5. **tmux control mode** - Native tmux integration (not basic compatibility) - 🔵 Very high effort
-6. **Search in terminal** - Find in scrollback - 🟡 Medium effort
 
 ### Recommended Implementation Priority
 
@@ -496,8 +495,7 @@ Full tmux control mode integration would require:
 9. Tab index number rendering (⭐⭐, 🟢) - config exists, just needs rendering
 
 **Phase 2 - Medium Effort, High Value**
-1. Search in terminal (⭐⭐⭐, 🟡)
-2. Tab bar position options (⭐⭐, 🟡)
+1. Tab bar position options (⭐⭐, 🟡)
 3. Light/Dark mode theme switching (⭐⭐, 🟡)
 4. Minimum contrast (⭐⭐, 🟡)
 5. Timestamps in scrollback (⭐⭐, 🟡)

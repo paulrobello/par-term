@@ -167,6 +167,17 @@ impl HelpUI {
 
                             ui.end_row();
 
+                            // Search
+                            ui.label(RichText::new("Search").strong().underline());
+                            ui.end_row();
+
+                            shortcut_row(ui, "Cmd/Ctrl+F", "Open search");
+                            shortcut_row(ui, "Enter", "Find next match");
+                            shortcut_row(ui, "Shift+Enter", "Find previous match");
+                            shortcut_row(ui, "Escape", "Close search");
+
+                            ui.end_row();
+
                             // Terminal
                             ui.label(RichText::new("Terminal").strong().underline());
                             ui.end_row();

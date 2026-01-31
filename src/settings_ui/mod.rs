@@ -17,6 +17,7 @@ pub mod keyboard_tab;
 pub mod mouse_tab;
 pub mod screenshot_tab;
 pub mod scrollbar_tab;
+pub mod search_tab;
 mod shader_dialogs;
 mod shader_editor;
 mod shader_utils;
@@ -855,6 +856,23 @@ impl SettingsUI {
             insert_section_separator(ui, &mut section_shown);
             matches_found = true;
             mouse_tab::show_mouse_behavior(ui, self, changes_this_frame);
+        }
+
+        // Search
+        if section_matches(
+            "Search",
+            &[
+                "Search",
+                "Find",
+                "Highlight",
+                "Case sensitive",
+                "Regex",
+                "Wrap around",
+            ],
+        ) {
+            insert_section_separator(ui, &mut section_shown);
+            matches_found = true;
+            search_tab::show(ui, self, changes_this_frame);
         }
 
         // Scrollbar

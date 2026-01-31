@@ -12,6 +12,7 @@ use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::keybindings::KeybindingRegistry;
 use crate::renderer::Renderer;
+use crate::search::SearchUI;
 use crate::selection::SelectionMode;
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
@@ -62,6 +63,8 @@ pub struct WindowState {
     pub(crate) help_ui: HelpUI,
     /// Clipboard history UI manager
     pub(crate) clipboard_history_ui: ClipboardHistoryUI,
+    /// Search UI manager
+    pub(crate) search_ui: SearchUI,
     /// Shader install prompt UI
     pub(crate) shader_install_ui: ShaderInstallUI,
     /// Receiver for shader installation results (from background thread)
@@ -150,6 +153,7 @@ impl WindowState {
             cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
             help_ui: HelpUI::new(),
             clipboard_history_ui: ClipboardHistoryUI::new(),
+            search_ui: SearchUI::new(),
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
             is_recording: false,
@@ -1014,8 +1018,9 @@ impl WindowState {
             }
         }
 
-        let (renderer_size, visible_lines) = if let Some(renderer) = &self.renderer {
-            (renderer.size(), renderer.grid_size().1)
+        let (renderer_size, visible_lines, grid_cols) = if let Some(renderer) = &self.renderer {
+            let (cols, rows) = renderer.grid_size();
+            (renderer.size(), rows, cols)
         } else {
             return;
         };
@@ -1270,6 +1275,33 @@ impl WindowState {
         self.apply_url_underlines(&mut cells, &renderer_size);
         let _debug_url_underline_time = url_underline_start.elapsed();
 
+        // Update search and apply search highlighting
+        if self.search_ui.visible {
+            // Get all searchable lines from cells (ensures consistent wide character handling)
+            if let Some(tab) = self.tab_manager.active_tab()
+                && let Ok(term) = tab.terminal.try_lock()
+            {
+                let lines_iter =
+                    crate::app::search_highlight::get_all_searchable_lines(&term, visible_lines);
+                self.search_ui.update_search(lines_iter);
+            }
+
+            // Apply search highlighting to visible cells
+            let scroll_offset = self
+                .tab_manager
+                .active_tab()
+                .map(|t| t.scroll_state.offset)
+                .unwrap_or(0);
+            // Use actual terminal grid columns from renderer
+            self.apply_search_highlights(
+                &mut cells,
+                grid_cols,
+                scroll_offset,
+                scrollback_len,
+                visible_lines,
+            );
+        }
+
         // Update cursor blink state
         self.update_cursor_blink();
 
@@ -1287,6 +1319,8 @@ impl WindowState {
         let mut pending_tab_action = TabBarAction::None;
         // Shader install response to handle after rendering
         let mut pending_shader_install_response = ShaderInstallResponse::None;
+        // Search action to handle after rendering
+        let mut pending_search_action = crate::search::SearchAction::None;
 
         let show_scrollbar = self.should_show_scrollbar();
 
@@ -1490,6 +1524,9 @@ impl WindowState {
                     // Show clipboard history UI and collect action
                     pending_clipboard_action = self.clipboard_history_ui.show(ctx);
 
+                    // Show search UI and collect action
+                    pending_search_action = self.search_ui.show(ctx, visible_lines, scrollback_len);
+
                     // Show shader install dialog if visible
                     pending_shader_install_response = self.shader_install_ui.show(ctx);
                 });
@@ -1687,6 +1724,24 @@ impl WindowState {
                 }
             }
             ClipboardHistoryAction::None => {}
+        }
+
+        // Handle search actions collected during egui rendering
+        match pending_search_action {
+            crate::search::SearchAction::ScrollToMatch(offset) => {
+                self.set_scroll_target(offset);
+                self.needs_redraw = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            crate::search::SearchAction::Close => {
+                self.needs_redraw = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            crate::search::SearchAction::None => {}
         }
 
         // Check for shader installation completion from background thread
