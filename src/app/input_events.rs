@@ -14,8 +14,11 @@ impl WindowState {
 
         // Check if any UI panel is visible
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
-        let any_ui_visible =
-            self.help_ui.visible || self.clipboard_history_ui.visible || self.search_ui.visible;
+        let any_ui_visible = self.help_ui.visible
+            || self.clipboard_history_ui.visible
+            || self.search_ui.visible
+            || self.profile_drawer_ui.expanded
+            || self.profile_modal_ui.visible;
 
         // When UI panels are visible, block ALL keys from going to terminal
         // except for UI control keys (Escape handled by egui, F1/F2/F3 for toggles)
@@ -129,6 +132,11 @@ impl WindowState {
         // Check for FPS overlay toggle (F3)
         if self.handle_fps_overlay_toggle(&event) {
             return; // Key was handled for FPS overlay toggle
+        }
+
+        // Check for profile drawer toggle (Cmd+Shift+P / Ctrl+Shift+P)
+        if self.handle_profile_drawer_toggle(&event) {
+            return; // Key was handled for profile drawer toggle
         }
 
         // Check for utility shortcuts (clear scrollback, font size, etc.)

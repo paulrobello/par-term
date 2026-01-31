@@ -12,6 +12,9 @@ use crate::config::{
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::keybindings::KeybindingRegistry;
+use crate::profile::{storage as profile_storage, ProfileManager};
+use crate::profile_drawer_ui::{ProfileDrawerAction, ProfileDrawerUI};
+use crate::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
 use crate::renderer::Renderer;
 use crate::search::SearchUI;
 use crate::selection::SelectionMode;
@@ -109,6 +112,18 @@ pub struct WindowState {
     /// This is set by keyboard handlers and consumed by the window manager
     pub(crate) open_settings_window_requested: bool,
 
+    // Profile management
+    /// Profile manager for storing and managing terminal profiles
+    pub(crate) profile_manager: ProfileManager,
+    /// Profile drawer UI (collapsible side panel)
+    pub(crate) profile_drawer_ui: ProfileDrawerUI,
+    /// Profile modal UI (management dialog)
+    pub(crate) profile_modal_ui: ProfileModalUI,
+    /// Flag to indicate profiles menu needs to be updated in the main menu
+    pub(crate) profiles_menu_needs_update: bool,
+    /// Track if we blocked a mouse press for UI - also block the corresponding release
+    pub(crate) ui_consumed_mouse_press: bool,
+
     // Resize overlay state
     /// Whether the resize overlay is currently visible
     pub(crate) resize_overlay_visible: bool,
@@ -134,6 +149,15 @@ impl WindowState {
         // Initialize Option/Alt key modes from config
         input_handler
             .update_option_key_modes(config.left_option_key_mode, config.right_option_key_mode);
+
+        // Load profiles from disk
+        let profile_manager = match profile_storage::load_profiles() {
+            Ok(manager) => manager,
+            Err(e) => {
+                log::warn!("Failed to load profiles: {}", e);
+                ProfileManager::new()
+            }
+        };
 
         Self {
             config,
@@ -178,6 +202,12 @@ impl WindowState {
             cursor_shader_reload_result: None,
 
             open_settings_window_requested: false,
+
+            profile_manager,
+            profile_drawer_ui: ProfileDrawerUI::new(),
+            profile_modal_ui: ProfileModalUI::new(),
+            profiles_menu_needs_update: true, // Update menu on startup
+            ui_consumed_mouse_press: false,
 
             resize_overlay_visible: false,
             resize_overlay_hide_time: None,
@@ -821,7 +851,9 @@ impl WindowState {
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
         let any_ui_visible = self.help_ui.visible
             || self.clipboard_history_ui.visible
-            || self.shader_install_ui.visible;
+            || self.shader_install_ui.visible
+            || self.profile_drawer_ui.expanded
+            || self.profile_modal_ui.visible;
         if !any_ui_visible {
             return false;
         }
@@ -1381,6 +1413,10 @@ impl WindowState {
         let mut pending_shader_install_response = ShaderInstallResponse::None;
         // Search action to handle after rendering
         let mut pending_search_action = crate::search::SearchAction::None;
+        // Profile drawer action to handle after rendering
+        let mut pending_profile_drawer_action = ProfileDrawerAction::None;
+        // Profile modal action to handle after rendering
+        let mut pending_profile_modal_action = ProfileModalAction::None;
 
         let show_scrollbar = self.should_show_scrollbar();
 
@@ -1589,6 +1625,17 @@ impl WindowState {
 
                     // Show shader install dialog if visible
                     pending_shader_install_response = self.shader_install_ui.show(ctx);
+
+                    // Render profile drawer (right side panel)
+                    pending_profile_drawer_action = self.profile_drawer_ui.render(
+                        ctx,
+                        &self.profile_manager,
+                        &self.config,
+                        self.profile_modal_ui.visible,
+                    );
+
+                    // Render profile modal (management dialog)
+                    pending_profile_modal_action = self.profile_modal_ui.show(ctx);
                 });
 
                 // Handle egui platform output (clipboard, cursor changes, etc.)
@@ -1867,6 +1914,32 @@ impl WindowState {
                 // Config remains "ask" - will prompt again on next startup
             }
             ShaderInstallResponse::None => {}
+        }
+
+        // Handle profile drawer actions
+        match pending_profile_drawer_action {
+            ProfileDrawerAction::OpenProfile(id) => {
+                self.open_profile(id);
+            }
+            ProfileDrawerAction::ManageProfiles => {
+                self.profile_modal_ui.open(&self.profile_manager);
+            }
+            ProfileDrawerAction::None => {}
+        }
+
+        // Handle profile modal actions
+        match pending_profile_modal_action {
+            ProfileModalAction::Save => {
+                // Apply working profiles to manager and save to disk
+                // Note: get_working_profiles() must be called before close()
+                let profiles = self.profile_modal_ui.get_working_profiles().to_vec();
+                self.profile_modal_ui.close();
+                self.apply_profile_changes(profiles);
+            }
+            ProfileModalAction::OpenProfile(id) => {
+                self.open_profile(id);
+            }
+            ProfileModalAction::Cancel | ProfileModalAction::None => {}
         }
 
         let absolute_total = absolute_start.elapsed();

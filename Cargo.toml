@@ -42,6 +42,9 @@ tokio = { version = "1.49", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 
+# UUID for profile identifiers
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
 # Error handling
 anyhow = "1.0"
 

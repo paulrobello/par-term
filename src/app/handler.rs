@@ -111,19 +111,26 @@ impl WindowState {
         }
 
         // Let egui handle the event (needed for proper rendering state)
-        let egui_consumed =
+        let (egui_consumed, egui_needs_repaint) =
             if let (Some(egui_state), Some(window)) = (&mut self.egui_state, &self.window) {
                 let event_response = egui_state.on_window_event(window, &event);
-                event_response.consumed
+                // Request redraw if egui needs it (e.g., text input in modals)
+                if event_response.repaint {
+                    window.request_redraw();
+                }
+                (event_response.consumed, event_response.repaint)
             } else {
-                false
+                (false, false)
             };
+        let _ = egui_needs_repaint; // Used above, silence unused warning
 
         // Debug: Log when egui consumes events but we ignore it
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
         let any_ui_visible = self.help_ui.visible
             || self.clipboard_history_ui.visible
-            || self.shader_install_ui.visible;
+            || self.shader_install_ui.visible
+            || self.profile_modal_ui.visible
+            || self.profile_drawer_ui.expanded;
         if egui_consumed
             && !any_ui_visible
             && let WindowEvent::KeyboardInput {
@@ -310,14 +317,31 @@ impl WindowState {
             }
 
             WindowEvent::MouseInput { button, state, .. } => {
-                // Skip terminal handling if egui UI is visible or using the pointer
-                if any_ui_visible || self.is_egui_using_pointer() {
-                    // Request redraw so egui can process the click
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
+                use winit::event::ElementState;
+                // Track UI mouse consumption to prevent release events bleeding through
+                // when UI closes during a click (e.g., drawer toggle)
+                let ui_wants_pointer = any_ui_visible || self.is_egui_using_pointer();
+
+                if state == ElementState::Pressed {
+                    if ui_wants_pointer {
+                        self.ui_consumed_mouse_press = true;
+                        if let Some(window) = &self.window {
+                            window.request_redraw();
+                        }
+                    } else {
+                        self.ui_consumed_mouse_press = false;
+                        self.handle_mouse_button(button, state);
                     }
                 } else {
-                    self.handle_mouse_button(button, state);
+                    // Release: block if we consumed the press OR if UI wants pointer
+                    if self.ui_consumed_mouse_press || ui_wants_pointer {
+                        self.ui_consumed_mouse_press = false;
+                        if let Some(window) = &self.window {
+                            window.request_redraw();
+                        }
+                    } else {
+                        self.handle_mouse_button(button, state);
+                    }
                 }
             }
 
@@ -735,11 +759,19 @@ impl ApplicationHandler for WindowManager {
         let mut open_settings = false;
         let mut background_shader_result: Option<Option<String>> = None;
         let mut cursor_shader_result: Option<Option<String>> = None;
+        let mut profiles_to_update: Option<Vec<crate::profile::Profile>> = None;
 
         for window_state in self.windows.values_mut() {
             if window_state.open_settings_window_requested {
                 window_state.open_settings_window_requested = false;
                 open_settings = true;
+            }
+
+            // Check if profiles menu needs updating (from profile modal save)
+            if window_state.profiles_menu_needs_update {
+                window_state.profiles_menu_needs_update = false;
+                // Get a copy of the profiles for menu update
+                profiles_to_update = Some(window_state.profile_manager.to_vec());
             }
 
             window_state.about_to_wait(event_loop);
@@ -751,6 +783,14 @@ impl ApplicationHandler for WindowManager {
             if let Some(result) = window_state.cursor_shader_reload_result.take() {
                 cursor_shader_result = Some(result);
             }
+        }
+
+        // Update profiles menu if profiles changed
+        if let Some(profiles) = profiles_to_update
+            && let Some(menu) = &mut self.menu
+        {
+            let profile_refs: Vec<&crate::profile::Profile> = profiles.iter().collect();
+            menu.update_profiles(&profile_refs);
         }
 
         // Open settings window if requested (F12 or Cmd+,)

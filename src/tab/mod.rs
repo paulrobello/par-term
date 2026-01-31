@@ -14,6 +14,7 @@ use crate::app::bell::BellState;
 use crate::app::mouse::MouseState;
 use crate::app::render_cache::RenderCache;
 use crate::config::Config;
+use crate::profile::Profile;
 use crate::scroll_state::ScrollState;
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
@@ -21,6 +22,74 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+
+/// Configure a terminal with settings from config (theme, clipboard limits, cursor style)
+fn configure_terminal_from_config(terminal: &mut TerminalManager, config: &Config) {
+    // Set theme from config
+    terminal.set_theme(config.load_theme());
+
+    // Apply clipboard history limits from config
+    terminal.set_max_clipboard_sync_events(config.clipboard_max_sync_events);
+    terminal.set_max_clipboard_event_bytes(config.clipboard_max_event_bytes);
+
+    // Set answerback string for ENQ response (if configured)
+    if !config.answerback_string.is_empty() {
+        terminal.set_answerback_string(Some(config.answerback_string.clone()));
+    }
+
+    // Initialize cursor style from config
+    use crate::config::CursorStyle as ConfigCursorStyle;
+    use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
+    let term_style = if config.cursor_blink {
+        match config.cursor_style {
+            ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
+            ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
+            ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
+        }
+    } else {
+        match config.cursor_style {
+            ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
+            ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
+            ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,
+        }
+    };
+    terminal.set_cursor_style(term_style);
+}
+
+/// Determine the shell command and arguments to use based on config
+fn get_shell_command(config: &Config) -> (String, Option<Vec<String>>) {
+    if let Some(ref custom) = config.custom_shell {
+        (custom.clone(), config.shell_args.clone())
+    } else {
+        #[cfg(target_os = "windows")]
+        {
+            ("powershell.exe".to_string(), None)
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            (
+                std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()),
+                None,
+            )
+        }
+    }
+}
+
+/// Apply login shell flag if configured (Unix only)
+#[cfg(not(target_os = "windows"))]
+fn apply_login_shell_flag(shell_args: &mut Option<Vec<String>>, config: &Config) {
+    if config.login_shell {
+        let args = shell_args.get_or_insert_with(Vec::new);
+        if !args.iter().any(|a| a == "-l" || a == "--login") {
+            args.insert(0, "-l".to_string());
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn apply_login_shell_flag(_shell_args: &mut Option<Vec<String>>, _config: &Config) {
+    // No-op on Windows
+}
 
 /// Unique identifier for a tab
 pub type TabId = u64;
@@ -79,69 +148,17 @@ impl Tab {
             config.scrollback_lines,
         )?;
 
-        // Set theme from config
-        terminal.set_theme(config.load_theme());
-
-        // Apply clipboard history limits from config
-        terminal.set_max_clipboard_sync_events(config.clipboard_max_sync_events);
-        terminal.set_max_clipboard_event_bytes(config.clipboard_max_event_bytes);
-
-        // Set answerback string for ENQ response (if configured)
-        if !config.answerback_string.is_empty() {
-            terminal.set_answerback_string(Some(config.answerback_string.clone()));
-        }
-
-        // Initialize cursor style from config
-        // Convert config cursor style to terminal cursor style
-        {
-            use crate::config::CursorStyle as ConfigCursorStyle;
-            use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
-            let term_style = if config.cursor_blink {
-                match config.cursor_style {
-                    ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
-                    ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
-                    ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
-                }
-            } else {
-                match config.cursor_style {
-                    ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
-                    ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
-                    ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,
-                }
-            };
-            terminal.set_cursor_style(term_style);
-        }
+        // Apply common terminal configuration
+        configure_terminal_from_config(&mut terminal, config);
 
         // Determine working directory
         let work_dir = working_directory
             .as_deref()
             .or(config.working_directory.as_deref());
 
-        // Determine the shell command to use
-        let (shell_cmd, mut shell_args) = if let Some(ref custom) = config.custom_shell {
-            (custom.clone(), config.shell_args.clone())
-        } else {
-            #[cfg(target_os = "windows")]
-            {
-                ("powershell.exe".to_string(), None)
-            }
-            #[cfg(not(target_os = "windows"))]
-            {
-                (
-                    std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()),
-                    None,
-                )
-            }
-        };
-
-        // On Unix-like systems, spawn as login shell if configured
-        #[cfg(not(target_os = "windows"))]
-        if config.login_shell {
-            let args = shell_args.get_or_insert_with(Vec::new);
-            if !args.iter().any(|a| a == "-l" || a == "--login") {
-                args.insert(0, "-l".to_string());
-            }
-        }
+        // Get shell command and apply login shell flag
+        let (shell_cmd, mut shell_args) = get_shell_command(config);
+        apply_login_shell_flag(&mut shell_args, config);
 
         let shell_args_deref = shell_args.as_deref();
         let shell_env = config.shell_env.as_ref();
@@ -187,6 +204,85 @@ impl Tab {
             last_seen_generation: 0,
             anti_idle_last_activity: std::time::Instant::now(),
             anti_idle_last_generation: 0,
+            silence_notified: false,
+        })
+    }
+
+    /// Create a new tab from a profile configuration
+    ///
+    /// The profile can override:
+    /// - Working directory
+    /// - Command and arguments (instead of default shell)
+    /// - Tab name
+    ///
+    /// If a profile specifies a command, it always runs from the profile's working
+    /// directory (or config default if unset).
+    pub fn new_from_profile(
+        id: TabId,
+        config: &Config,
+        _runtime: Arc<Runtime>,
+        profile: &Profile,
+    ) -> anyhow::Result<Self> {
+        // Create terminal with scrollback from config
+        let mut terminal = TerminalManager::new_with_scrollback(
+            config.cols,
+            config.rows,
+            config.scrollback_lines,
+        )?;
+
+        // Apply common terminal configuration
+        configure_terminal_from_config(&mut terminal, config);
+
+        // Determine working directory: profile overrides config
+        let work_dir = profile
+            .working_directory
+            .as_deref()
+            .or(config.working_directory.as_deref());
+
+        // Determine command and args: profile command overrides config shell
+        let (shell_cmd, mut shell_args) = if let Some(ref cmd) = profile.command {
+            (cmd.clone(), profile.command_args.clone())
+        } else {
+            get_shell_command(config)
+        };
+
+        // Only apply login shell flag for default shell, not custom profile commands
+        if profile.command.is_none() {
+            apply_login_shell_flag(&mut shell_args, config);
+        }
+
+        let shell_args_deref = shell_args.as_deref();
+        let shell_env = config.shell_env.as_ref();
+        terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env)?;
+
+        let terminal = Arc::new(Mutex::new(terminal));
+
+        // Generate title: use profile tab_name or profile name or default
+        let title = profile
+            .tab_name
+            .clone()
+            .unwrap_or_else(|| profile.name.clone());
+
+        let working_directory = profile
+            .working_directory
+            .clone()
+            .or_else(|| config.working_directory.clone());
+
+        Ok(Self {
+            id,
+            terminal,
+            title,
+            has_activity: false,
+            scroll_state: ScrollState::new(),
+            mouse: MouseState::new(),
+            bell: BellState::new(),
+            cache: RenderCache::new(),
+            refresh_task: None,
+            working_directory,
+            custom_color: None,
+            has_default_title: false, // Profile-created tabs have explicit names
+            last_activity_time: std::time::Instant::now(),
+            last_seen_generation: 0,
             silence_notified: false,
         })
     }

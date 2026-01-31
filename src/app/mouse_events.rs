@@ -63,6 +63,29 @@ impl WindowState {
             .map(|t| t.mouse.position)
             .unwrap_or((0.0, 0.0));
 
+        // Check if profile modal or drawer is open - let egui handle all mouse events
+        if self.profile_modal_ui.visible || self.profile_drawer_ui.expanded {
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            return;
+        }
+
+        // Check if click is on the profile drawer toggle button
+        if let Some(window) = &self.window {
+            let size = window.inner_size();
+            if self.profile_drawer_ui.is_point_in_toggle_button(
+                mouse_position.0 as f32,
+                mouse_position.1 as f32,
+                size.width as f32,
+                size.height as f32,
+            ) {
+                // Let egui handle the toggle button click
+                window.request_redraw();
+                return;
+            }
+        }
+
         // Check if click is in the tab bar area - if so, let egui handle it
         // IMPORTANT: Do this BEFORE setting button_pressed to avoid selection state issues
         let tab_bar_height = self
@@ -330,9 +353,17 @@ impl WindowState {
     }
 
     pub(crate) fn handle_mouse_move(&mut self, position: (f64, f64)) {
-        // Update mouse position in active tab
+        // Update mouse position in active tab (always needed for egui)
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             tab.mouse.position = position;
+        }
+
+        // Check if profile modal or drawer is open - let egui handle mouse events
+        if self.profile_modal_ui.visible || self.profile_drawer_ui.expanded {
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            return;
         }
 
         // Check if mouse is in the tab bar area - if so, skip terminal-specific processing
@@ -525,6 +556,14 @@ impl WindowState {
     }
 
     pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
+        // Check if profile modal or drawer is open - let egui handle scroll events
+        if self.profile_modal_ui.visible || self.profile_drawer_ui.expanded {
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            return;
+        }
+
         // --- 1. Mouse Tracking Protocol ---
         // Check if the terminal application (e.g., vim, htop) has requested mouse tracking.
         // If enabled, we forward wheel events to the PTY instead of scrolling locally.

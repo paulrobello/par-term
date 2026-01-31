@@ -707,6 +707,33 @@ impl WindowManager {
                     window_state.reload_config();
                 }
             }
+            MenuAction::ManageProfiles => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state
+                        .profile_modal_ui
+                        .open(&window_state.profile_manager);
+                    window_state.needs_redraw = true;
+                    if let Some(window) = &window_state.window {
+                        window.request_redraw();
+                    }
+                }
+            }
+            MenuAction::ToggleProfileDrawer => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.toggle_profile_drawer();
+                }
+            }
+            MenuAction::OpenProfile(profile_id) => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.open_profile(profile_id);
+                }
+            }
         }
     }
 
