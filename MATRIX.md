@@ -178,8 +178,8 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Word selection | ✅ | ✅ | ✅ | - | - | - |
 | Line selection | ✅ | ✅ | ✅ | - | - | - |
 | Triple-click selects wrapped lines | ✅ `Triple Click Selects Full Wrapped Lines` | ✅ | ✅ | - | - | - |
-| Smart selection rules | ✅ Custom regex patterns | ❌ | ❌ | ⭐⭐ | 🟡 | Double-click selection patterns |
-| Word boundary characters | ✅ `Characters Considered Part of Word` | ❌ | ❌ | ⭐⭐ | 🟢 | Customize word selection |
+| Smart selection rules | ✅ Custom regex patterns | ✅ `smart_selection_rules` | ✅ | - | - | 12 default patterns with precision levels |
+| Word boundary characters | ✅ `Characters Considered Part of Word` | ✅ `word_characters` | ✅ | - | - | Default: `/-+\~_.` (iTerm2 compatible) |
 | Paste bracketing | ✅ `Allow Paste Bracketing` | ✅ | ✅ | - | - | - |
 | Paste special options | ✅ Many transformations | ❌ | ❌ | ⭐⭐ | 🟡 | Tab→spaces, escape, etc. |
 | Allow terminal clipboard access | ✅ `Allow Clipboard Access From Terminal` | ✅ OSC 52 | ✅ | - | - | - |

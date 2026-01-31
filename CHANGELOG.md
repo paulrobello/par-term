@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Smart Selection & Word Boundaries**: Enhanced double-click text selection with configurable patterns (#42)
+  - **Word boundary characters**: Configurable characters considered part of a word
+    - Default: `/-+\~_.` (iTerm2 compatible)
+    - Config option: `word_characters`
+  - **Smart selection rules**: Regex-based patterns with precision levels for intelligent selection
+    - 12 default patterns: HTTP URLs, SSH URLs, file paths, email addresses, IPv4 addresses, IPv6 addresses, UUIDs, domain names, Git SHAs, semantic versions, SI numbers, hex colors
+    - 5 precision levels: VeryHigh, High, Normal, Low, VeryLow (higher precision patterns match first)
+    - Enable/disable individual rules or smart selection entirely
+    - Config options: `smart_selection_enabled`, `smart_selection_rules`
+  - Settings UI controls in Mouse tab for word characters and smart selection toggle
+  - Cached regex compilation for optimal performance
+
 - **Terminal Search** (Cmd/Ctrl+F): Search through scrollback buffer with match highlighting (#24)
   - egui-based search bar overlay with real-time incremental search
   - Match highlighting with configurable colors for regular and current match
