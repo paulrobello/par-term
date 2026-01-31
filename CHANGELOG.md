@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Auto-Quote Dropped Files**: Automatically quote file paths when dragging and dropping files into the terminal (#39)
+  - Handles spaces and special shell characters safely
+  - Configurable quote styles: single quotes (default), double quotes, backslash escaping, or none
+  - Config option: `dropped_file_quote_style`
+  - Settings UI in Mouse tab under Selection & Clipboard
+
 - **Anti-Idle Keep-Alive**: Prevent SSH and connection timeouts by periodically sending invisible characters (#47)
   - Configurable idle threshold (10-3600 seconds, default: 60)
   - Configurable keep-alive character (NUL, ESC, ENQ, Space, or custom ASCII code)

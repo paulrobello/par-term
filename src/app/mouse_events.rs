@@ -686,7 +686,7 @@ impl WindowState {
         // Quote the path according to the configured style
         let quoted_path = quote_path(&path, self.config.dropped_file_quote_style);
 
-        log::info!(
+        log::debug!(
             "File dropped: {:?} -> {} (style: {:?})",
             path,
             quoted_path,
@@ -700,9 +700,10 @@ impl WindowState {
 
             runtime.spawn(async move {
                 let term = terminal_clone.lock().await;
-                // Write the quoted path as bytes
                 let bytes = quoted_path.as_bytes().to_vec();
-                let _ = term.write(&bytes);
+                if let Err(e) = term.write(&bytes) {
+                    log::error!("Failed to write dropped file path to terminal: {}", e);
+                }
             });
 
             // Request redraw in case terminal needs to update

@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use winit::event_loop::{ControlFlow, EventLoop};
 
+pub mod anti_idle;
 pub mod bell;
 pub mod config_updates;
 pub mod debug_state;
@@ -20,7 +21,6 @@ pub mod input_events;
 pub mod keyboard_handlers;
 pub mod mouse;
 pub mod mouse_events;
-pub mod anti_idle;
 mod notifications;
 pub mod render_cache;
 pub mod renderer_init;

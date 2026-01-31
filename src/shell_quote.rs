@@ -31,10 +31,7 @@ fn needs_quoting(path: &str) -> bool {
 /// adding an escaped single quote, and starting a new quoted section:
 /// `it's` becomes `'it'\''s'`
 fn quote_single(path: &str) -> String {
-    if !needs_quoting(path) {
-        return path.to_string();
-    }
-
+    // Always quote for consistency (like iTerm2)
     // Handle single quotes by ending quote, escaping, and starting new quote
     let escaped = path.replace('\'', "'\\''");
     format!("'{}'", escaped)
@@ -45,10 +42,7 @@ fn quote_single(path: &str) -> String {
 /// Double quotes allow variable expansion but protect most special characters.
 /// We need to escape: $, `, \, ", and !
 fn quote_double(path: &str) -> String {
-    if !needs_quoting(path) {
-        return path.to_string();
-    }
-
+    // Always quote for consistency (like iTerm2)
     let mut result = String::with_capacity(path.len() + 10);
     result.push('"');
 
@@ -69,6 +63,7 @@ fn quote_double(path: &str) -> String {
 /// Escape a file path using backslashes.
 ///
 /// Each special character is preceded by a backslash.
+/// Only escapes when necessary (no wrapping quotes).
 fn quote_backslash(path: &str) -> String {
     if !needs_quoting(path) {
         return path.to_string();
@@ -113,18 +108,25 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_simple_path_no_quoting_needed() {
+    fn test_simple_path_always_quoted() {
         let path = Path::new("/usr/local/bin/program");
+        // Single and double quotes always wrap for consistency (like iTerm2)
         assert_eq!(
             quote_path(path, DroppedFileQuoteStyle::SingleQuotes),
-            "/usr/local/bin/program"
+            "'/usr/local/bin/program'"
         );
         assert_eq!(
             quote_path(path, DroppedFileQuoteStyle::DoubleQuotes),
-            "/usr/local/bin/program"
+            "\"/usr/local/bin/program\""
         );
+        // Backslash only escapes when needed
         assert_eq!(
             quote_path(path, DroppedFileQuoteStyle::Backslash),
+            "/usr/local/bin/program"
+        );
+        // None never quotes
+        assert_eq!(
+            quote_path(path, DroppedFileQuoteStyle::None),
             "/usr/local/bin/program"
         );
     }
@@ -197,9 +199,10 @@ mod tests {
             Path::new("/path/with$dollar"),
         ];
         let result = quote_paths(&paths, DroppedFileQuoteStyle::SingleQuotes);
+        // All paths are quoted for consistency
         assert_eq!(
             result,
-            "/simple/path '/path with spaces' '/path/with$dollar'"
+            "'/simple/path' '/path with spaces' '/path/with$dollar'"
         );
     }
 }
