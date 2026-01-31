@@ -97,14 +97,10 @@ impl CellRenderer {
         .format(render_format)
         .render(&mut scaler, glyph_id)?;
 
-        let mut pixels = Vec::with_capacity(image.data.len() * 4);
-        let is_colored = match image.content {
-            Content::Color => {
-                pixels.extend_from_slice(&image.data);
-                true
-            }
+        let (pixels, is_colored) = match image.content {
+            Content::Color => (image.data.clone(), true),
             Content::Mask => {
-                // Standard alpha mask rendering
+                let mut pixels = Vec::with_capacity(image.data.len() * 4);
                 for &mask in &image.data {
                     // If anti-aliasing is disabled, threshold the alpha to create crisp edges
                     let alpha = if !self.font_antialias {
@@ -112,38 +108,13 @@ impl CellRenderer {
                     } else {
                         mask
                     };
-                    pixels.push(255);
-                    pixels.push(255);
-                    pixels.push(255);
-                    pixels.push(alpha);
+                    pixels.extend_from_slice(&[255, 255, 255, alpha]);
                 }
-                false
+                (pixels, false)
             }
             Content::SubpixelMask => {
-                // Subpixel rendering produces RGB data (3 bytes per pixel)
-                // For thin strokes effect, we average the subpixel values to create
-                // a lighter appearance while maintaining compatibility with our shader
-                let width = image.placement.width as usize;
-                let height = image.placement.height as usize;
-                for y in 0..height {
-                    for x in 0..width {
-                        let idx = (y * width + x) * 3;
-                        if idx + 2 < image.data.len() {
-                            let r = image.data[idx];
-                            let g = image.data[idx + 1];
-                            let b = image.data[idx + 2];
-                            // Use luminance-weighted average for perceptually accurate brightness
-                            // This creates a lighter stroke effect similar to macOS thin strokes
-                            let alpha =
-                                ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u8;
-                            pixels.push(255);
-                            pixels.push(255);
-                            pixels.push(255);
-                            pixels.push(alpha);
-                        }
-                    }
-                }
-                false
+                let pixels = convert_subpixel_mask_to_rgba(&image);
+                (pixels, false)
             }
         };
 
@@ -210,5 +181,110 @@ impl CellRenderer {
         self.atlas_row_height = self.atlas_row_height.max(raster.height);
 
         info
+    }
+}
+
+/// Convert a swash subpixel mask into an RGBA alpha mask.
+/// Some swash builds emit 3 bytes/pixel (RGB), others 4 bytes/pixel (RGBA).
+/// We derive alpha from luminance of RGB and ignore the packed alpha to avoid
+/// dropping coverage when alpha is zeroed by the rasterizer.
+fn convert_subpixel_mask_to_rgba(image: &swash::scale::image::Image) -> Vec<u8> {
+    let width = image.placement.width as usize;
+    let height = image.placement.height as usize;
+    let mut pixels = Vec::with_capacity(width * height * 4);
+
+    let stride = if width > 0 && height > 0 {
+        image.data.len() / (width * height)
+    } else {
+        0
+    };
+
+    match stride {
+        3 => {
+            for chunk in image.data.chunks_exact(3) {
+                let r = chunk[0];
+                let g = chunk[1];
+                let b = chunk[2];
+                let alpha = ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u8;
+                pixels.extend_from_slice(&[255, 255, 255, alpha]);
+            }
+        }
+        4 => {
+            for chunk in image.data.chunks_exact(4) {
+                let r = chunk[0];
+                let g = chunk[1];
+                let b = chunk[2];
+                // Ignore chunk[3] because it can be zeroed in some builds.
+                let alpha = ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u8;
+                pixels.extend_from_slice(&[255, 255, 255, alpha]);
+            }
+        }
+        _ => {
+            // Fallback: treat as opaque white to avoid invisibility if layout changes.
+            pixels.resize(width * height * 4, 255);
+        }
+    }
+
+    pixels
+}
+
+#[cfg(test)]
+mod tests {
+    use super::convert_subpixel_mask_to_rgba;
+    use swash::scale::{Render, ScaleContext, Source};
+    use swash::zeno::Format;
+
+    #[test]
+    fn subpixel_mask_uses_rgba_stride() {
+        let data = std::fs::read("fonts/DejaVuSansMono.ttf").expect("font file");
+        let font = swash::FontRef::from_index(&data, 0).expect("font ref");
+        let mut context = ScaleContext::new();
+        let glyph_id = font.charmap().map('a');
+        let mut scaler = context.builder(font).size(18.0).hint(true).build();
+
+        let image = Render::new(&[
+            Source::ColorOutline(0),
+            Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
+            Source::Outline,
+            Source::Bitmap(swash::scale::StrikeWith::BestFit),
+        ])
+        .format(Format::Subpixel)
+        .render(&mut scaler, glyph_id)
+        .expect("render");
+
+        let converted = convert_subpixel_mask_to_rgba(&image);
+
+        let width = image.placement.width as usize;
+        let height = image.placement.height as usize;
+        let mut expected = Vec::with_capacity(width * height * 4);
+        let stride = if width > 0 && height > 0 {
+            image.data.len() / (width * height)
+        } else {
+            0
+        };
+
+        match stride {
+            3 => {
+                for chunk in image.data.chunks_exact(3) {
+                    let r = chunk[0];
+                    let g = chunk[1];
+                    let b = chunk[2];
+                    let alpha = ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u8;
+                    expected.extend_from_slice(&[255, 255, 255, alpha]);
+                }
+            }
+            4 => {
+                for chunk in image.data.chunks_exact(4) {
+                    let r = chunk[0];
+                    let g = chunk[1];
+                    let b = chunk[2];
+                    let alpha = ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u8;
+                    expected.extend_from_slice(&[255, 255, 255, alpha]);
+                }
+            }
+            _ => expected.resize(width * height * 4, 255),
+        }
+
+        assert_eq!(converted, expected);
     }
 }
