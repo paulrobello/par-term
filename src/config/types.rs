@@ -128,6 +128,48 @@ pub enum TabBarMode {
     Never,
 }
 
+/// Quote style for dropped file paths
+///
+/// Controls how filenames containing special characters are quoted when dropped into the terminal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DroppedFileQuoteStyle {
+    /// Single quotes - safest for most shells (handles $, !, spaces, etc.)
+    /// Example: '/path/to/file with spaces.txt'
+    #[default]
+    SingleQuotes,
+    /// Double quotes - allows variable expansion
+    /// Example: "/path/to/file with spaces.txt"
+    DoubleQuotes,
+    /// Backslash escaping - escape individual special characters
+    /// Example: /path/to/file\ with\ spaces.txt
+    Backslash,
+    /// No quoting - insert path as-is (not recommended for paths with special chars)
+    None,
+}
+
+impl DroppedFileQuoteStyle {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            DroppedFileQuoteStyle::SingleQuotes => "Single quotes ('...')",
+            DroppedFileQuoteStyle::DoubleQuotes => "Double quotes (\"...\")",
+            DroppedFileQuoteStyle::Backslash => "Backslash escaping (\\)",
+            DroppedFileQuoteStyle::None => "None (raw path)",
+        }
+    }
+
+    /// All available quote styles for UI iteration
+    pub fn all() -> &'static [DroppedFileQuoteStyle] {
+        &[
+            DroppedFileQuoteStyle::SingleQuotes,
+            DroppedFileQuoteStyle::DoubleQuotes,
+            DroppedFileQuoteStyle::Backslash,
+            DroppedFileQuoteStyle::None,
+        ]
+    }
+}
+
 /// Option/Alt key behavior mode
 ///
 /// Controls what happens when Option (macOS) or Alt (Linux/Windows) key is pressed

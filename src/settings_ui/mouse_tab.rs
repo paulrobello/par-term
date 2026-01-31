@@ -1,4 +1,5 @@
 use super::SettingsUI;
+use crate::config::DroppedFileQuoteStyle;
 
 pub fn show_selection(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.collapsing("Selection & Clipboard", |ui| {
@@ -34,6 +35,38 @@ pub fn show_selection(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this
             settings.has_changes = true;
             *changes_this_frame = true;
         }
+
+        ui.separator();
+        ui.label("Dropped Files");
+
+        ui.horizontal(|ui| {
+            ui.label("Quote style:");
+            egui::ComboBox::from_id_salt("dropped_file_quote_style")
+                .selected_text(settings.config.dropped_file_quote_style.display_name())
+                .show_ui(ui, |ui| {
+                    for style in DroppedFileQuoteStyle::all() {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.dropped_file_quote_style,
+                                *style,
+                                style.display_name(),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+        })
+        .response
+        .on_hover_text(
+            "How to quote file paths when dropped into the terminal:\n\
+             - Single quotes: Safest for most shells\n\
+             - Double quotes: Allows variable expansion\n\
+             - Backslash: Escape individual characters\n\
+             - None: Insert raw path (not recommended)",
+        );
 
         ui.horizontal(|ui| {
             ui.label("Max clipboard sync events:");

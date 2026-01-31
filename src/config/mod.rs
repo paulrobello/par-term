@@ -21,9 +21,9 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
-    FontRange, KeyBinding, OptionKeyMode, ShaderConfig, ShaderInstallPrompt, ShaderMetadata,
-    SmartSelectionPrecision, SmartSelectionRule, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle,
-    UpdateCheckFrequency, VsyncMode, default_smart_selection_rules,
+    DroppedFileQuoteStyle, FontRange, KeyBinding, OptionKeyMode, ShaderConfig, ShaderInstallPrompt,
+    ShaderMetadata, SmartSelectionPrecision, SmartSelectionRule, TabBarMode, ThinStrokesMode,
+    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -374,6 +374,14 @@ pub struct Config {
     /// Paste on middle mouse button click
     #[serde(default = "defaults::bool_true")]
     pub middle_click_paste: bool,
+
+    /// Quote style for dropped file paths
+    /// - single_quotes: Wrap in single quotes (safest for most shells)
+    /// - double_quotes: Wrap in double quotes
+    /// - backslash: Escape special characters with backslashes
+    /// - none: Insert path as-is (not recommended)
+    #[serde(default)]
+    pub dropped_file_quote_style: DroppedFileQuoteStyle,
 
     // ========================================================================
     // Mouse Behavior
@@ -908,6 +916,7 @@ impl Default for Config {
             auto_copy_selection: defaults::bool_true(),
             copy_trailing_newline: defaults::bool_false(),
             middle_click_paste: defaults::bool_true(),
+            dropped_file_quote_style: DroppedFileQuoteStyle::default(),
             mouse_scroll_speed: defaults::scroll_speed(),
             mouse_double_click_threshold: defaults::double_click_threshold(),
             mouse_triple_click_threshold: defaults::triple_click_threshold(),

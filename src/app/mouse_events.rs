@@ -675,4 +675,40 @@ impl WindowState {
             None
         }
     }
+
+    /// Handle a file being dropped into the terminal window.
+    ///
+    /// Quotes the file path according to the configured style and writes it
+    /// to the active terminal session.
+    pub(crate) fn handle_dropped_file(&mut self, path: std::path::PathBuf) {
+        use crate::shell_quote::quote_path;
+
+        // Quote the path according to the configured style
+        let quoted_path = quote_path(&path, self.config.dropped_file_quote_style);
+
+        log::info!(
+            "File dropped: {:?} -> {} (style: {:?})",
+            path,
+            quoted_path,
+            self.config.dropped_file_quote_style
+        );
+
+        // Write the quoted path to the terminal
+        if let Some(tab) = self.tab_manager.active_tab() {
+            let terminal_clone = Arc::clone(&tab.terminal);
+            let runtime = Arc::clone(&self.runtime);
+
+            runtime.spawn(async move {
+                let term = terminal_clone.lock().await;
+                // Write the quoted path as bytes
+                let bytes = quoted_path.as_bytes().to_vec();
+                let _ = term.write(&bytes);
+            });
+
+            // Request redraw in case terminal needs to update
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+        }
+    }
 }

@@ -89,7 +89,7 @@ pub(crate) fn build_initial_text_payload(raw: &str, append_newline: bool) -> Opt
 
     let mut bytes = normalized.into_bytes();
 
-    if append_newline && !bytes.ends_with(&[b'\r']) && !bytes.ends_with(&[b'\n']) {
+    if append_newline && !bytes.ends_with(b"\r") && !bytes.ends_with(b"\n") {
         bytes.push(b'\r');
     }
 
