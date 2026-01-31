@@ -252,8 +252,8 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Silence bell | ✅ `Silence Bell` | ✅ volume=0 | ✅ | - | - | - |
 | Activity notification | ✅ `Send New Output Alert` | ✅ `notification_activity_enabled` | ✅ | - | - | Notify when output resumes after inactivity |
 | Idle notification | ✅ `Send Idle Alert` | ✅ `notification_silence_enabled` | ✅ | - | - | Notify after prolonged silence |
-| Session ended notification | ✅ `Send Session Ended Alert` | ❌ | ❌ | ⭐⭐ | 🟢 | Notify when process exits |
-| Suppress alerts when focused | ✅ `Suppress Alerts in Active Session` | ❌ | ❌ | ⭐⭐ | 🟢 | Smart notification filtering |
+| Session ended notification | ✅ `Send Session Ended Alert` | ✅ `notification_session_ended` | ✅ | - | - | Notify when process exits |
+| Suppress alerts when focused | ✅ `Suppress Alerts in Active Session` | ✅ `suppress_notifications_when_focused` | ✅ | - | - | Smart notification filtering |
 | Flashing bell | ✅ `Flashing Bell` | ✅ Visual bell | ✅ | - | - | - |
 | OSC 9/777 notifications | ✅ | ✅ `notification_max_buffer` | ✅ | - | - | - |
 
@@ -485,9 +485,7 @@ Full tmux control mode integration would require:
 
 **Phase 1 - Quick Wins (Low Effort, High Value)**
 1. Smart cursor color (⭐⭐, 🟢)
-2. Session ended notification (⭐⭐, 🟢)
-3. Suppress alerts when focused (⭐⭐, 🟢)
-4. Faint text alpha (⭐, 🟢)
+2. Faint text alpha (⭐, 🟢)
 
 **Phase 2 - Medium Effort, High Value**
 1. Tab bar position options (⭐⭐, 🟡)

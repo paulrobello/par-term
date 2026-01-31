@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Session Ended Notification**: Desktop notification when a shell process exits (#54)
+  - Useful for long-running commands where users switch to other applications
+  - Per-tab tracking ensures notification fires only once per session
+  - Config option: `notification_session_ended` (default: true)
+  - Settings UI checkbox in Bell & Notifications section
+
+- **Suppress Notifications When Focused**: Smart notification filtering (#54)
+  - Skip desktop notifications when the terminal window is already focused
+  - Visual and audio bells are unaffected (user can see/hear them)
+  - Reduces notification noise when actively using the terminal
+  - Config option: `suppress_notifications_when_focused` (default: true)
+  - Settings UI checkbox in Bell & Notifications section
+
 - **Advanced Mouse Features**: Implement mouse/pointer features from iTerm2 (#43)
   - **Platform-appropriate URL modifier**: Cmd+click on macOS, Ctrl+click on Windows/Linux to open URLs
   - **Option+Click moves cursor**: Position cursor at clicked location using arrow key sequences
