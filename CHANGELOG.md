@@ -133,6 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Thin Strokes Rendering**: Corrected subpixel mask alpha handling so thin strokes remain visible instead of disappearing when enabled.
+- **Font Rendering Toggles**: Thin strokes, antialiasing, and hinting now apply immediately when clicking "Apply font changes" in Settings (no restart required).
 - **Tab Bar Click Reliability**: Fixed missed clicks and wrong-tab-selection issues
   - Close button now renders as overlay with manual hit-testing for reliable clicks
   - Uses `clicked_by(PointerButton::Primary)` to prevent keyboard focus from triggering tab switches
