@@ -557,7 +557,8 @@ pub fn default_smart_selection_rules() -> Vec<SmartSelectionRule> {
             r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b",
             SmartSelectionPrecision::Normal,
         ),
-        // Low precision - broad patterns
-        SmartSelectionRule::new("Whitespace-bounded", r"\S+", SmartSelectionPrecision::Low),
+        // Note: No "whitespace-bounded" catch-all pattern here - that would defeat
+        // the purpose of configurable word_characters. If no smart pattern matches,
+        // selection falls back to word boundary detection using word_characters.
     ]
 }

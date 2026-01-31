@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Default: `/-+\~_.` (iTerm2 compatible)
     - Config option: `word_characters`
   - **Smart selection rules**: Regex-based patterns with precision levels for intelligent selection
-    - 12 default patterns: HTTP URLs, SSH URLs, file paths, email addresses, IPv4 addresses, IPv6 addresses, UUIDs, domain names, Git SHAs, semantic versions, SI numbers, hex colors
+    - 11 default patterns: HTTP URLs, SSH/Git/File URLs, file paths, email addresses, IPv4 addresses, Java/Python imports, C++ namespaces, quoted strings, UUIDs
     - 5 precision levels: VeryHigh, High, Normal, Low, VeryLow (higher precision patterns match first)
     - Enable/disable individual rules or smart selection entirely
     - Config options: `smart_selection_enabled`, `smart_selection_rules`
