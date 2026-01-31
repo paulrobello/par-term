@@ -2,6 +2,7 @@
 
 use super::{Tab, TabId};
 use crate::config::Config;
+use crate::profile::Profile;
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -52,6 +53,34 @@ impl TabManager {
         self.active_tab_id = Some(id);
 
         log::info!("Created new tab {} (total: {})", id, self.tabs.len());
+
+        Ok(id)
+    }
+
+    /// Create a new tab from a profile configuration
+    ///
+    /// The profile specifies the working directory, command, and tab name.
+    pub fn new_tab_from_profile(
+        &mut self,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        profile: &Profile,
+    ) -> Result<TabId> {
+        let id = self.next_tab_id;
+        self.next_tab_id += 1;
+
+        let tab = Tab::new_from_profile(id, config, runtime, profile)?;
+        self.tabs.push(tab);
+
+        // Always switch to the new tab
+        self.active_tab_id = Some(id);
+
+        log::info!(
+            "Created new tab {} from profile '{}' (total: {})",
+            id,
+            profile.name,
+            self.tabs.len()
+        );
 
         Ok(id)
     }

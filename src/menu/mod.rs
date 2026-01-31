@@ -8,6 +8,7 @@ mod actions;
 
 pub use actions::MenuAction;
 
+use crate::profile::Profile;
 use anyhow::Result;
 use muda::{
     Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu,
@@ -24,6 +25,10 @@ pub struct MenuManager {
     menu: Menu,
     /// Mapping from menu item IDs to actions
     action_map: HashMap<MenuId, MenuAction>,
+    /// Profiles submenu for dynamic profile items
+    profiles_submenu: Submenu,
+    /// Track profile menu items for cleanup
+    profile_menu_items: Vec<MenuItem>,
 }
 
 impl MenuManager {
@@ -151,6 +156,39 @@ impl MenuManager {
         }
 
         menu.append(&tab_menu)?;
+
+        // Profiles menu
+        let profiles_menu = Submenu::new("Profiles", true);
+
+        let manage_profiles = MenuItem::with_id(
+            "manage_profiles",
+            "Manage Profiles...",
+            true,
+            Some(Accelerator::new(
+                Some(cmd_or_ctrl | Modifiers::SHIFT),
+                Code::KeyP,
+            )),
+        );
+        action_map.insert(manage_profiles.id().clone(), MenuAction::ManageProfiles);
+        profiles_menu.append(&manage_profiles)?;
+
+        let toggle_drawer = MenuItem::with_id(
+            "toggle_profile_drawer",
+            "Toggle Profile Drawer",
+            true,
+            None, // Same shortcut as manage for now, or use different
+        );
+        action_map.insert(toggle_drawer.id().clone(), MenuAction::ToggleProfileDrawer);
+        profiles_menu.append(&toggle_drawer)?;
+
+        profiles_menu.append(&PredefinedMenuItem::separator())?;
+
+        // Dynamic profile menu items will be added via update_profiles()
+
+        menu.append(&profiles_menu)?;
+
+        // Store reference to profiles submenu for dynamic updates
+        let profiles_submenu = profiles_menu;
 
         // Edit menu
         let edit_menu = Submenu::new("Edit", true);
@@ -314,7 +352,12 @@ impl MenuManager {
 
         menu.append(&help_menu)?;
 
-        Ok(Self { menu, action_map })
+        Ok(Self {
+            menu,
+            action_map,
+            profiles_submenu,
+            profile_menu_items: Vec::new(),
+        })
     }
 
     /// Initialize the menu for a window
@@ -398,5 +441,47 @@ impl MenuManager {
                 Err(_) => None,
             }
         })
+    }
+
+    /// Update the profiles submenu with the current list of profiles
+    ///
+    /// This should be called whenever profiles are loaded or modified.
+    pub fn update_profiles(&mut self, profiles: &[&Profile]) {
+        // Remove existing profile menu items
+        for item in self.profile_menu_items.drain(..) {
+            // Remove from action_map
+            self.action_map.remove(&item.id());
+            // Remove from submenu
+            let _ = self.profiles_submenu.remove(&item);
+        }
+
+        // Add new profile menu items in order
+        for profile in profiles {
+            let menu_id = format!("profile_{}", profile.id);
+            let label = profile.display_label();
+
+            let item = MenuItem::with_id(menu_id, &label, true, None);
+
+            // Map to OpenProfile action
+            self.action_map
+                .insert(item.id().clone(), MenuAction::OpenProfile(profile.id));
+
+            // Add to submenu
+            if let Err(e) = self.profiles_submenu.append(&item) {
+                log::warn!("Failed to add profile menu item '{}': {}", label, e);
+                continue;
+            }
+
+            // Track for later removal
+            self.profile_menu_items.push(item);
+        }
+
+        log::info!("Updated profiles menu with {} items", profiles.len());
+    }
+
+    /// Update profiles from a ProfileManager (convenience method)
+    pub fn update_profiles_from_manager(&mut self, manager: &crate::profile::ProfileManager) {
+        let profiles: Vec<&Profile> = manager.profiles_ordered();
+        self.update_profiles(&profiles);
     }
 }

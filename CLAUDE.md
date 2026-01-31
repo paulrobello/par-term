@@ -63,6 +63,15 @@ make watch-graphics # Monitor graphics-related logs only
 make clean-logs     # Clean debug logs
 ```
 
+**IMPORTANT**: When stopping a debug instance, NEVER use `killall par-term` as this will kill ALL par-term processes including the terminal you're working in. Instead, target the specific debug process:
+```bash
+# Find the debug process (running from target/debug/)
+ps aux | grep "target/debug/par-term" | grep -v grep
+
+# Kill only the debug instance by PID
+kill <PID>
+```
+
 ### Live Debugging Workflow
 When debugging UI issues (tab clicks, mouse events, etc.), use this workflow:
 
