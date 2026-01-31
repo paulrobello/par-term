@@ -91,6 +91,59 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         });
 
         ui.separator();
+        ui.label("Session Notifications:");
+        if ui
+            .checkbox(
+                &mut settings.config.notification_session_ended,
+                "Notify when session/shell exits",
+            )
+            .on_hover_text("Send a desktop notification when the shell process exits")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.separator();
+        ui.label("Notification Behavior:");
+        if ui
+            .checkbox(
+                &mut settings.config.suppress_notifications_when_focused,
+                "Suppress notifications when focused",
+            )
+            .on_hover_text(
+                "Skip desktop notifications when the terminal window is focused (you're already looking at it)",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            if ui
+                .button("Test Notification")
+                .on_hover_text("Send a test notification to verify permissions are granted")
+                .clicked()
+            {
+                settings.test_notification_requested = true;
+            }
+            #[cfg(target_os = "macos")]
+            {
+                if ui
+                    .button("Open System Preferences")
+                    .on_hover_text("Open macOS notification settings")
+                    .clicked()
+                {
+                    let _ = std::process::Command::new("open")
+                        .arg("x-apple.systempreferences:com.apple.preference.notifications")
+                        .spawn();
+                }
+            }
+        });
+
+        ui.separator();
         ui.horizontal(|ui| {
             ui.label("Max notification buffer:");
             if ui

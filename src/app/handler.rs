@@ -346,20 +346,40 @@ impl WindowState {
                 // Check if active tab's shell has exited and close window/tab if configured
                 if self.config.exit_on_shell_exit {
                     // First check if shell exited (gather info without mutable borrows)
-                    let (shell_exited, active_tab_id, tab_count) = {
-                        let exited = self.tab_manager.active_tab().is_some_and(|tab| {
-                            tab.terminal
+                    let (shell_exited, active_tab_id, tab_count, tab_title, exit_notified) = {
+                        if let Some(tab) = self.tab_manager.active_tab() {
+                            let exited = tab
+                                .terminal
                                 .try_lock()
                                 .ok()
-                                .is_some_and(|term| !term.is_running())
-                        });
-                        let tab_id = self.tab_manager.active_tab_id();
-                        let count = self.tab_manager.tab_count();
-                        (exited, tab_id, count)
+                                .is_some_and(|term| !term.is_running());
+                            (
+                                exited,
+                                Some(tab.id),
+                                self.tab_manager.tab_count(),
+                                tab.title.clone(),
+                                tab.exit_notified,
+                            )
+                        } else {
+                            (false, None, 0, String::new(), false)
+                        }
                     };
 
                     if shell_exited {
                         log::info!("Shell in active tab has exited");
+
+                        // Send session exit notification BEFORE closing tab/window
+                        if self.config.notification_session_ended && !exit_notified {
+                            // Mark as notified to prevent duplicates
+                            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                                tab.exit_notified = true;
+                            }
+                            let title = format!("Session Ended: {}", tab_title);
+                            let message = "The shell process has exited".to_string();
+                            log::info!("Session exit notification: {} has exited", tab_title);
+                            self.deliver_notification(&title, &message);
+                        }
+
                         if tab_count <= 1 {
                             // Last tab - close window
                             log::info!("Last tab, closing window");
@@ -470,6 +490,9 @@ impl WindowState {
 
         // Check for activity/idle notifications
         self.check_activity_idle_notifications();
+
+        // Check for session exit notifications
+        self.check_session_exit_notifications();
 
         // Check for shader hot reload events
         if self.check_shader_reload() {
@@ -692,6 +715,10 @@ impl ApplicationHandler for WindowManager {
                     }
                     SettingsWindowAction::ApplyCursorShader(cursor_shader_result) => {
                         let _ = self.apply_cursor_shader_from_editor(&cursor_shader_result.source);
+                    }
+                    SettingsWindowAction::TestNotification => {
+                        // Send a test notification to verify permissions
+                        self.send_test_notification();
                     }
                     SettingsWindowAction::None => {}
                 }

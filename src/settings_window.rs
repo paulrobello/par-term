@@ -28,6 +28,8 @@ pub enum SettingsWindowAction {
     ApplyShader(ShaderEditorResult),
     /// Apply cursor shader from editor
     ApplyCursorShader(CursorShaderEditorResult),
+    /// Send a test notification to verify permissions
+    TestNotification,
 }
 
 /// Manages a separate settings window with its own egui context and wgpu renderer
@@ -404,6 +406,11 @@ impl SettingsWindow {
         // Free textures
         for id in &egui_output.textures_delta.free {
             self.egui_renderer.free_texture(id);
+        }
+
+        // Check for test notification request
+        if self.settings_ui.take_test_notification_request() {
+            return SettingsWindowAction::TestNotification;
         }
 
         // Determine action based on settings UI results

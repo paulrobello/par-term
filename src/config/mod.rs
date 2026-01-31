@@ -672,6 +672,14 @@ pub struct Config {
     #[serde(default = "defaults::silence_threshold", alias = "silence_threshold")]
     pub notification_silence_threshold: u64,
 
+    /// Enable notification when a shell/session exits
+    #[serde(default = "defaults::bool_false", alias = "session_ended")]
+    pub notification_session_ended: bool,
+
+    /// Suppress desktop notifications when the terminal window is focused
+    #[serde(default = "defaults::bool_true")]
+    pub suppress_notifications_when_focused: bool,
+
     /// Maximum number of OSC 9/777 notification entries retained by backend
     #[serde(
         default = "defaults::notification_max_buffer",
@@ -1009,6 +1017,8 @@ impl Default for Config {
             anti_idle_code: defaults::anti_idle_code(),
             notification_silence_enabled: defaults::bool_false(),
             notification_silence_threshold: defaults::silence_threshold(),
+            notification_session_ended: defaults::bool_false(),
+            suppress_notifications_when_focused: defaults::bool_true(),
             notification_max_buffer: defaults::notification_max_buffer(),
             tab_bar_mode: TabBarMode::default(),
             tab_bar_height: defaults::tab_bar_height(),
