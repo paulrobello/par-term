@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Answerback String**: Configurable answerback string for terminal identification (#45)
+  - Responds to ENQ (0x05) control character with user-defined string
+  - Used for legacy terminal identification in multi-terminal environments
+  - Default: empty (disabled) for security
+  - Config option: `answerback_string`
+  - Settings UI in Shell tab with security warning
+
 - **Smart Selection & Word Boundaries**: Enhanced double-click text selection with configurable patterns (#42)
   - **Word boundary characters**: Configurable characters considered part of a word
     - Default: `/-+\~_.` (iTerm2 compatible)
@@ -113,6 +120,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `same`: Keep normal cursor style
     - `hidden`: Hide cursor completely when unfocused
   - All enhancements configurable via Settings > Cursor tab
+
+### Changed
+
+- **Core Library Update**: Now depends on published `par-term-emu-core-rust` v0.23.0 from crates.io (includes ENQ answerback support) instead of the local path override
 
 ### Fixed
 

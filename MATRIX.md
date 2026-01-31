@@ -238,7 +238,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Character encoding | ✅ Multiple | ✅ UTF-8 | ✅ | - | - | UTF-8 only |
 | Unicode version | ✅ | ❌ | ❌ | ⭐ | 🟢 | Unicode standard version |
 | Unicode normalization | ✅ NFC/NFD/HFS+ | ❌ | ❌ | ⭐ | 🟡 | Text normalization |
-| Answerback string | ✅ | ❌ | ❌ | ⭐ | 🟢 | Terminal identification |
+| Answerback string | ✅ | ✅ | ✅ | ⭐ | 🟢 | ENQ response; default empty for security; configurable in Settings > Shell (core v0.23.0+) |
 
 ---
 

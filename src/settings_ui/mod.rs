@@ -757,7 +757,15 @@ impl SettingsUI {
         // Terminal
         if section_matches(
             "Terminal",
-            &["Columns", "Rows", "Scrollback", "Exit when shell exits"],
+            &[
+                "Columns",
+                "Rows",
+                "Scrollback",
+                "Exit when shell exits",
+                "Answerback",
+                "ENQ",
+                "Identification",
+            ],
         ) {
             insert_section_separator(ui, &mut section_shown);
             matches_found = true;

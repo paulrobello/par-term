@@ -707,6 +707,31 @@ impl TerminalManager {
 
 impl TerminalManager {}
 
+// ========================================================================
+// Answerback String (ENQ Response)
+// ========================================================================
+
+impl TerminalManager {
+    /// Set the answerback string sent in response to ENQ (0x05) control character
+    ///
+    /// The answerback string is sent back to the PTY when the terminal receives
+    /// an ENQ (enquiry, ASCII 0x05) character. This was historically used for
+    /// terminal identification in multi-terminal environments.
+    ///
+    /// # Security Note
+    /// Default is empty (disabled) for security. Setting this may expose
+    /// terminal identification information to applications.
+    ///
+    /// # Arguments
+    /// * `answerback` - The string to send, or None/empty to disable
+    pub fn set_answerback_string(&self, answerback: Option<String>) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.set_answerback_string(answerback);
+    }
+}
+
 impl Drop for TerminalManager {
     fn drop(&mut self) {
         log::info!("Shutting down terminal manager");

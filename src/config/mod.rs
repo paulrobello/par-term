@@ -548,6 +548,14 @@ pub struct Config {
     #[serde(default = "defaults::login_shell")]
     pub login_shell: bool,
 
+    /// Answerback string sent in response to ENQ (0x05) control character
+    /// This is a legacy terminal feature used for terminal identification.
+    /// Default: empty (disabled) for security
+    /// Common values: "par-term", "vt100", or custom identification
+    /// Security note: Setting this may expose terminal identification to applications
+    #[serde(default = "defaults::answerback_string")]
+    pub answerback_string: String,
+
     // ========================================================================
     // Scrollbar (GUI-specific)
     // ========================================================================
@@ -928,6 +936,7 @@ impl Default for Config {
             working_directory: None,
             shell_env: None,
             login_shell: defaults::login_shell(),
+            answerback_string: defaults::answerback_string(),
             scrollbar_position: defaults::scrollbar_position(),
             scrollbar_width: defaults::scrollbar_width(),
             scrollbar_thumb_color: defaults::scrollbar_thumb_color(),

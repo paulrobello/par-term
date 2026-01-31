@@ -50,6 +50,9 @@ pub(crate) struct ConfigChanges {
     // Cursor enhancements
     pub cursor_enhancements: bool,
 
+    // Terminal identification
+    pub answerback_string: bool,
+
     // Background (mode, image, and solid color)
     pub bg_mode: bool,
     pub bg_color: bool,
@@ -154,6 +157,8 @@ impl ConfigChanges {
                 || (new.cursor_boost - old.cursor_boost).abs() > f32::EPSILON
                 || new.cursor_boost_color != old.cursor_boost_color
                 || new.unfocused_cursor_style != old.unfocused_cursor_style,
+
+            answerback_string: new.answerback_string != old.answerback_string,
 
             bg_mode: new.background_mode != old.background_mode,
             bg_color: new.background_color != old.background_color,
