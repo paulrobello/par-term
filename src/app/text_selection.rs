@@ -2,12 +2,22 @@
 //!
 //! This module contains methods for selecting text in the terminal,
 //! including word selection, line selection, and text extraction.
+//!
+//! Supports:
+//! - Smart selection: Regex-based patterns (URLs, emails, paths) checked first
+//! - Configurable word characters: User-defined characters considered part of a word
 
 use crate::selection::{Selection, SelectionMode};
+use crate::smart_selection::{find_word_boundaries, is_word_char};
 
 use super::window_state::WindowState;
 
 impl WindowState {
+    /// Select word at the given position using smart selection and word boundary rules.
+    ///
+    /// Selection priority:
+    /// 1. If smart_selection_enabled, try pattern-based selection (URLs, emails, etc.)
+    /// 2. Fall back to word boundary selection using configurable word_characters
     pub(crate) fn select_word_at(&mut self, col: usize, row: usize) {
         let tab = if let Some(t) = self.tab_manager.active_tab() {
             t
@@ -33,7 +43,79 @@ impl WindowState {
             return;
         }
 
-        // Find word boundaries
+        // Build the line string for this row
+        let row_start_idx = row * cols;
+        let row_end_idx = (row_start_idx + cols).min(visible_cells.len());
+        let line: String = visible_cells[row_start_idx..row_end_idx]
+            .iter()
+            .map(|c| c.grapheme.as_str())
+            .collect();
+
+        // Get config values
+        let smart_selection_enabled = self.config.smart_selection_enabled;
+        let word_characters = self.config.word_characters.clone();
+        let smart_selection_rules = self.config.smart_selection_rules.clone();
+
+        // Try smart selection first if enabled
+        let (start_col, end_col) = if smart_selection_enabled {
+            // Get or create the smart selection matcher
+            let matcher = self
+                .smart_selection_cache
+                .get_matcher(&smart_selection_rules);
+
+            if let Some((start, end)) = matcher.find_match_at(&line, col) {
+                (start, end)
+            } else {
+                // Fall back to word boundary selection
+                find_word_boundaries(&line, col, &word_characters)
+            }
+        } else {
+            // Smart selection disabled, use word boundary selection
+            find_word_boundaries(&line, col, &word_characters)
+        };
+
+        // Now update mouse state
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.mouse.selection = Some(Selection::new(
+                (start_col, row),
+                (end_col, row),
+                SelectionMode::Normal,
+            ));
+        }
+    }
+
+    /// Select word at position using only word boundary selection (no smart patterns).
+    /// This is useful for manual word selection that should ignore smart patterns.
+    #[allow(dead_code)]
+    pub(crate) fn select_word_at_simple(&mut self, col: usize, row: usize) {
+        let tab = if let Some(t) = self.tab_manager.active_tab() {
+            t
+        } else {
+            return;
+        };
+
+        let (cols, visible_cells, _scroll_offset) = if let Ok(term) = tab.terminal.try_lock() {
+            let (cols, _rows) = term.dimensions();
+            let scroll_offset = tab.scroll_state.offset;
+            let visible_cells = term.get_cells_with_scrollback(scroll_offset, None, false, None);
+            (cols, visible_cells, scroll_offset)
+        } else {
+            return;
+        };
+
+        if visible_cells.is_empty() || cols == 0 {
+            return;
+        }
+
+        let cell_idx = row * cols + col;
+        if cell_idx >= visible_cells.len() {
+            return;
+        }
+
+        // Get word characters from config
+        let word_characters = &self.config.word_characters;
+
+        // Find word boundaries using configurable word characters
         let mut start_col = col;
         let mut end_col = col;
 
@@ -44,11 +126,29 @@ impl WindowState {
                 break;
             }
             let ch = visible_cells[idx].grapheme.chars().next().unwrap_or('\0');
-            if ch.is_alphanumeric() || ch == '_' {
+            if is_word_char(ch, word_characters) {
                 start_col = c;
             } else {
                 break;
             }
+        }
+
+        // Check if clicked position is a word character
+        let clicked_char = visible_cells[cell_idx]
+            .grapheme
+            .chars()
+            .next()
+            .unwrap_or('\0');
+        if !is_word_char(clicked_char, word_characters) {
+            // Not a word character, select just this cell
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.mouse.selection = Some(Selection::new(
+                    (col, row),
+                    (col, row),
+                    SelectionMode::Normal,
+                ));
+            }
+            return;
         }
 
         // Expand right
@@ -58,7 +158,7 @@ impl WindowState {
                 break;
             }
             let ch = visible_cells[idx].grapheme.chars().next().unwrap_or('\0');
-            if ch.is_alphanumeric() || ch == '_' {
+            if is_word_char(ch, word_characters) {
                 end_col = c;
             } else {
                 break;

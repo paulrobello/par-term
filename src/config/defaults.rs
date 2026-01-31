@@ -311,3 +311,14 @@ pub fn search_highlight_color() -> [u8; 4] {
 pub fn search_current_highlight_color() -> [u8; 4] {
     [255, 100, 0, 220] // Orange, more visible for current match
 }
+
+// Selection defaults
+pub fn word_characters() -> String {
+    // Default characters considered part of a word (in addition to alphanumeric)
+    // Matches iTerm2's default: /-+\~_.
+    "/-+\\~_.".to_string()
+}
+
+pub fn smart_selection_enabled() -> bool {
+    true // Smart selection enabled by default
+}
