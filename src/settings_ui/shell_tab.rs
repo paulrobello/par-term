@@ -76,4 +76,42 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, _changes_this_frame: &
             settings.has_changes = true;
         }
     });
+
+    ui.separator();
+
+    ui.collapsing("Initial Text", |ui| {
+        ui.label("Send text automatically when the session starts:");
+        if ui
+            .text_edit_multiline(&mut settings.temp_initial_text)
+            .changed()
+        {
+            settings.config.initial_text = settings.temp_initial_text.clone();
+            settings.has_changes = true;
+        }
+
+        ui.horizontal(|ui| {
+            ui.label("Delay (ms):");
+            if ui
+                .add(
+                    egui::DragValue::new(&mut settings.config.initial_text_delay_ms)
+                        .range(0..=5000),
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+            }
+
+            if ui
+                .checkbox(
+                    &mut settings.config.initial_text_send_newline,
+                    "Append newline after text",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+            }
+        });
+
+        ui.label("Supports \\n, \\r, \\t, \\xHH, \\e escape sequences.");
+    });
 }

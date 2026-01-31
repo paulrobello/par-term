@@ -548,6 +548,19 @@ pub struct Config {
     #[serde(default = "defaults::login_shell")]
     pub login_shell: bool,
 
+    /// Text to send automatically when a terminal session starts
+    /// Supports escape sequences: \n (newline), \r (carriage return), \t (tab), \xHH (hex), \e (ESC)
+    #[serde(default = "defaults::initial_text")]
+    pub initial_text: String,
+
+    /// Delay in milliseconds before sending the initial text (to allow shell to be ready)
+    #[serde(default = "defaults::initial_text_delay_ms")]
+    pub initial_text_delay_ms: u64,
+
+    /// Whether to append a newline after sending the initial text
+    #[serde(default = "defaults::initial_text_send_newline")]
+    pub initial_text_send_newline: bool,
+
     /// Answerback string sent in response to ENQ (0x05) control character
     /// This is a legacy terminal feature used for terminal identification.
     /// Default: empty (disabled) for security
@@ -936,6 +949,9 @@ impl Default for Config {
             working_directory: None,
             shell_env: None,
             login_shell: defaults::login_shell(),
+            initial_text: defaults::initial_text(),
+            initial_text_delay_ms: defaults::initial_text_delay_ms(),
+            initial_text_send_newline: defaults::initial_text_send_newline(),
             answerback_string: defaults::answerback_string(),
             scrollbar_position: defaults::scrollbar_position(),
             scrollbar_width: defaults::scrollbar_width(),

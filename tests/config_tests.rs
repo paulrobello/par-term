@@ -132,6 +132,11 @@ fn test_config_power_saving_defaults() {
     assert!(!config.pause_refresh_on_blur);
     // Default unfocused FPS is 30
     assert_eq!(config.unfocused_fps, 30);
+
+    // Initial text defaults
+    assert!(config.initial_text.is_empty());
+    assert_eq!(config.initial_text_delay_ms, 100);
+    assert!(config.initial_text_send_newline);
 }
 
 #[test]
@@ -145,6 +150,33 @@ unfocused_fps: 5
     assert!(!config.pause_shaders_on_blur);
     assert!(config.pause_refresh_on_blur);
     assert_eq!(config.unfocused_fps, 5);
+}
+
+#[test]
+fn test_config_initial_text_yaml_deserialization() {
+    let yaml = r#"
+initial_text: "ssh server"
+initial_text_delay_ms: 250
+initial_text_send_newline: false
+"#;
+
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.initial_text, "ssh server");
+    assert_eq!(config.initial_text_delay_ms, 250);
+    assert!(!config.initial_text_send_newline);
+}
+
+#[test]
+fn test_config_initial_text_yaml_serialization() {
+    let mut config = Config::default();
+    config.initial_text = "echo ready".to_string();
+    config.initial_text_delay_ms = 10;
+    config.initial_text_send_newline = false;
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("initial_text: echo ready"));
+    assert!(yaml.contains("initial_text_delay_ms: 10"));
+    assert!(yaml.contains("initial_text_send_newline: false"));
 }
 
 #[test]
