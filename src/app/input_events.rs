@@ -397,9 +397,7 @@ impl WindowState {
                             if shift {
                                 // Shift+Enter: Open paste special UI with the selected content
                                 self.paste_special_ui.open(content);
-                                log::info!(
-                                    "Paste special UI opened from clipboard history"
-                                );
+                                log::info!("Paste special UI opened from clipboard history");
                             } else {
                                 // Enter: Paste directly
                                 self.paste_text(&content);

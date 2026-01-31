@@ -3,7 +3,7 @@
 //! Provides a fuzzy-searchable command palette for applying text transformations
 //! to clipboard content before pasting.
 
-use crate::paste_transform::{transform, PasteTransform};
+use crate::paste_transform::{PasteTransform, transform};
 use egui::{Color32, Context, RichText, Window};
 
 /// Action to take after showing the UI
@@ -211,11 +211,7 @@ impl PasteSpecialUI {
                     columns[1].separator();
 
                     // Show original content (truncated)
-                    columns[1].label(
-                        RichText::new("Original:")
-                            .small()
-                            .color(Color32::GRAY),
-                    );
+                    columns[1].label(RichText::new("Original:").small().color(Color32::GRAY));
                     let original_preview = truncate_preview(&self.content, 100);
                     columns[1].label(
                         RichText::new(&original_preview)
@@ -226,11 +222,7 @@ impl PasteSpecialUI {
                     columns[1].add_space(8.0);
 
                     // Show transformed content (or error)
-                    columns[1].label(
-                        RichText::new("Result:")
-                            .small()
-                            .color(Color32::GRAY),
-                    );
+                    columns[1].label(RichText::new("Result:").small().color(Color32::GRAY));
                     match &self.preview_result {
                         Ok(result) => {
                             let result_preview = truncate_preview(result, 100);
@@ -241,11 +233,7 @@ impl PasteSpecialUI {
                             );
                         }
                         Err(error) => {
-                            columns[1].label(
-                                RichText::new(error)
-                                    .monospace()
-                                    .color(Color32::RED),
-                            );
+                            columns[1].label(RichText::new(error).monospace().color(Color32::RED));
                         }
                     }
                 });
@@ -254,11 +242,9 @@ impl PasteSpecialUI {
                 if let Some(idx) = clicked_index {
                     self.selected_index = idx;
                     self.update_preview();
-                    if double_clicked {
-                        if let Some(result) = self.apply_selected() {
-                            action = PasteSpecialAction::Paste(result);
-                            self.visible = false;
-                        }
+                    if double_clicked && let Some(result) = self.apply_selected() {
+                        action = PasteSpecialAction::Paste(result);
+                        self.visible = false;
                     }
                 }
 
@@ -266,16 +252,16 @@ impl PasteSpecialUI {
 
                 // Action buttons
                 ui.horizontal(|ui| {
-                    let can_apply = self.preview_result.is_ok() && !self.filtered_transforms.is_empty();
+                    let can_apply =
+                        self.preview_result.is_ok() && !self.filtered_transforms.is_empty();
 
                     if ui
                         .add_enabled(can_apply, egui::Button::new("Apply & Paste"))
                         .clicked()
+                        && let Some(result) = self.apply_selected()
                     {
-                        if let Some(result) = self.apply_selected() {
-                            action = PasteSpecialAction::Paste(result);
-                            self.visible = false;
-                        }
+                        action = PasteSpecialAction::Paste(result);
+                        self.visible = false;
                     }
 
                     if ui.button("Cancel").clicked() {
@@ -321,7 +307,10 @@ impl PasteSpecialUI {
 /// Truncate content for preview display
 fn truncate_preview(content: &str, max_len: usize) -> String {
     // Replace newlines with visible markers
-    let single_line = content.replace('\n', "↵").replace('\r', "").replace('\t', "→");
+    let single_line = content
+        .replace('\n', "↵")
+        .replace('\r', "")
+        .replace('\t', "→");
 
     if single_line.chars().count() <= max_len {
         single_line

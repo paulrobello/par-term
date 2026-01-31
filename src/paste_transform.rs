@@ -438,12 +438,11 @@ fn normalize_line_endings(input: &str) -> String {
 // Encoding transformations
 // ============================================================================
 
-const BASE64_CHARS: &[u8] =
-    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const BASE64_CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 fn base64_encode(input: &str) -> String {
     let bytes = input.as_bytes();
-    let mut result = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    let mut result = String::with_capacity(bytes.len().div_ceil(3) * 4);
 
     for chunk in bytes.chunks(3) {
         let b0 = chunk[0] as u32;
@@ -581,7 +580,7 @@ fn hex_decode(input: &str) -> Result<String, String> {
     // Filter out whitespace and collect hex chars
     let hex_chars: String = input.chars().filter(|c| !c.is_whitespace()).collect();
 
-    if hex_chars.len() % 2 != 0 {
+    if !hex_chars.len().is_multiple_of(2) {
         return Err("Hex string must have even length".to_string());
     }
 
@@ -641,9 +640,7 @@ fn json_unescape(input: &str) -> Result<String, String> {
                     match u32::from_str_radix(&hex, 16) {
                         Ok(code) => match char::from_u32(code) {
                             Some(ch) => result.push(ch),
-                            None => {
-                                return Err(format!("Invalid Unicode code point: \\u{}", hex))
-                            }
+                            None => return Err(format!("Invalid Unicode code point: \\u{}", hex)),
                         },
                         Err(_) => return Err(format!("Invalid hex in \\u escape: {}", hex)),
                     }
@@ -832,8 +829,11 @@ mod tests {
     #[test]
     fn test_whitespace_remove_empty_lines() {
         assert_eq!(
-            transform("line1\n\nline2\n  \nline3", PasteTransform::WhitespaceRemoveEmptyLines)
-                .unwrap(),
+            transform(
+                "line1\n\nline2\n  \nline3",
+                PasteTransform::WhitespaceRemoveEmptyLines
+            )
+            .unwrap(),
             "line1\nline2\nline3"
         );
     }
@@ -841,8 +841,11 @@ mod tests {
     #[test]
     fn test_whitespace_normalize_line_endings() {
         assert_eq!(
-            transform("line1\r\nline2\rline3", PasteTransform::WhitespaceNormalizeLineEndings)
-                .unwrap(),
+            transform(
+                "line1\r\nline2\rline3",
+                PasteTransform::WhitespaceNormalizeLineEndings
+            )
+            .unwrap(),
             "line1\nline2\nline3"
         );
     }

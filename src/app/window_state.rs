@@ -6,13 +6,13 @@
 use crate::app::anti_idle::should_send_keep_alive;
 use crate::app::debug_state::DebugState;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
-use crate::paste_special_ui::{PasteSpecialAction, PasteSpecialUI};
 use crate::config::{
     Config, CursorShaderMetadataCache, CursorStyle, ShaderInstallPrompt, ShaderMetadataCache,
 };
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::keybindings::KeybindingRegistry;
+use crate::paste_special_ui::{PasteSpecialAction, PasteSpecialUI};
 use crate::renderer::Renderer;
 use crate::search::SearchUI;
 use crate::selection::SelectionMode;
