@@ -291,6 +291,10 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
             key: "CmdOrCtrl+Shift+U".to_string(),
             action: "toggle_cursor_shader".to_string(),
         },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+V".to_string(),
+            action: "paste_special".to_string(),
+        },
     ]
 }
 

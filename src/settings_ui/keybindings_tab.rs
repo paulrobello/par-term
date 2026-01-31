@@ -29,6 +29,12 @@ const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ("close_tab", "Close Tab", Some("CmdOrCtrl+W")),
     ("next_tab", "Next Tab", Some("CmdOrCtrl+Shift+]")),
     ("prev_tab", "Previous Tab", Some("CmdOrCtrl+Shift+[")),
+    ("toggle_search", "Toggle Search", Some("CmdOrCtrl+F")),
+    (
+        "paste_special",
+        "Paste Special (Transform)",
+        Some("CmdOrCtrl+Shift+V"),
+    ),
 ];
 
 /// Convert "CmdOrCtrl" to the platform-specific display string.

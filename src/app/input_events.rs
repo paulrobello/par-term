@@ -101,6 +101,11 @@ impl WindowState {
             return; // Key was handled for clipboard history, don't send to terminal
         }
 
+        // Check if paste special UI is handling keys
+        if self.handle_paste_special_keys(&event) {
+            return; // Key was handled for paste special, don't send to terminal
+        }
+
         // Check for search keys (Cmd/Ctrl+F)
         if self.handle_search_keys(&event) {
             return; // Key was handled for search, don't send to terminal
@@ -439,6 +444,45 @@ impl WindowState {
             "Clipboard history UI toggled: {}",
             self.clipboard_history_ui.visible
         );
+    }
+
+    fn handle_paste_special_keys(&mut self, event: &KeyEvent) -> bool {
+        // Handle keys when paste special UI is visible
+        if self.paste_special_ui.visible {
+            if event.state == ElementState::Pressed {
+                match &event.logical_key {
+                    Key::Named(winit::keyboard::NamedKey::Escape) => {
+                        self.paste_special_ui.close();
+                        self.needs_redraw = true;
+                        return true;
+                    }
+                    Key::Named(winit::keyboard::NamedKey::ArrowUp) => {
+                        self.paste_special_ui.select_previous();
+                        self.needs_redraw = true;
+                        return true;
+                    }
+                    Key::Named(winit::keyboard::NamedKey::ArrowDown) => {
+                        self.paste_special_ui.select_next();
+                        self.needs_redraw = true;
+                        return true;
+                    }
+                    Key::Named(winit::keyboard::NamedKey::Enter) => {
+                        // Apply the selected transformation and paste
+                        if let Some(result) = self.paste_special_ui.apply_selected() {
+                            self.paste_special_ui.close();
+                            self.paste_text(&result);
+                            self.needs_redraw = true;
+                        }
+                        return true;
+                    }
+                    _ => {}
+                }
+            }
+            // While paste special is visible, consume all key events
+            // to prevent them from going to the terminal
+            return true;
+        }
+        false
     }
 
     pub(crate) fn paste_text(&mut self, text: &str) {
@@ -875,6 +919,20 @@ impl WindowState {
             "prev_tab" => {
                 self.prev_tab();
                 log::debug!("Switched to previous tab via keybinding");
+                true
+            }
+            "paste_special" => {
+                // Get clipboard content and open paste special UI
+                if let Some(text) = self.input_handler.paste_from_clipboard() {
+                    self.paste_special_ui.open(text);
+                    self.needs_redraw = true;
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                    log::info!("Paste special UI opened");
+                } else {
+                    log::debug!("Paste special: no clipboard content");
+                }
                 true
             }
             _ => {
