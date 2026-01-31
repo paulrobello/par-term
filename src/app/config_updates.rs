@@ -53,6 +53,9 @@ pub(crate) struct ConfigChanges {
     // Terminal identification
     pub answerback_string: bool,
 
+    // Unicode width settings
+    pub unicode_width: bool,
+
     // Anti-idle keep-alive
     pub anti_idle_enabled: bool,
     pub anti_idle_seconds: bool,
@@ -166,6 +169,9 @@ impl ConfigChanges {
                 || new.unfocused_cursor_style != old.unfocused_cursor_style,
 
             answerback_string: new.answerback_string != old.answerback_string,
+
+            unicode_width: new.unicode_version != old.unicode_version
+                || new.ambiguous_width != old.ambiguous_width,
 
             anti_idle_enabled: new.anti_idle_enabled != old.anti_idle_enabled,
             anti_idle_seconds: new.anti_idle_seconds != old.anti_idle_seconds,
