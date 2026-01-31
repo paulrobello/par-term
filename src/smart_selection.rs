@@ -114,10 +114,13 @@ fn byte_to_char_offset(s: &str, byte_offset: usize) -> Option<usize> {
 ///
 /// A character is part of a word if:
 /// - It is alphanumeric (a-z, A-Z, 0-9)
-/// - It is an underscore
 /// - It is in the user-defined word_characters set
+///
+/// Note: Unlike some terminals, underscore is NOT hardcoded as a word character.
+/// It is included in the default word_characters setting (`/-+\~_.`) but can be
+/// removed by the user for full control over word selection behavior.
 pub fn is_word_char(ch: char, word_characters: &str) -> bool {
-    ch.is_alphanumeric() || ch == '_' || word_characters.contains(ch)
+    ch.is_alphanumeric() || word_characters.contains(ch)
 }
 
 /// Find word boundaries at the given position using configurable word characters.
@@ -298,14 +301,24 @@ mod tests {
         let line = "hello_world test-case";
         let word_chars = "";
 
-        // With empty word_chars, only alphanumeric + underscore are word chars
-        // Click on 'w' in world
+        // With empty word_chars, only alphanumeric characters are word chars
+        // underscore is NOT hardcoded - it must be in word_characters to be included
+        // Click on 'w' in world - should stop at underscore
         let (start, end) = find_word_boundaries(line, 6, word_chars);
         assert_eq!(
             &line.chars().collect::<Vec<_>>()[start..=end]
                 .iter()
                 .collect::<String>(),
-            "hello_world"
+            "world"
+        );
+
+        // Click on 'h' in hello - should stop at underscore
+        let (start, end) = find_word_boundaries(line, 0, word_chars);
+        assert_eq!(
+            &line.chars().collect::<Vec<_>>()[start..=end]
+                .iter()
+                .collect::<String>(),
+            "hello"
         );
 
         // Click on 't' in test - should stop at hyphen
