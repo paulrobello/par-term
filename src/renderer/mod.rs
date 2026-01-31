@@ -408,6 +408,12 @@ impl Renderer {
         self.dirty = true;
     }
 
+    /// Update cursor text color (color of text under block cursor)
+    pub fn update_cursor_text_color(&mut self, color: Option<[u8; 3]>) {
+        self.cell_renderer.update_cursor_text_color(color);
+        self.dirty = true;
+    }
+
     /// Set whether cursor should be hidden when cursor shader is active
     pub fn set_cursor_hidden_for_shader(&mut self, hidden: bool) {
         self.cell_renderer.set_cursor_hidden_for_shader(hidden);

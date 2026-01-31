@@ -412,6 +412,12 @@ pub struct Config {
     #[serde(default = "defaults::cursor_color")]
     pub cursor_color: [u8; 3],
 
+    /// Color of text under block cursor [R, G, B] (0-255)
+    /// If not set (None), uses automatic contrast color
+    /// Only affects block cursor style (beam and underline don't obscure text)
+    #[serde(default)]
+    pub cursor_text_color: Option<[u8; 3]>,
+
     /// Lock cursor visibility - prevent applications from hiding the cursor
     /// When true, the cursor remains visible regardless of DECTCEM escape sequences
     #[serde(default = "defaults::bool_false")]
@@ -825,6 +831,7 @@ impl Default for Config {
             cursor_blink_interval: defaults::cursor_blink_interval(),
             cursor_style: CursorStyle::default(),
             cursor_color: defaults::cursor_color(),
+            cursor_text_color: None,
             lock_cursor_visibility: defaults::bool_false(),
             lock_cursor_style: defaults::bool_false(),
             lock_cursor_blink: defaults::bool_false(),

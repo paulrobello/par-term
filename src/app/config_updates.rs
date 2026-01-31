@@ -45,6 +45,7 @@ pub(crate) struct ConfigChanges {
     pub cursor_style: bool,
     pub cursor_blink: bool,
     pub cursor_color: bool,
+    pub cursor_text_color: bool,
 
     // Cursor enhancements
     pub cursor_enhancements: bool,
@@ -142,6 +143,7 @@ impl ConfigChanges {
             cursor_style: new.cursor_style != old.cursor_style,
             cursor_blink: new.cursor_blink != old.cursor_blink,
             cursor_color: new.cursor_color != old.cursor_color,
+            cursor_text_color: new.cursor_text_color != old.cursor_text_color,
 
             cursor_enhancements: new.cursor_guide_enabled != old.cursor_guide_enabled
                 || new.cursor_guide_color != old.cursor_guide_color

@@ -84,6 +84,8 @@ pub struct CellRenderer {
     pub(crate) cursor_overlay: Option<BackgroundInstance>,
     /// Cursor color [R, G, B] as floats (0.0-1.0)
     pub(crate) cursor_color: [f32; 3],
+    /// Text color under block cursor [R, G, B] as floats (0.0-1.0), or None for auto-contrast
+    pub(crate) cursor_text_color: Option<[f32; 3]>,
     /// Hide cursor when cursor shader is active (let shader handle cursor rendering)
     pub(crate) cursor_hidden_for_shader: bool,
     /// Whether the window is currently focused (for unfocused cursor style)
@@ -422,6 +424,7 @@ impl CellRenderer {
             cursor_style: par_term_emu_core_rust::cursor::CursorStyle::SteadyBlock,
             cursor_overlay: None,
             cursor_color: [1.0, 1.0, 1.0],
+            cursor_text_color: None,
             cursor_hidden_for_shader: false,
             is_focused: true,
             cursor_guide_enabled: false,
@@ -748,6 +751,18 @@ impl CellRenderer {
             color[1] as f32 / 255.0,
             color[2] as f32 / 255.0,
         ];
+        self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+    }
+
+    /// Update cursor text color (color of text under block cursor)
+    pub fn update_cursor_text_color(&mut self, color: Option<[u8; 3]>) {
+        self.cursor_text_color = color.map(|c| {
+            [
+                c[0] as f32 / 255.0,
+                c[1] as f32 / 255.0,
+                c[2] as f32 / 255.0,
+            ]
+        });
         self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
     }
 
