@@ -302,3 +302,12 @@ pub fn cursor_boost_color() -> [u8; 3] {
 pub fn update_check_frequency() -> super::types::UpdateCheckFrequency {
     super::types::UpdateCheckFrequency::Weekly
 }
+
+// Search defaults
+pub fn search_highlight_color() -> [u8; 4] {
+    [255, 200, 0, 180] // Yellow with some transparency
+}
+
+pub fn search_current_highlight_color() -> [u8; 4] {
+    [255, 100, 0, 220] // Orange, more visible for current match
+}

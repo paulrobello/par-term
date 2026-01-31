@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Terminal Search** (Cmd/Ctrl+F): Search through scrollback buffer with match highlighting (#24)
+  - egui-based search bar overlay with real-time incremental search
+  - Match highlighting with configurable colors for regular and current match
+  - Navigation between matches with Enter/Shift+Enter or Cmd/Ctrl+G
+  - Search options: case sensitive (Aa), regex mode (.*), whole word (\b)
+  - Automatic scroll to current match with match counter display
+  - Debounced search (150ms) for responsive typing
+  - Proper Unicode support: correctly handles multi-byte characters (emoji, CJK)
+  - New config options: `search_highlight_color`, `search_current_highlight_color`
+  - Keyboard shortcuts: Cmd/Ctrl+F (open), Escape (close), Enter (next), Shift+Enter (prev)
+
 - **Automatic Update Checking**: Configurable update check frequency with desktop notifications (#34)
   - Check for new par-term releases from GitHub automatically
   - Four frequency options: Never, Daily, Weekly (default), Monthly
@@ -414,7 +425,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dynamic font hot-reloading
 - Font subsetting for large CJK fonts
 - Split pane support (horizontal/vertical)
-- Search functionality (Ctrl+F)
 
 ---
 

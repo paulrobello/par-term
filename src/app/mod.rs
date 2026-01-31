@@ -24,6 +24,7 @@ mod notifications;
 pub mod render_cache;
 pub mod renderer_init;
 pub mod scroll_ops;
+pub mod search_highlight;
 pub mod tab_ops;
 pub mod text_selection;
 pub mod url_hover;

@@ -776,6 +776,29 @@ pub struct Config {
     /// Last version we notified the user about (prevents repeat notifications)
     #[serde(default)]
     pub last_notified_version: Option<String>,
+
+    // ========================================================================
+    // Search Settings
+    // ========================================================================
+    /// Highlight color for search matches [R, G, B, A] (0-255)
+    #[serde(default = "defaults::search_highlight_color")]
+    pub search_highlight_color: [u8; 4],
+
+    /// Highlight color for the current/active search match [R, G, B, A] (0-255)
+    #[serde(default = "defaults::search_current_highlight_color")]
+    pub search_current_highlight_color: [u8; 4],
+
+    /// Default case sensitivity for search
+    #[serde(default = "defaults::bool_false")]
+    pub search_case_sensitive: bool,
+
+    /// Default regex mode for search
+    #[serde(default = "defaults::bool_false")]
+    pub search_regex: bool,
+
+    /// Wrap around when navigating search matches
+    #[serde(default = "defaults::bool_true")]
+    pub search_wrap_around: bool,
 }
 
 impl Default for Config {
@@ -922,6 +945,11 @@ impl Default for Config {
             last_update_check: None,
             skipped_version: None,
             last_notified_version: None,
+            search_highlight_color: defaults::search_highlight_color(),
+            search_current_highlight_color: defaults::search_current_highlight_color(),
+            search_case_sensitive: defaults::bool_false(),
+            search_regex: defaults::bool_false(),
+            search_wrap_around: defaults::bool_true(),
         }
     }
 }

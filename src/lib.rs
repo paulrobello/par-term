@@ -23,6 +23,7 @@ pub mod menu;
 pub mod renderer;
 pub mod scroll_state;
 pub mod scrollbar;
+pub mod search;
 pub mod selection;
 pub mod settings_ui;
 pub mod settings_window;

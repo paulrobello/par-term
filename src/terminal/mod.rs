@@ -284,6 +284,42 @@ impl TerminalManager {
         pty.scrollback_len()
     }
 
+    /// Get all scrollback lines as Cell arrays.
+    ///
+    /// This ensures consistent handling of wide characters when searching,
+    /// by using the same cell-to-string conversion as visible content.
+    pub fn scrollback_as_cells(&self) -> Vec<Vec<crate::cell_renderer::Cell>> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        let grid = term.active_grid();
+
+        let scrollback_len = grid.scrollback_len();
+        let cols = grid.cols();
+        let mut result = Vec::with_capacity(scrollback_len);
+
+        for line_idx in 0..scrollback_len {
+            let mut row_cells = Vec::with_capacity(cols);
+            if let Some(line) = grid.scrollback_line(line_idx) {
+                Self::push_line_from_slice(
+                    line,
+                    cols,
+                    &mut row_cells,
+                    0,     // screen_row (unused for our purposes)
+                    None,  // no selection
+                    false, // not rectangular
+                    None,  // no cursor
+                    &self.theme,
+                );
+            } else {
+                Self::push_empty_cells(cols, &mut row_cells);
+            }
+            result.push(row_cells);
+        }
+
+        result
+    }
+
     /// Clear scrollback buffer
     ///
     /// Removes all scrollback history while preserving the current screen content.
@@ -294,6 +330,78 @@ impl TerminalManager {
         let mut term = terminal.lock();
         // CSI 3 J = ESC [ 3 J - Erase Scrollback (ED 3)
         term.process(b"\x1b[3J");
+    }
+
+    /// Search for text in the visible screen.
+    ///
+    /// Returns matches with row indices 0+ for visible screen rows.
+    pub fn search(
+        &self,
+        query: &str,
+        case_sensitive: bool,
+    ) -> Vec<par_term_emu_core_rust::terminal::SearchMatch> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.search(query, case_sensitive)
+    }
+
+    /// Search for text in the scrollback buffer.
+    ///
+    /// Returns matches with negative row indices (e.g., -1 is the most recent scrollback line).
+    pub fn search_scrollback(
+        &self,
+        query: &str,
+        case_sensitive: bool,
+        max_lines: Option<usize>,
+    ) -> Vec<par_term_emu_core_rust::terminal::SearchMatch> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.search_scrollback(query, case_sensitive, max_lines)
+    }
+
+    /// Search for text in both visible screen and scrollback.
+    ///
+    /// Returns all matches with normalized row indices where:
+    /// - Row 0 is the oldest scrollback line
+    /// - Rows increase towards the current screen
+    pub fn search_all(&self, query: &str, case_sensitive: bool) -> Vec<crate::search::SearchMatch> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+
+        let scrollback_len = term.active_grid().scrollback_len();
+        let mut results = Vec::new();
+
+        // Search scrollback (returns negative row indices)
+        let scrollback_matches = term.search_scrollback(query, case_sensitive, None);
+        for m in scrollback_matches {
+            // Convert negative row index to absolute line index
+            // -1 = most recent scrollback = scrollback_len - 1
+            // -(scrollback_len) = oldest scrollback = 0
+            let abs_line = scrollback_len as isize + m.row; // m.row is negative
+            if abs_line >= 0 {
+                results.push(crate::search::SearchMatch::new(
+                    abs_line as usize,
+                    m.col,
+                    m.length,
+                ));
+            }
+        }
+
+        // Search visible screen (returns 0+ row indices)
+        let screen_matches = term.search(query, case_sensitive);
+        for m in screen_matches {
+            // Screen row 0 = scrollback_len in absolute terms
+            let abs_line = scrollback_len + m.row as usize;
+            results.push(crate::search::SearchMatch::new(abs_line, m.col, m.length));
+        }
+
+        // Sort by line, then by column
+        results.sort_by(|a, b| a.line.cmp(&b.line).then_with(|| a.column.cmp(&b.column)));
+
+        results
     }
 
     /// Take all pending OSC 9/777 notifications

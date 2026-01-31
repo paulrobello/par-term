@@ -14,7 +14,8 @@ impl WindowState {
 
         // Check if any UI panel is visible
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
-        let any_ui_visible = self.help_ui.visible || self.clipboard_history_ui.visible;
+        let any_ui_visible =
+            self.help_ui.visible || self.clipboard_history_ui.visible || self.search_ui.visible;
 
         // When UI panels are visible, block ALL keys from going to terminal
         // except for UI control keys (Escape handled by egui, F1/F2/F3 for toggles)
@@ -98,6 +99,11 @@ impl WindowState {
         // Check if this is a clipboard history key (Ctrl+Shift+H)
         if self.handle_clipboard_history_keys(&event) {
             return; // Key was handled for clipboard history, don't send to terminal
+        }
+
+        // Check for search keys (Cmd/Ctrl+F)
+        if self.handle_search_keys(&event) {
+            return; // Key was handled for search, don't send to terminal
         }
 
         // Check for fullscreen toggle (F11)
@@ -444,6 +450,47 @@ impl WindowState {
         }
     }
 
+    fn handle_search_keys(&mut self, event: &KeyEvent) -> bool {
+        // Handle keys when search UI is visible
+        if self.search_ui.visible {
+            if event.state == ElementState::Pressed
+                && let Key::Named(winit::keyboard::NamedKey::Escape) = &event.logical_key
+            {
+                self.search_ui.close();
+                self.needs_redraw = true;
+                return true;
+            }
+            // While search is visible, let egui handle most keys
+            // Return false to let the event propagate to the UI
+            return false;
+        }
+
+        // Cmd+F (macOS) or Ctrl+F: Open search
+        if event.state == ElementState::Pressed {
+            #[cfg(target_os = "macos")]
+            let cmd_or_ctrl = self.input_handler.modifiers.state().super_key();
+            #[cfg(not(target_os = "macos"))]
+            let cmd_or_ctrl = self.input_handler.modifiers.state().control_key();
+
+            let shift = self.input_handler.modifiers.state().shift_key();
+
+            if cmd_or_ctrl
+                && !shift
+                && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("f"))
+            {
+                self.search_ui.open();
+                // Initialize from config
+                self.search_ui
+                    .init_from_config(self.config.search_case_sensitive, self.config.search_regex);
+                self.needs_redraw = true;
+                log::debug!("Search UI opened via Cmd/Ctrl+F");
+                return true;
+            }
+        }
+
+        false
+    }
+
     fn handle_utility_shortcuts(
         &mut self,
         event: &KeyEvent,
@@ -776,6 +823,28 @@ impl WindowState {
                 log::info!(
                     "FPS overlay toggled via keybinding: {}",
                     if self.debug.show_fps_overlay {
+                        "visible"
+                    } else {
+                        "hidden"
+                    }
+                );
+                true
+            }
+            "toggle_search" => {
+                self.search_ui.toggle();
+                if self.search_ui.visible {
+                    self.search_ui.init_from_config(
+                        self.config.search_case_sensitive,
+                        self.config.search_regex,
+                    );
+                }
+                self.needs_redraw = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                log::info!(
+                    "Search UI toggled via keybinding: {}",
+                    if self.search_ui.visible {
                         "visible"
                     } else {
                         "hidden"
