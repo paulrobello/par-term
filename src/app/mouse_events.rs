@@ -76,12 +76,6 @@ impl WindowState {
             return; // Click is on tab bar, don't process as terminal event
         }
 
-        // Track button press state for motion tracking logic (drag selection, motion reporting)
-        // Only set this for clicks in the terminal area, not on tab bar
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.button_pressed = state == ElementState::Pressed;
-        }
-
         // Check if tab context menu is open - if so, let egui handle all clicks
         if self.tab_bar_ui.is_context_menu_open() {
             return;
@@ -130,6 +124,7 @@ impl WindowState {
                 }
 
                 // --- 3. Option+Click Cursor Positioning ---
+                // NOTE: This must be checked BEFORE setting button_pressed to avoid triggering selection
                 // Move cursor to clicked position when Option/Alt is pressed (without Cmd/Super)
                 // This sends arrow key sequences to move the cursor within the shell line
                 // macOS: Option+Click (matches iTerm2)
@@ -185,6 +180,13 @@ impl WindowState {
                 // Forward events to the PTY if terminal application requested tracking
                 if self.try_send_mouse_event(0, state == ElementState::Pressed) {
                     return; // Exit early: terminal app handled the input
+                }
+
+                // Track button press state for motion tracking logic (drag selection, motion reporting)
+                // This is set AFTER special handlers (URL click, Option+click, mouse tracking) to avoid
+                // triggering selection when those features handle the click
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.mouse.button_pressed = state == ElementState::Pressed;
                 }
 
                 if state == ElementState::Pressed {
