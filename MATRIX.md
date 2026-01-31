@@ -181,7 +181,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Smart selection rules | ✅ Custom regex patterns | ✅ `smart_selection_rules` | ✅ | - | - | 11 default patterns with precision levels, Settings UI with enable/disable per rule |
 | Word boundary characters | ✅ `Characters Considered Part of Word` | ✅ `word_characters` | ✅ | - | - | Default: `/-+\~_.` (iTerm2 compatible), Settings UI |
 | Paste bracketing | ✅ `Allow Paste Bracketing` | ✅ | ✅ | - | - | - |
-| Paste special options | ✅ Many transformations | ❌ | ❌ | ⭐⭐ | 🟡 | Tab→spaces, escape, etc. |
+| Paste special options | ✅ Many transformations | ✅ `Cmd/Ctrl+Shift+V` | ✅ | - | - | 26 transforms: shell escape, case, whitespace, encoding |
 | Allow terminal clipboard access | ✅ `Allow Clipboard Access From Terminal` | ✅ OSC 52 | ✅ | - | - | - |
 | Wrap filenames in quotes | ✅ | ✅ `dropped_file_quote_style` | ✅ | - | - | Auto-quote dropped files with configurable style |
 
@@ -473,6 +473,7 @@ Full tmux control mode integration would require:
 - 13+ tab bar color customization options
 - Selection foreground color (separate from background)
 - Configurable update check frequency (never/daily/weekly/monthly)
+- Paste special with 26 transformations (shell escape, case, whitespace, encoding)
 
 ### High-Priority Missing Features (⭐⭐⭐)
 1. **Hotkey window** - Quake-style dropdown - 🔴 High effort
@@ -493,9 +494,8 @@ Full tmux control mode integration would require:
 3. Minimum contrast (⭐⭐, 🟡)
 4. Timestamps in scrollback (⭐⭐, 🟡)
 5. Mark indicators (⭐⭐, 🟡)
-6. Paste special options (⭐⭐, 🟡)
-7. Session undo timeout (⭐⭐, 🟡)
-8. Window arrangements (⭐⭐, 🟡)
+6. Session undo timeout (⭐⭐, 🟡)
+7. Window arrangements (⭐⭐, 🟡)
 
 **Phase 3 - High Effort, High Value**
 1. Hotkey window (⭐⭐⭐, 🔴)

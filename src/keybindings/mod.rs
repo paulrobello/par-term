@@ -74,7 +74,6 @@ impl KeybindingRegistry {
 
         for (combo, action) in &self.bindings {
             if matcher.matches(combo) {
-                log::debug!("Keybinding matched: {} -> {}", combo, action);
                 return Some(action.as_str());
             }
         }

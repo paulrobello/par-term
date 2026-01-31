@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Paste Special** (`Cmd/Ctrl+Shift+V`): Transform clipboard content before pasting (#41)
+  - Command palette UI with fuzzy search filtering
+  - 26 text transformations across 4 categories:
+    - **Shell Escaping**: Single quotes, double quotes, backslash escaping
+    - **Case Conversion**: UPPERCASE, lowercase, Title Case, camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case
+    - **Whitespace**: Trim, trim lines, collapse spaces, tabs↔spaces, remove empty lines, normalize line endings
+    - **Encoding**: Base64 encode/decode, URL encode/decode, hex encode/decode, JSON escape/unescape
+  - Live preview showing original and transformed content
+  - Keyboard navigation (↑↓ to navigate, Enter to apply, Escape to cancel)
+  - Double-click to apply transformation
+  - Integration with clipboard history: `Shift+Enter` in clipboard history opens paste special
+  - Configurable keybinding via Settings UI
+
 - **Session Ended Notification**: Desktop notification when a shell process exits (#54)
   - Useful for long-running commands where users switch to other applications
   - Per-tab tracking ensures notification fires only once per session
@@ -175,6 +188,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Default Keybindings Not Available for Existing Users**: New default keybindings are now automatically merged into existing user configs
+  - When loading config, any new default keybindings whose actions don't exist in user's config are added
+  - Ensures existing users get access to new features like `paste_special` without manual config editing
 - **Thin Strokes Rendering**: Corrected subpixel mask alpha handling so thin strokes remain visible instead of disappearing when enabled.
 - **Font Rendering Toggles**: Thin strokes, antialiasing, and hinting now apply immediately when clicking "Apply font changes" in Settings (no restart required).
 - **Tab Bar Click Reliability**: Fixed missed clicks and wrong-tab-selection issues
