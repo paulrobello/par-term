@@ -20,6 +20,7 @@ pub mod keybindings;
 pub mod macos_blur; // macOS window blur using private CGS API
 pub mod macos_metal; // macOS-specific CAMetalLayer configuration
 pub mod menu;
+pub mod paste_special_ui;
 pub mod paste_transform;
 pub mod renderer;
 pub mod scroll_state;
