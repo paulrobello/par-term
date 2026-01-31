@@ -56,6 +56,18 @@ pub fn login_shell() -> bool {
     true
 }
 
+pub fn initial_text() -> String {
+    String::new()
+}
+
+pub fn initial_text_delay_ms() -> u64 {
+    100
+}
+
+pub fn initial_text_send_newline() -> bool {
+    true
+}
+
 pub fn scrollbar_position() -> String {
     "right".to_string()
 }

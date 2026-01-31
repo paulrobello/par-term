@@ -5,6 +5,7 @@
 //! - `TabManager`: Coordinates multiple tabs within a window
 //! - `TabId`: Unique identifier for each tab
 
+mod initial_text;
 mod manager;
 
 pub use manager::TabManager;
@@ -14,6 +15,7 @@ use crate::app::mouse::MouseState;
 use crate::app::render_cache::RenderCache;
 use crate::config::Config;
 use crate::scroll_state::ScrollState;
+use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -63,7 +65,7 @@ impl Tab {
         id: TabId,
         tab_number: usize,
         config: &Config,
-        _runtime: Arc<Runtime>,
+        runtime: Arc<Runtime>,
         working_directory: Option<String>,
     ) -> anyhow::Result<Self> {
         // Create terminal with scrollback from config
@@ -142,6 +144,24 @@ impl Tab {
         terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env)?;
 
         let terminal = Arc::new(Mutex::new(terminal));
+
+        // Send initial text after optional delay
+        if let Some(payload) =
+            build_initial_text_payload(&config.initial_text, config.initial_text_send_newline)
+        {
+            let delay_ms = config.initial_text_delay_ms;
+            let terminal_clone = Arc::clone(&terminal);
+            runtime.spawn(async move {
+                if delay_ms > 0 {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+                }
+
+                let term = terminal_clone.lock().await;
+                if let Err(err) = term.write(&payload) {
+                    log::warn!("Failed to send initial text: {}", err);
+                }
+            });
+        }
 
         // Generate initial title based on current tab count, not unique ID
         let title = format!("Tab {}", tab_number);
