@@ -152,7 +152,9 @@ impl ProfileDrawerUI {
                         egui::Color32::WHITE,
                     );
 
-                    if response.clicked() {
+                    // Use clicked_by to only respond to mouse clicks, not keyboard Enter/Space
+                    // This prevents Enter key in the terminal from toggling the drawer
+                    if response.clicked_by(egui::PointerButton::Primary) {
                         toggle_clicked = true;
                     }
                 });
