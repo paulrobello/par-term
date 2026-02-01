@@ -122,6 +122,12 @@ pub struct WindowState {
     /// Current resize dimensions: (width_px, height_px, cols, rows)
     pub(crate) resize_dimensions: Option<(u32, u32, usize, usize)>,
 
+    // Toast notification state
+    /// Current toast message to display
+    pub(crate) toast_message: Option<String>,
+    /// When to hide the toast notification
+    pub(crate) toast_hide_time: Option<std::time::Instant>,
+
     /// Keybinding registry for user-defined keyboard shortcuts
     pub(crate) keybinding_registry: KeybindingRegistry,
 
@@ -189,6 +195,9 @@ impl WindowState {
             resize_overlay_visible: false,
             resize_overlay_hide_time: None,
             resize_dimensions: None,
+
+            toast_message: None,
+            toast_hide_time: None,
 
             keybinding_registry,
 
@@ -1585,6 +1594,28 @@ impl WindowState {
                                             .monospace()
                                             .size(24.0),
                                         );
+                                    });
+                            });
+                    }
+
+                    // Show toast notification if active (top center)
+                    if let Some(ref message) = self.toast_message {
+                        egui::Area::new(egui::Id::new("toast_notification"))
+                            .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 60.0))
+                            .order(egui::Order::Foreground)
+                            .show(ctx, |ui| {
+                                egui::Frame::NONE
+                                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 240))
+                                    .inner_margin(egui::Margin::symmetric(20, 12))
+                                    .corner_radius(8.0)
+                                    .stroke(egui::Stroke::new(
+                                        1.0,
+                                        egui::Color32::from_rgb(80, 80, 80),
+                                    ))
+                                    .show(ui, |ui| {
+                                        ui.style_mut().visuals.override_text_color =
+                                            Some(egui::Color32::from_rgb(255, 255, 255));
+                                        ui.label(egui::RichText::new(message).size(16.0));
                                     });
                             });
                     }
