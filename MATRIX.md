@@ -23,13 +23,13 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Always on top | ✅ | ✅ `window_always_on_top` | ✅ | - | - | - |
 | Window decorations toggle | ❌ | ✅ `window_decorations` | ✅ | - | - | par-term exclusive |
 | Fullscreen mode | ✅ Lion Fullscreen, Traditional | ✅ F11 toggle | ✅ | - | - | - |
-| Window type (normal/fullscreen/edge) | ✅ Multiple types | ❌ | ❌ | ⭐⭐ | 🟡 | Edge-anchored windows useful for dropdown terminal |
-| Open on specific screen | ✅ `Screen` | ❌ | ❌ | ⭐ | 🟢 | Multi-monitor support |
+| Window type (normal/fullscreen/edge) | ✅ Multiple types | ✅ `window_type` | ✅ | - | - | Normal/Fullscreen/Edge-anchored windows |
+| Open on specific screen | ✅ `Screen` | ✅ `target_monitor` | ✅ | - | - | Multi-monitor support |
 | Open in specific Space | ✅ `Space` | ❌ | ❌ | ⭐ | 🟢 | macOS Spaces integration |
-| Maximize vertically only | ✅ | ❌ | ❌ | ⭐ | 🟢 | Niche use case |
-| Lock window size | ✅ `Lock Window Size Automatically` | ❌ | ❌ | ⭐ | 🟢 | Prevent accidental resize |
+| Maximize vertically only | ✅ | ✅ Shift+F11 | ✅ | - | - | Menu and keybinding |
+| Lock window size | ✅ `Lock Window Size Automatically` | ✅ `lock_window_size` | ✅ | - | - | Prevent resize via config/settings |
 | Proxy icon in title bar | ✅ `Enable Proxy Icon` | ❌ | ❌ | ⭐ | 🟡 | macOS feature for current directory |
-| Window number display | ✅ `Show Window Number` | ❌ | ❌ | ⭐ | 🟢 | Useful for multi-window |
+| Window number display | ✅ `Show Window Number` | ✅ `show_window_number` | ✅ | - | - | Window index in title bar |
 | Transparency only for default BG | ✅ | ✅ `transparency_affects_only_default_background` | ✅ | - | - | - |
 | Keep text opaque | ❌ | ✅ `keep_text_opaque` | ✅ | - | - | par-term exclusive |
 
@@ -474,6 +474,8 @@ Full tmux control mode integration would require:
 - Selection foreground color (separate from background)
 - Configurable update check frequency (never/daily/weekly/monthly)
 - Paste special with 26 transformations (shell escape, case, whitespace, encoding)
+- Edge-anchored window types (dropdown-style terminals)
+- Target monitor selection for multi-monitor setups
 
 ### High-Priority Missing Features (⭐⭐⭐)
 1. **Hotkey window** - Quake-style dropdown - 🔴 High effort
@@ -510,6 +512,6 @@ Full tmux control mode integration would require:
 
 ---
 
-*Updated: 2026-01-31*
+*Updated: 2026-02-01*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.6.0*

@@ -1,4 +1,4 @@
-use par_term::config::{Config, UnfocusedCursorStyle};
+use par_term::config::{Config, UnfocusedCursorStyle, WindowType};
 
 #[test]
 fn test_config_defaults() {
@@ -539,4 +539,135 @@ focus_follows_mouse: true
     // Other fields should have defaults
     assert!(config.option_click_moves_cursor);
     assert!(config.report_horizontal_scroll);
+}
+
+// ============================================================================
+// Window Management Features Tests
+// ============================================================================
+
+#[test]
+fn test_config_window_management_defaults() {
+    let config = Config::default();
+    // Window type should default to Normal
+    assert_eq!(config.window_type, WindowType::Normal);
+    // Target monitor should be None (OS decides)
+    assert!(config.target_monitor.is_none());
+    // Lock window size should be disabled by default
+    assert!(!config.lock_window_size);
+    // Show window number should be disabled by default
+    assert!(!config.show_window_number);
+}
+
+#[test]
+fn test_config_window_type_variants() {
+    // Test all window type variants
+    let yaml = r#"window_type: normal"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.window_type, WindowType::Normal);
+
+    let yaml = r#"window_type: fullscreen"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.window_type, WindowType::Fullscreen);
+
+    let yaml = r#"window_type: edge_top"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.window_type, WindowType::EdgeTop);
+
+    let yaml = r#"window_type: edge_bottom"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.window_type, WindowType::EdgeBottom);
+
+    let yaml = r#"window_type: edge_left"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.window_type, WindowType::EdgeLeft);
+
+    let yaml = r#"window_type: edge_right"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.window_type, WindowType::EdgeRight);
+}
+
+#[test]
+fn test_config_window_type_is_edge() {
+    assert!(!WindowType::Normal.is_edge());
+    assert!(!WindowType::Fullscreen.is_edge());
+    assert!(WindowType::EdgeTop.is_edge());
+    assert!(WindowType::EdgeBottom.is_edge());
+    assert!(WindowType::EdgeLeft.is_edge());
+    assert!(WindowType::EdgeRight.is_edge());
+}
+
+#[test]
+fn test_config_window_management_yaml_deserialization() {
+    let yaml = r#"
+window_type: edge_top
+target_monitor: 1
+lock_window_size: true
+show_window_number: true
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.window_type, WindowType::EdgeTop);
+    assert_eq!(config.target_monitor, Some(1));
+    assert!(config.lock_window_size);
+    assert!(config.show_window_number);
+}
+
+#[test]
+fn test_config_window_management_yaml_serialization() {
+    let mut config = Config::default();
+    config.window_type = WindowType::Fullscreen;
+    config.target_monitor = Some(2);
+    config.lock_window_size = true;
+    config.show_window_number = true;
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("window_type: fullscreen"));
+    assert!(yaml.contains("target_monitor: 2"));
+    assert!(yaml.contains("lock_window_size: true"));
+    assert!(yaml.contains("show_window_number: true"));
+}
+
+#[test]
+fn test_config_window_management_partial_yaml() {
+    // Test that default values are used for missing fields
+    let yaml = r#"
+lock_window_size: true
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.lock_window_size);
+    // Other fields should have defaults
+    assert_eq!(config.window_type, WindowType::Normal);
+    assert!(config.target_monitor.is_none());
+    assert!(!config.show_window_number);
+}
+
+#[test]
+fn test_config_target_monitor_none_yaml() {
+    // Test that target_monitor can be explicitly null/none
+    let yaml = r#"
+target_monitor: null
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.target_monitor.is_none());
+}
+
+#[test]
+fn test_window_type_display_names() {
+    assert_eq!(WindowType::Normal.display_name(), "Normal");
+    assert_eq!(WindowType::Fullscreen.display_name(), "Fullscreen");
+    assert_eq!(WindowType::EdgeTop.display_name(), "Edge (Top)");
+    assert_eq!(WindowType::EdgeBottom.display_name(), "Edge (Bottom)");
+    assert_eq!(WindowType::EdgeLeft.display_name(), "Edge (Left)");
+    assert_eq!(WindowType::EdgeRight.display_name(), "Edge (Right)");
+}
+
+#[test]
+fn test_window_type_all() {
+    let all_types = WindowType::all();
+    assert_eq!(all_types.len(), 6);
+    assert!(all_types.contains(&WindowType::Normal));
+    assert!(all_types.contains(&WindowType::Fullscreen));
+    assert!(all_types.contains(&WindowType::EdgeTop));
+    assert!(all_types.contains(&WindowType::EdgeBottom));
+    assert!(all_types.contains(&WindowType::EdgeLeft));
+    assert!(all_types.contains(&WindowType::EdgeRight));
 }

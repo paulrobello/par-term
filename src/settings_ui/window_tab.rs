@@ -1,5 +1,5 @@
 use super::SettingsUI;
-use crate::config::VsyncMode;
+use crate::config::{VsyncMode, WindowType};
 
 pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     ui.collapsing("Window & Display", |ui| {
@@ -172,6 +172,96 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             settings.has_changes = true;
             *changes_this_frame = true;
         }
+
+        if ui
+            .checkbox(
+                &mut settings.config.lock_window_size,
+                "Lock window size",
+            )
+            .on_hover_text("Prevent window from being resized by the user")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.show_window_number,
+                "Show window number in title",
+            )
+            .on_hover_text("Display window index number in the title bar (useful for multiple windows)")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.add_space(4.0);
+
+        // Window type dropdown
+        ui.horizontal(|ui| {
+            ui.label("Window type:");
+            let current_type = settings.config.window_type;
+            egui::ComboBox::from_id_salt("window_type")
+                .selected_text(current_type.display_name())
+                .show_ui(ui, |ui| {
+                    for window_type in WindowType::all() {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.window_type,
+                                *window_type,
+                                window_type.display_name(),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+        });
+
+        // Target monitor setting
+        ui.horizontal(|ui| {
+            ui.label("Target monitor:");
+            let mut monitor_index = settings.config.target_monitor.unwrap_or(0) as i32;
+            let mut use_default = settings.config.target_monitor.is_none();
+
+            if ui
+                .checkbox(&mut use_default, "Auto")
+                .on_hover_text("Let the OS decide which monitor to open on")
+                .changed()
+            {
+                if use_default {
+                    settings.config.target_monitor = None;
+                } else {
+                    settings.config.target_monitor = Some(0);
+                }
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if !use_default
+                && ui
+                    .add(egui::Slider::new(&mut monitor_index, 0..=7))
+                    .on_hover_text("Monitor index (0 = primary)")
+                    .changed()
+            {
+                settings.config.target_monitor = Some(monitor_index as usize);
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        if settings.config.window_type.is_edge() {
+            ui.colored_label(
+                egui::Color32::YELLOW,
+                "Note: Edge-anchored windows take effect on next window creation",
+            );
+        }
+
+        ui.add_space(4.0);
 
         ui.horizontal(|ui| {
             ui.label("Max FPS:");

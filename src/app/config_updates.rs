@@ -38,6 +38,10 @@ pub(crate) struct ConfigChanges {
     // Window
     pub window_title: bool,
     pub window_decorations: bool,
+    pub window_type: bool,
+    pub target_monitor: bool,
+    pub lock_window_size: bool,
+    pub show_window_number: bool,
     pub max_fps: bool,
     pub vsync_mode: bool,
 
@@ -150,6 +154,10 @@ impl ConfigChanges {
 
             window_title: new.window_title != old.window_title,
             window_decorations: new.window_decorations != old.window_decorations,
+            window_type: new.window_type != old.window_type,
+            target_monitor: new.target_monitor != old.target_monitor,
+            lock_window_size: new.lock_window_size != old.lock_window_size,
+            show_window_number: new.show_window_number != old.show_window_number,
             max_fps: new.max_fps != old.max_fps,
             vsync_mode: new.vsync_mode != old.vsync_mode,
 

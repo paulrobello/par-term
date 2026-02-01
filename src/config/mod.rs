@@ -23,7 +23,8 @@ pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
     DroppedFileQuoteStyle, FontRange, KeyBinding, OptionKeyMode, ShaderConfig, ShaderInstallPrompt,
     ShaderMetadata, SmartSelectionPrecision, SmartSelectionRule, TabBarMode, ThinStrokesMode,
-    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, default_smart_selection_rules,
+    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -163,6 +164,28 @@ pub struct Config {
     /// Show window decorations (title bar, borders)
     #[serde(default = "defaults::bool_true")]
     pub window_decorations: bool,
+
+    /// Window type (normal, fullscreen, or edge-anchored)
+    /// - normal: Standard window (default)
+    /// - fullscreen: Start in fullscreen mode
+    /// - edge_top/edge_bottom/edge_left/edge_right: Edge-anchored dropdown-style window
+    #[serde(default)]
+    pub window_type: WindowType,
+
+    /// Target monitor index for window placement (0 = primary)
+    /// Use None to let the OS decide window placement
+    #[serde(default)]
+    pub target_monitor: Option<usize>,
+
+    /// Lock window size to prevent resize
+    /// When true, the window cannot be resized by the user
+    #[serde(default = "defaults::bool_false")]
+    pub lock_window_size: bool,
+
+    /// Show window number in title bar
+    /// Useful when multiple par-term windows are open
+    #[serde(default = "defaults::bool_false")]
+    pub show_window_number: bool,
 
     /// When true, only the default terminal background is transparent.
     /// Colored backgrounds (syntax highlighting, status bars, etc.) remain opaque.
@@ -974,6 +997,10 @@ impl Default for Config {
             window_opacity: defaults::window_opacity(),
             window_always_on_top: defaults::bool_false(),
             window_decorations: defaults::bool_true(),
+            window_type: WindowType::default(),
+            target_monitor: None,
+            lock_window_size: defaults::bool_false(),
+            show_window_number: defaults::bool_false(),
             transparency_affects_only_default_background: defaults::bool_true(),
             keep_text_opaque: defaults::bool_true(),
             blur_enabled: defaults::bool_false(),

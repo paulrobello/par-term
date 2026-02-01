@@ -856,6 +856,29 @@ impl WindowState {
                 }
                 true
             }
+            "maximize_vertically" => {
+                if let Some(window) = &self.window {
+                    // Get current monitor to determine screen height
+                    if let Some(monitor) = window.current_monitor() {
+                        let monitor_pos = monitor.position();
+                        let monitor_size = monitor.size();
+                        let window_pos = window.outer_position().unwrap_or_default();
+                        let window_size = window.outer_size();
+
+                        // Set window to span full height while keeping current X position and width
+                        window.set_outer_position(winit::dpi::PhysicalPosition::new(
+                            window_pos.x,
+                            monitor_pos.y,
+                        ));
+                        let _ = window.request_inner_size(winit::dpi::PhysicalSize::new(
+                            window_size.width,
+                            monitor_size.height,
+                        ));
+                        log::info!("Window maximized vertically via keybinding");
+                    }
+                }
+                true
+            }
             "toggle_help" => {
                 self.help_ui.toggle();
                 if let Some(window) = &self.window {
