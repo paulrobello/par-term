@@ -27,6 +27,7 @@ pub mod scroll_state;
 pub mod scrollbar;
 pub mod search;
 pub mod selection;
+pub mod session_logger;
 pub mod settings_ui;
 pub mod settings_window;
 pub mod shader_install_ui;

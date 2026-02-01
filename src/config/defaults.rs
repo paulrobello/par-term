@@ -358,3 +358,18 @@ pub fn unicode_version() -> par_term_emu_core_rust::UnicodeVersion {
 pub fn ambiguous_width() -> par_term_emu_core_rust::AmbiguousWidth {
     par_term_emu_core_rust::AmbiguousWidth::Narrow
 }
+
+// Session logging defaults
+pub fn session_log_directory() -> String {
+    // XDG-compliant default: ~/.local/share/par-term/logs/
+    if let Some(home) = dirs::home_dir() {
+        home.join(".local")
+            .join("share")
+            .join("par-term")
+            .join("logs")
+            .to_string_lossy()
+            .to_string()
+    } else {
+        "logs".to_string()
+    }
+}

@@ -746,6 +746,59 @@ impl TerminalManager {
         let mut term = terminal.lock();
         term.set_width_config(config);
     }
+
+    /// Set a callback to receive raw PTY output data
+    ///
+    /// This is useful for session logging - the callback receives the raw bytes
+    /// from the PTY before they are processed by the terminal emulator.
+    ///
+    /// # Arguments
+    /// * `callback` - A function that takes a byte slice for each chunk of PTY output
+    pub fn set_output_callback<F>(&self, callback: F)
+    where
+        F: Fn(&[u8]) + Send + Sync + 'static,
+    {
+        let mut pty = self.pty_session.lock();
+        pty.set_output_callback(std::sync::Arc::new(callback));
+    }
+
+    /// Start recording the terminal session
+    ///
+    /// # Arguments
+    /// * `title` - Optional title for the recording session
+    pub fn start_recording(&self, title: Option<String>) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.start_recording(title);
+    }
+
+    /// Stop recording and return the recording session
+    pub fn stop_recording(&self) -> Option<par_term_emu_core_rust::terminal::RecordingSession> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.stop_recording()
+    }
+
+    /// Check if recording is active
+    pub fn is_recording(&self) -> bool {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.is_recording()
+    }
+
+    /// Export a recording session to asciicast format
+    pub fn export_asciicast(
+        &self,
+        session: &par_term_emu_core_rust::terminal::RecordingSession,
+    ) -> String {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.export_asciicast(session)
+    }
 }
 
 impl Drop for TerminalManager {

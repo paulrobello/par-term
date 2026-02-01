@@ -335,6 +335,54 @@ impl UpdateCheckFrequency {
 }
 
 // ============================================================================
+// Session Logging Types
+// ============================================================================
+
+/// Log format for session logging
+///
+/// Controls the format used when automatically logging terminal sessions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionLogFormat {
+    /// Plain text - strips escape sequences, captures only printable output
+    Plain,
+    /// HTML - preserves colors and styling as HTML
+    Html,
+    /// Asciicast v2 - asciinema-compatible format for replay/sharing
+    #[default]
+    Asciicast,
+}
+
+impl SessionLogFormat {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            SessionLogFormat::Plain => "Plain Text",
+            SessionLogFormat::Html => "HTML",
+            SessionLogFormat::Asciicast => "Asciicast (asciinema)",
+        }
+    }
+
+    /// All available formats for UI iteration
+    pub fn all() -> &'static [SessionLogFormat] {
+        &[
+            SessionLogFormat::Plain,
+            SessionLogFormat::Html,
+            SessionLogFormat::Asciicast,
+        ]
+    }
+
+    /// File extension for this format
+    pub fn extension(&self) -> &'static str {
+        match self {
+            SessionLogFormat::Plain => "txt",
+            SessionLogFormat::Html => "html",
+            SessionLogFormat::Asciicast => "cast",
+        }
+    }
+}
+
+// ============================================================================
 // Per-Shader Configuration Types
 // ============================================================================
 

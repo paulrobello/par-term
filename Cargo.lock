@@ -3480,6 +3480,7 @@ dependencies = [
  "rustybuzz",
  "semver",
  "serde",
+ "serde_json",
  "serde_yaml",
  "swash",
  "tempfile",

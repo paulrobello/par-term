@@ -21,9 +21,9 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
-    DroppedFileQuoteStyle, FontRange, KeyBinding, OptionKeyMode, ShaderConfig, ShaderInstallPrompt,
-    ShaderMetadata, SmartSelectionPrecision, SmartSelectionRule, TabBarMode, ThinStrokesMode,
-    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    DroppedFileQuoteStyle, FontRange, KeyBinding, OptionKeyMode, SessionLogFormat, ShaderConfig,
+    ShaderInstallPrompt, ShaderMetadata, SmartSelectionPrecision, SmartSelectionRule, TabBarMode,
+    ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
     default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
@@ -930,6 +930,31 @@ pub struct Config {
     /// Wrap around when navigating search matches
     #[serde(default = "defaults::bool_true")]
     pub search_wrap_around: bool,
+
+    // ========================================================================
+    // Session Logging
+    // ========================================================================
+    /// Automatically record all terminal sessions
+    /// When enabled, all terminal output is logged to files in the log directory
+    #[serde(default = "defaults::bool_false")]
+    pub auto_log_sessions: bool,
+
+    /// Log format for session recording
+    /// - plain: Simple text output without escape sequences
+    /// - html: Rendered output with colors preserved
+    /// - asciicast: asciinema-compatible format for replay/sharing (default)
+    #[serde(default)]
+    pub session_log_format: SessionLogFormat,
+
+    /// Directory where session logs are saved
+    /// Default: ~/.local/share/par-term/logs/
+    #[serde(default = "defaults::session_log_directory")]
+    pub session_log_directory: String,
+
+    /// Automatically save session log when tab/window closes
+    /// When true, ensures the session is fully written before the tab closes
+    #[serde(default = "defaults::bool_true")]
+    pub archive_on_close: bool,
 }
 
 impl Default for Config {
@@ -1104,6 +1129,11 @@ impl Default for Config {
             search_case_sensitive: defaults::bool_false(),
             search_regex: defaults::bool_false(),
             search_wrap_around: defaults::bool_true(),
+            // Session logging
+            auto_log_sessions: defaults::bool_false(),
+            session_log_format: SessionLogFormat::default(),
+            session_log_directory: defaults::session_log_directory(),
+            archive_on_close: defaults::bool_true(),
         }
     }
 }
@@ -1218,6 +1248,29 @@ impl Config {
                 PathBuf::from("config.yaml")
             }
         }
+    }
+
+    /// Get the session logs directory path, resolving ~ if present
+    /// Creates the directory if it doesn't exist
+    pub fn logs_dir(&self) -> PathBuf {
+        let path = if self.session_log_directory.starts_with("~/") {
+            if let Some(home) = dirs::home_dir() {
+                home.join(&self.session_log_directory[2..])
+            } else {
+                PathBuf::from(&self.session_log_directory)
+            }
+        } else {
+            PathBuf::from(&self.session_log_directory)
+        };
+
+        // Create directory if it doesn't exist
+        if !path.exists()
+            && let Err(e) = std::fs::create_dir_all(&path)
+        {
+            log::warn!("Failed to create logs directory {:?}: {}", path, e);
+        }
+
+        path
     }
 
     /// Get the shaders directory path (using XDG convention)

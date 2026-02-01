@@ -14,6 +14,7 @@ pub mod cursor_tab;
 pub mod font_tab;
 pub mod keybindings_tab;
 pub mod keyboard_tab;
+pub mod logging_tab;
 pub mod mouse_tab;
 pub mod screenshot_tab;
 pub mod scrollbar_tab;
@@ -950,6 +951,23 @@ impl SettingsUI {
             insert_section_separator(ui, &mut section_shown);
             matches_found = true;
             screenshot_tab::show(ui, self, changes_this_frame);
+        }
+
+        // Session Logging
+        if section_matches(
+            "Logging",
+            &[
+                "Session logging",
+                "Recording",
+                "Log format",
+                "Asciicast",
+                "asciinema",
+                "Archive",
+            ],
+        ) {
+            insert_section_separator(ui, &mut section_shown);
+            matches_found = true;
+            logging_tab::show(ui, self, changes_this_frame);
         }
 
         // Updates
