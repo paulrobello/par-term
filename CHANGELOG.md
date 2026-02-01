@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Window Management Features**: Implement missing window management features from iTerm2 (#56)
+  - **Window Type**: Start in different window modes (`window_type` config option)
+    - Normal: Standard window (default)
+    - Fullscreen: Start in fullscreen mode
+    - Edge-anchored: Position window at screen edges (top/bottom/left/right) for dropdown-style terminals
+  - **Target Monitor**: Open window on specific monitor (`target_monitor` config option)
+    - Set monitor index (0 = primary) for multi-monitor setups
+    - Auto-centers window on target monitor, or edges to that monitor for edge-anchored modes
+  - **Lock Window Size**: Prevent window resize (`lock_window_size` config option)
+    - Disables window resizing when enabled
+  - **Window Number Display**: Show window index in title bar (`show_window_number` config option)
+    - Displays "[N]" suffix in window title when multiple windows open
+    - Useful for keyboard navigation between windows
+  - **Maximize Vertically**: Stretch window to full screen height (Shift+F11 or View menu)
+    - Maintains current width and X position while spanning full monitor height
+  - Settings UI controls for all options in Window & Display section
+
 - **Unicode Width Configuration**: Configurable Unicode version and ambiguous width settings (#46)
   - **Unicode Version**: Select from Unicode 9.0 through 16.0, or Auto (latest)
     - Different versions have different character width tables, especially for emoji
@@ -216,6 +233,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Startup Crash with Missing Background Image**: App no longer crashes when configured background image file is missing
   - Now logs a warning and continues without the background image
   - Fixes blank screen issue when shaders folder is missing but config references images inside it
+- **Window Number Not Showing in Title**: Fixed `show_window_number` config option not working consistently
+  - Window number now appears in all title updates (shell integration, OSC title changes, URL tooltips)
+  - Added `format_title()` helper method to ensure consistent title formatting across all code paths
+- **Cmd+W Closes Entire App Instead of Tab**: Fixed smart close behavior for Cmd+W keyboard shortcut
+  - Cmd+W now closes the current tab first; only closes the window if it was the last tab
+  - Menu item renamed from "Close Window" to "Close" to reflect the smart close behavior
 
 ### Added
 

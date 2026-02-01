@@ -51,6 +51,8 @@ pub enum MenuAction {
     // View menu
     /// Toggle fullscreen mode
     ToggleFullscreen,
+    /// Maximize window vertically only (span full screen height)
+    MaximizeVertically,
     /// Increase font size
     IncreaseFontSize,
     /// Decrease font size

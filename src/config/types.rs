@@ -128,6 +128,63 @@ pub enum TabBarMode {
     Never,
 }
 
+/// Window type for different display modes
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum WindowType {
+    /// Normal window (default)
+    #[default]
+    Normal,
+    /// Start in fullscreen mode
+    Fullscreen,
+    /// Edge-anchored window (for dropdown/Quake-style terminals)
+    /// Note: Edge-anchored windows require additional platform-specific support
+    EdgeTop,
+    /// Edge-anchored to bottom of screen
+    EdgeBottom,
+    /// Edge-anchored to left of screen
+    EdgeLeft,
+    /// Edge-anchored to right of screen
+    EdgeRight,
+}
+
+impl WindowType {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            WindowType::Normal => "Normal",
+            WindowType::Fullscreen => "Fullscreen",
+            WindowType::EdgeTop => "Edge (Top)",
+            WindowType::EdgeBottom => "Edge (Bottom)",
+            WindowType::EdgeLeft => "Edge (Left)",
+            WindowType::EdgeRight => "Edge (Right)",
+        }
+    }
+
+    /// All available window types for UI iteration
+    pub fn all() -> &'static [WindowType] {
+        &[
+            WindowType::Normal,
+            WindowType::Fullscreen,
+            WindowType::EdgeTop,
+            WindowType::EdgeBottom,
+            WindowType::EdgeLeft,
+            WindowType::EdgeRight,
+        ]
+    }
+
+    /// Returns true if this is an edge-anchored window type
+    pub fn is_edge(&self) -> bool {
+        matches!(
+            self,
+            WindowType::EdgeTop
+                | WindowType::EdgeBottom
+                | WindowType::EdgeLeft
+                | WindowType::EdgeRight
+        )
+    }
+}
+
 /// Quote style for dropped file paths
 ///
 /// Controls how filenames containing special characters are quoted when dropped into the terminal.

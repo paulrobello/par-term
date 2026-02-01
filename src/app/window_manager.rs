@@ -323,6 +323,7 @@ impl WindowManager {
 
     /// Create a new window with a fresh terminal session
     pub fn create_window(&mut self, event_loop: &ActiveEventLoop) {
+        use crate::config::WindowType;
         use crate::font_metrics::window_size_from_config;
         use winit::window::Window;
 
@@ -333,10 +334,31 @@ impl WindowManager {
         // Fallback to reasonable defaults (800x600) if font metrics calculation fails.
         let (width, height) = window_size_from_config(&self.config, 1.0).unwrap_or((800, 600));
 
+        // Build window title, optionally including window number
+        let window_number = self.windows.len() + 1;
+        let title = if self.config.show_window_number {
+            format!("{} [{}]", self.config.window_title, window_number)
+        } else {
+            self.config.window_title.clone()
+        };
+
         let mut window_attrs = Window::default_attributes()
-            .with_title(&self.config.window_title)
+            .with_title(&title)
             .with_inner_size(winit::dpi::LogicalSize::new(width, height))
             .with_decorations(self.config.window_decorations);
+
+        // Lock window size if requested (prevent resize)
+        if self.config.lock_window_size {
+            window_attrs = window_attrs.with_resizable(false);
+            log::info!("Window size locked (resizing disabled)");
+        }
+
+        // Start in fullscreen if window_type is Fullscreen
+        if self.config.window_type == WindowType::Fullscreen {
+            window_attrs =
+                window_attrs.with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+            log::info!("Window starting in fullscreen mode");
+        }
 
         // Load and set the application icon
         let icon_bytes = include_bytes!("../../assets/icon.png");
@@ -371,6 +393,8 @@ impl WindowManager {
                 let window_id = window.id();
                 let mut window_state =
                     WindowState::new(self.config.clone(), Arc::clone(&self.runtime));
+                // Set window index for title formatting (window_number calculated earlier)
+                window_state.window_index = window_number;
 
                 // Initialize async components using the shared runtime
                 let runtime = Arc::clone(&self.runtime);
@@ -403,6 +427,11 @@ impl WindowManager {
                     log::warn!("Failed to initialize menu for window: {}", e);
                 }
 
+                // Apply target monitor and edge positioning after window creation
+                if let Some(win) = &window_state.window {
+                    self.apply_window_positioning(win, event_loop);
+                }
+
                 self.windows.insert(window_id, window_state);
                 self.pending_window_count += 1;
 
@@ -419,6 +448,108 @@ impl WindowManager {
             }
             Err(e) => {
                 log::error!("Failed to create window: {}", e);
+            }
+        }
+    }
+
+    /// Apply window positioning based on config (target monitor and edge anchoring)
+    fn apply_window_positioning(
+        &self,
+        window: &std::sync::Arc<winit::window::Window>,
+        event_loop: &ActiveEventLoop,
+    ) {
+        use crate::config::WindowType;
+
+        // Get list of available monitors
+        let monitors: Vec<_> = event_loop.available_monitors().collect();
+        if monitors.is_empty() {
+            log::warn!("No monitors available for window positioning");
+            return;
+        }
+
+        // Select target monitor (default to primary/first)
+        let monitor = if let Some(index) = self.config.target_monitor {
+            monitors
+                .get(index)
+                .cloned()
+                .or_else(|| monitors.first().cloned())
+        } else {
+            event_loop
+                .primary_monitor()
+                .or_else(|| monitors.first().cloned())
+        };
+
+        let Some(monitor) = monitor else {
+            log::warn!("Could not determine target monitor");
+            return;
+        };
+
+        let monitor_pos = monitor.position();
+        let monitor_size = monitor.size();
+        let window_size = window.outer_size();
+
+        // Apply edge positioning if configured
+        match self.config.window_type {
+            WindowType::EdgeTop => {
+                // Position at top of screen, spanning full width
+                window.set_outer_position(winit::dpi::PhysicalPosition::new(
+                    monitor_pos.x,
+                    monitor_pos.y,
+                ));
+                let _ = window.request_inner_size(winit::dpi::PhysicalSize::new(
+                    monitor_size.width,
+                    window_size.height,
+                ));
+                log::info!("Window positioned at top edge of monitor");
+            }
+            WindowType::EdgeBottom => {
+                // Position at bottom of screen, spanning full width
+                let y = monitor_pos.y + monitor_size.height as i32 - window_size.height as i32;
+                window.set_outer_position(winit::dpi::PhysicalPosition::new(monitor_pos.x, y));
+                let _ = window.request_inner_size(winit::dpi::PhysicalSize::new(
+                    monitor_size.width,
+                    window_size.height,
+                ));
+                log::info!("Window positioned at bottom edge of monitor");
+            }
+            WindowType::EdgeLeft => {
+                // Position at left of screen, spanning full height
+                window.set_outer_position(winit::dpi::PhysicalPosition::new(
+                    monitor_pos.x,
+                    monitor_pos.y,
+                ));
+                let _ = window.request_inner_size(winit::dpi::PhysicalSize::new(
+                    window_size.width,
+                    monitor_size.height,
+                ));
+                log::info!("Window positioned at left edge of monitor");
+            }
+            WindowType::EdgeRight => {
+                // Position at right of screen, spanning full height
+                let x = monitor_pos.x + monitor_size.width as i32 - window_size.width as i32;
+                window.set_outer_position(winit::dpi::PhysicalPosition::new(x, monitor_pos.y));
+                let _ = window.request_inner_size(winit::dpi::PhysicalSize::new(
+                    window_size.width,
+                    monitor_size.height,
+                ));
+                log::info!("Window positioned at right edge of monitor");
+            }
+            WindowType::Normal | WindowType::Fullscreen => {
+                // For normal/fullscreen, just position on target monitor if specified
+                if self.config.target_monitor.is_some() {
+                    // Center window on target monitor
+                    let x =
+                        monitor_pos.x + (monitor_size.width as i32 - window_size.width as i32) / 2;
+                    let y = monitor_pos.y
+                        + (monitor_size.height as i32 - window_size.height as i32) / 2;
+                    window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y));
+                    log::info!(
+                        "Window centered on monitor {} at ({}, {})",
+                        self.config.target_monitor.unwrap_or(0),
+                        x,
+                        y
+                    );
+                }
             }
         }
     }
@@ -466,7 +597,12 @@ impl WindowManager {
                 self.create_window(event_loop);
             }
             MenuAction::CloseWindow => {
-                if let Some(window_id) = focused_window {
+                // Smart close: close tab if multiple tabs, close window if single tab
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                    && window_state.close_current_tab()
+                {
+                    // Last tab closed, close the window
                     self.close_window(window_id);
                 }
             }
@@ -607,6 +743,34 @@ impl WindowManager {
                         window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
                     } else {
                         window.set_fullscreen(None);
+                    }
+                }
+            }
+            MenuAction::MaximizeVertically => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                    && let Some(window) = &window_state.window
+                {
+                    // Get current monitor to determine screen height
+                    if let Some(monitor) = window.current_monitor() {
+                        let monitor_pos = monitor.position();
+                        let monitor_size = monitor.size();
+                        let window_pos = window.outer_position().unwrap_or_default();
+                        let window_size = window.outer_size();
+
+                        // Set window to span full height while keeping current X position and width
+                        window.set_outer_position(winit::dpi::PhysicalPosition::new(
+                            window_pos.x,
+                            monitor_pos.y,
+                        ));
+                        let _ = window.request_inner_size(winit::dpi::PhysicalSize::new(
+                            window_size.width,
+                            monitor_size.height,
+                        ));
+                        log::info!(
+                            "Window maximized vertically to {} pixels",
+                            monitor_size.height
+                        );
                     }
                 }
             }
@@ -1082,11 +1246,18 @@ impl WindowManager {
 
             // Apply window-related changes
             if let Some(window) = &window_state.window {
-                if changes.window_title {
-                    window.set_title(&config.window_title);
+                // Update window title (handles both title change and show_window_number toggle)
+                // Note: config is already updated at this point (line 985)
+                if changes.window_title || changes.show_window_number {
+                    let title = window_state.format_title(&window_state.config.window_title);
+                    window.set_title(&title);
                 }
                 if changes.window_decorations {
                     window.set_decorations(config.window_decorations);
+                }
+                if changes.lock_window_size {
+                    window.set_resizable(!config.lock_window_size);
+                    log::info!("Window resizable set to: {}", !config.lock_window_size);
                 }
                 window.set_window_level(if config.window_always_on_top {
                     winit::window::WindowLevel::AlwaysOnTop

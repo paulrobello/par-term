@@ -52,7 +52,7 @@ impl MenuManager {
 
         let close_window = MenuItem::with_id(
             "close_window",
-            "Close Window",
+            "Close", // Smart close: closes tab if multiple, window if single
             true,
             Some(Accelerator::new(Some(cmd_or_ctrl), Code::KeyW)),
         );
@@ -221,6 +221,18 @@ impl MenuManager {
         );
         action_map.insert(toggle_fullscreen.id().clone(), MenuAction::ToggleFullscreen);
         view_menu.append(&toggle_fullscreen)?;
+
+        let maximize_vertically = MenuItem::with_id(
+            "maximize_vertically",
+            "Maximize Vertically",
+            true,
+            Some(Accelerator::new(Some(Modifiers::SHIFT), Code::F11)),
+        );
+        action_map.insert(
+            maximize_vertically.id().clone(),
+            MenuAction::MaximizeVertically,
+        );
+        view_menu.append(&maximize_vertically)?;
 
         view_menu.append(&PredefinedMenuItem::separator())?;
 

@@ -444,7 +444,8 @@ impl WindowState {
                     if let Some(window) = &self.window {
                         // Visual feedback: hand pointer + URL tooltip in title
                         window.set_cursor(winit::window::CursorIcon::Pointer);
-                        let tooltip_title = format!("{} - {}", self.config.window_title, url.url);
+                        let base_title = self.format_title(&self.config.window_title);
+                        let tooltip_title = format!("{} - {}", base_title, url.url);
                         window.set_title(&tooltip_title);
                     }
                 }
@@ -457,9 +458,9 @@ impl WindowState {
                     window.set_cursor(winit::window::CursorIcon::Text);
                     // Restore terminal-controlled title or config default
                     if self.config.allow_title_change && !terminal_title.is_empty() {
-                        window.set_title(&terminal_title);
+                        window.set_title(&self.format_title(&terminal_title));
                     } else {
-                        window.set_title(&self.config.window_title);
+                        window.set_title(&self.format_title(&self.config.window_title));
                     }
                 }
             }

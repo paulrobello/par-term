@@ -43,6 +43,11 @@ impl WindowState {
         if let Ok(term) = tab.terminal.try_lock() {
             let mut title_parts = vec![self.config.window_title.clone()];
 
+            // Add window number if configured
+            if self.config.show_window_number {
+                title_parts.push(format!("[{}]", self.window_index));
+            }
+
             // Add current working directory if available
             if let Some(cwd) = term.shell_integration_cwd() {
                 // Abbreviate home directory to ~
