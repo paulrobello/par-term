@@ -233,6 +233,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Startup Crash with Missing Background Image**: App no longer crashes when configured background image file is missing
   - Now logs a warning and continues without the background image
   - Fixes blank screen issue when shaders folder is missing but config references images inside it
+- **Window Number Not Showing in Title**: Fixed `show_window_number` config option not working consistently
+  - Window number now appears in all title updates (shell integration, OSC title changes, URL tooltips)
+  - Added `format_title()` helper method to ensure consistent title formatting across all code paths
+- **Cmd+W Closes Entire App Instead of Tab**: Fixed smart close behavior for Cmd+W keyboard shortcut
+  - Cmd+W now closes the current tab first; only closes the window if it was the last tab
+  - Menu item renamed from "Close Window" to "Close" to reflect the smart close behavior
 
 ### Added
 

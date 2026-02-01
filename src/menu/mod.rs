@@ -52,7 +52,7 @@ impl MenuManager {
 
         let close_window = MenuItem::with_id(
             "close_window",
-            "Close Window",
+            "Close", // Smart close: closes tab if multiple, window if single
             true,
             Some(Accelerator::new(Some(cmd_or_ctrl), Code::KeyW)),
         );

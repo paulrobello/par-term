@@ -81,6 +81,8 @@ pub struct WindowState {
     pub(crate) recording_start_time: Option<std::time::Instant>,
     /// Flag to indicate shutdown is in progress
     pub(crate) is_shutting_down: bool,
+    /// Window index (1-based) for display in title bar
+    pub(crate) window_index: usize,
 
     // Smart redraw tracking (event-driven rendering)
     /// Whether we need to render next frame
@@ -168,6 +170,7 @@ impl WindowState {
             is_recording: false,
             recording_start_time: None,
             is_shutting_down: false,
+            window_index: 1, // Will be set by WindowManager when window is created
 
             needs_redraw: true,
             cursor_blink_timer: None,
@@ -190,6 +193,16 @@ impl WindowState {
             keybinding_registry,
 
             smart_selection_cache: SmartSelectionCache::new(),
+        }
+    }
+
+    /// Format window title with optional window number
+    /// This should be used everywhere a title is set to ensure consistency
+    pub(crate) fn format_title(&self, base_title: &str) -> String {
+        if self.config.show_window_number {
+            format!("{} [{}]", base_title, self.window_index)
+        } else {
+            base_title.to_string()
         }
     }
 
@@ -1309,10 +1322,10 @@ impl WindowState {
             if let Some(window) = &self.window {
                 if terminal_title.is_empty() {
                     // Restore configured title when terminal clears title
-                    window.set_title(&self.config.window_title);
+                    window.set_title(&self.format_title(&self.config.window_title));
                 } else {
-                    // Use terminal-set title
-                    window.set_title(&terminal_title);
+                    // Use terminal-set title with window number
+                    window.set_title(&self.format_title(&terminal_title));
                 }
             }
         }

@@ -393,6 +393,8 @@ impl WindowManager {
                 let window_id = window.id();
                 let mut window_state =
                     WindowState::new(self.config.clone(), Arc::clone(&self.runtime));
+                // Set window index for title formatting (window_number calculated earlier)
+                window_state.window_index = window_number;
 
                 // Initialize async components using the shared runtime
                 let runtime = Arc::clone(&self.runtime);
@@ -595,7 +597,12 @@ impl WindowManager {
                 self.create_window(event_loop);
             }
             MenuAction::CloseWindow => {
-                if let Some(window_id) = focused_window {
+                // Smart close: close tab if multiple tabs, close window if single tab
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                    && window_state.close_current_tab()
+                {
+                    // Last tab closed, close the window
                     self.close_window(window_id);
                 }
             }
@@ -969,7 +976,7 @@ impl WindowManager {
         let mut last_shader_result: Option<Option<String>> = None;
         let mut last_cursor_shader_result: Option<Option<String>> = None;
 
-        for (window_index, window_state) in self.windows.values_mut().enumerate() {
+        for window_state in self.windows.values_mut() {
             // Detect what changed
             let changes = ConfigChanges::detect(&window_state.config, config);
 
@@ -1240,12 +1247,9 @@ impl WindowManager {
             // Apply window-related changes
             if let Some(window) = &window_state.window {
                 // Update window title (handles both title change and show_window_number toggle)
+                // Note: config is already updated at this point (line 985)
                 if changes.window_title || changes.show_window_number {
-                    let title = if config.show_window_number {
-                        format!("{} [{}]", config.window_title, window_index + 1)
-                    } else {
-                        config.window_title.clone()
-                    };
+                    let title = window_state.format_title(&window_state.config.window_title);
                     window.set_title(&title);
                 }
                 if changes.window_decorations {
@@ -1253,10 +1257,7 @@ impl WindowManager {
                 }
                 if changes.lock_window_size {
                     window.set_resizable(!config.lock_window_size);
-                    log::info!(
-                        "Window resizable set to: {}",
-                        !config.lock_window_size
-                    );
+                    log::info!("Window resizable set to: {}", !config.lock_window_size);
                 }
                 window.set_window_level(if config.window_always_on_top {
                     winit::window::WindowLevel::AlwaysOnTop

@@ -311,11 +311,14 @@ impl WindowState {
                 // Update middle_click_paste
                 self.config.middle_click_paste = new_config.middle_click_paste;
 
-                // Update window title
-                if self.config.window_title != new_config.window_title {
+                // Update window title (check both title and show_window_number)
+                if self.config.window_title != new_config.window_title
+                    || self.config.show_window_number != new_config.show_window_number
+                {
                     self.config.window_title = new_config.window_title.clone();
+                    self.config.show_window_number = new_config.show_window_number;
                     if let Some(window) = &self.window {
-                        window.set_title(&new_config.window_title);
+                        window.set_title(&self.format_title(&new_config.window_title));
                     }
                 }
 
@@ -728,18 +731,24 @@ impl WindowState {
         }
 
         // Cmd+W: Smart close (close tab if multiple, close window if single)
-        // Note: Window close is handled separately in handle_window_event
+        // Note: This is typically handled by the menu accelerator, but we handle it here
+        // as a fallback in case the menu is not available
         if cmd_or_ctrl
             && !shift
             && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "w" || c.as_str() == "W")
         {
-            if self.has_multiple_tabs() {
-                self.close_current_tab();
-                log::info!("Tab closed via Cmd+W");
-                return true;
+            // Always close the current tab - if it's the last tab,
+            // close_current_tab returns true and signals window should close
+            let should_close_window = self.close_current_tab();
+            log::info!(
+                "Tab closed via Cmd+W (should_close_window: {})",
+                should_close_window
+            );
+            // If last tab was closed, signal that window should close
+            if should_close_window {
+                self.is_shutting_down = true;
             }
-            // If single tab, let the window close handler take care of it
-            return false;
+            return true;
         }
 
         // Cmd+Shift+]: Next tab
