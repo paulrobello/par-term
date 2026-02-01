@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Session Logging and Recording**: Automatic session logging to record terminal output (#60)
+  - **Automatic logging**: Enable via `auto_log_sessions` config option
+  - **Multiple log formats**:
+    - Plain text: Simple output without escape sequences (smallest files)
+    - HTML: Rendered output with colors preserved (viewable in browser)
+    - Asciicast: asciinema-compatible format for replay and sharing
+  - **Configurable log directory**: XDG-compliant default (`~/.local/share/par-term/logs/`)
+  - **Archive on close**: Ensure session is fully written when tab closes
+  - Config options: `auto_log_sessions`, `session_log_format`, `session_log_directory`, `archive_on_close`
+  - Settings UI section under "Session Logging" with format selector, directory picker, and log count display
+
 - **Window Management Features**: Implement missing window management features from iTerm2 (#56)
   - **Window Type**: Start in different window modes (`window_type` config option)
     - Normal: Standard window (default)
@@ -212,7 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Core Library Update**: Now depends on published `par-term-emu-core-rust` v0.23.0 from crates.io (includes ENQ answerback support) instead of the local path override
+- **Core Library Update**: Updated to `par-term-emu-core-rust` v0.26.0 (includes recording type re-exports for session logging)
 
 ### Fixed
 
