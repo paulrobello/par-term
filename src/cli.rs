@@ -30,6 +30,10 @@ pub struct Cli {
     /// Send a command to the shell after 1 second delay
     #[arg(long, value_name = "COMMAND")]
     pub command_to_send: Option<String>,
+
+    /// Enable session logging (overrides config setting)
+    #[arg(long)]
+    pub log_session: bool,
 }
 
 #[derive(Subcommand)]
@@ -57,6 +61,8 @@ pub struct RuntimeOptions {
     pub screenshot: Option<PathBuf>,
     /// Command to send to shell after delay
     pub command_to_send: Option<String>,
+    /// Enable session logging (overrides config)
+    pub log_session: bool,
 }
 
 /// Result of CLI processing
@@ -83,6 +89,7 @@ pub fn process_cli() -> CliResult {
                 exit_after: cli.exit_after,
                 screenshot: cli.screenshot,
                 command_to_send: cli.command_to_send,
+                log_session: cli.log_session,
             };
             CliResult::Continue(options)
         }

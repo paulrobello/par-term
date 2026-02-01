@@ -976,6 +976,22 @@ impl WindowState {
                 }
                 true
             }
+            "toggle_session_logging" => {
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    match tab.toggle_session_logging(&self.config) {
+                        Ok(is_active) => {
+                            log::info!(
+                                "Session logging toggled: {}",
+                                if is_active { "started" } else { "stopped" }
+                            );
+                        }
+                        Err(e) => {
+                            log::error!("Failed to toggle session logging: {}", e);
+                        }
+                    }
+                }
+                true
+            }
             _ => {
                 log::warn!("Unknown keybinding action: {}", action);
                 false

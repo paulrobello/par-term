@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Asciicast: asciinema-compatible format for replay and sharing
   - **Configurable log directory**: XDG-compliant default (`~/.local/share/par-term/logs/`)
   - **Archive on close**: Ensure session is fully written when tab closes
+  - **Hotkey toggle**: `Cmd/Ctrl+Shift+R` to start/stop session recording on demand
+  - **CLI option**: `--log-session` flag to enable logging at startup
   - Config options: `auto_log_sessions`, `session_log_format`, `session_log_directory`, `archive_on_close`
   - Settings UI section under "Session Logging" with format selector, directory picker, and log count display
 

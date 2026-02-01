@@ -295,6 +295,10 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
             key: "CmdOrCtrl+Shift+V".to_string(),
             action: "paste_special".to_string(),
         },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+R".to_string(),
+            action: "toggle_session_logging".to_string(),
+        },
     ]
 }
 
