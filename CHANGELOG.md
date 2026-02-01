@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Unicode Width Configuration**: Configurable Unicode version and ambiguous width settings (#46)
+  - **Unicode Version**: Select from Unicode 9.0 through 16.0, or Auto (latest)
+    - Different versions have different character width tables, especially for emoji
+    - Use older versions for compatibility with legacy systems
+  - **Ambiguous Width**: Treatment of East Asian Ambiguous characters
+    - Narrow (1 cell): Western default
+    - Wide (2 cells): CJK default for Chinese/Japanese/Korean environments
+  - Config options: `unicode_version`, `ambiguous_width`
+  - Settings UI dropdowns in Terminal tab
+  - Ensures proper cursor positioning and text alignment across different contexts
+
 - **Paste Special** (`Cmd/Ctrl+Shift+V`): Transform clipboard content before pasting (#41)
   - Command palette UI with fuzzy search filtering
   - 26 text transformations across 4 categories:
