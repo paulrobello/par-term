@@ -93,6 +93,13 @@ impl Tab {
             terminal.set_answerback_string(Some(config.answerback_string.clone()));
         }
 
+        // Apply Unicode width configuration
+        let width_config = par_term_emu_core_rust::WidthConfig::new(
+            config.unicode_version,
+            config.ambiguous_width,
+        );
+        terminal.set_width_config(width_config);
+
         // Initialize cursor style from config
         // Convert config cursor style to terminal cursor style
         {

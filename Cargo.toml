@@ -23,7 +23,7 @@ exclude = [
 
 [dependencies]
 # Terminal emulator core (ENQ answerback support)
-par-term-emu-core-rust = { version = "0.23.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.25.0", default-features = false, features = ["rust-only"] }
 
 # Window management and rendering
 winit = "0.30"

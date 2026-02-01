@@ -969,6 +969,19 @@ impl WindowManager {
                     }
                 }
 
+                // Apply Unicode width settings
+                if changes.unicode_width {
+                    let width_config = par_term_emu_core_rust::WidthConfig::new(
+                        config.unicode_version,
+                        config.ambiguous_width,
+                    );
+                    for tab in window_state.tab_manager.tabs_mut() {
+                        if let Ok(term) = tab.terminal.try_lock() {
+                            term.set_width_config(width_config);
+                        }
+                    }
+                }
+
                 // Resolve per-shader settings (user override -> metadata defaults -> global)
                 // This is computed once and used for both shader enable and background-as-channel0
                 let shader_override = config

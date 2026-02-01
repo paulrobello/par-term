@@ -236,7 +236,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Session close undo timeout | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Recover closed tabs |
 | TERM variable | ✅ `Terminal Type` | ✅ | ✅ | - | - | Set via environment |
 | Character encoding | ✅ Multiple | ✅ UTF-8 | ✅ | - | - | UTF-8 only |
-| Unicode version | ✅ | ❌ | ❌ | ⭐ | 🟢 | Unicode standard version |
+| Unicode version | ✅ | ✅ | ✅ | ⭐ | 🟢 | Unicode 9.0-16.0 or Auto; ambiguous width narrow/wide; Settings > Terminal |
 | Unicode normalization | ✅ NFC/NFD/HFS+ | ❌ | ❌ | ⭐ | 🟡 | Text normalization |
 | Answerback string | ✅ | ✅ | ✅ | ⭐ | 🟢 | ENQ response; default empty for security; configurable in Settings > Shell (core v0.23.0+) |
 

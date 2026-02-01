@@ -442,6 +442,21 @@ pub struct Config {
     #[serde(default = "defaults::scrollback", alias = "scrollback_size")]
     pub scrollback_lines: usize,
 
+    // ========================================================================
+    // Unicode Width Settings
+    // ========================================================================
+    /// Unicode version for character width calculations
+    /// Different versions have different width tables, particularly for emoji.
+    /// Options: unicode_9, unicode_10, ..., unicode_16, auto (default)
+    #[serde(default = "defaults::unicode_version")]
+    pub unicode_version: par_term_emu_core_rust::UnicodeVersion,
+
+    /// Treatment of East Asian Ambiguous width characters
+    /// - narrow: 1 cell width (Western default)
+    /// - wide: 2 cell width (CJK default)
+    #[serde(default = "defaults::ambiguous_width")]
+    pub ambiguous_width: par_term_emu_core_rust::AmbiguousWidth,
+
     /// Enable cursor blinking
     #[serde(default = "defaults::bool_false")]
     pub cursor_blink: bool,
@@ -914,6 +929,8 @@ impl Default for Config {
             font_hinting: defaults::bool_true(),
             font_thin_strokes: ThinStrokesMode::default(),
             scrollback_lines: defaults::scrollback(),
+            unicode_version: defaults::unicode_version(),
+            ambiguous_width: defaults::ambiguous_width(),
             cursor_blink: defaults::bool_false(),
             cursor_blink_interval: defaults::cursor_blink_interval(),
             cursor_style: CursorStyle::default(),
