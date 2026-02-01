@@ -3480,6 +3480,7 @@ dependencies = [
  "rustybuzz",
  "semver",
  "serde",
+ "serde_json",
  "serde_yaml",
  "swash",
  "tempfile",
@@ -3493,9 +3494,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.25.0"
+version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5592f3b215f3ffe47dda822b071a056ff53dd1131caddc559cd2651d4957f7e7"
+checksum = "23cfbe918e9d0406562f2a1b959702022406857057678fdad2b74f1b7039bd38"
 dependencies = [
  "base64",
  "bitflags 2.10.0",

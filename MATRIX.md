@@ -264,10 +264,10 @@ This document compares features between iTerm2 and par-term, including assessmen
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Automatic session logging | ✅ `Automatically Log` | ❌ | ❌ | ⭐⭐ | 🟡 | Record all output |
-| Log format (plain/HTML/asciicast) | ✅ Multiple formats | ❌ | ❌ | ⭐⭐ | 🟡 | Different log formats |
-| Log directory | ✅ `Log Directory` | ❌ | ❌ | ⭐⭐ | 🟢 | Where to save logs |
-| Archive on closure | ✅ `Archive on Closure` | ❌ | ❌ | ⭐ | 🟡 | Save session on close |
+| Automatic session logging | ✅ `Automatically Log` | ✅ `auto_log_sessions` | ✅ | - | - | Record all terminal output |
+| Log format (plain/HTML/asciicast) | ✅ Multiple formats | ✅ `session_log_format` | ✅ | - | - | Plain, HTML, asciicast formats |
+| Log directory | ✅ `Log Directory` | ✅ `session_log_directory` | ✅ | - | - | XDG-compliant default |
+| Archive on closure | ✅ `Archive on Closure` | ✅ `archive_on_close` | ✅ | - | - | Save session when tab closes |
 | Screenshot | ✅ | ✅ Ctrl+Shift+S | ✅ | - | - | - |
 | Screenshot format | ✅ | ✅ `screenshot_format` | ✅ | - | - | png/jpeg/svg/html |
 

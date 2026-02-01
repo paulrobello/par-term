@@ -35,6 +35,11 @@ const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Paste Special (Transform)",
         Some("CmdOrCtrl+Shift+V"),
     ),
+    (
+        "toggle_session_logging",
+        "Toggle Session Logging",
+        Some("CmdOrCtrl+Shift+R"),
+    ),
 ];
 
 /// Convert "CmdOrCtrl" to the platform-specific display string.

@@ -53,6 +53,12 @@ impl App {
             log::info!("CLI override: using shader '{}'", shader);
         }
 
+        // Apply CLI session logging override if specified
+        if runtime_options.log_session {
+            config.auto_log_sessions = true;
+            log::info!("CLI override: session logging enabled");
+        }
+
         Ok(Self {
             config,
             runtime,

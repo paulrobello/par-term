@@ -671,3 +671,100 @@ fn test_window_type_all() {
     assert!(all_types.contains(&WindowType::EdgeLeft));
     assert!(all_types.contains(&WindowType::EdgeRight));
 }
+
+// ============================================================================
+// Session Logging Tests
+// ============================================================================
+
+use par_term::config::SessionLogFormat;
+
+#[test]
+fn test_session_logging_defaults() {
+    let config = Config::default();
+    // Session logging should be disabled by default
+    assert!(!config.auto_log_sessions);
+    // Default format should be asciicast
+    assert_eq!(config.session_log_format, SessionLogFormat::Asciicast);
+    // Archive on close should be enabled by default
+    assert!(config.archive_on_close);
+    // Log directory should contain par-term/logs
+    assert!(config.session_log_directory.contains("par-term"));
+    assert!(config.session_log_directory.contains("logs"));
+}
+
+#[test]
+fn test_session_log_format_enum() {
+    // Test all variants
+    assert_eq!(SessionLogFormat::Plain.display_name(), "Plain Text");
+    assert_eq!(SessionLogFormat::Html.display_name(), "HTML");
+    assert_eq!(
+        SessionLogFormat::Asciicast.display_name(),
+        "Asciicast (asciinema)"
+    );
+
+    // Test file extensions
+    assert_eq!(SessionLogFormat::Plain.extension(), "txt");
+    assert_eq!(SessionLogFormat::Html.extension(), "html");
+    assert_eq!(SessionLogFormat::Asciicast.extension(), "cast");
+
+    // Test all() method
+    let all_formats = SessionLogFormat::all();
+    assert_eq!(all_formats.len(), 3);
+}
+
+#[test]
+fn test_session_logging_yaml_deserialization() {
+    let yaml = r#"
+auto_log_sessions: true
+session_log_format: plain
+session_log_directory: "/tmp/test-logs"
+archive_on_close: false
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.auto_log_sessions);
+    assert_eq!(config.session_log_format, SessionLogFormat::Plain);
+    assert_eq!(config.session_log_directory, "/tmp/test-logs");
+    assert!(!config.archive_on_close);
+}
+
+#[test]
+fn test_session_logging_yaml_serialization() {
+    let mut config = Config::default();
+    config.auto_log_sessions = true;
+    config.session_log_format = SessionLogFormat::Html;
+    config.session_log_directory = "/var/log/terminal".to_string();
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("auto_log_sessions: true"));
+    assert!(yaml.contains("session_log_format: html"));
+    assert!(yaml.contains("session_log_directory: /var/log/terminal"));
+}
+
+#[test]
+fn test_session_log_format_yaml_variants() {
+    // Test all format variants
+    let yaml = r#"session_log_format: plain"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.session_log_format, SessionLogFormat::Plain);
+
+    let yaml = r#"session_log_format: html"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.session_log_format, SessionLogFormat::Html);
+
+    let yaml = r#"session_log_format: asciicast"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.session_log_format, SessionLogFormat::Asciicast);
+}
+
+#[test]
+fn test_session_logging_partial_yaml() {
+    // Test that default values are used for missing fields
+    let yaml = r#"
+auto_log_sessions: true
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.auto_log_sessions);
+    // Other fields should have defaults
+    assert_eq!(config.session_log_format, SessionLogFormat::Asciicast);
+    assert!(config.archive_on_close);
+}

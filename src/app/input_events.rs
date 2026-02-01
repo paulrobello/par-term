@@ -976,10 +976,46 @@ impl WindowState {
                 }
                 true
             }
+            "toggle_session_logging" => {
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    match tab.toggle_session_logging(&self.config) {
+                        Ok(is_active) => {
+                            let message = if is_active {
+                                "⏺ Recording Started"
+                            } else {
+                                "⏹ Recording Stopped"
+                            };
+                            log::info!(
+                                "Session logging toggled: {}",
+                                if is_active { "started" } else { "stopped" }
+                            );
+                            // Show toast after releasing tab borrow
+                            self.show_toast(message);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to toggle session logging: {}", e);
+                            self.show_toast(format!("Recording Error: {}", e));
+                        }
+                    }
+                }
+                true
+            }
             _ => {
                 log::warn!("Unknown keybinding action: {}", action);
                 false
             }
+        }
+    }
+
+    /// Show a toast notification with the given message.
+    ///
+    /// The toast will be displayed for 2 seconds and then automatically hidden.
+    pub(crate) fn show_toast(&mut self, message: impl Into<String>) {
+        self.toast_message = Some(message.into());
+        self.toast_hide_time = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+        self.needs_redraw = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
         }
     }
 

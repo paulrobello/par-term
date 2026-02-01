@@ -617,6 +617,27 @@ impl WindowState {
             }
         }
 
+        // 5b. Toast Notification
+        // Check if the toast notification should be hidden (timer expired).
+        if self.toast_message.is_some()
+            && let Some(hide_time) = self.toast_hide_time
+        {
+            if now >= hide_time {
+                // Hide the toast
+                self.toast_message = None;
+                self.toast_hide_time = None;
+                self.needs_redraw = true;
+            } else {
+                // Toast still visible - request redraw and schedule wake
+                if can_render {
+                    self.needs_redraw = true;
+                }
+                if hide_time < next_wake {
+                    next_wake = hide_time;
+                }
+            }
+        }
+
         // 6. Custom Background Shaders
         // If a custom shader is animated, render at the calculated frame interval.
         // When unfocused with pause_refresh_on_blur, this uses the slower unfocused_fps rate.

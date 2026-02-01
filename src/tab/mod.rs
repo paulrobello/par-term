@@ -15,6 +15,7 @@ use crate::app::mouse::MouseState;
 use crate::app::render_cache::RenderCache;
 use crate::config::Config;
 use crate::scroll_state::ScrollState;
+use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_logger};
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
 use std::sync::Arc;
@@ -63,6 +64,8 @@ pub struct Tab {
     pub silence_notified: bool,
     /// Whether exit notification has been sent for this tab
     pub exit_notified: bool,
+    /// Session logger for automatic session recording
+    pub session_logger: SharedSessionLogger,
 }
 
 impl Tab {
@@ -156,6 +159,47 @@ impl Tab {
         let shell_env = config.shell_env.as_ref();
         terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env)?;
 
+        // Create shared session logger
+        let session_logger = create_shared_logger();
+
+        // Set up session logging if enabled
+        if config.auto_log_sessions {
+            let logs_dir = config.logs_dir();
+            let session_title = Some(format!(
+                "Tab {} - {}",
+                tab_number,
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+            ));
+
+            match SessionLogger::new(
+                config.session_log_format,
+                &logs_dir,
+                (config.cols, config.rows),
+                session_title,
+            ) {
+                Ok(mut logger) => {
+                    if let Err(e) = logger.start() {
+                        log::warn!("Failed to start session logging: {}", e);
+                    } else {
+                        log::info!("Session logging started: {:?}", logger.output_path());
+
+                        // Set up output callback to record PTY output
+                        let logger_clone = Arc::clone(&session_logger);
+                        terminal.set_output_callback(move |data: &[u8]| {
+                            if let Some(ref mut logger) = *logger_clone.lock() {
+                                logger.record_output(data);
+                            }
+                        });
+
+                        *session_logger.lock() = Some(logger);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Failed to create session logger: {}", e);
+                }
+            }
+        }
+
         let terminal = Arc::new(Mutex::new(terminal));
 
         // Send initial text after optional delay
@@ -198,6 +242,7 @@ impl Tab {
             anti_idle_last_generation: 0,
             silence_notified: false,
             exit_notified: false,
+            session_logger,
         })
     }
 
@@ -329,11 +374,97 @@ impl Tab {
     pub fn has_custom_color(&self) -> bool {
         self.custom_color.is_some()
     }
+
+    /// Toggle session logging on/off.
+    ///
+    /// Returns `Ok(true)` if logging is now active, `Ok(false)` if stopped.
+    /// If logging wasn't active and no logger exists, creates a new one.
+    pub fn toggle_session_logging(&mut self, config: &Config) -> anyhow::Result<bool> {
+        let mut logger_guard = self.session_logger.lock();
+
+        if let Some(ref mut logger) = *logger_guard {
+            // Logger exists - toggle based on current state
+            if logger.is_active() {
+                logger.stop()?;
+                log::info!("Session logging stopped via hotkey");
+                Ok(false)
+            } else {
+                logger.start()?;
+                log::info!("Session logging started via hotkey");
+                Ok(true)
+            }
+        } else {
+            // No logger exists - create one and start it
+            let logs_dir = config.logs_dir();
+            if let Err(e) = std::fs::create_dir_all(&logs_dir) {
+                log::warn!("Failed to create logs directory: {}", e);
+                return Err(anyhow::anyhow!("Failed to create logs directory: {}", e));
+            }
+
+            // Get terminal dimensions
+            let dimensions = if let Ok(term) = self.terminal.try_lock() {
+                term.dimensions()
+            } else {
+                (80, 24) // fallback
+            };
+
+            let session_title = Some(format!(
+                "{} - {}",
+                self.title,
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+            ));
+
+            let mut logger = SessionLogger::new(
+                config.session_log_format,
+                &logs_dir,
+                dimensions,
+                session_title,
+            )?;
+
+            logger.start()?;
+
+            // Set up output callback to record PTY output
+            let logger_clone = Arc::clone(&self.session_logger);
+            if let Ok(term) = self.terminal.try_lock() {
+                term.set_output_callback(move |data: &[u8]| {
+                    if let Some(ref mut logger) = *logger_clone.lock() {
+                        logger.record_output(data);
+                    }
+                });
+            }
+
+            *logger_guard = Some(logger);
+            log::info!("Session logging created and started via hotkey");
+            Ok(true)
+        }
+    }
+
+    /// Check if session logging is currently active.
+    pub fn is_session_logging_active(&self) -> bool {
+        if let Some(ref logger) = *self.session_logger.lock() {
+            logger.is_active()
+        } else {
+            false
+        }
+    }
 }
 
 impl Drop for Tab {
     fn drop(&mut self) {
         log::info!("Dropping tab {}", self.id);
+
+        // Stop session logging first (before terminal is killed)
+        if let Some(ref mut logger) = *self.session_logger.lock() {
+            match logger.stop() {
+                Ok(path) => {
+                    log::info!("Session log saved to: {:?}", path);
+                }
+                Err(e) => {
+                    log::warn!("Failed to stop session logging: {}", e);
+                }
+            }
+        }
+
         self.stop_refresh_task();
 
         // Give the task time to abort
