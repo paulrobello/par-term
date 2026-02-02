@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>par-term - GPU-Accelerated Terminal Emulator</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00d4ff, #00ff88, #00d4ff);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: shimmer 3s linear infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 0% center; }
+            100% { background-position: 200% center; }
+        }
+
+        .tagline {
+            color: #888;
+            font-size: 1.1rem;
+            margin-bottom: 25px;
+        }
+
+        .badges {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .badges a img {
+            height: 20px;
+        }
+
+        .section {
+            background: rgba(22, 33, 62, 0.8);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+
+        h2 {
+            color: #00d4ff;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h2::before {
+            content: '';
+            display: block;
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(180deg, #00d4ff, #00ff88);
+            border-radius: 2px;
+        }
+
+        .install-command {
+            background: #0f0f23;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px 20px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            color: #00ff88;
+            margin: 15px 0;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .install-command code {
+            display: block;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .install-command .prompt {
+            color: #888;
+            user-select: none;
+        }
+
+        .install-description {
+            color: #aaa;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+        }
+
+        .links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .link-card {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 20px;
+            background: rgba(15, 15, 35, 0.8);
+            border: 1px solid rgba(0, 212, 255, 0.15);
+            border-radius: 12px;
+            text-decoration: none;
+            color: #e0e0e0;
+            transition: all 0.2s ease;
+        }
+
+        .link-card:hover {
+            border-color: rgba(0, 212, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 212, 255, 0.15);
+        }
+
+        .link-icon {
+            font-size: 2rem;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .link-text h3 {
+            color: #00d4ff;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+
+        .link-text p {
+            color: #888;
+            font-size: 0.85rem;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .feature {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        .feature::before {
+            content: '\2713';
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        footer {
+            text-align: center;
+            color: #555;
+            font-size: 0.85rem;
+            margin-top: 40px;
+        }
+
+        footer a {
+            color: #00d4ff;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>par-term</h1>
+            <p class="tagline">A cross-platform GPU-accelerated terminal emulator</p>
+            <div class="badges">
+                <a href="https://github.com/paulrobello/par-term/releases"><img src="https://img.shields.io/github/v/release/paulrobello/par-term?style=flat-square&color=00d4ff" alt="Release"></a>
+                <a href="https://github.com/paulrobello/par-term"><img src="https://img.shields.io/github/stars/paulrobello/par-term?style=flat-square&color=00ff88" alt="Stars"></a>
+                <a href="https://github.com/paulrobello/par-term/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
+            </div>
+        </header>
+
+        <section class="section">
+            <h2>Quick Install</h2>
+            <p class="install-description">Install shaders (50+ custom background and cursor shaders):</p>
+            <div class="install-command">
+                <code><span class="prompt">$ </span>curl -sSL https://paulrobello.github.io/par-term/install-shaders.sh | sh</code>
+            </div>
+
+            <p class="install-description">Install shell integration (directory tracking, command notifications, CWD sync):</p>
+            <div class="install-command">
+                <code><span class="prompt">$ </span>curl -sSL https://paulrobello.github.io/par-term/install-shell-integration.sh | sh</code>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Resources</h2>
+            <div class="links">
+                <a href="gallery/" class="link-card">
+                    <div class="link-icon">&#10024;</div>
+                    <div class="link-text">
+                        <h3>Shader Gallery</h3>
+                        <p>Browse 50+ custom shader previews</p>
+                    </div>
+                </a>
+                <a href="https://github.com/paulrobello/par-term" class="link-card">
+                    <div class="link-icon">&#128187;</div>
+                    <div class="link-text">
+                        <h3>GitHub Repository</h3>
+                        <p>Source code, issues, releases</p>
+                    </div>
+                </a>
+                <a href="https://github.com/paulrobello/par-term/releases" class="link-card">
+                    <div class="link-icon">&#128230;</div>
+                    <div class="link-text">
+                        <h3>Downloads</h3>
+                        <p>Pre-built binaries for all platforms</p>
+                    </div>
+                </a>
+                <a href="https://github.com/paulrobello/par-term/blob/main/docs/SHADERS.md" class="link-card">
+                    <div class="link-icon">&#128214;</div>
+                    <div class="link-text">
+                        <h3>Documentation</h3>
+                        <p>Shader guide and configuration</p>
+                    </div>
+                </a>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2>Features</h2>
+            <div class="features">
+                <div class="feature">GPU-accelerated rendering</div>
+                <div class="feature">Custom shader effects</div>
+                <div class="feature">Sixel graphics support</div>
+                <div class="feature">iTerm2 image protocol</div>
+                <div class="feature">Kitty graphics protocol</div>
+                <div class="feature">HarfBuzz text shaping</div>
+                <div class="feature">Font ligatures</div>
+                <div class="feature">Shell integration</div>
+                <div class="feature">Directory tracking</div>
+                <div class="feature">Cross-platform</div>
+            </div>
+        </section>
+
+        <footer>
+            <p>Created by <a href="https://github.com/paulrobello">Paul Robello</a> | MIT License</p>
+        </footer>
+    </div>
+</body>
+</html>

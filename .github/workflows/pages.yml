@@ -1,12 +1,13 @@
-# Deploy shader gallery to GitHub Pages
+# Deploy par-term site to GitHub Pages
 name: Deploy to GitHub Pages
 
 on:
-  # Run on pushes to main that affect the shader gallery
+  # Run on pushes to main that affect the gh-pages content
   push:
     branches: ["main"]
     paths:
-      - "shader-gallery/**"
+      - "gh-pages/**"
+      - "shell_integration/**"
       - ".github/workflows/pages.yml"
 
   # Allow manual trigger
@@ -39,7 +40,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "shader-gallery"
+          path: "gh-pages"
 
       - name: Deploy to GitHub Pages
         id: deployment
