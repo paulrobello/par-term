@@ -21,10 +21,10 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
-    DroppedFileQuoteStyle, FontRange, KeyBinding, OptionKeyMode, SessionLogFormat, ShaderConfig,
-    ShaderInstallPrompt, ShaderMetadata, SmartSelectionPrecision, SmartSelectionRule, TabBarMode,
-    ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
-    default_smart_selection_rules,
+    DroppedFileQuoteStyle, FontRange, InstallPromptState, IntegrationVersions, KeyBinding,
+    OptionKeyMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellType,
+    SmartSelectionPrecision, SmartSelectionRule, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle,
+    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -997,6 +997,14 @@ pub struct Config {
     #[serde(default)]
     pub shader_install_prompt: ShaderInstallPrompt,
 
+    /// Shell integration install state
+    #[serde(default)]
+    pub shell_integration_state: InstallPromptState,
+
+    /// Version tracking for integrations
+    #[serde(default)]
+    pub integration_versions: IntegrationVersions,
+
     // ========================================================================
     // Update Checking
     // ========================================================================
@@ -1257,6 +1265,8 @@ impl Default for Config {
             cursor_shader_configs: HashMap::new(),
             keybindings: defaults::keybindings(),
             shader_install_prompt: ShaderInstallPrompt::default(),
+            shell_integration_state: InstallPromptState::default(),
+            integration_versions: IntegrationVersions::default(),
             update_check_frequency: defaults::update_check_frequency(),
             last_update_check: None,
             skipped_version: None,
@@ -1597,5 +1607,87 @@ impl Config {
         }
 
         true // Directory exists but has no .glsl files
+    }
+
+    /// Get the configuration directory path (using XDG convention)
+    pub fn config_dir() -> PathBuf {
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(config_dir) = dirs::config_dir() {
+                config_dir.join("par-term")
+            } else {
+                PathBuf::from(".")
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            if let Some(home_dir) = dirs::home_dir() {
+                home_dir.join(".config").join("par-term")
+            } else {
+                PathBuf::from(".")
+            }
+        }
+    }
+
+    /// Get the shell integration directory (same as config dir)
+    pub fn shell_integration_dir() -> PathBuf {
+        Self::config_dir()
+    }
+
+    /// Check if shell integration should be prompted
+    pub fn should_prompt_shell_integration(&self) -> bool {
+        if self.shell_integration_state != InstallPromptState::Ask {
+            return false;
+        }
+
+        let current_version = env!("CARGO_PKG_VERSION");
+
+        // Check if already prompted for this version
+        if let Some(ref prompted) = self.integration_versions.shell_integration_prompted_version {
+            if prompted == current_version {
+                return false;
+            }
+        }
+
+        // Check if installed and up to date
+        if let Some(ref installed) = self.integration_versions.shell_integration_installed_version {
+            if installed == current_version {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    /// Check if shaders should be prompted (version-aware logic)
+    pub fn should_prompt_shader_install_versioned(&self) -> bool {
+        if self.shader_install_prompt != ShaderInstallPrompt::Ask {
+            return false;
+        }
+
+        let current_version = env!("CARGO_PKG_VERSION");
+
+        // Check if already prompted for this version
+        if let Some(ref prompted) = self.integration_versions.shaders_prompted_version {
+            if prompted == current_version {
+                return false;
+            }
+        }
+
+        // Check if installed and up to date
+        if let Some(ref installed) = self.integration_versions.shaders_installed_version {
+            if installed == current_version {
+                return false;
+            }
+        }
+
+        // Also check if shaders folder exists and has files
+        let shaders_dir = Self::shaders_dir();
+        !shaders_dir.exists() || !crate::shader_installer::has_shader_files(&shaders_dir)
+    }
+
+    /// Check if either integration should be prompted
+    pub fn should_prompt_integrations(&self) -> bool {
+        self.should_prompt_shader_install_versioned() || self.should_prompt_shell_integration()
     }
 }
