@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install doc coverage test-fonts benchmark-shaping test-text-shaping bundle run-bundle
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install doc coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle
 
 # Default target
 .DEFAULT_GOAL := help
@@ -46,8 +46,9 @@ help:
 	@echo "  make all         - Format, lint, test, and build"
 	@echo ""
 	@echo "macOS Bundle:"
-	@echo "  make bundle      - Create macOS .app bundle (release mode)"
-	@echo "  make run-bundle  - Run as macOS .app (shows dock icon)"
+	@echo "  make bundle         - Create macOS .app bundle (release mode)"
+	@echo "  make bundle-install - Install .app bundle to /Applications"
+	@echo "  make run-bundle     - Run as macOS .app (shows dock icon)"
 	@echo ""
 	@echo "Other:"
 	@echo "  make clean       - Clean build artifacts"
@@ -310,6 +311,20 @@ else
 	@echo "App bundle is only supported on macOS"
 	@echo "Running regular binary instead..."
 	cargo run --release
+endif
+
+# Install macOS app bundle to /Applications
+bundle-install: bundle
+ifeq ($(shell uname),Darwin)
+	@echo "Installing par-term.app to /Applications..."
+	@if [ -d "/Applications/par-term.app" ]; then \
+		echo "Removing existing /Applications/par-term.app..."; \
+		rm -rf /Applications/par-term.app; \
+	fi
+	@cp -R target/release/bundle/par-term.app /Applications/
+	@echo "✅ Installed to /Applications/par-term.app"
+else
+	@echo "App bundle installation is only supported on macOS"
 endif
 
 # Generate config file example
