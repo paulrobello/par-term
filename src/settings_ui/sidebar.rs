@@ -15,6 +15,7 @@ pub enum SettingsTab {
     Terminal,
     Effects,
     Notifications,
+    Integrations,
     Advanced,
 }
 
@@ -28,6 +29,7 @@ impl SettingsTab {
             Self::Terminal => "Terminal",
             Self::Effects => "Effects",
             Self::Notifications => "Notifications",
+            Self::Integrations => "Integrations",
             Self::Advanced => "Advanced",
         }
     }
@@ -41,6 +43,7 @@ impl SettingsTab {
             Self::Terminal => "📟",
             Self::Effects => "✨",
             Self::Notifications => "🔔",
+            Self::Integrations => "🔌",
             Self::Advanced => "⚙",
         }
     }
@@ -54,6 +57,7 @@ impl SettingsTab {
             Self::Terminal,
             Self::Effects,
             Self::Notifications,
+            Self::Integrations,
             Self::Advanced,
         ]
     }
@@ -217,6 +221,16 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "desktop",
             "alert",
         ],
+        SettingsTab::Integrations => &[
+            "shell integration",
+            "bash",
+            "zsh",
+            "fish",
+            "shaders",
+            "install",
+            "uninstall",
+            "bundle",
+        ],
         SettingsTab::Advanced => &[
             "tmux",
             "logging",
@@ -238,6 +252,7 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         SettingsTab::Terminal => "Shell, scrollback, search, scrollbar",
         SettingsTab::Effects => "Background image/shader, cursor effects",
         SettingsTab::Notifications => "Bell, activity alerts, desktop notifications",
+        SettingsTab::Integrations => "Shell integration, shader bundle installation",
         SettingsTab::Advanced => "tmux integration, logging, updates",
     }
 }

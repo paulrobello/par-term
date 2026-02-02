@@ -8,11 +8,12 @@ use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 use rfd::FileDialog;
 use std::collections::HashSet;
 
-// Reorganized settings tabs (7 consolidated tabs)
+// Reorganized settings tabs (8 consolidated tabs)
 pub mod advanced_tab;
 pub mod appearance_tab;
 pub mod effects_tab;
 pub mod input_tab;
+pub mod integrations_tab;
 pub mod notifications_tab;
 pub mod quick_settings;
 pub mod section;
@@ -174,6 +175,12 @@ pub struct SettingsUI {
     /// Set of collapsed section IDs (sections start open by default, collapsed when user collapses them)
     #[allow(dead_code)]
     pub(crate) collapsed_sections: HashSet<String>,
+
+    // Integrations tab action state
+    /// Pending shell integration action (install/uninstall)
+    pub(crate) shell_integration_action: Option<integrations_tab::ShellIntegrationAction>,
+    /// Pending shader action (install/uninstall)
+    pub(crate) shader_action: Option<integrations_tab::ShaderAction>,
 }
 
 impl SettingsUI {
@@ -255,6 +262,8 @@ impl SettingsUI {
             test_notification_requested: false,
             selected_tab: SettingsTab::default(),
             collapsed_sections: HashSet::new(),
+            shell_integration_action: None,
+            shader_action: None,
         }
     }
 
@@ -763,6 +772,9 @@ impl SettingsUI {
             }
             SettingsTab::Notifications => {
                 notifications_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Integrations => {
+                self.show_integrations_tab(ui, changes_this_frame);
             }
             SettingsTab::Advanced => {
                 advanced_tab::show(ui, self, changes_this_frame);

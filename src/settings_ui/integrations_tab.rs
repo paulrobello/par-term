@@ -1,0 +1,291 @@
+//! Integrations tab for settings UI.
+//!
+//! Shows installation status and controls for:
+//! - Shell Integration (bash, zsh, fish)
+//! - Custom Shaders bundle
+
+use arboard::Clipboard;
+use egui::{Color32, RichText, Ui};
+
+use crate::config::{Config, ShellType};
+use crate::shader_installer;
+use crate::shell_integration_installer;
+
+use super::section::collapsing_section;
+use super::SettingsUI;
+
+/// Actions for shell integration (consumed by app handler)
+#[derive(Debug, Clone, Copy)]
+pub enum ShellIntegrationAction {
+    /// Install shell integration for the detected shell
+    Install,
+    /// Uninstall shell integration from all shells
+    Uninstall,
+}
+
+/// Actions for shader installation (consumed by app handler)
+#[derive(Debug, Clone, Copy)]
+pub enum ShaderAction {
+    /// Install shaders from GitHub release
+    Install,
+    /// Uninstall all bundled shaders
+    Uninstall,
+}
+
+impl SettingsUI {
+    /// Show the integrations tab content.
+    pub fn show_integrations_tab(&mut self, ui: &mut Ui, _changes_this_frame: &mut bool) {
+        let query = self.search_query.trim().to_lowercase();
+
+        // Shell Integration section
+        if section_matches(
+            &query,
+            "Shell Integration",
+            &["shell", "bash", "zsh", "fish", "prompt", "integration"],
+        ) {
+            self.show_shell_integration_section(ui, _changes_this_frame);
+        }
+
+        // Custom Shaders section
+        if section_matches(
+            &query,
+            "Custom Shaders",
+            &["shader", "glsl", "effect", "background", "cursor"],
+        ) {
+            self.show_shaders_section(ui, _changes_this_frame);
+        }
+    }
+
+    fn show_shell_integration_section(&mut self, ui: &mut Ui, _changes_this_frame: &mut bool) {
+        collapsing_section(
+            ui,
+            "Shell Integration",
+            "integrations_shell",
+            true,
+            |ui| {
+                ui.label("Shell integration provides enhanced terminal features like directory tracking and command notifications.");
+                ui.add_space(8.0);
+
+                // Detect shell and installation status
+                let detected_shell = shell_integration_installer::detected_shell();
+                let is_installed = shell_integration_installer::is_installed();
+
+                // Status indicator
+                ui.horizontal(|ui| {
+                    ui.label("Status:");
+                    if is_installed {
+                        ui.colored_label(Color32::from_rgb(100, 200, 100), "Installed");
+                    } else {
+                        ui.colored_label(Color32::from_rgb(200, 150, 100), "Not installed");
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Detected shell:");
+                    ui.label(RichText::new(shell_type_display(detected_shell)).strong());
+                });
+
+                if detected_shell == ShellType::Unknown {
+                    ui.add_space(4.0);
+                    ui.colored_label(
+                        Color32::from_rgb(200, 100, 100),
+                        "Could not detect shell type. Manual installation may be required.",
+                    );
+                }
+
+                ui.add_space(8.0);
+
+                // Action buttons
+                ui.horizontal(|ui| {
+                    let install_text = if is_installed {
+                        "Reinstall"
+                    } else {
+                        "Install"
+                    };
+
+                    if detected_shell != ShellType::Unknown {
+                        if ui
+                            .button(install_text)
+                            .on_hover_text("Install shell integration scripts")
+                            .clicked()
+                        {
+                            self.shell_integration_action = Some(ShellIntegrationAction::Install);
+                        }
+                    }
+
+                    if is_installed {
+                        if ui
+                            .button("Uninstall")
+                            .on_hover_text("Remove shell integration from all shells")
+                            .clicked()
+                        {
+                            self.shell_integration_action = Some(ShellIntegrationAction::Uninstall);
+                        }
+                    }
+                });
+
+                ui.add_space(8.0);
+
+                // Manual installation instructions
+                ui.label(RichText::new("Manual Installation").strong());
+                ui.label("Run this command in your terminal:");
+
+                let curl_cmd =
+                    "curl -fsSL https://raw.githubusercontent.com/paulrobello/par-term/main/scripts/install-shell-integration.sh | bash";
+
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut curl_cmd.to_string())
+                            .desired_width(400.0)
+                            .interactive(false)
+                            .font(egui::TextStyle::Monospace),
+                    );
+
+                    if ui.button("Copy").clicked() {
+                        if let Ok(mut clipboard) = Clipboard::new() {
+                            let _ = clipboard.set_text(curl_cmd);
+                        }
+                    }
+                });
+
+                // Show installed version if available
+                if let Some(ref version) = self
+                    .config
+                    .integration_versions
+                    .shell_integration_installed_version
+                {
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new(format!("Installed version: {}", version))
+                            .small()
+                            .color(Color32::GRAY),
+                    );
+                }
+            },
+        );
+    }
+
+    fn show_shaders_section(&mut self, ui: &mut Ui, _changes_this_frame: &mut bool) {
+        collapsing_section(ui, "Custom Shaders", "integrations_shaders", true, |ui| {
+            ui.label("Custom shaders provide background effects and cursor animations for your terminal.");
+            ui.add_space(8.0);
+
+            // Check installation status
+            let shaders_dir = Config::shaders_dir();
+            let has_shaders = shader_installer::has_shader_files(&shaders_dir);
+            let shader_count = if has_shaders {
+                shader_installer::count_shader_files(&shaders_dir)
+            } else {
+                0
+            };
+
+            // Status indicator
+            ui.horizontal(|ui| {
+                ui.label("Status:");
+                if has_shaders {
+                    ui.colored_label(
+                        Color32::from_rgb(100, 200, 100),
+                        format!("Installed ({} shaders)", shader_count),
+                    );
+                } else {
+                    ui.colored_label(Color32::from_rgb(200, 150, 100), "Not installed");
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Location:");
+                ui.label(
+                    RichText::new(shaders_dir.display().to_string())
+                        .small()
+                        .color(Color32::GRAY),
+                );
+            });
+
+            // Show installed version if available
+            if let Some(ref version) = self.config.integration_versions.shaders_installed_version {
+                ui.horizontal(|ui| {
+                    ui.label("Version:");
+                    ui.label(RichText::new(version.clone()).small().color(Color32::GRAY));
+                });
+            }
+
+            ui.add_space(8.0);
+
+            // Action buttons
+            ui.horizontal(|ui| {
+                let install_text = if has_shaders { "Reinstall" } else { "Install" };
+
+                if ui
+                    .button(install_text)
+                    .on_hover_text("Download and install shader bundle from GitHub")
+                    .clicked()
+                {
+                    self.shader_action = Some(ShaderAction::Install);
+                }
+
+                if has_shaders {
+                    if ui
+                        .button("Uninstall")
+                        .on_hover_text("Remove all bundled shaders (keeps user-created shaders)")
+                        .clicked()
+                    {
+                        self.shader_action = Some(ShaderAction::Uninstall);
+                    }
+                }
+
+                if ui
+                    .button("Open Folder")
+                    .on_hover_text("Open shaders folder in file manager")
+                    .clicked()
+                {
+                    if let Err(e) = open::that(&shaders_dir) {
+                        log::error!("Failed to open shaders folder: {}", e);
+                    }
+                }
+            });
+
+            ui.add_space(8.0);
+
+            // Manual installation instructions
+            ui.label(RichText::new("Manual Installation").strong());
+            ui.label("Run this command in your terminal:");
+
+            let curl_cmd =
+                "curl -fsSL https://raw.githubusercontent.com/paulrobello/par-term/main/scripts/install-shaders.sh | bash";
+
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut curl_cmd.to_string())
+                        .desired_width(400.0)
+                        .interactive(false)
+                        .font(egui::TextStyle::Monospace),
+                );
+
+                if ui.button("Copy").clicked() {
+                    if let Ok(mut clipboard) = Clipboard::new() {
+                        let _ = clipboard.set_text(curl_cmd);
+                    }
+                }
+            });
+        });
+    }
+}
+
+fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+    if title.to_lowercase().contains(query) {
+        return true;
+    }
+    keywords.iter().any(|k| k.to_lowercase().contains(query))
+}
+
+fn shell_type_display(shell: ShellType) -> &'static str {
+    match shell {
+        ShellType::Bash => "Bash",
+        ShellType::Zsh => "Zsh",
+        ShellType::Fish => "Fish",
+        ShellType::Unknown => "Unknown",
+    }
+}
