@@ -2,10 +2,30 @@
 //!
 //! This module handles CLI argument parsing and subcommands like shader installation.
 
+use crate::config::ShellType;
 use crate::shader_installer;
+use crate::shell_integration_installer;
 use clap::{Parser, Subcommand};
 use std::io::{self, Write};
 use std::path::PathBuf;
+
+/// Shell type argument for CLI
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum ShellTypeArg {
+    Bash,
+    Zsh,
+    Fish,
+}
+
+impl From<ShellTypeArg> for ShellType {
+    fn from(arg: ShellTypeArg) -> Self {
+        match arg {
+            ShellTypeArg::Bash => ShellType::Bash,
+            ShellTypeArg::Zsh => ShellType::Zsh,
+            ShellTypeArg::Fish => ShellType::Fish,
+        }
+    }
+}
 
 /// par-term - A GPU-accelerated terminal emulator
 #[derive(Parser)]
@@ -48,6 +68,30 @@ pub enum Commands {
         #[arg(short, long)]
         force: bool,
     },
+
+    /// Install shell integration for your shell
+    InstallShellIntegration {
+        /// Specify shell type (auto-detected if not provided)
+        #[arg(long, value_enum)]
+        shell: Option<ShellTypeArg>,
+    },
+
+    /// Uninstall shell integration
+    UninstallShellIntegration,
+
+    /// Uninstall shaders (removes bundled files, keeps user files)
+    UninstallShaders {
+        /// Force removal without prompting
+        #[arg(short, long)]
+        force: bool,
+    },
+
+    /// Install both shaders and shell integration
+    InstallIntegrations {
+        /// Skip confirmation prompts
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
 }
 
 /// Runtime options passed from CLI to the application
@@ -80,6 +124,22 @@ pub fn process_cli() -> CliResult {
     match cli.command {
         Some(Commands::InstallShaders { yes, force }) => {
             let result = install_shaders_cli(yes || force);
+            CliResult::Exit(if result.is_ok() { 0 } else { 1 })
+        }
+        Some(Commands::InstallShellIntegration { shell }) => {
+            let result = install_shell_integration_cli(shell.map(Into::into));
+            CliResult::Exit(if result.is_ok() { 0 } else { 1 })
+        }
+        Some(Commands::UninstallShellIntegration) => {
+            let result = uninstall_shell_integration_cli();
+            CliResult::Exit(if result.is_ok() { 0 } else { 1 })
+        }
+        Some(Commands::UninstallShaders { force }) => {
+            let result = uninstall_shaders_cli(force);
+            CliResult::Exit(if result.is_ok() { 0 } else { 1 })
+        }
+        Some(Commands::InstallIntegrations { yes }) => {
+            let result = install_integrations_cli(yes);
             CliResult::Exit(if result.is_ok() { 0 } else { 1 })
         }
         None => {
@@ -170,4 +230,270 @@ fn install_shaders_cli(skip_prompt: bool) -> anyhow::Result<()> {
     println!("See docs/SHADERS.md for the full shader gallery.");
 
     Ok(())
+}
+
+/// Install shell integration for the specified or detected shell (CLI version)
+fn install_shell_integration_cli(shell: Option<ShellType>) -> anyhow::Result<()> {
+    let detected = shell_integration_installer::detected_shell();
+    let target_shell = shell.unwrap_or(detected);
+
+    println!("=============================================");
+    println!("  par-term Shell Integration Installer");
+    println!("=============================================");
+    println!();
+
+    if target_shell == ShellType::Unknown {
+        eprintln!("Error: Could not detect shell type.");
+        eprintln!("Please specify your shell with --shell bash|zsh|fish");
+        return Err(anyhow::anyhow!("Unknown shell type"));
+    }
+
+    println!("Detected shell: {:?}", target_shell);
+
+    // Check if already installed
+    if shell_integration_installer::is_installed() {
+        println!("Shell integration is already installed.");
+        print!("Do you want to reinstall? [y/N] ");
+        io::stdout().flush()?;
+
+        let mut response = String::new();
+        io::stdin().read_line(&mut response)?;
+        let response = response.trim().to_lowercase();
+
+        if response != "y" && response != "yes" {
+            println!("Installation cancelled.");
+            return Ok(());
+        }
+        println!();
+    }
+
+    println!("Installing shell integration...");
+
+    match shell_integration_installer::install(Some(target_shell)) {
+        Ok(result) => {
+            println!();
+            println!("=============================================");
+            println!("  Installation complete!");
+            println!("=============================================");
+            println!();
+            println!("Script installed to:");
+            println!("  {}", result.script_path.display());
+            println!();
+            println!("Added source line to:");
+            println!("  {}", result.rc_file.display());
+            println!();
+            if result.needs_restart {
+                println!("Please restart your shell or run:");
+                println!("  source {}", result.rc_file.display());
+            }
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            Err(anyhow::anyhow!(e))
+        }
+    }
+}
+
+/// Uninstall shell integration (CLI version)
+fn uninstall_shell_integration_cli() -> anyhow::Result<()> {
+    println!("=============================================");
+    println!("  par-term Shell Integration Uninstaller");
+    println!("=============================================");
+    println!();
+
+    if !shell_integration_installer::is_installed() {
+        println!("Shell integration is not installed.");
+        return Ok(());
+    }
+
+    println!("Uninstalling shell integration...");
+
+    match shell_integration_installer::uninstall() {
+        Ok(result) => {
+            println!();
+            println!("=============================================");
+            println!("  Uninstallation complete!");
+            println!("=============================================");
+            println!();
+
+            if !result.cleaned.is_empty() {
+                println!("Cleaned RC files:");
+                for path in &result.cleaned {
+                    println!("  {}", path.display());
+                }
+                println!();
+            }
+
+            if !result.scripts_removed.is_empty() {
+                println!("Removed integration scripts:");
+                for path in &result.scripts_removed {
+                    println!("  {}", path.display());
+                }
+                println!();
+            }
+
+            if !result.needs_manual.is_empty() {
+                println!("WARNING: Some files need manual cleanup:");
+                for path in &result.needs_manual {
+                    println!("  {}", path.display());
+                }
+                println!();
+            }
+
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            Err(anyhow::anyhow!(e))
+        }
+    }
+}
+
+/// Uninstall shaders using manifest (CLI version)
+fn uninstall_shaders_cli(force: bool) -> anyhow::Result<()> {
+    let shaders_dir = crate::config::Config::shaders_dir();
+
+    println!("=============================================");
+    println!("  par-term Shader Uninstaller");
+    println!("=============================================");
+    println!();
+    println!("Shaders directory: {}", shaders_dir.display());
+    println!();
+
+    if !shaders_dir.exists() {
+        println!("No shaders installed.");
+        return Ok(());
+    }
+
+    // Check for manifest
+    let manifest_path = shaders_dir.join("manifest.json");
+    if !manifest_path.exists() {
+        println!("No manifest.json found. Cannot determine which files are bundled.");
+        println!("Only files installed with the installer can be safely uninstalled.");
+        return Err(anyhow::anyhow!("No manifest found"));
+    }
+
+    if !force {
+        println!("This will remove bundled shader files.");
+        println!("User-created and modified files will be preserved.");
+        println!();
+        print!("Do you want to continue? [y/N] ");
+        io::stdout().flush()?;
+
+        let mut response = String::new();
+        io::stdin().read_line(&mut response)?;
+        let response = response.trim().to_lowercase();
+
+        if response != "y" && response != "yes" {
+            println!("Uninstallation cancelled.");
+            return Ok(());
+        }
+        println!();
+    }
+
+    println!("Uninstalling shaders...");
+
+    match shader_installer::uninstall_shaders(force) {
+        Ok(result) => {
+            println!();
+            println!("=============================================");
+            println!("  Uninstallation complete!");
+            println!("=============================================");
+            println!();
+            println!("Removed {} bundled files.", result.removed);
+
+            if result.kept > 0 {
+                println!("Preserved {} user files.", result.kept);
+            }
+
+            if !result.needs_confirmation.is_empty() {
+                println!();
+                println!("Modified files that were preserved:");
+                for path in &result.needs_confirmation {
+                    println!("  {}", path);
+                }
+            }
+
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            Err(anyhow::anyhow!(e))
+        }
+    }
+}
+
+/// Install both shaders and shell integration (CLI version)
+fn install_integrations_cli(skip_prompt: bool) -> anyhow::Result<()> {
+    println!("=============================================");
+    println!("  par-term Integrations Installer");
+    println!("=============================================");
+    println!();
+    println!("This will install:");
+    println!("  1. Shader collection from latest release");
+    println!("  2. Shell integration for your current shell");
+    println!();
+
+    if !skip_prompt {
+        print!("Do you want to continue? [y/N] ");
+        io::stdout().flush()?;
+
+        let mut response = String::new();
+        io::stdin().read_line(&mut response)?;
+        let response = response.trim().to_lowercase();
+
+        if response != "y" && response != "yes" {
+            println!("Installation cancelled.");
+            return Ok(());
+        }
+        println!();
+    }
+
+    // Install shaders
+    println!("Step 1: Installing shaders...");
+    println!("---------------------------------------------");
+
+    let shader_result = install_shaders_cli(true);
+    if shader_result.is_err() {
+        println!();
+        println!("WARNING: Shader installation failed.");
+        println!("Continuing with shell integration...");
+    }
+
+    println!();
+    println!("Step 2: Installing shell integration...");
+    println!("---------------------------------------------");
+
+    let shell_result = install_shell_integration_cli(None);
+
+    println!();
+    println!("=============================================");
+    println!("  Integrations Installation Summary");
+    println!("=============================================");
+    println!();
+
+    match (&shader_result, &shell_result) {
+        (Ok(()), Ok(())) => {
+            println!("All integrations installed successfully!");
+        }
+        (Err(_), Ok(())) => {
+            println!("Shell integration: INSTALLED");
+            println!("Shaders: FAILED (see above for errors)");
+        }
+        (Ok(()), Err(_)) => {
+            println!("Shaders: INSTALLED");
+            println!("Shell integration: FAILED (see above for errors)");
+        }
+        (Err(_), Err(_)) => {
+            println!("Both installations failed. See above for errors.");
+        }
+    }
+
+    // Return success if at least one succeeded
+    if shader_result.is_ok() || shell_result.is_ok() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("Both installations failed"))
+    }
 }
