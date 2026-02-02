@@ -22,6 +22,9 @@ pub mod macos_metal; // macOS-specific CAMetalLayer configuration
 pub mod menu;
 pub mod paste_special_ui;
 pub mod paste_transform;
+pub mod profile;
+pub mod profile_drawer_ui;
+pub mod profile_modal_ui;
 pub mod renderer;
 pub mod scroll_state;
 pub mod scrollbar;

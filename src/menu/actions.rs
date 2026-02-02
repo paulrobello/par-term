@@ -3,6 +3,8 @@
 //! This module defines the `MenuAction` enum that represents all possible
 //! menu actions that can be triggered from the native menu system.
 
+use crate::profile::ProfileId;
+
 /// Actions that can be triggered from the menu system
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuAction {
@@ -14,6 +16,15 @@ pub enum MenuAction {
     /// Quit the application (only used on Windows/Linux - macOS handles quit via system menu)
     #[allow(dead_code)]
     Quit,
+
+    // Profiles menu
+    /// Open the profile management modal
+    ManageProfiles,
+    /// Toggle the profile drawer visibility
+    ToggleProfileDrawer,
+    /// Open a specific profile (static menu entries for common profiles)
+    #[allow(dead_code)]
+    OpenProfile(ProfileId),
 
     // Tab menu
     /// Create a new tab
