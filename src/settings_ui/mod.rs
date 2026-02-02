@@ -477,6 +477,19 @@ impl SettingsUI {
                             close_requested = true;
                         }
 
+                        ui.separator();
+
+                        if ui
+                            .button("Edit Config File")
+                            .on_hover_text("Open config.yaml in your default editor")
+                            .clicked()
+                        {
+                            let config_path = Config::config_path();
+                            if let Err(e) = open::that(&config_path) {
+                                log::error!("Failed to open config file: {}", e);
+                            }
+                        }
+
                         if self.has_changes {
                             ui.colored_label(egui::Color32::YELLOW, "* Unsaved changes");
                         }
@@ -606,6 +619,19 @@ impl SettingsUI {
 
                     if ui.button("Discard").clicked() {
                         discard_requested = true;
+                    }
+
+                    ui.separator();
+
+                    if ui
+                        .button("Edit Config File")
+                        .on_hover_text("Open config.yaml in your default editor")
+                        .clicked()
+                    {
+                        let config_path = Config::config_path();
+                        if let Err(e) = open::that(&config_path) {
+                            log::error!("Failed to open config file: {}", e);
+                        }
                     }
 
                     if self.has_changes {
