@@ -47,7 +47,7 @@ help:
 	@echo ""
 	@echo "macOS Bundle:"
 	@echo "  make bundle         - Create macOS .app bundle (release mode)"
-	@echo "  make bundle-install - Install .app bundle to /Applications"
+	@echo "  make bundle-install - Install .app bundle to /Applications and binary to PATH"
 	@echo "  make run-bundle     - Run as macOS .app (shows dock icon)"
 	@echo ""
 	@echo "Other:"
@@ -313,8 +313,8 @@ else
 	cargo run --release
 endif
 
-# Install macOS app bundle to /Applications
-bundle-install: bundle
+# Install macOS app bundle to /Applications and binary to PATH
+bundle-install: bundle install
 ifeq ($(shell uname),Darwin)
 	@echo "Installing par-term.app to /Applications..."
 	@if [ -d "/Applications/par-term.app" ]; then \
