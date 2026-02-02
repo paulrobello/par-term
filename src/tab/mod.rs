@@ -14,6 +14,7 @@ use crate::app::bell::BellState;
 use crate::app::mouse::MouseState;
 use crate::app::render_cache::RenderCache;
 use crate::config::Config;
+use crate::profile::Profile;
 use crate::scroll_state::ScrollState;
 use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_logger};
 use crate::tab::initial_text::build_initial_text_payload;
@@ -22,6 +23,206 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+
+/// Configure a terminal with settings from config (theme, clipboard limits, cursor style, unicode)
+fn configure_terminal_from_config(terminal: &mut TerminalManager, config: &Config) {
+    // Set theme from config
+    terminal.set_theme(config.load_theme());
+
+    // Apply clipboard history limits from config
+    terminal.set_max_clipboard_sync_events(config.clipboard_max_sync_events);
+    terminal.set_max_clipboard_event_bytes(config.clipboard_max_event_bytes);
+
+    // Set answerback string for ENQ response (if configured)
+    if !config.answerback_string.is_empty() {
+        terminal.set_answerback_string(Some(config.answerback_string.clone()));
+    }
+
+    // Apply Unicode width configuration
+    let width_config = par_term_emu_core_rust::WidthConfig::new(
+        config.unicode_version,
+        config.ambiguous_width,
+    );
+    terminal.set_width_config(width_config);
+
+    // Initialize cursor style from config
+    use crate::config::CursorStyle as ConfigCursorStyle;
+    use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
+    let term_style = if config.cursor_blink {
+        match config.cursor_style {
+            ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
+            ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
+            ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
+        }
+    } else {
+        match config.cursor_style {
+            ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
+            ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
+            ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,
+        }
+    };
+    terminal.set_cursor_style(term_style);
+}
+
+/// Get the platform-specific PATH separator
+#[cfg(target_os = "windows")]
+const PATH_SEPARATOR: char = ';';
+#[cfg(not(target_os = "windows"))]
+const PATH_SEPARATOR: char = ':';
+
+/// Build environment variables with an augmented PATH
+///
+/// When launched from Finder on macOS (or similar on other platforms), the PATH may be minimal.
+/// This function augments the PATH with common directories where user tools are installed.
+fn build_shell_env(
+    config_env: Option<&std::collections::HashMap<String, String>>,
+) -> Option<std::collections::HashMap<String, String>> {
+    // Get the current PATH
+    let current_path = std::env::var("PATH").unwrap_or_default();
+
+    // Build platform-specific extra paths
+    let extra_paths = build_platform_extra_paths();
+
+    // Filter to paths that exist and aren't already in PATH
+    let new_paths: Vec<String> = extra_paths
+        .into_iter()
+        .filter(|p| !p.is_empty() && !current_path.contains(p) && std::path::Path::new(p).exists())
+        .collect();
+
+    // If nothing to add and no config env, return the config env as-is
+    if new_paths.is_empty() && config_env.is_none() {
+        return None;
+    }
+
+    // Build the augmented PATH using platform-specific separator
+    let augmented_path = if new_paths.is_empty() {
+        current_path
+    } else {
+        format!(
+            "{}{}{}",
+            new_paths.join(&PATH_SEPARATOR.to_string()),
+            PATH_SEPARATOR,
+            current_path
+        )
+    };
+
+    // Start with config env or empty map
+    let mut env = config_env.cloned().unwrap_or_default();
+    env.insert("PATH".to_string(), augmented_path);
+
+    Some(env)
+}
+
+/// Build the list of extra PATH directories for the current platform
+#[cfg(target_os = "windows")]
+fn build_platform_extra_paths() -> Vec<String> {
+    let mut paths = Vec::new();
+
+    if let Some(home) = dirs::home_dir() {
+        // Cargo bin
+        paths.push(home.join(".cargo").join("bin").to_string_lossy().to_string());
+        // Scoop
+        paths.push(home.join("scoop").join("shims").to_string_lossy().to_string());
+        // Go bin
+        paths.push(home.join("go").join("bin").to_string_lossy().to_string());
+    }
+
+    // Chocolatey
+    paths.push(r"C:\ProgramData\chocolatey\bin".to_string());
+
+    // Common program locations
+    if let Some(local_app_data) = dirs::data_local_dir() {
+        // Python (common location)
+        paths.push(local_app_data.join("Programs").join("Python").join("Python312").join("Scripts").to_string_lossy().to_string());
+        paths.push(local_app_data.join("Programs").join("Python").join("Python311").join("Scripts").to_string_lossy().to_string());
+    }
+
+    paths
+}
+
+/// Build the list of extra PATH directories for Unix platforms (macOS/Linux)
+#[cfg(not(target_os = "windows"))]
+fn build_platform_extra_paths() -> Vec<String> {
+    let mut paths = Vec::new();
+
+    if let Some(home) = dirs::home_dir() {
+        // User's home .local/bin (common for pip, pipx, etc.)
+        paths.push(home.join(".local").join("bin").to_string_lossy().to_string());
+        // Cargo bin
+        paths.push(home.join(".cargo").join("bin").to_string_lossy().to_string());
+        // Go bin
+        paths.push(home.join("go").join("bin").to_string_lossy().to_string());
+        // Nix user profile
+        paths.push(home.join(".nix-profile").join("bin").to_string_lossy().to_string());
+    }
+
+    // Nix system profile
+    paths.push("/nix/var/nix/profiles/default/bin".to_string());
+
+    // macOS-specific paths
+    #[cfg(target_os = "macos")]
+    {
+        // Homebrew on Apple Silicon
+        paths.push("/opt/homebrew/bin".to_string());
+        paths.push("/opt/homebrew/sbin".to_string());
+        // Homebrew on Intel Mac
+        paths.push("/usr/local/bin".to_string());
+        paths.push("/usr/local/sbin".to_string());
+        // MacPorts
+        paths.push("/opt/local/bin".to_string());
+    }
+
+    // Linux-specific paths
+    #[cfg(target_os = "linux")]
+    {
+        // Common system paths that might be missing
+        paths.push("/usr/local/bin".to_string());
+        // Snap
+        paths.push("/snap/bin".to_string());
+        // Flatpak exports
+        if let Some(home) = dirs::home_dir() {
+            paths.push(home.join(".local").join("share").join("flatpak").join("exports").join("bin").to_string_lossy().to_string());
+        }
+        paths.push("/var/lib/flatpak/exports/bin".to_string());
+    }
+
+    paths
+}
+
+/// Determine the shell command and arguments to use based on config
+fn get_shell_command(config: &Config) -> (String, Option<Vec<String>>) {
+    if let Some(ref custom) = config.custom_shell {
+        (custom.clone(), config.shell_args.clone())
+    } else {
+        #[cfg(target_os = "windows")]
+        {
+            ("powershell.exe".to_string(), None)
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            (
+                std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()),
+                None,
+            )
+        }
+    }
+}
+
+/// Apply login shell flag if configured (Unix only)
+#[cfg(not(target_os = "windows"))]
+fn apply_login_shell_flag(shell_args: &mut Option<Vec<String>>, config: &Config) {
+    if config.login_shell {
+        let args = shell_args.get_or_insert_with(Vec::new);
+        if !args.iter().any(|a| a == "-l" || a == "--login") {
+            args.insert(0, "-l".to_string());
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn apply_login_shell_flag(_shell_args: &mut Option<Vec<String>>, _config: &Config) {
+    // No-op on Windows
+}
 
 /// Unique identifier for a tab
 pub type TabId = u64;
@@ -84,80 +285,21 @@ impl Tab {
             config.scrollback_lines,
         )?;
 
-        // Set theme from config
-        terminal.set_theme(config.load_theme());
-
-        // Apply clipboard history limits from config
-        terminal.set_max_clipboard_sync_events(config.clipboard_max_sync_events);
-        terminal.set_max_clipboard_event_bytes(config.clipboard_max_event_bytes);
-
-        // Set answerback string for ENQ response (if configured)
-        if !config.answerback_string.is_empty() {
-            terminal.set_answerback_string(Some(config.answerback_string.clone()));
-        }
-
-        // Apply Unicode width configuration
-        let width_config = par_term_emu_core_rust::WidthConfig::new(
-            config.unicode_version,
-            config.ambiguous_width,
-        );
-        terminal.set_width_config(width_config);
-
-        // Initialize cursor style from config
-        // Convert config cursor style to terminal cursor style
-        {
-            use crate::config::CursorStyle as ConfigCursorStyle;
-            use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
-            let term_style = if config.cursor_blink {
-                match config.cursor_style {
-                    ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
-                    ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
-                    ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
-                }
-            } else {
-                match config.cursor_style {
-                    ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
-                    ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
-                    ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,
-                }
-            };
-            terminal.set_cursor_style(term_style);
-        }
+        // Apply common terminal configuration
+        configure_terminal_from_config(&mut terminal, config);
 
         // Determine working directory
         let work_dir = working_directory
             .as_deref()
             .or(config.working_directory.as_deref());
 
-        // Determine the shell command to use
-        let (shell_cmd, mut shell_args) = if let Some(ref custom) = config.custom_shell {
-            (custom.clone(), config.shell_args.clone())
-        } else {
-            #[cfg(target_os = "windows")]
-            {
-                ("powershell.exe".to_string(), None)
-            }
-            #[cfg(not(target_os = "windows"))]
-            {
-                (
-                    std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()),
-                    None,
-                )
-            }
-        };
-
-        // On Unix-like systems, spawn as login shell if configured
-        #[cfg(not(target_os = "windows"))]
-        if config.login_shell {
-            let args = shell_args.get_or_insert_with(Vec::new);
-            if !args.iter().any(|a| a == "-l" || a == "--login") {
-                args.insert(0, "-l".to_string());
-            }
-        }
+        // Get shell command and apply login shell flag
+        let (shell_cmd, mut shell_args) = get_shell_command(config);
+        apply_login_shell_flag(&mut shell_args, config);
 
         let shell_args_deref = shell_args.as_deref();
-        let shell_env = config.shell_env.as_ref();
-        terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env)?;
+        let shell_env = build_shell_env(config.shell_env.as_ref());
+        terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env.as_ref())?;
 
         // Create shared session logger
         let session_logger = create_shared_logger();
@@ -236,6 +378,130 @@ impl Tab {
             working_directory: working_directory.or_else(|| config.working_directory.clone()),
             custom_color: None,
             has_default_title: true,
+            last_activity_time: std::time::Instant::now(),
+            last_seen_generation: 0,
+            anti_idle_last_activity: std::time::Instant::now(),
+            anti_idle_last_generation: 0,
+            silence_notified: false,
+            exit_notified: false,
+            session_logger,
+        })
+    }
+
+    /// Create a new tab from a profile configuration
+    ///
+    /// The profile can override:
+    /// - Working directory
+    /// - Command and arguments (instead of default shell)
+    /// - Tab name
+    ///
+    /// If a profile specifies a command, it always runs from the profile's working
+    /// directory (or config default if unset).
+    pub fn new_from_profile(
+        id: TabId,
+        config: &Config,
+        _runtime: Arc<Runtime>,
+        profile: &Profile,
+    ) -> anyhow::Result<Self> {
+        // Create terminal with scrollback from config
+        let mut terminal = TerminalManager::new_with_scrollback(
+            config.cols,
+            config.rows,
+            config.scrollback_lines,
+        )?;
+
+        // Apply common terminal configuration
+        configure_terminal_from_config(&mut terminal, config);
+
+        // Determine working directory: profile overrides config
+        let work_dir = profile
+            .working_directory
+            .as_deref()
+            .or(config.working_directory.as_deref());
+
+        // Determine command and args: profile command overrides config shell
+        let (shell_cmd, mut shell_args) = if let Some(ref cmd) = profile.command {
+            (cmd.clone(), profile.command_args.clone())
+        } else {
+            get_shell_command(config)
+        };
+
+        // Only apply login shell flag for default shell, not custom profile commands
+        if profile.command.is_none() {
+            apply_login_shell_flag(&mut shell_args, config);
+        }
+
+        let shell_args_deref = shell_args.as_deref();
+        let shell_env = build_shell_env(config.shell_env.as_ref());
+        terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env.as_ref())?;
+
+        // Create shared session logger
+        let session_logger = create_shared_logger();
+
+        // Set up session logging if enabled
+        if config.auto_log_sessions {
+            let logs_dir = config.logs_dir();
+            let session_title = Some(format!(
+                "{} - {}",
+                profile.name,
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+            ));
+
+            match SessionLogger::new(
+                config.session_log_format,
+                &logs_dir,
+                (config.cols, config.rows),
+                session_title,
+            ) {
+                Ok(mut logger) => {
+                    if let Err(e) = logger.start() {
+                        log::warn!("Failed to start session logging for profile: {}", e);
+                    } else {
+                        log::info!("Session logging started for profile '{}': {:?}", profile.name, logger.output_path());
+
+                        // Set up output callback to record PTY output
+                        let logger_clone = Arc::clone(&session_logger);
+                        terminal.set_output_callback(move |data: &[u8]| {
+                            if let Some(ref mut logger) = *logger_clone.lock() {
+                                logger.record_output(data);
+                            }
+                        });
+
+                        *session_logger.lock() = Some(logger);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Failed to create session logger for profile: {}", e);
+                }
+            }
+        }
+
+        let terminal = Arc::new(Mutex::new(terminal));
+
+        // Generate title: use profile tab_name or profile name or default
+        let title = profile
+            .tab_name
+            .clone()
+            .unwrap_or_else(|| profile.name.clone());
+
+        let working_directory = profile
+            .working_directory
+            .clone()
+            .or_else(|| config.working_directory.clone());
+
+        Ok(Self {
+            id,
+            terminal,
+            title,
+            has_activity: false,
+            scroll_state: ScrollState::new(),
+            mouse: MouseState::new(),
+            bell: BellState::new(),
+            cache: RenderCache::new(),
+            refresh_task: None,
+            working_directory,
+            custom_color: None,
+            has_default_title: false, // Profile-created tabs have explicit names
             last_activity_time: std::time::Instant::now(),
             last_seen_generation: 0,
             anti_idle_last_activity: std::time::Instant::now(),
