@@ -25,6 +25,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Config options: `auto_log_sessions`, `session_log_format`, `session_log_directory`, `archive_on_close`
   - Settings UI section under "Session Logging" with format selector, directory picker, and log count display
 
+- **Profile System**: iTerm2-style profiles for saved terminal configurations (#65)
+  - **Profile Manager**: Create, edit, delete, and reorder named profiles
+  - **Profile Drawer**: Collapsible right-side panel for quick profile access
+    - Toggle button at window edge
+    - Single-click to select, double-click to open
+    - "Manage" button opens full management modal
+  - **Profile Modal**: Full CRUD interface for profile management
+    - Create new profiles with "+ New Profile" button
+    - Edit existing profiles (double-click or edit button)
+    - Delete profiles with confirmation dialog
+    - Reorder profiles with up/down buttons
+  - **Profile Settings**:
+    - Name and emoji icon for visual identification
+    - Working directory with browse button
+    - Custom command with arguments
+    - Custom tab name override
+  - **Persistence**: Profiles saved to `~/.config/par-term/profiles.yaml`
+  - **Integration**: Opening a profile creates a new tab with the configured settings
+
 - **Window Management Features**: Implement missing window management features from iTerm2 (#56)
   - **Window Type**: Start in different window modes (`window_type` config option)
     - Normal: Standard window (default)

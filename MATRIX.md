@@ -277,11 +277,16 @@ This document compares features between iTerm2 and par-term, including assessmen
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Multiple profiles | ✅ Full profile system | ❌ | ❌ | ⭐⭐⭐ | 🔵 | Named configurations |
-| Profile selection | ✅ GUI + keyboard | ❌ | ❌ | ⭐⭐⭐ | 🔵 | Part of profile system |
+| Multiple profiles | ✅ Full profile system | ✅ `ProfileManager` | ✅ | - | - | Named configurations with YAML persistence |
+| Profile selection | ✅ GUI + keyboard | ✅ Drawer + Modal | ✅ | - | - | Collapsible drawer, double-click to open |
+| Profile creation/editing | ✅ | ✅ Modal UI | ✅ | - | - | Full CRUD operations |
+| Profile reordering | ✅ | ✅ Move up/down | ✅ | - | - | Drag-free reorder buttons |
+| Profile icon | ✅ Custom icons | ✅ Emoji icons | ✅ | - | - | Visual identification with emoji |
+| Working directory | ✅ | ✅ Per-profile | ✅ | - | - | With directory browser |
+| Custom command | ✅ | ✅ Per-profile | ✅ | - | - | Command + arguments |
+| Custom tab name | ✅ | ✅ Per-profile | ✅ | - | - | Override default tab naming |
+| Dynamic profiles (external files) | ✅ | ✅ `profiles.yaml` | ✅ | - | - | Loads from `~/.config/par-term/profiles.yaml` |
 | Profile tags | ✅ Searchable tags | ❌ | ❌ | ⭐⭐ | 🟡 | Organize profiles |
-| Profile icon | ✅ Custom icons | ❌ | ❌ | ⭐ | 🟡 | Visual identification |
-| Dynamic profiles (external files) | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Load from YAML/JSON |
 | Profile inheritance | ✅ Parent profiles | ❌ | ❌ | ⭐⭐ | 🟡 | Base profile + overrides |
 | Profile keyboard shortcut | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Quick profile launch |
 | Automatic profile switching | ✅ Based on hostname | ❌ | ❌ | ⭐⭐ | 🟡 | SSH host detection |
