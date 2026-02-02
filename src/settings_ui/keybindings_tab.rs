@@ -130,11 +130,7 @@ const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
     ("reset_font_size", "Reset Font Size", Some("Ctrl+0")),
     // Terminal utilities
-    (
-        "clear_scrollback",
-        "Clear Scrollback",
-        Some("Ctrl+Shift+K"),
-    ),
+    ("clear_scrollback", "Clear Scrollback", Some("Ctrl+Shift+K")),
     (
         "cycle_cursor_style",
         "Cycle Cursor Style",

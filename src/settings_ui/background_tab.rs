@@ -352,6 +352,26 @@ pub fn show_background(
             *changes_this_frame = true;
         }
 
+        if settings.config.shader_hot_reload {
+            ui.horizontal(|ui| {
+                ui.label("Hot reload delay:");
+                // Convert u64 to u32 for slider
+                let mut delay = settings.config.shader_hot_reload_delay as u32;
+                if ui
+                    .add(
+                        egui::Slider::new(&mut delay, 50..=1000)
+                            .suffix(" ms"),
+                    )
+                    .on_hover_text("Debounce delay before reloading shader after file change (helps avoid multiple reloads)")
+                    .changed()
+                {
+                    settings.config.shader_hot_reload_delay = delay as u64;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        }
+
         ui.horizontal(|ui| {
             ui.label("Shader brightness:");
             if ui
@@ -849,6 +869,70 @@ pub fn show_cursor_shader(
             settings.has_changes = true;
             *changes_this_frame = true;
         }
+
+        ui.add_space(8.0);
+        ui.label("Cursor Shader Parameters:");
+
+        ui.horizontal(|ui| {
+            ui.label("Cursor color:");
+            let mut color = settings.config.cursor_shader_color;
+            if ui
+                .color_edit_button_srgb(&mut color)
+                .on_hover_text("Color passed to cursor shader via iCursorShaderColor uniform")
+                .changed()
+            {
+                settings.config.cursor_shader_color = color;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Trail duration:");
+            if ui
+                .add(
+                    egui::Slider::new(&mut settings.config.cursor_shader_trail_duration, 0.0..=2.0)
+                        .suffix(" s"),
+                )
+                .on_hover_text("Duration of cursor trail effect in seconds (iCursorTrailDuration)")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Glow radius:");
+            if ui
+                .add(
+                    egui::Slider::new(&mut settings.config.cursor_shader_glow_radius, 0.0..=200.0)
+                        .suffix(" px"),
+                )
+                .on_hover_text("Radius of cursor glow effect in pixels (iCursorGlowRadius)")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Glow intensity:");
+            if ui
+                .add(egui::Slider::new(
+                    &mut settings.config.cursor_shader_glow_intensity,
+                    0.0..=1.0,
+                ))
+                .on_hover_text("Intensity of cursor glow effect (iCursorGlowIntensity)")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        ui.add_space(8.0);
 
         // Edit Shader button - only enabled when a shader path is set
         let has_shader_path = !settings.temp_cursor_shader.is_empty();

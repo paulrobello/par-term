@@ -14,6 +14,20 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             }
         });
 
+        if ui
+            .checkbox(
+                &mut settings.config.allow_title_change,
+                "Allow apps to change window title",
+            )
+            .on_hover_text(
+                "When enabled, terminal applications can change the window title via OSC escape sequences",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
         ui.horizontal(|ui| {
             ui.label("Columns:");
             if ui

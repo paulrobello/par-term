@@ -1230,7 +1230,10 @@ impl WindowState {
                 }
                 self.needs_redraw = true;
 
-                log::info!("Cycled cursor style to {:?} via keybinding", self.config.cursor_style);
+                log::info!(
+                    "Cycled cursor style to {:?} via keybinding",
+                    self.config.cursor_style
+                );
 
                 let term_style = if self.config.cursor_blink {
                     match self.config.cursor_style {

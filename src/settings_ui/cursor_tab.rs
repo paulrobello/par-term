@@ -282,6 +282,21 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
                     *changes_this_frame = true;
                 }
             });
+
+            ui.horizontal(|ui| {
+                ui.label("Shadow blur:");
+                if ui
+                    .add(
+                        egui::Slider::new(&mut settings.config.cursor_shadow_blur, 0.0..=20.0)
+                            .suffix(" px"),
+                    )
+                    .on_hover_text("Blur radius for the cursor shadow (0 = sharp edge)")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
         }
 
         // Cursor Boost (Glow)
