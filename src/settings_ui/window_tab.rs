@@ -10,8 +10,8 @@
 //! - Tab bar settings
 //! - Split panes settings
 
-use super::section::{collapsing_section, SLIDER_WIDTH};
 use super::SettingsUI;
+use super::section::{SLIDER_WIDTH, collapsing_section};
 use crate::config::{TabBarMode, VsyncMode, WindowType};
 
 const SLIDER_HEIGHT: f32 = 18.0;
@@ -149,7 +149,10 @@ fn show_display_section(
         ui.horizontal(|ui| {
             ui.label("Columns:");
             if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(&mut settings.config.cols, 40..=300))
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(&mut settings.config.cols, 40..=300),
+                )
                 .on_hover_text("Number of columns in the terminal grid (determines window width)")
                 .changed()
             {
@@ -161,7 +164,10 @@ fn show_display_section(
         ui.horizontal(|ui| {
             ui.label("Rows:");
             if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(&mut settings.config.rows, 10..=100))
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(&mut settings.config.rows, 10..=100),
+                )
                 .on_hover_text("Number of rows in the terminal grid (determines window height)")
                 .changed()
             {
@@ -202,10 +208,10 @@ fn show_display_section(
         ui.horizontal(|ui| {
             ui.label("Padding:");
             if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(
-                    &mut settings.config.window_padding,
-                    0.0..=50.0,
-                ))
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(&mut settings.config.window_padding, 0.0..=50.0),
+                )
                 .changed()
             {
                 settings.has_changes = true;
@@ -227,10 +233,10 @@ fn show_transparency_section(
     collapsing_section(ui, "Transparency", "window_transparency", true, |ui| {
         ui.horizontal(|ui| {
             ui.label("Opacity:");
-            let response = ui.add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(
-                &mut settings.config.window_opacity,
-                0.1..=1.0,
-            ));
+            let response = ui.add_sized(
+                [SLIDER_WIDTH, SLIDER_HEIGHT],
+                egui::Slider::new(&mut settings.config.window_opacity, 0.1..=1.0),
+            );
             if response.changed() {
                 log::info!(
                     "Opacity slider changed to: {}",
@@ -315,7 +321,10 @@ fn show_performance_section(
         ui.horizontal(|ui| {
             ui.label("Max FPS:");
             if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(&mut settings.config.max_fps, 1..=240))
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(&mut settings.config.max_fps, 1..=240),
+                )
                 .changed()
             {
                 settings.has_changes = true;
@@ -490,7 +499,9 @@ fn show_behavior_section(
                 &mut settings.config.show_window_number,
                 "Show window number in title",
             )
-            .on_hover_text("Display window index number in the title bar (useful for multiple windows)")
+            .on_hover_text(
+                "Display window index number in the title bar (useful for multiple windows)",
+            )
             .changed()
         {
             settings.has_changes = true;
@@ -894,11 +905,7 @@ fn show_tab_bar_appearance_section(
 // Split Panes Section
 // ============================================================================
 
-fn show_panes_section(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-) {
+fn show_panes_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     collapsing_section(ui, "Split Panes", "window_panes", true, |ui| {
         ui.label("Configure split pane behavior and appearance");
         ui.add_space(8.0);
@@ -937,9 +944,7 @@ fn show_panes_section(
         ui.horizontal(|ui| {
             ui.label("Pane Padding:");
             if ui
-                .add(
-                    egui::Slider::new(&mut settings.config.pane_padding, 0.0..=20.0).suffix(" px"),
-                )
+                .add(egui::Slider::new(&mut settings.config.pane_padding, 0.0..=20.0).suffix(" px"))
                 .on_hover_text("Padding inside panes (space between content and border/divider)")
                 .changed()
             {
@@ -1011,9 +1016,7 @@ fn show_panes_section(
         ui.horizontal(|ui| {
             ui.label("Min Pane Size:");
             if ui
-                .add(
-                    egui::Slider::new(&mut settings.config.pane_min_size, 5..=40).suffix(" cells"),
-                )
+                .add(egui::Slider::new(&mut settings.config.pane_min_size, 5..=40).suffix(" cells"))
                 .on_hover_text("Minimum pane size in cells (prevents tiny unusable panes)")
                 .changed()
             {
@@ -1046,104 +1049,109 @@ fn show_pane_appearance_section(
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
 ) {
-    collapsing_section(ui, "Pane Appearance", "window_pane_appearance", false, |ui| {
-        ui.label(egui::RichText::new("Divider Colors").strong());
+    collapsing_section(
+        ui,
+        "Pane Appearance",
+        "window_pane_appearance",
+        false,
+        |ui| {
+            ui.label(egui::RichText::new("Divider Colors").strong());
 
-        ui.horizontal(|ui| {
-            ui.label("Divider Color:");
-            let mut color = settings.config.pane_divider_color;
-            let egui_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
-            let mut edit_color = egui_color;
-            if ui.color_edit_button_srgba(&mut edit_color).changed() {
-                color = [edit_color.r(), edit_color.g(), edit_color.b()];
-                settings.config.pane_divider_color = color;
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
+            ui.horizontal(|ui| {
+                ui.label("Divider Color:");
+                let mut color = settings.config.pane_divider_color;
+                let egui_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
+                let mut edit_color = egui_color;
+                if ui.color_edit_button_srgba(&mut edit_color).changed() {
+                    color = [edit_color.r(), edit_color.g(), edit_color.b()];
+                    settings.config.pane_divider_color = color;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
 
-        ui.horizontal(|ui| {
-            ui.label("Hover Color:");
-            let mut color = settings.config.pane_divider_hover_color;
-            let egui_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
-            let mut edit_color = egui_color;
+            ui.horizontal(|ui| {
+                ui.label("Hover Color:");
+                let mut color = settings.config.pane_divider_hover_color;
+                let egui_color = egui::Color32::from_rgb(color[0], color[1], color[2]);
+                let mut edit_color = egui_color;
+                if ui
+                    .color_edit_button_srgba(&mut edit_color)
+                    .on_hover_text("Color when hovering over a divider for resize")
+                    .changed()
+                {
+                    color = [edit_color.r(), edit_color.g(), edit_color.b()];
+                    settings.config.pane_divider_hover_color = color;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new("Inactive Panes").strong());
+
             if ui
-                .color_edit_button_srgba(&mut edit_color)
-                .on_hover_text("Color when hovering over a divider for resize")
+                .checkbox(
+                    &mut settings.config.dim_inactive_panes,
+                    "Dim inactive panes",
+                )
+                .on_hover_text("Reduce opacity of panes that don't have focus")
                 .changed()
             {
-                color = [edit_color.r(), edit_color.g(), edit_color.b()];
-                settings.config.pane_divider_hover_color = color;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        ui.add_space(8.0);
-        ui.label(egui::RichText::new("Inactive Panes").strong());
+            if settings.config.dim_inactive_panes {
+                ui.horizontal(|ui| {
+                    ui.label("Inactive Opacity:");
+                    if ui
+                        .add(egui::Slider::new(
+                            &mut settings.config.inactive_pane_opacity,
+                            0.3..=1.0,
+                        ))
+                        .on_hover_text("Opacity level for unfocused panes (1.0 = fully visible)")
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+            }
 
-        if ui
-            .checkbox(
-                &mut settings.config.dim_inactive_panes,
-                "Dim inactive panes",
-            )
-            .on_hover_text("Reduce opacity of panes that don't have focus")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new("Pane Titles").strong());
 
-        if settings.config.dim_inactive_panes {
+            if ui
+                .checkbox(&mut settings.config.show_pane_titles, "Show pane titles")
+                .on_hover_text("Display a title bar at the top of each pane")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if settings.config.show_pane_titles {
+                ui.horizontal(|ui| {
+                    ui.label("Title Height:");
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut settings.config.pane_title_height, 14.0..=30.0)
+                                .suffix(" px"),
+                        )
+                        .on_hover_text("Height of pane title bars")
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+            }
+
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new("Background Integration").strong());
+
             ui.horizontal(|ui| {
-                ui.label("Inactive Opacity:");
-                if ui
-                    .add(egui::Slider::new(
-                        &mut settings.config.inactive_pane_opacity,
-                        0.3..=1.0,
-                    ))
-                    .on_hover_text("Opacity level for unfocused panes (1.0 = fully visible)")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-        }
-
-        ui.add_space(8.0);
-        ui.label(egui::RichText::new("Pane Titles").strong());
-
-        if ui
-            .checkbox(&mut settings.config.show_pane_titles, "Show pane titles")
-            .on_hover_text("Display a title bar at the top of each pane")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        if settings.config.show_pane_titles {
-            ui.horizontal(|ui| {
-                ui.label("Title Height:");
-                if ui
-                    .add(
-                        egui::Slider::new(&mut settings.config.pane_title_height, 14.0..=30.0)
-                            .suffix(" px"),
-                    )
-                    .on_hover_text("Height of pane title bars")
-                    .changed()
-                {
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
-        }
-
-        ui.add_space(8.0);
-        ui.label(egui::RichText::new("Background Integration").strong());
-
-        ui.horizontal(|ui| {
             ui.label("Pane Opacity:");
             if ui
                 .add(egui::Slider::new(
@@ -1159,5 +1167,6 @@ fn show_pane_appearance_section(
                 *changes_this_frame = true;
             }
         });
-    });
+        },
+    );
 }

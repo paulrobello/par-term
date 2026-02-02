@@ -10,8 +10,8 @@
 //! - Search settings (highlight colors, defaults)
 //! - Scrollbar settings (width, colors, autohide)
 
-use super::section::{collapsing_section, INPUT_WIDTH, SLIDER_WIDTH};
 use super::SettingsUI;
+use super::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section};
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
@@ -93,10 +93,10 @@ fn show_behavior_section(
         ui.horizontal(|ui| {
             ui.label("Scrollback lines:");
             if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(
-                    &mut settings.config.scrollback_lines,
-                    1000..=100000,
-                ))
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(&mut settings.config.scrollback_lines, 1000..=100000),
+                )
                 .changed()
             {
                 settings.has_changes = true;
@@ -250,16 +250,15 @@ fn show_unicode_section(
 // Shell Section
 // ============================================================================
 
-fn show_shell_section(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-) {
+fn show_shell_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     collapsing_section(ui, "Shell", "terminal_shell", true, |ui| {
         ui.horizontal(|ui| {
             ui.label("Custom shell (optional):");
             if ui
-                .add(egui::TextEdit::singleline(&mut settings.temp_custom_shell).desired_width(INPUT_WIDTH))
+                .add(
+                    egui::TextEdit::singleline(&mut settings.temp_custom_shell)
+                        .desired_width(INPUT_WIDTH),
+                )
                 .changed()
             {
                 settings.config.custom_shell = if settings.temp_custom_shell.is_empty() {
@@ -284,7 +283,10 @@ fn show_shell_section(
         ui.horizontal(|ui| {
             ui.label("Shell args (space-separated):");
             if ui
-                .add(egui::TextEdit::singleline(&mut settings.temp_shell_args).desired_width(INPUT_WIDTH))
+                .add(
+                    egui::TextEdit::singleline(&mut settings.temp_shell_args)
+                        .desired_width(INPUT_WIDTH),
+                )
                 .changed()
             {
                 settings.config.shell_args = if settings.temp_shell_args.is_empty() {
@@ -306,7 +308,10 @@ fn show_shell_section(
         ui.horizontal(|ui| {
             ui.label("Working directory (optional):");
             if ui
-                .add(egui::TextEdit::singleline(&mut settings.temp_working_directory).desired_width(INPUT_WIDTH))
+                .add(
+                    egui::TextEdit::singleline(&mut settings.temp_working_directory)
+                        .desired_width(INPUT_WIDTH),
+                )
                 .changed()
             {
                 settings.config.working_directory = if settings.temp_working_directory.is_empty() {
@@ -504,10 +509,10 @@ fn show_scrollbar_section(
         ui.horizontal(|ui| {
             ui.label("Width:");
             if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(
-                    &mut settings.config.scrollbar_width,
-                    4.0..=50.0,
-                ))
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(&mut settings.config.scrollbar_width, 4.0..=50.0),
+                )
                 .changed()
             {
                 settings.has_changes = true;
@@ -518,10 +523,10 @@ fn show_scrollbar_section(
         ui.horizontal(|ui| {
             ui.label("Autohide delay (ms, 0=never):");
             if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(
-                    &mut settings.config.scrollbar_autohide_delay,
-                    0..=5000,
-                ))
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(&mut settings.config.scrollbar_autohide_delay, 0..=5000),
+                )
                 .changed()
             {
                 settings.has_changes = true;

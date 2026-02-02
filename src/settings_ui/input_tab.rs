@@ -8,11 +8,21 @@
 //! - Selection & Clipboard settings
 //! - Keybindings editor
 
-use super::section::{collapsing_section, SLIDER_WIDTH};
 use super::SettingsUI;
+use super::section::{SLIDER_WIDTH, collapsing_section};
 use crate::config::{DroppedFileQuoteStyle, KeyBinding, OptionKeyMode};
 
 const SLIDER_HEIGHT: f32 = 18.0;
+
+/// Type alias for keybinding info: (index, action_name, display_name, custom_binding, default_key, is_custom)
+type BindingInfo<'a> = (
+    usize,
+    &'a str,
+    &'a str,
+    Option<String>,
+    Option<&'a str>,
+    bool,
+);
 
 /// Show the input tab content.
 pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
@@ -199,19 +209,15 @@ fn option_key_mode_description(mode: OptionKeyMode) -> &'static str {
 // Mouse Section
 // ============================================================================
 
-fn show_mouse_section(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-) {
+fn show_mouse_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     collapsing_section(ui, "Mouse", "input_mouse", true, |ui| {
         ui.horizontal(|ui| {
             ui.label("Scroll speed:");
             if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(
-                    &mut settings.config.mouse_scroll_speed,
-                    0.1..=10.0,
-                ))
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(&mut settings.config.mouse_scroll_speed, 0.1..=10.0),
+                )
                 .changed()
             {
                 settings.has_changes = true;
@@ -222,10 +228,13 @@ fn show_mouse_section(
         ui.horizontal(|ui| {
             ui.label("Double-click threshold (ms):");
             if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(
-                    &mut settings.config.mouse_double_click_threshold,
-                    100..=1000,
-                ))
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(
+                        &mut settings.config.mouse_double_click_threshold,
+                        100..=1000,
+                    ),
+                )
                 .changed()
             {
                 settings.has_changes = true;
@@ -236,10 +245,13 @@ fn show_mouse_section(
         ui.horizontal(|ui| {
             ui.label("Triple-click threshold (ms):");
             if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(
-                    &mut settings.config.mouse_triple_click_threshold,
-                    100..=1000,
-                ))
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(
+                        &mut settings.config.mouse_triple_click_threshold,
+                        100..=1000,
+                    ),
+                )
                 .changed()
             {
                 settings.has_changes = true;
@@ -284,7 +296,9 @@ fn show_mouse_section(
                 &mut settings.config.report_horizontal_scroll,
                 "Report horizontal scroll events",
             )
-            .on_hover_text("Report horizontal scroll to applications via mouse button codes 6 and 7")
+            .on_hover_text(
+                "Report horizontal scroll to applications via mouse button codes 6 and 7",
+            )
             .changed()
         {
             settings.has_changes = true;
@@ -373,35 +387,44 @@ fn show_clipboard_limits_section(
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
 ) {
-    collapsing_section(ui, "Clipboard Limits", "input_clipboard_limits", false, |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Max clipboard sync events:");
-            if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(
-                    &mut settings.config.clipboard_max_sync_events,
-                    8..=256,
-                ))
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
+    collapsing_section(
+        ui,
+        "Clipboard Limits",
+        "input_clipboard_limits",
+        false,
+        |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Max clipboard sync events:");
+                if ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(&mut settings.config.clipboard_max_sync_events, 8..=256),
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
 
-        ui.horizontal(|ui| {
-            ui.label("Max clipboard event bytes:");
-            if ui
-                .add_sized([SLIDER_WIDTH, SLIDER_HEIGHT], egui::Slider::new(
-                    &mut settings.config.clipboard_max_event_bytes,
-                    512..=16384,
-                ))
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-    });
+            ui.horizontal(|ui| {
+                ui.label("Max clipboard event bytes:");
+                if ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(
+                            &mut settings.config.clipboard_max_event_bytes,
+                            512..=16384,
+                        ),
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        },
+    );
 }
 
 // ============================================================================
@@ -698,28 +721,27 @@ fn show_keybindings_section(
         }
 
         // Collect binding info
-        let binding_info: Vec<(usize, &str, &str, Option<String>, Option<&str>, bool)> =
-            AVAILABLE_ACTIONS
-                .iter()
-                .enumerate()
-                .map(|(idx, (action_name, display_name, default_key))| {
-                    let custom_binding = settings
-                        .config
-                        .keybindings
-                        .iter()
-                        .find(|b| b.action == *action_name)
-                        .map(|b| b.key.clone());
-                    let is_custom = custom_binding.is_some();
-                    (
-                        idx,
-                        *action_name,
-                        *display_name,
-                        custom_binding,
-                        *default_key,
-                        is_custom,
-                    )
-                })
-                .collect();
+        let binding_info: Vec<BindingInfo<'_>> = AVAILABLE_ACTIONS
+            .iter()
+            .enumerate()
+            .map(|(idx, (action_name, display_name, default_key))| {
+                let custom_binding = settings
+                    .config
+                    .keybindings
+                    .iter()
+                    .find(|b| b.action == *action_name)
+                    .map(|b| b.key.clone());
+                let is_custom = custom_binding.is_some();
+                (
+                    idx,
+                    *action_name,
+                    *display_name,
+                    custom_binding,
+                    *default_key,
+                    is_custom,
+                )
+            })
+            .collect();
 
         let mut action_to_clear: Option<&str> = None;
         let mut start_recording: Option<usize> = None;
@@ -738,16 +760,23 @@ fn show_keybindings_section(
                         ui.strong("");
                         ui.end_row();
 
-                        for (idx, action_name, display_name, custom_binding, default_binding, is_custom) in
-                            &binding_info
+                        for (
+                            idx,
+                            action_name,
+                            display_name,
+                            custom_binding,
+                            default_binding,
+                            is_custom,
+                        ) in &binding_info
                         {
-                            let (binding_display, show_as_default) = if let Some(custom) = custom_binding {
-                                (display_key_combo(custom), false)
-                            } else if let Some(default) = default_binding {
-                                (display_key_combo(default), true)
-                            } else {
-                                ("(not set)".to_string(), false)
-                            };
+                            let (binding_display, show_as_default) =
+                                if let Some(custom) = custom_binding {
+                                    (display_key_combo(custom), false)
+                                } else if let Some(default) = default_binding {
+                                    (display_key_combo(default), true)
+                                } else {
+                                    ("(not set)".to_string(), false)
+                                };
 
                             ui.label(*display_name);
 

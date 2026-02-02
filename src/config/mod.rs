@@ -1643,17 +1643,19 @@ impl Config {
         let current_version = env!("CARGO_PKG_VERSION");
 
         // Check if already prompted for this version
-        if let Some(ref prompted) = self.integration_versions.shell_integration_prompted_version {
-            if prompted == current_version {
-                return false;
-            }
+        if let Some(ref prompted) = self.integration_versions.shell_integration_prompted_version
+            && prompted == current_version
+        {
+            return false;
         }
 
         // Check if installed and up to date
-        if let Some(ref installed) = self.integration_versions.shell_integration_installed_version {
-            if installed == current_version {
-                return false;
-            }
+        if let Some(ref installed) = self
+            .integration_versions
+            .shell_integration_installed_version
+            && installed == current_version
+        {
+            return false;
         }
 
         true
@@ -1668,17 +1670,17 @@ impl Config {
         let current_version = env!("CARGO_PKG_VERSION");
 
         // Check if already prompted for this version
-        if let Some(ref prompted) = self.integration_versions.shaders_prompted_version {
-            if prompted == current_version {
-                return false;
-            }
+        if let Some(ref prompted) = self.integration_versions.shaders_prompted_version
+            && prompted == current_version
+        {
+            return false;
         }
 
         // Check if installed and up to date
-        if let Some(ref installed) = self.integration_versions.shaders_installed_version {
-            if installed == current_version {
-                return false;
-            }
+        if let Some(ref installed) = self.integration_versions.shaders_installed_version
+            && installed == current_version
+        {
+            return false;
         }
 
         // Also check if shaders folder exists and has files

@@ -62,11 +62,7 @@ impl SettingsTab {
 /// Render the sidebar navigation.
 ///
 /// Returns true if the selected tab changed.
-pub fn show(
-    ui: &mut egui::Ui,
-    current_tab: &mut SettingsTab,
-    search_query: &str,
-) -> bool {
+pub fn show(ui: &mut egui::Ui, current_tab: &mut SettingsTab, search_query: &str) -> bool {
     let mut tab_changed = false;
 
     // Add some vertical spacing at the top

@@ -8,8 +8,8 @@
 //! - Screenshot settings
 //! - Update settings
 
-use super::section::{collapsing_section, INPUT_WIDTH};
 use super::SettingsUI;
+use super::section::{INPUT_WIDTH, collapsing_section};
 use crate::config::{SessionLogFormat, UpdateCheckFrequency};
 use crate::update_checker::format_timestamp;
 
@@ -36,12 +36,20 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
     }
 
     // Screenshots section (collapsed by default)
-    if section_matches(&query, "Screenshots", &["screenshot", "format", "png", "jpeg"]) {
+    if section_matches(
+        &query,
+        "Screenshots",
+        &["screenshot", "format", "png", "jpeg"],
+    ) {
         show_screenshot_section(ui, settings, changes_this_frame);
     }
 
     // Updates section
-    if section_matches(&query, "Updates", &["update", "version", "check", "release"]) {
+    if section_matches(
+        &query,
+        "Updates",
+        &["update", "version", "check", "release"],
+    ) {
         show_updates_section(ui, settings, changes_this_frame);
     }
 }
@@ -60,11 +68,7 @@ fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
 // tmux Integration Section
 // ============================================================================
 
-fn show_tmux_section(
-    ui: &mut egui::Ui,
-    settings: &mut SettingsUI,
-    changes_this_frame: &mut bool,
-) {
+fn show_tmux_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
     collapsing_section(ui, "tmux Integration", "advanced_tmux", true, |ui| {
         ui.label("Configure tmux control mode integration");
         ui.add_space(8.0);
@@ -90,7 +94,10 @@ fn show_tmux_section(
         ui.horizontal(|ui| {
             ui.label("tmux path:");
             if ui
-                .add(egui::TextEdit::singleline(&mut settings.config.tmux_path).desired_width(INPUT_WIDTH))
+                .add(
+                    egui::TextEdit::singleline(&mut settings.config.tmux_path)
+                        .desired_width(INPUT_WIDTH),
+                )
                 .on_hover_text("Path to tmux executable (default: 'tmux' uses PATH)")
                 .changed()
             {
@@ -204,7 +211,10 @@ fn show_tmux_section(
         ui.horizontal(|ui| {
             ui.label("Prefix key:");
             if ui
-                .add(egui::TextEdit::singleline(&mut settings.config.tmux_prefix_key).desired_width(INPUT_WIDTH))
+                .add(
+                    egui::TextEdit::singleline(&mut settings.config.tmux_prefix_key)
+                        .desired_width(INPUT_WIDTH),
+                )
                 .on_hover_text("Key combination for tmux commands (e.g., C-b, C-Space)")
                 .changed()
             {

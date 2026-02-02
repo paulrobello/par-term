@@ -333,12 +333,13 @@ pub struct IntegrationVersions {
 }
 
 /// Detected shell type
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ShellType {
     Bash,
     Zsh,
     Fish,
+    #[default]
     Unknown,
 }
 
@@ -378,12 +379,6 @@ impl ShellType {
             Self::Fish => "fish",
             Self::Unknown => "sh",
         }
-    }
-}
-
-impl Default for ShellType {
-    fn default() -> Self {
-        Self::Unknown
     }
 }
 

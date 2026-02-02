@@ -70,7 +70,10 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         ui.horizontal(|ui| {
             ui.label("Opacity:");
             if ui
-                .add(egui::Slider::new(&mut settings.config.window_opacity, 0.1..=1.0))
+                .add(egui::Slider::new(
+                    &mut settings.config.window_opacity,
+                    0.1..=1.0,
+                ))
                 .changed()
             {
                 settings.has_changes = true;
