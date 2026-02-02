@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Settings UI Completeness**: Added missing UI controls for config options that were previously only configurable via config.yaml
+  - **Tab Bar Tab**: tab_bar_mode (always/when_multiple/never), tab_bar_height, tab_show_index, tab_inherit_cwd, max_tabs
+  - **Window Tab**: allow_title_change checkbox to control whether apps can change window title via OSC sequences
+  - **Cursor Tab**: cursor_shadow_blur slider for shadow blur radius
+  - **Cursor Shader Section**: cursor_shader_color picker, cursor_shader_trail_duration, cursor_shader_glow_radius, cursor_shader_glow_intensity sliders
+  - **Background Tab**: shader_hot_reload_delay slider (shown when hot reload is enabled)
+- **Edit Config File Button**: New button in settings footer to open config.yaml in system's default text editor
+
 - **tmux Control Mode Enhancements**: Improved multi-client support and bidirectional sync (#62)
   - **Bidirectional pane resize**: Resizing panes in par-term now updates external tmux clients
   - **Multi-client size sync**: Sets `window-size smallest` on connect so tmux respects par-term's size
