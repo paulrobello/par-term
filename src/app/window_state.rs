@@ -1093,19 +1093,22 @@ impl WindowState {
             return;
         }
 
-        // FPS throttling when unfocused with pause_refresh_on_blur enabled
-        // This ensures rendering is capped at unfocused_fps even if multiple
-        // sources are requesting redraws (refresh task, shader animations, etc.)
-        if self.config.pause_refresh_on_blur && !self.is_focused {
-            let frame_interval_ms = 1000 / self.config.unfocused_fps.max(1);
-            let frame_interval = std::time::Duration::from_millis(frame_interval_ms as u64);
+        // FPS throttling to enforce max_fps (focused) or unfocused_fps (unfocused)
+        // This ensures rendering is capped even if VSync runs at a higher rate
+        // or multiple sources are requesting redraws (refresh task, shader animations, etc.)
+        let target_fps = if self.config.pause_refresh_on_blur && !self.is_focused {
+            self.config.unfocused_fps
+        } else {
+            self.config.max_fps
+        };
+        let frame_interval_ms = 1000 / target_fps.max(1);
+        let frame_interval = std::time::Duration::from_millis(frame_interval_ms as u64);
 
-            if let Some(last_render) = self.last_render_time {
-                let elapsed = last_render.elapsed();
-                if elapsed < frame_interval {
-                    // Not enough time has passed, skip this render
-                    return;
-                }
+        if let Some(last_render) = self.last_render_time {
+            let elapsed = last_render.elapsed();
+            if elapsed < frame_interval {
+                // Not enough time has passed, skip this render
+                return;
             }
         }
 

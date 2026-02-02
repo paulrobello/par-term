@@ -267,6 +267,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Close button now renders as overlay with manual hit-testing for reliable clicks
   - Uses `clicked_by(PointerButton::Primary)` to prevent keyboard focus from triggering tab switches
   - Added `egui_initialized` flag to prevent unreliable pointer state before first render
+- **Max FPS Setting Not Honored**: Fixed `max_fps` config option not being enforced when window is focused
+  - Previously, FPS throttling only applied when window was unfocused with `pause_refresh_on_blur` enabled
+  - Now `max_fps` properly caps frame rate even when VSync runs at a higher monitor refresh rate (e.g., 120Hz)
+  - Also fixed settings UI changes to `max_fps` not restarting tab refresh tasks with the new value
 - **Terminal Content Overlap**: Added content offset system to prevent terminal content from overlapping with tab bar
   - Propagated `content_offset_y` through cell renderer, graphics renderer, and custom shader renderer
 - **Tab Numbering**: Changed to position-based numbering that automatically renumbers when tabs are closed or reordered
