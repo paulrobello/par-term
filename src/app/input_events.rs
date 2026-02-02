@@ -14,8 +14,10 @@ impl WindowState {
 
         // Check if any UI panel is visible
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
-        let any_ui_visible =
-            self.help_ui.visible || self.clipboard_history_ui.visible || self.search_ui.visible;
+        let any_ui_visible = self.help_ui.visible
+            || self.clipboard_history_ui.visible
+            || self.search_ui.visible
+            || self.tmux_session_picker_ui.visible;
 
         // When UI panels are visible, block ALL keys from going to terminal
         // except for UI control keys (Escape handled by egui, F1/F2/F3 for toggles)
@@ -220,19 +222,67 @@ impl WindowState {
             }
         }
 
-        // Normal key handling - send to terminal
-        if let Some(bytes) = self.input_handler.handle_key_event(event)
-            && let Some(tab) = self.tab_manager.active_tab_mut()
-        {
-            // Reset anti-idle timer on keyboard input
-            tab.anti_idle_last_activity = std::time::Instant::now();
+        // Handle tmux prefix key mode
+        if self.handle_tmux_prefix_key(&event) {
+            return; // Key was handled by prefix system
+        }
 
-            let terminal_clone = Arc::clone(&tab.terminal);
+        // Normal key handling - send to terminal (or via tmux if connected)
+        if let Some(bytes) = self.input_handler.handle_key_event(event) {
+            // Try to send via tmux if connected (check before borrowing tab)
+            if self.send_input_via_tmux(&bytes) {
+                // Still need to reset anti-idle timer
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.anti_idle_last_activity = std::time::Instant::now();
+                }
+                return; // Input was routed through tmux
+            }
 
-            self.runtime.spawn(async move {
-                let term = terminal_clone.lock().await;
-                let _ = term.write(&bytes);
-            });
+            // Broadcast input to all panes or just the focused pane
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                // Reset anti-idle timer on keyboard input
+                tab.anti_idle_last_activity = std::time::Instant::now();
+
+                // Check if we should broadcast to all panes
+                if self.broadcast_input
+                    && let Some(ref mut pane_manager) = tab.pane_manager
+                    && pane_manager.has_multiple_panes()
+                {
+                    // Broadcast to all panes
+                    let terminals: Vec<_> = pane_manager
+                        .all_panes()
+                        .iter()
+                        .map(|p| Arc::clone(&p.terminal))
+                        .collect();
+
+                    let bytes_clone = bytes.clone();
+                    self.runtime.spawn(async move {
+                        for terminal in terminals {
+                            let term = terminal.lock().await;
+                            let _ = term.write(&bytes_clone);
+                        }
+                    });
+                    return;
+                }
+
+                // Get the terminal to write to:
+                // - If split panes exist, use the focused pane's terminal
+                // - Otherwise, use the tab's main terminal
+                let terminal_clone = if let Some(ref pane_manager) = tab.pane_manager {
+                    if let Some(focused_pane) = pane_manager.focused_pane() {
+                        Arc::clone(&focused_pane.terminal)
+                    } else {
+                        Arc::clone(&tab.terminal)
+                    }
+                } else {
+                    Arc::clone(&tab.terminal)
+                };
+
+                self.runtime.spawn(async move {
+                    let term = terminal_clone.lock().await;
+                    let _ = term.write(&bytes);
+                });
+            }
         }
     }
 
@@ -498,6 +548,12 @@ impl WindowState {
     }
 
     pub(crate) fn paste_text(&mut self, text: &str) {
+        // Try to paste via tmux if connected
+        if self.paste_via_tmux(text) {
+            return; // Paste was routed through tmux
+        }
+
+        // Fall back to direct terminal paste
         if let Some(tab) = self.tab_manager.active_tab() {
             let terminal_clone = Arc::clone(&tab.terminal);
             let text = text.to_string();
@@ -998,6 +1054,83 @@ impl WindowState {
                         }
                     }
                 }
+                true
+            }
+            "split_horizontal" => {
+                self.split_pane_horizontal();
+                true
+            }
+            "split_vertical" => {
+                self.split_pane_vertical();
+                true
+            }
+            "close_pane" => {
+                self.close_focused_pane();
+                true
+            }
+            "navigate_pane_left" => {
+                self.navigate_pane(crate::pane::NavigationDirection::Left);
+                true
+            }
+            "navigate_pane_right" => {
+                self.navigate_pane(crate::pane::NavigationDirection::Right);
+                true
+            }
+            "navigate_pane_up" => {
+                self.navigate_pane(crate::pane::NavigationDirection::Up);
+                true
+            }
+            "navigate_pane_down" => {
+                self.navigate_pane(crate::pane::NavigationDirection::Down);
+                true
+            }
+            "resize_pane_left" => {
+                self.resize_pane(crate::pane::NavigationDirection::Left);
+                true
+            }
+            "resize_pane_right" => {
+                self.resize_pane(crate::pane::NavigationDirection::Right);
+                true
+            }
+            "resize_pane_up" => {
+                self.resize_pane(crate::pane::NavigationDirection::Up);
+                true
+            }
+            "resize_pane_down" => {
+                self.resize_pane(crate::pane::NavigationDirection::Down);
+                true
+            }
+            "toggle_tmux_session_picker" => {
+                self.tmux_session_picker_ui.toggle();
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                log::info!(
+                    "tmux session picker toggled via keybinding: {}",
+                    if self.tmux_session_picker_ui.visible {
+                        "visible"
+                    } else {
+                        "hidden"
+                    }
+                );
+                true
+            }
+            "toggle_broadcast_input" => {
+                self.broadcast_input = !self.broadcast_input;
+                let message = if self.broadcast_input {
+                    "Broadcast Input: ON"
+                } else {
+                    "Broadcast Input: OFF"
+                };
+                self.show_toast(message);
+                log::info!(
+                    "Broadcast input mode {}",
+                    if self.broadcast_input {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                );
                 true
             }
             _ => {

@@ -12,7 +12,10 @@ pub mod block_chars;
 pub mod pipeline;
 pub mod render;
 pub mod types;
-pub use types::*;
+// Re-export public types for external use
+pub use types::{Cell, PaneViewport};
+// Re-export internal types for use within the cell_renderer module
+pub(crate) use types::{BackgroundInstance, GlyphInfo, RowCacheEntry, TextInstance};
 
 pub struct CellRenderer {
     pub(crate) device: Arc<wgpu::Device>,

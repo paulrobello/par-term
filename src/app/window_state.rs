@@ -5,6 +5,7 @@
 
 use crate::app::anti_idle::should_send_keep_alive;
 use crate::app::debug_state::DebugState;
+use crate::cell_renderer::PaneViewport;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::config::{
     Config, CursorShaderMetadataCache, CursorStyle, ShaderInstallPrompt, ShaderMetadataCache,
@@ -13,20 +14,41 @@ use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::keybindings::KeybindingRegistry;
 use crate::paste_special_ui::{PasteSpecialAction, PasteSpecialUI};
-use crate::renderer::Renderer;
+use crate::renderer::{DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, Renderer};
 use crate::search::SearchUI;
 use crate::selection::SelectionMode;
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::smart_selection::SmartSelectionCache;
-use crate::tab::TabManager;
+use crate::tab::{TabId, TabManager};
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
+use crate::tmux::{TmuxSession, TmuxSync};
+use crate::tmux_session_picker_ui::{SessionPickerAction, TmuxSessionPickerUI};
 use anyhow::Result;
 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use wgpu::SurfaceError;
+use winit::dpi::PhysicalSize;
 use winit::window::Window;
+
+/// Renderer sizing info needed for split pane calculations
+struct RendererSizing {
+    size: PhysicalSize<u32>,
+    content_offset_y: f32,
+    cell_width: f32,
+    cell_height: f32,
+    padding: f32,
+}
+
+/// Pane render data tuple for split pane rendering
+type PaneRenderData = (
+    PaneViewport,
+    Vec<crate::cell_renderer::Cell>,
+    (usize, usize),
+    Option<(usize, usize)>,
+    f32,
+);
 
 /// Per-window state that manages a single terminal window with multiple tabs
 pub struct WindowState {
@@ -68,6 +90,8 @@ pub struct WindowState {
     pub(crate) clipboard_history_ui: ClipboardHistoryUI,
     /// Paste special UI manager (text transformations)
     pub(crate) paste_special_ui: PasteSpecialUI,
+    /// tmux session picker UI
+    pub(crate) tmux_session_picker_ui: TmuxSessionPickerUI,
     /// Search UI manager
     pub(crate) search_ui: SearchUI,
     /// Shader install prompt UI
@@ -133,6 +157,30 @@ pub struct WindowState {
 
     /// Cache for compiled smart selection regex patterns
     pub(crate) smart_selection_cache: SmartSelectionCache,
+
+    // tmux integration state
+    /// tmux control mode session (if connected)
+    pub(crate) tmux_session: Option<TmuxSession>,
+    /// tmux state synchronization manager
+    pub(crate) tmux_sync: TmuxSync,
+    /// Current tmux session name (for window title display)
+    pub(crate) tmux_session_name: Option<String>,
+    /// Tab ID where the tmux gateway connection lives (where we write commands)
+    pub(crate) tmux_gateway_tab_id: Option<TabId>,
+    /// Parsed prefix key from config (cached for performance)
+    pub(crate) tmux_prefix_key: Option<crate::tmux::PrefixKey>,
+    /// Prefix key state (whether we're waiting for command key)
+    pub(crate) tmux_prefix_state: crate::tmux::PrefixState,
+    /// Mapping from tmux pane IDs to native pane IDs for output routing
+    pub(crate) tmux_pane_to_native_pane:
+        std::collections::HashMap<crate::tmux::TmuxPaneId, crate::pane::PaneId>,
+    /// Reverse mapping from native pane IDs to tmux pane IDs for input routing
+    pub(crate) native_pane_to_tmux_pane:
+        std::collections::HashMap<crate::pane::PaneId, crate::tmux::TmuxPaneId>,
+
+    // Broadcast input mode
+    /// Whether keyboard input is broadcast to all panes in current tab
+    pub(crate) broadcast_input: bool,
 }
 
 impl WindowState {
@@ -140,6 +188,7 @@ impl WindowState {
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
         let keybinding_registry = KeybindingRegistry::from_config(&config.keybindings);
         let shaders_dir = Config::shaders_dir();
+        let tmux_prefix_key = crate::tmux::PrefixKey::parse(&config.tmux_prefix_key);
 
         let mut input_handler = InputHandler::new();
         // Initialize Option/Alt key modes from config
@@ -170,6 +219,7 @@ impl WindowState {
             help_ui: HelpUI::new(),
             clipboard_history_ui: ClipboardHistoryUI::new(),
             paste_special_ui: PasteSpecialUI::new(),
+            tmux_session_picker_ui: TmuxSessionPickerUI::new(),
             search_ui: SearchUI::new(),
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
@@ -202,6 +252,17 @@ impl WindowState {
             keybinding_registry,
 
             smart_selection_cache: SmartSelectionCache::new(),
+
+            tmux_session: None,
+            tmux_sync: TmuxSync::new(),
+            tmux_session_name: None,
+            tmux_gateway_tab_id: None,
+            tmux_prefix_key,
+            tmux_prefix_state: crate::tmux::PrefixState::new(),
+            tmux_pane_to_native_pane: std::collections::HashMap::new(),
+            native_pane_to_tmux_pane: std::collections::HashMap::new(),
+
+            broadcast_input: false,
         }
     }
 
@@ -1402,6 +1463,8 @@ impl WindowState {
         let mut pending_clipboard_action = ClipboardHistoryAction::None;
         // Paste special action to handle after rendering
         let mut pending_paste_special_action = PasteSpecialAction::None;
+        // tmux session picker action to handle after rendering
+        let mut pending_session_picker_action = SessionPickerAction::None;
         // Tab bar action to handle after rendering (declared here to survive renderer borrow)
         let mut pending_tab_action = TabBarAction::None;
         // Shader install response to handle after rendering
@@ -1410,6 +1473,15 @@ impl WindowState {
         let mut pending_search_action = crate::search::SearchAction::None;
 
         let show_scrollbar = self.should_show_scrollbar();
+
+        // Check tmux gateway state before renderer borrow to avoid borrow conflicts
+        // When tmux controls the layout, we don't use pane padding
+        let is_tmux_gateway = self.is_gateway_active();
+        let effective_pane_padding = if is_tmux_gateway {
+            0.0
+        } else {
+            self.config.pane_padding
+        };
 
         if let Some(renderer) = &mut self.renderer {
             // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
@@ -1639,6 +1711,11 @@ impl WindowState {
                     // Show search UI and collect action
                     pending_search_action = self.search_ui.show(ctx, visible_lines, scrollback_len);
 
+                    // Show tmux session picker UI and collect action
+                    let tmux_path = self.config.tmux_path.clone();
+                    pending_session_picker_action =
+                        self.tmux_session_picker_ui.show(ctx, &tmux_path);
+
                     // Show shader install dialog if visible
                     pending_shader_install_response = self.shader_install_ui.show(ctx);
                 });
@@ -1710,7 +1787,162 @@ impl WindowState {
             // Render (with dirty tracking optimization)
             let actual_render_start = std::time::Instant::now();
             // Settings are handled by standalone SettingsWindow, not embedded UI
-            match renderer.render(egui_data, false, show_scrollbar) {
+
+            // Extract renderer sizing info for split pane calculations
+            let sizing = RendererSizing {
+                size: renderer.size(),
+                content_offset_y: renderer.content_offset_y(),
+                cell_width: renderer.cell_width(),
+                cell_height: renderer.cell_height(),
+                padding: renderer.window_padding(),
+            };
+
+            // Check if we have split panes - this just checks without modifying
+            let has_split_panes = self
+                .tab_manager
+                .active_tab()
+                .and_then(|t| t.pane_manager.as_ref())
+                .map(|pm| pm.has_multiple_panes())
+                .unwrap_or(false);
+
+            let render_result = if has_split_panes {
+                // Render split panes - inline data gathering to avoid borrow conflicts
+                let content_width = sizing.size.width as f32 - sizing.padding * 2.0;
+                let content_height =
+                    sizing.size.height as f32 - sizing.content_offset_y - sizing.padding;
+
+                // Gather all necessary data upfront while we can borrow tab_manager
+                let pane_render_data: Option<(
+                    Vec<PaneRenderData>,
+                    Vec<crate::pane::DividerRect>,
+                    Option<PaneViewport>,
+                )> = {
+                    let tab = self.tab_manager.active_tab_mut();
+                    if let Some(tab) = tab {
+                        if let Some(pm) = &mut tab.pane_manager {
+                            // Update bounds
+                            let bounds = crate::pane::PaneBounds::new(
+                                sizing.padding,
+                                sizing.content_offset_y,
+                                content_width,
+                                content_height,
+                            );
+                            pm.set_bounds(bounds);
+
+                            // Resize all pane terminals to match their new bounds
+                            pm.resize_all_terminals_with_padding(
+                                sizing.cell_width,
+                                sizing.cell_height,
+                                effective_pane_padding,
+                            );
+
+                            // Gather pane info
+                            let focused_pane_id = pm.focused_pane_id();
+                            let all_pane_ids: Vec<_> =
+                                pm.all_panes().iter().map(|p| p.id).collect();
+                            let dividers = pm.get_dividers();
+
+                            let inactive_opacity = if self.config.dim_inactive_panes {
+                                self.config.inactive_pane_opacity
+                            } else {
+                                1.0
+                            };
+                            let cursor_opacity = self.cursor_opacity;
+
+                            let mut pane_data = Vec::new();
+                            let mut focused_viewport: Option<PaneViewport> = None;
+
+                            for pane_id in &all_pane_ids {
+                                if let Some(pane) = pm.get_pane(*pane_id) {
+                                    let is_focused = Some(*pane_id) == focused_pane_id;
+                                    let bounds = pane.bounds;
+
+                                    // Create viewport with padding for content inset
+                                    let viewport = PaneViewport::with_padding(
+                                        bounds.x,
+                                        bounds.y,
+                                        bounds.width,
+                                        bounds.height,
+                                        is_focused,
+                                        if is_focused { 1.0 } else { inactive_opacity },
+                                        effective_pane_padding,
+                                    );
+
+                                    if is_focused {
+                                        focused_viewport = Some(viewport);
+                                    }
+
+                                    let cells = if let Ok(term) = pane.terminal.try_lock() {
+                                        let scroll_offset = pane.scroll_state.offset;
+                                        let selection =
+                                            pane.mouse.selection.map(|sel| sel.normalized());
+                                        let rectangular = pane
+                                            .mouse
+                                            .selection
+                                            .map(|sel| sel.mode == SelectionMode::Rectangular)
+                                            .unwrap_or(false);
+                                        term.get_cells_with_scrollback(
+                                            scroll_offset,
+                                            selection,
+                                            rectangular,
+                                            None,
+                                        )
+                                    } else {
+                                        Vec::new()
+                                    };
+
+                                    let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
+                                        if term.is_cursor_visible() {
+                                            Some(term.cursor_position())
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    };
+
+                                    let (cols, rows) =
+                                        bounds.grid_size(sizing.cell_width, sizing.cell_height);
+
+                                    pane_data.push((
+                                        viewport,
+                                        cells,
+                                        (cols, rows),
+                                        cursor_pos,
+                                        if is_focused { cursor_opacity } else { 0.0 },
+                                    ));
+                                }
+                            }
+
+                            Some((pane_data, dividers, focused_viewport))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                };
+
+                if let Some((pane_data, dividers, focused_viewport)) = pane_render_data {
+                    // Render split panes
+                    Self::render_split_panes_with_data(
+                        renderer,
+                        pane_data,
+                        dividers,
+                        focused_viewport,
+                        &self.config,
+                        egui_data,
+                    )
+                } else {
+                    // Fallback to single pane render
+                    renderer.render(egui_data, false, show_scrollbar)
+                }
+            } else {
+                // Single pane - use standard render path
+                renderer.render(egui_data, false, show_scrollbar)
+            };
+
+            match render_result {
                 Ok(rendered) => {
                     if !rendered {
                         log::trace!("Skipped rendering - no changes");
@@ -1865,6 +2097,47 @@ impl WindowState {
             crate::search::SearchAction::None => {}
         }
 
+        // Handle tmux session picker actions collected during egui rendering
+        // Uses gateway mode: writes tmux commands to existing PTY instead of spawning process
+        match pending_session_picker_action {
+            SessionPickerAction::Attach(session_name) => {
+                crate::debug_info!(
+                    "TMUX",
+                    "Session picker: attaching to '{}' via gateway",
+                    session_name
+                );
+                if let Err(e) = self.attach_tmux_gateway(&session_name) {
+                    log::error!("Failed to attach to tmux session '{}': {}", session_name, e);
+                    self.show_toast(format!("Failed to attach: {}", e));
+                } else {
+                    crate::debug_info!("TMUX", "Gateway initiated for session '{}'", session_name);
+                    self.show_toast(format!("Connecting to session '{}'...", session_name));
+                }
+                self.needs_redraw = true;
+            }
+            SessionPickerAction::CreateNew(name) => {
+                crate::debug_info!(
+                    "TMUX",
+                    "Session picker: creating new session {:?} via gateway",
+                    name
+                );
+                if let Err(e) = self.initiate_tmux_gateway(name.as_deref()) {
+                    log::error!("Failed to create tmux session: {}", e);
+                    crate::debug_error!("TMUX", "Failed to initiate gateway: {}", e);
+                    self.show_toast(format!("Failed to create session: {}", e));
+                } else {
+                    let msg = match name {
+                        Some(ref n) => format!("Creating session '{}'...", n),
+                        None => "Creating new tmux session...".to_string(),
+                    };
+                    crate::debug_info!("TMUX", "Gateway initiated: {}", msg);
+                    self.show_toast(msg);
+                }
+                self.needs_redraw = true;
+            }
+            SessionPickerAction::None => {}
+        }
+
         // Check for shader installation completion from background thread
         if let Some(ref rx) = self.shader_install_receiver
             && let Ok(result) = rx.try_recv()
@@ -1937,6 +2210,77 @@ impl WindowState {
                 absolute_total.as_secs_f64() * 1000.0
             );
         }
+    }
+
+    /// Render split panes when the active tab has multiple panes
+    fn render_split_panes_with_data(
+        renderer: &mut Renderer,
+        pane_data: Vec<PaneRenderData>,
+        dividers: Vec<crate::pane::DividerRect>,
+        focused_viewport: Option<PaneViewport>,
+        config: &Config,
+        egui_data: Option<(egui::FullOutput, &egui::Context)>,
+    ) -> Result<bool> {
+        // Build pane render infos - we need to leak the cells temporarily
+        let mut pane_render_infos: Vec<PaneRenderInfo> = Vec::new();
+        let mut leaked_cells: Vec<*mut [crate::cell_renderer::Cell]> = Vec::new();
+
+        for (viewport, cells, grid_size, cursor_pos, cursor_opacity) in pane_data {
+            let cells_boxed = cells.into_boxed_slice();
+            let cells_ptr = Box::into_raw(cells_boxed);
+            leaked_cells.push(cells_ptr);
+
+            pane_render_infos.push(PaneRenderInfo {
+                viewport,
+                // SAFETY: We just allocated this, and we'll free it after rendering
+                cells: unsafe { &*cells_ptr },
+                grid_size,
+                cursor_pos,
+                cursor_opacity,
+                show_scrollbar: false,
+            });
+        }
+
+        // Build divider render info
+        let divider_render_infos: Vec<DividerRenderInfo> = dividers
+            .iter()
+            .map(|d| DividerRenderInfo::from_rect(d, false))
+            .collect();
+
+        // Build divider settings from config
+        let divider_settings = PaneDividerSettings {
+            divider_color: [
+                config.pane_divider_color[0] as f32 / 255.0,
+                config.pane_divider_color[1] as f32 / 255.0,
+                config.pane_divider_color[2] as f32 / 255.0,
+            ],
+            hover_color: [
+                config.pane_divider_hover_color[0] as f32 / 255.0,
+                config.pane_divider_hover_color[1] as f32 / 255.0,
+                config.pane_divider_hover_color[2] as f32 / 255.0,
+            ],
+            show_focus_indicator: true,
+            focus_color: [0.3, 0.5, 0.9],
+            focus_width: 2.0,
+        };
+
+        // Call the split pane renderer
+        let result = renderer.render_split_panes(
+            &pane_render_infos,
+            &divider_render_infos,
+            focused_viewport.as_ref(),
+            &divider_settings,
+            egui_data,
+            false,
+        );
+
+        // Clean up leaked cell memory
+        for ptr in leaked_cells {
+            // SAFETY: We just allocated these above
+            let _ = unsafe { Box::from_raw(ptr) };
+        }
+
+        result
     }
 }
 

@@ -293,15 +293,15 @@ This document compares features between iTerm2 and par-term, including assessmen
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Horizontal split | ✅ | ❌ | ❌ | ⭐⭐⭐ | 🔵 | Split terminal vertically |
-| Vertical split | ✅ | ❌ | ❌ | ⭐⭐⭐ | 🔵 | Split terminal horizontally |
-| Pane navigation | ✅ | ❌ | ❌ | ⭐⭐⭐ | 🔵 | Move between panes |
-| Pane resizing | ✅ | ❌ | ❌ | ⭐⭐⭐ | 🔵 | Resize pane boundaries |
-| Dim inactive panes | ✅ `Dim Inactive Split Panes` | ❌ | ❌ | ⭐⭐ | 🟢 | Visual focus indicator |
-| Per-pane titles | ✅ `Show Pane Titles` | ❌ | ❌ | ⭐⭐ | 🟡 | Pane identification |
-| Per-pane background | ✅ | ❌ | ❌ | ⭐ | 🟡 | Different backgrounds |
-| Broadcast input | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Type to multiple panes |
-| Division view | ✅ `Enable Division View` | ❌ | ❌ | ⭐⭐ | 🟢 | Pane divider lines |
+| Horizontal split | ✅ | ✅ `Cmd+D` | ✅ | - | - | Split terminal vertically |
+| Vertical split | ✅ | ✅ `Cmd+Shift+D` | ✅ | - | - | Split terminal horizontally |
+| Pane navigation | ✅ | ✅ `Cmd+Opt+Arrow` | ✅ | - | - | Move between panes |
+| Pane resizing | ✅ | ✅ keyboard + mouse drag | ✅ | - | - | Resize pane boundaries |
+| Dim inactive panes | ✅ `Dim Inactive Split Panes` | ✅ `dim_inactive_panes` | ✅ | - | - | Visual focus indicator |
+| Per-pane titles | ✅ `Show Pane Titles` | ✅ | ✅ | - | - | Pane identification via OSC/CWD |
+| Per-pane background | ✅ | 🔶 Data model ready | 🔶 | ⭐ | 🟡 | Renderer support pending |
+| Broadcast input | ✅ | ✅ `Cmd+Opt+I` | ✅ | - | - | Type to multiple panes |
+| Division view | ✅ `Enable Division View` | ✅ configurable dividers | ✅ | - | - | Pane divider lines with colors |
 
 ---
 
@@ -343,7 +343,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 
 ## 19. tmux Integration
 
-**Note:** par-term has **basic tmux compatibility** (can run tmux sessions and render output correctly) but does **not** have iTerm2-style native tmux integration via control mode.
+**Note:** par-term now has **native tmux integration** via control mode (`tmux -CC`), similar to iTerm2's approach.
 
 ### Current tmux Support in par-term
 
@@ -354,39 +354,44 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Render tmux panes/windows | ✅ | ✅ | ✅ | - | - | Standard VT sequence rendering |
 | tmux mouse support | ✅ | ✅ | ✅ | - | - | Mouse reporting works in tmux |
 
-### Missing: iTerm2-style Native tmux Integration
+### Native tmux Integration (Control Mode)
 
-iTerm2's tmux integration uses **control mode** (`tmux -CC`) which provides a structured protocol for managing tmux sessions natively. This allows iTerm2 to represent tmux windows as native tabs and tmux panes as native split panes.
+par-term implements iTerm2-style native tmux integration via control mode (`tmux -CC`).
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| **tmux control mode (`-CC`)** | ✅ Full protocol | ❌ | ❌ | ⭐⭐⭐ | 🔵 | Core protocol for native integration |
-| tmux windows as native tabs | ✅ | ❌ | ❌ | ⭐⭐⭐ | 🔵 | Requires control mode |
-| tmux panes as native splits | ✅ | ❌ | ❌ | ⭐⭐⭐ | 🔵 | Requires control mode + split panes |
-| tmux session picker UI | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | List/attach sessions from GUI |
-| tmux status bar in UI | ✅ Native display | ❌ | ❌ | ⭐⭐ | 🟡 | Display status outside terminal area |
-| tmux clipboard sync | ✅ Bidirectional | ❌ | ❌ | ⭐⭐ | 🟡 | Sync with tmux paste buffers |
-| tmux pause mode handling | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Handle slow connection pausing |
-| Auto-attach on launch | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Option to auto-attach to session |
-| tmux profile auto-switching | ✅ | ❌ | ❌ | ⭐ | 🟡 | Different profile for tmux sessions |
+| **tmux control mode (`-CC`)** | ✅ Full protocol | ✅ | ✅ | - | - | Core protocol for native integration |
+| tmux windows as native tabs | ✅ | ✅ | ✅ | - | - | %window-add/%window-close handling |
+| tmux panes as native splits | ✅ | ✅ | ✅ | - | - | %layout-change parsing |
+| tmux session picker UI | ✅ | ✅ `Cmd+Opt+T` | ✅ | - | - | List/attach sessions from GUI |
+| **Bidirectional pane resize** | ✅ | ✅ | ✅ | - | - | Resize in par-term updates tmux and vice versa |
+| **Multi-client size sync** | ✅ | ✅ `window-size smallest` | ✅ | - | - | Sets smallest mode on connect for proper sizing |
+| tmux status bar in UI | ✅ Native display | 🔶 Config ready | 🔶 | ⭐⭐ | 🟡 | Display status outside terminal area |
+| tmux clipboard sync | ✅ Bidirectional | ✅ `set-buffer` | ✅ | - | - | Sync with tmux paste buffers |
+| tmux pause mode handling | ✅ | ✅ | ✅ | - | - | Handle slow connection pausing with buffering |
+| Auto-attach on launch | ✅ | ✅ `tmux_auto_attach` | ✅ | - | - | Option to auto-attach to session |
+| tmux profile auto-switching | ✅ | 🔶 Config ready | 🔶 | ⭐ | 🟡 | Pending profiles feature |
 
-### How iTerm2's tmux Control Mode Works
+### How par-term's tmux Control Mode Works
 
-1. **Protocol**: iTerm2 connects via `tmux -CC` which outputs structured commands instead of terminal escape sequences
-2. **Window Management**: tmux windows become iTerm2 tabs with native UI
-3. **Pane Management**: tmux panes become iTerm2 split panes with native dividers
-4. **Seamless Experience**: Users interact with native UI while tmux manages sessions server-side
-5. **Session Persistence**: Closing iTerm2 doesn't kill tmux; sessions persist and can be reattached
+1. **Protocol**: par-term connects via `tmux -CC` and parses structured notifications
+2. **Window Management**: tmux windows map to par-term tabs via %window-add/%window-close
+3. **Pane Management**: tmux panes map to par-term split panes via %layout-change parsing
+4. **Bidirectional Resize**: Resizing panes in par-term sends `resize-pane` commands to tmux; layout changes from tmux update par-term
+5. **Multi-Client Sizing**: Sets `window-size smallest` on connect so tmux respects par-term's smaller size when other clients are attached
+6. **Seamless Experience**: Users interact with native UI while tmux manages sessions server-side
+7. **Session Persistence**: Closing par-term doesn't kill tmux; sessions persist and can be reattached
+8. **Broadcast Input**: Type to all panes simultaneously with Cmd+Opt+I
 
-### Implementation Complexity
+### Configuration Options
 
-Full tmux control mode integration would require:
-- Parsing tmux control mode protocol (structured output format)
-- Bidirectional command/response handling
-- Mapping tmux window/pane IDs to par-term tabs/splits
-- Session state synchronization
-- Handling edge cases (window resize, pane creation/destruction)
-- **Prerequisite**: Split pane support in par-term (currently not implemented)
+- `tmux_enabled`: Enable tmux control mode integration
+- `tmux_path`: Path to tmux executable
+- `tmux_auto_attach`: Automatically attach on startup
+- `tmux_auto_attach_session`: Session name for auto-attach
+- `tmux_clipboard_sync`: Sync clipboard with tmux paste buffer
+- `tmux_show_status_bar`: Display tmux status bar (pending)
+- `tmux_profile`: Profile to use when connected (pending)
 
 ---
 
@@ -477,13 +482,16 @@ Full tmux control mode integration would require:
 - Paste special with 26 transformations (shell escape, case, whitespace, encoding)
 - Edge-anchored window types (dropdown-style terminals)
 - Target monitor selection for multi-monitor setups
+- Native split panes with binary tree layout
+- tmux control mode integration with session picker
+- Broadcast input mode (type to all panes)
 
 ### High-Priority Missing Features (⭐⭐⭐)
 1. **Hotkey window** - Quake-style dropdown - 🔴 High effort
 2. **Multiple profiles** - Named configurations - 🔵 Very high effort
-3. **Split panes** - Divide terminal - 🔵 Very high effort
+3. ~~**Split panes** - Divide terminal~~ - ✅ **IMPLEMENTED**
 4. **Shell integration** - Command tracking - 🔵 Very high effort
-5. **tmux control mode** - Native tmux integration (not basic compatibility) - 🔵 Very high effort
+5. ~~**tmux control mode** - Native tmux integration~~ - ✅ **IMPLEMENTED**
 
 ### Recommended Implementation Priority
 
@@ -505,14 +513,14 @@ Full tmux control mode integration would require:
 2. Triggers & automation (⭐⭐, 🔴)
 
 **Phase 4 - Very High Effort (Major Features)**
-1. Split panes (⭐⭐⭐, 🔵)
+1. ~~Split panes (⭐⭐⭐, 🔵)~~ - ✅ **IMPLEMENTED**
 2. Multiple profiles (⭐⭐⭐, 🔵)
 3. Shell integration (⭐⭐⭐, 🔵)
-4. tmux control mode (⭐⭐⭐, 🔵) - requires split panes first
+4. ~~tmux control mode (⭐⭐⭐, 🔵)~~ - ✅ **IMPLEMENTED**
 5. AI integration (⭐⭐, 🔵)
 
 ---
 
-*Updated: 2026-02-01*
+*Updated: 2026-02-02*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.6.0*

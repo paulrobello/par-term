@@ -293,6 +293,9 @@ impl WindowState {
                     // Hide overlay 1 second after resize stops
                     self.resize_overlay_hide_time =
                         Some(std::time::Instant::now() + std::time::Duration::from_secs(1));
+
+                    // Notify tmux of the new size if gateway mode is active
+                    self.notify_tmux_of_resize();
                 }
             }
 
@@ -455,6 +458,12 @@ impl WindowState {
             }
         }
 
+        // Re-assert tmux client size when window gains focus
+        // This ensures par-term's size is respected even after other clients resize tmux
+        if focused {
+            self.notify_tmux_of_resize();
+        }
+
         // Handle refresh rate adjustment for all tabs
         if self.config.pause_refresh_on_blur
             && let Some(window) = &self.window
@@ -502,6 +511,11 @@ impl WindowState {
         // Check for shader hot reload events
         if self.check_shader_reload() {
             log::debug!("Shader hot reload triggered redraw");
+        }
+
+        // Check for tmux control mode notifications
+        if self.check_tmux_notifications() {
+            self.needs_redraw = true;
         }
 
         // Update window title with shell integration info (CWD, exit code)

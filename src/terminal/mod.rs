@@ -129,6 +129,17 @@ impl TerminalManager {
         Ok(())
     }
 
+    /// Process raw data through the terminal emulator (for tmux output routing).
+    ///
+    /// This feeds data directly to the terminal parser without going through the PTY.
+    /// Used when receiving %output notifications from tmux control mode.
+    pub fn process_data(&self, data: &[u8]) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.process(data);
+    }
+
     /// Paste text to the terminal with proper bracketed paste handling.
     /// Converts `\n` to `\r` and wraps with bracketed paste sequences if mode is enabled.
     pub fn paste(&self, content: &str) -> Result<()> {
@@ -798,6 +809,60 @@ impl TerminalManager {
         let terminal = pty.terminal();
         let term = terminal.lock();
         term.export_asciicast(session)
+    }
+}
+
+// ========================================================================
+// tmux Control Mode Methods
+// ========================================================================
+
+impl TerminalManager {
+    /// Enable or disable tmux control mode parsing.
+    ///
+    /// When enabled, incoming PTY data is parsed for tmux control protocol
+    /// messages. Regular terminal output within control mode is handled
+    /// via `%output` notifications.
+    ///
+    /// This is used for gateway mode where `tmux -CC` is run in the terminal.
+    pub fn set_tmux_control_mode(&self, enabled: bool) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.set_tmux_control_mode(enabled);
+    }
+
+    /// Check if tmux control mode is enabled.
+    pub fn is_tmux_control_mode(&self) -> bool {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.is_tmux_control_mode()
+    }
+
+    /// Drain and return tmux control protocol notifications.
+    ///
+    /// This consumes all pending notifications from the terminal's tmux parser.
+    /// Call this in the event loop to process tmux events.
+    ///
+    /// Returns core library notification types. Use `ParserBridge::convert_all()`
+    /// to convert them to frontend notification types.
+    pub fn drain_tmux_notifications(
+        &self,
+    ) -> Vec<par_term_emu_core_rust::tmux_control::TmuxNotification> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.drain_tmux_notifications()
+    }
+
+    /// Get a reference to pending tmux notifications without consuming them.
+    pub fn tmux_notifications(
+        &self,
+    ) -> Vec<par_term_emu_core_rust::tmux_control::TmuxNotification> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.tmux_notifications().to_vec()
     }
 }
 
