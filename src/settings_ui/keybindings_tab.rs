@@ -40,6 +40,71 @@ const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Session Logging",
         Some("CmdOrCtrl+Shift+R"),
     ),
+    // Split pane actions
+    (
+        "split_horizontal",
+        "Split Pane Horizontal",
+        Some("CmdOrCtrl+D"),
+    ),
+    (
+        "split_vertical",
+        "Split Pane Vertical",
+        Some("CmdOrCtrl+Shift+D"),
+    ),
+    ("close_pane", "Close Pane", Some("CmdOrCtrl+Shift+W")),
+    // Pane navigation
+    (
+        "navigate_pane_left",
+        "Navigate Pane Left",
+        Some("CmdOrCtrl+Alt+Left"),
+    ),
+    (
+        "navigate_pane_right",
+        "Navigate Pane Right",
+        Some("CmdOrCtrl+Alt+Right"),
+    ),
+    (
+        "navigate_pane_up",
+        "Navigate Pane Up",
+        Some("CmdOrCtrl+Alt+Up"),
+    ),
+    (
+        "navigate_pane_down",
+        "Navigate Pane Down",
+        Some("CmdOrCtrl+Alt+Down"),
+    ),
+    // Pane resize
+    (
+        "resize_pane_left",
+        "Resize Pane Left",
+        Some("CmdOrCtrl+Alt+Shift+Left"),
+    ),
+    (
+        "resize_pane_right",
+        "Resize Pane Right",
+        Some("CmdOrCtrl+Alt+Shift+Right"),
+    ),
+    (
+        "resize_pane_up",
+        "Resize Pane Up",
+        Some("CmdOrCtrl+Alt+Shift+Up"),
+    ),
+    (
+        "resize_pane_down",
+        "Resize Pane Down",
+        Some("CmdOrCtrl+Alt+Shift+Down"),
+    ),
+    // Broadcast & tmux
+    (
+        "toggle_broadcast_input",
+        "Toggle Broadcast Input",
+        Some("CmdOrCtrl+Alt+I"),
+    ),
+    (
+        "toggle_tmux_session_picker",
+        "Toggle tmux Session Picker",
+        Some("CmdOrCtrl+Alt+T"),
+    ),
 ];
 
 /// Convert "CmdOrCtrl" to the platform-specific display string.

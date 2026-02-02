@@ -250,7 +250,10 @@ impl WindowState {
         // even when other (larger) clients are attached.
         // This is critical for proper multi-client behavior.
         let _ = self.write_to_gateway("set-option -g window-size smallest\n");
-        crate::debug_info!("TMUX", "Set window-size to smallest for multi-client support");
+        crate::debug_info!(
+            "TMUX",
+            "Set window-size to smallest for multi-client support"
+        );
 
         // Tell tmux the terminal size so panes can be properly sized
         // Without this, tmux uses a very small default and splits will fail
@@ -276,20 +279,12 @@ impl WindowState {
             let cmd_str = format!("{}\n", cmd.as_str());
 
             if self.write_to_gateway(&cmd_str) {
-                crate::debug_trace!(
-                    "TMUX",
-                    "Sent client size to tmux: {}x{}",
-                    cols,
-                    rows
-                );
+                crate::debug_trace!("TMUX", "Sent client size to tmux: {}x{}", cols, rows);
             } else {
                 crate::debug_error!("TMUX", "Failed to send client size to tmux");
             }
         } else {
-            crate::debug_error!(
-                "TMUX",
-                "Cannot send client size - no renderer available"
-            );
+            crate::debug_error!("TMUX", "Cannot send client size - no renderer available");
         }
     }
 
@@ -304,22 +299,6 @@ impl WindowState {
         }
 
         self.send_tmux_client_size();
-    }
-
-    /// Request a refresh from tmux to get current pane contents
-    ///
-    /// After connecting, tmux doesn't automatically send the current screen content.
-    /// We send an empty Enter to each pane to trigger the shell to redraw the prompt,
-    /// which causes tmux to send %output notifications.
-    fn request_tmux_refresh(&self) {
-        // Send an empty line (Enter) to trigger shell prompt redraw
-        // This causes tmux to send %output with the new prompt
-        let cmd = "send-keys Enter\n";
-        if self.write_to_gateway(cmd) {
-            crate::debug_info!("TMUX", "Sent Enter key to trigger initial content");
-        } else {
-            crate::debug_error!("TMUX", "Failed to send initial Enter key");
-        }
     }
 
     /// Request content refresh for specific panes
@@ -625,7 +604,8 @@ impl WindowState {
                 tab.init_pane_manager();
 
                 // Set pane bounds before applying layout
-                if let Some((size, padding, content_offset_y, _cell_width, _cell_height)) = bounds_info
+                if let Some((size, padding, content_offset_y, _cell_width, _cell_height)) =
+                    bounds_info
                     && let Some(pm) = tab.pane_manager_mut()
                 {
                     let content_width = size.width as f32 - padding * 2.0;
@@ -651,8 +631,7 @@ impl WindowState {
                 // If so, we should preserve the existing native panes/terminals
                 let existing_tmux_ids: std::collections::HashSet<_> =
                     self.tmux_pane_to_native_pane.keys().copied().collect();
-                let new_tmux_ids: std::collections::HashSet<_> =
-                    pane_ids.iter().copied().collect();
+                let new_tmux_ids: std::collections::HashSet<_> = pane_ids.iter().copied().collect();
 
                 if existing_tmux_ids == new_tmux_ids && !existing_tmux_ids.is_empty() {
                     // Same panes - preserve terminals but update layout structure
@@ -792,12 +771,18 @@ impl WindowState {
                             }
 
                             // Set pane bounds
-                            if let Some((size, padding, content_offset_y, _cell_width, _cell_height)) =
-                                bounds_info
+                            if let Some((
+                                size,
+                                padding,
+                                content_offset_y,
+                                _cell_width,
+                                _cell_height,
+                            )) = bounds_info
                                 && let Some(pm) = tab.pane_manager_mut()
                             {
                                 let content_width = size.width as f32 - padding * 2.0;
-                                let content_height = size.height as f32 - content_offset_y - padding;
+                                let content_height =
+                                    size.height as f32 - content_offset_y - padding;
                                 let bounds = crate::pane::PaneBounds::new(
                                     padding,
                                     content_offset_y,
@@ -966,11 +951,7 @@ impl WindowState {
         }
 
         // Debug: log the current mapping state
-        crate::debug_trace!(
-            "TMUX",
-            "Pane mappings: {:?}",
-            self.tmux_pane_to_native_pane
-        );
+        crate::debug_trace!("TMUX", "Pane mappings: {:?}", self.tmux_pane_to_native_pane);
 
         // First, try to find a native pane mapping (for split panes)
         // Check our direct mapping first, then fall back to tmux_sync
@@ -1480,16 +1461,16 @@ impl WindowState {
     /// This should be called when the user clicks on a pane to ensure
     /// input is routed to the correct tmux pane.
     pub fn set_tmux_focused_pane_from_native(&mut self, native_pane_id: crate::pane::PaneId) {
-        if let Some(tmux_pane_id) = self.native_pane_to_tmux_pane.get(&native_pane_id) {
-            if let Some(session) = &mut self.tmux_session {
-                crate::debug_info!(
-                    "TMUX",
-                    "Setting focused pane: native {} -> tmux %{}",
-                    native_pane_id,
-                    tmux_pane_id
-                );
-                session.set_focused_pane(Some(*tmux_pane_id));
-            }
+        if let Some(tmux_pane_id) = self.native_pane_to_tmux_pane.get(&native_pane_id)
+            && let Some(session) = &mut self.tmux_session
+        {
+            crate::debug_info!(
+                "TMUX",
+                "Setting focused pane: native {} -> tmux %{}",
+                native_pane_id,
+                tmux_pane_id
+            );
+            session.set_focused_pane(Some(*tmux_pane_id));
         }
     }
 
@@ -1793,24 +1774,24 @@ impl WindowState {
         };
 
         // Get pane sizes from active tab's pane manager
-        let pane_sizes: Vec<(crate::tmux::TmuxPaneId, usize, usize)> =
-            if let Some(tab) = self.tab_manager.active_tab()
-                && let Some(pm) = tab.pane_manager()
-            {
-                pm.all_panes()
-                    .iter()
-                    .filter_map(|pane| {
-                        // Get the tmux pane ID for this native pane
-                        let tmux_pane_id = self.native_pane_to_tmux_pane.get(&pane.id)?;
-                        // Calculate size in columns/rows
-                        let cols = (pane.bounds.width / cell_width).floor() as usize;
-                        let rows = (pane.bounds.height / cell_height).floor() as usize;
-                        Some((*tmux_pane_id, cols.max(1), rows.max(1)))
-                    })
-                    .collect()
-            } else {
-                return;
-            };
+        let pane_sizes: Vec<(crate::tmux::TmuxPaneId, usize, usize)> = if let Some(tab) =
+            self.tab_manager.active_tab()
+            && let Some(pm) = tab.pane_manager()
+        {
+            pm.all_panes()
+                .iter()
+                .filter_map(|pane| {
+                    // Get the tmux pane ID for this native pane
+                    let tmux_pane_id = self.native_pane_to_tmux_pane.get(&pane.id)?;
+                    // Calculate size in columns/rows
+                    let cols = (pane.bounds.width / cell_width).floor() as usize;
+                    let rows = (pane.bounds.height / cell_height).floor() as usize;
+                    Some((*tmux_pane_id, cols.max(1), rows.max(1)))
+                })
+                .collect()
+        } else {
+            return;
+        };
 
         // Send resize commands for each pane, but only for the dimension that changed
         // Horizontal divider: changes height (rows) - use -y
@@ -1826,7 +1807,11 @@ impl WindowState {
                     "TMUX",
                     "Synced pane %{} {} resize to {}",
                     tmux_pane_id,
-                    if is_horizontal_divider { "height" } else { "width" },
+                    if is_horizontal_divider {
+                        "height"
+                    } else {
+                        "width"
+                    },
                     if is_horizontal_divider { rows } else { cols }
                 );
             }
@@ -1884,10 +1869,7 @@ impl WindowState {
             self.tmux_prefix_state.exit();
 
             // Get focused pane ID for targeted commands
-            let focused_pane = self
-                .tmux_session
-                .as_ref()
-                .and_then(|s| s.focused_pane());
+            let focused_pane = self.tmux_session.as_ref().and_then(|s| s.focused_pane());
 
             // Translate the command key to a tmux command
             if let Some(cmd) =

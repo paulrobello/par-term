@@ -14,7 +14,7 @@ use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
 use crate::keybindings::KeybindingRegistry;
 use crate::paste_special_ui::{PasteSpecialAction, PasteSpecialUI};
-use crate::profile::{storage as profile_storage, ProfileManager};
+use crate::profile::{ProfileManager, storage as profile_storage};
 use crate::profile_drawer_ui::{ProfileDrawerAction, ProfileDrawerUI};
 use crate::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
 use crate::renderer::{DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, Renderer};

@@ -90,7 +90,10 @@ impl ProfileModalUI {
         self.validation_error = None;
         self.pending_delete = None;
         self.clear_form();
-        log::info!("Profile modal opened with {} profiles", self.working_profiles.len());
+        log::info!(
+            "Profile modal opened with {} profiles",
+            self.working_profiles.len()
+        );
     }
 
     /// Close the modal
@@ -124,7 +127,9 @@ impl ProfileModalUI {
         self.temp_name = profile.name.clone();
         self.temp_working_dir = profile.working_directory.clone().unwrap_or_default();
         self.temp_command = profile.command.clone().unwrap_or_default();
-        self.temp_args = profile.command_args.as_ref()
+        self.temp_args = profile
+            .command_args
+            .as_ref()
             .map(|args| args.join(" "))
             .unwrap_or_default();
         self.temp_tab_name = profile.tab_name.clone().unwrap_or_default();
@@ -148,7 +153,7 @@ impl ProfileModalUI {
                 self.temp_args
                     .split_whitespace()
                     .map(String::from)
-                    .collect()
+                    .collect(),
             );
         }
         if !self.temp_tab_name.is_empty() {
@@ -203,7 +208,9 @@ impl ProfileModalUI {
                     log::info!("Created new profile: {}", self.temp_name);
                 }
                 ModalMode::Edit(edit_id) => {
-                    if let Some(existing) = self.working_profiles.iter().position(|p| p.id == *edit_id) {
+                    if let Some(existing) =
+                        self.working_profiles.iter().position(|p| p.id == *edit_id)
+                    {
                         let order = self.working_profiles[existing].order;
                         let profile = self.form_to_profile(id, order);
                         self.working_profiles[existing] = profile;
@@ -305,17 +312,17 @@ impl ProfileModalUI {
             .resizable(false)
             .default_size(modal_size)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-            .frame(egui::Frame::window(&ctx.style())
-                .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 250))
-                .inner_margin(egui::Margin::same(16)))
-            .show(ctx, |ui| {
-                match &self.mode.clone() {
-                    ModalMode::List => {
-                        action = self.render_list_view(ui);
-                    }
-                    ModalMode::Edit(_) | ModalMode::Create => {
-                        self.render_edit_view(ui);
-                    }
+            .frame(
+                egui::Frame::window(&ctx.style())
+                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 250))
+                    .inner_margin(egui::Margin::same(16)),
+            )
+            .show(ctx, |ui| match &self.mode.clone() {
+                ModalMode::List => {
+                    action = self.render_list_view(ui);
+                }
+                ModalMode::Edit(_) | ModalMode::Create => {
+                    self.render_edit_view(ui);
                 }
             });
 
@@ -336,9 +343,11 @@ impl ProfileModalUI {
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-            .frame(egui::Frame::window(&ctx.style())
-                .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 40, 255))
-                .inner_margin(egui::Margin::same(20)))
+            .frame(
+                egui::Frame::window(&ctx.style())
+                    .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 40, 255))
+                    .inner_margin(egui::Margin::same(20)),
+            )
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(format!("Delete profile \"{}\"?", name));
@@ -346,7 +355,7 @@ impl ProfileModalUI {
                     ui.label(
                         egui::RichText::new("This action cannot be undone.")
                             .small()
-                            .color(egui::Color32::GRAY)
+                            .color(egui::Color32::GRAY),
                     );
                     ui.add_space(16.0);
                     ui.horizontal(|ui| {
@@ -384,9 +393,11 @@ impl ProfileModalUI {
                 if self.working_profiles.is_empty() {
                     ui.vertical_centered(|ui| {
                         ui.add_space(40.0);
-                        ui.label(egui::RichText::new("No profiles yet")
-                            .italics()
-                            .color(egui::Color32::GRAY));
+                        ui.label(
+                            egui::RichText::new("No profiles yet")
+                                .italics()
+                                .color(egui::Color32::GRAY),
+                        );
                         ui.add_space(10.0);
                         ui.label("Click '+ New Profile' to create one");
                     });
@@ -415,17 +426,21 @@ impl ProfileModalUI {
                                             self.move_up(profile.id);
                                         }
                                     });
-                                    ui.add_enabled_ui(idx < self.working_profiles.len() - 1, |ui| {
-                                        if ui.small_button("Dn").clicked() {
-                                            self.move_down(profile.id);
-                                        }
-                                    });
+                                    ui.add_enabled_ui(
+                                        idx < self.working_profiles.len() - 1,
+                                        |ui| {
+                                            if ui.small_button("Dn").clicked() {
+                                                self.move_down(profile.id);
+                                            }
+                                        },
+                                    );
 
                                     // Icon and name
                                     if let Some(icon) = &profile.icon {
                                         ui.label(icon);
                                     }
-                                    let name_response = ui.selectable_label(is_selected, &profile.name);
+                                    let name_response =
+                                        ui.selectable_label(is_selected, &profile.name);
                                     if name_response.clicked() {
                                         self.selected_id = Some(profile.id);
                                     }
@@ -434,16 +449,22 @@ impl ProfileModalUI {
                                     }
 
                                     // Spacer
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                        // Delete button
-                                        if ui.small_button("🗑").clicked() {
-                                            self.request_delete(profile.id, profile.name.clone());
-                                        }
-                                        // Edit button
-                                        if ui.small_button("✏").clicked() {
-                                            self.start_edit(profile.id);
-                                        }
-                                    });
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            // Delete button
+                                            if ui.small_button("🗑").clicked() {
+                                                self.request_delete(
+                                                    profile.id,
+                                                    profile.name.clone(),
+                                                );
+                                            }
+                                            // Edit button
+                                            if ui.small_button("✏").clicked() {
+                                                self.start_edit(profile.id);
+                                            }
+                                        },
+                                    );
                                 });
                             });
                         });
@@ -496,7 +517,11 @@ impl ProfileModalUI {
                 ui.label("Icon:");
                 ui.horizontal(|ui| {
                     ui.text_edit_singleline(&mut self.temp_icon);
-                    ui.label(egui::RichText::new("(emoji)").small().color(egui::Color32::GRAY));
+                    ui.label(
+                        egui::RichText::new("(emoji)")
+                            .small()
+                            .color(egui::Color32::GRAY),
+                    );
                 });
                 ui.end_row();
 
@@ -518,14 +543,22 @@ impl ProfileModalUI {
                 ui.label("Arguments:");
                 ui.horizontal(|ui| {
                     ui.text_edit_singleline(&mut self.temp_args);
-                    ui.label(egui::RichText::new("(space-separated)").small().color(egui::Color32::GRAY));
+                    ui.label(
+                        egui::RichText::new("(space-separated)")
+                            .small()
+                            .color(egui::Color32::GRAY),
+                    );
                 });
                 ui.end_row();
 
                 ui.label("Tab Name:");
                 ui.horizontal(|ui| {
                     ui.text_edit_singleline(&mut self.temp_tab_name);
-                    ui.label(egui::RichText::new("(optional)").small().color(egui::Color32::GRAY));
+                    ui.label(
+                        egui::RichText::new("(optional)")
+                            .small()
+                            .color(egui::Color32::GRAY),
+                    );
                 });
                 ui.end_row();
             });
@@ -538,9 +571,13 @@ impl ProfileModalUI {
 
         // Help text
         ui.add_space(16.0);
-        ui.label(egui::RichText::new("Note: If a command is specified, it will run from the working directory.")
+        ui.label(
+            egui::RichText::new(
+                "Note: If a command is specified, it will run from the working directory.",
+            )
             .small()
-            .color(egui::Color32::GRAY));
+            .color(egui::Color32::GRAY),
+        );
 
         // Footer buttons
         ui.add_space(16.0);

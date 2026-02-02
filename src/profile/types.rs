@@ -256,12 +256,8 @@ impl ProfileManager {
 
     /// Sort profiles by their order field
     fn sort_by_order(&mut self) {
-        self.order.sort_by_key(|id| {
-            self.profiles
-                .get(id)
-                .map(|p| p.order)
-                .unwrap_or(usize::MAX)
-        });
+        self.order
+            .sort_by_key(|id| self.profiles.get(id).map(|p| p.order).unwrap_or(usize::MAX));
     }
 
     /// Update the order field of all profiles to match their position
@@ -305,15 +301,9 @@ mod tests {
             .icon("🖥");
 
         assert_eq!(profile.name, "SSH Server");
-        assert_eq!(
-            profile.working_directory.as_deref(),
-            Some("/home/user")
-        );
+        assert_eq!(profile.working_directory.as_deref(), Some("/home/user"));
         assert_eq!(profile.command.as_deref(), Some("ssh"));
-        assert_eq!(
-            profile.command_args,
-            Some(vec!["user@server".to_string()])
-        );
+        assert_eq!(profile.command_args, Some(vec!["user@server".to_string()]));
         assert_eq!(profile.tab_name.as_deref(), Some("Remote"));
         assert_eq!(profile.icon.as_deref(), Some("🖥"));
     }

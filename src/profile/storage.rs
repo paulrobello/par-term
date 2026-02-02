@@ -23,24 +23,40 @@ pub fn load_profiles() -> Result<ProfileManager> {
 pub fn load_profiles_from(path: PathBuf) -> Result<ProfileManager> {
     crate::debug_info!("PROFILE", "Loading profiles from {:?}", path);
     if !path.exists() {
-        crate::debug_info!("PROFILE", "No profiles file found at {:?}, starting with empty profiles", path);
+        crate::debug_info!(
+            "PROFILE",
+            "No profiles file found at {:?}, starting with empty profiles",
+            path
+        );
         return Ok(ProfileManager::new());
     }
 
     let contents = std::fs::read_to_string(&path)
         .with_context(|| format!("Failed to read profiles from {:?}", path))?;
 
-    crate::debug_info!("PROFILE", "Read {} bytes from profiles file", contents.len());
+    crate::debug_info!(
+        "PROFILE",
+        "Read {} bytes from profiles file",
+        contents.len()
+    );
 
     if contents.trim().is_empty() {
-        crate::debug_info!("PROFILE", "Profiles file is empty, starting with empty profiles");
+        crate::debug_info!(
+            "PROFILE",
+            "Profiles file is empty, starting with empty profiles"
+        );
         return Ok(ProfileManager::new());
     }
 
     let profiles: Vec<Profile> = serde_yaml::from_str(&contents)
         .with_context(|| format!("Failed to parse profiles from {:?}", path))?;
 
-    crate::debug_info!("PROFILE", "Parsed {} profiles from {:?}", profiles.len(), path);
+    crate::debug_info!(
+        "PROFILE",
+        "Parsed {} profiles from {:?}",
+        profiles.len(),
+        path
+    );
     for p in &profiles {
         crate::debug_info!("PROFILE", "  - {}: {}", p.id, p.name);
     }
@@ -61,8 +77,7 @@ pub fn save_profiles_to(manager: &ProfileManager, path: PathBuf) -> Result<()> {
     }
 
     let profiles = manager.to_vec();
-    let contents = serde_yaml::to_string(&profiles)
-        .context("Failed to serialize profiles")?;
+    let contents = serde_yaml::to_string(&profiles).context("Failed to serialize profiles")?;
 
     std::fs::write(&path, contents)
         .with_context(|| format!("Failed to write profiles to {:?}", path))?;
@@ -111,7 +126,11 @@ mod tests {
         manager.add(
             Profile::new("Test Profile 2")
                 .command("ssh")
-                .command_args(vec!["user@server".to_string(), "-p".to_string(), "22".to_string()]),
+                .command_args(vec![
+                    "user@server".to_string(),
+                    "-p".to_string(),
+                    "22".to_string(),
+                ]),
         );
 
         save_profiles_to(&manager, path.clone()).unwrap();
@@ -130,7 +149,11 @@ mod tests {
         assert_eq!(profiles[1].command.as_deref(), Some("ssh"));
         assert_eq!(
             profiles[1].command_args,
-            Some(vec!["user@server".to_string(), "-p".to_string(), "22".to_string()])
+            Some(vec![
+                "user@server".to_string(),
+                "-p".to_string(),
+                "22".to_string()
+            ])
         );
     }
 

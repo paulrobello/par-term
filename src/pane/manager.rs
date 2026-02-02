@@ -1007,9 +1007,7 @@ impl PaneManager {
                     second,
                 },
                 LayoutNode::VerticalSplit {
-                    width,
-                    children,
-                    ..
+                    width, children, ..
                 },
             ) if *direction == SplitDirection::Vertical && !children.is_empty() => {
                 // Calculate ratio from first child's width vs total
@@ -1052,9 +1050,7 @@ impl PaneManager {
                     second,
                 },
                 LayoutNode::HorizontalSplit {
-                    height,
-                    children,
-                    ..
+                    height, children, ..
                 },
             ) if *direction == SplitDirection::Horizontal && !children.is_empty() => {
                 // Calculate ratio from first child's height vs total
@@ -1089,9 +1085,7 @@ impl PaneManager {
 
             // Mismatched structure - log and skip
             _ => {
-                log::debug!(
-                    "Layout structure mismatch during update - skipping ratio update"
-                );
+                log::debug!("Layout structure mismatch during update - skipping ratio update");
             }
         }
     }
@@ -1123,7 +1117,10 @@ impl PaneManager {
         {
             // Calculate ratio: first child size vs remaining total
             let first_size = Self::get_node_size(&children[0], direction);
-            let remaining_size: usize = children.iter().map(|c| Self::get_node_size(c, direction)).sum();
+            let remaining_size: usize = children
+                .iter()
+                .map(|c| Self::get_node_size(c, direction))
+                .sum();
 
             if remaining_size > 0 {
                 *ratio = (first_size as f32) / (remaining_size as f32);

@@ -47,7 +47,11 @@ impl ProfileDrawerUI {
     }
 
     /// Calculate the toggle button rectangle given the window size
-    pub fn get_toggle_button_rect(&self, window_width: f32, window_height: f32) -> (f32, f32, f32, f32) {
+    pub fn get_toggle_button_rect(
+        &self,
+        window_width: f32,
+        window_height: f32,
+    ) -> (f32, f32, f32, f32) {
         // When expanded, button is at left edge of drawer; when collapsed, at right edge of window
         let x = if self.expanded {
             window_width - self.width - Self::COLLAPSED_WIDTH - 2.0
@@ -59,7 +63,13 @@ impl ProfileDrawerUI {
     }
 
     /// Check if a point (in window coordinates) is inside the toggle button
-    pub fn is_point_in_toggle_button(&self, px: f32, py: f32, window_width: f32, window_height: f32) -> bool {
+    pub fn is_point_in_toggle_button(
+        &self,
+        px: f32,
+        py: f32,
+        window_width: f32,
+        window_height: f32,
+    ) -> bool {
         let (x, y, w, h) = self.get_toggle_button_rect(window_width, window_height);
         px >= x && px <= x + w && py >= y && py <= y + h
     }
@@ -69,7 +79,11 @@ impl ProfileDrawerUI {
         self.expanded = !self.expanded;
         log::info!(
             "Profile drawer toggled: {}",
-            if self.expanded { "expanded" } else { "collapsed" }
+            if self.expanded {
+                "expanded"
+            } else {
+                "collapsed"
+            }
         );
     }
 
@@ -92,9 +106,11 @@ impl ProfileDrawerUI {
                 .default_width(self.width)
                 .min_width(180.0)
                 .max_width(400.0)
-                .frame(egui::Frame::side_top_panel(&ctx.style())
-                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 245))
-                    .inner_margin(egui::Margin::same(8)))
+                .frame(
+                    egui::Frame::side_top_panel(&ctx.style())
+                        .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 245))
+                        .inner_margin(egui::Margin::same(8)),
+                )
                 .show(ctx, |ui| {
                     self.render_panel_contents(ui, profile_manager, &mut action);
                 });
@@ -130,10 +146,7 @@ impl ProfileDrawerUI {
                 .fixed_pos(button_rect.min)
                 .order(egui::Order::Foreground)
                 .show(ctx, |ui| {
-                    let response = ui.allocate_response(
-                        button_rect.size(),
-                        egui::Sense::click(),
-                    );
+                    let response = ui.allocate_response(button_rect.size(), egui::Sense::click());
 
                     let bg_color = if response.hovered() {
                         egui::Color32::from_rgba_unmultiplied(60, 60, 60, 220)
@@ -187,11 +200,19 @@ impl ProfileDrawerUI {
         ui.separator();
 
         // Profile list
-        crate::debug_info!("PROFILE", "Profile drawer render: {} profiles", profile_manager.len());
+        crate::debug_info!(
+            "PROFILE",
+            "Profile drawer render: {} profiles",
+            profile_manager.len()
+        );
         if profile_manager.is_empty() {
             ui.vertical_centered(|ui| {
                 ui.add_space(20.0);
-                ui.label(egui::RichText::new("No profiles").italics().color(egui::Color32::GRAY));
+                ui.label(
+                    egui::RichText::new("No profiles")
+                        .italics()
+                        .color(egui::Color32::GRAY),
+                );
                 ui.add_space(10.0);
                 if ui.button("Create Profile").clicked() {
                     *action = ProfileDrawerAction::ManageProfiles;
@@ -219,11 +240,12 @@ impl ProfileDrawerUI {
                         };
 
                         // Add indicator for profiles with custom settings
-                        let label = if profile.command.is_some() || profile.working_directory.is_some() {
-                            format!("{} ...", label)
-                        } else {
-                            label
-                        };
+                        let label =
+                            if profile.command.is_some() || profile.working_directory.is_some() {
+                                format!("{} ...", label)
+                            } else {
+                                label
+                            };
 
                         // Use selectable_label which has reliable click handling
                         let response = ui.selectable_label(is_selected, &label);
@@ -244,7 +266,9 @@ impl ProfileDrawerUI {
             ui.separator();
             ui.horizontal(|ui| {
                 let open_enabled = self.selected.is_some();
-                if ui.add_enabled(open_enabled, egui::Button::new("Open")).clicked()
+                if ui
+                    .add_enabled(open_enabled, egui::Button::new("Open"))
+                    .clicked()
                     && let Some(id) = self.selected
                 {
                     *action = ProfileDrawerAction::OpenProfile(id);

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::profile::{storage as profile_storage, ProfileId, ProfileManager};
+use crate::profile::{ProfileId, ProfileManager, storage as profile_storage};
 
 use super::window_state::WindowState;
 

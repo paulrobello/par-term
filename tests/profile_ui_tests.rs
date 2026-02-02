@@ -62,12 +62,18 @@ fn test_profile_drawer_toggle_button_rect_collapsed() {
     let (x, y, w, h) = drawer.get_toggle_button_rect(window_width, window_height);
 
     // When collapsed, button should be at right edge of window
-    assert!(x > window_width - 20.0, "Button x should be near right edge");
+    assert!(
+        x > window_width - 20.0,
+        "Button x should be near right edge"
+    );
     assert!(x < window_width, "Button x should be within window");
 
     // Button should be vertically centered
     let expected_y = (window_height - h) / 2.0;
-    assert!((y - expected_y).abs() < 0.01, "Button should be vertically centered");
+    assert!(
+        (y - expected_y).abs() < 0.01,
+        "Button should be vertically centered"
+    );
 
     // Button should have positive dimensions
     assert!(w > 0.0);
@@ -94,7 +100,10 @@ fn test_profile_drawer_toggle_button_rect_expanded() {
 
     // Button should be vertically centered
     let expected_y = (window_height - h) / 2.0;
-    assert!((y - expected_y).abs() < 0.01, "Button should be vertically centered");
+    assert!(
+        (y - expected_y).abs() < 0.01,
+        "Button should be vertically centered"
+    );
 }
 
 #[test]
@@ -247,7 +256,10 @@ fn test_profile_drawer_actions_equality() {
     );
 
     // Different types
-    assert_ne!(ProfileDrawerAction::None, ProfileDrawerAction::ManageProfiles);
+    assert_ne!(
+        ProfileDrawerAction::None,
+        ProfileDrawerAction::ManageProfiles
+    );
     assert_ne!(
         ProfileDrawerAction::OpenProfile(id1),
         ProfileDrawerAction::ManageProfiles
@@ -741,7 +753,12 @@ fn test_profile_modal_delete_confirmation_flow() {
     // Request deletion - should not delete immediately
     // Note: We can't call request_delete directly as it's private,
     // but we can test the public interface behavior
-    assert!(modal.get_working_profiles().iter().any(|p| p.id == profile_id));
+    assert!(
+        modal
+            .get_working_profiles()
+            .iter()
+            .any(|p| p.id == profile_id)
+    );
 }
 
 #[test]
@@ -784,9 +801,15 @@ fn test_profile_builder_all_fields() {
         .order(5);
 
     assert_eq!(profile.name, "Full Profile");
-    assert_eq!(profile.working_directory.as_deref(), Some("/home/user/projects"));
+    assert_eq!(
+        profile.working_directory.as_deref(),
+        Some("/home/user/projects")
+    );
     assert_eq!(profile.command.as_deref(), Some("bash"));
-    assert_eq!(profile.command_args, Some(vec!["-c".to_string(), "echo hello".to_string()]));
+    assert_eq!(
+        profile.command_args,
+        Some(vec!["-c".to_string(), "echo hello".to_string()])
+    );
     assert_eq!(profile.tab_name.as_deref(), Some("My Tab"));
     assert_eq!(profile.icon.as_deref(), Some("🚀"));
     assert_eq!(profile.order, 5);
@@ -834,7 +857,8 @@ fn test_profile_validation_whitespace_name() {
 #[test]
 fn test_profile_validation_valid_working_directory() {
     // Use a directory that exists on all platforms
-    let profile = Profile::new("Valid Dir").working_directory(std::env::temp_dir().to_string_lossy().to_string());
+    let profile = Profile::new("Valid Dir")
+        .working_directory(std::env::temp_dir().to_string_lossy().to_string());
     let warnings = profile.validate();
     // Should have no warnings about working directory
     assert!(!warnings.iter().any(|w| w.contains("directory")));
@@ -872,7 +896,11 @@ fn test_profile_serialization_minimal() {
 fn test_profile_serialization_with_special_characters() {
     let profile = Profile::new("SSH: user@server")
         .command("ssh")
-        .command_args(vec!["user@server".to_string(), "-p".to_string(), "2222".to_string()])
+        .command_args(vec![
+            "user@server".to_string(),
+            "-p".to_string(),
+            "2222".to_string(),
+        ])
         .working_directory("/home/user/my projects")
         .icon("🔐");
 
@@ -882,7 +910,10 @@ fn test_profile_serialization_with_special_characters() {
     assert_eq!(deserialized.name, "SSH: user@server");
     assert_eq!(deserialized.command.as_deref(), Some("ssh"));
     assert_eq!(deserialized.command_args.as_ref().unwrap().len(), 3);
-    assert_eq!(deserialized.working_directory.as_deref(), Some("/home/user/my projects"));
+    assert_eq!(
+        deserialized.working_directory.as_deref(),
+        Some("/home/user/my projects")
+    );
     assert_eq!(deserialized.icon.as_deref(), Some("🔐"));
 }
 

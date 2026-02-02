@@ -1234,6 +1234,7 @@ impl CellRenderer {
     /// # Arguments
     /// * `skip_solid_background` - If true, skip adding a solid background fill for the viewport.
     ///   Use when a custom shader or background image was already rendered full-screen.
+    #[allow(clippy::too_many_arguments)]
     fn build_pane_instance_buffers(
         &mut self,
         viewport: &PaneViewport,

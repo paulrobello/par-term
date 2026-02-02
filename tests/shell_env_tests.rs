@@ -67,10 +67,7 @@ fn test_filter_existing_paths() {
 fn test_filter_empty_paths() {
     let paths = vec!["", "   ", "/valid/path"];
 
-    let non_empty: Vec<_> = paths
-        .into_iter()
-        .filter(|p| !p.is_empty())
-        .collect();
+    let non_empty: Vec<_> = paths.into_iter().filter(|p| !p.is_empty()).collect();
 
     assert_eq!(non_empty.len(), 2);
     assert!(!non_empty.contains(&""));
@@ -211,8 +208,8 @@ mod macos_tests {
         let intel = "/usr/local/bin";
 
         // At least one should exist on a Mac with Homebrew
-        let exists = std::path::Path::new(apple_silicon).exists()
-            || std::path::Path::new(intel).exists();
+        let exists =
+            std::path::Path::new(apple_silicon).exists() || std::path::Path::new(intel).exists();
 
         // This is informational - may not have Homebrew
         if exists {

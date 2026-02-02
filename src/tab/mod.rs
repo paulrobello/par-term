@@ -40,10 +40,8 @@ fn configure_terminal_from_config(terminal: &mut TerminalManager, config: &Confi
     }
 
     // Apply Unicode width configuration
-    let width_config = par_term_emu_core_rust::WidthConfig::new(
-        config.unicode_version,
-        config.ambiguous_width,
-    );
+    let width_config =
+        par_term_emu_core_rust::WidthConfig::new(config.unicode_version, config.ambiguous_width);
     terminal.set_width_config(width_config);
 
     // Initialize cursor style from config
@@ -121,9 +119,19 @@ fn build_platform_extra_paths() -> Vec<String> {
 
     if let Some(home) = dirs::home_dir() {
         // Cargo bin
-        paths.push(home.join(".cargo").join("bin").to_string_lossy().to_string());
+        paths.push(
+            home.join(".cargo")
+                .join("bin")
+                .to_string_lossy()
+                .to_string(),
+        );
         // Scoop
-        paths.push(home.join("scoop").join("shims").to_string_lossy().to_string());
+        paths.push(
+            home.join("scoop")
+                .join("shims")
+                .to_string_lossy()
+                .to_string(),
+        );
         // Go bin
         paths.push(home.join("go").join("bin").to_string_lossy().to_string());
     }
@@ -134,8 +142,24 @@ fn build_platform_extra_paths() -> Vec<String> {
     // Common program locations
     if let Some(local_app_data) = dirs::data_local_dir() {
         // Python (common location)
-        paths.push(local_app_data.join("Programs").join("Python").join("Python312").join("Scripts").to_string_lossy().to_string());
-        paths.push(local_app_data.join("Programs").join("Python").join("Python311").join("Scripts").to_string_lossy().to_string());
+        paths.push(
+            local_app_data
+                .join("Programs")
+                .join("Python")
+                .join("Python312")
+                .join("Scripts")
+                .to_string_lossy()
+                .to_string(),
+        );
+        paths.push(
+            local_app_data
+                .join("Programs")
+                .join("Python")
+                .join("Python311")
+                .join("Scripts")
+                .to_string_lossy()
+                .to_string(),
+        );
     }
 
     paths
@@ -148,13 +172,28 @@ fn build_platform_extra_paths() -> Vec<String> {
 
     if let Some(home) = dirs::home_dir() {
         // User's home .local/bin (common for pip, pipx, etc.)
-        paths.push(home.join(".local").join("bin").to_string_lossy().to_string());
+        paths.push(
+            home.join(".local")
+                .join("bin")
+                .to_string_lossy()
+                .to_string(),
+        );
         // Cargo bin
-        paths.push(home.join(".cargo").join("bin").to_string_lossy().to_string());
+        paths.push(
+            home.join(".cargo")
+                .join("bin")
+                .to_string_lossy()
+                .to_string(),
+        );
         // Go bin
         paths.push(home.join("go").join("bin").to_string_lossy().to_string());
         // Nix user profile
-        paths.push(home.join(".nix-profile").join("bin").to_string_lossy().to_string());
+        paths.push(
+            home.join(".nix-profile")
+                .join("bin")
+                .to_string_lossy()
+                .to_string(),
+        );
     }
 
     // Nix system profile
@@ -182,7 +221,15 @@ fn build_platform_extra_paths() -> Vec<String> {
         paths.push("/snap/bin".to_string());
         // Flatpak exports
         if let Some(home) = dirs::home_dir() {
-            paths.push(home.join(".local").join("share").join("flatpak").join("exports").join("bin").to_string_lossy().to_string());
+            paths.push(
+                home.join(".local")
+                    .join("share")
+                    .join("flatpak")
+                    .join("exports")
+                    .join("bin")
+                    .to_string_lossy()
+                    .to_string(),
+            );
         }
         paths.push("/var/lib/flatpak/exports/bin".to_string());
     }
@@ -306,7 +353,12 @@ impl Tab {
 
         let shell_args_deref = shell_args.as_deref();
         let shell_env = build_shell_env(config.shell_env.as_ref());
-        terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env.as_ref())?;
+        terminal.spawn_custom_shell_with_dir(
+            &shell_cmd,
+            shell_args_deref,
+            work_dir,
+            shell_env.as_ref(),
+        )?;
 
         // Create shared session logger
         let session_logger = create_shared_logger();
@@ -443,7 +495,12 @@ impl Tab {
 
         let shell_args_deref = shell_args.as_deref();
         let shell_env = build_shell_env(config.shell_env.as_ref());
-        terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env.as_ref())?;
+        terminal.spawn_custom_shell_with_dir(
+            &shell_cmd,
+            shell_args_deref,
+            work_dir,
+            shell_env.as_ref(),
+        )?;
 
         // Create shared session logger
         let session_logger = create_shared_logger();
@@ -467,7 +524,11 @@ impl Tab {
                     if let Err(e) = logger.start() {
                         log::warn!("Failed to start session logging for profile: {}", e);
                     } else {
-                        log::info!("Session logging started for profile '{}': {:?}", profile.name, logger.output_path());
+                        log::info!(
+                            "Session logging started for profile '{}': {:?}",
+                            profile.name,
+                            logger.output_path()
+                        );
 
                         // Set up output callback to record PTY output
                         let logger_clone = Arc::clone(&session_logger);
