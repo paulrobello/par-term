@@ -825,6 +825,118 @@ pub struct Config {
     pub tab_border_width: f32,
 
     // ========================================================================
+    // Split Pane Settings
+    // ========================================================================
+    /// Width of dividers between panes in pixels (visual width)
+    #[serde(default = "defaults::pane_divider_width")]
+    pub pane_divider_width: Option<f32>,
+
+    /// Width of the drag hit area for resizing panes (should be >= divider width)
+    /// A larger hit area makes it easier to grab the divider for resizing
+    #[serde(default = "defaults::pane_divider_hit_width")]
+    pub pane_divider_hit_width: f32,
+
+    /// Padding inside panes in pixels (space between content and border/divider)
+    #[serde(default = "defaults::pane_padding")]
+    pub pane_padding: f32,
+
+    /// Minimum pane size in cells (columns for horizontal splits, rows for vertical)
+    /// Prevents panes from being resized too small to be useful
+    #[serde(default = "defaults::pane_min_size")]
+    pub pane_min_size: usize,
+
+    /// Pane background opacity (0.0 = fully transparent, 1.0 = fully opaque)
+    /// Lower values allow background image/shader to show through pane backgrounds
+    #[serde(default = "defaults::pane_background_opacity")]
+    pub pane_background_opacity: f32,
+
+    /// Pane divider color [R, G, B] (0-255)
+    #[serde(default = "defaults::pane_divider_color")]
+    pub pane_divider_color: [u8; 3],
+
+    /// Pane divider hover color [R, G, B] (0-255) - shown when mouse hovers over divider
+    #[serde(default = "defaults::pane_divider_hover_color")]
+    pub pane_divider_hover_color: [u8; 3],
+
+    /// Enable visual dimming of inactive panes
+    #[serde(default = "defaults::bool_false")]
+    pub dim_inactive_panes: bool,
+
+    /// Opacity level for inactive panes (0.0-1.0)
+    #[serde(default = "defaults::inactive_pane_opacity")]
+    pub inactive_pane_opacity: f32,
+
+    /// Show title bar on each pane
+    #[serde(default = "defaults::bool_false")]
+    pub show_pane_titles: bool,
+
+    /// Height of pane title bars in pixels
+    #[serde(default = "defaults::pane_title_height")]
+    pub pane_title_height: f32,
+
+    /// Maximum panes per tab (0 = unlimited)
+    #[serde(default = "defaults::max_panes")]
+    pub max_panes: usize,
+
+    /// Show visual indicator (border) around focused pane
+    #[serde(default = "defaults::bool_true")]
+    pub pane_focus_indicator: bool,
+
+    /// Color of the focused pane indicator [R, G, B] (0-255)
+    #[serde(default = "defaults::pane_focus_color")]
+    pub pane_focus_color: [u8; 3],
+
+    /// Width of the focused pane indicator border in pixels
+    #[serde(default = "defaults::pane_focus_width")]
+    pub pane_focus_width: f32,
+
+    // ========================================================================
+    // tmux Integration
+    // ========================================================================
+    /// Enable tmux control mode integration
+    #[serde(default = "defaults::bool_false")]
+    pub tmux_enabled: bool,
+
+    /// Path to tmux executable (default: "tmux" - uses PATH)
+    #[serde(default = "defaults::tmux_path")]
+    pub tmux_path: String,
+
+    /// Default session name when creating new tmux sessions
+    #[serde(default = "defaults::tmux_default_session")]
+    pub tmux_default_session: Option<String>,
+
+    /// Auto-attach to existing tmux session on startup
+    #[serde(default = "defaults::bool_false")]
+    pub tmux_auto_attach: bool,
+
+    /// Session name to auto-attach to (if tmux_auto_attach is true)
+    #[serde(default = "defaults::tmux_auto_attach_session")]
+    pub tmux_auto_attach_session: Option<String>,
+
+    /// Sync clipboard with tmux paste buffer
+    /// When copying in par-term, also update tmux's paste buffer via set-buffer
+    #[serde(default = "defaults::bool_true")]
+    pub tmux_clipboard_sync: bool,
+
+    /// Profile to switch to when connected to tmux
+    /// When profiles feature is implemented, this will automatically
+    /// switch to the specified profile when entering tmux mode
+    #[serde(default)]
+    pub tmux_profile: Option<String>,
+
+    /// Show tmux status bar in par-term UI
+    /// When connected to tmux, display the status bar at the bottom of the terminal
+    #[serde(default = "defaults::bool_false")]
+    pub tmux_show_status_bar: bool,
+
+    /// Tmux prefix key for control mode
+    /// In control mode, par-term intercepts this key combination and waits for a command key.
+    /// Format: "C-b" (Ctrl+B, default), "C-Space" (Ctrl+Space), "C-a" (Ctrl+A), etc.
+    /// The prefix + command key is translated to the appropriate tmux command.
+    #[serde(default = "defaults::tmux_prefix_key")]
+    pub tmux_prefix_key: String,
+
+    // ========================================================================
     // Focus/Blur Power Saving
     // ========================================================================
     /// Pause shader animations when window loses focus
@@ -1111,6 +1223,31 @@ impl Default for Config {
             tab_min_width: defaults::tab_min_width(),
             tab_border_color: defaults::tab_border_color(),
             tab_border_width: defaults::tab_border_width(),
+            // Split panes
+            pane_divider_width: defaults::pane_divider_width(),
+            pane_divider_hit_width: defaults::pane_divider_hit_width(),
+            pane_padding: defaults::pane_padding(),
+            pane_min_size: defaults::pane_min_size(),
+            pane_background_opacity: defaults::pane_background_opacity(),
+            pane_divider_color: defaults::pane_divider_color(),
+            pane_divider_hover_color: defaults::pane_divider_hover_color(),
+            dim_inactive_panes: defaults::bool_false(),
+            inactive_pane_opacity: defaults::inactive_pane_opacity(),
+            show_pane_titles: defaults::bool_false(),
+            pane_title_height: defaults::pane_title_height(),
+            max_panes: defaults::max_panes(),
+            pane_focus_indicator: defaults::bool_true(),
+            pane_focus_color: defaults::pane_focus_color(),
+            pane_focus_width: defaults::pane_focus_width(),
+            tmux_enabled: defaults::bool_false(),
+            tmux_path: defaults::tmux_path(),
+            tmux_default_session: defaults::tmux_default_session(),
+            tmux_auto_attach: defaults::bool_false(),
+            tmux_auto_attach_session: defaults::tmux_auto_attach_session(),
+            tmux_clipboard_sync: defaults::bool_true(),
+            tmux_profile: None,
+            tmux_show_status_bar: defaults::bool_false(),
+            tmux_prefix_key: defaults::tmux_prefix_key(),
             pause_shaders_on_blur: defaults::bool_true(),
             pause_refresh_on_blur: defaults::bool_false(),
             unfocused_fps: defaults::unfocused_fps(),

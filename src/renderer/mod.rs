@@ -1,4 +1,4 @@
-use super::cell_renderer::{Cell, CellRenderer};
+use super::cell_renderer::{Cell, CellRenderer, PaneViewport};
 use super::graphics_renderer::GraphicsRenderer;
 use crate::custom_shader_renderer::CustomShaderRenderer;
 use anyhow::Result;
@@ -8,6 +8,77 @@ use winit::window::Window;
 
 pub mod graphics;
 pub mod shaders;
+
+/// Information needed to render a single pane
+pub struct PaneRenderInfo<'a> {
+    /// Viewport bounds and state for this pane
+    pub viewport: PaneViewport,
+    /// Cells to render (should match viewport grid size)
+    pub cells: &'a [Cell],
+    /// Grid dimensions (cols, rows)
+    pub grid_size: (usize, usize),
+    /// Cursor position within this pane (col, row), or None if no cursor visible
+    pub cursor_pos: Option<(usize, usize)>,
+    /// Cursor opacity (0.0 = hidden, 1.0 = fully visible)
+    pub cursor_opacity: f32,
+    /// Whether this pane has a scrollbar visible
+    pub show_scrollbar: bool,
+}
+
+/// Information needed to render a pane divider
+#[derive(Clone, Copy, Debug)]
+pub struct DividerRenderInfo {
+    /// X position in pixels
+    pub x: f32,
+    /// Y position in pixels
+    pub y: f32,
+    /// Width in pixels
+    pub width: f32,
+    /// Height in pixels
+    pub height: f32,
+    /// Whether this divider is currently being hovered
+    pub hovered: bool,
+}
+
+impl DividerRenderInfo {
+    /// Create from a DividerRect
+    pub fn from_rect(rect: &crate::pane::DividerRect, hovered: bool) -> Self {
+        Self {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            hovered,
+        }
+    }
+}
+
+/// Settings for rendering pane dividers and focus indicators
+#[derive(Clone, Copy, Debug)]
+pub struct PaneDividerSettings {
+    /// Color for dividers [R, G, B] as floats (0.0-1.0)
+    pub divider_color: [f32; 3],
+    /// Color when hovering over dividers [R, G, B] as floats (0.0-1.0)
+    pub hover_color: [f32; 3],
+    /// Whether to show focus indicator around focused pane
+    pub show_focus_indicator: bool,
+    /// Color for focus indicator [R, G, B] as floats (0.0-1.0)
+    pub focus_color: [f32; 3],
+    /// Width of focus indicator border in pixels
+    pub focus_width: f32,
+}
+
+impl Default for PaneDividerSettings {
+    fn default() -> Self {
+        Self {
+            divider_color: [0.3, 0.3, 0.3],
+            hover_color: [0.5, 0.6, 0.8],
+            show_focus_indicator: true,
+            focus_color: [0.4, 0.6, 1.0],
+            focus_width: 2.0,
+        }
+    }
+}
 
 /// Renderer for the terminal using custom wgpu cell renderer
 pub struct Renderer {
@@ -803,6 +874,476 @@ impl Renderer {
         self.dirty = false;
 
         Ok(true)
+    }
+
+    /// Render multiple panes to the surface
+    ///
+    /// This method renders each pane's content to its viewport region,
+    /// handling focus indicators and inactive pane dimming.
+    ///
+    /// # Arguments
+    /// * `panes` - List of panes to render with their viewport info
+    /// * `egui_data` - Optional egui overlay data
+    /// * `force_egui_opaque` - Force egui to render at full opacity
+    ///
+    /// # Returns
+    /// `true` if rendering was performed, `false` if skipped
+    #[allow(dead_code)]
+    pub fn render_panes(
+        &mut self,
+        panes: &[PaneRenderInfo<'_>],
+        egui_data: Option<(egui::FullOutput, &egui::Context)>,
+        force_egui_opaque: bool,
+    ) -> Result<bool> {
+        // Check if we need to render
+        let force_render = self.needs_continuous_render();
+        if !self.dirty && egui_data.is_none() && !force_render {
+            return Ok(false);
+        }
+
+        // Get the surface texture
+        let surface_texture = self.cell_renderer.surface.get_current_texture()?;
+        let surface_view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Clear the surface first with the background color
+        {
+            let mut encoder = self.cell_renderer.device().create_command_encoder(
+                &wgpu::CommandEncoderDescriptor {
+                    label: Some("pane clear encoder"),
+                },
+            );
+
+            let clear_color = wgpu::Color {
+                r: self.cell_renderer.background_color[0] as f64
+                    * self.cell_renderer.window_opacity as f64,
+                g: self.cell_renderer.background_color[1] as f64
+                    * self.cell_renderer.window_opacity as f64,
+                b: self.cell_renderer.background_color[2] as f64
+                    * self.cell_renderer.window_opacity as f64,
+                a: self.cell_renderer.window_opacity as f64,
+            };
+
+            {
+                let _clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("surface clear pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &surface_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(clear_color),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+            }
+
+            self.cell_renderer
+                .queue()
+                .submit(std::iter::once(encoder.finish()));
+        }
+
+        // Render background image first (full-screen, before panes)
+        let has_background_image = self
+            .cell_renderer
+            .render_background_only(&surface_view, false)?;
+
+        // Render each pane (skip background image since we rendered it full-screen)
+        for pane in panes {
+            self.cell_renderer.render_pane_to_view(
+                &surface_view,
+                &pane.viewport,
+                pane.cells,
+                pane.grid_size.0,
+                pane.grid_size.1,
+                pane.cursor_pos,
+                pane.cursor_opacity,
+                pane.show_scrollbar,
+                false,                // Don't clear - we already cleared the surface
+                has_background_image, // Skip background image if already rendered full-screen
+            )?;
+        }
+
+        // Render egui overlay if provided
+        if let Some((egui_output, egui_ctx)) = egui_data {
+            self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
+        }
+
+        // Present the surface
+        surface_texture.present();
+
+        self.dirty = false;
+        Ok(true)
+    }
+
+    /// Render split panes with dividers and focus indicator
+    ///
+    /// This is the main entry point for rendering a split pane layout.
+    /// It handles:
+    /// 1. Clearing the surface
+    /// 2. Rendering each pane's content
+    /// 3. Rendering dividers between panes
+    /// 4. Rendering focus indicator around the focused pane
+    /// 5. Rendering egui overlay if provided
+    /// 6. Presenting the surface
+    ///
+    /// # Arguments
+    /// * `panes` - List of panes to render with their viewport info
+    /// * `dividers` - List of dividers between panes with hover state
+    /// * `focused_viewport` - Viewport of the focused pane (for focus indicator)
+    /// * `divider_settings` - Settings for divider and focus indicator appearance
+    /// * `egui_data` - Optional egui overlay data
+    /// * `force_egui_opaque` - Force egui to render at full opacity
+    ///
+    /// # Returns
+    /// `true` if rendering was performed, `false` if skipped
+    #[allow(dead_code)]
+    pub fn render_split_panes(
+        &mut self,
+        panes: &[PaneRenderInfo<'_>],
+        dividers: &[DividerRenderInfo],
+        focused_viewport: Option<&PaneViewport>,
+        divider_settings: &PaneDividerSettings,
+        egui_data: Option<(egui::FullOutput, &egui::Context)>,
+        force_egui_opaque: bool,
+    ) -> Result<bool> {
+        // Check if we need to render
+        let force_render = self.needs_continuous_render();
+        if !self.dirty && egui_data.is_none() && !force_render {
+            return Ok(false);
+        }
+
+        let has_custom_shader = self.custom_shader_renderer.is_some();
+
+        // Get the surface texture
+        let surface_texture = self.cell_renderer.surface.get_current_texture()?;
+        let surface_view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Clear the surface with background color
+        let clear_color = wgpu::Color {
+            r: self.cell_renderer.background_color[0] as f64
+                * self.cell_renderer.window_opacity as f64,
+            g: self.cell_renderer.background_color[1] as f64
+                * self.cell_renderer.window_opacity as f64,
+            b: self.cell_renderer.background_color[2] as f64
+                * self.cell_renderer.window_opacity as f64,
+            a: self.cell_renderer.window_opacity as f64,
+        };
+
+        // If custom shader is enabled, render it with the background clear color
+        // (the shader's render pass will handle clearing the surface)
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            // Clear the intermediate texture to remove any old single-pane content
+            // This prevents the shader from displaying stale terminal content
+            custom_shader.clear_intermediate_texture(
+                self.cell_renderer.device(),
+                self.cell_renderer.queue(),
+            );
+
+            // Render shader effect to surface with background color as clear
+            // Don't apply opacity here - pane cells will blend on top
+            custom_shader.render_with_clear_color(
+                self.cell_renderer.device(),
+                self.cell_renderer.queue(),
+                &surface_view,
+                false, // Don't apply opacity - let pane rendering handle it
+                clear_color,
+            )?;
+        } else {
+            // No custom shader - just clear the surface with background color
+            let mut encoder = self.cell_renderer.device().create_command_encoder(
+                &wgpu::CommandEncoderDescriptor {
+                    label: Some("split pane clear encoder"),
+                },
+            );
+
+            {
+                let _clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("surface clear pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &surface_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(clear_color),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+            }
+
+            self.cell_renderer
+                .queue()
+                .submit(std::iter::once(encoder.finish()));
+        }
+
+        // Render background image (full-screen, after shader but before panes)
+        // Skip if custom shader is handling the background
+        let has_background_image = if !has_custom_shader {
+            self.cell_renderer
+                .render_background_only(&surface_view, false)?
+        } else {
+            false
+        };
+
+        // Render each pane's content (skip background image since we rendered it full-screen)
+        for pane in panes {
+            self.cell_renderer.render_pane_to_view(
+                &surface_view,
+                &pane.viewport,
+                pane.cells,
+                pane.grid_size.0,
+                pane.grid_size.1,
+                pane.cursor_pos,
+                pane.cursor_opacity,
+                pane.show_scrollbar,
+                false, // Don't clear - we already cleared the surface
+                has_background_image || has_custom_shader, // Skip background if already rendered
+            )?;
+        }
+
+        // Render dividers between panes
+        if !dividers.is_empty() {
+            self.render_dividers(&surface_view, dividers, divider_settings)?;
+        }
+
+        // Render focus indicator around focused pane (only if multiple panes)
+        if panes.len() > 1
+            && let Some(viewport) = focused_viewport
+        {
+            self.render_focus_indicator(&surface_view, viewport, divider_settings)?;
+        }
+
+        // Render egui overlay if provided
+        if let Some((egui_output, egui_ctx)) = egui_data {
+            self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
+        }
+
+        // Present the surface
+        surface_texture.present();
+
+        self.dirty = false;
+        Ok(true)
+    }
+
+    /// Render pane dividers on top of pane content
+    ///
+    /// This should be called after rendering pane content but before egui.
+    ///
+    /// # Arguments
+    /// * `surface_view` - The texture view to render to
+    /// * `dividers` - List of dividers to render with hover state
+    /// * `settings` - Divider appearance settings
+    #[allow(dead_code)]
+    pub fn render_dividers(
+        &mut self,
+        surface_view: &wgpu::TextureView,
+        dividers: &[DividerRenderInfo],
+        settings: &PaneDividerSettings,
+    ) -> Result<()> {
+        if dividers.is_empty() {
+            return Ok(());
+        }
+
+        // Build divider instances using the cell renderer's background pipeline
+        // We reuse the bg_instances buffer for dividers
+        let mut instances = Vec::with_capacity(dividers.len());
+
+        for divider in dividers {
+            let color = if divider.hovered {
+                settings.hover_color
+            } else {
+                settings.divider_color
+            };
+
+            let x_ndc = divider.x / self.size.width as f32 * 2.0 - 1.0;
+            let y_ndc = 1.0 - (divider.y / self.size.height as f32 * 2.0);
+            let w_ndc = divider.width / self.size.width as f32 * 2.0;
+            let h_ndc = divider.height / self.size.height as f32 * 2.0;
+
+            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                position: [x_ndc, y_ndc],
+                size: [w_ndc, h_ndc],
+                color: [color[0], color[1], color[2], 1.0],
+            });
+        }
+
+        // Write instances to GPU buffer
+        self.cell_renderer.queue().write_buffer(
+            &self.cell_renderer.bg_instance_buffer,
+            0,
+            bytemuck::cast_slice(&instances),
+        );
+
+        // Render dividers
+        let mut encoder =
+            self.cell_renderer
+                .device()
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("divider render encoder"),
+                });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("divider render pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: surface_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // Don't clear - render on top
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            render_pass.set_pipeline(&self.cell_renderer.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.cell_renderer.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.cell_renderer.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..instances.len() as u32);
+        }
+
+        self.cell_renderer
+            .queue()
+            .submit(std::iter::once(encoder.finish()));
+        Ok(())
+    }
+
+    /// Render focus indicator around a pane
+    ///
+    /// This draws a colored border around the focused pane to highlight it.
+    ///
+    /// # Arguments
+    /// * `surface_view` - The texture view to render to
+    /// * `viewport` - The focused pane's viewport
+    /// * `settings` - Divider/focus settings
+    #[allow(dead_code)]
+    pub fn render_focus_indicator(
+        &mut self,
+        surface_view: &wgpu::TextureView,
+        viewport: &PaneViewport,
+        settings: &PaneDividerSettings,
+    ) -> Result<()> {
+        if !settings.show_focus_indicator {
+            return Ok(());
+        }
+
+        let border_w = settings.focus_width;
+        let color = [
+            settings.focus_color[0],
+            settings.focus_color[1],
+            settings.focus_color[2],
+            1.0,
+        ];
+
+        // Create 4 border rectangles (top, bottom, left, right)
+        let instances = vec![
+            // Top border
+            crate::cell_renderer::types::BackgroundInstance {
+                position: [
+                    viewport.x / self.size.width as f32 * 2.0 - 1.0,
+                    1.0 - (viewport.y / self.size.height as f32 * 2.0),
+                ],
+                size: [
+                    viewport.width / self.size.width as f32 * 2.0,
+                    border_w / self.size.height as f32 * 2.0,
+                ],
+                color,
+            },
+            // Bottom border
+            crate::cell_renderer::types::BackgroundInstance {
+                position: [
+                    viewport.x / self.size.width as f32 * 2.0 - 1.0,
+                    1.0 - ((viewport.y + viewport.height - border_w) / self.size.height as f32
+                        * 2.0),
+                ],
+                size: [
+                    viewport.width / self.size.width as f32 * 2.0,
+                    border_w / self.size.height as f32 * 2.0,
+                ],
+                color,
+            },
+            // Left border (between top and bottom)
+            crate::cell_renderer::types::BackgroundInstance {
+                position: [
+                    viewport.x / self.size.width as f32 * 2.0 - 1.0,
+                    1.0 - ((viewport.y + border_w) / self.size.height as f32 * 2.0),
+                ],
+                size: [
+                    border_w / self.size.width as f32 * 2.0,
+                    (viewport.height - border_w * 2.0) / self.size.height as f32 * 2.0,
+                ],
+                color,
+            },
+            // Right border (between top and bottom)
+            crate::cell_renderer::types::BackgroundInstance {
+                position: [
+                    (viewport.x + viewport.width - border_w) / self.size.width as f32 * 2.0 - 1.0,
+                    1.0 - ((viewport.y + border_w) / self.size.height as f32 * 2.0),
+                ],
+                size: [
+                    border_w / self.size.width as f32 * 2.0,
+                    (viewport.height - border_w * 2.0) / self.size.height as f32 * 2.0,
+                ],
+                color,
+            },
+        ];
+
+        // Write instances to GPU buffer
+        self.cell_renderer.queue().write_buffer(
+            &self.cell_renderer.bg_instance_buffer,
+            0,
+            bytemuck::cast_slice(&instances),
+        );
+
+        // Render focus indicator
+        let mut encoder =
+            self.cell_renderer
+                .device()
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("focus indicator encoder"),
+                });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("focus indicator pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: surface_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // Don't clear - render on top
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            render_pass.set_pipeline(&self.cell_renderer.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.cell_renderer.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.cell_renderer.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..instances.len() as u32);
+        }
+
+        self.cell_renderer
+            .queue()
+            .submit(std::iter::once(encoder.finish()));
+        Ok(())
     }
 
     /// Render egui overlay on top of the terminal

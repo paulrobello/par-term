@@ -14,6 +14,10 @@ pub struct MouseState {
     pub click_position: Option<(usize, usize)>, // Position of last click in cell coordinates
     pub detected_urls: Vec<url_detection::DetectedUrl>, // URLs detected in visible terminal area
     pub hovered_url: Option<String>, // URL currently under mouse cursor
+
+    // Divider drag state
+    pub dragging_divider: Option<usize>, // Index of divider being dragged
+    pub divider_hover: bool,             // Whether hovering over a divider
 }
 
 impl Default for MouseState {
@@ -34,6 +38,8 @@ impl MouseState {
             click_position: None,
             detected_urls: Vec::new(),
             hovered_url: None,
+            dragging_divider: None,
+            divider_hover: false,
         }
     }
 }

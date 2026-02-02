@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **tmux Control Mode Enhancements**: Improved multi-client support and bidirectional sync (#62)
+  - **Bidirectional pane resize**: Resizing panes in par-term now updates external tmux clients
+  - **Multi-client size sync**: Sets `window-size smallest` on connect so tmux respects par-term's size
+  - **Focus-aware size assertion**: Re-asserts client size when par-term window gains focus
+  - Horizontal divider drags sync height, vertical divider drags sync width (no cascade issues)
+
 - **Session Logging and Recording**: Automatic session logging to record terminal output (#60)
   - **Automatic logging**: Enable via `auto_log_sessions` config option
   - **Multiple log formats**:
@@ -249,6 +255,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **tmux Control Mode Client Size**: Fixed `refresh-client -C` command format (was using comma separator instead of `x`)
+  - Command now correctly sends `refresh-client -C 80x24` instead of `refresh-client -C 80,24`
+  - Enables proper multi-client sizing where tmux respects par-term's dimensions
 - **Default Keybindings Not Available for Existing Users**: New default keybindings are now automatically merged into existing user configs
   - When loading config, any new default keybindings whose actions don't exist in user's config are added
   - Ensures existing users get access to new features like `paste_special` without manual config editing

@@ -358,6 +358,35 @@ impl CustomShaderRenderer {
         &self.intermediate_texture_view
     }
 
+    /// Clear the intermediate texture (e.g., when switching to split pane mode)
+    ///
+    /// This prevents old single-pane content from showing through the shader.
+    pub fn clear_intermediate_texture(&self, device: &Device, queue: &Queue) {
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Clear Intermediate Texture Encoder"),
+        });
+
+        {
+            let _clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Clear Intermediate Texture Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &self.intermediate_texture_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+        }
+
+        queue.submit(std::iter::once(encoder.finish()));
+    }
+
     /// Resize the intermediate texture when window size changes
     pub fn resize(&mut self, device: &Device, width: u32, height: u32) {
         if width == self.texture_width && height == self.texture_height {

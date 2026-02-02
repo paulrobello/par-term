@@ -245,6 +245,29 @@ impl WindowState {
                         return; // Exit early: scrollbar handling takes precedence over selection
                     }
 
+                    // --- 5b. Divider Click ---
+                    // Check if clicking on a pane divider to start resize
+                    if let Some(tab) = self.tab_manager.active_tab_mut()
+                        && let Some(divider_idx) = tab.find_divider_at(mouse_x, mouse_y)
+                    {
+                        // Start divider drag
+                        tab.mouse.dragging_divider = Some(divider_idx);
+                        log::debug!("Started dragging divider {}", divider_idx);
+                        return; // Exit early: divider drag started
+                    }
+
+                    // --- 5c. Pane Focus ---
+                    // If tab has multiple panes, focus the clicked pane
+                    if let Some(tab) = self.tab_manager.active_tab_mut()
+                        && tab.has_multiple_panes()
+                        && let Some(pane_id) = tab.focus_pane_at(mouse_x, mouse_y)
+                    {
+                        log::debug!("Focused pane {} via mouse click", pane_id);
+                        // Also update tmux focused pane for correct input routing
+                        self.set_tmux_focused_pane_from_native(pane_id);
+                        self.needs_redraw = true;
+                    }
+
                     // --- 6. Selection Anchoring & Click Counting ---
                     // Handle complex selection modes based on click sequence
                     if let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
@@ -337,6 +360,40 @@ impl WindowState {
                         return;
                     }
 
+                    // End divider drag
+                    let divider_info = self.tab_manager.active_tab().and_then(|t| {
+                        let idx = t.mouse.dragging_divider?;
+                        let divider = t.get_divider(idx)?;
+                        Some((idx, divider.is_horizontal))
+                    });
+
+                    if let Some((_divider_idx, is_horizontal)) = divider_info {
+                        if let Some(tab) = self.tab_manager.active_tab_mut() {
+                            tab.mouse.dragging_divider = None;
+                            log::debug!("Ended divider drag");
+                        }
+                        // Sync pane resize to tmux if gateway is active
+                        // Pass whether this was a horizontal divider (affects height) or vertical (affects width)
+                        self.sync_pane_resize_to_tmux(is_horizontal);
+                        self.needs_redraw = true;
+                        self.request_redraw();
+                        return;
+                    } else if self
+                        .tab_manager
+                        .active_tab()
+                        .and_then(|t| t.mouse.dragging_divider)
+                        .is_some()
+                    {
+                        // Fallback: divider was being dragged but we couldn't get info
+                        if let Some(tab) = self.tab_manager.active_tab_mut() {
+                            tab.mouse.dragging_divider = None;
+                            log::debug!("Ended divider drag (no info)");
+                        }
+                        self.needs_redraw = true;
+                        self.request_redraw();
+                        return;
+                    }
+
                     // End selection and optionally copy to clipboard/primary selection
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
                         tab.mouse.is_selecting = false;
@@ -369,6 +426,8 @@ impl WindowState {
                                 log::error!("Failed to copy to clipboard: {}", e);
                             } else {
                                 log::debug!("Copied {} chars to clipboard", selected_text.len());
+                                // Sync to tmux paste buffer if connected
+                                self.sync_clipboard_to_tmux(&selected_text);
                             }
                         }
 
@@ -544,6 +603,61 @@ impl WindowState {
             }
             self.drag_scrollbar_to(position.1 as f32);
             return; // Exit early: scrollbar dragging takes precedence over selection
+        }
+
+        // --- 4b. Divider Dragging ---
+        // Handle pane divider drag resize
+        let divider_dragging = self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.mouse.dragging_divider);
+
+        if let Some(divider_index) = divider_dragging {
+            // Actively dragging a divider
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.drag_divider(divider_index, position.0 as f32, position.1 as f32);
+            }
+            self.needs_redraw = true;
+            self.request_redraw();
+            return; // Exit early: divider dragging takes precedence
+        }
+
+        // --- 4c. Divider Hover Detection ---
+        // Check if mouse is hovering over a pane divider
+        let is_on_divider = self
+            .tab_manager
+            .active_tab()
+            .is_some_and(|t| t.is_on_divider(position.0 as f32, position.1 as f32));
+
+        let was_hovering = self
+            .tab_manager
+            .active_tab()
+            .is_some_and(|t| t.mouse.divider_hover);
+
+        if is_on_divider != was_hovering {
+            // Hover state changed
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.mouse.divider_hover = is_on_divider;
+            }
+            if let Some(window) = &self.window {
+                if is_on_divider {
+                    // Get divider orientation to set correct cursor
+                    if let Some(tab) = self.tab_manager.active_tab()
+                        && let Some(divider_idx) =
+                            tab.find_divider_at(position.0 as f32, position.1 as f32)
+                        && let Some(divider) = tab.get_divider(divider_idx)
+                    {
+                        let cursor = if divider.is_horizontal {
+                            winit::window::CursorIcon::RowResize
+                        } else {
+                            winit::window::CursorIcon::ColResize
+                        };
+                        window.set_cursor(cursor);
+                    }
+                } else {
+                    window.set_cursor(winit::window::CursorIcon::Text);
+                }
+            }
         }
 
         // --- 5. Drag Selection Logic ---

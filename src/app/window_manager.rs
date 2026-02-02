@@ -432,6 +432,62 @@ impl WindowManager {
                     self.apply_window_positioning(win, event_loop);
                 }
 
+                // Handle tmux auto-attach on first window only
+                if self.windows.is_empty()
+                    && window_state.config.tmux_enabled
+                    && window_state.config.tmux_auto_attach
+                {
+                    let session_name = window_state.config.tmux_auto_attach_session.clone();
+
+                    // Use gateway mode: writes tmux commands to existing PTY
+                    if let Some(ref name) = session_name {
+                        if !name.is_empty() {
+                            log::info!(
+                                "tmux auto-attach: attempting to attach to session '{}' via gateway",
+                                name
+                            );
+                            match window_state.attach_tmux_gateway(name) {
+                                Ok(()) => {
+                                    log::info!(
+                                        "tmux auto-attach: gateway initiated for session '{}'",
+                                        name
+                                    );
+                                }
+                                Err(e) => {
+                                    log::warn!(
+                                        "tmux auto-attach: failed to attach to '{}': {} - continuing without tmux",
+                                        name,
+                                        e
+                                    );
+                                    // Continue without tmux - don't fail startup
+                                }
+                            }
+                        } else {
+                            // Empty string means create new session
+                            log::info!(
+                                "tmux auto-attach: no session specified, creating new session via gateway"
+                            );
+                            if let Err(e) = window_state.initiate_tmux_gateway(None) {
+                                log::warn!(
+                                    "tmux auto-attach: failed to create new session: {} - continuing without tmux",
+                                    e
+                                );
+                            }
+                        }
+                    } else {
+                        // None means create new session
+                        log::info!(
+                            "tmux auto-attach: no session specified, creating new session via gateway"
+                        );
+                        if let Err(e) = window_state.initiate_tmux_gateway(None) {
+                            log::warn!(
+                                "tmux auto-attach: failed to create new session: {} - continuing without tmux",
+                                e
+                            );
+                        }
+                    }
+                }
+
                 self.windows.insert(window_id, window_state);
                 self.pending_window_count += 1;
 
@@ -679,9 +735,13 @@ impl WindowManager {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                     && let Some(text) = window_state.get_selected_text()
-                    && let Err(e) = window_state.input_handler.copy_to_clipboard(&text)
                 {
-                    log::error!("Failed to copy to clipboard: {}", e);
+                    if let Err(e) = window_state.input_handler.copy_to_clipboard(&text) {
+                        log::error!("Failed to copy to clipboard: {}", e);
+                    } else {
+                        // Sync to tmux paste buffer if connected
+                        window_state.sync_clipboard_to_tmux(&text);
+                    }
                 }
             }
             MenuAction::Paste => {

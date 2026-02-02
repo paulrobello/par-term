@@ -299,6 +299,63 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
             key: "CmdOrCtrl+Shift+R".to_string(),
             action: "toggle_session_logging".to_string(),
         },
+        // Split pane shortcuts
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+D".to_string(),
+            action: "split_horizontal".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+D".to_string(),
+            action: "split_vertical".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+W".to_string(),
+            action: "close_pane".to_string(),
+        },
+        // Pane navigation shortcuts
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+Left".to_string(),
+            action: "navigate_pane_left".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+Right".to_string(),
+            action: "navigate_pane_right".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+Up".to_string(),
+            action: "navigate_pane_up".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+Down".to_string(),
+            action: "navigate_pane_down".to_string(),
+        },
+        // Pane resize shortcuts (grow focused pane in direction)
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+Shift+Left".to_string(),
+            action: "resize_pane_left".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+Shift+Right".to_string(),
+            action: "resize_pane_right".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+Shift+Up".to_string(),
+            action: "resize_pane_up".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+Shift+Down".to_string(),
+            action: "resize_pane_down".to_string(),
+        },
+        // Broadcast input mode
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+I".to_string(),
+            action: "toggle_broadcast_input".to_string(),
+        },
+        // tmux session picker
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Alt+T".to_string(),
+            action: "toggle_tmux_session_picker".to_string(),
+        },
     ]
 }
 
@@ -361,6 +418,72 @@ pub fn unicode_version() -> par_term_emu_core_rust::UnicodeVersion {
 
 pub fn ambiguous_width() -> par_term_emu_core_rust::AmbiguousWidth {
     par_term_emu_core_rust::AmbiguousWidth::Narrow
+}
+
+// Split pane defaults
+pub fn pane_divider_width() -> Option<f32> {
+    Some(2.0) // 2 pixel divider between panes
+}
+
+pub fn pane_divider_hit_width() -> f32 {
+    8.0 // 8 pixel hit area for drag-to-resize (larger than visual for easier grabbing)
+}
+
+pub fn pane_padding() -> f32 {
+    4.0 // 4 pixel padding inside panes (space between content and border/divider)
+}
+
+pub fn pane_min_size() -> usize {
+    10 // Minimum pane size in cells (columns or rows)
+}
+
+pub fn pane_background_opacity() -> f32 {
+    0.85 // 85% opacity allows background/shader to show through slightly
+}
+
+pub fn pane_divider_color() -> [u8; 3] {
+    [80, 80, 80] // Subtle gray divider
+}
+
+pub fn pane_divider_hover_color() -> [u8; 3] {
+    [120, 150, 200] // Brighter color on hover for resize feedback
+}
+
+pub fn inactive_pane_opacity() -> f32 {
+    0.7 // 70% opacity for inactive panes
+}
+
+pub fn max_panes() -> usize {
+    16 // Maximum panes per tab
+}
+
+pub fn pane_title_height() -> f32 {
+    20.0 // 20 pixel title bar height for panes
+}
+
+pub fn pane_focus_color() -> [u8; 3] {
+    [100, 150, 255] // Blue highlight for focused pane
+}
+
+pub fn pane_focus_width() -> f32 {
+    2.0 // 2 pixel border around focused pane
+}
+
+// tmux integration defaults
+pub fn tmux_path() -> String {
+    "tmux".to_string() // Use PATH to find tmux
+}
+
+pub fn tmux_default_session() -> Option<String> {
+    None // No default session name
+}
+
+pub fn tmux_auto_attach_session() -> Option<String> {
+    None // No auto-attach session
+}
+
+pub fn tmux_prefix_key() -> String {
+    "C-b".to_string() // Standard tmux prefix (Ctrl+B)
 }
 
 // Session logging defaults

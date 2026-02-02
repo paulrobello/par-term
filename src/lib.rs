@@ -20,6 +20,7 @@ pub mod keybindings;
 pub mod macos_blur; // macOS window blur using private CGS API
 pub mod macos_metal; // macOS-specific CAMetalLayer configuration
 pub mod menu;
+pub mod pane;
 pub mod paste_special_ui;
 pub mod paste_transform;
 pub mod profile;
@@ -44,5 +45,7 @@ pub mod tab_bar_ui;
 pub mod terminal;
 pub mod text_shaper;
 pub mod themes;
+pub mod tmux;
+pub mod tmux_session_picker_ui;
 pub mod update_checker;
 pub mod url_detection;

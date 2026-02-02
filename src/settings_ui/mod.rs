@@ -16,6 +16,7 @@ pub mod keybindings_tab;
 pub mod keyboard_tab;
 pub mod logging_tab;
 pub mod mouse_tab;
+pub mod panes_tab;
 pub mod screenshot_tab;
 pub mod scrollbar_tab;
 pub mod search_tab;
@@ -26,6 +27,7 @@ pub mod shell_tab;
 pub mod tab_bar_tab;
 pub mod terminal_tab;
 pub mod theme_tab;
+pub mod tmux_tab;
 pub mod update_tab;
 pub mod window_tab;
 
@@ -767,6 +769,35 @@ impl SettingsUI {
             insert_section_separator(ui, &mut section_shown);
             matches_found = true;
             tab_bar_tab::show(ui, self, changes_this_frame);
+        }
+
+        // Split Panes
+        if section_matches(
+            "Split Panes",
+            &[
+                "Pane",
+                "Panes",
+                "Split",
+                "Divider",
+                "Focus indicator",
+                "Dim inactive",
+                "Pane title",
+                "Max panes",
+            ],
+        ) {
+            insert_section_separator(ui, &mut section_shown);
+            matches_found = true;
+            panes_tab::show(ui, self, changes_this_frame);
+        }
+
+        // tmux Integration
+        if section_matches(
+            "tmux Integration",
+            &["tmux", "Control mode", "Session", "Attach", "Auto-attach"],
+        ) {
+            insert_section_separator(ui, &mut section_shown);
+            matches_found = true;
+            tmux_tab::show(ui, self, changes_this_frame);
         }
 
         // Terminal
