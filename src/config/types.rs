@@ -295,6 +295,98 @@ pub enum ShaderInstallPrompt {
     Installed,
 }
 
+/// State of an integration's install prompt
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum InstallPromptState {
+    /// Prompt user when appropriate (default)
+    #[default]
+    Ask,
+    /// User said "never ask again"
+    Never,
+    /// Currently installed
+    Installed,
+}
+
+impl InstallPromptState {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Ask => "Ask",
+            Self::Never => "Never",
+            Self::Installed => "Installed",
+        }
+    }
+}
+
+/// Tracks installed and prompted versions for integrations
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct IntegrationVersions {
+    /// Version when shaders were installed
+    pub shaders_installed_version: Option<String>,
+    /// Version when user was last prompted about shaders
+    pub shaders_prompted_version: Option<String>,
+    /// Version when shell integration was installed
+    pub shell_integration_installed_version: Option<String>,
+    /// Version when user was last prompted about shell integration
+    pub shell_integration_prompted_version: Option<String>,
+}
+
+/// Detected shell type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShellType {
+    Bash,
+    Zsh,
+    Fish,
+    Unknown,
+}
+
+impl ShellType {
+    /// Detect shell from $SHELL environment variable
+    pub fn detect() -> Self {
+        if let Ok(shell) = std::env::var("SHELL") {
+            if shell.contains("zsh") {
+                Self::Zsh
+            } else if shell.contains("bash") {
+                Self::Bash
+            } else if shell.contains("fish") {
+                Self::Fish
+            } else {
+                Self::Unknown
+            }
+        } else {
+            Self::Unknown
+        }
+    }
+
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Bash => "Bash",
+            Self::Zsh => "Zsh",
+            Self::Fish => "Fish",
+            Self::Unknown => "Unknown",
+        }
+    }
+
+    /// File extension for integration script
+    pub fn extension(&self) -> &'static str {
+        match self {
+            Self::Bash => "bash",
+            Self::Zsh => "zsh",
+            Self::Fish => "fish",
+            Self::Unknown => "sh",
+        }
+    }
+}
+
+impl Default for ShellType {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
 /// Update check frequency
 ///
 /// Controls how often par-term checks GitHub for new releases.
