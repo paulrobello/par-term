@@ -1,0 +1,438 @@
+{
+  "version": "0.6.0",
+  "generated": "2026-02-02T23:35:26.106195+00:00",
+  "files": [
+    {
+      "path": "animated-gradient-shader.glsl",
+      "sha256": "463bd17a21ff9a7a1759fb75e3b00bbddb77dd18f129ccbc4a7cdfa23b5e865a",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "arcane-portal.glsl",
+      "sha256": "3ef3b8f9b10a58f7d3fb785c4b9315dcf993b77ca309a738683d341f058e9018",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "bloom.glsl",
+      "sha256": "6e56f38263d54b4050db6e6a0a59d32637a22925810957768ec601e6b3e67e55",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "bumped_sinusoidal_warp.glsl",
+      "sha256": "7006a9af8c9421d68e5a9f59126970247416018f11ee259f941ca9bf8d3f0d85",
+      "type": "shader",
+      "category": "abstract"
+    },
+    {
+      "path": "cineShader-Lava.glsl",
+      "sha256": "6f247a731202fb84a83f68b8ad8be059b326a1310ec6effb9f9950bd70b078b1",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "clouds.glsl",
+      "sha256": "18ff1f1398b1efbb694f29482f789e70512008bedd3b3668ea6f94f4e4eb7240",
+      "type": "shader",
+      "category": "nature"
+    },
+    {
+      "path": "convergence.glsl",
+      "sha256": "b133529d10fa3f3b579a78b7a023b89e23ca690a1ca9dbb79ac154ec61e0e06d",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "crt.glsl",
+      "sha256": "8fceff368cefed1888525c00f613dd9aa655944bf845cdf6d34bfd53f308c268",
+      "type": "shader",
+      "category": "retro"
+    },
+    {
+      "path": "cubemap-skybox.glsl",
+      "sha256": "71be846545a028cb38ee304225fe50d722a8b2dfb7bc36333ba4dca7ca3ede03",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "cubemap-test.glsl",
+      "sha256": "06107b273a2c4e665819a6bafb7f255b43bafa99b0a371e973de162c1285da74",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "cubes.glsl",
+      "sha256": "2177c1d084a24cd7bd18ef0eefb4ff1187581bf556ff71e73f755d7390d0ab33",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "cursor_blaze.glsl",
+      "sha256": "f00623d94f15149f6af56ad20e9b6a205b45cf4520a45fda9bfb2cc5da9cec37",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_glow.glsl",
+      "sha256": "85872cb6e88a17aea0053acbc3ee843934a7b0c29324a72755294a08545e6ce8",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_orbit.glsl",
+      "sha256": "47ea209063a5fa2369c5a198d05cf3299af13f9aca57f2c19a717083312ea9bd",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_pacman.glsl",
+      "sha256": "da7b35d56c3ac0aac69bf5a2d9a7cc7a589c41fe7215a04aba5a4ec7cbcbf4f5",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_rectangle_boom.glsl",
+      "sha256": "4cc8f3e16d4245bd4f6e5c3f9e618eb2379fd55d8029bb3ba4a36ec34cbd42ae",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_ripple.glsl",
+      "sha256": "ad43d9939510d17ba02e37b7d5ef9f46bcd5d7343c73ee2b2ad3c311053293a0",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_ripple_rectangle.glsl",
+      "sha256": "411644cda8423ea1454adaab7693894206089be4ba1102dc9a8f9d09d559afd7",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_sonic_boom.glsl",
+      "sha256": "40b0d6779b9973c4319499061bddc6a7208afa11dea26edd9493a54bc21324b0",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_sweep.glsl",
+      "sha256": "98e4f82e644ccca840aec293161068d219758a44bf0c21c0099545573a1436e4",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_trail.glsl",
+      "sha256": "8281f1056b6b4ced6b943208dcce5384484c225eacab1810cc73a9aaa0dc0295",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_warp.glsl",
+      "sha256": "5eeb2e5a5af1b5d0946d6908528cdda4e8424c82d790366422ee4fe5d5ac3c43",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "cursor_water_tank.glsl",
+      "sha256": "650e36fb42a79d26ae7cfcd2c1764bc2757ebbd5818e91ae5af57133f3c22276",
+      "type": "cursor_shader",
+      "category": "cursor"
+    },
+    {
+      "path": "dither.glsl",
+      "sha256": "94b7f74f698b29009441d1f90e89142c4ffcda5ac059ff5353499c50f7f9e64a",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "dodecagon-pattern.glsl",
+      "sha256": "f903551114ac9a81501d2939770c994b891cd9e5dd5c57fa0ec10dfa2f9c251f",
+      "type": "shader",
+      "category": "abstract"
+    },
+    {
+      "path": "drunkard.glsl",
+      "sha256": "9433e284fc200a438c266235f869e4e1ede86eb365f36ccdcc93e935f4809d46",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "fireworks-rockets.glsl",
+      "sha256": "b93cec015ccd5433fbd42780e1d7af965c64f006399a451533fbb3237ba182c3",
+      "type": "shader",
+      "category": "nature"
+    },
+    {
+      "path": "fireworks.glsl",
+      "sha256": "4fc33da8d6ed1dccd8808afed635583ac6116452c7e395abce49066455ffbfa5",
+      "type": "shader",
+      "category": "nature"
+    },
+    {
+      "path": "galaxy.glsl",
+      "sha256": "def1d65ca4cc294db407b0c96936060c084d6d614f0a36197eb15d2f160ed4df",
+      "type": "shader",
+      "category": "space"
+    },
+    {
+      "path": "gears-and-belts.glsl",
+      "sha256": "8476f2e43dd6fe78bd49a5281885051243bf66ce3141699579531f7e7f7b3806",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "glitchy.glsl",
+      "sha256": "01dd82f4264990cafc69ca44e51b973441d6cbf0e39e3edfe53c75efaf561a1e",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "glow-rgbsplit-twitchy.glsl",
+      "sha256": "a40cc66746c39884c707cb70a1d8c7cdeeddbd98886e13286b30072fde7293c4",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "gradient-background.glsl",
+      "sha256": "9c283764657d957159b7428eca4721e98b361bb9ac9c07882eb713af2f0a66d3",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "gyroid.glsl",
+      "sha256": "dadfb841a4a28dd7193374dc6ed9f84fc057a675b5ffdfa69cf4736f79bbc347",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "happy_fractal.glsl",
+      "sha256": "ce5c3fc379bce89ff97bf7a9c2021f4ae9d68811ec9ec55fdc5af23af4cc1856",
+      "type": "shader",
+      "category": "abstract"
+    },
+    {
+      "path": "inside-the-matrix.glsl",
+      "sha256": "af6a633a04cdbbd4d53e22c8323b9669950584f09cf8bdca398c133bef5a9998",
+      "type": "shader",
+      "category": "matrix"
+    },
+    {
+      "path": "just-snow.glsl",
+      "sha256": "ca089221ecc023ad060cb439a52c85436ab5a6bfa539731a2340067b7636bdf2",
+      "type": "shader",
+      "category": "nature"
+    },
+    {
+      "path": "keypress_pulse.glsl",
+      "sha256": "5ca6c584bdb73a9102e41fc3ed9341e802aa2a8e6d4bd84e99db98294817a6e2",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "rain.glsl",
+      "sha256": "d823161b4a4efa46125ef32d839ae4db0b82d7b7b7940d4340dd6285cdff3c4c",
+      "type": "shader",
+      "category": "nature"
+    },
+    {
+      "path": "retro-terminal.glsl",
+      "sha256": "0559955e2b0f937c7bc6177aa1ed6019743bfae060baa3b6485fbb121c82450b",
+      "type": "shader",
+      "category": "retro"
+    },
+    {
+      "path": "sin-interference.glsl",
+      "sha256": "abdccfb301c0e0a716de0f32a7b3544f09df22966e33eec54e65fb819f9ce701",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "singularity.glsl",
+      "sha256": "ca93ce39b4e674d9f1f748facebc9cad7f58e02d0b2f84dd88781da17a2d2be4",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "sparks-from-fire.glsl",
+      "sha256": "3af789b5cd1d2a355c49bdd9d65812293fe1384d26dfe183959cec72bddb90fd",
+      "type": "shader",
+      "category": "nature"
+    },
+    {
+      "path": "spotlight.glsl",
+      "sha256": "7ed355fe2234c31920c4f2c654471ce838a80d117730de4b74c0537c89e737b4",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "starfield-colors.glsl",
+      "sha256": "8ae58c87cea126da20e4a5fa526ef3332f9aa048b29d770789d7b927a9e4024f",
+      "type": "shader",
+      "category": "space"
+    },
+    {
+      "path": "starfield.glsl",
+      "sha256": "7be8f613d4fd5d28fa5fdeef3809534dcaac3d9e039ccff089b632550f914967",
+      "type": "shader",
+      "category": "space"
+    },
+    {
+      "path": "textures/cubemaps/env-outside-nx.png",
+      "sha256": "f8e609f4b6d943c519d4d3ab8b4733c70ea4f262d1e1bb959127c061a2f68fe3",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-outside-ny.png",
+      "sha256": "ba45d8661d4a5fc6101edbc0a20c0ddfbd4340412b7db7f4b0e309eeaa0e377d",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-outside-nz.png",
+      "sha256": "4fc0efb7e74c0e67cb2b4d65b9968ee689f1107dadc7fbf8964538569694a8ba",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-outside-px.png",
+      "sha256": "117ea4d5652bb7867ef3f5a6311ea78c1760b13d180df65e7ed2b7e646d02da9",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-outside-py.png",
+      "sha256": "b8e21704bd1568789a62e71ff30a003d3795623a6a815d2c2c3d92f22be003cb",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-outside-pz.png",
+      "sha256": "181fd58b637881b5a5eba88d6eb569f058953c7b689ecf74f86e75d9f1b10831",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-test-nx.png",
+      "sha256": "f761358c261d06793865761be899e94ed9bcd8cfe21d7ad1f5b999a4ff39958b",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-test-ny.png",
+      "sha256": "131d83354e1fda8d43ffe10fbcf254abfcb59ac65ceb95f2bc0bd655d61a5b2a",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-test-nz.png",
+      "sha256": "417dafb2235a56e744b5a354ef071138d5723371f1340b7775f4825d6583eb9b",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-test-px.png",
+      "sha256": "e7e3bfba058439f157e85c293953159f5ec25f046c068db359cd862f44f33e53",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-test-py.png",
+      "sha256": "edddba2d119c759b879cf542fe87c2384dd7936e8071befbe7816f9eef99da3a",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/cubemaps/env-test-pz.png",
+      "sha256": "39eeca297a37d29e9ee682dc8664e1a70e8aa12b8b91948f85d6db41dec829bf",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/env-outside.png",
+      "sha256": "750267848b8803f6f59dbd421393147ea488c735772943f674c6c57b88a2e31c",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/metalic1.jpg",
+      "sha256": "ef063b8f751db77d2ca4ef8a7f28ba60096e58cc8250b30f32923f99b067c9aa",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/wallpaper/Abstract1.png",
+      "sha256": "4c0088b8aa25425365b9cb2962c3deace76476f2e1299f437d207e9ec31a2d01",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/wallpaper/BarsAndOrbs.png",
+      "sha256": "a34076f0d3d00dd6734ac17323b83ac13bbf2acc87e937ae8c7baa97726e9f58",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/wallpaper/Bulbs.png",
+      "sha256": "cf540b2de3a87c5b772e50b90cb75aa89acec595dfa91e96637fee5b77808c58",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/wallpaper/DNA.png",
+      "sha256": "ec332fa2d568fbc983b2356bdc707c8a646d4d0a64fb358c3ca45e0be89a09f1",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/wallpaper/EarthProcedural.png",
+      "sha256": "1c34bc0f2ac7b4240e16ad7a4143e83b2bdf8f4732654db9c432f9f3a4fcaa81",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/wallpaper/HexBalls.png",
+      "sha256": "730a18b7b9f440720c3feba651456fea8d09c616c7992e60dd0f8d46cd6a8f56",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/wallpaper/MagicMushrooms.png",
+      "sha256": "f1c5c2889ab37d118b8574bce29eb514f71af8c47b60f171b8f6e5a22d2ac2b5",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "textures/wallpaper/README.md",
+      "sha256": "61f12213cb113a624cb03c1c1f3218c56d7bed283448253e08cb1bcd3413c81f",
+      "type": "doc",
+      "category": "effects"
+    },
+    {
+      "path": "textures/wallpaper/SciFi1.png",
+      "sha256": "003d603948a463ae26b97f1fc275b90042bd6cbe81f90141fd04e6aa8caafda1",
+      "type": "texture",
+      "category": "texture"
+    },
+    {
+      "path": "underwater.glsl",
+      "sha256": "6be64d304c163ef3f8df737146721f637fb6d005dfad2e37a01bb1184d6b7018",
+      "type": "shader",
+      "category": "nature"
+    },
+    {
+      "path": "universe-within.glsl",
+      "sha256": "05be474da921ff472edf47a70e34a4e61e57634f75f54fa66378c5dedc388b10",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
+      "path": "water.glsl",
+      "sha256": "e3781a298b4852845689382b43872aca5e043b827a9c1b3f84e6f596f4d830dd",
+      "type": "shader",
+      "category": "nature"
+    }
+  ]
+}
