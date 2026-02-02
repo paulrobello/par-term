@@ -38,6 +38,7 @@ pub mod settings_window;
 pub mod shader_install_ui;
 pub mod shader_installer;
 pub mod shader_watcher;
+pub mod shell_integration_installer;
 pub mod shell_quote;
 pub mod smart_selection;
 pub mod styled_content;
