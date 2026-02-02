@@ -14,9 +14,12 @@ par-term is a cross-platform GPU-accelerated terminal emulator frontend built in
 ## Development Commands
 
 ### Build & Run
+
+**IMPORTANT**: When not actively debugging, always use `make release` to compile. Debug builds are significantly slower and may not represent actual performance. Only use debug builds when you need to add logging or step through code.
+
 ```bash
-make build          # Debug build
-make release        # Optimized release build
+make build          # Debug build (only for debugging)
+make release        # Optimized release build (preferred)
 make run            # Run in debug mode
 make run-release    # Run in release mode
 

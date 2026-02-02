@@ -6,30 +6,30 @@
 use crate::config::{Config, CursorShaderMetadataCache, ShaderMetadataCache};
 use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 use rfd::FileDialog;
+use std::collections::HashSet;
 
+// Reorganized settings tabs (7 consolidated tabs)
+pub mod advanced_tab;
+pub mod appearance_tab;
+pub mod effects_tab;
+pub mod input_tab;
+pub mod notifications_tab;
+pub mod quick_settings;
+pub mod section;
+pub mod sidebar;
+pub mod terminal_tab;
+pub mod window_tab;
+
+// Background tab is still needed by effects_tab for delegation
 pub mod background_tab;
-pub mod bell_tab;
+
+// Shader editor components (used by background_tab)
 mod cursor_shader_editor;
-pub mod cursor_tab;
-pub mod font_tab;
-pub mod keybindings_tab;
-pub mod keyboard_tab;
-pub mod logging_tab;
-pub mod mouse_tab;
-pub mod panes_tab;
-pub mod screenshot_tab;
-pub mod scrollbar_tab;
-pub mod search_tab;
 mod shader_dialogs;
 mod shader_editor;
 mod shader_utils;
-pub mod shell_tab;
-pub mod tab_bar_tab;
-pub mod terminal_tab;
-pub mod theme_tab;
-pub mod tmux_tab;
-pub mod update_tab;
-pub mod window_tab;
+
+pub use sidebar::SettingsTab;
 
 /// Result of shader editor actions
 #[derive(Debug, Clone)]
@@ -167,6 +167,13 @@ pub struct SettingsUI {
     // Notification test state
     /// Flag to request sending a test notification
     pub(crate) test_notification_requested: bool,
+
+    // New UI state for reorganized settings
+    /// Currently selected settings tab (new sidebar navigation)
+    pub(crate) selected_tab: SettingsTab,
+    /// Set of collapsed section IDs (sections start open by default, collapsed when user collapses them)
+    #[allow(dead_code)]
+    pub(crate) collapsed_sections: HashSet<String>,
 }
 
 impl SettingsUI {
@@ -246,6 +253,8 @@ impl SettingsUI {
             keybinding_recording_index: None,
             keybinding_recorded_combo: None,
             test_notification_requested: false,
+            selected_tab: SettingsTab::default(),
+            collapsed_sections: HashSet::new(),
         }
     }
 
@@ -686,365 +695,78 @@ impl SettingsUI {
         )
     }
 
-    /// Show all settings sections filtered by search query
+    /// Show all settings sections using the new sidebar + tab layout.
     fn show_settings_sections(&mut self, ui: &mut egui::Ui, changes_this_frame: &mut bool) {
-        let query = self.search_query.trim().to_lowercase();
-        let mut matches_found = false;
-        let mut section_shown = false;
+        // Quick settings strip at the top
+        quick_settings::show(ui, self, changes_this_frame);
+        ui.separator();
 
-        let insert_section_separator = |ui: &mut egui::Ui, shown: &mut bool| {
-            if *shown {
+        // Get available dimensions for the main content area
+        let available_width = ui.available_width();
+        let available_height = ui.available_height();
+        let sidebar_width = 150.0;
+        let content_width = (available_width - sidebar_width - 15.0).max(300.0);
+
+        // Main content area with sidebar and tab content
+        // Use allocate_ui_with_layout to ensure the horizontal layout fills available height
+        let layout = egui::Layout::left_to_right(egui::Align::Min);
+        ui.allocate_ui_with_layout(
+            egui::vec2(available_width, available_height),
+            layout,
+            |ui| {
+                // Left sidebar for tab navigation (fixed width)
+                ui.allocate_ui_with_layout(
+                    egui::vec2(sidebar_width, available_height),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        sidebar::show(ui, &mut self.selected_tab, &self.search_query);
+                    },
+                );
+
                 ui.separator();
-            } else {
-                *shown = true;
+
+                // Right content area for selected tab (fills remaining space)
+                ui.allocate_ui_with_layout(
+                    egui::vec2(content_width, available_height),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_salt("settings_tab_content")
+                            .max_height(available_height)
+                            .show(ui, |ui| {
+                                ui.set_min_width(content_width - 20.0);
+                                self.show_tab_content(ui, changes_this_frame);
+                            });
+                    },
+                );
+            },
+        );
+    }
+
+    /// Show the content for the currently selected tab.
+    fn show_tab_content(&mut self, ui: &mut egui::Ui, changes_this_frame: &mut bool) {
+        match self.selected_tab {
+            SettingsTab::Appearance => {
+                appearance_tab::show(ui, self, changes_this_frame);
             }
-        };
-
-        let section_matches = |title: &str, fields: &[&str]| -> bool {
-            if query.is_empty() {
-                return true;
+            SettingsTab::Window => {
+                window_tab::show(ui, self, changes_this_frame);
             }
-
-            let q = query.as_str();
-            title.to_lowercase().contains(q) || fields.iter().any(|f| f.to_lowercase().contains(q))
-        };
-
-        // Keybindings (positioned at the top for easy access)
-        if section_matches(
-            "Keybindings",
-            &[
-                "Keyboard",
-                "Shortcut",
-                "Hotkey",
-                "Binding",
-                "Key",
-                "Toggle shader",
-                "Reload config",
-                "New tab",
-                "Close tab",
-                "Fullscreen",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            keybindings_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Keyboard Input (Option/Alt key behavior)
-        if section_matches(
-            "Keyboard Input",
-            &[
-                "Option key",
-                "Alt key",
-                "Meta",
-                "Esc",
-                "Escape",
-                "Emacs",
-                "Vim",
-                "Terminal input",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            keyboard_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Window & Display
-        if section_matches(
-            "Window & Display",
-            &[
-                "Title",
-                "Width",
-                "Height",
-                "Padding",
-                "Opacity",
-                "Decorations",
-                "Always on top",
-                "Max FPS",
-                "VSync",
-                "Power Saving",
-                "Pause shaders",
-                "Unfocused",
-                "blur",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            window_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Tab Bar (positioned after Window & Display)
-        if section_matches(
-            "Tab Bar",
-            &[
-                "Tab bar",
-                "Tab background",
-                "Tab text",
-                "Tab indicator",
-                "Tab close",
-                "Active tab",
-                "Inactive tab",
-                "Bell",
-                "Activity",
-                "Tab width",
-                "Tab min",
-                "Tab scroll",
-                "Tab border",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            tab_bar_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Split Panes
-        if section_matches(
-            "Split Panes",
-            &[
-                "Pane",
-                "Panes",
-                "Split",
-                "Divider",
-                "Focus indicator",
-                "Dim inactive",
-                "Pane title",
-                "Max panes",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            panes_tab::show(ui, self, changes_this_frame);
-        }
-
-        // tmux Integration
-        if section_matches(
-            "tmux Integration",
-            &["tmux", "Control mode", "Session", "Attach", "Auto-attach"],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            tmux_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Terminal
-        if section_matches(
-            "Terminal",
-            &[
-                "Columns",
-                "Rows",
-                "Scrollback",
-                "Exit when shell exits",
-                "Answerback",
-                "ENQ",
-                "Identification",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            terminal_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Font Settings
-        if section_matches(
-            "Font",
-            &[
-                "Family",
-                "Bold",
-                "Italic",
-                "Size",
-                "Line spacing",
-                "Char spacing",
-                "Text shaping",
-                "Ligatures",
-                "Kerning",
-                "Anti-aliasing",
-                "Antialias",
-                "Hinting",
-                "Thin strokes",
-                "Retina",
-                "Font smoothing",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            font_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Theme & Colors
-        if section_matches("Theme & Colors", &["Theme"]) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            theme_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Background & Effects
-        if section_matches(
-            "Background & Effects",
-            &[
-                "Background image",
-                "Enable background image",
-                "Shader",
-                "Enable shader",
-                "Opacity",
-                "Animation",
-                "Mode",
-                "Text opacity",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            background_tab::show_background(ui, self, changes_this_frame);
-        }
-
-        // Cursor Shader (separate from background shader)
-        if section_matches(
-            "Cursor Shader",
-            &["Cursor shader", "Cursor effect", "Cursor animation"],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            background_tab::show_cursor_shader(ui, self, changes_this_frame);
-        }
-
-        // Cursor
-        if section_matches("Cursor", &["Style", "Blink", "Blink interval", "Color"]) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            cursor_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Selection & Clipboard
-        if section_matches(
-            "Selection & Clipboard",
-            &[
-                "Auto-copy",
-                "Trailing newline",
-                "Middle-click",
-                "Max clipboard",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            mouse_tab::show_selection(ui, self, changes_this_frame);
-        }
-
-        // Mouse Behavior
-        if section_matches(
-            "Mouse Behavior",
-            &["Scroll speed", "Double-click", "Triple-click"],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            mouse_tab::show_mouse_behavior(ui, self, changes_this_frame);
-        }
-
-        // Search
-        if section_matches(
-            "Search",
-            &[
-                "Search",
-                "Find",
-                "Highlight",
-                "Case sensitive",
-                "Regex",
-                "Wrap around",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            search_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Scrollbar
-        if section_matches(
-            "Scrollbar",
-            &[
-                "Width",
-                "Autohide",
-                "Position",
-                "Thumb color",
-                "Track color",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            scrollbar_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Bell & Notifications
-        if section_matches(
-            "Bell & Notifications",
-            &[
-                "Visual bell",
-                "Audio bell",
-                "Desktop notifications",
-                "Activity",
-                "Silence",
-                "Notification buffer",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            bell_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Shell Configuration
-        if section_matches(
-            "Shell Configuration",
-            &[
-                "Custom shell",
-                "Shell args",
-                "Working directory",
-                "Login shell",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            shell_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Screenshot
-        if section_matches("Screenshot", &["Format", "png", "jpeg", "svg", "html"]) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            screenshot_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Session Logging
-        if section_matches(
-            "Logging",
-            &[
-                "Session logging",
-                "Recording",
-                "Log format",
-                "Asciicast",
-                "asciinema",
-                "Archive",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            logging_tab::show(ui, self, changes_this_frame);
-        }
-
-        // Updates
-        if section_matches(
-            "Updates",
-            &[
-                "Update check",
-                "Check for updates",
-                "Version",
-                "Release",
-                "Download",
-            ],
-        ) {
-            insert_section_separator(ui, &mut section_shown);
-            matches_found = true;
-            update_tab::show_simple(ui, self, changes_this_frame);
-        }
-
-        if !matches_found && !query.is_empty() {
-            ui.label(format!("No settings match \"{}\"", self.search_query));
+            SettingsTab::Input => {
+                input_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Terminal => {
+                terminal_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Effects => {
+                effects_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Notifications => {
+                notifications_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Advanced => {
+                advanced_tab::show(ui, self, changes_this_frame);
+            }
         }
     }
 }

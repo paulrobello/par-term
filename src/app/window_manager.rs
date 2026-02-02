@@ -71,6 +71,20 @@ impl WindowManager {
         }
     }
 
+    /// Get the ID of the currently focused window.
+    /// Returns the window with `is_focused == true`, or falls back to the first window if none is focused.
+    pub fn get_focused_window_id(&self) -> Option<WindowId> {
+        // Find the window that has focus
+        for (window_id, window_state) in &self.windows {
+            if window_state.is_focused {
+                return Some(*window_id);
+            }
+        }
+        // Fallback: return the first window if no window claims focus
+        // This can happen briefly during window creation/destruction
+        self.windows.keys().next().copied()
+    }
+
     /// Check and handle timing-based CLI options (exit-after, screenshot, command)
     pub fn check_cli_timers(&mut self) {
         let Some(start_time) = self.start_time else {

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Multi-Window Focus Routing**: Menu actions (Cmd+T, Cmd+V, etc.) now correctly route to the focused window instead of an arbitrary window when multiple windows are open
+- **Settings UI Layout**: Content area now properly fills available window space instead of leaving empty space at the bottom
+- **Settings UI Control Widths**: Applied consistent width constants to sliders and text inputs across all settings tabs
+
 ### Added
 
 - **Settings UI Completeness**: Added missing UI controls for config options that were previously only configurable via config.yaml

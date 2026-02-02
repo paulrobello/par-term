@@ -830,8 +830,8 @@ impl ApplicationHandler for WindowManager {
         self.check_for_updates();
 
         // Process menu events
-        // Find focused window (for now, use the first window if any)
-        let focused_window = self.windows.keys().next().copied();
+        // Find the actually focused window (the one with is_focused == true)
+        let focused_window = self.get_focused_window_id();
         self.process_menu_events(event_loop, focused_window);
 
         // Check if any window requested opening the settings window
