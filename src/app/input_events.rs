@@ -1140,6 +1140,165 @@ impl WindowState {
                 );
                 true
             }
+            "toggle_profile_drawer" => {
+                self.toggle_profile_drawer();
+                log::info!(
+                    "Profile drawer toggled via keybinding: {}",
+                    if self.profile_drawer_ui.expanded {
+                        "expanded"
+                    } else {
+                        "collapsed"
+                    }
+                );
+                true
+            }
+            "toggle_clipboard_history" => {
+                self.toggle_clipboard_history();
+                log::info!(
+                    "Clipboard history toggled via keybinding: {}",
+                    if self.clipboard_history_ui.visible {
+                        "visible"
+                    } else {
+                        "hidden"
+                    }
+                );
+                true
+            }
+            "clear_scrollback" => {
+                let cleared = if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    if let Ok(term) = tab.terminal.try_lock() {
+                        term.clear_scrollback();
+                        tab.cache.scrollback_len = 0;
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                if cleared {
+                    self.set_scroll_target(0);
+                    log::info!("Cleared scrollback buffer via keybinding");
+                }
+                true
+            }
+            "increase_font_size" => {
+                self.config.font_size = (self.config.font_size + 1.0).min(72.0);
+                self.pending_font_rebuild = true;
+                log::info!(
+                    "Font size increased to {} via keybinding",
+                    self.config.font_size
+                );
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                true
+            }
+            "decrease_font_size" => {
+                self.config.font_size = (self.config.font_size - 1.0).max(6.0);
+                self.pending_font_rebuild = true;
+                log::info!(
+                    "Font size decreased to {} via keybinding",
+                    self.config.font_size
+                );
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                true
+            }
+            "reset_font_size" => {
+                self.config.font_size = 14.0;
+                self.pending_font_rebuild = true;
+                log::info!("Font size reset to default (14.0) via keybinding");
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                true
+            }
+            "cycle_cursor_style" => {
+                use crate::config::CursorStyle;
+                use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
+
+                self.config.cursor_style = match self.config.cursor_style {
+                    CursorStyle::Block => CursorStyle::Beam,
+                    CursorStyle::Beam => CursorStyle::Underline,
+                    CursorStyle::Underline => CursorStyle::Block,
+                };
+
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.cache.cells = None;
+                }
+                self.needs_redraw = true;
+
+                log::info!("Cycled cursor style to {:?} via keybinding", self.config.cursor_style);
+
+                let term_style = if self.config.cursor_blink {
+                    match self.config.cursor_style {
+                        CursorStyle::Block => TermCursorStyle::BlinkingBlock,
+                        CursorStyle::Beam => TermCursorStyle::BlinkingBar,
+                        CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
+                    }
+                } else {
+                    match self.config.cursor_style {
+                        CursorStyle::Block => TermCursorStyle::SteadyBlock,
+                        CursorStyle::Beam => TermCursorStyle::SteadyBar,
+                        CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
+                    }
+                };
+
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(mut term) = tab.terminal.try_lock()
+                {
+                    term.set_cursor_style(term_style);
+                }
+                true
+            }
+            "move_tab_left" => {
+                self.move_tab_left();
+                log::debug!("Moved tab left via keybinding");
+                true
+            }
+            "move_tab_right" => {
+                self.move_tab_right();
+                log::debug!("Moved tab right via keybinding");
+                true
+            }
+            "switch_to_tab_1" => {
+                self.switch_to_tab_index(1);
+                true
+            }
+            "switch_to_tab_2" => {
+                self.switch_to_tab_index(2);
+                true
+            }
+            "switch_to_tab_3" => {
+                self.switch_to_tab_index(3);
+                true
+            }
+            "switch_to_tab_4" => {
+                self.switch_to_tab_index(4);
+                true
+            }
+            "switch_to_tab_5" => {
+                self.switch_to_tab_index(5);
+                true
+            }
+            "switch_to_tab_6" => {
+                self.switch_to_tab_index(6);
+                true
+            }
+            "switch_to_tab_7" => {
+                self.switch_to_tab_index(7);
+                true
+            }
+            "switch_to_tab_8" => {
+                self.switch_to_tab_index(8);
+                true
+            }
+            "switch_to_tab_9" => {
+                self.switch_to_tab_index(9);
+                true
+            }
             _ => {
                 log::warn!("Unknown keybinding action: {}", action);
                 false

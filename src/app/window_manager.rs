@@ -1379,18 +1379,18 @@ impl WindowManager {
             }
 
             // Restart refresh tasks when max_fps changes
-            if changes.max_fps {
-                if let Some(window) = &window_state.window {
-                    for tab in window_state.tab_manager.tabs_mut() {
-                        tab.stop_refresh_task();
-                        tab.start_refresh_task(
-                            Arc::clone(&window_state.runtime),
-                            Arc::clone(window),
-                            config.max_fps,
-                        );
-                    }
-                    log::info!("Restarted refresh tasks with max_fps={}", config.max_fps);
+            if changes.max_fps
+                && let Some(window) = &window_state.window
+            {
+                for tab in window_state.tab_manager.tabs_mut() {
+                    tab.stop_refresh_task();
+                    tab.start_refresh_task(
+                        Arc::clone(&window_state.runtime),
+                        Arc::clone(window),
+                        config.max_fps,
+                    );
                 }
+                log::info!("Restarted refresh tasks with max_fps={}", config.max_fps);
             }
 
             // Invalidate cache

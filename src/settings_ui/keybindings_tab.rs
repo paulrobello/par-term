@@ -10,6 +10,25 @@ use crate::config::KeyBinding;
 /// All available keybinding actions with their descriptions and default key combos.
 /// Format: (action_name, display_name, default_key_combo or None)
 const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
+    // UI toggles
+    ("toggle_help", "Toggle Help Panel", Some("F1")),
+    ("toggle_fps_overlay", "Toggle FPS Overlay", Some("F3")),
+    ("reload_config", "Reload Configuration", Some("F5")),
+    ("toggle_fullscreen", "Toggle Fullscreen", Some("F11")),
+    ("open_settings", "Open Settings", Some("F12")),
+    ("toggle_search", "Toggle Search", Some("CmdOrCtrl+F")),
+    (
+        "toggle_profile_drawer",
+        "Toggle Profile Drawer",
+        Some("CmdOrCtrl+Shift+P"),
+    ),
+    (
+        "toggle_clipboard_history",
+        "Toggle Clipboard History",
+        Some("Ctrl+Shift+H"),
+    ),
+    ("maximize_vertically", "Maximize Vertically", None),
+    // Shader toggles
     (
         "toggle_background_shader",
         "Toggle Background Shader",
@@ -20,26 +39,30 @@ const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle Cursor Shader",
         Some("CmdOrCtrl+Shift+U"),
     ),
-    ("reload_config", "Reload Configuration", Some("F5")),
-    ("open_settings", "Open Settings", Some("F12")),
-    ("toggle_fullscreen", "Toggle Fullscreen", Some("F11")),
-    ("toggle_help", "Toggle Help Panel", Some("F1")),
-    ("toggle_fps_overlay", "Toggle FPS Overlay", Some("F3")),
+    // Tab management
     ("new_tab", "New Tab", Some("CmdOrCtrl+T")),
     ("close_tab", "Close Tab", Some("CmdOrCtrl+W")),
     ("next_tab", "Next Tab", Some("CmdOrCtrl+Shift+]")),
     ("prev_tab", "Previous Tab", Some("CmdOrCtrl+Shift+[")),
-    ("toggle_search", "Toggle Search", Some("CmdOrCtrl+F")),
     (
-        "paste_special",
-        "Paste Special (Transform)",
-        Some("CmdOrCtrl+Shift+V"),
+        "move_tab_left",
+        "Move Tab Left",
+        Some("CmdOrCtrl+Shift+Left"),
     ),
     (
-        "toggle_session_logging",
-        "Toggle Session Logging",
-        Some("CmdOrCtrl+Shift+R"),
+        "move_tab_right",
+        "Move Tab Right",
+        Some("CmdOrCtrl+Shift+Right"),
     ),
+    ("switch_to_tab_1", "Switch to Tab 1", Some("CmdOrCtrl+1")),
+    ("switch_to_tab_2", "Switch to Tab 2", Some("CmdOrCtrl+2")),
+    ("switch_to_tab_3", "Switch to Tab 3", Some("CmdOrCtrl+3")),
+    ("switch_to_tab_4", "Switch to Tab 4", Some("CmdOrCtrl+4")),
+    ("switch_to_tab_5", "Switch to Tab 5", Some("CmdOrCtrl+5")),
+    ("switch_to_tab_6", "Switch to Tab 6", Some("CmdOrCtrl+6")),
+    ("switch_to_tab_7", "Switch to Tab 7", Some("CmdOrCtrl+7")),
+    ("switch_to_tab_8", "Switch to Tab 8", Some("CmdOrCtrl+8")),
+    ("switch_to_tab_9", "Switch to Tab 9", Some("CmdOrCtrl+9")),
     // Split pane actions
     (
         "split_horizontal",
@@ -93,6 +116,39 @@ const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "resize_pane_down",
         "Resize Pane Down",
         Some("CmdOrCtrl+Alt+Shift+Down"),
+    ),
+    // Font size
+    (
+        "increase_font_size",
+        "Increase Font Size",
+        Some("Ctrl+Plus"),
+    ),
+    (
+        "decrease_font_size",
+        "Decrease Font Size",
+        Some("Ctrl+Minus"),
+    ),
+    ("reset_font_size", "Reset Font Size", Some("Ctrl+0")),
+    // Terminal utilities
+    (
+        "clear_scrollback",
+        "Clear Scrollback",
+        Some("Ctrl+Shift+K"),
+    ),
+    (
+        "cycle_cursor_style",
+        "Cycle Cursor Style",
+        Some("CmdOrCtrl+Comma"),
+    ),
+    (
+        "paste_special",
+        "Paste Special (Transform)",
+        Some("CmdOrCtrl+Shift+V"),
+    ),
+    (
+        "toggle_session_logging",
+        "Toggle Session Logging",
+        Some("CmdOrCtrl+Shift+R"),
     ),
     // Broadcast & tmux
     (
