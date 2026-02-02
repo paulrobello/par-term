@@ -162,4 +162,38 @@ impl WindowState {
 
         false
     }
+
+    /// Handle Cmd+Shift+P (macOS) or Ctrl+Shift+P (Windows/Linux) to toggle profile drawer
+    pub(crate) fn handle_profile_drawer_toggle(&mut self, event: &KeyEvent) -> bool {
+        use winit::event::ElementState;
+        use winit::keyboard::Key;
+
+        if event.state != ElementState::Pressed {
+            return false;
+        }
+
+        // Check for Cmd+Shift+P (macOS) or Ctrl+Shift+P (Windows/Linux)
+        let is_p = matches!(event.logical_key, Key::Character(ref c) if c.to_lowercase() == "p");
+        let modifiers = self.input_handler.modifiers.state();
+
+        #[cfg(target_os = "macos")]
+        let is_cmd_shift = modifiers.super_key() && modifiers.shift_key();
+        #[cfg(not(target_os = "macos"))]
+        let is_cmd_shift = modifiers.control_key() && modifiers.shift_key();
+
+        if is_p && is_cmd_shift {
+            self.toggle_profile_drawer();
+            log::info!(
+                "Profile drawer toggled: {}",
+                if self.profile_drawer_ui.expanded {
+                    "expanded"
+                } else {
+                    "collapsed"
+                }
+            );
+            return true;
+        }
+
+        false
+    }
 }

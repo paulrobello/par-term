@@ -12,11 +12,13 @@ impl WindowState {
         // Track Alt key press/release for Option key mode detection
         self.input_handler.track_alt_key(&event);
 
-        // Check if any UI panel is visible
+        // Check if any UI panel is visible that should block keyboard input
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
+        // Note: Profile drawer does NOT block input - only modal dialogs do
         let any_ui_visible = self.help_ui.visible
             || self.clipboard_history_ui.visible
             || self.search_ui.visible
+            || self.profile_modal_ui.visible
             || self.tmux_session_picker_ui.visible;
 
         // When UI panels are visible, block ALL keys from going to terminal
@@ -136,6 +138,11 @@ impl WindowState {
         // Check for FPS overlay toggle (F3)
         if self.handle_fps_overlay_toggle(&event) {
             return; // Key was handled for FPS overlay toggle
+        }
+
+        // Check for profile drawer toggle (Cmd+Shift+P / Ctrl+Shift+P)
+        if self.handle_profile_drawer_toggle(&event) {
+            return; // Key was handled for profile drawer toggle
         }
 
         // Check for utility shortcuts (clear scrollback, font size, etc.)
