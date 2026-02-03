@@ -141,6 +141,6 @@ strip = true
 opt-level = 0
 debug = true
 
-# Use local version of core library for development
-# [patch.crates-io]
-# par-term-emu-core-rust = { path = "../par-term-emu-core-rust" }
+# Use local version of core library for development (includes latest OSC fixes)
+[patch.crates-io]
+par-term-emu-core-rust = { path = "../par-term-emu-core-rust" }
