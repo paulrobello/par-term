@@ -108,6 +108,7 @@ impl TerminalManager {
         let term = terminal.lock();
 
         let marker = term.shell_integration().marker();
+        let last_exit_code = term.shell_integration().exit_code();
         let history = term.get_command_history();
         let history_len = history.len();
         let last_command = history
@@ -124,6 +125,7 @@ impl TerminalManager {
             cursor_row,
             history_len,
             last_command,
+            last_exit_code,
         );
     }
 

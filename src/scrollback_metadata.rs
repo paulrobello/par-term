@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
 use par_term_emu_core_rust::terminal::CommandExecution;
@@ -63,6 +64,8 @@ pub struct ScrollbackMetadata {
     last_marker: Option<ShellIntegrationMarker>,
     /// Number of commands already recorded (matches command_history.len())
     last_recorded_history_len: usize,
+    /// Wall-clock start time for the current command (ms since epoch)
+    current_command_start_time_ms: Option<u64>,
 }
 
 impl ScrollbackMetadata {
@@ -83,6 +86,7 @@ impl ScrollbackMetadata {
         cursor_row: usize,
         history_len: usize,
         last_command: Option<CommandSnapshot>,
+        last_exit_code: Option<i32>,
     ) {
         let last_command_clone = last_command.clone();
         let absolute_line = scrollback_len.saturating_add(cursor_row);
@@ -94,6 +98,7 @@ impl ScrollbackMetadata {
             Some(ShellIntegrationMarker::CommandStart)
             | Some(ShellIntegrationMarker::CommandExecuted) => {
                 self.current_command_start = Some(absolute_line);
+                self.current_command_start_time_ms = Some(now_ms());
             }
             Some(ShellIntegrationMarker::CommandFinished) => {
                 #[allow(clippy::collapsible_if)]
@@ -102,6 +107,27 @@ impl ScrollbackMetadata {
                         self.finish_command(absolute_line, cmd);
                         self.last_recorded_history_len = history_len;
                     }
+                } else if let Some(exit_code) = last_exit_code {
+                    // Shell reported completion but core history did not advance
+                    // (common when shell integration markers are emitted but
+                    // command history tracking is not wired up). Synthesize a
+                    // minimal snapshot so mark indicators still render.
+                    let start_time = self.current_command_start_time_ms.unwrap_or_else(now_ms);
+                    let end_time = now_ms();
+                    let duration_ms = end_time.saturating_sub(start_time);
+                    let id = self.last_recorded_history_len;
+                    let synthetic = CommandSnapshot {
+                        id,
+                        command: None,
+                        start_time,
+                        end_time: Some(end_time),
+                        exit_code: Some(exit_code),
+                        duration_ms: Some(duration_ms),
+                    };
+                    self.finish_command(absolute_line, synthetic);
+                    // Keep ids monotonic to avoid duplicate marks on repeated frames
+                    self.last_recorded_history_len =
+                        self.last_recorded_history_len.saturating_add(1);
                 }
             }
             _ => {}
@@ -215,6 +241,7 @@ impl ScrollbackMetadata {
             .take()
             .or_else(|| self.prompt_lines.last().copied())
             .unwrap_or(end_line);
+        self.current_command_start_time_ms = None;
 
         // Ensure a mark exists even if no prompt marker was recorded.
         self.record_prompt_line(start_line, Some(command.start_time));
@@ -224,6 +251,13 @@ impl ScrollbackMetadata {
         self.commands.insert(command.id, command);
         self.line_timestamps.entry(start_line).or_insert(start_time);
     }
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 #[cfg(test)]
@@ -245,12 +279,20 @@ mod tests {
     fn records_prompt_and_command() {
         let mut meta = ScrollbackMetadata::new();
 
-        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 10, 5, 0, None);
+        meta.apply_event(
+            Some(ShellIntegrationMarker::PromptStart),
+            10,
+            5,
+            0,
+            None,
+            None,
+        );
         meta.apply_event(
             Some(ShellIntegrationMarker::CommandExecuted),
             10,
             5,
             0,
+            None,
             None,
         );
 
@@ -260,6 +302,7 @@ mod tests {
             3,
             1,
             Some(snapshot(0, 0, 1_000, 500)),
+            None,
         );
 
         let marks = meta.marks();
@@ -274,8 +317,22 @@ mod tests {
     fn navigation_prev_next() {
         let mut meta = ScrollbackMetadata::new();
 
-        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 5, 0, 0, None);
-        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 8, 2, 0, None);
+        meta.apply_event(
+            Some(ShellIntegrationMarker::PromptStart),
+            5,
+            0,
+            0,
+            None,
+            None,
+        );
+        meta.apply_event(
+            Some(ShellIntegrationMarker::PromptStart),
+            8,
+            2,
+            0,
+            None,
+            None,
+        );
 
         assert_eq!(meta.previous_mark(7), Some(5));
         assert_eq!(meta.next_mark(5), Some(10));
@@ -287,11 +344,52 @@ mod tests {
         let cmd = snapshot(0, 1, 2_000, 300);
 
         // No marker but history length increased
-        meta.apply_event(None, 12, 3, 1, Some(cmd));
+        meta.apply_event(None, 12, 3, 1, Some(cmd), Some(1));
 
         let marks = meta.marks();
         assert_eq!(marks.len(), 1);
         assert_eq!(marks[0].line, 15);
         assert_eq!(marks[0].exit_code, Some(1));
+    }
+
+    #[test]
+    fn records_when_exit_code_arrives_without_history() {
+        let mut meta = ScrollbackMetadata::new();
+
+        // Simulate prompt and command start
+        meta.apply_event(
+            Some(ShellIntegrationMarker::PromptStart),
+            20,
+            0,
+            0,
+            None,
+            None,
+        );
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandStart),
+            20,
+            0,
+            0,
+            None,
+            None,
+        );
+
+        // Command finishes, shell sends exit code but core history does not advance
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandFinished),
+            22,
+            1,
+            0,
+            None,
+            Some(42),
+        );
+
+        let marks = meta.marks();
+        assert_eq!(marks.len(), 1);
+        // start line = prompt at 20 + cursor 0 = 20
+        assert_eq!(marks[0].line, 20);
+        assert_eq!(marks[0].exit_code, Some(42));
+        assert!(marks[0].start_time.is_some());
+        assert!(marks[0].duration_ms.is_some());
     }
 }
