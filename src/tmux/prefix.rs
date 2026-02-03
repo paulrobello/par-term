@@ -278,22 +278,23 @@ mod tests {
 
     #[test]
     fn test_translate_split_horizontal_no_target() {
+        // % creates horizontal split (side-by-side panes) using -h flag
         let key = Key::Character("%".into());
         let cmd = translate_command_key(&key, ModifiersState::empty(), None);
         assert_eq!(cmd, Some("split-window -h\n".to_string()));
     }
 
     #[test]
-    fn test_translate_split_vertical_with_target() {
-        // Note: % in command is for vertical split (side-by-side panes), which uses -h flag
+    fn test_translate_split_horizontal_with_target() {
+        // % creates horizontal split (side-by-side panes) using -h flag
         let key = Key::Character("%".into());
         let cmd = translate_command_key(&key, ModifiersState::empty(), Some(42));
         assert_eq!(cmd, Some("split-window -h -t %42\n".to_string()));
     }
 
     #[test]
-    fn test_translate_split_horizontal_with_target() {
-        // Note: " in command is for horizontal split (stacked panes), which uses -v flag
+    fn test_translate_split_vertical_with_target() {
+        // " creates vertical split (stacked panes) using -v flag
         let key = Key::Character("\"".into());
         let cmd = translate_command_key(&key, ModifiersState::empty(), Some(11));
         assert_eq!(cmd, Some("split-window -v -t %11\n".to_string()));

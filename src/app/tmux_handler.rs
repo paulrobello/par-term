@@ -2098,8 +2098,8 @@ impl WindowState {
                     match cmd_base {
                         "detach-client" => self.show_toast("tmux: Detaching..."),
                         "new-window" => self.show_toast("tmux: New window"),
-                        "split-window -h" => self.show_toast("tmux: Vertical split"),
-                        "split-window -v" => self.show_toast("tmux: Horizontal split"),
+                        "split-window -h" => self.show_toast("tmux: Horizontal split"),
+                        "split-window -v" => self.show_toast("tmux: Vertical split"),
                         _ => {}
                     }
                     return true;
