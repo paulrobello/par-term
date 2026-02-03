@@ -14,8 +14,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Multi-Window Focus Routing**: Menu actions (Cmd+T, Cmd+V, etc.) now correctly route to the focused window instead of an arbitrary window when multiple windows are open
 - **Settings UI Layout**: Content area now properly fills available window space instead of leaving empty space at the bottom
 - **Settings UI Control Widths**: Applied consistent width constants to sliders and text inputs across all settings tabs
+- **Tab Bar Content Overlap**: Fixed issue where shell content's first line was hidden behind the tab bar when tabs were enabled. Tab bar height is now applied before terminal creation.
 
 ### Added
+
+- **Integrations Install System**: Unified installation for optional par-term enhancements
+  - **Shell Integration**: Scripts for bash/zsh/fish enabling prompt navigation, CWD tracking, and command status
+    - Install via CLI: `par-term install-shell-integration`
+    - Install via curl: `curl -fsSL https://paulrobello.github.io/par-term/install-shell-integration.sh | bash`
+    - Uninstall via CLI: `par-term uninstall-shell-integration`
+  - **Shader Bundle with Manifest**: Tracks bundled files vs user-created files using SHA256 hashes
+    - Safe uninstall preserves user modifications
+    - Manifest-aware reinstall detects and warns about modified files
+    - Uninstall via CLI: `par-term uninstall-shaders`
+  - **Welcome Dialog**: First-run prompt offering to install both integrations
+    - Version-aware prompting (only asks once per version)
+    - Checkbox selection for shaders and/or shell integration
+    - Skip and "Never Ask" options
+  - **Settings UI Tab**: New "Integrations" tab (🔌) for managing installations
+    - Install/Reinstall/Uninstall buttons for each integration
+    - Status indicators showing installed version
+    - Copy-able curl commands for manual installation
+  - **GitHub Pages Hosting**: Curl-installable scripts at paulrobello.github.io/par-term/
 
 - **Settings UI Completeness**: Added missing UI controls for config options that were previously only configurable via config.yaml
   - **Tab Bar Tab**: tab_bar_mode (always/when_multiple/never), tab_bar_height, tab_show_index, tab_inherit_cwd, max_tabs
