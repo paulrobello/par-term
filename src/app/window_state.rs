@@ -562,6 +562,22 @@ impl WindowState {
         // Apply cursor shader configuration
         self.apply_cursor_shader_config(&mut renderer, &params);
 
+        // Set tab bar height BEFORE creating the first tab
+        // This ensures the terminal is sized correctly from the start
+        // Use 1 as tab count since we're about to create the first tab
+        let initial_tab_bar_height = self.tab_bar_ui.get_height(1, &self.config);
+        if initial_tab_bar_height > 0.0
+            && let Some((new_cols, new_rows)) =
+                renderer.set_content_offset_y(initial_tab_bar_height)
+        {
+            log::info!(
+                "Initial tab bar height {:.0}px, grid resized to {}x{}",
+                initial_tab_bar_height,
+                new_cols,
+                new_rows
+            );
+        }
+
         self.window = Some(Arc::clone(&window));
         self.renderer = Some(renderer);
 
