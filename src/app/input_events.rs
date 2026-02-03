@@ -157,21 +157,23 @@ impl WindowState {
 
         // Handle paste shortcuts with bracketed paste support
         if event.state == ElementState::Pressed {
-            // Ctrl+V or Shift+Insert: Paste (non-macOS)
+            // Ctrl/Cmd+V, Shift+Insert, or NamedKey::Paste
             #[cfg(not(target_os = "macos"))]
             let is_paste = {
                 let ctrl = self.input_handler.modifiers.state().control_key();
                 let shift = self.input_handler.modifiers.state().shift_key();
-                (ctrl
-                    && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("v")))
+                matches!(event.logical_key, Key::Named(NamedKey::Paste))
+                    || (ctrl
+                        && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("v")))
                     || (shift && matches!(event.logical_key, Key::Named(NamedKey::Insert)))
             };
 
-            // Cmd+V: Paste (macOS)
             #[cfg(target_os = "macos")]
             let is_paste = {
                 let cmd = self.input_handler.modifiers.state().super_key();
-                cmd && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("v"))
+                matches!(event.logical_key, Key::Named(NamedKey::Paste))
+                    || (cmd
+                        && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("v")))
             };
 
             if is_paste {
@@ -187,18 +189,31 @@ impl WindowState {
                 return;
             }
 
-            // Cmd+C: Copy (macOS only)
+            // Cmd/Ctrl+C or NamedKey::Copy
             #[cfg(target_os = "macos")]
-            if self.input_handler.modifiers.state().super_key()
-                && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("c"))
-            {
+            let is_copy = {
+                let cmd = self.input_handler.modifiers.state().super_key();
+                matches!(event.logical_key, Key::Named(NamedKey::Copy))
+                    || (cmd
+                        && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("c")))
+            };
+
+            #[cfg(not(target_os = "macos"))]
+            let is_copy = {
+                let ctrl = self.input_handler.modifiers.state().control_key();
+                matches!(event.logical_key, Key::Named(NamedKey::Copy))
+                    || (ctrl
+                        && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("c")))
+            };
+
+            if is_copy {
                 if let Some(selected_text) = self.get_selected_text()
                     && !selected_text.is_empty()
                 {
                     if let Err(e) = self.input_handler.copy_to_clipboard(&selected_text) {
                         log::error!("Failed to copy to clipboard: {}", e);
                     } else {
-                        log::debug!("Copied {} chars via Cmd+C", selected_text.len());
+                        log::debug!("Copied {} chars via keyboard copy", selected_text.len());
                     }
                 }
                 return;
