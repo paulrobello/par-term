@@ -748,7 +748,7 @@ fn show_keybindings_section(
         let mut cancel_recording = false;
 
         egui::ScrollArea::vertical()
-            .max_height(300.0)
+            .max_height(1200.0)
             .show(ui, |ui| {
                 egui::Grid::new("input_keybindings_grid")
                     .num_columns(3)
