@@ -12,37 +12,83 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.6.0
+## What's New in 0.7.0
 
-### 🖼️ Shader Gallery
+### 🔌 Integrations Install System
 
-Visual gallery showcasing all 49+ included shaders with screenshots.
+Unified installation for optional par-term enhancements.
 
+- **Shell Integration**: Scripts for bash/zsh/fish enabling prompt navigation, CWD tracking, and command status
+  - Install via CLI: `par-term install-shell-integration`
+  - Install via curl: `curl -fsSL https://paulrobello.github.io/par-term/install-shell-integration.sh | bash`
+- **Shader Bundle with Manifest**: Tracks bundled vs user-created files using SHA256 hashes
+- **Welcome Dialog**: First-run prompt offering to install both integrations
+- **Settings UI Tab**: New "Integrations" tab (🔌) for managing installations
+
+### 👤 Profile System
+
+iTerm2-style profiles for saved terminal configurations.
+
+- **Profile Manager**: Create, edit, delete, and reorder named profiles
+- **Profile Drawer**: Collapsible right-side panel for quick profile access
+- **Profile Settings**: Name, emoji icon, working directory, custom command, tab name override
+- **Persistence**: Profiles saved to `~/.config/par-term/profiles.yaml`
+
+### 📹 Session Logging & Recording
+
+Automatic session logging to record terminal output.
+
+- **Multiple Formats**: Plain text, HTML (with colors), Asciicast (asciinema-compatible)
+- **Hotkey Toggle**: `Cmd/Ctrl+Shift+R` to start/stop session recording on demand
+- **CLI Option**: `--log-session` flag to enable logging at startup
+
+### 🔳 tmux Integration Enhancements
+
+- **Native Status Bar**: Session name, window list, and time display at terminal bottom
+- **Bidirectional Pane Resize**: Resizing in par-term updates external tmux clients
+- **Auto-Close Exited Panes**: Panes close when their shell process exits
+
+### 🔍 Terminal Search
+
+Search through scrollback buffer with `Cmd/Ctrl+F`.
+
+- Match highlighting with navigation (Enter/Shift+Enter)
+- Search options: case sensitive, regex mode, whole word
+- Proper Unicode support for multi-byte characters
+
+### 📋 Paste Special
+
+Transform clipboard content before pasting with `Cmd/Ctrl+Shift+V`.
+
+- 26 text transformations across shell escaping, case conversion, whitespace, and encoding
+- Live preview with keyboard navigation
+- Integration with clipboard history via `Shift+Enter`
+
+### ⌨️ Option Key as Meta/Esc
+
+Essential feature for emacs/vim users.
+
+- Configure left and right Option/Alt key behavior independently
+- Three modes: Normal (special characters), Meta (high bit), Esc (ESC prefix)
+
+<details>
+<summary><strong>What's New in 0.6.0</strong></summary>
+
+#### 🖼️ Shader Gallery
 - **[Browse the Gallery](https://paulrobello.github.io/par-term/)**: See all shaders before installing
 - **Auto-Updated**: Gallery automatically deploys when shaders are added or modified
 
-### ⌨️ Configurable Keybindings
-
-Customize all keyboard shortcuts to match your workflow.
-
+#### ⌨️ Configurable Keybindings
 - **Custom Bindings**: Edit `~/.config/par-term/keybindings.yaml`
 - **Modifier Support**: Ctrl, Alt, Shift, Super in any combination
-- **Full Coverage**: Remap any action including tabs, clipboard, scrolling
 
-### 🖥️ CLI Enhancements
-
-New command-line options for automation and scripting.
-
+#### 🖥️ CLI Enhancements
 - **`--screenshot <path>`**: Capture terminal to image file
 - **`--shader <name>`**: Override background shader on launch
-- **`--exit-after <seconds>`**: Auto-exit after duration (useful with --screenshot)
+- **`--exit-after <seconds>`**: Auto-exit after duration
 - **`--command <cmd>`**: Run specific command instead of default shell
-- **`par-term install-shaders`**: Download and install all shaders from latest release
 
-### 🐛 Bug Fixes
-
-- **Shader Background**: Solid color background now preserved when custom shader is disabled
-- **Full Content Mode**: Fixed compositing issue where terminal content was rendered twice
+</details>
 
 <details>
 <summary><strong>What's New in 0.5.0</strong></summary>
