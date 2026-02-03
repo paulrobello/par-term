@@ -422,8 +422,27 @@ impl TabBarUI {
                     // We'd need to get the index, skip for now
                 }
 
-                // Title (truncated)
-                let max_title_len = if config.tab_show_close_button { 15 } else { 20 };
+                // Title rendering with width-aware truncation
+                let base_font_id = ui.style().text_styles[&egui::TextStyle::Button].clone();
+                let indicator_width = if is_bell_active {
+                    18.0
+                } else if has_activity && !is_active {
+                    14.0
+                } else {
+                    0.0
+                };
+                let hotkey_width = if index < 9 { 26.0 } else { 0.0 };
+                let close_width = if config.tab_show_close_button {
+                    24.0
+                } else {
+                    0.0
+                };
+                let padding = 12.0;
+                let title_available_width =
+                    (tab_width - indicator_width - hotkey_width - close_width - padding).max(24.0);
+
+                let max_chars = estimate_max_chars(ui, &base_font_id, title_available_width);
+
                 let text_color = if is_active {
                     let c = config.tab_active_text;
                     egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
@@ -434,10 +453,10 @@ impl TabBarUI {
 
                 if config.tab_html_titles {
                     let segments = parse_html_title(title);
-                    let truncated = truncate_segments(&segments, max_title_len);
+                    let truncated = truncate_segments(&segments, max_chars);
                     render_segments(ui, &truncated, text_color);
                 } else {
-                    let display_title = truncate_plain(title, max_title_len);
+                    let display_title = truncate_plain(title, max_chars);
                     ui.label(egui::RichText::new(display_title).color(text_color));
                 }
 
@@ -695,6 +714,9 @@ impl TabBarUI {
 }
 
 fn truncate_plain(title: &str, max_len: usize) -> String {
+    if max_len == 0 {
+        return "…".to_string();
+    }
     let mut chars = title.chars();
     let mut taken = String::new();
     for _ in 0..max_len {
@@ -714,6 +736,15 @@ fn truncate_plain(title: &str, max_len: usize) -> String {
 }
 
 fn truncate_segments(segments: &[StyledSegment], max_len: usize) -> Vec<StyledSegment> {
+    if max_len == 0 {
+        return vec![StyledSegment {
+            text: "…".to_string(),
+            bold: false,
+            italic: false,
+            underline: false,
+            color: None,
+        }];
+    }
     let mut remaining = max_len;
     let mut out: Vec<StyledSegment> = Vec::new();
     for seg in segments {
@@ -762,6 +793,11 @@ fn render_segments(ui: &mut egui::Ui, segments: &[StyledSegment], fallback_color
             ui.label(rich);
         }
     });
+}
+
+fn estimate_max_chars(_ui: &egui::Ui, font_id: &egui::FontId, available_width: f32) -> usize {
+    let char_width = (font_id.size * 0.55).max(4.0); // heuristic: ~0.55em per character
+    ((available_width / char_width).floor() as usize).max(4)
 }
 
 fn parse_html_title(input: &str) -> Vec<StyledSegment> {

@@ -266,7 +266,7 @@ pub fn tab_min_width() -> f32 {
 }
 
 pub fn tab_stretch_to_fill() -> bool {
-    false // Tabs keep their minimum width unless stretching is enabled
+    true // Tabs stretch to share available width by default
 }
 
 pub fn tab_html_titles() -> bool {
