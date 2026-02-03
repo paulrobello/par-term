@@ -1058,7 +1058,7 @@ impl PaneManager {
         );
     }
 
-    /// Recursively update a pane node's ratios from tmux layout
+    /// Recursively update a pane node's ratios and directions from tmux layout
     fn update_node_from_tmux_layout(
         node: &mut PaneNode,
         tmux_node: &LayoutNode,
@@ -1068,7 +1068,7 @@ impl PaneManager {
             // Leaf nodes - nothing to update for ratios
             (PaneNode::Leaf(_), LayoutNode::Pane { .. }) => {}
 
-            // Split nodes - update ratio based on child sizes
+            // Split node with VerticalSplit layout (panes side by side)
             (
                 PaneNode::Split {
                     direction,
@@ -1079,7 +1079,16 @@ impl PaneManager {
                 LayoutNode::VerticalSplit {
                     width, children, ..
                 },
-            ) if *direction == SplitDirection::Vertical && !children.is_empty() => {
+            ) if !children.is_empty() => {
+                // Update direction to match tmux layout
+                if *direction != SplitDirection::Vertical {
+                    log::debug!(
+                        "Updating split direction from {:?} to Vertical to match tmux layout",
+                        direction
+                    );
+                    *direction = SplitDirection::Vertical;
+                }
+
                 // Calculate ratio from first child's width vs total
                 let first_size = Self::get_node_size(&children[0], SplitDirection::Vertical);
                 let total_size = *width;
@@ -1112,6 +1121,7 @@ impl PaneManager {
                 }
             }
 
+            // Split node with HorizontalSplit layout (panes stacked)
             (
                 PaneNode::Split {
                     direction,
@@ -1122,7 +1132,16 @@ impl PaneManager {
                 LayoutNode::HorizontalSplit {
                     height, children, ..
                 },
-            ) if *direction == SplitDirection::Horizontal && !children.is_empty() => {
+            ) if !children.is_empty() => {
+                // Update direction to match tmux layout
+                if *direction != SplitDirection::Horizontal {
+                    log::debug!(
+                        "Updating split direction from {:?} to Horizontal to match tmux layout",
+                        direction
+                    );
+                    *direction = SplitDirection::Horizontal;
+                }
+
                 // Calculate ratio from first child's height vs total
                 let first_size = Self::get_node_size(&children[0], SplitDirection::Horizontal);
                 let total_size = *height;
