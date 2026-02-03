@@ -84,6 +84,7 @@ impl ScrollbackMetadata {
         history_len: usize,
         last_command: Option<CommandSnapshot>,
     ) {
+        let last_command_clone = last_command.clone();
         let absolute_line = scrollback_len.saturating_add(cursor_row);
 
         match marker {
@@ -104,6 +105,16 @@ impl ScrollbackMetadata {
                 }
             }
             _ => {}
+        }
+
+        // Fallback: if command history advanced but we didn't see a CommandFinished marker,
+        // still record a mark at the current line so users get indicators when shell integration
+        // scripts emit timestamps but markers are missing.
+        if history_len > self.last_recorded_history_len
+            && let Some(cmd) = last_command_clone
+        {
+            self.finish_command(absolute_line, cmd);
+            self.last_recorded_history_len = history_len;
         }
 
         self.last_marker = marker;
@@ -205,6 +216,9 @@ impl ScrollbackMetadata {
             .or_else(|| self.prompt_lines.last().copied())
             .unwrap_or(end_line);
 
+        // Ensure a mark exists even if no prompt marker was recorded.
+        self.record_prompt_line(start_line, Some(command.start_time));
+
         self.line_to_command.insert(start_line, command.id);
         let start_time = command.start_time;
         self.commands.insert(command.id, command);
@@ -265,5 +279,19 @@ mod tests {
 
         assert_eq!(meta.previous_mark(7), Some(5));
         assert_eq!(meta.next_mark(5), Some(10));
+    }
+
+    #[test]
+    fn records_when_history_advances_without_marker() {
+        let mut meta = ScrollbackMetadata::new();
+        let cmd = snapshot(0, 1, 2_000, 300);
+
+        // No marker but history length increased
+        meta.apply_event(None, 12, 3, 1, Some(cmd));
+
+        let marks = meta.marks();
+        assert_eq!(marks.len(), 1);
+        assert_eq!(marks[0].line, 15);
+        assert_eq!(marks[0].exit_code, Some(1));
     }
 }
