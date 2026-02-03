@@ -179,8 +179,20 @@ pub struct SettingsUI {
     // Integrations tab action state
     /// Pending shell integration action (install/uninstall)
     pub(crate) shell_integration_action: Option<integrations_tab::ShellIntegrationAction>,
-    /// Pending shader action (install/uninstall)
-    pub(crate) shader_action: Option<integrations_tab::ShaderAction>,
+    // Shader install workflow state
+    /// Whether a shader install/uninstall operation is running
+    shader_installing: bool,
+    /// Status message for shader installs
+    shader_status: Option<String>,
+    /// Error message for shader installs
+    shader_error: Option<String>,
+    /// Whether to show overwrite prompt for modified bundled shaders
+    shader_overwrite_prompt_visible: bool,
+    /// List of modified bundled shader files
+    shader_conflicts: Vec<String>,
+    /// Channel receiver for async shader installs
+    shader_install_receiver:
+        Option<std::sync::mpsc::Receiver<Result<crate::shader_installer::InstallResult, String>>>,
 
     // Reset to defaults dialog state
     /// Whether to show the reset to defaults confirmation dialog
@@ -267,7 +279,12 @@ impl SettingsUI {
             selected_tab: SettingsTab::default(),
             collapsed_sections: HashSet::new(),
             shell_integration_action: None,
-            shader_action: None,
+            shader_installing: false,
+            shader_status: None,
+            shader_error: None,
+            shader_overwrite_prompt_visible: false,
+            shader_conflicts: Vec::new(),
+            shader_install_receiver: None,
             show_reset_defaults_dialog: false,
         }
     }
@@ -462,6 +479,64 @@ impl SettingsUI {
 
         if close_dialog {
             self.show_reset_defaults_dialog = false;
+        }
+    }
+
+    /// Begin shader install asynchronously with optional force overwrite.
+    fn start_shader_install(&mut self, force_overwrite: bool) {
+        use std::sync::mpsc;
+
+        if self.shader_installing {
+            return;
+        }
+
+        self.shader_error = None;
+        self.shader_status = Some(if force_overwrite {
+            "Reinstalling shaders (overwriting modified files)...".to_string()
+        } else {
+            "Reinstalling shaders...".to_string()
+        });
+        self.shader_installing = true;
+
+        let (tx, rx) = mpsc::channel();
+        self.shader_install_receiver = Some(rx);
+
+        std::thread::spawn(move || {
+            let result = crate::shader_installer::install_shaders_with_manifest(force_overwrite);
+            let _ = tx.send(result);
+        });
+    }
+
+    /// Poll for completion of async shader install.
+    pub(crate) fn poll_shader_install_status(&mut self) {
+        if let Some(receiver) = &self.shader_install_receiver {
+            if let Ok(result) = receiver.try_recv() {
+                self.shader_installing = false;
+                self.shader_install_receiver = None;
+                match result {
+                    Ok(res) => {
+                        let detail = if res.skipped > 0 {
+                            format!(
+                                "Installed {} shaders ({} skipped, {} removed)",
+                                res.installed, res.skipped, res.removed
+                            )
+                        } else {
+                            format!(
+                                "Installed {} shaders ({} removed)",
+                                res.installed, res.removed
+                            )
+                        };
+                        self.shader_status = Some(detail);
+                        self.shader_error = None;
+                        self.config.integration_versions.shaders_installed_version =
+                            Some(env!("CARGO_PKG_VERSION").to_string());
+                    }
+                    Err(e) => {
+                        self.shader_error = Some(e);
+                        self.shader_status = None;
+                    }
+                }
+            }
         }
     }
 

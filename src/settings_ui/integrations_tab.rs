@@ -153,6 +153,9 @@ impl SettingsUI {
     }
 
     fn show_shaders_section(&mut self, ui: &mut Ui, _changes_this_frame: &mut bool) {
+        // Update async install status
+        self.poll_shader_install_status();
+
         collapsing_section(ui, "Custom Shaders", "integrations_shaders", true, |ui| {
             ui.label("Custom shaders provide background effects and cursor animations for your terminal.");
             ui.add_space(8.0);
@@ -198,6 +201,75 @@ impl SettingsUI {
 
             ui.add_space(8.0);
 
+            // Status / errors / progress
+            if let Some(status) = &self.shader_status {
+                ui.colored_label(Color32::from_rgb(100, 200, 100), status);
+            }
+            if let Some(err) = &self.shader_error {
+                ui.colored_label(Color32::from_rgb(220, 120, 120), err);
+            }
+            if self.shader_installing {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label("Installing shaders...");
+                });
+            }
+
+            if self.shader_overwrite_prompt_visible {
+                ui.add_space(6.0);
+                ui.group(|ui| {
+                    ui.label(RichText::new("Modified bundled shaders detected").strong());
+                    if self.shader_conflicts.is_empty() {
+                        ui.label(
+                            RichText::new(
+                                "Some bundled shaders were modified. Overwrite them or keep your changes?",
+                            )
+                            .small(),
+                        );
+                    } else {
+                        let preview: Vec<_> =
+                            self.shader_conflicts.iter().take(5).cloned().collect();
+                        ui.label(
+                            RichText::new(format!(
+                                "{} modified files: {}{}",
+                                self.shader_conflicts.len(),
+                                preview.join(", "),
+                                if self.shader_conflicts.len() > 5 {
+                                    " …"
+                                } else {
+                                    ""
+                                }
+                            ))
+                            .small(),
+                        );
+                    }
+
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(egui::Button::new("Overwrite modified"))
+                            .clicked()
+                        {
+                            self.shader_overwrite_prompt_visible = false;
+                            self.start_shader_install(true);
+                        }
+                        if ui
+                            .add(egui::Button::new("Skip modified"))
+                            .on_hover_text("Keep your edited shaders; reinstall the rest")
+                            .clicked()
+                        {
+                            self.shader_overwrite_prompt_visible = false;
+                            self.start_shader_install(false);
+                        }
+                        if ui.button("Cancel").clicked() {
+                            self.shader_overwrite_prompt_visible = false;
+                            self.shader_conflicts.clear();
+                        }
+                    });
+                });
+                ui.add_space(8.0);
+            }
+
             // Action buttons
             ui.horizontal(|ui| {
                 let install_text = if has_shaders { "Reinstall" } else { "Install" };
@@ -207,7 +279,19 @@ impl SettingsUI {
                     .on_hover_text("Download and install shader bundle from GitHub")
                     .clicked()
                 {
-                    self.shader_action = Some(ShaderAction::Install);
+                    match shader_installer::detect_modified_bundled_shaders() {
+                        Ok(conflicts) if !conflicts.is_empty() => {
+                            self.shader_conflicts = conflicts;
+                            self.shader_overwrite_prompt_visible = true;
+                        }
+                        Ok(_) => {
+                            self.start_shader_install(false);
+                        }
+                        Err(e) => {
+                            self.shader_error =
+                                Some(format!("Failed to check existing shaders: {}", e));
+                        }
+                    }
                 }
 
                 if has_shaders
@@ -216,7 +300,19 @@ impl SettingsUI {
                         .on_hover_text("Remove all bundled shaders (keeps user-created shaders)")
                         .clicked()
                 {
-                    self.shader_action = Some(ShaderAction::Uninstall);
+                    match shader_installer::uninstall_shaders(false) {
+                        Ok(result) => {
+                            self.shader_error = None;
+                            self.shader_status = Some(format!(
+                                "Removed {} files, kept {}",
+                                result.removed, result.kept
+                            ));
+                        }
+                        Err(e) => {
+                            self.shader_error = Some(format!("Failed to uninstall shaders: {}", e));
+                            self.shader_status = None;
+                        }
+                    }
                 }
 
                 if ui
