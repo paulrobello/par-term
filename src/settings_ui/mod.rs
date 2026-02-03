@@ -181,6 +181,10 @@ pub struct SettingsUI {
     pub(crate) shell_integration_action: Option<integrations_tab::ShellIntegrationAction>,
     /// Pending shader action (install/uninstall)
     pub(crate) shader_action: Option<integrations_tab::ShaderAction>,
+
+    // Reset to defaults dialog state
+    /// Whether to show the reset to defaults confirmation dialog
+    pub(crate) show_reset_defaults_dialog: bool,
 }
 
 impl SettingsUI {
@@ -264,6 +268,7 @@ impl SettingsUI {
             collapsed_sections: HashSet::new(),
             shell_integration_action: None,
             shader_action: None,
+            show_reset_defaults_dialog: false,
         }
     }
 
@@ -335,6 +340,129 @@ impl SettingsUI {
             .clone()
             .unwrap_or_default();
         self.font_pending_changes = false;
+    }
+
+    /// Sync ALL temp fields from config (used when resetting to defaults)
+    fn sync_all_temps_from_config(&mut self) {
+        // Font temps
+        self.sync_font_temps_from_config();
+
+        // Shell/terminal temps
+        self.temp_custom_shell = self.config.custom_shell.clone().unwrap_or_default();
+        self.temp_shell_args = self
+            .config
+            .shell_args
+            .as_ref()
+            .map(|args| args.join(" "))
+            .unwrap_or_default();
+        self.temp_working_directory = self.config.working_directory.clone().unwrap_or_default();
+        self.temp_initial_text = self.config.initial_text.clone();
+
+        // Background temps
+        self.temp_background_image = self.config.background_image.clone().unwrap_or_default();
+        self.temp_background_color = self.config.background_color;
+
+        // Shader temps
+        self.temp_custom_shader = self.config.custom_shader.clone().unwrap_or_default();
+        self.temp_cursor_shader = self.config.cursor_shader.clone().unwrap_or_default();
+        self.temp_shader_channel0 = self
+            .config
+            .custom_shader_channel0
+            .clone()
+            .unwrap_or_default();
+        self.temp_shader_channel1 = self
+            .config
+            .custom_shader_channel1
+            .clone()
+            .unwrap_or_default();
+        self.temp_shader_channel2 = self
+            .config
+            .custom_shader_channel2
+            .clone()
+            .unwrap_or_default();
+        self.temp_shader_channel3 = self
+            .config
+            .custom_shader_channel3
+            .clone()
+            .unwrap_or_default();
+        self.temp_cubemap_path = self
+            .config
+            .custom_shader_cubemap
+            .clone()
+            .unwrap_or_default();
+
+        // Update live opacity tracking
+        self.last_live_opacity = self.config.window_opacity;
+    }
+
+    /// Reset all settings to their default values
+    fn reset_all_to_defaults(&mut self) {
+        self.config = Config::default();
+        self.sync_all_temps_from_config();
+        self.has_changes = true;
+        self.search_query.clear();
+    }
+
+    /// Show the reset to defaults confirmation dialog
+    fn show_reset_defaults_dialog_window(&mut self, ctx: &Context) {
+        if !self.show_reset_defaults_dialog {
+            return;
+        }
+
+        let mut close_dialog = false;
+        let mut do_reset = false;
+
+        egui::Window::new("Reset to Defaults")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(10.0);
+                    ui.label(
+                        egui::RichText::new("⚠ Warning")
+                            .color(egui::Color32::YELLOW)
+                            .size(18.0)
+                            .strong(),
+                    );
+                    ui.add_space(10.0);
+                    ui.label("This will reset ALL settings to their default values.");
+                    ui.add_space(5.0);
+                    ui.label(
+                        egui::RichText::new("Unsaved changes will be lost. This cannot be undone.")
+                            .color(egui::Color32::GRAY),
+                    );
+                    ui.add_space(15.0);
+
+                    ui.horizontal(|ui| {
+                        // Reset button with danger styling
+                        let reset_button = egui::Button::new(
+                            egui::RichText::new("Reset").color(egui::Color32::WHITE),
+                        )
+                        .fill(egui::Color32::from_rgb(180, 50, 50));
+
+                        if ui.add(reset_button).clicked() {
+                            do_reset = true;
+                            close_dialog = true;
+                        }
+
+                        ui.add_space(10.0);
+
+                        if ui.button("Cancel").clicked() {
+                            close_dialog = true;
+                        }
+                    });
+                    ui.add_space(10.0);
+                });
+            });
+
+        if do_reset {
+            self.reset_all_to_defaults();
+        }
+
+        if close_dialog {
+            self.show_reset_defaults_dialog = false;
+        }
     }
 
     /// Apply font changes from temp variables to config
@@ -508,6 +636,14 @@ impl SettingsUI {
                             }
                         }
 
+                        if ui
+                            .button("Reset to Defaults")
+                            .on_hover_text("Reset all settings to their default values")
+                            .clicked()
+                        {
+                            self.show_reset_defaults_dialog = true;
+                        }
+
                         if self.has_changes {
                             ui.colored_label(egui::Color32::YELLOW, "* Unsaved changes");
                         }
@@ -522,6 +658,9 @@ impl SettingsUI {
         // Show shader dialogs
         self.show_create_shader_dialog_window(ctx);
         self.show_delete_shader_dialog_window(ctx);
+
+        // Show reset to defaults confirmation dialog
+        self.show_reset_defaults_dialog_window(ctx);
 
         // Update visibility based on window state (only if settings window is being shown)
         if self.visible && (!open || close_requested) {
@@ -652,6 +791,14 @@ impl SettingsUI {
                         }
                     }
 
+                    if ui
+                        .button("Reset to Defaults")
+                        .on_hover_text("Reset all settings to their default values")
+                        .clicked()
+                    {
+                        self.show_reset_defaults_dialog = true;
+                    }
+
                     if self.has_changes {
                         ui.colored_label(egui::Color32::YELLOW, "* Unsaved changes");
                     }
@@ -665,6 +812,9 @@ impl SettingsUI {
         // Show shader dialogs
         self.show_create_shader_dialog_window(ctx);
         self.show_delete_shader_dialog_window(ctx);
+
+        // Show reset to defaults confirmation dialog
+        self.show_reset_defaults_dialog_window(ctx);
 
         // Handle save request
         let config_to_save = if save_requested {

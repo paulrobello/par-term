@@ -341,6 +341,13 @@ impl WindowManager {
         use crate::font_metrics::window_size_from_config;
         use winit::window::Window;
 
+        // Reload config from disk to pick up any changes made by other windows
+        // (e.g., integration versions saved after completing onboarding).
+        // This ensures new windows don't show stale prompts.
+        if let Ok(fresh_config) = Config::load() {
+            self.config = fresh_config;
+        }
+
         // Calculate window size from cols/rows BEFORE window creation.
         // This ensures the window opens at the exact correct size with no visible resize.
         // We use scale_factor=1.0 here since we don't have the actual display scale yet;
