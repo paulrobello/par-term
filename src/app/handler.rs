@@ -376,16 +376,96 @@ impl WindowState {
                     return false;
                 }
 
-                // Check if active tab's shell has exited and close window/tab if configured
+                // Check for exited panes in all tabs and close them
                 if self.config.exit_on_shell_exit {
-                    // First check if shell exited (gather info without mutable borrows)
+                    // Track tabs that need terminal resize and tabs that should close
+                    let mut tabs_needing_resize: Vec<crate::tab::TabId> = Vec::new();
+
+                    // Collect tabs that need to be closed (all panes exited)
+                    let tabs_to_close: Vec<crate::tab::TabId> = self
+                        .tab_manager
+                        .tabs_mut()
+                        .iter_mut()
+                        .filter_map(|tab| {
+                            // Skip tmux tabs - they don't have local shells
+                            // tmux pane content comes from tmux, not local PTY
+                            if tab.tmux_gateway_active || tab.tmux_pane_id.is_some() {
+                                return None;
+                            }
+
+                            // Check for exited panes in this tab
+                            if tab.pane_manager.is_some() {
+                                let (closed_panes, tab_should_close) = tab.close_exited_panes();
+                                if !closed_panes.is_empty() {
+                                    log::info!(
+                                        "Tab {}: closed {} exited pane(s)",
+                                        tab.id,
+                                        closed_panes.len()
+                                    );
+                                    // Mark for terminal resize if tab still has panes
+                                    if !tab_should_close {
+                                        tabs_needing_resize.push(tab.id);
+                                    }
+                                }
+                                if tab_should_close {
+                                    return Some(tab.id);
+                                }
+                            }
+                            None
+                        })
+                        .collect();
+
+                    // Resize terminals for tabs that had panes closed but still have remaining panes
+                    if !tabs_needing_resize.is_empty() {
+                        if let Some(renderer) = &self.renderer {
+                            let cell_width = renderer.cell_width();
+                            let cell_height = renderer.cell_height();
+                            let padding = self.config.window_padding;
+                            for tab_id in tabs_needing_resize {
+                                if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
+                                    if let Some(pm) = tab.pane_manager_mut() {
+                                        pm.resize_all_terminals_with_padding(
+                                            cell_width,
+                                            cell_height,
+                                            padding,
+                                        );
+                                        crate::debug_info!(
+                                            "PANE_RESIZE",
+                                            "Resized terminals after pane closure in tab {}",
+                                            tab_id
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Close tabs that have no panes left
+                    for tab_id in &tabs_to_close {
+                        log::info!("Closing tab {} - all panes exited", tab_id);
+                        if self.tab_manager.tab_count() <= 1 {
+                            // Last tab - close window
+                            log::info!("Last tab, closing window");
+                            self.is_shutting_down = true;
+                            for tab in self.tab_manager.tabs_mut() {
+                                tab.stop_refresh_task();
+                            }
+                            return true;
+                        } else {
+                            let _ = self.tab_manager.close_tab(*tab_id);
+                        }
+                    }
+
+                    // Also check legacy single-pane tabs (no pane_manager)
                     let (shell_exited, active_tab_id, tab_count, tab_title, exit_notified) = {
                         if let Some(tab) = self.tab_manager.active_tab() {
-                            let exited = tab
-                                .terminal
-                                .try_lock()
-                                .ok()
-                                .is_some_and(|term| !term.is_running());
+                            // Only check legacy terminal if no pane_manager
+                            let exited = tab.pane_manager.is_none()
+                                && tab
+                                    .terminal
+                                    .try_lock()
+                                    .ok()
+                                    .is_some_and(|term| !term.is_running());
                             (
                                 exited,
                                 Some(tab.id),

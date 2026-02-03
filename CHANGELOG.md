@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **tmux Pane Display on Initial Connect**: Fixed tmux panes not rendering when attaching to existing sessions. The `close_exited_panes` logic was incorrectly closing tmux display panes (which don't have local shells) immediately after creation. Now skips shell exit checks for tabs displaying tmux content.
+- **tmux Tabs Not Closing on Session End**: Fixed tmux display tabs remaining open after the tmux session ends. Now properly closes all tabs that were displaying tmux window content when the session terminates, and clears pane mappings.
 - **Shift+Enter Key Behavior**: Shift+Enter now sends LF (`\n`) instead of CR (`\r`), matching iTerm2 behavior. This enables soft line breaks in applications like Claude Code that distinguish between Enter (submit) and Shift+Enter (new line).
 - **Multi-Window Focus Routing**: Menu actions (Cmd+T, Cmd+V, etc.) now correctly route to the focused window instead of an arbitrary window when multiple windows are open
 - **Settings UI Layout**: Content area now properly fills available window space instead of leaving empty space at the bottom
@@ -46,6 +48,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Cursor Shader Section**: cursor_shader_color picker, cursor_shader_trail_duration, cursor_shader_glow_radius, cursor_shader_glow_intensity sliders
   - **Background Tab**: shader_hot_reload_delay slider (shown when hot reload is enabled)
 - **Edit Config File Button**: New button in settings footer to open config.yaml in system's default text editor
+
+- **tmux Status Bar**: Native status bar display when connected to tmux sessions
+  - Shows session name, window list with active marker, focused pane ID, and time
+  - Renders at bottom of terminal using egui (outside terminal content area)
+  - Configurable refresh interval via `tmux_status_bar_refresh_ms` (default: 1000ms)
+  - Toggle via `tmux_show_status_bar` config option and Settings UI
+  - See [#67](https://github.com/paulrobello/par-term/issues/67) for planned enhancements (configurable content, tmux format strings)
+
+- **Auto-Close Exited Panes**: Panes automatically close when their shell process exits
+  - Works with split panes - each pane closes independently when its shell exits
+  - Tab closes when all panes have exited (respects `exit_on_shell_exit` config)
+  - Properly handles tmux panes (which don't have local shells)
 
 - **tmux Control Mode Enhancements**: Improved multi-client support and bidirectional sync (#62)
   - **Bidirectional pane resize**: Resizing panes in par-term now updates external tmux clients

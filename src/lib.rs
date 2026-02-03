@@ -50,5 +50,6 @@ pub mod text_shaper;
 pub mod themes;
 pub mod tmux;
 pub mod tmux_session_picker_ui;
+pub mod tmux_status_bar_ui;
 pub mod update_checker;
 pub mod url_detection;

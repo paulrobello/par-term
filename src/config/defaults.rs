@@ -529,6 +529,10 @@ pub fn tmux_prefix_key() -> String {
     "C-b".to_string() // Standard tmux prefix (Ctrl+B)
 }
 
+pub fn tmux_status_bar_refresh_ms() -> u64 {
+    1000 // Default: 1 second refresh interval
+}
+
 // Session logging defaults
 pub fn session_log_directory() -> String {
     // XDG-compliant default: ~/.local/share/par-term/logs/

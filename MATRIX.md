@@ -371,7 +371,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | tmux session picker UI | ✅ | ✅ `Cmd+Opt+T` | ✅ | - | - | List/attach sessions from GUI |
 | **Bidirectional pane resize** | ✅ | ✅ | ✅ | - | - | Resize in par-term updates tmux and vice versa |
 | **Multi-client size sync** | ✅ | ✅ `window-size smallest` | ✅ | - | - | Sets smallest mode on connect for proper sizing |
-| tmux status bar in UI | ✅ Native display | 🔶 Config ready | 🔶 | ⭐⭐ | 🟡 | Display status outside terminal area |
+| tmux status bar in UI | ✅ Native display | ✅ `tmux_show_status_bar` | ✅ | - | - | Display status outside terminal area |
 | tmux clipboard sync | ✅ Bidirectional | ✅ `set-buffer` | ✅ | - | - | Sync with tmux paste buffers |
 | tmux pause mode handling | ✅ | ✅ | ✅ | - | - | Handle slow connection pausing with buffering |
 | Auto-attach on launch | ✅ | ✅ `tmux_auto_attach` | ✅ | - | - | Option to auto-attach to session |
@@ -395,7 +395,8 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 - `tmux_auto_attach`: Automatically attach on startup
 - `tmux_auto_attach_session`: Session name for auto-attach
 - `tmux_clipboard_sync`: Sync clipboard with tmux paste buffer
-- `tmux_show_status_bar`: Display tmux status bar (pending)
+- `tmux_show_status_bar`: Display tmux status bar at bottom when connected
+- `tmux_status_bar_refresh_ms`: Status bar refresh interval in milliseconds (default: 1000)
 - `tmux_profile`: Profile to use when connected (pending)
 
 ---

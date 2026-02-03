@@ -929,6 +929,13 @@ pub struct Config {
     #[serde(default = "defaults::bool_false")]
     pub tmux_show_status_bar: bool,
 
+    /// Tmux status bar refresh interval in milliseconds
+    /// How often to poll tmux for updated status bar content.
+    /// Lower values mean more frequent updates but slightly more CPU usage.
+    /// Default: 1000 (1 second)
+    #[serde(default = "defaults::tmux_status_bar_refresh_ms")]
+    pub tmux_status_bar_refresh_ms: u64,
+
     /// Tmux prefix key for control mode
     /// In control mode, par-term intercepts this key combination and waits for a command key.
     /// Format: "C-b" (Ctrl+B, default), "C-Space" (Ctrl+Space), "C-a" (Ctrl+A), etc.
@@ -1255,6 +1262,7 @@ impl Default for Config {
             tmux_clipboard_sync: defaults::bool_true(),
             tmux_profile: None,
             tmux_show_status_bar: defaults::bool_false(),
+            tmux_status_bar_refresh_ms: defaults::tmux_status_bar_refresh_ms(),
             tmux_prefix_key: defaults::tmux_prefix_key(),
             pause_shaders_on_blur: defaults::bool_true(),
             pause_refresh_on_blur: defaults::bool_false(),

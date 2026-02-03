@@ -355,7 +355,15 @@ impl Pane {
     /// Check if the terminal in this pane is still running
     pub fn is_running(&self) -> bool {
         if let Ok(term) = self.terminal.try_lock() {
-            term.is_running()
+            let running = term.is_running();
+            if !running {
+                crate::debug_info!(
+                    "PANE_EXIT",
+                    "Pane {} terminal detected as NOT running (shell exited)",
+                    self.id
+                );
+            }
+            running
         } else {
             true // Assume running if locked
         }

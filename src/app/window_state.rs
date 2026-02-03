@@ -28,6 +28,7 @@ use crate::tab::{TabId, TabManager};
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
 use crate::tmux::{TmuxSession, TmuxSync};
 use crate::tmux_session_picker_ui::{SessionPickerAction, TmuxSessionPickerUI};
+use crate::tmux_status_bar_ui::TmuxStatusBarUI;
 use anyhow::Result;
 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 use std::sync::Arc;
@@ -43,6 +44,7 @@ struct RendererSizing {
     cell_width: f32,
     cell_height: f32,
     padding: f32,
+    status_bar_height: f32,
 }
 
 /// Pane render data tuple for split pane rendering
@@ -66,6 +68,8 @@ pub struct WindowState {
     pub(crate) tab_manager: TabManager,
     /// Tab bar UI
     pub(crate) tab_bar_ui: TabBarUI,
+    /// tmux status bar UI
+    pub(crate) tmux_status_bar_ui: TmuxStatusBarUI,
 
     pub(crate) debug: DebugState,
 
@@ -231,6 +235,7 @@ impl WindowState {
 
             tab_manager: TabManager::new(),
             tab_bar_ui: TabBarUI::new(),
+            tmux_status_bar_ui: TmuxStatusBarUI::new(),
 
             debug: DebugState::new(),
 
@@ -414,7 +419,10 @@ impl WindowState {
     #[inline]
     pub(crate) fn request_redraw(&self) {
         if let Some(window) = &self.window {
+            crate::debug_trace!("REDRAW", "request_redraw called");
             window.request_redraw();
+        } else {
+            crate::debug_trace!("REDRAW", "request_redraw called but no window");
         }
     }
 
@@ -1546,6 +1554,11 @@ impl WindowState {
             self.config.pane_padding
         };
 
+        // Calculate status bar height before mutable renderer borrow
+        let is_tmux_connected = self.is_tmux_connected();
+        let status_bar_height =
+            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
+
         if let Some(renderer) = &mut self.renderer {
             // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
             let disable_cursor_shader =
@@ -1759,6 +1772,14 @@ impl WindowState {
                     pending_tab_action =
                         self.tab_bar_ui.render(ctx, &self.tab_manager, &self.config);
 
+                    // Render tmux status bar if connected
+                    self.tmux_status_bar_ui.render(
+                        ctx,
+                        &self.config,
+                        self.tmux_session.as_ref(),
+                        self.tmux_session_name.as_deref(),
+                    );
+
                     // Settings are now handled by standalone SettingsWindow only
                     // No overlay settings UI rendering needed
 
@@ -1872,21 +1893,35 @@ impl WindowState {
                 cell_width: renderer.cell_width(),
                 cell_height: renderer.cell_height(),
                 padding: renderer.window_padding(),
+                status_bar_height,
             };
 
-            // Check if we have split panes - this just checks without modifying
-            let has_split_panes = self
+            // Check if we have a pane manager with panes - this just checks without modifying
+            // We use pane_count() > 0 instead of has_multiple_panes() because even with a
+            // single pane in the manager (e.g., after closing one tmux split), we need to
+            // render via the pane manager path since cells are in the pane's terminal,
+            // not the main renderer buffer.
+            let (has_pane_manager, pane_count) = self
                 .tab_manager
                 .active_tab()
                 .and_then(|t| t.pane_manager.as_ref())
-                .map(|pm| pm.has_multiple_panes())
-                .unwrap_or(false);
+                .map(|pm| (pm.pane_count() > 0, pm.pane_count()))
+                .unwrap_or((false, 0));
 
-            let render_result = if has_split_panes {
-                // Render split panes - inline data gathering to avoid borrow conflicts
+            crate::debug_trace!(
+                "RENDER",
+                "has_pane_manager={}, pane_count={}",
+                has_pane_manager,
+                pane_count
+            );
+
+            let render_result = if has_pane_manager {
+                // Render panes from pane manager - inline data gathering to avoid borrow conflicts
                 let content_width = sizing.size.width as f32 - sizing.padding * 2.0;
-                let content_height =
-                    sizing.size.height as f32 - sizing.content_offset_y - sizing.padding;
+                let content_height = sizing.size.height as f32
+                    - sizing.content_offset_y
+                    - sizing.padding
+                    - sizing.status_bar_height;
 
                 // Gather all necessary data upfront while we can borrow tab_manager
                 let pane_render_data: Option<(

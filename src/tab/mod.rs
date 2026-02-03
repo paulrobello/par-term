@@ -914,6 +914,61 @@ impl Tab {
         true
     }
 
+    /// Check for exited panes and close them
+    ///
+    /// Returns (closed_pane_ids, tab_should_close) where:
+    /// - `closed_pane_ids`: Vec of pane IDs that were closed
+    /// - `tab_should_close`: true if all panes have exited (tab should close)
+    pub fn close_exited_panes(&mut self) -> (Vec<crate::pane::PaneId>, bool) {
+        let mut closed_panes = Vec::new();
+
+        // Get IDs of panes whose shells have exited
+        let exited_pane_ids: Vec<crate::pane::PaneId> = if let Some(ref pm) = self.pane_manager {
+            let focused_id = pm.focused_pane_id();
+            pm.all_panes()
+                .iter()
+                .filter_map(|pane| {
+                    let is_running = pane.is_running();
+                    crate::debug_info!(
+                        "PANE_CHECK",
+                        "Pane {} running={} focused={} bounds=({:.0},{:.0} {:.0}x{:.0})",
+                        pane.id,
+                        is_running,
+                        focused_id == Some(pane.id),
+                        pane.bounds.x,
+                        pane.bounds.y,
+                        pane.bounds.width,
+                        pane.bounds.height
+                    );
+                    if !is_running {
+                        Some(pane.id)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        // Close each exited pane
+        if let Some(ref mut pm) = self.pane_manager {
+            for pane_id in exited_pane_ids {
+                crate::debug_info!("PANE_CLOSE", "Closing pane {} - shell exited", pane_id);
+                let is_last = pm.close_pane(pane_id);
+                closed_panes.push(pane_id);
+
+                if is_last {
+                    // Last pane closed, clear the pane manager
+                    self.pane_manager = None;
+                    return (closed_panes, true);
+                }
+            }
+        }
+
+        (closed_panes, false)
+    }
+
     /// Get the pane manager if split panes are enabled
     pub fn pane_manager(&self) -> Option<&PaneManager> {
         self.pane_manager.as_ref()

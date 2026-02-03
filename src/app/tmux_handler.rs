@@ -579,13 +579,25 @@ impl WindowState {
         };
 
         // Get bounds info from renderer for proper pane sizing (needed for both paths)
+        // Calculate status bar height for proper content area
+        let is_tmux_connected = self.is_tmux_connected();
+        let status_bar_height =
+            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
+
         let bounds_info = self.renderer.as_ref().map(|r| {
             let size = r.size();
             let padding = r.window_padding();
             let content_offset_y = r.content_offset_y();
             let cell_width = r.cell_width();
             let cell_height = r.cell_height();
-            (size, padding, content_offset_y, cell_width, cell_height)
+            (
+                size,
+                padding,
+                content_offset_y,
+                cell_width,
+                cell_height,
+                status_bar_height,
+            )
         });
 
         if let Some(tab_id) = tab_id {
@@ -604,12 +616,19 @@ impl WindowState {
                 tab.init_pane_manager();
 
                 // Set pane bounds before applying layout
-                if let Some((size, padding, content_offset_y, _cell_width, _cell_height)) =
-                    bounds_info
+                if let Some((
+                    size,
+                    padding,
+                    content_offset_y,
+                    _cell_width,
+                    _cell_height,
+                    status_bar_height,
+                )) = bounds_info
                     && let Some(pm) = tab.pane_manager_mut()
                 {
                     let content_width = size.width as f32 - padding * 2.0;
-                    let content_height = size.height as f32 - content_offset_y - padding;
+                    let content_height =
+                        size.height as f32 - content_offset_y - padding - status_bar_height;
                     let bounds = crate::pane::PaneBounds::new(
                         padding,
                         content_offset_y,
@@ -649,7 +668,7 @@ impl WindowState {
 
                         // Resize terminals to match new bounds
                         // No padding in tmux mode - tmux controls the layout
-                        if let Some((_, _, _, cell_width, cell_height)) = bounds_info {
+                        if let Some((_, _, _, cell_width, cell_height, _)) = bounds_info {
                             pm.resize_all_terminals(cell_width, cell_height);
                         }
                     }
@@ -658,11 +677,165 @@ impl WindowState {
                     return; // Early return - don't recreate panes
                 }
 
-                // Apply tmux layout to the pane manager (creates new panes)
+                // Check if new panes are a SUBSET of existing (panes were closed)
+                // or if there's overlap (some panes closed, some remain)
+                let panes_to_keep: std::collections::HashSet<_> =
+                    existing_tmux_ids.intersection(&new_tmux_ids).copied().collect();
+                let panes_to_remove: Vec<_> =
+                    existing_tmux_ids.difference(&new_tmux_ids).copied().collect();
+                let panes_to_add: Vec<_> =
+                    new_tmux_ids.difference(&existing_tmux_ids).copied().collect();
+
+                // If we have panes to keep and panes to remove, handle incrementally
+                if !panes_to_keep.is_empty() && !panes_to_remove.is_empty() && panes_to_add.is_empty() {
+                    crate::debug_info!(
+                        "TMUX",
+                        "Layout change: keeping {:?}, removing {:?}",
+                        panes_to_keep,
+                        panes_to_remove
+                    );
+
+                    // Check if any of the removed panes was the focused pane
+                    let current_focused = self.tmux_session.as_ref().and_then(|s| s.focused_pane());
+                    let focused_pane_removed = current_focused
+                        .map(|fp| panes_to_remove.contains(&fp))
+                        .unwrap_or(false);
+
+                    // Remove the closed panes from our native pane tree
+                    if let Some(pm) = tab.pane_manager_mut() {
+                        for tmux_pane_id in &panes_to_remove {
+                            if let Some(native_pane_id) = self.tmux_pane_to_native_pane.get(tmux_pane_id) {
+                                crate::debug_info!(
+                                    "TMUX",
+                                    "Removing native pane {} for closed tmux pane %{}",
+                                    native_pane_id,
+                                    tmux_pane_id
+                                );
+                                pm.close_pane(*native_pane_id);
+                            }
+                        }
+
+                        // Update layout structure for remaining panes
+                        // Build new mappings with only the kept panes
+                        let kept_mappings: std::collections::HashMap<_, _> = self
+                            .tmux_pane_to_native_pane
+                            .iter()
+                            .filter(|(tmux_id, _)| panes_to_keep.contains(tmux_id))
+                            .map(|(k, v)| (*k, *v))
+                            .collect();
+
+                        pm.update_layout_from_tmux(&parsed_layout, &kept_mappings);
+                        pm.recalculate_bounds();
+
+                        // Resize terminals to match new bounds
+                        if let Some((_, _, _, cell_width, cell_height, _)) = bounds_info {
+                            pm.resize_all_terminals(cell_width, cell_height);
+                        }
+                    }
+
+                    // Update mappings - remove closed panes
+                    for tmux_pane_id in &panes_to_remove {
+                        if let Some(native_id) = self.tmux_pane_to_native_pane.remove(tmux_pane_id) {
+                            self.native_pane_to_tmux_pane.remove(&native_id);
+                        }
+                    }
+
+                    // If the focused pane was removed, update tmux session focus to first remaining pane
+                    if focused_pane_removed {
+                        if let Some(new_focus) = panes_to_keep.iter().next().copied() {
+                            crate::debug_info!(
+                                "TMUX",
+                                "Focused pane was removed, updating tmux session focus to %{}",
+                                new_focus
+                            );
+                            if let Some(session) = &mut self.tmux_session {
+                                session.set_focused_pane(Some(new_focus));
+                            }
+                        }
+                    }
+
+                    crate::debug_info!(
+                        "TMUX",
+                        "After pane removal, mappings: {:?}",
+                        self.tmux_pane_to_native_pane
+                    );
+
+                    self.needs_redraw = true;
+                    self.request_redraw();
+                    return; // Early return - don't recreate remaining panes
+                }
+
+                // Handle case where panes are ADDED (split) while keeping existing ones
+                if !panes_to_keep.is_empty() && !panes_to_add.is_empty() && panes_to_remove.is_empty() {
+                    crate::debug_info!(
+                        "TMUX",
+                        "Layout change: keeping {:?}, adding {:?}",
+                        panes_to_keep,
+                        panes_to_add
+                    );
+
+                    // Add new panes while preserving existing ones
+                    if let Some(pm) = tab.pane_manager_mut() {
+                        // Create new panes for the added tmux panes
+                        for tmux_pane_id in &panes_to_add {
+                            let native_id = pm.next_pane_id();
+                            match crate::pane::Pane::new_for_tmux(
+                                native_id,
+                                &self.config,
+                                std::sync::Arc::clone(&self.runtime),
+                            ) {
+                                Ok(pane) => {
+                                    // Add the pane to the tree
+                                    pm.add_pane_for_tmux(pane);
+                                    self.tmux_pane_to_native_pane.insert(*tmux_pane_id, native_id);
+                                    self.native_pane_to_tmux_pane.insert(native_id, *tmux_pane_id);
+                                    crate::debug_info!(
+                                        "TMUX",
+                                        "Created native pane {} for new tmux pane %{}",
+                                        native_id,
+                                        tmux_pane_id
+                                    );
+                                }
+                                Err(e) => {
+                                    crate::debug_error!(
+                                        "TMUX",
+                                        "Failed to create pane for tmux %{}: {}",
+                                        tmux_pane_id,
+                                        e
+                                    );
+                                }
+                            }
+                        }
+
+                        // Update layout structure with all current mappings
+                        pm.update_layout_from_tmux(&parsed_layout, &self.tmux_pane_to_native_pane);
+                        pm.recalculate_bounds();
+
+                        // Resize terminals to match new bounds
+                        if let Some((_, _, _, cell_width, cell_height, _)) = bounds_info {
+                            pm.resize_all_terminals(cell_width, cell_height);
+                        }
+                    }
+
+                    // Request content for the new panes only
+                    self.request_pane_refresh(&panes_to_add);
+
+                    crate::debug_info!(
+                        "TMUX",
+                        "After pane addition, mappings: {:?}",
+                        self.tmux_pane_to_native_pane
+                    );
+
+                    self.needs_redraw = true;
+                    self.request_redraw();
+                    return; // Early return - don't recreate all panes
+                }
+
+                // Full layout recreation needed (complete replacement or complex changes)
                 if let Some(pm) = tab.pane_manager_mut() {
                     crate::debug_info!(
                         "TMUX",
-                        "Layout change with different panes: existing={:?}, new={:?}",
+                        "Full layout recreation: existing={:?}, new={:?}",
                         existing_tmux_ids,
                         new_tmux_ids
                     );
@@ -777,12 +950,15 @@ impl WindowState {
                                 content_offset_y,
                                 _cell_width,
                                 _cell_height,
+                                status_bar_height,
                             )) = bounds_info
                                 && let Some(pm) = tab.pane_manager_mut()
                             {
                                 let content_width = size.width as f32 - padding * 2.0;
-                                let content_height =
-                                    size.height as f32 - content_offset_y - padding;
+                                let content_height = size.height as f32
+                                    - content_offset_y
+                                    - padding
+                                    - status_bar_height;
                                 let bounds = crate::pane::PaneBounds::new(
                                     padding,
                                     content_offset_y,
@@ -1131,12 +1307,36 @@ impl WindowState {
     fn handle_tmux_session_ended(&mut self) {
         crate::debug_info!("TMUX", "Session ended");
 
+        // Collect tmux display tabs to close (tabs with tmux_pane_id set, excluding gateway)
+        let gateway_tab_id = self.tmux_gateway_tab_id;
+        let tmux_tabs_to_close: Vec<crate::tab::TabId> = self
+            .tab_manager
+            .tabs()
+            .iter()
+            .filter_map(|tab| {
+                // Close tabs that were displaying tmux content (have tmux_pane_id)
+                // but not the gateway tab itself
+                if tab.tmux_pane_id.is_some() && Some(tab.id) != gateway_tab_id {
+                    Some(tab.id)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Close tmux display tabs
+        for tab_id in tmux_tabs_to_close {
+            crate::debug_info!("TMUX", "Closing tmux display tab {}", tab_id);
+            let _ = self.tab_manager.close_tab(tab_id);
+        }
+
         // Disable tmux control mode on the gateway tab
         if let Some(gateway_tab_id) = self.tmux_gateway_tab_id
             && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
             && tab.tmux_gateway_active
         {
             tab.tmux_gateway_active = false;
+            tab.tmux_pane_id = None;
             if let Ok(term) = tab.terminal.try_lock() {
                 term.set_tmux_control_mode(false);
             }
@@ -1148,6 +1348,10 @@ impl WindowState {
             session.disconnect();
         }
         self.tmux_session_name = None;
+
+        // Clear pane mappings
+        self.tmux_pane_to_native_pane.clear();
+        self.native_pane_to_tmux_pane.clear();
 
         // Reset window title (now without tmux info)
         self.update_window_title_with_tmux();
@@ -1528,10 +1732,15 @@ impl WindowState {
 
         // Format the send-keys command - try pane-specific first
         let cmd = match session.format_send_keys(data) {
-            Some(c) => c,
+            Some(c) => {
+                crate::debug_trace!("TMUX", "Using pane-specific send-keys: {}", c.trim());
+                c
+            }
             None => {
+                crate::debug_trace!("TMUX", "No focused pane for send-keys, trying window-based");
                 // No focused pane - try window-based routing
                 if let Some(cmd) = self.format_send_keys_for_window(data) {
+                    crate::debug_trace!("TMUX", "Using window-based send-keys: {}", cmd.trim());
                     cmd
                 } else {
                     // No window mapping either - use untargeted send-keys

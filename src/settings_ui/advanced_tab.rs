@@ -204,6 +204,23 @@ fn show_tmux_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_
             *changes_this_frame = true;
         }
 
+        // Status bar refresh interval (only show if status bar is enabled)
+        if settings.config.tmux_show_status_bar {
+            ui.horizontal(|ui| {
+                ui.label("Refresh interval:");
+                let mut refresh_secs = settings.config.tmux_status_bar_refresh_ms as f32 / 1000.0;
+                if ui
+                    .add(egui::Slider::new(&mut refresh_secs, 0.5..=10.0).suffix("s"))
+                    .on_hover_text("How often to update the status bar content")
+                    .changed()
+                {
+                    settings.config.tmux_status_bar_refresh_ms = (refresh_secs * 1000.0) as u64;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        }
+
         ui.add_space(8.0);
 
         // Prefix Key

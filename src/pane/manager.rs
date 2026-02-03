@@ -212,10 +212,13 @@ impl PaneManager {
         // Focus the new pane
         self.focused_pane_id = Some(new_id);
 
-        log::info!(
-            "Split pane {} {:?}, created new pane {}",
+        crate::debug_info!(
+            "PANE_SPLIT",
+            "Split pane {} {:?}, created new pane {}. First(left/top)={} Second(right/bottom)={} (focused)",
             focused_id,
             direction,
+            new_id,
+            focused_id,
             new_id
         );
 
@@ -298,6 +301,8 @@ impl PaneManager {
     ///
     /// Returns true if this was the last pane (tab should close)
     pub fn close_pane(&mut self, id: PaneId) -> bool {
+        crate::debug_info!("PANE_CLOSE", "close_pane called for pane {}", id);
+
         if let Some(root) = self.root.take() {
             match Self::remove_pane(root, id) {
                 RemoveResult::Removed(new_root) => {
@@ -305,18 +310,43 @@ impl PaneManager {
 
                     // If we closed the focused pane, focus another
                     if self.focused_pane_id == Some(id) {
-                        self.focused_pane_id = self
+                        let new_focus = self
                             .root
                             .as_ref()
                             .and_then(|r| r.all_pane_ids().first().copied());
+                        crate::debug_info!(
+                            "PANE_CLOSE",
+                            "Closed focused pane {}, new focus: {:?}",
+                            id,
+                            new_focus
+                        );
+                        self.focused_pane_id = new_focus;
                     }
 
                     // Recalculate bounds
                     self.recalculate_bounds();
 
-                    log::info!("Closed pane {}", id);
+                    // Log remaining panes after closure
+                    if let Some(ref root) = self.root {
+                        for pane_id in root.all_pane_ids() {
+                            if let Some(pane) = self.get_pane(pane_id) {
+                                crate::debug_info!(
+                                    "PANE_CLOSE",
+                                    "Remaining pane {} bounds=({:.0},{:.0} {:.0}x{:.0})",
+                                    pane.id,
+                                    pane.bounds.x,
+                                    pane.bounds.y,
+                                    pane.bounds.width,
+                                    pane.bounds.height
+                                );
+                            }
+                        }
+                    }
+
+                    crate::debug_info!("PANE_CLOSE", "Successfully closed pane {}", id);
                 }
                 RemoveResult::NotFound(root) => {
+                    crate::debug_info!("PANE_CLOSE", "Pane {} not found in tree", id);
                     self.root = Some(root);
                 }
             }
@@ -445,6 +475,46 @@ impl PaneManager {
     /// Get the focused pane ID
     pub fn focused_pane_id(&self) -> Option<PaneId> {
         self.focused_pane_id
+    }
+
+    /// Get the next pane ID that will be assigned
+    pub fn next_pane_id(&self) -> PaneId {
+        self.next_pane_id
+    }
+
+    /// Add a pane for tmux integration (doesn't create split, just adds to flat structure)
+    ///
+    /// This is used when tmux splits a pane - we need to add a new native pane
+    /// without restructuring our tree (tmux layout update will handle that).
+    pub fn add_pane_for_tmux(&mut self, pane: Pane) {
+        let pane_id = pane.id;
+
+        // Update next_pane_id if needed
+        if pane_id >= self.next_pane_id {
+            self.next_pane_id = pane_id + 1;
+        }
+
+        // If no root, this becomes the root
+        if self.root.is_none() {
+            self.root = Some(PaneNode::leaf(pane));
+            self.focused_pane_id = Some(pane_id);
+            return;
+        }
+
+        // Otherwise, we need to add it to the tree structure
+        // For now, we'll create a simple vertical split with the new pane
+        // The actual layout will be corrected by update_layout_from_tmux
+        if let Some(existing_root) = self.root.take() {
+            self.root = Some(PaneNode::Split {
+                direction: SplitDirection::Vertical,
+                ratio: 0.5,
+                first: Box::new(existing_root),
+                second: Box::new(PaneNode::leaf(pane)),
+            });
+        }
+
+        // Focus the new pane
+        self.focused_pane_id = Some(pane_id);
     }
 
     /// Get a pane by ID

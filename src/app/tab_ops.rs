@@ -262,6 +262,11 @@ impl WindowState {
         }
         // Fall through to local split if tmux command failed or not connected
 
+        // Calculate status bar height for proper content area
+        let is_tmux_connected = self.is_tmux_connected();
+        let status_bar_height =
+            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
+
         // Get bounds info from renderer for proper pane sizing
         let bounds_info = self.renderer.as_ref().map(|r| {
             let size = r.size();
@@ -276,7 +281,8 @@ impl WindowState {
             // Set pane bounds before split if we have renderer info
             if let Some((size, padding, content_offset_y, cell_width, cell_height)) = bounds_info {
                 let content_width = size.width as f32 - padding * 2.0;
-                let content_height = size.height as f32 - content_offset_y - padding;
+                let content_height =
+                    size.height as f32 - content_offset_y - padding - status_bar_height;
                 let bounds = crate::pane::PaneBounds::new(
                     padding,
                     content_offset_y,
@@ -319,6 +325,11 @@ impl WindowState {
         }
         // Fall through to local split if tmux command failed or not connected
 
+        // Calculate status bar height for proper content area
+        let is_tmux_connected = self.is_tmux_connected();
+        let status_bar_height =
+            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
+
         // Get bounds info from renderer for proper pane sizing
         let bounds_info = self.renderer.as_ref().map(|r| {
             let size = r.size();
@@ -333,7 +344,8 @@ impl WindowState {
             // Set pane bounds before split if we have renderer info
             if let Some((size, padding, content_offset_y, cell_width, cell_height)) = bounds_info {
                 let content_width = size.width as f32 - padding * 2.0;
-                let content_height = size.height as f32 - content_offset_y - padding;
+                let content_height =
+                    size.height as f32 - content_offset_y - padding - status_bar_height;
                 let bounds = crate::pane::PaneBounds::new(
                     padding,
                     content_offset_y,

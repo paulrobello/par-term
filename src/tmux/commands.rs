@@ -207,6 +207,45 @@ impl TmuxCommand {
     }
 
     // =========================================================================
+    // Status Bar Commands
+    // =========================================================================
+
+    /// Get the left side of the status bar
+    ///
+    /// Uses display-message with -p flag to print to stdout.
+    /// The format uses tmux's status-left format string.
+    pub fn get_status_left() -> Self {
+        Self::new("display-message -p '#{status-left}'")
+    }
+
+    /// Get the right side of the status bar
+    ///
+    /// Uses display-message with -p flag to print to stdout.
+    /// The format uses tmux's status-right format string.
+    pub fn get_status_right() -> Self {
+        Self::new("display-message -p '#{status-right}'")
+    }
+
+    /// Get the full status bar content (formatted)
+    ///
+    /// Returns: session_name | window_list | date/time
+    /// This provides a simpler status bar that doesn't require parsing tmux formats.
+    pub fn get_status_bar() -> Self {
+        Self::new(
+            "display-message -p '#{session_name} | #(tmux list-windows -F \"##I:##W#{?window_active,*,}\" | tr \"\\n\" \" \") | %H:%M'",
+        )
+    }
+
+    /// Get status bar with custom format
+    ///
+    /// Allows specifying a custom format string for the status bar.
+    /// Uses tmux format variables like #{session_name}, #{window_index}, etc.
+    pub fn get_status_formatted(format: &str) -> Self {
+        let escaped = format.replace('\'', "'\\''");
+        Self::new(format!("display-message -p '{}'", escaped))
+    }
+
+    // =========================================================================
     // Control Mode Specific
     // =========================================================================
 
