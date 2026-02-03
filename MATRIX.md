@@ -141,12 +141,12 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Tab colors (active/inactive/hover) | ✅ | ✅ Full color customization | ✅ | - | - | - |
 | Dim inactive tabs | ✅ | ✅ `dim_inactive_tabs`, `inactive_tab_opacity` | ✅ | - | - | - |
 | Tab min width | ❌ | ✅ `tab_min_width` | ✅ | - | - | par-term exclusive |
-| Stretch tabs to fill | ✅ `Stretch Tabs to Fill Bar` | ❌ | ❌ | ⭐ | 🟢 | Equal-width vs stretched |
+| Stretch tabs to fill | ✅ `Stretch Tabs to Fill Bar` | ✅ `tab_stretch_to_fill` (default on) | ✅ | ⭐ | 🟢 | Equal-width distribution with `tab_min_width` floor |
 | New tabs at end | ✅ `New Tabs Open at End` | ✅ | ✅ | - | - | Default behavior |
 | Inherit working directory | ✅ | ✅ `tab_inherit_cwd` | ✅ | - | - | - |
 | Max tabs limit | ❌ | ✅ `max_tabs` | ✅ | - | - | par-term exclusive |
 | Tab style (visual theme) | ✅ Light/Dark/Minimal/Compact | ❌ | ❌ | ⭐ | 🟡 | Different visual styles |
-| HTML tab titles | ✅ `HTML Tab Titles` | ❌ | ❌ | ⭐ | 🟡 | Rich text in tabs |
+| HTML tab titles | ✅ `HTML Tab Titles` | ✅ `tab_html_titles` | ✅ | ⭐ | 🟡 | Limited tags: <b>, <i>, <u>, <span style=\"color\"> |
 
 ---
 
