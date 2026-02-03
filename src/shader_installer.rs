@@ -221,6 +221,31 @@ pub fn get_installed_version(dir: &Path) -> Option<String> {
     Manifest::load(dir).ok().map(|m| m.version)
 }
 
+/// Detect bundled shader files that have been modified by the user.
+///
+/// Returns a list of relative paths that differ from the recorded manifest
+/// hashes. If no manifest is present, an empty vector is returned.
+pub fn detect_modified_bundled_shaders() -> Result<Vec<String>, String> {
+    let shaders_dir = Config::shaders_dir();
+
+    let manifest = match Manifest::load(&shaders_dir) {
+        Ok(manifest) => manifest,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut modified = Vec::new();
+
+    for file in &manifest.files {
+        let path = shaders_dir.join(&file.path);
+        let status = manifest::check_file_status(&path, &file.path, &manifest);
+        if status == FileStatus::Modified {
+            modified.push(file.path.clone());
+        }
+    }
+
+    Ok(modified)
+}
+
 /// Install shaders with manifest support
 ///
 /// Downloads shaders from GitHub and installs them using manifest tracking.
@@ -272,6 +297,7 @@ pub fn install_shaders_with_manifest(force_overwrite: bool) -> Result<InstallRes
                 if !force_overwrite {
                     // User has modified this file - needs confirmation
                     result.needs_confirmation.push(new_file.path.clone());
+                    result.skipped += 1;
                     continue;
                 }
                 // force_overwrite is true, will be installed
@@ -282,11 +308,6 @@ pub fn install_shaders_with_manifest(force_overwrite: bool) -> Result<InstallRes
                 continue;
             }
         }
-    }
-
-    // If there are files needing confirmation and we're not forcing, return early
-    if !result.needs_confirmation.is_empty() && !force_overwrite {
-        return Ok(result);
     }
 
     // Now actually extract the files

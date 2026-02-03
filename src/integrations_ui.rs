@@ -19,6 +19,19 @@ pub struct IntegrationsResponse {
     pub never_ask: bool,
     /// Dialog was closed
     pub closed: bool,
+    /// User responded to shader overwrite prompt
+    pub shader_conflict_action: Option<ShaderConflictAction>,
+}
+
+/// Action chosen when modified shaders are detected
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShaderConflictAction {
+    /// Overwrite modified bundled shaders
+    Overwrite,
+    /// Keep user-modified shaders (skip overwrite)
+    SkipModified,
+    /// Cancel the installation flow
+    Cancel,
 }
 
 /// Combined integrations welcome dialog
@@ -39,6 +52,13 @@ pub struct IntegrationsUI {
     pub error_message: Option<String>,
     /// Installation success message
     pub success_message: Option<String>,
+    /// Whether we're waiting for user decision on modified shaders
+    pub awaiting_shader_overwrite: bool,
+    /// List of modified bundled shader files detected
+    pub shader_conflicts: Vec<String>,
+    /// Pending install request flags preserved while waiting for confirmation
+    pub pending_install_shaders: bool,
+    pub pending_install_shell_integration: bool,
 }
 
 impl IntegrationsUI {
@@ -53,6 +73,10 @@ impl IntegrationsUI {
             progress_message: None,
             error_message: None,
             success_message: None,
+            awaiting_shader_overwrite: false,
+            shader_conflicts: Vec::new(),
+            pending_install_shaders: false,
+            pending_install_shell_integration: false,
         }
     }
 
@@ -65,6 +89,10 @@ impl IntegrationsUI {
         self.success_message = None;
         // Re-detect shell when showing dialog
         self.detected_shell = ShellType::detect();
+        self.awaiting_shader_overwrite = false;
+        self.shader_conflicts.clear();
+        self.pending_install_shaders = false;
+        self.pending_install_shell_integration = false;
     }
 
     /// Hide the dialog
@@ -154,61 +182,103 @@ impl IntegrationsUI {
 
                 // Checkboxes for integrations (only show when not installing/succeeded)
                 if !self.installing && self.success_message.is_none() {
-                    // Shaders checkbox with description
-                    ui.group(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.checkbox(&mut self.shaders_checked, "");
+                    if self.awaiting_shader_overwrite {
+                        ui.group(|ui| {
                             ui.vertical(|ui| {
-                                ui.label(RichText::new("Custom Shaders").strong());
-                                ui.label(
-                                    RichText::new(
-                                        "49+ background shaders (CRT, Matrix, plasma) and \
-                                         12 cursor effects (trails, glows)",
-                                    )
-                                    .weak()
-                                    .small(),
-                                );
-                            });
-                        });
-                    });
-
-                    ui.add_space(8.0);
-
-                    // Shell integration checkbox with description
-                    ui.group(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.checkbox(&mut self.shell_integration_checked, "");
-                            ui.vertical(|ui| {
-                                let shell_name = self.detected_shell.display_name();
-                                let label = if self.detected_shell == ShellType::Unknown {
-                                    "Shell Integration".to_string()
-                                } else {
-                                    format!("Shell Integration ({})", shell_name)
-                                };
-                                ui.label(RichText::new(label).strong());
-                                ui.label(
-                                    RichText::new(
-                                        "Current directory tracking, command markers, \
-                                         and semantic prompt zones",
-                                    )
-                                    .weak()
-                                    .small(),
-                                );
-                                if self.detected_shell == ShellType::Unknown {
+                                ui.label(RichText::new("Modified shaders detected").strong());
+                                if self.shader_conflicts.is_empty() {
                                     ui.label(
                                         RichText::new(
-                                            "Note: Could not detect shell. Manual setup may be required.",
+                                            "Some bundled shaders were modified. Overwrite or keep your versions?",
                                         )
-                                        .weak()
-                                        .italics()
-                                        .small(),
+                                        .weak(),
                                     );
+                                } else {
+                                    ui.label(RichText::new(
+                                        format!(
+                                            "{} modified files found. Overwrite them or keep your changes?",
+                                            self.shader_conflicts.len()
+                                        ),
+                                    ));
+                                    let preview: Vec<_> = self
+                                        .shader_conflicts
+                                        .iter()
+                                        .take(5)
+                                        .cloned()
+                                        .collect();
+                                    ui.label(
+                                        RichText::new(preview.join(", "))
+                                            .small()
+                                            .weak(),
+                                    );
+                                    if self.shader_conflicts.len() > 5 {
+                                        ui.label(
+                                            RichText::new("…and more")
+                                                .small()
+                                                .weak(),
+                                        );
+                                    }
                                 }
                             });
                         });
-                    });
+                        ui.add_space(16.0);
+                    } else {
+                        // Shaders checkbox with description
+                        ui.group(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.checkbox(&mut self.shaders_checked, "");
+                                ui.vertical(|ui| {
+                                    ui.label(RichText::new("Custom Shaders").strong());
+                                    ui.label(
+                                        RichText::new(
+                                            "49+ background shaders (CRT, Matrix, plasma) and \
+                                             12 cursor effects (trails, glows)",
+                                        )
+                                        .weak()
+                                        .small(),
+                                    );
+                                });
+                            });
+                        });
 
-                    ui.add_space(20.0);
+                        ui.add_space(8.0);
+
+                        // Shell integration checkbox with description
+                        ui.group(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.checkbox(&mut self.shell_integration_checked, "");
+                                ui.vertical(|ui| {
+                                    let shell_name = self.detected_shell.display_name();
+                                    let label = if self.detected_shell == ShellType::Unknown {
+                                        "Shell Integration".to_string()
+                                    } else {
+                                        format!("Shell Integration ({})", shell_name)
+                                    };
+                                    ui.label(RichText::new(label).strong());
+                                    ui.label(
+                                        RichText::new(
+                                            "Current directory tracking, command markers, \
+                                             and semantic prompt zones",
+                                        )
+                                        .weak()
+                                        .small(),
+                                    );
+                                    if self.detected_shell == ShellType::Unknown {
+                                        ui.label(
+                                            RichText::new(
+                                                "Note: Could not detect shell. Manual setup may be required.",
+                                            )
+                                            .weak()
+                                            .italics()
+                                            .small(),
+                                        );
+                                    }
+                                });
+                            });
+                        });
+
+                        ui.add_space(20.0);
+                    }
                 }
 
                 // Buttons (centered)
@@ -217,41 +287,77 @@ impl IntegrationsUI {
                         ui.horizontal(|ui| {
                             let button_width = 130.0;
 
-                            // Install Selected button (only if something is checked)
-                            let can_install =
-                                self.shaders_checked || self.shell_integration_checked;
-                            ui.add_enabled_ui(can_install, |ui| {
+                            if self.awaiting_shader_overwrite {
                                 if ui
                                     .add_sized(
-                                        [button_width, 32.0],
-                                        egui::Button::new("Install Selected"),
+                                        [button_width + 20.0, 32.0],
+                                        egui::Button::new("Overwrite modified"),
                                     )
                                     .clicked()
                                 {
-                                    response.install_shaders = self.shaders_checked;
-                                    response.install_shell_integration =
-                                        self.shell_integration_checked;
+                                    response.shader_conflict_action =
+                                        Some(ShaderConflictAction::Overwrite);
                                 }
-                            });
 
-                            ui.add_space(8.0);
+                                ui.add_space(8.0);
 
-                            if ui
-                                .add_sized([button_width, 32.0], egui::Button::new("Skip"))
-                                .on_hover_text("Dismiss for this session")
-                                .clicked()
-                            {
-                                response.skipped = true;
-                            }
+                                if ui
+                                    .add_sized(
+                                        [button_width + 10.0, 32.0],
+                                        egui::Button::new("Skip modified"),
+                                    )
+                                    .clicked()
+                                {
+                                    response.shader_conflict_action =
+                                        Some(ShaderConflictAction::SkipModified);
+                                }
 
-                            ui.add_space(8.0);
+                                ui.add_space(8.0);
 
-                            if ui
-                                .add_sized([button_width, 32.0], egui::Button::new("Never Ask"))
-                                .on_hover_text("Don't ask again for these integrations")
-                                .clicked()
-                            {
-                                response.never_ask = true;
+                                if ui
+                                    .add_sized([button_width, 32.0], egui::Button::new("Cancel"))
+                                    .clicked()
+                                {
+                                    response.shader_conflict_action =
+                                        Some(ShaderConflictAction::Cancel);
+                                }
+                            } else {
+                                // Install Selected button (only if something is checked)
+                                let can_install =
+                                    self.shaders_checked || self.shell_integration_checked;
+                                ui.add_enabled_ui(can_install, |ui| {
+                                    if ui
+                                        .add_sized(
+                                            [button_width, 32.0],
+                                            egui::Button::new("Install Selected"),
+                                        )
+                                        .clicked()
+                                    {
+                                        response.install_shaders = self.shaders_checked;
+                                        response.install_shell_integration =
+                                            self.shell_integration_checked;
+                                    }
+                                });
+
+                                ui.add_space(8.0);
+
+                                if ui
+                                    .add_sized([button_width, 32.0], egui::Button::new("Skip"))
+                                    .on_hover_text("Dismiss for this session")
+                                    .clicked()
+                                {
+                                    response.skipped = true;
+                                }
+
+                                ui.add_space(8.0);
+
+                                if ui
+                                    .add_sized([button_width, 32.0], egui::Button::new("Never Ask"))
+                                    .on_hover_text("Don't ask again for these integrations")
+                                    .clicked()
+                                {
+                                    response.never_ask = true;
+                                }
                             }
                         });
                     } else if self.success_message.is_some() {
@@ -274,11 +380,12 @@ impl IntegrationsUI {
                     && self.error_message.is_none()
                 {
                     ui.vertical_centered(|ui| {
-                        ui.label(
-                            RichText::new("You can install these later via CLI or Settings (F12)")
-                                .weak()
-                                .small(),
-                        );
+                        let msg = if self.awaiting_shader_overwrite {
+                            "Choose how to handle modified shaders to continue installation"
+                        } else {
+                            "You can install these later via CLI or Settings (F12)"
+                        };
+                        ui.label(RichText::new(msg).weak().small());
                     });
                 }
             });

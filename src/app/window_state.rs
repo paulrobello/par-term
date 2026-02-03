@@ -2432,33 +2432,119 @@ impl WindowState {
             && !response.skipped
             && !response.never_ask
             && !response.closed
+            && response.shader_conflict_action.is_none()
         {
             return;
         }
 
         let current_version = env!("CARGO_PKG_VERSION").to_string();
 
+        // Determine install intent and overwrite behavior
+        let mut install_shaders = false;
+        let mut install_shell_integration = false;
+        let mut force_overwrite_modified_shaders = false;
+        let mut triggered_install = false;
+
+        // If we're waiting on a shader overwrite decision, handle that first
+        if let Some(action) = response.shader_conflict_action {
+            triggered_install = true;
+            install_shaders = self.integrations_ui.pending_install_shaders;
+            install_shell_integration = self.integrations_ui.pending_install_shell_integration;
+
+            match action {
+                crate::integrations_ui::ShaderConflictAction::Overwrite => {
+                    force_overwrite_modified_shaders = true;
+                }
+                crate::integrations_ui::ShaderConflictAction::SkipModified => {
+                    force_overwrite_modified_shaders = false;
+                }
+                crate::integrations_ui::ShaderConflictAction::Cancel => {
+                    // Reset pending state and exit without installing
+                    self.integrations_ui.awaiting_shader_overwrite = false;
+                    self.integrations_ui.shader_conflicts.clear();
+                    self.integrations_ui.pending_install_shaders = false;
+                    self.integrations_ui.pending_install_shell_integration = false;
+                    self.integrations_ui.error_message = None;
+                    self.integrations_ui.success_message = None;
+                    self.needs_redraw = true;
+                    return;
+                }
+            }
+
+            // Clear the conflict prompt regardless of choice
+            self.integrations_ui.awaiting_shader_overwrite = false;
+            self.integrations_ui.shader_conflicts.clear();
+            self.integrations_ui.error_message = None;
+            self.integrations_ui.success_message = None;
+            self.integrations_ui.installing = false;
+        } else if response.install_shaders || response.install_shell_integration {
+            triggered_install = true;
+            install_shaders = response.install_shaders;
+            install_shell_integration = response.install_shell_integration;
+
+            if install_shaders {
+                match crate::shader_installer::detect_modified_bundled_shaders() {
+                    Ok(conflicts) if !conflicts.is_empty() => {
+                        log::info!(
+                            "Detected {} modified bundled shaders; prompting for overwrite",
+                            conflicts.len()
+                        );
+                        self.integrations_ui.awaiting_shader_overwrite = true;
+                        self.integrations_ui.shader_conflicts = conflicts;
+                        self.integrations_ui.pending_install_shaders = install_shaders;
+                        self.integrations_ui.pending_install_shell_integration =
+                            install_shell_integration;
+                        self.integrations_ui.installing = false;
+                        self.integrations_ui.error_message = None;
+                        self.integrations_ui.success_message = None;
+                        self.needs_redraw = true;
+                        return; // Wait for user decision
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::warn!(
+                            "Unable to check existing shaders for modifications: {}. Proceeding without overwrite prompt.",
+                            e
+                        );
+                    }
+                }
+            }
+        }
+
         // Handle "Install Selected" - user wants to install one or both integrations
-        if response.install_shaders || response.install_shell_integration {
+        if triggered_install {
             log::info!(
-                "User requested installations: shaders={}, shell_integration={}",
-                response.install_shaders,
-                response.install_shell_integration
+                "User requested installations: shaders={}, shell_integration={}, overwrite_modified={}",
+                install_shaders,
+                install_shell_integration,
+                force_overwrite_modified_shaders
             );
 
             let mut success_parts = Vec::new();
             let mut error_parts = Vec::new();
 
             // Install shaders if requested
-            if response.install_shaders {
+            if install_shaders {
                 self.integrations_ui.set_installing("Installing shaders...");
                 self.needs_redraw = true;
                 self.request_redraw();
 
-                match crate::shader_installer::install_shaders() {
-                    Ok(count) => {
-                        log::info!("Installed {} shader files", count);
-                        success_parts.push(format!("{} shaders", count));
+                match crate::shader_installer::install_shaders_with_manifest(
+                    force_overwrite_modified_shaders,
+                ) {
+                    Ok(result) => {
+                        log::info!(
+                            "Installed {} shader files ({} skipped, {} removed)",
+                            result.installed,
+                            result.skipped,
+                            result.removed
+                        );
+                        let detail = if result.skipped > 0 {
+                            format!("{} shaders ({} skipped)", result.installed, result.skipped)
+                        } else {
+                            format!("{} shaders", result.installed)
+                        };
+                        success_parts.push(detail);
                         self.config.integration_versions.shaders_installed_version =
                             Some(current_version.clone());
                         self.config.integration_versions.shaders_prompted_version =
@@ -2472,7 +2558,7 @@ impl WindowState {
             }
 
             // Install shell integration if requested
-            if response.install_shell_integration {
+            if install_shell_integration {
                 self.integrations_ui
                     .set_installing("Installing shell integration...");
                 self.needs_redraw = true;
@@ -2522,6 +2608,10 @@ impl WindowState {
             if let Err(e) = self.config.save() {
                 log::error!("Failed to save config after integration install: {}", e);
             }
+
+            // Clear pending flags
+            self.integrations_ui.pending_install_shaders = false;
+            self.integrations_ui.pending_install_shell_integration = false;
 
             self.needs_redraw = true;
         }
