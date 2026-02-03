@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings UI Layout**: Content area now properly fills available window space instead of leaving empty space at the bottom
 - **Settings UI Control Widths**: Applied consistent width constants to sliders and text inputs across all settings tabs
 - **Tab Bar Content Overlap**: Fixed issue where shell content's first line was hidden behind the tab bar when tabs were enabled. Content offset and terminal dimensions are now updated immediately when creating or closing tabs that change tab bar visibility (e.g., going from 1→2 tabs with `when_multiple` mode). Also fixed incorrect pixel dimensions being passed to PTY when syncing tab bar height.
-- **tmux Path Detection**: tmux is now found by searching PATH and common installation locations (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`). This fixes tmux integration when par-term is launched from macOS Finder where PATH may be incomplete.
+- **tmux Path Detection**: tmux path is now resolved at runtime (not just at config load). Searches PATH and common installation locations (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`) when the configured path is `tmux`. This fixes tmux integration for users with existing configs and when par-term is launched from macOS Finder where PATH may be incomplete.
 
 ### Added
 

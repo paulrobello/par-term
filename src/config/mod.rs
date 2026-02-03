@@ -1397,6 +1397,68 @@ impl Config {
         }
     }
 
+    /// Resolve the tmux executable path at runtime.
+    /// If the configured path is absolute and exists, use it.
+    /// If it's "tmux" (the default), search PATH and common installation locations.
+    /// This handles cases where PATH may be incomplete (e.g., app launched from Finder).
+    pub fn resolve_tmux_path(&self) -> String {
+        let configured = &self.tmux_path;
+
+        // If it's an absolute path and exists, use it directly
+        if configured.starts_with('/') && std::path::Path::new(configured).exists() {
+            return configured.clone();
+        }
+
+        // If it's not just "tmux", return it and let the OS try
+        if configured != "tmux" {
+            return configured.clone();
+        }
+
+        // Search for tmux in PATH
+        if let Ok(path_env) = std::env::var("PATH") {
+            let separator = if cfg!(windows) { ';' } else { ':' };
+            let executable = if cfg!(windows) { "tmux.exe" } else { "tmux" };
+
+            for dir in path_env.split(separator) {
+                let candidate = std::path::Path::new(dir).join(executable);
+                if candidate.exists() {
+                    return candidate.to_string_lossy().to_string();
+                }
+            }
+        }
+
+        // Fall back to common paths for environments where PATH might be incomplete
+        #[cfg(target_os = "macos")]
+        {
+            let macos_paths = [
+                "/opt/homebrew/bin/tmux", // Homebrew on Apple Silicon
+                "/usr/local/bin/tmux",    // Homebrew on Intel / MacPorts
+            ];
+            for path in macos_paths {
+                if std::path::Path::new(path).exists() {
+                    return path.to_string();
+                }
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            let linux_paths = [
+                "/usr/bin/tmux",       // Most distros
+                "/usr/local/bin/tmux", // Manual install
+                "/snap/bin/tmux",      // Snap package
+            ];
+            for path in linux_paths {
+                if std::path::Path::new(path).exists() {
+                    return path.to_string();
+                }
+            }
+        }
+
+        // Final fallback - return configured value
+        configured.clone()
+    }
+
     /// Get the session logs directory path, resolving ~ if present
     /// Creates the directory if it doesn't exist
     pub fn logs_dir(&self) -> PathBuf {

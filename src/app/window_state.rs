@@ -1775,7 +1775,7 @@ impl WindowState {
                     pending_search_action = self.search_ui.show(ctx, visible_lines, scrollback_len);
 
                     // Show tmux session picker UI and collect action
-                    let tmux_path = self.config.tmux_path.clone();
+                    let tmux_path = self.config.resolve_tmux_path();
                     pending_session_picker_action =
                         self.tmux_session_picker_ui.show(ctx, &tmux_path);
 
