@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Shader Install Overwrite Prompt**: Onboarding integrations now detect user-modified bundled shaders and prompt to overwrite, skip modified files, or cancel before installing the latest shader pack. Installation uses manifest-aware logic that preserves user edits by default.
+- **Settings Reinstall Prompt Parity**: The Settings > Integrations > Custom Shaders reinstall button now shows the same overwrite/skip prompt when bundled shaders were modified, and surfaces progress/status inline.
+- **Settings Reinstall Prompt Parity**: The Settings > Integrations > Custom Shaders reinstall button now shows the same overwrite/skip prompt when bundled shaders were modified, and surfaces progress/status inline.
 
 - **Shader Install Overwrite Prompt**: Onboarding integrations now detect user-modified bundled shaders and prompt to overwrite, skip modified files, or cancel before installing the latest shader pack. Installation uses manifest-aware logic that preserves user edits by default.
 
