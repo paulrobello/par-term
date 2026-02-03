@@ -237,21 +237,22 @@ impl Scrollbar {
         self.window_width = window_width;
         self.window_height = window_height;
 
-        // Only show scrollbar if there's scrollback content
-        self.visible = total_lines > visible_lines;
+        // Show scrollbar when either scrollback exists or mark indicators are available
+        self.visible = total_lines > visible_lines || !marks.is_empty();
 
         if !self.visible {
             return;
         }
 
-        // Calculate scrollbar dimensions
-        let viewport_ratio = visible_lines as f32 / total_lines as f32;
+        // Calculate scrollbar dimensions (guard against zero)
+        let total = total_lines.max(1);
+        let viewport_ratio = visible_lines.min(total) as f32 / total as f32;
         let scrollbar_height = (viewport_ratio * window_height as f32).max(20.0);
 
         // Calculate scrollbar position
         // When scroll_offset is 0, we're at the bottom
         // When scroll_offset is max, we're at the top
-        let max_scroll = total_lines.saturating_sub(visible_lines);
+        let max_scroll = total.saturating_sub(visible_lines);
 
         // Clamp scroll_offset to valid range
         let clamped_offset = scroll_offset.min(max_scroll);
