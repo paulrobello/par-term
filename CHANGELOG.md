@@ -313,7 +313,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Shader Gallery**: Visual gallery with screenshots of all 49+ included shaders
   - Hosted on GitHub Pages at https://paulrobello.github.io/par-term/
-  - Auto-deploys on changes to shader-gallery folder
+  - Auto-deploys on changes to gh-pages folder
 - **CLI Options**: New command-line flags for automation and scripting
   - `--screenshot <path>`: Take screenshot and save to file
   - `--shader <name>`: Override background shader

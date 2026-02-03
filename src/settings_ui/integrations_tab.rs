@@ -129,7 +129,7 @@ impl SettingsUI {
                 ui.label("Run this command in your terminal:");
 
                 let curl_cmd =
-                    "curl -fsSL https://raw.githubusercontent.com/paulrobello/par-term/main/scripts/install-shell-integration.sh | bash";
+                    "curl -fsSL https://paulrobello.github.io/par-term/install-shell-integration.sh | bash";
 
                 ui.horizontal(|ui| {
                     ui.add(
@@ -247,7 +247,7 @@ impl SettingsUI {
             ui.label("Run this command in your terminal:");
 
             let curl_cmd =
-                "curl -fsSL https://raw.githubusercontent.com/paulrobello/par-term/main/scripts/install-shaders.sh | bash";
+                "curl -fsSL https://paulrobello.github.io/par-term/install-shaders.sh | bash";
 
             ui.horizontal(|ui| {
                 ui.add(

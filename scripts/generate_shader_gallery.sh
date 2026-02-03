@@ -4,7 +4,7 @@
 #
 # Options:
 #   -f, --force    Overwrite existing screenshots (default: skip existing)
-#   output_dir     Output directory (default: shader-gallery)
+#   output_dir     Output directory (default: gh-pages/gallery)
 
 set -e
 
@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  -f, --force    Overwrite existing screenshots (default: skip existing)"
-            echo "  output_dir     Output directory (default: shader-gallery)"
+            echo "  output_dir     Output directory (default: gh-pages/gallery)"
             exit 0
             ;;
         *)
@@ -36,7 +36,7 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SHADERS_DIR="$PROJECT_ROOT/shaders"
-OUTPUT_DIR="${OUTPUT_DIR:-$PROJECT_ROOT/shader-gallery}"
+OUTPUT_DIR="${OUTPUT_DIR:-$PROJECT_ROOT/gh-pages/gallery}"
 
 # Build release version for better performance
 echo "Building par-term in release mode..."
