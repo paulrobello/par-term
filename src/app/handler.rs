@@ -135,6 +135,7 @@ impl WindowState {
         let any_ui_visible = self.help_ui.visible
             || self.clipboard_history_ui.visible
             || self.shader_install_ui.visible
+            || self.integrations_ui.visible
             || self.profile_modal_ui.visible;
         if egui_consumed
             && !any_ui_visible

@@ -103,24 +103,22 @@ impl SettingsUI {
                         "Install"
                     };
 
-                    if detected_shell != ShellType::Unknown {
-                        if ui
+                    if detected_shell != ShellType::Unknown
+                        && ui
                             .button(install_text)
                             .on_hover_text("Install shell integration scripts")
                             .clicked()
-                        {
-                            self.shell_integration_action = Some(ShellIntegrationAction::Install);
-                        }
+                    {
+                        self.shell_integration_action = Some(ShellIntegrationAction::Install);
                     }
 
-                    if is_installed {
-                        if ui
+                    if is_installed
+                        && ui
                             .button("Uninstall")
                             .on_hover_text("Remove shell integration from all shells")
                             .clicked()
-                        {
-                            self.shell_integration_action = Some(ShellIntegrationAction::Uninstall);
-                        }
+                    {
+                        self.shell_integration_action = Some(ShellIntegrationAction::Uninstall);
                     }
                 });
 
@@ -141,10 +139,10 @@ impl SettingsUI {
                             .font(egui::TextStyle::Monospace),
                     );
 
-                    if ui.button("Copy").clicked() {
-                        if let Ok(mut clipboard) = Clipboard::new() {
-                            let _ = clipboard.set_text(curl_cmd);
-                        }
+                    if ui.button("Copy").clicked()
+                        && let Ok(mut clipboard) = Clipboard::new()
+                    {
+                        let _ = clipboard.set_text(curl_cmd);
                     }
                 });
 
@@ -223,24 +221,22 @@ impl SettingsUI {
                     self.shader_action = Some(ShaderAction::Install);
                 }
 
-                if has_shaders {
-                    if ui
+                if has_shaders
+                    && ui
                         .button("Uninstall")
                         .on_hover_text("Remove all bundled shaders (keeps user-created shaders)")
                         .clicked()
-                    {
-                        self.shader_action = Some(ShaderAction::Uninstall);
-                    }
+                {
+                    self.shader_action = Some(ShaderAction::Uninstall);
                 }
 
                 if ui
                     .button("Open Folder")
                     .on_hover_text("Open shaders folder in file manager")
                     .clicked()
+                    && let Err(e) = open::that(&shaders_dir)
                 {
-                    if let Err(e) = open::that(&shaders_dir) {
-                        log::error!("Failed to open shaders folder: {}", e);
-                    }
+                    log::error!("Failed to open shaders folder: {}", e);
                 }
             });
 
@@ -261,10 +257,10 @@ impl SettingsUI {
                         .font(egui::TextStyle::Monospace),
                 );
 
-                if ui.button("Copy").clicked() {
-                    if let Ok(mut clipboard) = Clipboard::new() {
-                        let _ = clipboard.set_text(curl_cmd);
-                    }
+                if ui.button("Copy").clicked()
+                    && let Ok(mut clipboard) = Clipboard::new()
+                {
+                    let _ = clipboard.set_text(curl_cmd);
                 }
             });
         });

@@ -106,13 +106,13 @@ pub fn uninstall() -> Result<UninstallResult, String> {
 
     // Clean up RC files for all shell types
     for shell in [ShellType::Bash, ShellType::Zsh, ShellType::Fish] {
-        if let Ok(rc_file) = get_rc_file(shell) {
-            if rc_file.exists() {
-                match remove_from_rc_file(&rc_file) {
-                    Ok(true) => result.cleaned.push(rc_file),
-                    Ok(false) => { /* No markers found, nothing to do */ }
-                    Err(_) => result.needs_manual.push(rc_file),
-                }
+        if let Ok(rc_file) = get_rc_file(shell)
+            && rc_file.exists()
+        {
+            match remove_from_rc_file(&rc_file) {
+                Ok(true) => result.cleaned.push(rc_file),
+                Ok(false) => { /* No markers found, nothing to do */ }
+                Err(_) => result.needs_manual.push(rc_file),
             }
         }
     }
@@ -123,10 +123,8 @@ pub fn uninstall() -> Result<UninstallResult, String> {
         let script_filename = format!("shell_integration.{}", shell.extension());
         let script_path = integration_dir.join(&script_filename);
 
-        if script_path.exists() {
-            if fs::remove_file(&script_path).is_ok() {
-                result.scripts_removed.push(script_path);
-            }
+        if script_path.exists() && fs::remove_file(&script_path).is_ok() {
+            result.scripts_removed.push(script_path);
         }
     }
 
@@ -154,10 +152,10 @@ pub fn is_installed() -> bool {
     }
 
     // Check if RC file has our markers
-    if let Ok(rc_file) = get_rc_file(shell) {
-        if let Ok(content) = fs::read_to_string(&rc_file) {
-            return content.contains(MARKER_START) && content.contains(MARKER_END);
-        }
+    if let Ok(rc_file) = get_rc_file(shell)
+        && let Ok(content) = fs::read_to_string(&rc_file)
+    {
+        return content.contains(MARKER_START) && content.contains(MARKER_END);
     }
 
     false

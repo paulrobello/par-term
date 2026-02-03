@@ -120,6 +120,21 @@ impl WindowState {
             return true;
         }
 
+        // Escape: Close integrations welcome dialog if visible (only when not installing)
+        if matches!(event.logical_key, Key::Named(NamedKey::Escape))
+            && self.integrations_ui.visible
+            && !self.integrations_ui.installing
+        {
+            self.integrations_ui.visible = false;
+            log::info!("Integrations dialog closed via Escape");
+
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+
+            return true;
+        }
+
         false
     }
 

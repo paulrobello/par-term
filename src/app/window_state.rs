@@ -20,6 +20,7 @@ use crate::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
 use crate::renderer::{DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, Renderer};
 use crate::search::SearchUI;
 use crate::selection::SelectionMode;
+use crate::integrations_ui::{IntegrationsResponse, IntegrationsUI};
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::smart_selection::SmartSelectionCache;
@@ -101,6 +102,8 @@ pub struct WindowState {
     pub(crate) shader_install_ui: ShaderInstallUI,
     /// Receiver for shader installation results (from background thread)
     pub(crate) shader_install_receiver: Option<std::sync::mpsc::Receiver<Result<usize, String>>>,
+    /// Combined integrations welcome dialog UI
+    pub(crate) integrations_ui: IntegrationsUI,
     /// Whether terminal session recording is active
     pub(crate) is_recording: bool,
     /// When recording started
@@ -247,6 +250,7 @@ impl WindowState {
             search_ui: SearchUI::new(),
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
+            integrations_ui: IntegrationsUI::new(),
             is_recording: false,
             recording_start_time: None,
             is_shutting_down: false,
@@ -602,10 +606,10 @@ impl WindowState {
             );
         }
 
-        // Check if we should prompt user to install shaders
-        if self.config.should_prompt_shader_install() {
-            log::info!("Shaders folder is missing or empty - showing install prompt");
-            self.shader_install_ui.show_dialog();
+        // Check if we should prompt user to install integrations (shaders and/or shell integration)
+        if self.config.should_prompt_integrations() {
+            log::info!("Integrations not installed - showing welcome dialog");
+            self.integrations_ui.show_dialog();
             self.needs_redraw = true;
             window.request_redraw();
         }
@@ -939,6 +943,7 @@ impl WindowState {
         let any_ui_visible = self.help_ui.visible
             || self.clipboard_history_ui.visible
             || self.shader_install_ui.visible
+            || self.integrations_ui.visible
             || self.profile_modal_ui.visible;
         if !any_ui_visible {
             return false;
@@ -1504,6 +1509,8 @@ impl WindowState {
         let mut pending_tab_action = TabBarAction::None;
         // Shader install response to handle after rendering
         let mut pending_shader_install_response = ShaderInstallResponse::None;
+        // Integrations welcome dialog response to handle after rendering
+        let mut pending_integrations_response = IntegrationsResponse::default();
         // Search action to handle after rendering
         let mut pending_search_action = crate::search::SearchAction::None;
         // Profile drawer action to handle after rendering
@@ -1757,6 +1764,9 @@ impl WindowState {
 
                     // Show shader install dialog if visible
                     pending_shader_install_response = self.shader_install_ui.show(ctx);
+
+                    // Show integrations welcome dialog if visible
+                    pending_integrations_response = self.integrations_ui.show(ctx);
 
                     // Render profile drawer (right side panel)
                     pending_profile_drawer_action = self.profile_drawer_ui.render(
@@ -2253,6 +2263,9 @@ impl WindowState {
             ShaderInstallResponse::None => {}
         }
 
+        // Handle integrations welcome dialog responses
+        self.handle_integrations_response(&pending_integrations_response);
+
         // Handle profile drawer actions
         match pending_profile_drawer_action {
             ProfileDrawerAction::OpenProfile(id) => {
@@ -2357,6 +2370,143 @@ impl WindowState {
         }
 
         result
+    }
+
+    /// Handle responses from the integrations welcome dialog
+    fn handle_integrations_response(&mut self, response: &IntegrationsResponse) {
+        // Nothing to do if dialog wasn't interacted with
+        if !response.install_shaders
+            && !response.install_shell_integration
+            && !response.skipped
+            && !response.never_ask
+            && !response.closed
+        {
+            return;
+        }
+
+        let current_version = env!("CARGO_PKG_VERSION").to_string();
+
+        // Handle "Install Selected" - user wants to install one or both integrations
+        if response.install_shaders || response.install_shell_integration {
+            log::info!(
+                "User requested installations: shaders={}, shell_integration={}",
+                response.install_shaders,
+                response.install_shell_integration
+            );
+
+            let mut success_parts = Vec::new();
+            let mut error_parts = Vec::new();
+
+            // Install shaders if requested
+            if response.install_shaders {
+                self.integrations_ui.set_installing("Installing shaders...");
+                self.needs_redraw = true;
+                self.request_redraw();
+
+                match crate::shader_installer::install_shaders() {
+                    Ok(count) => {
+                        log::info!("Installed {} shader files", count);
+                        success_parts.push(format!("{} shaders", count));
+                        self.config.integration_versions.shaders_installed_version =
+                            Some(current_version.clone());
+                        self.config.integration_versions.shaders_prompted_version =
+                            Some(current_version.clone());
+                    }
+                    Err(e) => {
+                        log::error!("Failed to install shaders: {}", e);
+                        error_parts.push(format!("Shaders: {}", e));
+                    }
+                }
+            }
+
+            // Install shell integration if requested
+            if response.install_shell_integration {
+                self.integrations_ui
+                    .set_installing("Installing shell integration...");
+                self.needs_redraw = true;
+                self.request_redraw();
+
+                match crate::shell_integration_installer::install(None) {
+                    Ok(result) => {
+                        log::info!(
+                            "Installed shell integration for {}",
+                            result.shell.display_name()
+                        );
+                        success_parts
+                            .push(format!("shell integration ({})", result.shell.display_name()));
+                        self.config
+                            .integration_versions
+                            .shell_integration_installed_version = Some(current_version.clone());
+                        self.config
+                            .integration_versions
+                            .shell_integration_prompted_version = Some(current_version.clone());
+                    }
+                    Err(e) => {
+                        log::error!("Failed to install shell integration: {}", e);
+                        error_parts.push(format!("Shell: {}", e));
+                    }
+                }
+            }
+
+            // Show result
+            if error_parts.is_empty() {
+                self.integrations_ui
+                    .set_success(&format!("Installed: {}", success_parts.join(", ")));
+            } else if success_parts.is_empty() {
+                self.integrations_ui
+                    .set_error(&format!("Installation failed: {}", error_parts.join("; ")));
+            } else {
+                // Partial success
+                self.integrations_ui.set_success(&format!(
+                    "Installed: {}. Errors: {}",
+                    success_parts.join(", "),
+                    error_parts.join("; ")
+                ));
+            }
+
+            // Save config
+            if let Err(e) = self.config.save() {
+                log::error!("Failed to save config after integration install: {}", e);
+            }
+
+            self.needs_redraw = true;
+        }
+
+        // Handle "Skip" - just close the dialog for this session
+        if response.skipped {
+            log::info!("User skipped integrations dialog for this session");
+            self.integrations_ui.hide();
+            // Update prompted versions so we don't ask again this version
+            self.config.integration_versions.shaders_prompted_version =
+                Some(current_version.clone());
+            self.config
+                .integration_versions
+                .shell_integration_prompted_version = Some(current_version.clone());
+            if let Err(e) = self.config.save() {
+                log::error!("Failed to save config after skipping integrations: {}", e);
+            }
+        }
+
+        // Handle "Never Ask" - disable prompting permanently
+        if response.never_ask {
+            log::info!("User declined integrations (never ask again)");
+            self.integrations_ui.hide();
+            // Set install prompts to Never
+            self.config.shader_install_prompt = ShaderInstallPrompt::Never;
+            self.config.shell_integration_state =
+                crate::config::InstallPromptState::Never;
+            if let Err(e) = self.config.save() {
+                log::error!(
+                    "Failed to save config after declining integrations: {}",
+                    e
+                );
+            }
+        }
+
+        // Handle dialog closed (OK button after success)
+        if response.closed {
+            self.integrations_ui.hide();
+        }
     }
 }
 
