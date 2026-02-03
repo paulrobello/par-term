@@ -294,6 +294,9 @@ function __par_term_prompt_command () {
     # Get prompt prefix (with exit code)
     \local par_term_prompt_prefix_value="$(par_term_prompt_prefix)"
 
+    # Always emit a prompt marker so scrollback marks render even if PS1 already embeds one.
+    par_term_prompt_mark
+
     # Add prompt mark unless PS1 already contains it
     if [[ $PAR_TERM_ORIG_PS1 != *'$(par_term_prompt_mark)'* ]]; then
       par_term_prompt_prefix_value="$par_term_prompt_prefix_value$(par_term_prompt_mark)"

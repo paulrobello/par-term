@@ -89,6 +89,8 @@ if begin; status --is-interactive; and \
 
     # Report last command exit status
     par_term_status $last_status
+    # Always emit a prompt marker so scrollback marks render even if prompt already embeds it
+    par_term_prompt_mark
 
     # Send current directory and user vars
     par_term_write_remotehost_currentdir_uservars
