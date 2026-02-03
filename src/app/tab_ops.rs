@@ -35,39 +35,33 @@ impl WindowState {
                 let new_tab_bar_height = self.tab_bar_ui.get_height(new_tab_count, &self.config);
 
                 // If tab bar height changed, update content offset and resize ALL existing tabs
-                if (new_tab_bar_height - old_tab_bar_height).abs() > 0.1 {
-                    if let Some(renderer) = &mut self.renderer {
-                        if let Some((new_cols, new_rows)) =
-                            renderer.set_content_offset_y(new_tab_bar_height)
-                        {
-                            let cell_width = renderer.cell_width();
-                            let cell_height = renderer.cell_height();
-                            let width_px = (new_cols as f32 * cell_width) as usize;
-                            let height_px = (new_rows as f32 * cell_height) as usize;
+                if (new_tab_bar_height - old_tab_bar_height).abs() > 0.1
+                    && let Some(renderer) = &mut self.renderer
+                    && let Some((new_cols, new_rows)) =
+                        renderer.set_content_offset_y(new_tab_bar_height)
+                {
+                    let cell_width = renderer.cell_width();
+                    let cell_height = renderer.cell_height();
+                    let width_px = (new_cols as f32 * cell_width) as usize;
+                    let height_px = (new_rows as f32 * cell_height) as usize;
 
-                            // Resize all EXISTING tabs (not including the new one yet)
-                            for tab in self.tab_manager.tabs_mut() {
-                                if tab.id != tab_id {
-                                    if let Ok(mut term) = tab.terminal.try_lock() {
-                                        term.set_cell_dimensions(
-                                            cell_width as u32,
-                                            cell_height as u32,
-                                        );
-                                        let _ = term.resize_with_pixels(
-                                            new_cols, new_rows, width_px, height_px,
-                                        );
-                                    }
-                                    tab.cache.cells = None;
-                                }
+                    // Resize all EXISTING tabs (not including the new one yet)
+                    for tab in self.tab_manager.tabs_mut() {
+                        if tab.id != tab_id {
+                            if let Ok(mut term) = tab.terminal.try_lock() {
+                                term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                                let _ = term
+                                    .resize_with_pixels(new_cols, new_rows, width_px, height_px);
                             }
-                            log::info!(
-                                "Tab bar appeared (height={:.0}), resized existing tabs to {}x{}",
-                                new_tab_bar_height,
-                                new_cols,
-                                new_rows
-                            );
+                            tab.cache.cells = None;
                         }
                     }
+                    log::info!(
+                        "Tab bar appeared (height={:.0}), resized existing tabs to {}x{}",
+                        new_tab_bar_height,
+                        new_cols,
+                        new_rows
+                    );
                 }
 
                 // Start refresh task for the new tab and resize to match window
@@ -131,39 +125,36 @@ impl WindowState {
                 let new_tab_count = self.tab_manager.tab_count();
                 let new_tab_bar_height = self.tab_bar_ui.get_height(new_tab_count, &self.config);
 
-                if (new_tab_bar_height - old_tab_bar_height).abs() > 0.1 {
-                    if let Some(renderer) = &mut self.renderer {
-                        if let Some((new_cols, new_rows)) =
-                            renderer.set_content_offset_y(new_tab_bar_height)
-                        {
-                            let cell_width = renderer.cell_width();
-                            let cell_height = renderer.cell_height();
-                            let width_px = (new_cols as f32 * cell_width) as usize;
-                            let height_px = (new_rows as f32 * cell_height) as usize;
+                if (new_tab_bar_height - old_tab_bar_height).abs() > 0.1
+                    && let Some(renderer) = &mut self.renderer
+                    && let Some((new_cols, new_rows)) =
+                        renderer.set_content_offset_y(new_tab_bar_height)
+                {
+                    let cell_width = renderer.cell_width();
+                    let cell_height = renderer.cell_height();
+                    let width_px = (new_cols as f32 * cell_width) as usize;
+                    let height_px = (new_rows as f32 * cell_height) as usize;
 
-                            // Resize all remaining tabs
-                            for tab in self.tab_manager.tabs_mut() {
-                                if let Ok(mut term) = tab.terminal.try_lock() {
-                                    term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                                    let _ = term.resize_with_pixels(
-                                        new_cols, new_rows, width_px, height_px,
-                                    );
-                                }
-                                tab.cache.cells = None;
-                            }
-                            log::info!(
-                                "Tab bar {} (height={:.0}), resized remaining tabs to {}x{}",
-                                if new_tab_bar_height > 0.0 {
-                                    "appeared"
-                                } else {
-                                    "disappeared"
-                                },
-                                new_tab_bar_height,
-                                new_cols,
-                                new_rows
-                            );
+                    // Resize all remaining tabs
+                    for tab in self.tab_manager.tabs_mut() {
+                        if let Ok(mut term) = tab.terminal.try_lock() {
+                            term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                            let _ =
+                                term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                         }
+                        tab.cache.cells = None;
                     }
+                    log::info!(
+                        "Tab bar {} (height={:.0}), resized remaining tabs to {}x{}",
+                        if new_tab_bar_height > 0.0 {
+                            "appeared"
+                        } else {
+                            "disappeared"
+                        },
+                        new_tab_bar_height,
+                        new_cols,
+                        new_rows
+                    );
                 }
             }
 

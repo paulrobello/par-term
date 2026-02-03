@@ -416,26 +416,26 @@ impl WindowState {
                         .collect();
 
                     // Resize terminals for tabs that had panes closed but still have remaining panes
-                    if !tabs_needing_resize.is_empty() {
-                        if let Some(renderer) = &self.renderer {
-                            let cell_width = renderer.cell_width();
-                            let cell_height = renderer.cell_height();
-                            let padding = self.config.window_padding;
-                            for tab_id in tabs_needing_resize {
-                                if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
-                                    if let Some(pm) = tab.pane_manager_mut() {
-                                        pm.resize_all_terminals_with_padding(
-                                            cell_width,
-                                            cell_height,
-                                            padding,
-                                        );
-                                        crate::debug_info!(
-                                            "PANE_RESIZE",
-                                            "Resized terminals after pane closure in tab {}",
-                                            tab_id
-                                        );
-                                    }
-                                }
+                    if !tabs_needing_resize.is_empty()
+                        && let Some(renderer) = &self.renderer
+                    {
+                        let cell_width = renderer.cell_width();
+                        let cell_height = renderer.cell_height();
+                        let padding = self.config.window_padding;
+                        for tab_id in tabs_needing_resize {
+                            if let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                                && let Some(pm) = tab.pane_manager_mut()
+                            {
+                                pm.resize_all_terminals_with_padding(
+                                    cell_width,
+                                    cell_height,
+                                    padding,
+                                );
+                                crate::debug_info!(
+                                    "PANE_RESIZE",
+                                    "Resized terminals after pane closure in tab {}",
+                                    tab_id
+                                );
                             }
                         }
                     }

@@ -866,6 +866,309 @@ impl PaneManager {
         Ok(pane_mappings)
     }
 
+    /// Rebuild the pane tree from a tmux layout, preserving existing pane terminals
+    ///
+    /// This is called when panes are added or the layout structure changes.
+    /// It rebuilds the entire tree structure to match the tmux layout while
+    /// reusing existing Pane objects to preserve their terminal state.
+    ///
+    /// # Arguments
+    /// * `layout` - The parsed tmux layout
+    /// * `existing_mappings` - Map from tmux pane ID to native pane ID for panes to preserve
+    /// * `new_tmux_panes` - List of new tmux pane IDs that need new Pane objects
+    /// * `config` - Configuration for creating new panes
+    /// * `runtime` - Async runtime for new pane tasks
+    ///
+    /// # Returns
+    /// Updated mapping of tmux pane IDs to native pane IDs
+    pub fn rebuild_from_tmux_layout(
+        &mut self,
+        layout: &TmuxLayout,
+        existing_mappings: &HashMap<TmuxPaneId, PaneId>,
+        new_tmux_panes: &[TmuxPaneId],
+        config: &Config,
+        runtime: Arc<Runtime>,
+    ) -> Result<HashMap<TmuxPaneId, PaneId>> {
+        // Extract all existing panes from the current tree
+        let mut existing_panes: HashMap<PaneId, Pane> = HashMap::new();
+        if let Some(root) = self.root.take() {
+            Self::extract_panes_from_node(root, &mut existing_panes);
+        }
+
+        log::debug!(
+            "Rebuilding layout: extracted {} existing panes, expecting {} new tmux panes",
+            existing_panes.len(),
+            new_tmux_panes.len()
+        );
+
+        // Build the new tree structure from the tmux layout
+        let mut new_mappings = HashMap::new();
+        let new_root = self.rebuild_layout_node(
+            &layout.root,
+            existing_mappings,
+            new_tmux_panes,
+            &mut existing_panes,
+            config,
+            runtime.clone(),
+            &mut new_mappings,
+        )?;
+
+        // Replace the root
+        self.root = Some(new_root);
+
+        // Set focus to the first pane if not already set
+        if self.focused_pane_id.is_none()
+            && let Some(first_native_id) = new_mappings.values().next()
+        {
+            self.focused_pane_id = Some(*first_native_id);
+        }
+
+        // Update next_pane_id to avoid conflicts
+        if let Some(max_id) = new_mappings.values().max()
+            && *max_id >= self.next_pane_id
+        {
+            self.next_pane_id = max_id + 1;
+        }
+
+        // Recalculate bounds
+        self.recalculate_bounds();
+
+        log::info!(
+            "Rebuilt pane tree from tmux layout: {} panes",
+            new_mappings.len()
+        );
+
+        Ok(new_mappings)
+    }
+
+    /// Extract all panes from a node into a map
+    fn extract_panes_from_node(node: PaneNode, panes: &mut HashMap<PaneId, Pane>) {
+        match node {
+            PaneNode::Leaf(pane) => {
+                let pane = *pane; // Unbox the pane
+                panes.insert(pane.id, pane);
+            }
+            PaneNode::Split { first, second, .. } => {
+                Self::extract_panes_from_node(*first, panes);
+                Self::extract_panes_from_node(*second, panes);
+            }
+        }
+    }
+
+    /// Rebuild a layout node, reusing existing panes where possible
+    #[allow(clippy::too_many_arguments)]
+    fn rebuild_layout_node(
+        &mut self,
+        node: &LayoutNode,
+        existing_mappings: &HashMap<TmuxPaneId, PaneId>,
+        new_tmux_panes: &[TmuxPaneId],
+        existing_panes: &mut HashMap<PaneId, Pane>,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        new_mappings: &mut HashMap<TmuxPaneId, PaneId>,
+    ) -> Result<PaneNode> {
+        match node {
+            LayoutNode::Pane { id: tmux_id, .. } => {
+                // Check if this is an existing pane we can reuse
+                if let Some(&native_id) = existing_mappings.get(tmux_id)
+                    && let Some(pane) = existing_panes.remove(&native_id)
+                {
+                    log::debug!(
+                        "Reusing existing pane {} for tmux pane %{}",
+                        native_id,
+                        tmux_id
+                    );
+                    new_mappings.insert(*tmux_id, native_id);
+                    return Ok(PaneNode::leaf(pane));
+                }
+
+                // This is a new pane - create it
+                if new_tmux_panes.contains(tmux_id) {
+                    let native_id = self.next_pane_id;
+                    self.next_pane_id += 1;
+
+                    let pane = Pane::new_for_tmux(native_id, config, runtime)?;
+                    log::debug!("Created new pane {} for tmux pane %{}", native_id, tmux_id);
+                    new_mappings.insert(*tmux_id, native_id);
+                    return Ok(PaneNode::leaf(pane));
+                }
+
+                // Fallback - create a new pane (shouldn't happen normally)
+                log::warn!("Unexpected tmux pane %{} - creating new pane", tmux_id);
+                let native_id = self.next_pane_id;
+                self.next_pane_id += 1;
+                let pane = Pane::new_for_tmux(native_id, config, runtime)?;
+                new_mappings.insert(*tmux_id, native_id);
+                Ok(PaneNode::leaf(pane))
+            }
+
+            LayoutNode::VerticalSplit {
+                width, children, ..
+            } => {
+                // Vertical split = panes side by side
+                self.rebuild_multi_split_to_binary(
+                    children,
+                    SplitDirection::Vertical,
+                    *width,
+                    existing_mappings,
+                    new_tmux_panes,
+                    existing_panes,
+                    config,
+                    runtime,
+                    new_mappings,
+                )
+            }
+
+            LayoutNode::HorizontalSplit {
+                height, children, ..
+            } => {
+                // Horizontal split = panes stacked
+                self.rebuild_multi_split_to_binary(
+                    children,
+                    SplitDirection::Horizontal,
+                    *height,
+                    existing_mappings,
+                    new_tmux_panes,
+                    existing_panes,
+                    config,
+                    runtime,
+                    new_mappings,
+                )
+            }
+        }
+    }
+
+    /// Rebuild multi-child split to binary, reusing existing panes
+    #[allow(clippy::too_many_arguments)]
+    fn rebuild_multi_split_to_binary(
+        &mut self,
+        children: &[LayoutNode],
+        direction: SplitDirection,
+        total_size: usize,
+        existing_mappings: &HashMap<TmuxPaneId, PaneId>,
+        new_tmux_panes: &[TmuxPaneId],
+        existing_panes: &mut HashMap<PaneId, Pane>,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        new_mappings: &mut HashMap<TmuxPaneId, PaneId>,
+    ) -> Result<PaneNode> {
+        if children.is_empty() {
+            anyhow::bail!("Empty children list in tmux layout");
+        }
+
+        if children.len() == 1 {
+            return self.rebuild_layout_node(
+                &children[0],
+                existing_mappings,
+                new_tmux_panes,
+                existing_panes,
+                config,
+                runtime,
+                new_mappings,
+            );
+        }
+
+        // Calculate the size of the first child for the ratio
+        let first_size = Self::get_node_size(&children[0], direction);
+        let ratio = (first_size as f32) / (total_size as f32);
+
+        // Rebuild the first child
+        let first = self.rebuild_layout_node(
+            &children[0],
+            existing_mappings,
+            new_tmux_panes,
+            existing_panes,
+            config,
+            runtime.clone(),
+            new_mappings,
+        )?;
+
+        // Calculate remaining size
+        let remaining_size = total_size.saturating_sub(first_size + 1);
+
+        // Rebuild the rest recursively
+        let second = if children.len() == 2 {
+            self.rebuild_layout_node(
+                &children[1],
+                existing_mappings,
+                new_tmux_panes,
+                existing_panes,
+                config,
+                runtime,
+                new_mappings,
+            )?
+        } else {
+            self.rebuild_remaining_children(
+                &children[1..],
+                direction,
+                remaining_size,
+                existing_mappings,
+                new_tmux_panes,
+                existing_panes,
+                config,
+                runtime,
+                new_mappings,
+            )?
+        };
+
+        Ok(PaneNode::split(direction, ratio, first, second))
+    }
+
+    /// Rebuild remaining children into nested binary splits
+    #[allow(clippy::too_many_arguments)]
+    fn rebuild_remaining_children(
+        &mut self,
+        children: &[LayoutNode],
+        direction: SplitDirection,
+        total_size: usize,
+        existing_mappings: &HashMap<TmuxPaneId, PaneId>,
+        new_tmux_panes: &[TmuxPaneId],
+        existing_panes: &mut HashMap<PaneId, Pane>,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        new_mappings: &mut HashMap<TmuxPaneId, PaneId>,
+    ) -> Result<PaneNode> {
+        if children.len() == 1 {
+            return self.rebuild_layout_node(
+                &children[0],
+                existing_mappings,
+                new_tmux_panes,
+                existing_panes,
+                config,
+                runtime,
+                new_mappings,
+            );
+        }
+
+        let first_size = Self::get_node_size(&children[0], direction);
+        let ratio = (first_size as f32) / (total_size as f32);
+
+        let first = self.rebuild_layout_node(
+            &children[0],
+            existing_mappings,
+            new_tmux_panes,
+            existing_panes,
+            config,
+            runtime.clone(),
+            new_mappings,
+        )?;
+
+        let remaining_size = total_size.saturating_sub(first_size + 1);
+        let second = self.rebuild_remaining_children(
+            &children[1..],
+            direction,
+            remaining_size,
+            existing_mappings,
+            new_tmux_panes,
+            existing_panes,
+            config,
+            runtime,
+            new_mappings,
+        )?;
+
+        Ok(PaneNode::split(direction, ratio, first, second))
+    }
+
     /// Convert a tmux LayoutNode to a PaneNode
     fn convert_layout_node(
         &mut self,

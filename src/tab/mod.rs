@@ -940,11 +940,7 @@ impl Tab {
                         pane.bounds.width,
                         pane.bounds.height
                     );
-                    if !is_running {
-                        Some(pane.id)
-                    } else {
-                        None
-                    }
+                    if !is_running { Some(pane.id) } else { None }
                 })
                 .collect()
         } else {
