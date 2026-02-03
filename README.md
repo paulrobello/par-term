@@ -60,7 +60,7 @@ Search through scrollback buffer with `Cmd/Ctrl+F`.
 
 Transform clipboard content before pasting with `Cmd/Ctrl+Shift+V`.
 
-- 26 text transformations across shell escaping, case conversion, whitespace, and encoding
+- 28 text transformations across shell escaping, case conversion, whitespace, and encoding
 - Live preview with keyboard navigation
 - Integration with clipboard history via `Shift+Enter`
 
@@ -210,12 +210,28 @@ Essential feature for emacs/vim users.
 
 ## Documentation
 
+### Getting Started
 - **[Quick Start Guide](QUICK_START_FONTS.md)** - Get up and running with custom fonts.
-- **[Architecture Overview](docs/ARCHITECTURE.md)** - High-level system architecture and components.
+- **[Examples](examples/README.md)** - Comprehensive configuration examples.
+
+### Features
+- **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** - Complete keyboard shortcut reference.
+- **[Mouse Features](docs/MOUSE_FEATURES.md)** - Text selection, URL handling, and pane interaction.
+- **[Profiles](docs/PROFILES.md)** - Profile system for saving terminal configurations.
+- **[Session Logging](docs/SESSION_LOGGING.md)** - Recording sessions in Plain/HTML/Asciicast formats.
+- **[Search](docs/SEARCH.md)** - Terminal search with regex, case-sensitive, and whole-word modes.
+- **[Paste Special](docs/PASTE_SPECIAL.md)** - 28 clipboard transformations for pasting.
+- **[Integrations](docs/INTEGRATIONS.md)** - Shell integration and shader installation system.
+- **[Window Management](docs/WINDOW_MANAGEMENT.md)** - Window types, multi-monitor, and transparency.
+
+### Shaders
 - **[Shader Gallery](https://paulrobello.github.io/par-term/)** - Visual gallery of 49+ included shaders with screenshots.
+- **[Shader Reference](docs/SHADERS.md)** - Complete list of bundled shaders.
 - **[Custom Shaders Guide](docs/CUSTOM_SHADERS.md)** - Create custom GLSL shaders with hot reload and per-shader config.
 - **[Compositor Details](docs/COMPOSITOR.md)** - Deep dive into the rendering architecture.
-- **[Examples](examples/README.md)** - Comprehensive configuration examples.
+
+### Technical
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - High-level system architecture and components.
 - **[Core Library](https://github.com/paulrobello/par-term-emu-core-rust)** - Documentation for the underlying terminal engine.
 
 ## Installation

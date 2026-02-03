@@ -8,8 +8,11 @@ This document provides a high-level overview of the `par-term` architecture, det
 - [Core Components](#core-components)
   - [Application Logic](#application-logic)
   - [Terminal Emulation](#terminal-emulation)
+  - [Pane & Tab Management](#pane--tab-management)
+  - [tmux Integration](#tmux-integration)
   - [Rendering Engine](#rendering-engine)
   - [Text & Font Handling](#text--font-handling)
+  - [Additional Features](#additional-features)
 - [Data Flow](#data-flow)
 - [Threading Model](#threading-model)
 - [Related Documentation](#related-documentation)
@@ -35,19 +38,23 @@ graph TB
         WM[Window Manager]
         WS[Window State]
         TabMgr[Tab Manager]
+        PaneMgr[Pane Manager]
         TabUI[Tab Bar UI]
         Menu[Native Menu]
         Input[Input Handler]
         Keybind[Keybinding Registry]
         Config[Configuration]
         SettingsWin[Settings Window]
+        Profile[Profile Manager]
     end
 
     subgraph "Emulation Layer"
         Tab[Tab / Terminal Session]
+        Pane[Pane / Split]
         TM[Terminal Manager]
         Core[Core Emulation Library]
         PTY[PTY Process]
+        Tmux[tmux Integration]
     end
 
     subgraph "Presentation Layer"
@@ -55,6 +62,7 @@ graph TB
         CellRender[Cell Renderer]
         GraphicRender[Graphics Renderer]
         Shader[Custom Shaders]
+        Search[Search UI]
         GPU[WGPU / GPU]
     end
 
@@ -67,13 +75,19 @@ graph TB
     WS --> TabMgr
     WS --> TabUI
     TabMgr --> Tab
-    Tab --> TM
+    Tab --> PaneMgr
+    PaneMgr --> Pane
+    Pane --> TM
+    Tab --> Tmux
+    Profile --> Tab
     WS --> Renderer
     TM --> Core
     Core <--> PTY
+    Tmux <--> PTY
     Core --> Renderer
     Renderer --> CellRender
     Renderer --> GraphicRender
+    Renderer --> Search
     CellRender --> Shader
     Shader --> GPU
     GraphicRender --> GPU
@@ -82,13 +96,18 @@ graph TB
     style WM fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
     style WS fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
     style TabMgr fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style PaneMgr fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
     style TabUI fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Menu fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Keybind fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style SettingsWin fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Profile fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Tab fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Pane fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style TM fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Tmux fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Renderer fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Search fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style PTY fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style GPU fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
 ```
@@ -100,15 +119,13 @@ graph TB
 *   **App (`src/app/mod.rs`)**: The entry point that initializes configuration and runs the event loop via `winit`.
 *   **WindowManager (`src/app/window_manager.rs`)**: Coordinates multiple terminal windows, handles native menu events, manages the standalone settings window, and applies configuration changes across all windows.
 *   **WindowState (`src/app/window_state.rs`)**: Per-window state containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches.
-*   **TabManager (`src/tab/manager.rs`)**: Manages multiple terminal tabs within a window, handling tab creation, switching, reordering, and cleanup.
-*   **Tab (`src/tab/mod.rs`)**: Represents a single terminal session with its own terminal, scroll state, mouse state, bell state, and render cache.
-*   **TabBarUI (`src/tab_bar_ui.rs`)**: egui-based tab bar renderer with click handling, close buttons, activity indicators, and bell icons.
 *   **Input Handler (`src/input.rs`)**: Translates OS window events (keyboard, mouse) into terminal input sequences or application commands (e.g., shortcuts for copy/paste).
 *   **Keybindings (`src/keybindings/`)**: Configurable keyboard shortcut system with key combo parsing, platform-aware modifier handling (`CmdOrCtrl`), and action registry.
 *   **Menu (`src/menu/mod.rs`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).
-*   **Configuration (`src/config/mod.rs`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`).
+*   **Configuration (`src/config/mod.rs`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`). Includes shader metadata caching (`shader_metadata.rs`, `shader_config.rs`).
 *   **Settings Window (`src/settings_window.rs`)**: Standalone egui window for configuration, separate from the main terminal window for better usability.
-*   **Settings UI (`src/settings_ui/mod.rs`)**: egui-based settings interface with tabs for font, theme, window, terminal, cursor, shell, bell, mouse, scrollbar, background, keybindings, screenshot, and tab bar configuration.
+*   **Settings UI (`src/settings_ui/mod.rs`)**: egui-based settings interface with consolidated tabs: Appearance, Window, Terminal, Input, Effects, Notifications, Integrations, and Advanced.
+*   **Profile Manager (`src/profile/`)**: iTerm2-style profile system for saving terminal session configurations (working directory, custom commands, tab names). Profiles stored in `~/.config/par-term/profiles.yaml`.
 
 ### Terminal Emulation
 
@@ -121,6 +138,22 @@ graph TB
     *   VT100/ANSI escape sequence parsing.
     *   Grid management and scrollback history.
     *   PTY process lifecycle (spawning shell, resizing, I/O).
+
+### Pane & Tab Management
+
+*   **TabManager (`src/tab/manager.rs`)**: Manages multiple terminal tabs within a window, handling tab creation, switching, reordering, and cleanup.
+*   **Tab (`src/tab/mod.rs`)**: Represents a single terminal session with its own terminal, scroll state, mouse state, bell state, render cache, and pane tree.
+*   **TabBarUI (`src/tab_bar_ui.rs`)**: egui-based tab bar renderer with click handling, close buttons, activity indicators, and bell icons.
+*   **PaneManager (`src/pane/manager.rs`)**: Coordinates pane operations within a tab, managing split creation, resizing, and navigation.
+*   **Pane (`src/pane/types.rs`)**: Represents a single terminal pane with its own state. Uses a tree structure (`PaneNode`) for nested splits.
+
+### tmux Integration
+
+*   **TmuxSession (`src/tmux/session.rs`)**: Lifecycle and state management for tmux control mode connections.
+*   **TmuxSync (`src/tmux/sync.rs`)**: Bidirectional state synchronization between par-term and tmux.
+*   **TmuxCommand (`src/tmux/commands.rs`)**: Command builders for the tmux control protocol.
+*   **ParserBridge (`src/tmux/parser_bridge.rs`)**: Bridges the core library's control mode parser with par-term's pane system.
+*   **Types (`src/tmux/types.rs`)**: Core data types including `TmuxWindow`, `TmuxPane`, `TmuxLayout`.
 
 ### Rendering Engine
 
@@ -135,8 +168,18 @@ graph TB
     *   **Primary Font**: The main user-configured monospace font.
     *   **Styled Variants**: Separate fonts for Bold, Italic, etc.
     *   **Range Fonts**: Specific fonts for Unicode ranges (e.g., CJK, Emoji).
-    *   **Fallbacks**: System font fallback for missing glyphs.
+    *   **Fallbacks**: System font fallback for missing glyphs (`fallbacks.rs`).
 *   **Text Shaper (`src/text_shaper.rs`)**: Uses `rustybuzz` (HarfBuzz) to shape text, handling ligatures, complex scripts, and combining characters correctly. Rasterization is performed by `swash`.
+
+### Additional Features
+
+*   **Search (`src/search/`)**: Terminal search functionality with regex support, debounced search, and match highlighting. Includes egui-based search bar overlay.
+*   **Session Logger (`src/session_logger.rs`)**: Records terminal sessions to files for replay or audit.
+*   **Update Checker (`src/update_checker.rs`)**: Checks for new versions of par-term.
+*   **Smart Selection (`src/smart_selection.rs`)**: Intelligent text selection with word/path/URL detection.
+*   **Paste Transform (`src/paste_transform.rs`)**: Transforms pasted content (bracketed paste, newline handling).
+*   **Shell Integration Installer (`src/shell_integration_installer.rs`)**: Installs shell integration scripts for enhanced features.
+*   **Shader Installer (`src/shader_installer.rs`)**: Manages installation of custom shaders from the shader gallery.
 
 ## Data Flow
 

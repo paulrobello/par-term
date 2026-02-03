@@ -381,13 +381,13 @@ Shadertoy-compatible texture channels:
 | `iChannel2` | `sampler2D` | User texture channel 2 |
 | `iChannel3` | `sampler2D` | User texture channel 3 |
 | `iChannel4` | `sampler2D` | Terminal content texture (par-term specific) |
-| `iChannelResolution[0]` | `vec4` | Channel 0 resolution `[width, height, 1.0, 0.0]` |
-| `iChannelResolution[1]` | `vec4` | Channel 1 resolution |
-| `iChannelResolution[2]` | `vec4` | Channel 2 resolution |
-| `iChannelResolution[3]` | `vec4` | Channel 3 resolution |
-| `iChannelResolution[4]` | `vec4` | Channel 4 (terminal) resolution |
+| `iChannelResolution[0]` | `vec3` | Channel 0 resolution `[width, height, 1.0]` (Shadertoy-compatible array) |
+| `iChannelResolution[1]` | `vec3` | Channel 1 resolution |
+| `iChannelResolution[2]` | `vec3` | Channel 2 resolution |
+| `iChannelResolution[3]` | `vec3` | Channel 3 resolution |
+| `iChannelResolution[4]` | `vec3` | Channel 4 (terminal) resolution |
 | `iCubemap` | `samplerCube` | Cubemap texture for environment mapping. See [`cubemap-skybox.glsl`](../shaders/cubemap-skybox.glsl) for example. |
-| `iCubemapResolution` | `vec4` | Cubemap face size `[size, size, 1.0, 0.0]` |
+| `iCubemapResolution` | `vec4` | Cubemap face size `[size, size, 1.0, 0.0]` (not in array, accessed directly) |
 
 ### Cursor Uniforms
 

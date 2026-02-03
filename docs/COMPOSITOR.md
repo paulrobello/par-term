@@ -52,8 +52,8 @@ The compositor renders content in a specific order from bottom to top:
 ```mermaid
 graph TB
     subgraph "Compositor Layer Stack"
-        L0[Background Image Layer]
-        L1[Terminal Content Layer<br/>Backgrounds + Text + Cursor]
+        L0[Background Image Layer<br/>Optional background image]
+        L1[Terminal Content Layer<br/>Cell Backgrounds + Text + Cursor]
         L2[Background Shader Layer<br/>Post-processing Effects]
         L3[Cursor Shader Layer<br/>Cursor Trails + Glows]
         L4[Overlay Layer<br/>Scrollbar + Visual Bell]
@@ -77,7 +77,7 @@ graph TB
     style L6 fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
 ```
 
-> **Note:** Par-term supports two independent custom shaders: a **background shader** for post-processing effects and a **cursor shader** for cursor-specific effects (trails, glows). When shaders are enabled, terminal content is first rendered to an intermediate texture, then processed by the background shader (if enabled), then by the cursor shader (if enabled). Overlays are rendered after shaders to ensure they remain unaffected.
+> **Note:** Par-term supports two independent custom shaders: a **background shader** for post-processing effects and a **cursor shader** for cursor-specific effects (trails, glows). When shaders are enabled, terminal content is first rendered to an intermediate texture, then processed by the background shader (if enabled), then by the cursor shader (if enabled). Overlays (scrollbar, visual bell) are rendered after shaders to ensure they remain unaffected by shader effects.
 
 ### Render Order
 
@@ -278,8 +278,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
 | Uniform | Type | Description |
 |---------|------|-------------|
-| `iOpacity` | `float` | Window opacity (0.0 - 1.0) |
-| `iTextOpacity` | `float` | Text opacity (0.0 - 1.0) |
+| `iOpacity` | `float` | Window opacity (0.0 - 1.0). Set to 0.0 in chain mode (when shader output feeds another shader) |
+| `iTextOpacity` | `float` | Text opacity (0.0 - 1.0). Respects `keep_text_opaque` setting |
 | `iBrightness` | `float` | Shader brightness multiplier (0.05 - 1.0) |
 | `iFullContent` | `float` | Full content mode flag (0.0 or 1.0) |
 | `iBackgroundColor` | `vec4` | Solid background color `[R, G, B, A]` (0.0-1.0). When A > 0, solid color mode is active |
@@ -608,7 +608,7 @@ Custom shader settings in `~/.config/par-term/config.yaml`:
 
 ```yaml
 # ========== Background Shader Settings ==========
-# Path to shader file (relative to shaders/ or absolute)
+# Path to shader file (relative to shaders/ directory or absolute path)
 custom_shader: "water.glsl"
 
 # Enable/disable the background shader
@@ -617,36 +617,37 @@ custom_shader_enabled: true
 # Enable animation (updates iTime each frame)
 custom_shader_animation: true
 
-# Animation speed multiplier (1.0 = normal)
+# Animation speed multiplier (1.0 = normal, default: 1.0)
 custom_shader_animation_speed: 1.0
 
-# Text opacity when using shader (0.0 - 1.0)
+# Text opacity when using shader (0.0 - 1.0, default: 1.0)
 custom_shader_text_opacity: 1.0
 
-# Brightness multiplier (0.05 - 1.0)
+# Brightness multiplier (0.05 - 1.0, default: 1.0)
 custom_shader_brightness: 1.0
 
-# Full content mode - shader can manipulate text
+# Full content mode - shader can manipulate text (default: false)
 custom_shader_full_content: false
 
 # Texture channels (iChannel0-3, Shadertoy compatible)
-custom_shader_channel0: "~/textures/noise.png"
+# Paths can be relative to config dir or absolute
+custom_shader_channel0: "textures/noise.png"
 custom_shader_channel1: null
 custom_shader_channel2: null
 custom_shader_channel3: null
 
-# Cubemap texture for environment mapping
+# Cubemap texture for environment mapping (6-face cubemap prefix)
 custom_shader_cubemap: "shaders/textures/cubemaps/env-outside"
 custom_shader_cubemap_enabled: true
 
-# Use background image as iChannel0
+# Use background image as iChannel0 instead of custom_shader_channel0
 custom_shader_use_background_as_channel0: false
 
 # ========== Cursor Shader Settings ==========
-# Path to cursor shader file
+# Path to cursor shader file (relative to shaders/ directory or absolute)
 cursor_shader: "cursor_glow.glsl"
 
-# Enable/disable cursor shader
+# Enable/disable cursor shader (default: false)
 cursor_shader_enabled: false
 
 # Animation settings
@@ -654,19 +655,19 @@ cursor_shader_animation: true
 cursor_shader_animation_speed: 1.0
 
 # Cursor effect parameters
-cursor_shader_color: [255, 255, 255]
-cursor_shader_trail_duration: 0.5
-cursor_shader_glow_radius: 80.0
-cursor_shader_glow_intensity: 0.3
+cursor_shader_color: [255, 255, 255]        # RGB color for shader effects
+cursor_shader_trail_duration: 0.5           # Trail duration in seconds
+cursor_shader_glow_radius: 80.0             # Glow radius in pixels
+cursor_shader_glow_intensity: 0.3           # Glow intensity (0.0 - 1.0)
 
-# Hide default cursor when shader is active
+# Hide default cursor when shader is active (default: false)
 cursor_shader_hides_cursor: false
 
-# Disable cursor shader in alt screen apps (vim, less, htop)
+# Disable cursor shader in alt screen apps like vim, less, htop (default: true)
 cursor_shader_disable_in_alt_screen: true
 
 # ========== General Settings ==========
-# Window opacity (affects shader background)
+# Window opacity (affects shader background, 0.0 - 1.0)
 window_opacity: 1.0
 
 # Background image settings (rendered before terminal content)

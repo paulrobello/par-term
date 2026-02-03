@@ -1,6 +1,6 @@
 # Included Shaders
 
-Par-term includes 45+ ready-to-use GLSL shaders. This document lists all available shaders organized by category.
+Par-term includes 49 ready-to-use GLSL shaders (37 background + 12 cursor). This document lists all available shaders organized by category.
 
 **[View Shader Gallery with Screenshots](https://paulrobello.github.io/par-term/)**
 

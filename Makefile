@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install doc coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install doc coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
 
 # Default target
 .DEFAULT_GOAL := help
@@ -55,6 +55,7 @@ help:
 	@echo "  make install     - Install the binary"
 	@echo "  make doc         - Generate and open documentation"
 	@echo "  make coverage    - Generate test coverage report"
+	@echo "  make deploy      - Trigger Release and Deploy GitHub Action"
 	@echo ""
 
 # Build in release mode (default for faster runtime)
@@ -496,3 +497,12 @@ profile-instruments:
 	@echo "Starting Instruments Time Profiler..."
 	@echo "Use the terminal normally, then stop recording in Instruments"
 	instruments -t "Time Profiler" target/release/par-term
+
+# === Deployment Targets ===
+
+# Trigger the Release and Deploy GitHub Action
+deploy:
+	@echo "🚀 Triggering Release and Deploy GitHub Action..."
+	@command -v gh >/dev/null 2>&1 || { echo "❌ gh CLI not installed."; echo "Install with: brew install gh"; exit 1; }
+	gh workflow run "Release and Deploy"
+	@echo "✅ Workflow triggered. View progress at: https://github.com/paulrobello/par-term/actions"
