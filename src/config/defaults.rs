@@ -265,6 +265,14 @@ pub fn tab_min_width() -> f32 {
     120.0 // Minimum tab width in pixels before scrolling kicks in
 }
 
+pub fn tab_stretch_to_fill() -> bool {
+    false // Tabs keep their minimum width unless stretching is enabled
+}
+
+pub fn tab_html_titles() -> bool {
+    false // Render tab titles as plain text unless explicitly enabled
+}
+
 pub fn tab_border_color() -> [u8; 3] {
     [80, 80, 80] // Subtle gray border between tabs
 }

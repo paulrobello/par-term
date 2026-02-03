@@ -509,32 +509,32 @@ impl SettingsUI {
 
     /// Poll for completion of async shader install.
     pub(crate) fn poll_shader_install_status(&mut self) {
-        if let Some(receiver) = &self.shader_install_receiver {
-            if let Ok(result) = receiver.try_recv() {
-                self.shader_installing = false;
-                self.shader_install_receiver = None;
-                match result {
-                    Ok(res) => {
-                        let detail = if res.skipped > 0 {
-                            format!(
-                                "Installed {} shaders ({} skipped, {} removed)",
-                                res.installed, res.skipped, res.removed
-                            )
-                        } else {
-                            format!(
-                                "Installed {} shaders ({} removed)",
-                                res.installed, res.removed
-                            )
-                        };
-                        self.shader_status = Some(detail);
-                        self.shader_error = None;
-                        self.config.integration_versions.shaders_installed_version =
-                            Some(env!("CARGO_PKG_VERSION").to_string());
-                    }
-                    Err(e) => {
-                        self.shader_error = Some(e);
-                        self.shader_status = None;
-                    }
+        if let Some(receiver) = &self.shader_install_receiver
+            && let Ok(result) = receiver.try_recv()
+        {
+            self.shader_installing = false;
+            self.shader_install_receiver = None;
+            match result {
+                Ok(res) => {
+                    let detail = if res.skipped > 0 {
+                        format!(
+                            "Installed {} shaders ({} skipped, {} removed)",
+                            res.installed, res.skipped, res.removed
+                        )
+                    } else {
+                        format!(
+                            "Installed {} shaders ({} removed)",
+                            res.installed, res.removed
+                        )
+                    };
+                    self.shader_status = Some(detail);
+                    self.shader_error = None;
+                    self.config.integration_versions.shaders_installed_version =
+                        Some(env!("CARGO_PKG_VERSION").to_string());
+                }
+                Err(e) => {
+                    self.shader_error = Some(e);
+                    self.shader_status = None;
                 }
             }
         }
