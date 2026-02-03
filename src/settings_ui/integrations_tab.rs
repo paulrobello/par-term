@@ -11,8 +11,8 @@ use crate::config::{Config, ShellType};
 use crate::shader_installer;
 use crate::shell_integration_installer;
 
-use super::section::collapsing_section;
 use super::SettingsUI;
+use super::section::collapsing_section;
 
 /// Actions for shell integration (consumed by app handler)
 #[derive(Debug, Clone, Copy)]
@@ -57,110 +57,99 @@ impl SettingsUI {
     }
 
     fn show_shell_integration_section(&mut self, ui: &mut Ui, _changes_this_frame: &mut bool) {
-        collapsing_section(
-            ui,
-            "Shell Integration",
-            "integrations_shell",
-            true,
-            |ui| {
-                ui.label("Shell integration provides enhanced terminal features like directory tracking and command notifications.");
-                ui.add_space(8.0);
+        collapsing_section(ui, "Shell Integration", "integrations_shell", true, |ui| {
+            ui.label("Shell integration provides enhanced terminal features like directory tracking and command notifications.");
+            ui.add_space(8.0);
 
-                // Detect shell and installation status
-                let detected_shell = shell_integration_installer::detected_shell();
-                let is_installed = shell_integration_installer::is_installed();
+            // Detect shell and installation status
+            let detected_shell = shell_integration_installer::detected_shell();
+            let is_installed = shell_integration_installer::is_installed();
 
-                // Status indicator
-                ui.horizontal(|ui| {
-                    ui.label("Status:");
-                    if is_installed {
-                        ui.colored_label(Color32::from_rgb(100, 200, 100), "Installed");
-                    } else {
-                        ui.colored_label(Color32::from_rgb(200, 150, 100), "Not installed");
-                    }
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Detected shell:");
-                    ui.label(RichText::new(shell_type_display(detected_shell)).strong());
-                });
-
-                if detected_shell == ShellType::Unknown {
-                    ui.add_space(4.0);
-                    ui.colored_label(
-                        Color32::from_rgb(200, 100, 100),
-                        "Could not detect shell type. Manual installation may be required.",
-                    );
+            // Status indicator
+            ui.horizontal(|ui| {
+                ui.label("Status:");
+                if is_installed {
+                    ui.colored_label(Color32::from_rgb(100, 200, 100), "Installed");
+                } else {
+                    ui.colored_label(Color32::from_rgb(200, 150, 100), "Not installed");
                 }
+            });
 
-                ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.label("Detected shell:");
+                ui.label(RichText::new(shell_type_display(detected_shell)).strong());
+            });
 
-                // Action buttons
-                ui.horizontal(|ui| {
-                    let install_text = if is_installed {
-                        "Reinstall"
-                    } else {
-                        "Install"
-                    };
+            if detected_shell == ShellType::Unknown {
+                ui.add_space(4.0);
+                ui.colored_label(
+                    Color32::from_rgb(200, 100, 100),
+                    "Could not detect shell type. Manual installation may be required.",
+                );
+            }
 
-                    if detected_shell != ShellType::Unknown
-                        && ui
-                            .button(install_text)
-                            .on_hover_text("Install shell integration scripts")
-                            .clicked()
-                    {
-                        self.shell_integration_action = Some(ShellIntegrationAction::Install);
-                    }
+            ui.add_space(8.0);
 
-                    if is_installed
-                        && ui
-                            .button("Uninstall")
-                            .on_hover_text("Remove shell integration from all shells")
-                            .clicked()
-                    {
-                        self.shell_integration_action = Some(ShellIntegrationAction::Uninstall);
-                    }
-                });
+            // Action buttons
+            ui.horizontal(|ui| {
+                let install_text = if is_installed { "Reinstall" } else { "Install" };
 
-                ui.add_space(8.0);
-
-                // Manual installation instructions
-                ui.label(RichText::new("Manual Installation").strong());
-                ui.label("Run this command in your terminal:");
-
-                let curl_cmd =
-                    "curl -fsSL https://paulrobello.github.io/par-term/install-shell-integration.sh | bash";
-
-                ui.horizontal(|ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut curl_cmd.to_string())
-                            .desired_width(400.0)
-                            .interactive(false)
-                            .font(egui::TextStyle::Monospace),
-                    );
-
-                    if ui.button("Copy").clicked()
-                        && let Ok(mut clipboard) = Clipboard::new()
-                    {
-                        let _ = clipboard.set_text(curl_cmd);
-                    }
-                });
-
-                // Show installed version if available
-                if let Some(ref version) = self
-                    .config
-                    .integration_versions
-                    .shell_integration_installed_version
+                if detected_shell != ShellType::Unknown
+                    && ui
+                        .button(install_text)
+                        .on_hover_text("Install shell integration scripts")
+                        .clicked()
                 {
-                    ui.add_space(4.0);
-                    ui.label(
-                        RichText::new(format!("Installed version: {}", version))
-                            .small()
-                            .color(Color32::GRAY),
-                    );
+                    self.shell_integration_action = Some(ShellIntegrationAction::Install);
                 }
-            },
-        );
+
+                if is_installed
+                    && ui
+                        .button("Uninstall")
+                        .on_hover_text("Remove shell integration from all shells")
+                        .clicked()
+                {
+                    self.shell_integration_action = Some(ShellIntegrationAction::Uninstall);
+                }
+            });
+
+            ui.add_space(8.0);
+
+            // Manual installation instructions
+            ui.label(RichText::new("Manual Installation").strong());
+            ui.label("Run this command in your terminal:");
+
+            let curl_cmd = "curl -fsSL https://paulrobello.github.io/par-term/install-shell-integration.sh | bash";
+
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut curl_cmd.to_string())
+                        .desired_width(400.0)
+                        .interactive(false)
+                        .font(egui::TextStyle::Monospace),
+                );
+
+                if ui.button("Copy").clicked()
+                    && let Ok(mut clipboard) = Clipboard::new()
+                {
+                    let _ = clipboard.set_text(curl_cmd);
+                }
+            });
+
+            // Show installed version if available
+            if let Some(ref version) = self
+                .config
+                .integration_versions
+                .shell_integration_installed_version
+            {
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new(format!("Installed version: {}", version))
+                        .small()
+                        .color(Color32::GRAY),
+                );
+            }
+        });
     }
 
     fn show_shaders_section(&mut self, ui: &mut Ui, _changes_this_frame: &mut bool) {

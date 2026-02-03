@@ -471,7 +471,50 @@ pub fn pane_focus_width() -> f32 {
 
 // tmux integration defaults
 pub fn tmux_path() -> String {
-    "tmux".to_string() // Use PATH to find tmux
+    // First, try to find tmux in the user's PATH environment variable
+    if let Ok(path_env) = std::env::var("PATH") {
+        let separator = if cfg!(windows) { ';' } else { ':' };
+        let executable = if cfg!(windows) { "tmux.exe" } else { "tmux" };
+
+        for dir in path_env.split(separator) {
+            let candidate = std::path::Path::new(dir).join(executable);
+            if candidate.exists() {
+                return candidate.to_string_lossy().to_string();
+            }
+        }
+    }
+
+    // Fall back to common paths for environments where PATH might be incomplete
+    // (e.g., macOS app bundles launched from Finder)
+    #[cfg(target_os = "macos")]
+    {
+        let macos_paths = [
+            "/opt/homebrew/bin/tmux", // Homebrew on Apple Silicon
+            "/usr/local/bin/tmux",    // Homebrew on Intel / MacPorts
+        ];
+        for path in macos_paths {
+            if std::path::Path::new(path).exists() {
+                return path.to_string();
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let linux_paths = [
+            "/usr/bin/tmux",       // Most distros
+            "/usr/local/bin/tmux", // Manual install
+            "/snap/bin/tmux",      // Snap package
+        ];
+        for path in linux_paths {
+            if std::path::Path::new(path).exists() {
+                return path.to_string();
+            }
+        }
+    }
+
+    // Final fallback - let the OS try to find it
+    "tmux".to_string()
 }
 
 pub fn tmux_default_session() -> Option<String> {

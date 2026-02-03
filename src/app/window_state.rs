@@ -12,6 +12,7 @@ use crate::config::{
 };
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
+use crate::integrations_ui::{IntegrationsResponse, IntegrationsUI};
 use crate::keybindings::KeybindingRegistry;
 use crate::paste_special_ui::{PasteSpecialAction, PasteSpecialUI};
 use crate::profile::{ProfileManager, storage as profile_storage};
@@ -20,7 +21,6 @@ use crate::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
 use crate::renderer::{DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, Renderer};
 use crate::search::SearchUI;
 use crate::selection::SelectionMode;
-use crate::integrations_ui::{IntegrationsResponse, IntegrationsUI};
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::smart_selection::SmartSelectionCache;
@@ -2449,8 +2449,10 @@ impl WindowState {
                             "Installed shell integration for {}",
                             result.shell.display_name()
                         );
-                        success_parts
-                            .push(format!("shell integration ({})", result.shell.display_name()));
+                        success_parts.push(format!(
+                            "shell integration ({})",
+                            result.shell.display_name()
+                        ));
                         self.config
                             .integration_versions
                             .shell_integration_installed_version = Some(current_version.clone());
@@ -2510,13 +2512,9 @@ impl WindowState {
             self.integrations_ui.hide();
             // Set install prompts to Never
             self.config.shader_install_prompt = ShaderInstallPrompt::Never;
-            self.config.shell_integration_state =
-                crate::config::InstallPromptState::Never;
+            self.config.shell_integration_state = crate::config::InstallPromptState::Never;
             if let Err(e) = self.config.save() {
-                log::error!(
-                    "Failed to save config after declining integrations: {}",
-                    e
-                );
+                log::error!("Failed to save config after declining integrations: {}", e);
             }
         }
 

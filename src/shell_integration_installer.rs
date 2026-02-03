@@ -223,11 +223,7 @@ fn add_to_rc_file(rc_file: &Path, shell: ShellType) -> Result<(), String> {
     if existing_content.contains(MARKER_START) {
         // Remove existing block and add fresh one
         let cleaned = remove_marker_block(&existing_content);
-        let new_content = format!(
-            "{}\n{}",
-            cleaned.trim_end(),
-            generate_source_block(shell)
-        );
+        let new_content = format!("{}\n{}", cleaned.trim_end(), generate_source_block(shell));
         fs::write(rc_file, new_content)
             .map_err(|e| format!("Failed to write {:?}: {}", rc_file, e))?;
     } else {
