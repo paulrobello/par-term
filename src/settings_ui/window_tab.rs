@@ -655,6 +655,29 @@ fn show_tab_bar_section(
             *changes_this_frame = true;
         }
 
+        if ui
+            .checkbox(
+                &mut settings.config.tab_stretch_to_fill,
+                "Stretch tabs to fill bar",
+            )
+            .on_hover_text("Make tabs share available width evenly when they fit without scrolling")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(&mut settings.config.tab_html_titles, "HTML tab titles")
+            .on_hover_text(
+                "Render limited HTML in tab titles: <b>, <i>, <u>, <span style=\"color:...\">",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
         ui.add_space(8.0);
 
         if ui

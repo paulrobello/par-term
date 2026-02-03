@@ -815,6 +815,16 @@ pub struct Config {
     #[serde(default = "defaults::tab_min_width")]
     pub tab_min_width: f32,
 
+    /// Stretch tabs to fill the available tab bar width evenly (iTerm2 style)
+    /// When false, tabs keep their minimum width and excess space is left unused
+    #[serde(default = "defaults::tab_stretch_to_fill")]
+    pub tab_stretch_to_fill: bool,
+
+    /// Render tab titles as limited HTML (bold/italic/underline/color spans)
+    /// When false, titles are rendered as plain text
+    #[serde(default = "defaults::tab_html_titles")]
+    pub tab_html_titles: bool,
+
     /// Tab border color [R, G, B] (0-255)
     /// A thin border around each tab to help distinguish them
     #[serde(default = "defaults::tab_border_color")]
@@ -1236,6 +1246,8 @@ impl Default for Config {
             dim_inactive_tabs: defaults::bool_true(),
             inactive_tab_opacity: defaults::inactive_tab_opacity(),
             tab_min_width: defaults::tab_min_width(),
+            tab_stretch_to_fill: defaults::tab_stretch_to_fill(),
+            tab_html_titles: defaults::tab_html_titles(),
             tab_border_color: defaults::tab_border_color(),
             tab_border_width: defaults::tab_border_width(),
             // Split panes

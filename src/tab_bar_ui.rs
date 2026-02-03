@@ -5,6 +5,24 @@
 use crate::config::{Config, TabBarMode};
 use crate::tab::{TabId, TabManager};
 
+/// Styled text segment for rich tab titles
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StyledSegment {
+    text: String,
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    color: Option<[u8; 3]>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct TitleStyle {
+    bold: bool,
+    italic: bool,
+    underline: bool,
+    color: Option<[u8; 3]>,
+}
+
 /// Actions that can be triggered from the tab bar
 #[derive(Debug, Clone, PartialEq)]
 pub enum TabBarAction {
@@ -127,12 +145,13 @@ impl TabBarUI {
 
                 // Calculate tab width
                 let tab_width = if tab_count == 0 || needs_scroll {
-                    // Use minimum width when scrolling or no tabs
                     config.tab_min_width
-                } else {
-                    // Equal distribution: divide available space among all tabs
+                } else if config.tab_stretch_to_fill {
                     let total_spacing = (tab_count - 1) as f32 * tab_spacing;
-                    (tabs_area_width - total_spacing) / tab_count as f32
+                    let stretched = (tabs_area_width - total_spacing) / tab_count as f32;
+                    stretched.max(config.tab_min_width)
+                } else {
+                    config.tab_min_width
                 };
 
                 // Calculate max scroll offset
@@ -403,13 +422,26 @@ impl TabBarUI {
                     // We'd need to get the index, skip for now
                 }
 
-                // Title (truncated)
-                let max_title_len = if config.tab_show_close_button { 15 } else { 20 };
-                let display_title = if title.len() > max_title_len {
-                    format!("{}…", &title[..max_title_len - 1])
+                // Title rendering with width-aware truncation
+                let base_font_id = ui.style().text_styles[&egui::TextStyle::Button].clone();
+                let indicator_width = if is_bell_active {
+                    18.0
+                } else if has_activity && !is_active {
+                    14.0
                 } else {
-                    title.to_string()
+                    0.0
                 };
+                let hotkey_width = if index < 9 { 26.0 } else { 0.0 };
+                let close_width = if config.tab_show_close_button {
+                    24.0
+                } else {
+                    0.0
+                };
+                let padding = 12.0;
+                let title_available_width =
+                    (tab_width - indicator_width - hotkey_width - close_width - padding).max(24.0);
+
+                let max_chars = estimate_max_chars(ui, &base_font_id, title_available_width);
 
                 let text_color = if is_active {
                     let c = config.tab_active_text;
@@ -419,7 +451,14 @@ impl TabBarUI {
                     egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
                 };
 
-                ui.label(egui::RichText::new(&display_title).color(text_color));
+                if config.tab_html_titles {
+                    let segments = parse_html_title(title);
+                    let truncated = truncate_segments(&segments, max_chars);
+                    render_segments(ui, &truncated, text_color);
+                } else {
+                    let display_title = truncate_plain(title, max_chars);
+                    ui.label(egui::RichText::new(display_title).color(text_color));
+                }
 
                 // Hotkey indicator (only for tabs 1-9) - show on right side, leave space for close button
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -674,8 +713,328 @@ impl TabBarUI {
     }
 }
 
+fn truncate_plain(title: &str, max_len: usize) -> String {
+    if max_len == 0 {
+        return "…".to_string();
+    }
+    let mut chars = title.chars();
+    let mut taken = String::new();
+    for _ in 0..max_len {
+        if let Some(c) = chars.next() {
+            taken.push(c);
+        } else {
+            return taken;
+        }
+    }
+    if chars.next().is_some() {
+        if max_len > 0 {
+            taken.pop();
+        }
+        taken.push('…');
+    }
+    taken
+}
+
+fn truncate_segments(segments: &[StyledSegment], max_len: usize) -> Vec<StyledSegment> {
+    if max_len == 0 {
+        return vec![StyledSegment {
+            text: "…".to_string(),
+            bold: false,
+            italic: false,
+            underline: false,
+            color: None,
+        }];
+    }
+    let mut remaining = max_len;
+    let mut out: Vec<StyledSegment> = Vec::new();
+    for seg in segments {
+        if remaining == 0 {
+            break;
+        }
+        let seg_len = seg.text.chars().count();
+        if seg_len == 0 {
+            continue;
+        }
+        if seg_len <= remaining {
+            out.push(seg.clone());
+            remaining -= seg_len;
+        } else {
+            let truncated_text: String =
+                seg.text.chars().take(remaining.saturating_sub(1)).collect();
+            let mut truncated = seg.clone();
+            truncated.text = truncated_text;
+            truncated.text.push('…');
+            out.push(truncated);
+            remaining = 0;
+        }
+    }
+    out
+}
+
+fn render_segments(ui: &mut egui::Ui, segments: &[StyledSegment], fallback_color: egui::Color32) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        for segment in segments {
+            let mut rich = egui::RichText::new(&segment.text);
+            if segment.bold {
+                rich = rich.strong();
+            }
+            if segment.italic {
+                rich = rich.italics();
+            }
+            if segment.underline {
+                rich = rich.underline();
+            }
+            if let Some(color) = segment.color {
+                rich = rich.color(egui::Color32::from_rgb(color[0], color[1], color[2]));
+            } else {
+                rich = rich.color(fallback_color);
+            }
+            ui.label(rich);
+        }
+    });
+}
+
+fn estimate_max_chars(_ui: &egui::Ui, font_id: &egui::FontId, available_width: f32) -> usize {
+    let char_width = (font_id.size * 0.55).max(4.0); // heuristic: ~0.55em per character
+    ((available_width / char_width).floor() as usize).max(4)
+}
+
+fn parse_html_title(input: &str) -> Vec<StyledSegment> {
+    let mut segments: Vec<StyledSegment> = Vec::new();
+    let mut style_stack: Vec<TitleStyle> = vec![TitleStyle {
+        bold: false,
+        italic: false,
+        underline: false,
+        color: None,
+    }];
+    let mut buffer = String::new();
+    let mut chars = input.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '<' {
+            // flush buffer
+            if !buffer.is_empty() {
+                let style = *style_stack.last().unwrap_or(&TitleStyle {
+                    bold: false,
+                    italic: false,
+                    underline: false,
+                    color: None,
+                });
+                segments.push(StyledSegment {
+                    text: buffer.clone(),
+                    bold: style.bold,
+                    italic: style.italic,
+                    underline: style.underline,
+                    color: style.color,
+                });
+                buffer.clear();
+            }
+
+            // read tag
+            let mut tag = String::new();
+            while let Some(&c) = chars.peek() {
+                chars.next();
+                if c == '>' {
+                    break;
+                }
+                tag.push(c);
+            }
+
+            let tag_trimmed = tag.trim().to_lowercase();
+            match tag_trimmed.as_str() {
+                "b" => {
+                    let mut style = *style_stack.last().unwrap();
+                    style.bold = true;
+                    style_stack.push(style);
+                }
+                "/b" => {
+                    pop_style(&mut style_stack, |s| s.bold);
+                }
+                "i" => {
+                    let mut style = *style_stack.last().unwrap();
+                    style.italic = true;
+                    style_stack.push(style);
+                }
+                "/i" => {
+                    pop_style(&mut style_stack, |s| s.italic);
+                }
+                "u" => {
+                    let mut style = *style_stack.last().unwrap();
+                    style.underline = true;
+                    style_stack.push(style);
+                }
+                "/u" => {
+                    pop_style(&mut style_stack, |s| s.underline);
+                }
+                t if t.starts_with("span") => {
+                    if let Some(color) = parse_span_color(&tag_trimmed) {
+                        let mut style = *style_stack.last().unwrap();
+                        style.color = Some(color);
+                        style_stack.push(style);
+                    } else {
+                        // unsupported span attributes: ignore tag
+                    }
+                }
+                "/span" => {
+                    pop_style(&mut style_stack, |s| s.color.is_some());
+                }
+                _ => {
+                    // Unknown or unsupported tag, ignore
+                }
+            }
+        } else {
+            buffer.push(ch);
+        }
+    }
+
+    if !buffer.is_empty() {
+        let style = *style_stack.last().unwrap_or(&TitleStyle {
+            bold: false,
+            italic: false,
+            underline: false,
+            color: None,
+        });
+        segments.push(StyledSegment {
+            text: buffer,
+            bold: style.bold,
+            italic: style.italic,
+            underline: style.underline,
+            color: style.color,
+        });
+    }
+
+    segments
+}
+
+fn pop_style<F>(stack: &mut Vec<TitleStyle>, predicate: F)
+where
+    F: Fn(&TitleStyle) -> bool,
+{
+    if stack.len() <= 1 {
+        return;
+    }
+    for idx in (1..stack.len()).rev() {
+        let style = stack[idx];
+        if predicate(&style) {
+            stack.remove(idx);
+            return;
+        }
+    }
+}
+
+fn parse_span_color(tag: &str) -> Option<[u8; 3]> {
+    // expect like: span style="color:#rrggbb" or color:rgb(r,g,b)
+    let style_attr = tag.split("style=").nth(1)?;
+    let style_val = style_attr
+        .trim_start_matches(['\"', '\''])
+        .trim_end_matches(['\"', '\'']);
+    let mut color_part = None;
+    for decl in style_val.split(';') {
+        let mut kv = decl.splitn(2, ':');
+        let key = kv.next()?.trim();
+        let val = kv.next()?.trim();
+        if key == "color" {
+            color_part = Some(val);
+            break;
+        }
+    }
+    let color_str = color_part?;
+    if let Some(hex) = color_str.strip_prefix('#') {
+        if hex.len() == 6 {
+            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+            return Some([r, g, b]);
+        }
+    } else if let Some(rgb) = color_str
+        .strip_prefix("rgb(")
+        .and_then(|s| s.strip_suffix(')'))
+    {
+        let parts: Vec<&str> = rgb.split(',').map(|p| p.trim()).collect();
+        if parts.len() == 3 {
+            let r = parts[0].parse::<u8>().ok()?;
+            let g = parts[1].parse::<u8>().ok()?;
+            let b = parts[2].parse::<u8>().ok()?;
+            return Some([r, g, b]);
+        }
+    }
+    None
+}
+
 impl Default for TabBarUI {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_html_title_basic_tags() {
+        let segments = parse_html_title("<b>Hello</b> <i>world</i>");
+        assert_eq!(
+            segments,
+            vec![
+                StyledSegment {
+                    text: "Hello".to_string(),
+                    bold: true,
+                    italic: false,
+                    underline: false,
+                    color: None
+                },
+                StyledSegment {
+                    text: " ".to_string(),
+                    bold: false,
+                    italic: false,
+                    underline: false,
+                    color: None
+                },
+                StyledSegment {
+                    text: "world".to_string(),
+                    bold: false,
+                    italic: true,
+                    underline: false,
+                    color: None
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_html_title_span_color() {
+        let segments = parse_html_title("<span style=\"color:#ff0000\">Red</span> text");
+        assert_eq!(segments.len(), 2);
+        assert_eq!(
+            segments[0],
+            StyledSegment {
+                text: "Red".to_string(),
+                bold: false,
+                italic: false,
+                underline: false,
+                color: Some([255, 0, 0])
+            }
+        );
+    }
+
+    #[test]
+    fn truncate_segments_adds_ellipsis() {
+        let segs = vec![StyledSegment {
+            text: "HelloWorld".to_string(),
+            bold: false,
+            italic: false,
+            underline: false,
+            color: None,
+        }];
+        let truncated = truncate_segments(&segs, 6);
+        assert_eq!(truncated[0].text, "Hello…");
+    }
+
+    #[test]
+    fn truncate_plain_handles_short_text() {
+        assert_eq!(truncate_plain("abc", 5), "abc");
+        assert_eq!(truncate_plain("abcdef", 5), "abcd…");
     }
 }
