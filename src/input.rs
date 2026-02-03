@@ -170,8 +170,18 @@ impl InputHandler {
 
                 // Note: Shift+Insert paste is handled at higher level for bracketed paste support
 
+                let shift = self.modifiers.state().shift_key();
+
                 let seq = match named_key {
-                    NamedKey::Enter => "\r",
+                    // Shift+Enter sends LF (newline) for soft line breaks (like iTerm2)
+                    // Regular Enter sends CR (carriage return) for command execution
+                    NamedKey::Enter => {
+                        if shift {
+                            "\n"
+                        } else {
+                            "\r"
+                        }
+                    }
                     NamedKey::Tab => "\t",
                     NamedKey::Space => " ",
                     NamedKey::Backspace => "\x7f",

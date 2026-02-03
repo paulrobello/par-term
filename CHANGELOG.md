@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Shift+Enter Key Behavior**: Shift+Enter now sends LF (`\n`) instead of CR (`\r`), matching iTerm2 behavior. This enables soft line breaks in applications like Claude Code that distinguish between Enter (submit) and Shift+Enter (new line).
 - **Multi-Window Focus Routing**: Menu actions (Cmd+T, Cmd+V, etc.) now correctly route to the focused window instead of an arbitrary window when multiple windows are open
 - **Settings UI Layout**: Content area now properly fills available window space instead of leaving empty space at the bottom
 - **Settings UI Control Widths**: Applied consistent width constants to sliders and text inputs across all settings tabs
