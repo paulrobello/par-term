@@ -1198,9 +1198,10 @@ impl WindowState {
                 // Grid size changed - resize all tab terminals
                 let cell_width = renderer.cell_width();
                 let cell_height = renderer.cell_height();
-                let size = renderer.size();
-                let width_px = size.width as usize;
-                let height_px = size.height as usize;
+                // Calculate pixel dimensions from grid size (not window size)
+                // This ensures TIOCGWINSZ reports the correct terminal content dimensions
+                let width_px = (new_cols as f32 * cell_width) as usize;
+                let height_px = (new_rows as f32 * cell_height) as usize;
 
                 for tab in self.tab_manager.tabs_mut() {
                     if let Ok(mut term) = tab.terminal.try_lock() {
