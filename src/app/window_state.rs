@@ -1442,6 +1442,8 @@ impl WindowState {
             tab.cache.selection = tab.mouse.selection;
         }
 
+        let mut show_scrollbar = self.should_show_scrollbar();
+
         let (scrollback_len, terminal_title) = if let Ok(mut term) = terminal.try_lock() {
             // Use cursor row 0 when cursor not visible (e.g., alt screen)
             let cursor_row = current_cursor_pos.map(|(_, row)| row).unwrap_or(0);
@@ -1464,6 +1466,11 @@ impl WindowState {
         } else {
             Vec::new()
         };
+
+        // Keep scrollbar visible when mark indicators exist (even if no scrollback).
+        if !scrollback_marks.is_empty() {
+            show_scrollbar = true;
+        }
 
         // Update window title if terminal has set one via OSC sequences
         // Only if allow_title_change is enabled and we're not showing a URL tooltip
@@ -1562,8 +1569,6 @@ impl WindowState {
         let mut pending_profile_drawer_action = ProfileDrawerAction::None;
         // Profile modal action to handle after rendering
         let mut pending_profile_modal_action = ProfileModalAction::None;
-
-        let show_scrollbar = self.should_show_scrollbar();
 
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts
         // When tmux controls the layout, we don't use pane padding
