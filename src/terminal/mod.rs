@@ -1,3 +1,4 @@
+use crate::scrollback_metadata::{CommandSnapshot, ScrollbackMark, ScrollbackMetadata};
 use crate::styled_content::{StyledSegment, extract_styled_segments};
 use crate::themes::Theme;
 use anyhow::Result;
@@ -60,6 +61,8 @@ pub struct TerminalManager {
     pub(crate) dimensions: (usize, usize),
     /// Color theme for ANSI colors
     pub(crate) theme: Theme,
+    /// Scrollback metadata for shell integration markers
+    pub(crate) scrollback_metadata: ScrollbackMetadata,
 }
 
 impl TerminalManager {
@@ -85,12 +88,58 @@ impl TerminalManager {
             pty_session,
             dimensions: (cols, rows),
             theme: Theme::default(),
+            scrollback_metadata: ScrollbackMetadata::new(),
         })
     }
 
     /// Set the color theme
     pub fn set_theme(&mut self, theme: Theme) {
         self.theme = theme;
+    }
+
+    /// Update scrollback metadata based on current shell integration state.
+    ///
+    /// This should be called once per frame (after obtaining cursor position) to
+    /// track prompt markers and command timing information for scrollback
+    /// visualization.
+    pub fn update_scrollback_metadata(&mut self, scrollback_len: usize, cursor_row: usize) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+
+        let marker = term.shell_integration().marker();
+        let history = term.get_command_history();
+        let history_len = history.len();
+        let last_command = history
+            .last()
+            .map(|c| CommandSnapshot::from_core(c, history_len.saturating_sub(1)));
+
+        drop(term);
+        drop(terminal);
+        drop(pty);
+
+        self.scrollback_metadata.apply_event(
+            marker,
+            scrollback_len,
+            cursor_row,
+            history_len,
+            last_command,
+        );
+    }
+
+    /// Get rendered scrollback marks (prompt/command boundaries).
+    pub fn scrollback_marks(&self) -> Vec<ScrollbackMark> {
+        self.scrollback_metadata.marks()
+    }
+
+    /// Find previous prompt mark before the given absolute line (if any).
+    pub fn scrollback_previous_mark(&self, line: usize) -> Option<usize> {
+        self.scrollback_metadata.previous_mark(line)
+    }
+
+    /// Find next prompt mark after the given absolute line (if any).
+    pub fn scrollback_next_mark(&self, line: usize) -> Option<usize> {
+        self.scrollback_metadata.next_mark(line)
     }
 
     /// Set cell dimensions in pixels for sixel graphics scroll calculations

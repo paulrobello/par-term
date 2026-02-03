@@ -30,6 +30,7 @@ pub mod profile_drawer_ui;
 pub mod profile_modal_ui;
 pub mod renderer;
 pub mod scroll_state;
+pub mod scrollback_metadata;
 pub mod scrollbar;
 pub mod search;
 pub mod selection;

@@ -341,7 +341,7 @@ impl CellRenderer {
         let cell_width = (char_advance * char_spacing).max(1.0);
 
         let scrollbar = Scrollbar::new(
-            &device,
+            Arc::clone(&device),
             surface_format,
             scrollbar_width,
             scrollbar_position,
@@ -847,6 +847,7 @@ impl CellRenderer {
         scroll_offset: usize,
         visible_lines: usize,
         total_lines: usize,
+        marks: &[crate::scrollback_metadata::ScrollbackMark],
     ) {
         self.scrollbar.update(
             &self.queue,
@@ -855,6 +856,7 @@ impl CellRenderer {
             total_lines,
             self.config.width,
             self.config.height,
+            marks,
         );
     }
 
