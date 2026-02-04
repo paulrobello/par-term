@@ -631,6 +631,28 @@ impl TerminalManager {
         term.shell_integration().hostname().map(String::from)
     }
 
+    /// Get username from shell integration (OSC 7)
+    ///
+    /// Returns the username extracted from OSC 7 `file://user@hostname/path` format.
+    /// Returns None if no username was provided.
+    pub fn shell_integration_username(&self) -> Option<String> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.shell_integration().username().map(String::from)
+    }
+
+    /// Poll CWD change events from terminal
+    ///
+    /// Returns all pending CwdChange events and removes them from the queue.
+    /// Each event contains: old_cwd, new_cwd, hostname, username, timestamp
+    pub fn poll_cwd_events(&self) -> Vec<par_term_emu_core_rust::terminal::CwdChange> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.poll_cwd_events()
+    }
+
     // TODO: Shell integration stats API not yet available in par-term-emu-core-rust
     /*
     /// Get shell integration statistics

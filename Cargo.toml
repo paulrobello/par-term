@@ -22,9 +22,8 @@ exclude = [
 ]
 
 [dependencies]
-# Terminal emulator core (ENQ answerback support)
-# TODO: Switch back to version "0.29.0" after publishing hostname support
-par-term-emu-core-rust = { path = "../par-term-emu-core-rust", default-features = false, features = ["rust-only"] }
+# Terminal emulator core (with OSC 7 hostname/cwd events)
+par-term-emu-core-rust = { version = "0.29.0", default-features = false, features = ["rust-only"] }
 
 # Window management and rendering
 winit = "0.30"
