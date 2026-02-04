@@ -214,6 +214,10 @@ impl CellRenderer {
         // Windows: Use DX12 (Vulkan may not work in VMs like Parallels)
         // macOS: Use Metal (native)
         // Linux: Try Vulkan first, fall back to GL for VM compatibility
+        // Platform-specific backend selection for better VM compatibility
+        // Windows: Use DX12 (Vulkan may not work in VMs like Parallels)
+        // macOS: Use Metal (native)
+        // Linux: Try Vulkan first, fall back to GL for VM compatibility
         #[cfg(target_os = "windows")]
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::DX12,

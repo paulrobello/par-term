@@ -293,7 +293,6 @@ impl SettingsUI {
     }
 
     /// Update the current terminal dimensions (called when window resizes)
-    #[allow(dead_code)]
     pub fn update_current_size(&mut self, cols: usize, rows: usize) {
         self.current_cols = cols;
         self.current_rows = rows;

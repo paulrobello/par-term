@@ -900,8 +900,11 @@ impl ApplicationHandler for WindowManager {
             return;
         }
 
+        // Check if this is a resize event (before the event is consumed)
+        let is_resize = matches!(event, WindowEvent::Resized(_));
+
         // Route event to the appropriate terminal window
-        let (should_close, shader_states) =
+        let (should_close, shader_states, grid_size) =
             if let Some(window_state) = self.windows.get_mut(&window_id) {
                 let close = window_state.handle_window_event(event_loop, event);
                 // Capture shader states to sync to settings window
@@ -909,9 +912,15 @@ impl ApplicationHandler for WindowManager {
                     window_state.config.custom_shader_enabled,
                     window_state.config.cursor_shader_enabled,
                 );
-                (close, Some(states))
+                // Capture grid size if this was a resize
+                let size = if is_resize {
+                    window_state.renderer.as_ref().map(|r| r.grid_size())
+                } else {
+                    None
+                };
+                (close, Some(states), size)
             } else {
-                (false, None)
+                (false, None, None)
             };
 
         // Sync shader states to settings window to prevent it from overwriting keybinding toggles
@@ -919,6 +928,12 @@ impl ApplicationHandler for WindowManager {
             (&mut self.settings_window, shader_states)
         {
             settings_window.sync_shader_states(custom_enabled, cursor_enabled);
+        }
+
+        // Update settings window with new terminal dimensions after resize
+        if let (Some(settings_window), Some((cols, rows))) = (&mut self.settings_window, grid_size)
+        {
+            settings_window.settings_ui.update_current_size(cols, rows);
         }
 
         // Close window if requested

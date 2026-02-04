@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Settings Window Size Display**: Fixed Settings UI not updating current cols/rows when the terminal window is resized (Windows)
+  - The "Current: NxM" display in Window → Display now updates in real-time during resize
+
 - **Windows ARM64 Build**: Fixed build failure on Windows ARM64 due to `ring` crate requiring clang
   - Switched `ureq` HTTP client from `rustls` to `native-tls` backend
   - Uses system TLS (Schannel on Windows, OpenSSL on Linux, Security.framework on macOS)
@@ -24,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HTTPS Request Panic**: Fixed panic when making HTTPS requests (update checker, shader installer)
   - Explicitly configure `ureq` to use native-tls provider instead of defaulting to rustls
   - Added `http.rs` module with properly configured HTTP agent
+
+- **Font Size Change Crash**: Fixed crash when changing font size in Settings
+  - wgpu only allows one surface per window; old renderer must be dropped before creating new one
+  - Now properly releases old surface before creating new renderer
 
 ### Added
 

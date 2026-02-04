@@ -391,14 +391,14 @@ impl MenuManager {
         #[cfg(target_os = "windows")]
         {
             use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
-            if let Ok(handle) = window.window_handle() {
-                if let RawWindowHandle::Win32(win32_handle) = handle.as_raw() {
-                    // SAFETY: We have a valid Win32 window handle from winit
-                    unsafe {
-                        self.menu.init_for_hwnd(win32_handle.hwnd.get() as _)?;
-                    }
-                    log::info!("Initialized Windows menu bar for window");
+            if let Ok(handle) = window.window_handle()
+                && let RawWindowHandle::Win32(win32_handle) = handle.as_raw()
+            {
+                // SAFETY: We have a valid Win32 window handle from winit
+                unsafe {
+                    self.menu.init_for_hwnd(win32_handle.hwnd.get() as _)?;
                 }
+                log::info!("Initialized Windows menu bar for window");
             }
             Ok(())
         }
