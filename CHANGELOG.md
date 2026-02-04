@@ -18,11 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Default Font Size**: Reduced default `font_size` from 13.0 to 10.0
 - **Default Shader Brightness**: Reduced default `custom_shader_brightness` from 100% to 15% for better text readability out of the box
+- **Dev Tools Build**: Test utilities (`test-cr`, `test-grid`) now require `--features dev-tools` flag to build/install
 - **Default Profile Drawer Button**: Profile drawer toggle button now hidden by default (`show_profile_drawer_button: false`)
 - **Settings UI Sections**: "Background & Effects" and "Cursor Shader" sections now expand by default for easier discovery
 
 ### Fixed
+
+- **Segfault on Exit**: Fixed crash when closing terminal window while settings window is open
+  - Settings window is now explicitly closed before app teardown
+  - egui state is cleaned up before other window resources
+  - Audio stream cleanup order fixed to prevent use-after-free
 
 - **Settings Window Size Display**: Fixed Settings UI not updating current cols/rows when the terminal window is resized (Windows)
   - The "Current: NxM" display in Window → Display now updates in real-time during resize

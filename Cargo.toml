@@ -139,13 +139,18 @@ path = "src/lib.rs"
 name = "par-term"
 path = "src/main.rs"
 
+[features]
+dev-tools = []  # Enable to build test-cr and test-grid utilities
+
 [[bin]]
 name = "test-cr"
 path = "test_cr.rs"
+required-features = ["dev-tools"]
 
 [[bin]]
 name = "test-grid"
 path = "test_grid.rs"
+required-features = ["dev-tools"]
 
 [profile.release]
 opt-level = 3

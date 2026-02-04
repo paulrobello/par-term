@@ -9,7 +9,7 @@ pub fn rows() -> usize {
 }
 
 pub fn font_size() -> f32 {
-    13.0
+    10.0
 }
 
 pub fn font_family() -> String {

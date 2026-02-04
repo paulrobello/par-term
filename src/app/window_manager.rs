@@ -646,6 +646,12 @@ impl WindowManager {
         // Exit app when last window closes
         if self.windows.is_empty() {
             log::info!("Last window closed, exiting application");
+            // Close settings window FIRST before marking exit
+            // This ensures settings window resources are cleaned up before app teardown
+            if self.settings_window.is_some() {
+                log::info!("Closing settings window before exit");
+                self.close_settings_window();
+            }
             self.should_exit = true;
         }
     }

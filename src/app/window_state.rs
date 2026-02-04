@@ -2824,6 +2824,12 @@ impl Drop for WindowState {
         // Set shutdown flag
         self.is_shutting_down = true;
 
+        // Clean up egui state FIRST before any other resources are dropped
+        // This prevents egui from accessing freed resources during its own cleanup
+        log::info!("Cleaning up egui state");
+        self.egui_state = None;
+        self.egui_ctx = None;
+
         // Clean up all tabs
         let tab_count = self.tab_manager.tab_count();
         log::info!("Cleaning up {} tabs", tab_count);

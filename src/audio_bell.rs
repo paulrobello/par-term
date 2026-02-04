@@ -13,7 +13,18 @@ pub struct AudioBell {
 
 impl Drop for AudioBell {
     fn drop(&mut self) {
+        // Stop and clear the sink BEFORE forgetting the stream
+        // This prevents use-after-free when sink tries to access the forgotten stream's mixer
+        if let Some(sink_arc) = self.sink.take() {
+            if let Ok(sink) = Arc::try_unwrap(sink_arc) {
+                let sink = sink.into_inner();
+                sink.stop();
+            }
+            // If Arc has other references, they'll clean up on their own
+        }
+
         // Suppress 'Dropping OutputStream' message by forgetting the stream
+        // Safe now that sink is stopped/dropped
         if let Some(stream) = self.stream.take() {
             std::mem::forget(stream);
         }
