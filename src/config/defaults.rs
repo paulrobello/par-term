@@ -559,11 +559,11 @@ pub fn badge_font() -> String {
 }
 
 pub fn badge_top_margin() -> f32 {
-    10.0 // 10 pixels from top
+    0.0 // 0 pixels from top
 }
 
 pub fn badge_right_margin() -> f32 {
-    10.0 // 10 pixels from right
+    16.0 // 16 pixels from right
 }
 
 pub fn badge_max_width() -> f32 {
