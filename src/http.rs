@@ -4,7 +4,7 @@
 //! for TLS connections, which works better in VM environments where
 //! ring/rustls may have issues.
 
-use ureq::tls::{TlsConfig, TlsProvider};
+use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 use ureq::Agent;
 
 /// Create a new HTTP agent configured with native-tls.
@@ -12,9 +12,13 @@ use ureq::Agent;
 /// This explicitly configures native-tls as the TLS provider, which uses
 /// the system's TLS library (Schannel on Windows, OpenSSL on Linux,
 /// Security.framework on macOS).
+///
+/// We explicitly use WebPki (Mozilla's) root certificates instead of the
+/// platform verifier to avoid certificate trust issues on some Windows systems.
 pub fn agent() -> Agent {
     let tls_config = TlsConfig::builder()
         .provider(TlsProvider::NativeTls)
+        .root_certs(RootCerts::WebPki)
         .build();
 
     Agent::config_builder()
