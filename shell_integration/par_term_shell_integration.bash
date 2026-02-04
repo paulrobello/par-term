@@ -242,8 +242,9 @@ function par_term_prompt_suffix() {
 
 # OSC 133 ; D ; exit_code - Report last command exit code
 function par_term_prompt_prefix() {
+  local _status="${1:-$__par_term_last_ret_value}"
   par_term_begin_osc
-  printf "133;D;\$?"
+  printf "133;D;%s" "$_status"
   par_term_end_osc
 }
 
@@ -267,7 +268,8 @@ __par_term_preexec() {
 
 # Runs before prompt display
 function __par_term_prompt_command () {
-    __par_term_last_ret_value="$?"
+    local par_term_status="$?"
+    __par_term_last_ret_value="$par_term_status"
 
     # Handle ^C (preexec didn't run)
     if [[ -z "${par_term_ran_preexec:-}" ]]; then
@@ -292,7 +294,7 @@ function __par_term_prompt_command () {
     fi
 
     # Get prompt prefix (with exit code)
-    \local par_term_prompt_prefix_value="$(par_term_prompt_prefix)"
+    \local par_term_prompt_prefix_value="$(par_term_prompt_prefix "$par_term_status")"
 
     # Always emit a prompt marker so scrollback marks render even if PS1 already embeds one.
     par_term_prompt_mark

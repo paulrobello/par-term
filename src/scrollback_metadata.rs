@@ -63,6 +63,12 @@ pub struct ScrollbackMetadata {
     current_command_start: Option<usize>,
     /// Last marker we processed to avoid duplicate events
     last_marker: Option<ShellIntegrationMarker>,
+    /// Line where last marker was observed (to de-dupe identical repeats)
+    last_marker_line: Option<usize>,
+    /// Last exit code seen from shell integration (for synthetic finishes)
+    last_exit_code: Option<i32>,
+    /// Line where we last consumed an exit code event
+    last_exit_code_line: Option<usize>,
     /// Number of commands already recorded (matches command_history.len())
     last_recorded_history_len: usize,
     /// Wall-clock start time for the current command (ms since epoch)
@@ -91,10 +97,18 @@ impl ScrollbackMetadata {
     ) {
         let last_command_clone = last_command.clone();
         let absolute_line = scrollback_len.saturating_add(cursor_row);
+        let repeat_marker =
+            marker == self.last_marker && Some(absolute_line) == self.last_marker_line;
+        let mut finished_command = false;
 
         match marker {
             Some(ShellIntegrationMarker::PromptStart) => {
-                self.record_prompt_line(absolute_line, last_command.as_ref().map(|c| c.start_time));
+                if !repeat_marker {
+                    self.record_prompt_line(
+                        absolute_line,
+                        last_command.as_ref().map(|c| c.start_time),
+                    );
+                }
                 debug!(
                     target: "shell_integration",
                     "PromptStart at line {} (history_len={})",
@@ -104,6 +118,10 @@ impl ScrollbackMetadata {
             }
             Some(ShellIntegrationMarker::CommandStart)
             | Some(ShellIntegrationMarker::CommandExecuted) => {
+                if !repeat_marker {
+                    // Record a mark even if the prompt (A) never arrived.
+                    self.record_prompt_line(absolute_line, Some(now_ms()));
+                }
                 self.current_command_start = Some(absolute_line);
                 self.current_command_start_time_ms = Some(now_ms());
                 debug!(
@@ -117,8 +135,10 @@ impl ScrollbackMetadata {
                 #[allow(clippy::collapsible_if)]
                 if history_len > self.last_recorded_history_len {
                     if let Some(cmd) = last_command {
-                        self.finish_command(absolute_line, cmd);
+                        let start_line = self.finish_command(absolute_line, cmd);
                         self.last_recorded_history_len = history_len;
+                        self.last_exit_code_line = Some(start_line);
+                        finished_command = true;
                     }
                 } else if let Some(exit_code) = last_exit_code {
                     // Shell reported completion but core history did not advance
@@ -137,7 +157,7 @@ impl ScrollbackMetadata {
                         exit_code: Some(exit_code),
                         duration_ms: Some(duration_ms),
                     };
-                    self.finish_command(absolute_line, synthetic);
+                    let start_line = self.finish_command(absolute_line, synthetic);
                     debug!(
                         target: "shell_integration",
                         "Synthesized command for exit code {} at line {}",
@@ -147,6 +167,8 @@ impl ScrollbackMetadata {
                     // Keep ids monotonic to avoid duplicate marks on repeated frames
                     self.last_recorded_history_len =
                         self.last_recorded_history_len.saturating_add(1);
+                    self.last_exit_code_line = Some(start_line);
+                    finished_command = true;
                 }
             }
             _ => {}
@@ -156,13 +178,66 @@ impl ScrollbackMetadata {
         // still record a mark at the current line so users get indicators when shell integration
         // scripts emit timestamps but markers are missing.
         if history_len > self.last_recorded_history_len
-            && let Some(cmd) = last_command_clone
+            && let Some(ref cmd) = last_command_clone
         {
-            self.finish_command(absolute_line, cmd);
+            let start_line = self.finish_command(absolute_line, cmd.clone());
             self.last_recorded_history_len = history_len;
+            self.last_exit_code_line = Some(start_line);
+            finished_command = true;
+        }
+
+        // Some shells emit the exit code but not a CommandFinished marker. If the exit code
+        // changed or arrived on a new prompt line, synthesize a completion using the latest
+        // marker location so scrollbar marks get colored correctly.
+        if !finished_command && let Some(code) = last_exit_code {
+            let candidate_line = self
+                .current_command_start
+                .or_else(|| self.prompt_lines.last().copied())
+                .unwrap_or(absolute_line);
+
+            let exit_event_is_new = Some(candidate_line) != self.last_exit_code_line
+                || Some(code) != self.last_exit_code;
+
+            if exit_event_is_new {
+                let start_time = self.current_command_start_time_ms.unwrap_or_else(now_ms);
+                let end_time = now_ms();
+                let duration_ms = end_time.saturating_sub(start_time);
+                let id = self.last_recorded_history_len;
+                let synthetic = CommandSnapshot {
+                    id,
+                    command: last_command_clone.as_ref().and_then(|c| c.command.clone()),
+                    start_time,
+                    end_time: Some(end_time),
+                    exit_code: Some(code),
+                    duration_ms: Some(duration_ms),
+                };
+                self.finish_command(candidate_line, synthetic);
+                self.last_recorded_history_len = self.last_recorded_history_len.saturating_add(1);
+                self.last_exit_code_line = Some(candidate_line);
+                debug!(
+                    target: "shell_integration",
+                    "Synthesized completion from exit code {} at line {} (history_len={})",
+                    code,
+                    candidate_line,
+                    history_len
+                );
+            }
         }
 
         self.last_marker = marker;
+        self.last_marker_line = Some(absolute_line);
+        self.last_exit_code = last_exit_code;
+
+        debug!(
+            target: "shell_integration",
+            "apply_event marker={:?} line={} history_len={} prompts={} commands={} exit_code={:?}",
+            marker,
+            absolute_line,
+            history_len,
+            self.prompt_lines.len(),
+            self.commands.len(),
+            last_exit_code
+        );
     }
 
     /// Produce a list of marks suitable for rendering or navigation.
@@ -255,7 +330,7 @@ impl ScrollbackMetadata {
         }
     }
 
-    fn finish_command(&mut self, end_line: usize, command: CommandSnapshot) {
+    fn finish_command(&mut self, end_line: usize, command: CommandSnapshot) -> usize {
         let start_line = self
             .current_command_start
             .take()
@@ -277,6 +352,8 @@ impl ScrollbackMetadata {
             self.commands.get(&self.commands.len().saturating_sub(1)).and_then(|c| c.exit_code),
             start_line
         );
+
+        start_line
     }
 }
 
@@ -418,5 +495,59 @@ mod tests {
         assert_eq!(marks[0].exit_code, Some(42));
         assert!(marks[0].start_time.is_some());
         assert!(marks[0].duration_ms.is_some());
+    }
+
+    #[test]
+    fn synthesizes_exit_code_without_finished_marker() {
+        let mut meta = ScrollbackMetadata::new();
+
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandStart),
+            0,
+            0,
+            0,
+            None,
+            None,
+        );
+
+        meta.apply_event(None, 0, 1, 0, None, Some(7));
+
+        let marks = meta.marks();
+        assert_eq!(marks.len(), 1);
+        assert_eq!(marks[0].line, 0);
+        assert_eq!(marks[0].exit_code, Some(7));
+    }
+
+    #[test]
+    fn records_multiple_commands_when_history_missing() {
+        let mut meta = ScrollbackMetadata::new();
+
+        // First command (exit 0)
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandStart),
+            0,
+            0,
+            0,
+            None,
+            None,
+        );
+        meta.apply_event(None, 0, 0, 0, None, Some(0));
+
+        // Second command, same exit code but new prompt line
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandStart),
+            10,
+            0,
+            0,
+            None,
+            None,
+        );
+        meta.apply_event(None, 10, 0, 0, None, Some(0));
+
+        let marks = meta.marks();
+        assert_eq!(marks.len(), 2);
+        assert_eq!(marks[0].exit_code, Some(0));
+        assert_eq!(marks[1].exit_code, Some(0));
+        assert_eq!(marks[1].line, 10);
     }
 }

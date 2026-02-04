@@ -650,6 +650,10 @@ pub struct Config {
     #[serde(default = "defaults::scrollbar_track_color")]
     pub scrollbar_track_color: [f32; 4],
 
+    /// Show command markers on the scrollbar (requires shell integration)
+    #[serde(default = "defaults::bool_true")]
+    pub scrollbar_command_marks: bool,
+
     // ========================================================================
     // Clipboard Sync Limits
     // ========================================================================
@@ -1211,6 +1215,7 @@ impl Default for Config {
             scrollbar_width: defaults::scrollbar_width(),
             scrollbar_thumb_color: defaults::scrollbar_thumb_color(),
             scrollbar_track_color: defaults::scrollbar_track_color(),
+            scrollbar_command_marks: defaults::bool_true(),
             clipboard_max_sync_events: defaults::clipboard_max_sync_events(),
             clipboard_max_event_bytes: defaults::clipboard_max_event_bytes(),
             notification_bell_desktop: defaults::bool_false(),

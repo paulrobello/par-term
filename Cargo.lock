@@ -3496,12 +3496,13 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.27.0"
+version = "0.28.0"
 dependencies = [
  "base64",
  "bitflags 2.10.0",
  "image",
  "libc",
+ "log",
  "parking_lot",
  "portable-pty",
  "regex",

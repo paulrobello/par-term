@@ -1461,14 +1461,18 @@ impl WindowState {
                 .clamp_to_scrollback(tab.cache.scrollback_len);
         }
 
-        let scrollback_marks = if let Ok(term) = terminal.try_lock() {
-            term.scrollback_marks()
+        let scrollback_marks = if self.config.scrollbar_command_marks {
+            if let Ok(term) = terminal.try_lock() {
+                term.scrollback_marks()
+            } else {
+                Vec::new()
+            }
         } else {
             Vec::new()
         };
 
         // Keep scrollbar visible when mark indicators exist (even if no scrollback).
-        if !scrollback_marks.is_empty() {
+        if self.config.scrollbar_command_marks && !scrollback_marks.is_empty() {
             show_scrollbar = true;
         }
 
@@ -2028,11 +2032,15 @@ impl WindowState {
                                         Vec::new()
                                     };
 
-                                    let marks = if let Ok(mut term) = pane.terminal.try_lock() {
-                                        // Use cursor row 0 when unknown in split panes
-                                        let sb_len = term.scrollback_len();
-                                        term.update_scrollback_metadata(sb_len, 0);
-                                        term.scrollback_marks()
+                                    let marks = if self.config.scrollbar_command_marks {
+                                        if let Ok(mut term) = pane.terminal.try_lock() {
+                                            // Use cursor row 0 when unknown in split panes
+                                            let sb_len = term.scrollback_len();
+                                            term.update_scrollback_metadata(sb_len, 0);
+                                            term.scrollback_marks()
+                                        } else {
+                                            Vec::new()
+                                        }
                                     } else {
                                         Vec::new()
                                     };
