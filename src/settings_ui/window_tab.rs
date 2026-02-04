@@ -66,7 +66,14 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
     if section_matches(
         &query,
         "Tab Bar",
-        &["tab", "tabs", "bar", "index", "close button"],
+        &[
+            "tab",
+            "tabs",
+            "bar",
+            "index",
+            "close button",
+            "profile drawer",
+        ],
     ) {
         show_tab_bar_section(ui, settings, changes_this_frame);
     }
@@ -686,6 +693,20 @@ fn show_tab_bar_section(
                 "New tabs inherit current directory",
             )
             .on_hover_text("When opening a new tab, start in the same directory as the current tab")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.show_profile_drawer_button,
+                "Show profile drawer button",
+            )
+            .on_hover_text(
+                "Show the profile drawer toggle button on the right edge of the terminal window",
+            )
             .changed()
         {
             settings.has_changes = true;

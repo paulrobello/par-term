@@ -31,7 +31,9 @@ pub fn show_background(
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
 ) {
-    ui.collapsing("Background & Effects", |ui| {
+    egui::CollapsingHeader::new("Background & Effects")
+        .default_open(true)
+        .show(ui, |ui| {
         // Background mode selector
         ui.horizontal(|ui| {
             ui.label("Background mode:");
@@ -698,7 +700,9 @@ pub fn show_cursor_shader(
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
 ) {
-    ui.collapsing("Cursor Shader", |ui| {
+    egui::CollapsingHeader::new("Cursor Shader")
+        .default_open(true)
+        .show(ui, |ui| {
         ui.label("Apply shader effects to cursor (trails, glow, etc.)");
         ui.add_space(4.0);
 

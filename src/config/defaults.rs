@@ -165,7 +165,7 @@ pub fn custom_shader_speed() -> f32 {
 }
 
 pub fn custom_shader_brightness() -> f32 {
-    1.0 // Full brightness by default
+    0.15 // 15% brightness by default for better text readability
 }
 
 pub fn cursor_shader_color() -> [u8; 3] {

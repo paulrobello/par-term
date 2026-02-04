@@ -289,11 +289,11 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Custom command | ✅ | ✅ Per-profile | ✅ | - | - | Command + arguments |
 | Custom tab name | ✅ | ✅ Per-profile | ✅ | - | - | Override default tab naming |
 | Dynamic profiles (external files) | ✅ | ✅ `profiles.yaml` | ✅ | - | - | Loads from `~/.config/par-term/profiles.yaml` |
-| Profile tags | ✅ Searchable tags | ❌ | ❌ | ⭐⭐ | 🟡 | Organize profiles |
-| Profile inheritance | ✅ Parent profiles | ❌ | ❌ | ⭐⭐ | 🟡 | Base profile + overrides |
-| Profile keyboard shortcut | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Quick profile launch |
-| Automatic profile switching | ✅ Based on hostname | ❌ | ❌ | ⭐⭐ | 🟡 | SSH host detection |
-| Profile badge | ✅ `Badge Text` | 🔶 Global only | 🔶 | ⭐⭐ | 🟡 | Per-profile badge pending profiles feature |
+| Profile tags | ✅ Searchable tags | ✅ `tags` | ✅ | - | - | Filter/search profiles by tags in drawer |
+| Profile inheritance | ✅ Parent profiles | ✅ `parent_id` | ✅ | - | - | Child inherits parent settings, can override |
+| Profile keyboard shortcut | ✅ | ✅ `keyboard_shortcut` | ✅ | - | - | Quick profile launch via hotkey (e.g., "Cmd+1") |
+| Automatic profile switching | ✅ Based on hostname | ✅ `hostname_patterns` | ✅ | - | - | OSC 7 hostname detection triggers profile match |
+| Profile badge | ✅ `Badge Text` | ✅ `badge_text` | ✅ | - | - | Per-profile badge format override + session.profile_name |
 
 ---
 
@@ -566,6 +566,6 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 ---
 
-*Updated: 2026-02-03*
+*Updated: 2026-02-04*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.7.0+*
+*par-term Version: 0.8.0+*

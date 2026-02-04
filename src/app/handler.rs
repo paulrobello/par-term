@@ -650,6 +650,11 @@ impl WindowState {
         // Update window title with shell integration info (CWD, exit code)
         self.update_window_title_with_shell_integration();
 
+        // Check for automatic profile switching based on hostname detection (OSC 7)
+        if self.check_auto_profile_switch() {
+            self.needs_redraw = true;
+        }
+
         // --- POWER SAVING & SMART REDRAW LOGIC ---
         // We use ControlFlow::WaitUntil to sleep until the next expected event.
         // This drastically reduces CPU/GPU usage compared to continuous polling (ControlFlow::Poll).
@@ -888,6 +893,20 @@ impl ApplicationHandler for WindowManager {
                     SettingsWindowAction::TestNotification => {
                         // Send a test notification to verify permissions
                         self.send_test_notification();
+                    }
+                    SettingsWindowAction::OpenProfileManager => {
+                        // Open the profile modal in the focused terminal window
+                        if let Some(window_id) = self.get_focused_window_id()
+                            && let Some(window_state) = self.windows.get_mut(&window_id)
+                        {
+                            window_state
+                                .profile_modal_ui
+                                .open(&window_state.profile_manager);
+                            window_state.needs_redraw = true;
+                            if let Some(window) = &window_state.window {
+                                window.request_redraw();
+                            }
+                        }
                     }
                     SettingsWindowAction::None => {}
                 }

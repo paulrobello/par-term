@@ -26,6 +26,8 @@ pub struct ProfileDrawerUI {
     pub hovered: Option<ProfileId>,
     /// Drawer width in pixels
     pub width: f32,
+    /// Tag filter text (for searching/filtering profiles by tags)
+    pub tag_filter: String,
 }
 
 impl ProfileDrawerUI {
@@ -43,6 +45,7 @@ impl ProfileDrawerUI {
             selected: None,
             hovered: None,
             width: Self::DEFAULT_WIDTH,
+            tag_filter: String::new(),
         }
     }
 
@@ -92,7 +95,7 @@ impl ProfileDrawerUI {
         &mut self,
         ctx: &egui::Context,
         profile_manager: &ProfileManager,
-        _config: &Config,
+        config: &Config,
         modal_visible: bool,
     ) -> ProfileDrawerAction {
         let mut action = ProfileDrawerAction::None;
@@ -140,8 +143,9 @@ impl ProfileDrawerUI {
             egui::vec2(button_width, button_height),
         );
 
-        // Render toggle button (skip if modal is open to avoid z-order issues)
-        if !modal_visible {
+        // Render toggle button (skip if modal is open to avoid z-order issues,
+        // or if profile drawer button is disabled in config)
+        if !modal_visible && config.show_profile_drawer_button {
             egui::Area::new(egui::Id::new("profile_drawer_toggle_area"))
                 .fixed_pos(button_rect.min)
                 .order(egui::Order::Foreground)
@@ -197,6 +201,20 @@ impl ProfileDrawerUI {
                 }
             });
         });
+
+        // Tag filter (search box)
+        ui.horizontal(|ui| {
+            ui.label("🔍");
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut self.tag_filter)
+                    .hint_text("Filter by tag or name...")
+                    .desired_width(ui.available_width() - 20.0),
+            );
+            if response.changed() {
+                // Clear selection when filter changes
+                self.selected = None;
+            }
+        });
         ui.separator();
 
         // Profile list
@@ -219,48 +237,98 @@ impl ProfileDrawerUI {
                 }
             });
         } else {
+            // Get filtered profiles
+            let filtered_profiles = profile_manager.filter_by_tags(&self.tag_filter);
+
             // Reserve space for the action buttons at the bottom
             let available = ui.available_height();
             let button_area_height = 40.0;
             let scroll_height = (available - button_area_height).max(100.0);
 
-            // Scrollable profile list
-            egui::ScrollArea::vertical()
-                .max_height(scroll_height)
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    for profile in profile_manager.profiles_ordered() {
-                        let is_selected = self.selected == Some(profile.id);
+            if filtered_profiles.is_empty() {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(20.0);
+                    ui.label(
+                        egui::RichText::new("No matching profiles")
+                            .italics()
+                            .color(egui::Color32::GRAY),
+                    );
+                    ui.add_space(10.0);
+                    if ui.small_button("Clear filter").clicked() {
+                        self.tag_filter.clear();
+                    }
+                });
+            } else {
+                // Scrollable profile list
+                egui::ScrollArea::vertical()
+                    .max_height(scroll_height)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        for profile in filtered_profiles {
+                            let is_selected = self.selected == Some(profile.id);
 
-                        // Build the label text
-                        let label = if let Some(icon) = &profile.icon {
-                            format!("{} {}", icon, profile.name)
-                        } else {
-                            profile.name.clone()
-                        };
+                            // Build the label text
+                            let label = if let Some(icon) = &profile.icon {
+                                format!("{} {}", icon, profile.name)
+                            } else {
+                                profile.name.clone()
+                            };
 
-                        // Add indicator for profiles with custom settings
-                        let label =
-                            if profile.command.is_some() || profile.working_directory.is_some() {
+                            // Add indicator for profiles with custom settings
+                            let has_custom = profile.command.is_some()
+                                || profile.working_directory.is_some()
+                                || profile.parent_id.is_some();
+                            let label = if has_custom {
                                 format!("{} ...", label)
                             } else {
                                 label
                             };
 
-                        // Use selectable_label which has reliable click handling
-                        let response = ui.selectable_label(is_selected, &label);
+                            ui.horizontal(|ui| {
+                                // Use selectable_label which has reliable click handling
+                                let response = ui.selectable_label(is_selected, &label);
 
-                        // Single click selects
-                        if response.clicked() {
-                            self.selected = Some(profile.id);
-                        }
+                                // Single click selects
+                                if response.clicked() {
+                                    self.selected = Some(profile.id);
+                                }
 
-                        // Double click opens (using egui's built-in detection)
-                        if response.double_clicked() {
-                            *action = ProfileDrawerAction::OpenProfile(profile.id);
+                                // Double click opens (using egui's built-in detection)
+                                if response.double_clicked() {
+                                    *action = ProfileDrawerAction::OpenProfile(profile.id);
+                                }
+
+                                // Show keyboard shortcut if defined
+                                if let Some(shortcut) = &profile.keyboard_shortcut {
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            ui.label(
+                                                egui::RichText::new(shortcut)
+                                                    .small()
+                                                    .color(egui::Color32::DARK_GRAY),
+                                            );
+                                        },
+                                    );
+                                }
+                            });
+
+                            // Show tags as small labels below the profile name
+                            if !profile.tags.is_empty() {
+                                ui.horizontal(|ui| {
+                                    ui.add_space(16.0); // Indent
+                                    for tag in &profile.tags {
+                                        ui.label(
+                                            egui::RichText::new(format!("#{}", tag))
+                                                .small()
+                                                .color(egui::Color32::from_rgb(100, 150, 200)),
+                                        );
+                                    }
+                                });
+                            }
                         }
-                    }
-                });
+                    });
+            }
 
             // Action buttons (always visible at bottom)
             ui.separator();

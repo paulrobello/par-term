@@ -30,6 +30,8 @@ pub enum SettingsWindowAction {
     ApplyCursorShader(CursorShaderEditorResult),
     /// Send a test notification to verify permissions
     TestNotification,
+    /// Open the profile manager modal
+    OpenProfileManager,
 }
 
 /// Manages a separate settings window with its own egui context and wgpu renderer
@@ -423,6 +425,11 @@ impl SettingsWindow {
         // Check for test notification request
         if self.settings_ui.take_test_notification_request() {
             return SettingsWindowAction::TestNotification;
+        }
+
+        // Check for profile manager request
+        if self.settings_ui.take_open_profile_manager_request() {
+            return SettingsWindowAction::OpenProfileManager;
         }
 
         // Determine action based on settings UI results

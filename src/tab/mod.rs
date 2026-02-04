@@ -321,6 +321,10 @@ pub struct Tab {
     pub tmux_gateway_active: bool,
     /// The tmux pane ID this tab represents (when in gateway mode)
     pub tmux_pane_id: Option<crate::tmux::TmuxPaneId>,
+    /// Last detected hostname for automatic profile switching (from OSC 7)
+    pub detected_hostname: Option<String>,
+    /// Profile ID that was auto-applied based on hostname detection
+    pub auto_applied_profile_id: Option<crate::profile::ProfileId>,
 }
 
 impl Tab {
@@ -450,6 +454,8 @@ impl Tab {
             session_logger,
             tmux_gateway_active: false,
             tmux_pane_id: None,
+            detected_hostname: None,
+            auto_applied_profile_id: None,
         })
     }
 
@@ -587,6 +593,8 @@ impl Tab {
             session_logger,
             tmux_gateway_active: false,
             tmux_pane_id: None,
+            detected_hostname: None,
+            auto_applied_profile_id: None,
         })
     }
 
@@ -662,6 +670,67 @@ impl Tab {
         } else {
             self.working_directory.clone()
         }
+    }
+
+    /// Parse hostname from an OSC 7 file:// URL
+    ///
+    /// OSC 7 format: `file://hostname/path` or `file:///path` (localhost)
+    /// Returns the hostname if present and not localhost, None otherwise.
+    pub fn parse_hostname_from_osc7_url(url: &str) -> Option<String> {
+        let path = url.strip_prefix("file://")?;
+
+        if path.starts_with('/') {
+            // file:///path - localhost implicit
+            None
+        } else {
+            // file://hostname/path - extract hostname
+            let hostname = path.split('/').next()?;
+            if hostname.is_empty() || hostname == "localhost" {
+                None
+            } else {
+                Some(hostname.to_string())
+            }
+        }
+    }
+
+    /// Check if hostname has changed and update tracking
+    ///
+    /// Returns Some(hostname) if a new remote hostname was detected,
+    /// None if hostname hasn't changed or is local.
+    ///
+    /// This uses the hostname extracted from OSC 7 sequences by the terminal emulator.
+    pub fn check_hostname_change(&mut self) -> Option<String> {
+        let current_hostname = if let Ok(term) = self.terminal.try_lock() {
+            term.shell_integration_hostname()
+        } else {
+            return None;
+        };
+
+        // Check if hostname has changed
+        if current_hostname != self.detected_hostname {
+            let old_hostname = self.detected_hostname.take();
+            self.detected_hostname = current_hostname.clone();
+
+            crate::debug_info!(
+                "PROFILE",
+                "Hostname changed: {:?} -> {:?}",
+                old_hostname,
+                current_hostname
+            );
+
+            // Return the new hostname if it's a remote host (not None/localhost)
+            current_hostname
+        } else {
+            None
+        }
+    }
+
+    /// Clear auto-applied profile tracking
+    ///
+    /// Call this when manually switching profiles or when the hostname
+    /// returns to local.
+    pub fn clear_auto_profile(&mut self) {
+        self.auto_applied_profile_id = None;
     }
 
     /// Start the refresh polling task for this tab
@@ -1112,5 +1181,71 @@ impl Drop for Tab {
             log::info!("Killing terminal for tab {}", self.id);
             let _ = term.kill();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_hostname_from_osc7_url_localhost() {
+        // file:///path - localhost implicit, should return None
+        assert_eq!(Tab::parse_hostname_from_osc7_url("file:///home/user"), None);
+        assert_eq!(Tab::parse_hostname_from_osc7_url("file:///"), None);
+        assert_eq!(
+            Tab::parse_hostname_from_osc7_url("file:///var/log/syslog"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_parse_hostname_from_osc7_url_remote() {
+        // file://hostname/path - should extract hostname
+        assert_eq!(
+            Tab::parse_hostname_from_osc7_url("file://server.example.com/home/user"),
+            Some("server.example.com".to_string())
+        );
+        assert_eq!(
+            Tab::parse_hostname_from_osc7_url("file://myhost/tmp"),
+            Some("myhost".to_string())
+        );
+        assert_eq!(
+            Tab::parse_hostname_from_osc7_url("file://192.168.1.100/var/log"),
+            Some("192.168.1.100".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_hostname_from_osc7_url_localhost_explicit() {
+        // file://localhost/path - localhost should return None
+        assert_eq!(
+            Tab::parse_hostname_from_osc7_url("file://localhost/home/user"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_parse_hostname_from_osc7_url_invalid() {
+        // Invalid URLs should return None
+        assert_eq!(Tab::parse_hostname_from_osc7_url(""), None);
+        assert_eq!(
+            Tab::parse_hostname_from_osc7_url("http://example.com"),
+            None
+        );
+        assert_eq!(Tab::parse_hostname_from_osc7_url("/home/user"), None);
+        assert_eq!(Tab::parse_hostname_from_osc7_url("file://"), None);
+    }
+
+    #[test]
+    fn test_parse_hostname_from_osc7_url_edge_cases() {
+        // Empty hostname after file://
+        assert_eq!(Tab::parse_hostname_from_osc7_url("file:///"), None);
+
+        // Hostname with no path (unusual but valid)
+        assert_eq!(
+            Tab::parse_hostname_from_osc7_url("file://host"),
+            Some("host".to_string())
+        );
     }
 }

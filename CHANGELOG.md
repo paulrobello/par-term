@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Settings UI: Profiles Tab**: New "Profiles" tab in Settings window for profile management
+  - "Open Profile Manager" button to launch the profile modal from settings
+  - Profile drawer button visibility toggle (`show_profile_drawer_button` config option)
+  - Overview of profile features and display options
+
+### Changed
+
+- **Default Shader Brightness**: Reduced default `custom_shader_brightness` from 100% to 15% for better text readability out of the box
+- **Default Profile Drawer Button**: Profile drawer toggle button now hidden by default (`show_profile_drawer_button: false`)
+- **Settings UI Sections**: "Background & Effects" and "Cursor Shader" sections now expand by default for easier discovery
+
 ### Fixed
 
 - **Settings Window Size Display**: Fixed Settings UI not updating current cols/rows when the terminal window is resized (Windows)

@@ -39,6 +39,30 @@ pub struct Profile {
     /// Display order in the profile list
     #[serde(default)]
     pub order: usize,
+
+    // ========================================================================
+    // New fields for enhanced profile system (issue #78)
+    // ========================================================================
+    /// Searchable tags to organize and filter profiles
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+
+    /// Parent profile ID for inheritance (child overrides parent settings)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<ProfileId>,
+
+    /// Keyboard shortcut for quick launch (e.g., "Cmd+1", "Ctrl+Shift+1")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keyboard_shortcut: Option<String>,
+
+    /// Hostname patterns for automatic profile switching when SSH connects
+    /// Supports glob patterns (e.g., "*.example.com", "server-*")
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hostname_patterns: Vec<String>,
+
+    /// Per-profile badge text (overrides global badge_format when this profile is active)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge_text: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -54,6 +78,11 @@ impl Profile {
             tab_name: None,
             icon: None,
             order: 0,
+            tags: Vec::new(),
+            parent_id: None,
+            keyboard_shortcut: None,
+            hostname_patterns: Vec::new(),
+            badge_text: None,
         }
     }
 
@@ -68,6 +97,11 @@ impl Profile {
             tab_name: None,
             icon: None,
             order: 0,
+            tags: Vec::new(),
+            parent_id: None,
+            keyboard_shortcut: None,
+            hostname_patterns: Vec::new(),
+            badge_text: None,
         }
     }
 
@@ -104,6 +138,36 @@ impl Profile {
     /// Builder method to set order
     pub fn order(mut self, order: usize) -> Self {
         self.order = order;
+        self
+    }
+
+    /// Builder method to set tags
+    pub fn tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
+        self
+    }
+
+    /// Builder method to set parent profile ID
+    pub fn parent_id(mut self, parent_id: ProfileId) -> Self {
+        self.parent_id = Some(parent_id);
+        self
+    }
+
+    /// Builder method to set keyboard shortcut
+    pub fn keyboard_shortcut(mut self, shortcut: impl Into<String>) -> Self {
+        self.keyboard_shortcut = Some(shortcut.into());
+        self
+    }
+
+    /// Builder method to set hostname patterns
+    pub fn hostname_patterns(mut self, patterns: Vec<String>) -> Self {
+        self.hostname_patterns = patterns;
+        self
+    }
+
+    /// Builder method to set badge text
+    pub fn badge_text(mut self, text: impl Into<String>) -> Self {
+        self.badge_text = Some(text.into());
         self
     }
 
@@ -276,6 +340,218 @@ impl ProfileManager {
             .values()
             .find(|p| p.name.to_lowercase() == lower)
     }
+
+    // ========================================================================
+    // New methods for enhanced profile system (issue #78)
+    // ========================================================================
+
+    /// Find a profile by keyboard shortcut
+    pub fn find_by_shortcut(&self, shortcut: &str) -> Option<&Profile> {
+        let lower = shortcut.to_lowercase();
+        self.profiles.values().find(|p| {
+            p.keyboard_shortcut
+                .as_ref()
+                .is_some_and(|s| s.to_lowercase() == lower)
+        })
+    }
+
+    /// Find all profiles with a specific tag (case-insensitive)
+    pub fn find_by_tag(&self, tag: &str) -> Vec<&Profile> {
+        let lower = tag.to_lowercase();
+        self.profiles_ordered()
+            .into_iter()
+            .filter(|p| p.tags.iter().any(|t| t.to_lowercase() == lower))
+            .collect()
+    }
+
+    /// Filter profiles by tag search query (matches partial tag names)
+    pub fn filter_by_tags(&self, query: &str) -> Vec<&Profile> {
+        if query.is_empty() {
+            return self.profiles_ordered();
+        }
+        let lower = query.to_lowercase();
+        self.profiles_ordered()
+            .into_iter()
+            .filter(|p| {
+                p.tags.iter().any(|t| t.to_lowercase().contains(&lower))
+                    || p.name.to_lowercase().contains(&lower)
+            })
+            .collect()
+    }
+
+    /// Get all unique tags across all profiles (sorted alphabetically)
+    pub fn all_tags(&self) -> Vec<String> {
+        let mut tags: Vec<String> = self
+            .profiles
+            .values()
+            .flat_map(|p| p.tags.iter().cloned())
+            .collect();
+        tags.sort();
+        tags.dedup();
+        tags
+    }
+
+    /// Find profile matching a hostname pattern for automatic switching
+    /// Uses glob-style pattern matching
+    pub fn find_by_hostname(&self, hostname: &str) -> Option<&Profile> {
+        let hostname_lower = hostname.to_lowercase();
+        self.profiles_ordered().into_iter().find(|p| {
+            p.hostname_patterns
+                .iter()
+                .any(|pattern| Self::hostname_matches(&hostname_lower, pattern))
+        })
+    }
+
+    /// Check if a hostname matches a glob-style pattern
+    fn hostname_matches(hostname: &str, pattern: &str) -> bool {
+        let pattern_lower = pattern.to_lowercase();
+
+        // Simple glob matching: * matches any characters
+        if pattern_lower == "*" {
+            return true;
+        }
+
+        // Check for prefix match (pattern ends with *)
+        if let Some(prefix) = pattern_lower.strip_suffix('*')
+            && hostname.starts_with(prefix)
+        {
+            return true;
+        }
+
+        // Check for suffix match (pattern starts with *)
+        if let Some(suffix) = pattern_lower.strip_prefix('*')
+            && hostname.ends_with(suffix)
+        {
+            return true;
+        }
+
+        // Check for contains match (*something*)
+        if pattern_lower.starts_with('*')
+            && pattern_lower.ends_with('*')
+            && hostname.contains(&pattern_lower[1..pattern_lower.len() - 1])
+        {
+            return true;
+        }
+
+        // Exact match
+        hostname == pattern_lower
+    }
+
+    /// Resolve a profile with inheritance - returns effective settings
+    /// by merging parent profiles. Child values override parent values.
+    pub fn resolve_profile(&self, id: &ProfileId) -> Option<Profile> {
+        let profile = self.profiles.get(id)?;
+        self.resolve_profile_chain(profile, &mut vec![*id])
+    }
+
+    /// Resolve profile inheritance chain, detecting cycles
+    fn resolve_profile_chain(
+        &self,
+        profile: &Profile,
+        visited: &mut Vec<ProfileId>,
+    ) -> Option<Profile> {
+        // If no parent, return the profile as-is
+        let Some(parent_id) = profile.parent_id else {
+            return Some(profile.clone());
+        };
+
+        // Detect cycles
+        if visited.contains(&parent_id) {
+            log::warn!(
+                "Circular profile inheritance detected: {:?} -> {:?}",
+                profile.id,
+                parent_id
+            );
+            return Some(profile.clone());
+        }
+
+        // Get parent profile
+        let Some(parent) = self.profiles.get(&parent_id) else {
+            log::warn!(
+                "Parent profile {:?} not found for profile {:?}",
+                parent_id,
+                profile.id
+            );
+            return Some(profile.clone());
+        };
+
+        // Recursively resolve parent
+        visited.push(parent_id);
+        let resolved_parent = self.resolve_profile_chain(parent, visited)?;
+
+        // Merge: child overrides parent
+        Some(Profile {
+            id: profile.id,
+            name: profile.name.clone(),
+            order: profile.order,
+            // Merge optional fields: child wins if set, otherwise use parent
+            working_directory: profile
+                .working_directory
+                .clone()
+                .or(resolved_parent.working_directory),
+            command: profile.command.clone().or(resolved_parent.command),
+            command_args: profile
+                .command_args
+                .clone()
+                .or(resolved_parent.command_args),
+            tab_name: profile.tab_name.clone().or(resolved_parent.tab_name),
+            icon: profile.icon.clone().or(resolved_parent.icon),
+            // New fields
+            tags: if profile.tags.is_empty() {
+                resolved_parent.tags
+            } else {
+                profile.tags.clone()
+            },
+            parent_id: profile.parent_id, // Keep original parent reference
+            keyboard_shortcut: profile
+                .keyboard_shortcut
+                .clone()
+                .or(resolved_parent.keyboard_shortcut),
+            hostname_patterns: if profile.hostname_patterns.is_empty() {
+                resolved_parent.hostname_patterns
+            } else {
+                profile.hostname_patterns.clone()
+            },
+            badge_text: profile.badge_text.clone().or(resolved_parent.badge_text),
+        })
+    }
+
+    /// Get profiles that can be parents for a given profile
+    /// (excludes the profile itself and any profiles that would create a cycle)
+    pub fn get_valid_parents(&self, profile_id: &ProfileId) -> Vec<&Profile> {
+        self.profiles_ordered()
+            .into_iter()
+            .filter(|p| {
+                // Cannot be own parent
+                if p.id == *profile_id {
+                    return false;
+                }
+                // Check if this profile has the target as an ancestor (would create cycle)
+                !self.has_ancestor(&p.id, profile_id)
+            })
+            .collect()
+    }
+
+    /// Check if a profile has a specific ancestor in its inheritance chain
+    fn has_ancestor(&self, profile_id: &ProfileId, ancestor_id: &ProfileId) -> bool {
+        let mut current_id = *profile_id;
+        let mut visited = vec![current_id];
+
+        while let Some(profile) = self.profiles.get(&current_id)
+            && let Some(parent_id) = profile.parent_id
+        {
+            if parent_id == *ancestor_id {
+                return true;
+            }
+            if visited.contains(&parent_id) {
+                // Cycle detected, stop
+                return false;
+            }
+            visited.push(parent_id);
+            current_id = parent_id;
+        }
+        false
+    }
 }
 
 #[cfg(test)]
@@ -411,5 +687,275 @@ mod tests {
         assert!(manager.find_by_name("production server").is_some());
         assert!(manager.find_by_name("DEVELOPMENT").is_some());
         assert!(manager.find_by_name("nonexistent").is_none());
+    }
+
+    // ========================================================================
+    // Tests for new profile features (issue #78)
+    // ========================================================================
+
+    #[test]
+    fn test_profile_new_fields() {
+        let profile = Profile::new("Enhanced")
+            .tags(vec!["ssh".to_string(), "production".to_string()])
+            .keyboard_shortcut("Cmd+1")
+            .hostname_patterns(vec!["*.example.com".to_string()])
+            .badge_text("PROD");
+
+        assert_eq!(profile.tags, vec!["ssh", "production"]);
+        assert_eq!(profile.keyboard_shortcut.as_deref(), Some("Cmd+1"));
+        assert_eq!(profile.hostname_patterns, vec!["*.example.com"]);
+        assert_eq!(profile.badge_text.as_deref(), Some("PROD"));
+    }
+
+    #[test]
+    fn test_profile_serialization_new_fields() {
+        let profile = Profile::new("Test")
+            .tags(vec!["tag1".to_string(), "tag2".to_string()])
+            .keyboard_shortcut("Ctrl+Shift+1")
+            .hostname_patterns(vec!["server-*".to_string()])
+            .badge_text("TEST");
+
+        let yaml = serde_yaml::to_string(&profile).unwrap();
+        let deserialized: Profile = serde_yaml::from_str(&yaml).unwrap();
+
+        assert_eq!(deserialized.tags, profile.tags);
+        assert_eq!(deserialized.keyboard_shortcut, profile.keyboard_shortcut);
+        assert_eq!(deserialized.hostname_patterns, profile.hostname_patterns);
+        assert_eq!(deserialized.badge_text, profile.badge_text);
+    }
+
+    #[test]
+    fn test_find_by_shortcut() {
+        let mut manager = ProfileManager::new();
+        manager.add(Profile::new("SSH").keyboard_shortcut("Cmd+1"));
+        manager.add(Profile::new("Dev").keyboard_shortcut("Cmd+2"));
+        manager.add(Profile::new("No Shortcut"));
+
+        assert!(manager.find_by_shortcut("cmd+1").is_some());
+        assert_eq!(manager.find_by_shortcut("Cmd+1").unwrap().name, "SSH");
+        assert!(manager.find_by_shortcut("cmd+3").is_none());
+    }
+
+    #[test]
+    fn test_find_by_tag() {
+        let mut manager = ProfileManager::new();
+        manager
+            .add(Profile::new("Prod SSH").tags(vec!["ssh".to_string(), "production".to_string()]));
+        manager
+            .add(Profile::new("Dev SSH").tags(vec!["ssh".to_string(), "development".to_string()]));
+        manager.add(Profile::new("Local").tags(vec!["local".to_string()]));
+
+        let ssh_profiles = manager.find_by_tag("ssh");
+        assert_eq!(ssh_profiles.len(), 2);
+
+        let prod_profiles = manager.find_by_tag("PRODUCTION"); // case-insensitive
+        assert_eq!(prod_profiles.len(), 1);
+        assert_eq!(prod_profiles[0].name, "Prod SSH");
+
+        let no_match = manager.find_by_tag("nonexistent");
+        assert!(no_match.is_empty());
+    }
+
+    #[test]
+    fn test_filter_by_tags() {
+        let mut manager = ProfileManager::new();
+        manager.add(Profile::new("Production Server").tags(vec!["prod".to_string()]));
+        manager.add(Profile::new("Dev Server").tags(vec!["dev".to_string()]));
+        manager.add(Profile::new("Local").tags(vec!["local".to_string()]));
+
+        // Filter by partial tag match
+        let filtered = manager.filter_by_tags("prod");
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "Production Server");
+
+        // Filter by name match (fallback)
+        let filtered = manager.filter_by_tags("Server");
+        assert_eq!(filtered.len(), 2);
+
+        // Empty filter returns all
+        let all = manager.filter_by_tags("");
+        assert_eq!(all.len(), 3);
+    }
+
+    #[test]
+    fn test_all_tags() {
+        let mut manager = ProfileManager::new();
+        manager.add(Profile::new("P1").tags(vec!["ssh".to_string(), "production".to_string()]));
+        manager.add(Profile::new("P2").tags(vec!["ssh".to_string(), "development".to_string()]));
+        manager.add(Profile::new("P3").tags(vec!["local".to_string()]));
+
+        let tags = manager.all_tags();
+        assert_eq!(tags, vec!["development", "local", "production", "ssh"]);
+    }
+
+    #[test]
+    fn test_hostname_matching() {
+        assert!(ProfileManager::hostname_matches(
+            "server.example.com",
+            "*.example.com"
+        ));
+        assert!(ProfileManager::hostname_matches(
+            "server.example.com",
+            "server*"
+        ));
+        assert!(ProfileManager::hostname_matches(
+            "myserver.example.com",
+            "*server*"
+        ));
+        assert!(ProfileManager::hostname_matches(
+            "server.example.com",
+            "server.example.com"
+        ));
+        assert!(ProfileManager::hostname_matches("anything", "*"));
+
+        assert!(!ProfileManager::hostname_matches(
+            "server.other.com",
+            "*.example.com"
+        ));
+        assert!(!ProfileManager::hostname_matches(
+            "other.example.com",
+            "server*"
+        ));
+    }
+
+    #[test]
+    fn test_find_by_hostname() {
+        let mut manager = ProfileManager::new();
+        manager
+            .add(Profile::new("Example.com").hostname_patterns(vec!["*.example.com".to_string()]));
+        manager.add(Profile::new("Dev Servers").hostname_patterns(vec!["dev-*".to_string()]));
+        manager.add(Profile::new("Catch-all")); // No patterns
+
+        assert_eq!(
+            manager.find_by_hostname("server.example.com").unwrap().name,
+            "Example.com"
+        );
+        assert_eq!(
+            manager.find_by_hostname("dev-web-01").unwrap().name,
+            "Dev Servers"
+        );
+        assert!(manager.find_by_hostname("unknown.host").is_none());
+    }
+
+    #[test]
+    fn test_profile_inheritance() {
+        let mut manager = ProfileManager::new();
+
+        // Create parent profile
+        let parent = Profile::new("Base SSH")
+            .working_directory("/home/user")
+            .command("ssh")
+            .tags(vec!["ssh".to_string()])
+            .badge_text("SSH");
+        let parent_id = parent.id;
+        manager.add(parent);
+
+        // Create child profile that overrides some settings
+        let child = Profile::new("Production SSH")
+            .parent_id(parent_id)
+            .command_args(vec!["prod@server.example.com".to_string()])
+            .badge_text("PROD"); // Override parent badge
+        let child_id = child.id;
+        manager.add(child);
+
+        // Resolve child profile
+        let resolved = manager.resolve_profile(&child_id).unwrap();
+
+        // Child values
+        assert_eq!(resolved.name, "Production SSH");
+        assert_eq!(resolved.badge_text.as_deref(), Some("PROD")); // Child override
+        assert_eq!(
+            resolved.command_args,
+            Some(vec!["prod@server.example.com".to_string()])
+        );
+
+        // Inherited from parent
+        assert_eq!(resolved.working_directory.as_deref(), Some("/home/user"));
+        assert_eq!(resolved.command.as_deref(), Some("ssh"));
+        assert_eq!(resolved.tags, vec!["ssh"]);
+    }
+
+    #[test]
+    fn test_profile_inheritance_chain() {
+        let mut manager = ProfileManager::new();
+
+        // Grandparent -> Parent -> Child
+        let grandparent = Profile::new("Base")
+            .working_directory("/base")
+            .command("bash");
+        let grandparent_id = grandparent.id;
+        manager.add(grandparent);
+
+        let parent = Profile::new("SSH Base")
+            .parent_id(grandparent_id)
+            .command("ssh"); // Override command
+        let parent_id = parent.id;
+        manager.add(parent);
+
+        let child = Profile::new("Production")
+            .parent_id(parent_id)
+            .command_args(vec!["user@prod".to_string()]);
+        let child_id = child.id;
+        manager.add(child);
+
+        let resolved = manager.resolve_profile(&child_id).unwrap();
+
+        assert_eq!(resolved.working_directory.as_deref(), Some("/base")); // From grandparent
+        assert_eq!(resolved.command.as_deref(), Some("ssh")); // From parent
+        assert_eq!(resolved.command_args, Some(vec!["user@prod".to_string()])); // Own value
+    }
+
+    #[test]
+    fn test_profile_inheritance_cycle_detection() {
+        let mut manager = ProfileManager::new();
+
+        // Create profiles that reference each other
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+
+        let mut p1 = Profile::with_id(id1, "Profile 1");
+        p1.parent_id = Some(id2);
+        manager.add(p1);
+
+        let mut p2 = Profile::with_id(id2, "Profile 2");
+        p2.parent_id = Some(id1);
+        manager.add(p2);
+
+        // Resolving should not loop forever - cycle detection should kick in
+        let resolved = manager.resolve_profile(&id1);
+        assert!(resolved.is_some()); // Should still return something
+    }
+
+    #[test]
+    fn test_get_valid_parents() {
+        let mut manager = ProfileManager::new();
+
+        let p1 = Profile::new("Profile 1");
+        let id1 = p1.id;
+        manager.add(p1);
+
+        let mut p2 = Profile::new("Profile 2");
+        p2.parent_id = Some(id1);
+        let id2 = p2.id;
+        manager.add(p2);
+
+        let p3 = Profile::new("Profile 3");
+        let id3 = p3.id;
+        manager.add(p3);
+
+        // Profile 1 can have Profile 3 as parent (but not Profile 2, which has Profile 1 as ancestor)
+        // Profile 2 has Profile 1 as parent, so if Profile 1 had Profile 2 as parent -> cycle
+        let valid_for_p1 = manager.get_valid_parents(&id1);
+        assert_eq!(valid_for_p1.len(), 1); // Only Profile 3
+        assert!(valid_for_p1.iter().any(|p| p.id == id3));
+
+        // Profile 2 can have Profile 3 as parent, and Profile 1 is already its parent
+        let valid_for_p2 = manager.get_valid_parents(&id2);
+        assert!(valid_for_p2.iter().any(|p| p.id == id3));
+        assert!(valid_for_p2.iter().any(|p| p.id == id1));
+
+        // Profile 3 can have Profile 1 or Profile 2 as parent
+        let valid_for_p3 = manager.get_valid_parents(&id3);
+        assert_eq!(valid_for_p3.len(), 2);
     }
 }

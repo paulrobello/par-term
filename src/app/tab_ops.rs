@@ -517,6 +517,9 @@ impl WindowState {
                     }
                 }
 
+                // Update badge with profile information
+                self.apply_profile_badge(&profile);
+
                 self.needs_redraw = true;
                 self.request_redraw();
             }
@@ -559,6 +562,27 @@ impl WindowState {
         }
     }
 
+    /// Apply profile badge settings
+    ///
+    /// Updates the badge session variables and optionally sets a profile-specific
+    /// badge format if the profile has one defined.
+    fn apply_profile_badge(&mut self, profile: &crate::profile::Profile) {
+        // Update session.profile_name variable
+        {
+            let mut vars = self.badge_state.variables_mut();
+            vars.profile_name = profile.name.clone();
+        }
+
+        // If profile has a custom badge_text, use it as the badge format
+        if let Some(badge_text) = &profile.badge_text {
+            self.badge_state.set_format(badge_text.clone());
+            crate::debug_info!("PROFILE", "Applied profile badge format: '{}'", badge_text);
+        }
+
+        // Mark badge as dirty to trigger re-render
+        self.badge_state.mark_dirty();
+    }
+
     /// Toggle the profile drawer visibility
     pub fn toggle_profile_drawer(&mut self) {
         self.profile_drawer_ui.toggle();
@@ -579,5 +603,92 @@ impl WindowState {
         self.save_profiles();
         // Signal that the profiles menu needs to be updated
         self.profiles_menu_needs_update = true;
+    }
+
+    /// Check for automatic profile switching based on hostname detection
+    ///
+    /// This checks the active tab for hostname changes (detected via OSC 7)
+    /// and applies matching profiles automatically.
+    ///
+    /// Returns true if a profile was auto-applied, triggering a redraw.
+    pub fn check_auto_profile_switch(&mut self) -> bool {
+        // Only check if auto-switching is enabled (at least one profile has hostname patterns)
+        if self.profile_manager.is_empty() {
+            return false;
+        }
+
+        // Get active tab
+        let tab = match self.tab_manager.active_tab_mut() {
+            Some(t) => t,
+            None => return false,
+        };
+
+        // Check if hostname has changed
+        let new_hostname = match tab.check_hostname_change() {
+            Some(h) => h,
+            None => {
+                // Hostname unchanged or returned to local - check if we should clear auto-profile
+                if tab.detected_hostname.is_none() && tab.auto_applied_profile_id.is_some() {
+                    crate::debug_info!(
+                        "PROFILE",
+                        "Clearing auto-applied profile (returned to localhost)"
+                    );
+                    tab.clear_auto_profile();
+                }
+                return false;
+            }
+        };
+
+        // Don't re-apply the same profile if already auto-applied
+        if let Some(existing_profile_id) = tab.auto_applied_profile_id
+            && let Some(profile) = self.profile_manager.find_by_hostname(&new_hostname)
+            && profile.id == existing_profile_id
+        {
+            return false;
+        }
+
+        // Find matching profile for this hostname
+        let matching_profile = self.profile_manager.find_by_hostname(&new_hostname);
+
+        if let Some(profile) = matching_profile {
+            let profile_name = profile.name.clone();
+            let profile_id = profile.id;
+
+            crate::debug_info!(
+                "PROFILE",
+                "Auto-switching to profile '{}' for hostname '{}'",
+                profile_name,
+                new_hostname
+            );
+
+            // Mark this as an auto-applied profile
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.auto_applied_profile_id = Some(profile_id);
+            }
+
+            // For automatic switching, we don't open a new tab - we could optionally
+            // apply theme/settings to the current tab in the future.
+            // For now, we log the event and could show a notification.
+            log::info!(
+                "Auto-detected profile '{}' for hostname '{}' (tab already running)",
+                profile_name,
+                new_hostname
+            );
+
+            // Optional: Show a brief notification about the hostname detection
+            // self.deliver_notification(
+            //     "SSH Detected",
+            //     &format!("Connected to {} (profile: {})", new_hostname, profile_name),
+            // );
+
+            true
+        } else {
+            crate::debug_info!(
+                "PROFILE",
+                "No profile matches hostname '{}' - consider creating one",
+                new_hostname
+            );
+            false
+        }
     }
 }
