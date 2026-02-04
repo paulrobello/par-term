@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings Reset to Defaults**: Settings UI now includes a "Reset to Defaults" button with a confirmation dialog. It rebuilds the config from defaults, resyncs all staged temp values, clears searches, and marks changes for save so users can restore a clean baseline in one click.
 - **Scrollbar Command Markers Toggle**: Added a Settings → Terminal → Scrollbar option (`scrollbar_command_marks`, default on) to show/hide command status markers in the scrollbar.
 
+- **Scrollbar Mark Tooltips** (#69): Hover over scrollbar command markers to see command details
+  - **Command info**: Shows command text (truncated if long), execution time, duration, and exit code
+  - **Optional feature**: Disabled by default, enable via Settings → Terminal → Scrollbar → "Show tooltips on hover"
+  - Config option: `scrollbar_mark_tooltips`
+
 ### Changed
 
 - **Core Library Update**: Updated to `par-term-emu-core-rust` v0.28.0 (published crates.io version)

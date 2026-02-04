@@ -580,6 +580,23 @@ fn show_scrollbar_section(
             *changes_this_frame = true;
         }
 
+        // Indent the tooltip option under command markers
+        ui.horizontal(|ui| {
+            ui.add_space(20.0);
+            ui.add_enabled_ui(settings.config.scrollbar_command_marks, |ui| {
+                if ui
+                    .checkbox(
+                        &mut settings.config.scrollbar_mark_tooltips,
+                        "Show tooltips on hover",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        });
+
         ui.horizontal(|ui| {
             ui.label("Width:");
             if ui

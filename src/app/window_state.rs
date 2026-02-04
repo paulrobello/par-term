@@ -1742,6 +1742,20 @@ impl WindowState {
                 None
             };
 
+            // Capture hovered scrollbar mark for tooltip display
+            let hovered_mark: Option<crate::scrollback_metadata::ScrollbackMark> =
+                if self.config.scrollbar_mark_tooltips && self.config.scrollbar_command_marks {
+                    self.tab_manager
+                        .active_tab()
+                        .map(|tab| tab.mouse.position)
+                        .and_then(|(mx, my)| {
+                            renderer.scrollbar_mark_at_position(mx as f32, my as f32, 8.0)
+                        })
+                        .cloned()
+                } else {
+                    None
+                };
+
             let egui_data = if let (Some(egui_ctx), Some(egui_state)) =
                 (&self.egui_ctx, &mut self.egui_state)
             {
@@ -1818,6 +1832,79 @@ impl WindowState {
                                         ui.style_mut().visuals.override_text_color =
                                             Some(egui::Color32::from_rgb(255, 255, 255));
                                         ui.label(egui::RichText::new(message).size(16.0));
+                                    });
+                            });
+                    }
+
+                    // Show scrollbar mark tooltip if hovering over a mark
+                    if let Some(ref mark) = hovered_mark {
+                        // Format the tooltip content
+                        let mut lines = Vec::new();
+
+                        if let Some(ref cmd) = mark.command {
+                            let truncated = if cmd.len() > 50 {
+                                format!("{}...", &cmd[..47])
+                            } else {
+                                cmd.clone()
+                            };
+                            lines.push(format!("Command: {}", truncated));
+                        }
+
+                        if let Some(start_time) = mark.start_time {
+                            use chrono::{DateTime, Local, Utc};
+                            let dt =
+                                DateTime::<Utc>::from_timestamp_millis(start_time as i64).unwrap();
+                            let local: DateTime<Local> = dt.into();
+                            lines.push(format!("Time: {}", local.format("%H:%M:%S")));
+                        }
+
+                        if let Some(duration_ms) = mark.duration_ms {
+                            if duration_ms < 1000 {
+                                lines.push(format!("Duration: {}ms", duration_ms));
+                            } else if duration_ms < 60000 {
+                                lines
+                                    .push(format!("Duration: {:.1}s", duration_ms as f64 / 1000.0));
+                            } else {
+                                let mins = duration_ms / 60000;
+                                let secs = (duration_ms % 60000) / 1000;
+                                lines.push(format!("Duration: {}m {}s", mins, secs));
+                            }
+                        }
+
+                        if let Some(exit_code) = mark.exit_code {
+                            lines.push(format!("Exit: {}", exit_code));
+                        }
+
+                        let tooltip_text = lines.join("\n");
+
+                        // Calculate tooltip position, clamped to stay on screen
+                        let mouse_pos = ctx.pointer_hover_pos().unwrap_or(egui::pos2(100.0, 100.0));
+                        let tooltip_x = (mouse_pos.x - 180.0).max(10.0);
+                        let tooltip_y = (mouse_pos.y - 20.0).max(10.0);
+
+                        // Show tooltip near mouse position (offset to the left of scrollbar)
+                        egui::Area::new(egui::Id::new("scrollbar_mark_tooltip"))
+                            .order(egui::Order::Tooltip)
+                            .fixed_pos(egui::pos2(tooltip_x, tooltip_y))
+                            .show(ctx, |ui| {
+                                ui.set_min_width(150.0);
+                                egui::Frame::NONE
+                                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 240))
+                                    .inner_margin(egui::Margin::same(8))
+                                    .corner_radius(4.0)
+                                    .stroke(egui::Stroke::new(
+                                        1.0,
+                                        egui::Color32::from_rgb(80, 80, 80),
+                                    ))
+                                    .show(ui, |ui| {
+                                        ui.set_min_width(140.0);
+                                        ui.style_mut().visuals.override_text_color =
+                                            Some(egui::Color32::from_rgb(220, 220, 220));
+                                        ui.label(
+                                            egui::RichText::new(&tooltip_text)
+                                                .monospace()
+                                                .size(12.0),
+                                        );
                                     });
                             });
                     }

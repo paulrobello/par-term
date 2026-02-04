@@ -1536,6 +1536,25 @@ impl Renderer {
             .scrollbar_mouse_y_to_scroll_offset(mouse_y)
     }
 
+    /// Find a scrollbar mark at the given mouse position for tooltip display.
+    ///
+    /// # Arguments
+    /// * `mouse_x` - Mouse X coordinate in pixels
+    /// * `mouse_y` - Mouse Y coordinate in pixels
+    /// * `tolerance` - Maximum distance in pixels to match a mark
+    ///
+    /// # Returns
+    /// The mark at that position, or None if no mark is within tolerance
+    pub fn scrollbar_mark_at_position(
+        &self,
+        mouse_x: f32,
+        mouse_y: f32,
+        tolerance: f32,
+    ) -> Option<&crate::scrollback_metadata::ScrollbackMark> {
+        self.cell_renderer
+            .scrollbar_mark_at_position(mouse_x, mouse_y, tolerance)
+    }
+
     /// Check if the renderer needs to be redrawn
     #[allow(dead_code)]
     pub fn is_dirty(&self) -> bool {

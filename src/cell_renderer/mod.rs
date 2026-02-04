@@ -1010,6 +1010,17 @@ impl CellRenderer {
         self.scrollbar.mouse_y_to_scroll_offset(mouse_y)
     }
 
+    /// Find a scrollbar mark at the given mouse position for tooltip display.
+    /// Returns the mark if mouse is within `tolerance` pixels of a mark.
+    pub fn scrollbar_mark_at_position(
+        &self,
+        mouse_x: f32,
+        mouse_y: f32,
+        tolerance: f32,
+    ) -> Option<&crate::scrollback_metadata::ScrollbackMark> {
+        self.scrollbar.mark_at_position(mouse_x, mouse_y, tolerance)
+    }
+
     pub fn reconfigure_surface(&mut self) {
         self.surface.configure(&self.device, &self.config);
     }

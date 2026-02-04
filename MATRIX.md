@@ -162,8 +162,10 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Scrollbar auto-hide | ❌ | ✅ `scrollbar_autohide_delay` | ✅ | - | - | par-term exclusive |
 | Scrollback in alt screen | ✅ `Scrollback in Alternate Screen` | ✅ | ✅ | - | - | - |
 | Instant Replay | ✅ `Instant Replay Memory` | ❌ | ❌ | ⭐⭐ | 🔵 | Rewind terminal state |
-| Timestamps | ✅ `Show Timestamps` | ❌ | ❌ | ⭐⭐ | 🟡 | Command timing info |
-| Mark indicators | ✅ `Show Mark Indicators` | ❌ | ❌ | ⭐⭐ | 🟡 | Shell integration marks |
+| Timestamps | ✅ `Show Timestamps` | 🔶 via tooltips | 🔶 | - | - | Hover scrollbar marks for timing info |
+| Mark indicators | ✅ `Show Mark Indicators` | ✅ `scrollbar_command_marks` | ✅ | - | - | Color-coded marks on scrollbar (green=success, red=fail) |
+| Mark tooltips | ❌ | ✅ `scrollbar_mark_tooltips` | ✅ | - | - | **par-term exclusive** - command, time, duration, exit code |
+| Mark navigation | ✅ | ✅ Cmd+Up/Down | ✅ | - | - | Jump between command marks |
 
 ---
 

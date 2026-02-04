@@ -9,6 +9,8 @@ use wgpu::{
     ShaderModuleDescriptor, ShaderSource, ShaderStages, TextureFormat, VertexState,
 };
 
+use crate::scrollback_metadata::ScrollbackMark;
+
 /// Scrollbar renderer using wgpu
 pub struct Scrollbar {
     device: Arc<Device>,
@@ -38,6 +40,8 @@ pub struct Scrollbar {
 
     // Mark overlays (prompt/command indicators)
     marks: Vec<ScrollbarMarkInstance>,
+    /// Mark hit-test data for tooltip display
+    mark_hit_info: Vec<MarkHitInfo>,
 }
 
 #[repr(C)]
@@ -54,6 +58,15 @@ struct ScrollbarMarkInstance {
     bind_group: BindGroup,
     #[allow(dead_code)]
     buffer: Buffer,
+}
+
+/// Data for hit-testing marks on the scrollbar
+#[derive(Clone)]
+struct MarkHitInfo {
+    /// Y position in pixels (from top)
+    y_pixel: f32,
+    /// Original mark data for tooltip display
+    mark: ScrollbackMark,
 }
 
 impl Scrollbar {
@@ -208,6 +221,7 @@ impl Scrollbar {
             visible_lines: 0,
             total_lines: 0,
             marks: Vec::new(),
+            mark_hit_info: Vec::new(),
         }
     }
 
@@ -348,6 +362,7 @@ impl Scrollbar {
         window_height: u32,
     ) {
         self.marks.clear();
+        self.mark_hit_info.clear();
 
         if total_lines == 0 || marks.is_empty() {
             return;
@@ -368,6 +383,13 @@ impl Scrollbar {
             }
             let ratio = mark.line as f32 / (total_lines as f32 - 1.0).max(1.0);
             let ndc_y = 1.0 - 2.0 * ratio;
+
+            // Store pixel position for hit testing (y from top)
+            let y_pixel = ratio * height_f;
+            self.mark_hit_info.push(MarkHitInfo {
+                y_pixel,
+                mark: mark.clone(),
+            });
 
             let color = match mark.exit_code {
                 Some(0) => [0.2, 0.8, 0.4, 1.0],
@@ -497,5 +519,38 @@ impl Scrollbar {
     #[allow(dead_code)]
     pub fn is_visible(&self) -> bool {
         self.visible
+    }
+
+    /// Find a mark at the given mouse position (in pixels from top-left).
+    /// Returns the mark if the mouse is within `tolerance` pixels of a mark's Y position
+    /// and within the scrollbar's X bounds.
+    pub fn mark_at_position(
+        &self,
+        mouse_x: f32,
+        mouse_y: f32,
+        tolerance: f32,
+    ) -> Option<&ScrollbackMark> {
+        if !self.visible || !self.track_contains_x(mouse_x) {
+            return None;
+        }
+
+        // Find the closest mark within tolerance
+        let mut closest: Option<(f32, &MarkHitInfo)> = None;
+        for hit_info in &self.mark_hit_info {
+            let distance = (hit_info.y_pixel - mouse_y).abs();
+            if distance <= tolerance {
+                match closest {
+                    Some((best_dist, _)) if distance < best_dist => {
+                        closest = Some((distance, hit_info));
+                    }
+                    None => {
+                        closest = Some((distance, hit_info));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        closest.map(|(_, hit_info)| &hit_info.mark)
     }
 }
