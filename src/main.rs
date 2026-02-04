@@ -1,3 +1,6 @@
+// Hide console window on Windows release builds
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 use anyhow::Result;
 use par_term::app::App;
 use par_term::cli;

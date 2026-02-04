@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Windows Console Window on Launch**: Fixed extra console window appearing when launching par-term on Windows. Added `windows_subsystem = "windows"` attribute to hide the console window in release builds.
 - **Config Refresh for New Windows**: Creating a new window now reloads config from disk first, so changes made in other windows (like integration install states written during onboarding) apply immediately and avoid stale prompts.
 - **Scrollbar Command Mark Colors**: Command markers now retain exit codes even when shells emit OSC exit codes without CommandFinished history entries, ensuring success/failure colors render reliably.
 - **Bash Shell Integration Exit Codes**: Bash integration now emits numeric exit codes in OSC 133;D (no literal `$?`), restoring correct marker coloring.
@@ -909,7 +910,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/paulrobello/par-term/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/paulrobello/par-term/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/paulrobello/par-term/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/paulrobello/par-term/compare/v0.4.0...v0.5.0
