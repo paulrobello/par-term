@@ -23,10 +23,15 @@ impl WindowState {
         // Remember tab count before creating new tab to detect tab bar visibility change
         let old_tab_count = self.tab_manager.tab_count();
 
+        // Get current grid size from renderer to pass to new tab
+        // This accounts for possible tab bar height changes
+        let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
+
         match self.tab_manager.new_tab(
             &self.config,
             Arc::clone(&self.runtime),
             self.config.tab_inherit_cwd,
+            grid_size,
         ) {
             Ok(tab_id) => {
                 // Check if tab bar visibility changed (e.g., from 1 to 2 tabs with WhenMultiple mode)
@@ -200,10 +205,14 @@ impl WindowState {
 
     /// Duplicate current tab
     pub fn duplicate_tab(&mut self) {
-        match self
-            .tab_manager
-            .duplicate_active_tab(&self.config, Arc::clone(&self.runtime))
-        {
+        // Get current grid size from renderer
+        let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
+
+        match self.tab_manager.duplicate_active_tab(
+            &self.config,
+            Arc::clone(&self.runtime),
+            grid_size,
+        ) {
             Ok(Some(tab_id)) => {
                 // Start refresh task for the new tab
                 if let Some(window) = &self.window
@@ -475,10 +484,14 @@ impl WindowState {
         };
         log::debug!("Found profile: {}", profile.name);
 
+        // Get current grid size from renderer
+        let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
+
         match self.tab_manager.new_tab_from_profile(
             &self.config,
             Arc::clone(&self.runtime),
             &profile,
+            grid_size,
         ) {
             Ok(tab_id) => {
                 // Start refresh task for the new tab and resize to match window

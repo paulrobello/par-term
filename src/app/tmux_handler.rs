@@ -370,11 +370,15 @@ impl WindowState {
             return;
         }
 
+        // Get current grid size from renderer
+        let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
+
         // Create a new tab for this tmux window
         match self.tab_manager.new_tab(
             &self.config,
             std::sync::Arc::clone(&self.runtime),
             false, // Don't inherit CWD from active tab for tmux
+            grid_size,
         ) {
             Ok(tab_id) => {
                 crate::debug_info!(
@@ -931,10 +935,12 @@ impl WindowState {
 
             // Create a new tab for this tmux window
             if self.config.max_tabs == 0 || self.tab_manager.tab_count() < self.config.max_tabs {
+                let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
                 match self.tab_manager.new_tab(
                     &self.config,
                     std::sync::Arc::clone(&self.runtime),
                     false,
+                    grid_size,
                 ) {
                     Ok(new_tab_id) => {
                         crate::debug_info!(
@@ -1232,10 +1238,12 @@ impl WindowState {
         if self.tmux_gateway_tab_id.is_some() {
             // Check if we can create a new tab
             if self.config.max_tabs == 0 || self.tab_manager.tab_count() < self.config.max_tabs {
+                let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
                 match self.tab_manager.new_tab(
                     &self.config,
                     std::sync::Arc::clone(&self.runtime),
                     false,
+                    grid_size,
                 ) {
                     Ok(new_tab_id) => {
                         crate::debug_info!(

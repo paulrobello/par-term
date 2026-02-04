@@ -28,11 +28,21 @@ impl TabManager {
     }
 
     /// Create a new tab and return its ID
+    ///
+    /// # Arguments
+    /// * `config` - Terminal configuration
+    /// * `runtime` - Tokio runtime for async operations
+    /// * `inherit_cwd_from_active` - Whether to inherit working directory from active tab
+    /// * `grid_size` - Optional (cols, rows) override for initial terminal size.
+    ///   When provided, these dimensions are used instead of config.cols/rows.
+    ///   This is important when the renderer has already calculated the correct
+    ///   grid size accounting for tab bar height.
     pub fn new_tab(
         &mut self,
         config: &Config,
         runtime: Arc<Runtime>,
         inherit_cwd_from_active: bool,
+        grid_size: Option<(usize, usize)>,
     ) -> Result<TabId> {
         // Optionally inherit working directory from active tab
         let working_dir = if inherit_cwd_from_active {
@@ -46,7 +56,7 @@ impl TabManager {
 
         // Tab number is based on current count, not unique ID
         let tab_number = self.tabs.len() + 1;
-        let tab = Tab::new(id, tab_number, config, runtime, working_dir)?;
+        let tab = Tab::new(id, tab_number, config, runtime, working_dir, grid_size)?;
         self.tabs.push(tab);
 
         // Always switch to the new tab
@@ -60,16 +70,23 @@ impl TabManager {
     /// Create a new tab from a profile configuration
     ///
     /// The profile specifies the working directory, command, and tab name.
+    ///
+    /// # Arguments
+    /// * `config` - Terminal configuration
+    /// * `runtime` - Tokio runtime for async operations
+    /// * `profile` - Profile configuration to use
+    /// * `grid_size` - Optional (cols, rows) override for initial terminal size
     pub fn new_tab_from_profile(
         &mut self,
         config: &Config,
         runtime: Arc<Runtime>,
         profile: &Profile,
+        grid_size: Option<(usize, usize)>,
     ) -> Result<TabId> {
         let id = self.next_tab_id;
         self.next_tab_id += 1;
 
-        let tab = Tab::new_from_profile(id, config, runtime, profile)?;
+        let tab = Tab::new_from_profile(id, config, runtime, profile, grid_size)?;
         self.tabs.push(tab);
 
         // Always switch to the new tab
@@ -288,10 +305,16 @@ impl TabManager {
     }
 
     /// Duplicate the active tab (creates new tab with same working directory)
+    ///
+    /// # Arguments
+    /// * `config` - Terminal configuration
+    /// * `runtime` - Tokio runtime for async operations
+    /// * `grid_size` - Optional (cols, rows) override for initial terminal size
     pub fn duplicate_active_tab(
         &mut self,
         config: &Config,
         runtime: Arc<Runtime>,
+        grid_size: Option<(usize, usize)>,
     ) -> Result<Option<TabId>> {
         let working_dir = self.active_tab().and_then(|t| t.get_cwd());
 
@@ -301,7 +324,7 @@ impl TabManager {
 
             // Tab number is based on current count, not unique ID
             let tab_number = self.tabs.len() + 1;
-            let tab = Tab::new(id, tab_number, config, runtime, working_dir)?;
+            let tab = Tab::new(id, tab_number, config, runtime, working_dir, grid_size)?;
 
             // Insert after active tab
             if let Some(active_id) = self.active_tab_id {

@@ -329,19 +329,31 @@ pub struct Tab {
 
 impl Tab {
     /// Create a new tab with a terminal session
+    ///
+    /// # Arguments
+    /// * `id` - Unique tab identifier
+    /// * `tab_number` - Display number for the tab (1-indexed)
+    /// * `config` - Terminal configuration
+    /// * `runtime` - Tokio runtime for async operations
+    /// * `working_directory` - Optional working directory to start in
+    /// * `grid_size` - Optional (cols, rows) override. When provided, uses these
+    ///   dimensions instead of config.cols/rows. This ensures the shell starts
+    ///   with the correct dimensions when the renderer has already calculated
+    ///   the grid size accounting for tab bar height.
     pub fn new(
         id: TabId,
         tab_number: usize,
         config: &Config,
         runtime: Arc<Runtime>,
         working_directory: Option<String>,
+        grid_size: Option<(usize, usize)>,
     ) -> anyhow::Result<Self> {
+        // Use provided grid size if available, otherwise fall back to config
+        let (cols, rows) = grid_size.unwrap_or((config.cols, config.rows));
+
         // Create terminal with scrollback from config
-        let mut terminal = TerminalManager::new_with_scrollback(
-            config.cols,
-            config.rows,
-            config.scrollback_lines,
-        )?;
+        let mut terminal =
+            TerminalManager::new_with_scrollback(cols, rows, config.scrollback_lines)?;
 
         // Apply common terminal configuration
         configure_terminal_from_config(&mut terminal, config);
@@ -468,18 +480,26 @@ impl Tab {
     ///
     /// If a profile specifies a command, it always runs from the profile's working
     /// directory (or config default if unset).
+    ///
+    /// # Arguments
+    /// * `id` - Unique tab identifier
+    /// * `config` - Terminal configuration
+    /// * `_runtime` - Tokio runtime (unused but kept for API consistency)
+    /// * `profile` - Profile configuration to use
+    /// * `grid_size` - Optional (cols, rows) override for initial terminal size
     pub fn new_from_profile(
         id: TabId,
         config: &Config,
         _runtime: Arc<Runtime>,
         profile: &Profile,
+        grid_size: Option<(usize, usize)>,
     ) -> anyhow::Result<Self> {
+        // Use provided grid size if available, otherwise fall back to config
+        let (cols, rows) = grid_size.unwrap_or((config.cols, config.rows));
+
         // Create terminal with scrollback from config
-        let mut terminal = TerminalManager::new_with_scrollback(
-            config.cols,
-            config.rows,
-            config.scrollback_lines,
-        )?;
+        let mut terminal =
+            TerminalManager::new_with_scrollback(cols, rows, config.scrollback_lines)?;
 
         // Apply common terminal configuration
         configure_terminal_from_config(&mut terminal, config);

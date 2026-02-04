@@ -592,17 +592,43 @@ impl WindowState {
         // This ensures the terminal is sized correctly from the start
         // Use 1 as tab count since we're about to create the first tab
         let initial_tab_bar_height = self.tab_bar_ui.get_height(1, &self.config);
-        if initial_tab_bar_height > 0.0
-            && let Some((new_cols, new_rows)) =
+        let (initial_cols, initial_rows) = renderer.grid_size();
+        log::info!(
+            "Tab bar init: mode={:?}, height={:.1}, initial_grid={}x{}, content_offset_before={:.1}",
+            self.config.tab_bar_mode,
+            initial_tab_bar_height,
+            initial_cols,
+            initial_rows,
+            renderer.content_offset_y()
+        );
+        if initial_tab_bar_height > 0.0 {
+            if let Some((new_cols, new_rows)) =
                 renderer.set_content_offset_y(initial_tab_bar_height)
-        {
-            log::info!(
-                "Initial tab bar height {:.0}px, grid resized to {}x{}",
-                initial_tab_bar_height,
-                new_cols,
-                new_rows
-            );
+            {
+                log::info!(
+                    "Tab bar height {:.0}px applied, grid resized: {}x{} -> {}x{}",
+                    initial_tab_bar_height,
+                    initial_cols,
+                    initial_rows,
+                    new_cols,
+                    new_rows
+                );
+            } else {
+                log::info!(
+                    "Tab bar height {:.0}px applied, grid unchanged: {}x{}, content_offset_after={:.1}",
+                    initial_tab_bar_height,
+                    initial_cols,
+                    initial_rows,
+                    renderer.content_offset_y()
+                );
+            }
         }
+
+        // Get the renderer's grid size BEFORE storing it (and before creating tabs)
+        // This ensures the shell starts with correct dimensions that account for tab bar
+        let (renderer_cols, renderer_rows) = renderer.grid_size();
+        let cell_width = renderer.cell_width();
+        let cell_height = renderer.cell_height();
 
         self.window = Some(Arc::clone(&window));
         self.renderer = Some(renderer);
@@ -610,34 +636,36 @@ impl WindowState {
         // Initialize shader watcher if hot reload is enabled
         self.init_shader_watcher();
 
-        // Create the first tab
+        // Create the first tab with the correct grid size from the renderer
+        // This ensures the shell is spawned with dimensions that account for tab bar
+        log::info!(
+            "Creating first tab with grid size {}x{} (accounting for tab bar)",
+            renderer_cols,
+            renderer_rows
+        );
         let tab_id = self.tab_manager.new_tab(
             &self.config,
             Arc::clone(&self.runtime),
-            false, // First tab doesn't inherit cwd
+            false,                                // First tab doesn't inherit cwd
+            Some((renderer_cols, renderer_rows)), // Pass correct grid size
         )?;
 
-        // Resize the tab's terminal to match renderer grid
+        // Set cell dimensions on the terminal (for TIOCGWINSZ pixel size reporting)
         if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
-            if let Some(renderer) = &self.renderer {
-                let (renderer_cols, renderer_rows) = renderer.grid_size();
-                let cell_width = renderer.cell_width();
-                let cell_height = renderer.cell_height();
-                let width_px = (renderer_cols as f32 * cell_width) as usize;
-                let height_px = (renderer_rows as f32 * cell_height) as usize;
+            let width_px = (renderer_cols as f32 * cell_width) as usize;
+            let height_px = (renderer_rows as f32 * cell_height) as usize;
 
-                if let Ok(mut term) = tab.terminal.try_lock() {
-                    let _ =
-                        term.resize_with_pixels(renderer_cols, renderer_rows, width_px, height_px);
-                    term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                    log::info!(
-                        "Initial terminal dimensions: {}x{} ({}x{} px)",
-                        renderer_cols,
-                        renderer_rows,
-                        width_px,
-                        height_px
-                    );
-                }
+            if let Ok(mut term) = tab.terminal.try_lock() {
+                term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                // Send resize to ensure PTY has correct pixel dimensions
+                let _ = term.resize_with_pixels(renderer_cols, renderer_rows, width_px, height_px);
+                log::info!(
+                    "Initial terminal dimensions: {}x{} ({}x{} px)",
+                    renderer_cols,
+                    renderer_rows,
+                    width_px,
+                    height_px
+                );
             }
 
             // Start refresh task for the first tab
