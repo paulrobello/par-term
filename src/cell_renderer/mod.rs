@@ -210,7 +210,22 @@ impl CellRenderer {
         background_image_mode: crate::config::BackgroundImageMode,
         background_image_opacity: f32,
     ) -> Result<Self> {
+        // Platform-specific backend selection for better VM compatibility
+        // Windows: Use DX12 (Vulkan may not work in VMs like Parallels)
+        // macOS: Use Metal (native)
+        // Linux: Try Vulkan first, fall back to GL for VM compatibility
+        #[cfg(target_os = "windows")]
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::DX12,
+            ..Default::default()
+        });
+        #[cfg(target_os = "macos")]
         let instance = wgpu::Instance::default();
+        #[cfg(target_os = "linux")]
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
+            ..Default::default()
+        });
         let surface = instance.create_surface(window.clone())?;
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {

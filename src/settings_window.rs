@@ -82,8 +82,20 @@ impl SettingsWindow {
         let size = window.inner_size();
 
         // Create wgpu instance
+        // Platform-specific backend selection for better VM compatibility
+        #[cfg(target_os = "windows")]
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::DX12,
+            ..Default::default()
+        });
+        #[cfg(target_os = "macos")]
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
+            ..Default::default()
+        });
+        #[cfg(target_os = "linux")]
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::VULKAN | wgpu::Backends::GL,
             ..Default::default()
         });
 

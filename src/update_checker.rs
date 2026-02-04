@@ -226,7 +226,8 @@ impl UpdateChecker {
 
 /// Fetch the latest release information from GitHub API
 fn fetch_latest_release() -> Result<UpdateInfo, String> {
-    let mut body = ureq::get(RELEASE_API_URL)
+    let mut body = crate::http::agent()
+        .get(RELEASE_API_URL)
         .header("User-Agent", "par-term")
         .header("Accept", "application/vnd.github+json")
         .call()

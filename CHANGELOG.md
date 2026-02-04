@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Windows ARM64 Build**: Fixed build failure on Windows ARM64 due to `ring` crate requiring clang
+  - Switched `ureq` HTTP client from `rustls` to `native-tls` backend
+  - Uses system TLS (Schannel on Windows, OpenSSL on Linux, Security.framework on macOS)
+  - No longer requires clang/LLVM toolchain for Windows builds
+
+- **VM GPU Compatibility**: Fixed app failing to start in virtual machine environments (Parallels, etc.)
+  - Windows: Now uses DirectX 12 backend instead of Vulkan (which fails in Parallels VMs)
+  - Linux: Added OpenGL fallback when Vulkan is unavailable or non-compliant
+  - Resolves "Adapter is not Vulkan compliant" errors in VM environments
+
+- **HTTPS Request Panic**: Fixed panic when making HTTPS requests (update checker, shader installer)
+  - Explicitly configure `ureq` to use native-tls provider instead of defaulting to rustls
+  - Added `http.rs` module with properly configured HTTP agent
+
+### Added
+
+- **Windows Install Script**: Added `scripts/install-windows.bat` for building on Windows
+  - Sets up Visual Studio environment before cargo install
+  - Required for native dependencies that need MSVC toolchain
+
 ---
 
 ## [0.8.0] - 2026-02-03

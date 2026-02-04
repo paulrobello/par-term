@@ -94,7 +94,7 @@ notify = { version = "8.0", default-features = false, features = ["macos_kqueue"
 muda = "0.17.1"
 libc = "0.2.180"
 clap = { version = "4.5.57", features = ["derive"] }
-ureq = "3.1.4"
+ureq = { version = "3.1.4", default-features = false, features = ["native-tls", "gzip"] }
 zip = "7.2.0"
 semver = "1.0.27"  # Semantic version parsing for update checks
 sha2 = "0.10.9"

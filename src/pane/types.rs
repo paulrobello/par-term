@@ -205,6 +205,7 @@ impl Pane {
             .or(config.working_directory.as_deref());
 
         // Determine the shell command to use
+        #[allow(unused_mut)] // mut is needed on Unix for login shell modification
         let (shell_cmd, mut shell_args) = if let Some(ref custom) = config.custom_shell {
             (custom.clone(), config.shell_args.clone())
         } else {

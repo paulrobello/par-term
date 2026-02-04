@@ -59,7 +59,8 @@ pub fn install_shaders() -> Result<usize, String> {
 
 /// Get the download URL for shaders.zip from the latest release
 pub fn get_shaders_download_url(api_url: &str, repo: &str) -> Result<String, String> {
-    let mut body = ureq::get(api_url)
+    let mut body = crate::http::agent()
+        .get(api_url)
         .header("User-Agent", "par-term")
         .call()
         .map_err(|e| format!("Failed to fetch release info: {}", e))?
@@ -94,7 +95,8 @@ pub fn get_shaders_download_url(api_url: &str, repo: &str) -> Result<String, Str
 
 /// Download a file from URL and return its contents
 pub fn download_file(url: &str) -> Result<Vec<u8>, String> {
-    let mut body = ureq::get(url)
+    let mut body = crate::http::agent()
+        .get(url)
         .header("User-Agent", "par-term")
         .call()
         .map_err(|e| format!("Failed to download file: {}", e))?

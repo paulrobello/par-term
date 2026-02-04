@@ -16,6 +16,7 @@ pub mod font_metrics;
 pub mod gpu_utils;
 pub mod graphics_renderer;
 pub mod help_ui;
+pub mod http;
 pub mod input;
 pub mod integrations_ui;
 pub mod keybindings;
