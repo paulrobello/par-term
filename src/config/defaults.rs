@@ -541,6 +541,14 @@ pub fn tmux_status_bar_refresh_ms() -> u64 {
     1000 // Default: 1 second refresh interval
 }
 
+pub fn tmux_status_bar_left() -> String {
+    "[{session}] {windows}".to_string()
+}
+
+pub fn tmux_status_bar_right() -> String {
+    "{pane} | {time:%H:%M}".to_string()
+}
+
 // Badge defaults
 pub fn badge_format() -> String {
     "\\(session.username)@\\(session.hostname)".to_string()

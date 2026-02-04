@@ -204,7 +204,7 @@ fn show_tmux_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_
             *changes_this_frame = true;
         }
 
-        // Status bar refresh interval (only show if status bar is enabled)
+        // Status bar settings (only show if status bar is enabled)
         if settings.config.tmux_show_status_bar {
             ui.horizontal(|ui| {
                 ui.label("Refresh interval:");
@@ -219,6 +219,54 @@ fn show_tmux_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_
                     *changes_this_frame = true;
                 }
             });
+
+            ui.add_space(4.0);
+
+            // Left format string
+            ui.horizontal(|ui| {
+                ui.label("Left format:");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.config.tmux_status_bar_left)
+                            .desired_width(INPUT_WIDTH),
+                    )
+                    .on_hover_text(
+                        "Format string for left side. Variables: {session}, {windows}, {pane}, {time:FORMAT}, {hostname}, {user}",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            // Right format string
+            ui.horizontal(|ui| {
+                ui.label("Right format:");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.config.tmux_status_bar_right)
+                            .desired_width(INPUT_WIDTH),
+                    )
+                    .on_hover_text(
+                        "Format string for right side. Variables: {session}, {windows}, {pane}, {time:FORMAT}, {hostname}, {user}",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            // Help text for format variables
+            ui.add_space(2.0);
+            ui.label(
+                egui::RichText::new(
+                    "Variables: {session}, {windows}, {pane}, {time:%H:%M}, {hostname}, {user}",
+                )
+                .small()
+                .color(egui::Color32::GRAY),
+            );
         }
 
         ui.add_space(8.0);

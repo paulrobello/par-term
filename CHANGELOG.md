@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Profile drawer button visibility toggle (`show_profile_drawer_button` config option)
   - Overview of profile features and display options
 
+- **Configurable tmux Status Bar Format** (#67): Customize tmux status bar content via format strings
+  - `tmux_status_bar_left`: Format string for left side (default: `[{session}] {windows}`)
+  - `tmux_status_bar_right`: Format string for right side (default: `{pane} | {time:%H:%M}`)
+  - Supported variables: `{session}`, `{windows}`, `{pane}`, `{time:FORMAT}`, `{hostname}`, `{user}`
+  - Settings UI controls in Advanced > tmux Integration section
+  - Native tmux format query commands following iTerm2's approach (deferred full async implementation)
+
 ### Changed
 
 - **Default Font Size**: Reduced default `font_size` from 13.0 to 10.0

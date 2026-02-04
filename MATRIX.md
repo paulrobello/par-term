@@ -375,6 +375,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | **Bidirectional pane resize** | ✅ | ✅ | ✅ | - | - | Resize in par-term updates tmux and vice versa |
 | **Multi-client size sync** | ✅ | ✅ `window-size smallest` | ✅ | - | - | Sets smallest mode on connect for proper sizing |
 | tmux status bar in UI | ✅ Native display | ✅ `tmux_show_status_bar` | ✅ | - | - | Display status outside terminal area |
+| **Configurable status bar format** | ✅ Custom format | ✅ `tmux_status_bar_left/right` | ✅ | - | - | Format strings with variables: {session}, {windows}, {pane}, {time:FORMAT}, {hostname}, {user} |
 | tmux clipboard sync | ✅ Bidirectional | ✅ `set-buffer` | ✅ | - | - | Sync with tmux paste buffers |
 | tmux pause mode handling | ✅ | ✅ | ✅ | - | - | Handle slow connection pausing with buffering |
 | Auto-attach on launch | ✅ | ✅ `tmux_auto_attach` | ✅ | - | - | Option to auto-attach to session |
@@ -400,6 +401,9 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 - `tmux_clipboard_sync`: Sync clipboard with tmux paste buffer
 - `tmux_show_status_bar`: Display tmux status bar at bottom when connected
 - `tmux_status_bar_refresh_ms`: Status bar refresh interval in milliseconds (default: 1000)
+- `tmux_status_bar_left`: Format string for left side (default: `[{session}] {windows}`)
+- `tmux_status_bar_right`: Format string for right side (default: `{pane} | {time:%H:%M}`)
+- `tmux_status_bar_use_native_format`: Use native tmux format strings (queries tmux directly)
 - `tmux_profile`: Profile to use when connected (pending)
 
 ---

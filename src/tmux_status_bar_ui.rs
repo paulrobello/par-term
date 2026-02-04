@@ -1,10 +1,30 @@
 //! tmux status bar UI using egui
 //!
 //! Displays the tmux status bar at the bottom of the terminal when connected
-//! to a tmux session.
+//! to a tmux session. Supports configurable format strings for customizing
+//! the status bar content.
+//!
+//! ## Format Variables
+//!
+//! The following variables can be used in `tmux_status_bar_left` and
+//! `tmux_status_bar_right` configuration options:
+//!
+//! - `{session}` - Session name
+//! - `{windows}` - Window list with active marker (*)
+//! - `{pane}` - Focused pane ID (e.g., "%0")
+//! - `{time:FORMAT}` - Current time with strftime format (e.g., `{time:%H:%M}`)
+//! - `{hostname}` - Machine hostname
+//! - `{user}` - Current username
+//!
+//! ## Example Configuration
+//!
+//! ```yaml
+//! tmux_status_bar_left: "[{session}] {windows}"
+//! tmux_status_bar_right: "{user}@{hostname} | {time:%H:%M}"
+//! ```
 
 use crate::config::Config;
-use crate::tmux::TmuxSession;
+use crate::tmux::{FormatContext, TmuxSession, expand_format};
 
 /// tmux status bar UI state
 pub struct TmuxStatusBarUI {
@@ -40,52 +60,19 @@ impl TmuxStatusBarUI {
         }
     }
 
-    /// Build the left side of the status bar from session state
-    fn build_left_content(session: &TmuxSession, session_name: Option<&str>) -> String {
-        let mut parts = Vec::new();
+    /// Update cached content from session state using configurable format strings
+    pub fn update_from_session(
+        &mut self,
+        config: &Config,
+        session: &TmuxSession,
+        session_name: Option<&str>,
+    ) {
+        // Create format context with session data
+        let ctx = FormatContext::new(Some(session), session_name);
 
-        // Session name
-        if let Some(name) = session_name.or_else(|| session.session_name()) {
-            parts.push(format!("[{}]", name));
-        }
-
-        // Windows list
-        let windows = session.windows();
-        if !windows.is_empty() {
-            let mut window_parts = Vec::new();
-            let mut window_list: Vec<_> = windows.values().collect();
-            window_list.sort_by_key(|w| w.index);
-
-            for window in window_list {
-                let marker = if window.active { "*" } else { "" };
-                window_parts.push(format!("{}:{}{}", window.index, window.name, marker));
-            }
-            parts.push(window_parts.join(" "));
-        }
-
-        parts.join(" ")
-    }
-
-    /// Build the right side of the status bar (time, pane info)
-    fn build_right_content(session: &TmuxSession) -> String {
-        let mut parts = Vec::new();
-
-        // Focused pane info
-        if let Some(pane_id) = session.focused_pane() {
-            parts.push(format!("%{}", pane_id));
-        }
-
-        // Current time
-        let now = chrono::Local::now();
-        parts.push(now.format("%H:%M").to_string());
-
-        parts.join(" | ")
-    }
-
-    /// Update cached content from session state
-    pub fn update_from_session(&mut self, session: &TmuxSession, session_name: Option<&str>) {
-        self.cached_left = Self::build_left_content(session, session_name);
-        self.cached_right = Self::build_right_content(session);
+        // Expand format strings from config
+        self.cached_left = expand_format(&config.tmux_status_bar_left, &ctx);
+        self.cached_right = expand_format(&config.tmux_status_bar_right, &ctx);
         self.last_refresh = std::time::Instant::now();
     }
 
@@ -113,7 +100,7 @@ impl TmuxStatusBarUI {
         if let Some(session) = session
             && self.needs_refresh(config.tmux_status_bar_refresh_ms)
         {
-            self.update_from_session(session, session_name);
+            self.update_from_session(config, session, session_name);
         }
 
         let bar_height = 24.0;
