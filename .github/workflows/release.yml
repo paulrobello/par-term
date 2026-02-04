@@ -37,9 +37,11 @@ jobs:
           fi
 
           # Check for any path dependencies (general check)
-          if grep -E '^\s*path\s*=' Cargo.toml; then
+          # Exclude [lib] and [[bin]] sections which use path for source files (ending in .rs")
+          if grep -E '^\s*path\s*=' Cargo.toml | grep -qv '\.rs"'; then
             echo "::error::Cargo.toml contains local path dependencies"
             echo "::error::All dependencies must use published versions for release"
+            grep -E '^\s*path\s*=' Cargo.toml | grep -v '\.rs"'
             exit 1
           fi
 
