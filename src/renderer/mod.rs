@@ -23,6 +23,9 @@ pub struct PaneRenderInfo<'a> {
     pub cursor_opacity: f32,
     /// Whether this pane has a scrollbar visible
     pub show_scrollbar: bool,
+    /// Scrollback marks for this pane
+    #[allow(dead_code)]
+    pub marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
 }
 
 /// Information needed to render a pane divider
@@ -434,14 +437,16 @@ impl Renderer {
     /// * `scroll_offset` - Current scroll offset (0 = at bottom)
     /// * `visible_lines` - Number of lines visible on screen
     /// * `total_lines` - Total number of lines including scrollback
+    /// * `marks` - Scrollback marks for visualization on the scrollbar
     pub fn update_scrollbar(
         &mut self,
         scroll_offset: usize,
         visible_lines: usize,
         total_lines: usize,
+        marks: &[crate::scrollback_metadata::ScrollbackMark],
     ) {
         self.cell_renderer
-            .update_scrollbar(scroll_offset, visible_lines, total_lines);
+            .update_scrollbar(scroll_offset, visible_lines, total_lines, marks);
         self.dirty = true; // Mark dirty when scrollbar changes
     }
 

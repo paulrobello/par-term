@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tab Bar Stretch & HTML Titles**: Tabs can now stretch to fill the bar by default (`tab_stretch_to_fill`), and tab titles support limited HTML markup (`<b>`, `<i>`, `<u>`, `<span style="color:...">`) via `tab_html_titles`.
 - **Native Paste/Copy Keys**: Recognize `NamedKey::Paste`/`NamedKey::Copy` plus Cmd/Ctrl+V/C across platforms, covering keyboards that emit dedicated paste/copy keys.
 - **Settings Reset to Defaults**: Settings UI now includes a "Reset to Defaults" button with a confirmation dialog. It rebuilds the config from defaults, resyncs all staged temp values, clears searches, and marks changes for save so users can restore a clean baseline in one click.
+- **Scrollbar Command Markers Toggle**: Added a Settings → Terminal → Scrollbar option (`scrollbar_command_marks`, default on) to show/hide command status markers in the scrollbar.
 
 ### Changed
 
@@ -27,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Config Refresh for New Windows**: Creating a new window now reloads config from disk first, so changes made in other windows (like integration install states written during onboarding) apply immediately and avoid stale prompts.
+- **Scrollbar Command Mark Colors**: Command markers now retain exit codes even when shells emit OSC exit codes without CommandFinished history entries, ensuring success/failure colors render reliably.
+- **Bash Shell Integration Exit Codes**: Bash integration now emits numeric exit codes in OSC 133;D (no literal `$?`), restoring correct marker coloring.
 
 ---
 

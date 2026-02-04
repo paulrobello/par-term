@@ -19,6 +19,7 @@ use crate::profile::{ProfileManager, storage as profile_storage};
 use crate::profile_drawer_ui::{ProfileDrawerAction, ProfileDrawerUI};
 use crate::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
 use crate::renderer::{DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, Renderer};
+use crate::scrollback_metadata::ScrollbackMark;
 use crate::search::SearchUI;
 use crate::selection::SelectionMode;
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
@@ -54,6 +55,7 @@ type PaneRenderData = (
     (usize, usize),
     Option<(usize, usize)>,
     f32,
+    Vec<ScrollbackMark>,
 );
 
 /// Per-window state that manages a single terminal window with multiple tabs
@@ -1236,12 +1238,35 @@ impl WindowState {
             return;
         };
 
-        // Get active tab's terminal
-        let tab = match self.tab_manager.active_tab() {
-            Some(t) => t,
+        // Get active tab's terminal and immediate state snapshots (avoid long borrows)
+        let (
+            terminal,
+            scroll_offset,
+            mouse_selection,
+            cache_cells,
+            cache_generation,
+            cache_scroll_offset,
+            cache_cursor_pos,
+            cache_selection,
+            cached_scrollback_len,
+            cached_terminal_title,
+            hovered_url,
+        ) = match self.tab_manager.active_tab() {
+            Some(t) => (
+                t.terminal.clone(),
+                t.scroll_state.offset,
+                t.mouse.selection,
+                t.cache.cells.clone(),
+                t.cache.generation,
+                t.cache.scroll_offset,
+                t.cache.cursor_pos,
+                t.cache.selection,
+                t.cache.scrollback_len,
+                t.cache.terminal_title.clone(),
+                t.mouse.hovered_url.clone(),
+            ),
             None => return,
         };
-        let terminal = &tab.terminal;
 
         // Check if shell has exited
         let _is_running = if let Ok(term) = terminal.try_lock() {
@@ -1256,8 +1281,6 @@ impl WindowState {
         }
 
         // Get scroll offset and selection from active tab
-        let scroll_offset = tab.scroll_state.offset;
-        let mouse_selection = tab.mouse.selection;
 
         // Get terminal cells for rendering (with dirty tracking optimization)
         // Also capture alt screen state to disable cursor shader for TUI apps
@@ -1337,11 +1360,11 @@ impl WindowState {
 
             // Check if we need to regenerate cells
             // Only regenerate when content actually changes, not on every cursor blink
-            let needs_regeneration = tab.cache.cells.is_none()
-                || current_generation != tab.cache.generation
-                || scroll_offset != tab.cache.scroll_offset
-                || current_cursor_pos != tab.cache.cursor_pos // Regenerate if cursor position changed
-                || mouse_selection != tab.cache.selection; // Regenerate if selection changed (including clearing)
+            let needs_regeneration = cache_cells.is_none()
+                || current_generation != cache_generation
+                || scroll_offset != cache_scroll_offset
+                || current_cursor_pos != cache_cursor_pos // Regenerate if cursor position changed
+                || mouse_selection != cache_selection; // Regenerate if selection changed (including clearing)
 
             let cell_gen_start = std::time::Instant::now();
             let (cells, is_cache_hit) = if needs_regeneration {
@@ -1353,7 +1376,7 @@ impl WindowState {
             } else {
                 // Use cached cells - clone is still needed because of apply_url_underlines
                 // but we track it accurately for debug logging
-                (tab.cache.cells.as_ref().unwrap().clone(), true)
+                (cache_cells.as_ref().unwrap().clone(), true)
             };
             self.debug.cache_hit = is_cache_hit;
             self.debug.cell_gen_time = cell_gen_start.elapsed();
@@ -1419,21 +1442,14 @@ impl WindowState {
             tab.cache.selection = tab.mouse.selection;
         }
 
-        // Get scrollback length and terminal title from terminal
-        // Note: When terminal width changes during resize, the core library clears
-        // scrollback because the old cells would be misaligned with the new column count.
-        // This is a limitation of the current implementation - proper reflow is not yet supported.
-        let tab = match self.tab_manager.active_tab() {
-            Some(t) => t,
-            None => return,
-        };
-        let terminal = &tab.terminal;
-        let cached_scrollback_len = tab.cache.scrollback_len;
-        let cached_terminal_title = tab.cache.terminal_title.clone();
-        let hovered_url = tab.mouse.hovered_url.clone();
+        let mut show_scrollbar = self.should_show_scrollbar();
 
-        let (scrollback_len, terminal_title) = if let Ok(term) = terminal.try_lock() {
-            (term.scrollback_len(), term.get_title())
+        let (scrollback_len, terminal_title) = if let Ok(mut term) = terminal.try_lock() {
+            // Use cursor row 0 when cursor not visible (e.g., alt screen)
+            let cursor_row = current_cursor_pos.map(|(_, row)| row).unwrap_or(0);
+            let sb_len = term.scrollback_len();
+            term.update_scrollback_metadata(sb_len, cursor_row);
+            (sb_len, term.get_title())
         } else {
             (cached_scrollback_len, cached_terminal_title.clone())
         };
@@ -1443,6 +1459,21 @@ impl WindowState {
             tab.cache.scrollback_len = scrollback_len;
             tab.scroll_state
                 .clamp_to_scrollback(tab.cache.scrollback_len);
+        }
+
+        let scrollback_marks = if self.config.scrollbar_command_marks {
+            if let Ok(term) = terminal.try_lock() {
+                term.scrollback_marks()
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
+
+        // Keep scrollbar visible when mark indicators exist (even if no scrollback).
+        if self.config.scrollbar_command_marks && !scrollback_marks.is_empty() {
+            show_scrollbar = true;
         }
 
         // Update window title if terminal has set one via OSC sequences
@@ -1543,8 +1574,6 @@ impl WindowState {
         // Profile modal action to handle after rendering
         let mut pending_profile_modal_action = ProfileModalAction::None;
 
-        let show_scrollbar = self.should_show_scrollbar();
-
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts
         // When tmux controls the layout, we don't use pane padding
         let is_tmux_gateway = self.is_gateway_active();
@@ -1597,7 +1626,7 @@ impl WindowState {
                 .active_tab()
                 .map(|t| t.scroll_state.offset)
                 .unwrap_or(0);
-            renderer.update_scrollbar(scroll_offset, visible_lines, total_lines);
+            renderer.update_scrollbar(scroll_offset, visible_lines, total_lines, &scrollback_marks);
 
             // Update animations and request redraw if frames changed
             let anim_start = std::time::Instant::now();
@@ -2003,6 +2032,19 @@ impl WindowState {
                                         Vec::new()
                                     };
 
+                                    let marks = if self.config.scrollbar_command_marks {
+                                        if let Ok(mut term) = pane.terminal.try_lock() {
+                                            // Use cursor row 0 when unknown in split panes
+                                            let sb_len = term.scrollback_len();
+                                            term.update_scrollback_metadata(sb_len, 0);
+                                            term.scrollback_marks()
+                                        } else {
+                                            Vec::new()
+                                        }
+                                    } else {
+                                        Vec::new()
+                                    };
+
                                     let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
                                         if term.is_cursor_visible() {
                                             Some(term.cursor_position())
@@ -2022,6 +2064,7 @@ impl WindowState {
                                         (cols, rows),
                                         cursor_pos,
                                         if is_focused { cursor_opacity } else { 0.0 },
+                                        marks,
                                     ));
                                 }
                             }
@@ -2366,7 +2409,7 @@ impl WindowState {
         let mut pane_render_infos: Vec<PaneRenderInfo> = Vec::new();
         let mut leaked_cells: Vec<*mut [crate::cell_renderer::Cell]> = Vec::new();
 
-        for (viewport, cells, grid_size, cursor_pos, cursor_opacity) in pane_data {
+        for (viewport, cells, grid_size, cursor_pos, cursor_opacity, marks) in pane_data {
             let cells_boxed = cells.into_boxed_slice();
             let cells_ptr = Box::into_raw(cells_boxed);
             leaked_cells.push(cells_ptr);
@@ -2379,6 +2422,7 @@ impl WindowState {
                 cursor_pos,
                 cursor_opacity,
                 show_scrollbar: false,
+                marks,
             });
         }
 

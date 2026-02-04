@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use wgpu::BindGroupLayout;
 use wgpu::util::DeviceExt;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
@@ -9,11 +11,13 @@ use wgpu::{
 
 /// Scrollbar renderer using wgpu
 pub struct Scrollbar {
+    device: Arc<Device>,
     pipeline: RenderPipeline,
     uniform_buffer: Buffer,
     bind_group: BindGroup,
     track_bind_group: BindGroup,
     track_uniform_buffer: Buffer,
+    mark_bind_group_layout: BindGroupLayout,
     width: f32,
     visible: bool,
     position_right: bool, // true = right side, false = left side
@@ -31,6 +35,9 @@ pub struct Scrollbar {
     scroll_offset: usize,
     visible_lines: usize,
     total_lines: usize,
+
+    // Mark overlays (prompt/command indicators)
+    marks: Vec<ScrollbarMarkInstance>,
 }
 
 #[repr(C)]
@@ -41,6 +48,12 @@ struct ScrollbarUniforms {
     size: [f32; 2],     // width, height
     // Color (RGBA)
     color: [f32; 4],
+}
+
+struct ScrollbarMarkInstance {
+    bind_group: BindGroup,
+    #[allow(dead_code)]
+    buffer: Buffer,
 }
 
 impl Scrollbar {
@@ -54,7 +67,7 @@ impl Scrollbar {
     /// * `thumb_color` - RGBA color for thumb [r, g, b, a]
     /// * `track_color` - RGBA color for track [r, g, b, a]
     pub fn new(
-        device: &Device,
+        device: std::sync::Arc<Device>,
         format: TextureFormat,
         width: f32,
         position: &str,
@@ -169,14 +182,18 @@ impl Scrollbar {
             }],
         });
 
+        let mark_bind_group_layout = bind_group_layout.clone();
+
         let position_right = position.eq_ignore_ascii_case("right");
 
         Self {
+            device,
             pipeline,
             uniform_buffer,
             bind_group,
             track_bind_group,
             track_uniform_buffer,
+            mark_bind_group_layout,
             width,
             visible: false,
             position_right,
@@ -190,6 +207,7 @@ impl Scrollbar {
             scroll_offset: 0,
             visible_lines: 0,
             total_lines: 0,
+            marks: Vec::new(),
         }
     }
 
@@ -201,6 +219,7 @@ impl Scrollbar {
     /// * `total_lines` - Total number of lines including scrollback
     /// * `window_width` - Window width in pixels
     /// * `window_height` - Window height in pixels
+    #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
         queue: &Queue,
@@ -209,6 +228,7 @@ impl Scrollbar {
         total_lines: usize,
         window_width: u32,
         window_height: u32,
+        marks: &[crate::scrollback_metadata::ScrollbackMark],
     ) {
         // Store parameters for hit testing
         self.scroll_offset = scroll_offset;
@@ -217,21 +237,22 @@ impl Scrollbar {
         self.window_width = window_width;
         self.window_height = window_height;
 
-        // Only show scrollbar if there's scrollback content
-        self.visible = total_lines > visible_lines;
+        // Show scrollbar when either scrollback exists or mark indicators are available
+        self.visible = total_lines > visible_lines || !marks.is_empty();
 
         if !self.visible {
             return;
         }
 
-        // Calculate scrollbar dimensions
-        let viewport_ratio = visible_lines as f32 / total_lines as f32;
+        // Calculate scrollbar dimensions (guard against zero)
+        let total = total_lines.max(1);
+        let viewport_ratio = visible_lines.min(total) as f32 / total as f32;
         let scrollbar_height = (viewport_ratio * window_height as f32).max(20.0);
 
         // Calculate scrollbar position
         // When scroll_offset is 0, we're at the bottom
         // When scroll_offset is max, we're at the top
-        let max_scroll = total_lines.saturating_sub(visible_lines);
+        let max_scroll = total.saturating_sub(visible_lines);
 
         // Clamp scroll_offset to valid range
         let clamped_offset = scroll_offset.min(max_scroll);
@@ -292,6 +313,9 @@ impl Scrollbar {
             0,
             bytemuck::cast_slice(&[thumb_uniforms]),
         );
+
+        // Prepare and upload mark uniforms (draw later)
+        self.prepare_marks(marks, total_lines, window_height);
     }
 
     /// Render the scrollbar (track + thumb)
@@ -309,6 +333,74 @@ impl Scrollbar {
         // Render thumb on top
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.draw(0..4, 0..1);
+
+        // Render marks on top of track/thumb
+        for mark in &self.marks {
+            render_pass.set_bind_group(0, &mark.bind_group, &[]);
+            render_pass.draw(0..4, 0..1);
+        }
+    }
+
+    fn prepare_marks(
+        &mut self,
+        marks: &[crate::scrollback_metadata::ScrollbackMark],
+        total_lines: usize,
+        window_height: u32,
+    ) {
+        self.marks.clear();
+
+        if total_lines == 0 || marks.is_empty() {
+            return;
+        }
+
+        let height_f = window_height as f32;
+        let mark_height_ndc = (2.0 * 4.0) / height_f; // 4px height
+        let ndc_width = 2.0 * self.width / self.window_width as f32;
+        let ndc_x = if self.position_right {
+            1.0 - ndc_width
+        } else {
+            -1.0
+        };
+
+        for mark in marks {
+            if mark.line >= total_lines {
+                continue;
+            }
+            let ratio = mark.line as f32 / (total_lines as f32 - 1.0).max(1.0);
+            let ndc_y = 1.0 - 2.0 * ratio;
+
+            let color = match mark.exit_code {
+                Some(0) => [0.2, 0.8, 0.4, 1.0],
+                Some(_) => [0.9, 0.25, 0.2, 1.0],
+                None => [0.6, 0.6, 0.6, 0.9],
+            };
+
+            let mark_uniforms = ScrollbarUniforms {
+                position: [ndc_x, ndc_y - mark_height_ndc / 2.0],
+                size: [ndc_width, mark_height_ndc],
+                color,
+            };
+
+            let buffer = self
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Scrollbar Mark Buffer"),
+                    contents: bytemuck::cast_slice(&[mark_uniforms]),
+                    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                });
+
+            let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+                label: Some("Scrollbar Mark Bind Group"),
+                layout: &self.mark_bind_group_layout,
+                entries: &[BindGroupEntry {
+                    binding: 0,
+                    resource: buffer.as_entire_binding(),
+                }],
+            });
+
+            self.marks
+                .push(ScrollbarMarkInstance { bind_group, buffer });
+        }
     }
 
     /// Update scrollbar appearance (width and colors) in real-time

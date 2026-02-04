@@ -61,6 +61,8 @@ if [[ -o interactive ]]; then
     par_term_after_cmd_executes() {
       printf "\033]133;D;%s\007" "$STATUS"
       par_term_print_state_data
+      # Ensure a prompt marker is always present for scrollback indicators
+      par_term_prompt_mark
     }
 
     # OSC 133 ; A - Mark prompt start

@@ -462,6 +462,40 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 
 ---
 
+## 24. Badges
+
+Badges are semi-transparent text overlays displayed in the terminal corner showing dynamic session information.
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Badge text overlay | ✅ Top-right corner | ❌ | ❌ | ⭐⭐ | 🟡 | Semi-transparent text label |
+| Badge color | ✅ `Badge Color` | ❌ | ❌ | ⭐⭐ | 🟢 | Configurable RGBA color |
+| Badge font | ✅ `Badge Font` | ❌ | ❌ | ⭐ | 🟢 | Custom font family and bold |
+| Badge position margins | ✅ Top/Right margins | ❌ | ❌ | ⭐ | 🟢 | Default 10px each |
+| Badge max size | ✅ Width/Height fractions | ❌ | ❌ | ⭐ | 🟢 | Default 50% width, 20% height |
+| Dynamic badge variables | ✅ `\(session.*)` syntax | ❌ | ❌ | ⭐⭐ | 🟡 | hostname, username, path, job, etc. |
+| Badge escape sequence | ✅ OSC 1337 SetBadgeFormat | ❌ | ❌ | ⭐⭐ | 🟡 | Update badge from shell |
+| Badge per-profile | ✅ Profile setting | ❌ | ❌ | ⭐⭐ | 🟡 | Different badges per profile |
+| Badge configuration UI | ✅ Visual drag-and-drop | ❌ | ❌ | ⭐ | 🟡 | Interactive position preview |
+
+### Badge Variables Available in iTerm2
+
+| Variable | Description |
+|----------|-------------|
+| `session.hostname` | Remote hostname (SSH) |
+| `session.username` | Current user |
+| `session.path` | Current working directory |
+| `session.job` | Foreground job name |
+| `session.last_command` | Last executed command |
+| `session.profile_name` | Current profile name |
+| `session.tty` | TTY device name |
+| `session.columns` / `session.rows` | Terminal dimensions |
+| `session.bell_count` | Number of bells |
+| `session.selection` | Selected text |
+| `session.tmux_pane_title` | tmux pane title |
+
+---
+
 ## Summary Statistics
 
 ### par-term Exclusive Features (Not in iTerm2)
@@ -527,6 +561,6 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 
 ---
 
-*Updated: 2026-02-02*
+*Updated: 2026-02-03*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.6.0*

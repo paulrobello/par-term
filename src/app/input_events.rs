@@ -313,9 +313,19 @@ impl WindowState {
             return false;
         }
 
-        let shift = self.input_handler.modifiers.state().shift_key();
+        let modifiers = self.input_handler.modifiers.state();
+        let shift = modifiers.shift_key();
+        let super_key = modifiers.super_key();
 
         let handled = match &event.logical_key {
+            Key::Named(NamedKey::ArrowUp) if super_key => {
+                self.scroll_to_previous_mark();
+                true
+            }
+            Key::Named(NamedKey::ArrowDown) if super_key => {
+                self.scroll_to_next_mark();
+                true
+            }
             Key::Named(NamedKey::PageUp) => {
                 // Scroll up one page
                 self.scroll_up_page();

@@ -291,7 +291,17 @@ impl WindowState {
                     // Update scrollbar for active tab
                     if let Some(tab) = self.tab_manager.active_tab() {
                         let total_lines = rows + tab.cache.scrollback_len;
-                        renderer.update_scrollbar(tab.scroll_state.offset, rows, total_lines);
+                        let marks = if let Ok(term) = tab.terminal.try_lock() {
+                            term.scrollback_marks()
+                        } else {
+                            Vec::new()
+                        };
+                        renderer.update_scrollbar(
+                            tab.scroll_state.offset,
+                            rows,
+                            total_lines,
+                            &marks,
+                        );
                     }
 
                     // Update resize overlay state

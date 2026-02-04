@@ -23,7 +23,7 @@ exclude = [
 
 [dependencies]
 # Terminal emulator core (ENQ answerback support)
-par-term-emu-core-rust = { version = "0.27.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.28.0", default-features = false, features = ["rust-only"] }
 
 # Window management and rendering
 winit = "0.30"
@@ -141,6 +141,6 @@ strip = true
 opt-level = 0
 debug = true
 
-# Use local version of core library for development
-# [patch.crates-io]
-# par-term-emu-core-rust = { path = "../par-term-emu-core-rust" }
+# Use local version of core library for development (includes latest OSC fixes)
+[patch.crates-io]
+par-term-emu-core-rust = { path = "../par-term-emu-core-rust" }

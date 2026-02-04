@@ -64,7 +64,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
     if section_matches(
         &query,
         "Scrollbar",
-        &["scrollbar", "thumb", "track", "autohide"],
+        &["scrollbar", "thumb", "track", "autohide", "marker"],
     ) {
         show_scrollbar_section(ui, settings, changes_this_frame);
     }
@@ -506,6 +506,17 @@ fn show_scrollbar_section(
     changes_this_frame: &mut bool,
 ) {
     collapsing_section(ui, "Scrollbar", "terminal_scrollbar", true, |ui| {
+        if ui
+            .checkbox(
+                &mut settings.config.scrollbar_command_marks,
+                "Show command markers (requires shell integration)",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
         ui.horizontal(|ui| {
             ui.label("Width:");
             if ui

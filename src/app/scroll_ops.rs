@@ -59,4 +59,42 @@ impl WindowState {
     pub(crate) fn scroll_to_bottom(&mut self) {
         self.set_scroll_target(0);
     }
+
+    pub(crate) fn scroll_to_previous_mark(&mut self) {
+        let Some(tab) = self.tab_manager.active_tab() else {
+            return;
+        };
+        let scrollback_len = tab.cache.scrollback_len;
+        let current_top = scrollback_len.saturating_sub(tab.scroll_state.offset);
+
+        let prev = tab
+            .terminal
+            .try_lock()
+            .ok()
+            .and_then(|term| term.scrollback_previous_mark(current_top));
+
+        if let Some(line) = prev {
+            let new_offset = scrollback_len.saturating_sub(line);
+            self.set_scroll_target(new_offset);
+        }
+    }
+
+    pub(crate) fn scroll_to_next_mark(&mut self) {
+        let Some(tab) = self.tab_manager.active_tab() else {
+            return;
+        };
+        let scrollback_len = tab.cache.scrollback_len;
+        let current_top = scrollback_len.saturating_sub(tab.scroll_state.offset);
+
+        let next = tab
+            .terminal
+            .try_lock()
+            .ok()
+            .and_then(|term| term.scrollback_next_mark(current_top));
+
+        if let Some(line) = next {
+            let new_offset = scrollback_len.saturating_sub(line);
+            self.set_scroll_target(new_offset);
+        }
+    }
 }
