@@ -1414,6 +1414,12 @@ impl WindowManager {
                 log::info!("Restarted refresh tasks with max_fps={}", config.max_fps);
             }
 
+            // Update badge state if badge settings changed
+            if changes.badge {
+                window_state.badge_state.update_config(config);
+                window_state.badge_state.mark_dirty();
+            }
+
             // Invalidate cache
             if let Some(tab) = window_state.tab_manager.active_tab_mut() {
                 tab.cache.cells = None;

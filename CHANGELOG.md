@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Badge System**: iTerm2-style semi-transparent text overlays in the terminal corner (#73)
+  - **Badge text overlay**: Displays dynamic session information in top-right corner
+  - **Dynamic variables**: 12 built-in variables using `\(session.*)` syntax
+    - `session.hostname`, `session.username`, `session.path` - Basic session info
+    - `session.job`, `session.last_command` - Command tracking
+    - `session.profile_name`, `session.tty` - Profile and TTY info
+    - `session.columns`, `session.rows` - Terminal dimensions
+    - `session.bell_count`, `session.selection`, `session.tmux_pane_title` - Advanced
+  - **Configurable appearance**: RGBA color, opacity, font family, bold toggle
+  - **Configurable position**: Top/right margins, max width/height as fraction of terminal
+  - **OSC 1337 support**: Base64-encoded `SetBadgeFormat` escape sequence with security checks
+  - **Settings UI**: Full badge configuration tab with General, Appearance, Position, and Variables sections
+  - Config options: `badge_enabled`, `badge_format`, `badge_color`, `badge_color_alpha`, `badge_font`, `badge_font_bold`, `badge_top_margin`, `badge_right_margin`, `badge_max_width`, `badge_max_height`
+
 - **Tab Bar Stretch & HTML Titles**: Tabs can now stretch to fill the bar by default (`tab_stretch_to_fill`), and tab titles support limited HTML markup (`<b>`, `<i>`, `<u>`, `<span style="color:...">`) via `tab_html_titles`.
 - **Native Paste/Copy Keys**: Recognize `NamedKey::Paste`/`NamedKey::Copy` plus Cmd/Ctrl+V/C across platforms, covering keyboards that emit dedicated paste/copy keys.
 - **Settings Reset to Defaults**: Settings UI now includes a "Reset to Defaults" button with a confirmation dialog. It rebuilds the config from defaults, resyncs all staged temp values, clears searches, and marks changes for save so users can restore a clean baseline in one click.
@@ -18,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Core Library Update**: Updated to `par-term-emu-core-rust` v0.28.0 (published crates.io version)
 - **Tab Stretch Default**: `tab_stretch_to_fill` now defaults to true so tabs auto-distribute available width while respecting `tab_min_width`.
 - **Shader Install Overwrite Prompt**: Onboarding integrations now detect user-modified bundled shaders and prompt to overwrite, skip modified files, or cancel before installing the latest shader pack. Installation uses manifest-aware logic that preserves user edits by default.
 - **Settings Reinstall Prompt Parity**: The Settings > Integrations > Custom Shaders reinstall button now shows the same overwrite/skip prompt when bundled shaders were modified, and surfaces progress/status inline.

@@ -5,6 +5,7 @@ pub mod debug;
 
 pub mod app;
 pub mod audio_bell;
+pub mod badge;
 pub mod cell_renderer;
 pub mod cli;
 pub mod clipboard_history_ui;

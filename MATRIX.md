@@ -114,7 +114,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Smart cursor color | ✅ `Smart Cursor Color` | ❌ | ❌ | ⭐⭐ | 🟢 | Auto-choose readable cursor |
 | Faint text alpha | ✅ `Faint Text Alpha` | ❌ | ❌ | ⭐ | 🟢 | Dim faint text |
 | Underline color | ✅ `Underline Color` | ❌ | ❌ | ⭐⭐ | 🟢 | Uses text foreground color |
-| Badge color | ✅ `Badge Color` | ❌ | ❌ | ⭐ | 🟢 | Part of badge feature |
+| Badge color | ✅ `Badge Color` | ✅ `badge_color`, `badge_color_alpha` | ✅ | - | - | RGBA color via config and Settings UI |
 | Tab color per profile | ✅ `Tab Color` | ✅ per-tab colors | ✅ | - | - | - |
 | Selection foreground color | ✅ | ✅ `selection_fg` | ✅ | - | - | Separate fg and bg colors |
 | **Scrollbar colors** | ❌ | ✅ thumb/track colors | ✅ | - | - | **par-term exclusive** |
@@ -290,7 +290,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Profile inheritance | ✅ Parent profiles | ❌ | ❌ | ⭐⭐ | 🟡 | Base profile + overrides |
 | Profile keyboard shortcut | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Quick profile launch |
 | Automatic profile switching | ✅ Based on hostname | ❌ | ❌ | ⭐⭐ | 🟡 | SSH host detection |
-| Profile badge | ✅ `Badge Text` | ❌ | ❌ | ⭐⭐ | 🟡 | Visual profile indicator |
+| Profile badge | ✅ `Badge Text` | 🔶 Global only | 🔶 | ⭐⭐ | 🟡 | Per-profile badge pending profiles feature |
 
 ---
 
@@ -468,31 +468,32 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Badge text overlay | ✅ Top-right corner | ❌ | ❌ | ⭐⭐ | 🟡 | Semi-transparent text label |
-| Badge color | ✅ `Badge Color` | ❌ | ❌ | ⭐⭐ | 🟢 | Configurable RGBA color |
-| Badge font | ✅ `Badge Font` | ❌ | ❌ | ⭐ | 🟢 | Custom font family and bold |
-| Badge position margins | ✅ Top/Right margins | ❌ | ❌ | ⭐ | 🟢 | Default 10px each |
-| Badge max size | ✅ Width/Height fractions | ❌ | ❌ | ⭐ | 🟢 | Default 50% width, 20% height |
-| Dynamic badge variables | ✅ `\(session.*)` syntax | ❌ | ❌ | ⭐⭐ | 🟡 | hostname, username, path, job, etc. |
-| Badge escape sequence | ✅ OSC 1337 SetBadgeFormat | ❌ | ❌ | ⭐⭐ | 🟡 | Update badge from shell |
-| Badge per-profile | ✅ Profile setting | ❌ | ❌ | ⭐⭐ | 🟡 | Different badges per profile |
-| Badge configuration UI | ✅ Visual drag-and-drop | ❌ | ❌ | ⭐ | 🟡 | Interactive position preview |
+| Badge text overlay | ✅ Top-right corner | ✅ `badge_enabled` | ✅ | - | - | Semi-transparent text label via egui overlay |
+| Badge color | ✅ `Badge Color` | ✅ `badge_color`, `badge_color_alpha` | ✅ | - | - | Configurable RGB color with separate alpha |
+| Badge font | ✅ `Badge Font` | ✅ `badge_font`, `badge_font_bold` | ✅ | - | - | Custom font family and bold toggle |
+| Badge position margins | ✅ Top/Right margins | ✅ `badge_top_margin`, `badge_right_margin` | ✅ | - | - | Default 10px each |
+| Badge max size | ✅ Width/Height fractions | ✅ `badge_max_width`, `badge_max_height` | ✅ | - | - | Default 50% width, 20% height |
+| Dynamic badge variables | ✅ `\(session.*)` syntax | ✅ 12 built-in + custom | ✅ | - | - | hostname, username, path, job, etc. |
+| Badge escape sequence | ✅ OSC 1337 SetBadgeFormat | ✅ Base64 decoding | ✅ | - | - | Update badge from shell with security checks |
+| Badge per-profile | ✅ Profile setting | ❌ | ❌ | ⭐⭐ | 🟡 | Different badges per profile (pending profiles) |
+| Badge configuration UI | ✅ Visual drag-and-drop | ✅ Settings tab | ✅ | - | - | Full settings with sliders and color picker |
 
-### Badge Variables Available in iTerm2
+### Badge Variables Available
 
-| Variable | Description |
-|----------|-------------|
-| `session.hostname` | Remote hostname (SSH) |
-| `session.username` | Current user |
-| `session.path` | Current working directory |
-| `session.job` | Foreground job name |
-| `session.last_command` | Last executed command |
-| `session.profile_name` | Current profile name |
-| `session.tty` | TTY device name |
-| `session.columns` / `session.rows` | Terminal dimensions |
-| `session.bell_count` | Number of bells |
-| `session.selection` | Selected text |
-| `session.tmux_pane_title` | tmux pane title |
+| Variable | Description | par-term |
+|----------|-------------|----------|
+| `session.hostname` | Remote hostname (SSH) | ✅ |
+| `session.username` | Current user | ✅ |
+| `session.path` | Current working directory | ✅ |
+| `session.job` | Foreground job name | ✅ |
+| `session.last_command` | Last executed command | ✅ |
+| `session.profile_name` | Current profile name | ✅ |
+| `session.tty` | TTY device name | ✅ |
+| `session.columns` / `session.rows` | Terminal dimensions | ✅ |
+| `session.bell_count` | Number of bells | ✅ |
+| `session.selection` | Selected text | ✅ |
+| `session.tmux_pane_title` | tmux pane title | ✅ |
+| Custom variables | Via escape sequences | ✅ |
 
 ---
 
@@ -525,6 +526,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 - Native split panes with binary tree layout
 - tmux control mode integration with session picker
 - Broadcast input mode (type to all panes)
+- Badge system with 12 dynamic variables and Settings UI tab
 
 ### High-Priority Missing Features (⭐⭐⭐)
 1. **Hotkey window** - Quake-style dropdown - 🔴 High effort
@@ -563,4 +565,4 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 *Updated: 2026-02-03*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.6.0*
+*par-term Version: 0.7.0+*

@@ -541,6 +541,39 @@ pub fn tmux_status_bar_refresh_ms() -> u64 {
     1000 // Default: 1 second refresh interval
 }
 
+// Badge defaults
+pub fn badge_format() -> String {
+    "\\(session.username)@\\(session.hostname)".to_string()
+}
+
+pub fn badge_color() -> [u8; 3] {
+    [255, 0, 0] // Red text (matches iTerm2 default)
+}
+
+pub fn badge_color_alpha() -> f32 {
+    0.5 // 50% opacity (semi-transparent)
+}
+
+pub fn badge_font() -> String {
+    "Helvetica".to_string()
+}
+
+pub fn badge_top_margin() -> f32 {
+    0.0 // 0 pixels from top
+}
+
+pub fn badge_right_margin() -> f32 {
+    16.0 // 16 pixels from right
+}
+
+pub fn badge_max_width() -> f32 {
+    0.5 // 50% of terminal width
+}
+
+pub fn badge_max_height() -> f32 {
+    0.2 // 20% of terminal height
+}
+
 // Session logging defaults
 pub fn session_log_directory() -> String {
     // XDG-compliant default: ~/.local/share/par-term/logs/
