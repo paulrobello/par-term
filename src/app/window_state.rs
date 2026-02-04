@@ -487,6 +487,12 @@ impl WindowState {
             metadata.as_ref(),
             cursor_metadata.as_ref(),
         );
+
+        // Drop the old renderer BEFORE creating a new one.
+        // wgpu only allows one surface per window, so the old surface must be
+        // released before we can create a new one.
+        self.renderer = None;
+
         let mut renderer = self
             .runtime
             .block_on(params.create_renderer(Arc::clone(&window)))?;

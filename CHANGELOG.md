@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Explicitly configure `ureq` to use native-tls provider instead of defaulting to rustls
   - Added `http.rs` module with properly configured HTTP agent
 
+- **Font Size Change Crash**: Fixed crash when changing font size in Settings
+  - wgpu only allows one surface per window; old renderer must be dropped before creating new one
+  - Now properly releases old surface before creating new renderer
+
 ### Added
 
 - **Windows Install Script**: Added `scripts/install-windows.bat` for building on Windows
