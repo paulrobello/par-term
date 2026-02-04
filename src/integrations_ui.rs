@@ -152,7 +152,12 @@ impl IntegrationsUI {
                             .size(14.0)
                             .weak(),
                     );
-                    ui.add_space(20.0);
+                    ui.add_space(4.0);
+                    ui.hyperlink_to(
+                        RichText::new("View Changelog").size(12.0),
+                        "https://github.com/paulrobello/par-term/blob/main/CHANGELOG.md",
+                    );
+                    ui.add_space(16.0);
                 });
 
                 // Description

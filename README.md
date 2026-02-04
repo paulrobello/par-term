@@ -12,7 +12,11 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.8.0
+## What's New in 0.8.1
+
+### 📋 Welcome Dialog Changelog Link
+
+The welcome/onboarding popup now includes a "View Changelog" link for easy access to release notes.
 
 ### 📁 Configurable Startup Directory
 

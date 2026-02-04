@@ -9,7 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.8.1] - 2026-02-04
+
 ### Added
+
+- **Welcome Dialog Changelog Link**: Added "View Changelog" hyperlink to the welcome/onboarding popup
+  - Links to GitHub CHANGELOG.md for easy access to release notes
+  - Appears below the "A GPU-accelerated terminal emulator" subtitle
 
 - **Settings UI: Profiles Tab**: New "Profiles" tab in Settings window for profile management
   - "Open Profile Manager" button to launch the profile modal from settings
