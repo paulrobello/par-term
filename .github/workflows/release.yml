@@ -374,7 +374,7 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         uses: Ilshidur/action-discord@master
         with:
-          args: 'Published {{ EVENT_PAYLOAD.repository.name }} to crates.io successfully!'
+          args: 'Published {{ EVENT_PAYLOAD.repository.name }} v${{ steps.version.outputs.version }} to crates.io successfully!'
         continue-on-error: true
 
   # Create GitHub release (after all builds complete)
