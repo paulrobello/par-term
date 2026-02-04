@@ -36,7 +36,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Variables",
         &["variable", "session", "hostname", "username", "path"],
     ) {
-        show_variables_section(ui);
+        show_variables_section(ui, settings, changes_this_frame);
     }
 }
 
@@ -248,9 +248,13 @@ fn show_position_section(
 // Variables Section (Reference)
 // ============================================================================
 
-fn show_variables_section(ui: &mut egui::Ui) {
+fn show_variables_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
     collapsing_section(ui, "Available Variables", "badge_variables", false, |ui| {
-        ui.label("Use these in your format string:");
+        ui.label("Click a variable to append it to the format string:");
         ui.add_space(4.0);
 
         let variables = [
@@ -268,20 +272,45 @@ fn show_variables_section(ui: &mut egui::Ui) {
             ("\\(session.tmux_pane_title)", "tmux pane title"),
         ];
 
+        // Collect clicked variable to avoid borrow issues
+        let mut clicked_var: Option<&str> = None;
+
         egui::Grid::new("badge_variables_grid")
             .num_columns(2)
             .spacing([10.0, 4.0])
             .show(ui, |ui| {
                 for (var, desc) in variables {
-                    ui.label(
-                        egui::RichText::new(var)
-                            .monospace()
-                            .color(egui::Color32::from_rgb(100, 150, 255)),
+                    // Make variable a clickable link
+                    let response = ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(var)
+                                .monospace()
+                                .color(egui::Color32::from_rgb(100, 150, 255)),
+                        )
+                        .sense(egui::Sense::click()),
                     );
+
+                    if response.clicked() {
+                        clicked_var = Some(var);
+                    }
+
+                    // Show pointer cursor and tooltip on hover
+                    if response.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    response.on_hover_text("Click to append to format");
+
                     ui.label(desc);
                     ui.end_row();
                 }
             });
+
+        // Handle click outside the grid to avoid borrow conflict
+        if let Some(var) = clicked_var {
+            settings.config.badge_format.push_str(var);
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
 
         ui.add_space(8.0);
         ui.label(
