@@ -210,7 +210,7 @@ impl TmuxCommand {
     // Status Bar Commands
     // =========================================================================
 
-    /// Get the left side of the status bar
+    /// Get the left side of the status bar (raw format string)
     ///
     /// Uses display-message with -p flag to print to stdout.
     /// The format uses tmux's status-left format string.
@@ -218,12 +218,37 @@ impl TmuxCommand {
         Self::new("display-message -p '#{status-left}'")
     }
 
-    /// Get the right side of the status bar
+    /// Get the right side of the status bar (raw format string)
     ///
     /// Uses display-message with -p flag to print to stdout.
     /// The format uses tmux's status-right format string.
     pub fn get_status_right() -> Self {
         Self::new("display-message -p '#{status-right}'")
+    }
+
+    /// Get the expanded left side of the status bar
+    ///
+    /// Uses `#{T:status-left}` which expands the status-left format string
+    /// to its actual content (variables resolved, shell commands executed).
+    /// This is the iTerm2 approach for native tmux format support.
+    pub fn get_status_left_expanded() -> Self {
+        Self::new("display-message -p '#{T:status-left}'")
+    }
+
+    /// Get the expanded right side of the status bar
+    ///
+    /// Uses `#{T:status-right}` which expands the status-right format string
+    /// to its actual content (variables resolved, shell commands executed).
+    /// This is the iTerm2 approach for native tmux format support.
+    pub fn get_status_right_expanded() -> Self {
+        Self::new("display-message -p '#{T:status-right}'")
+    }
+
+    /// Get the status bar refresh interval from tmux config
+    ///
+    /// Returns the `status-interval` option value in seconds.
+    pub fn get_status_interval() -> Self {
+        Self::new("display-message -p '#{status-interval}'")
     }
 
     /// Get the full status bar content (formatted)

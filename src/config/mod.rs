@@ -985,6 +985,35 @@ pub struct Config {
     #[serde(default = "defaults::tmux_prefix_key")]
     pub tmux_prefix_key: String,
 
+    /// Use native tmux format strings for status bar content
+    /// When true, queries tmux for the actual status-left and status-right values
+    /// using `display-message -p '#{T:status-left}'` command.
+    /// When false, uses par-term's configurable format strings below.
+    #[serde(default = "defaults::bool_false")]
+    pub tmux_status_bar_use_native_format: bool,
+
+    /// Tmux status bar left side format string.
+    ///
+    /// Supported variables:
+    /// - `{session}` - Session name
+    /// - `{windows}` - Window list with active marker (*)
+    /// - `{pane}` - Focused pane ID
+    /// - `{time:FORMAT}` - Current time with strftime format (e.g., `{time:%H:%M}`)
+    /// - `{hostname}` - Machine hostname
+    /// - `{user}` - Current username
+    ///
+    /// Default: `[{session}] {windows}`
+    #[serde(default = "defaults::tmux_status_bar_left")]
+    pub tmux_status_bar_left: String,
+
+    /// Tmux status bar right side format string.
+    ///
+    /// Same variables as `tmux_status_bar_left`.
+    ///
+    /// Default: `{pane} | {time:%H:%M}`
+    #[serde(default = "defaults::tmux_status_bar_right")]
+    pub tmux_status_bar_right: String,
+
     // ========================================================================
     // Focus/Blur Power Saving
     // ========================================================================
@@ -1358,6 +1387,9 @@ impl Default for Config {
             tmux_show_status_bar: defaults::bool_false(),
             tmux_status_bar_refresh_ms: defaults::tmux_status_bar_refresh_ms(),
             tmux_prefix_key: defaults::tmux_prefix_key(),
+            tmux_status_bar_use_native_format: defaults::bool_false(),
+            tmux_status_bar_left: defaults::tmux_status_bar_left(),
+            tmux_status_bar_right: defaults::tmux_status_bar_right(),
             pause_shaders_on_blur: defaults::bool_true(),
             pause_refresh_on_blur: defaults::bool_false(),
             unfocused_fps: defaults::unfocused_fps(),

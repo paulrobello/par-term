@@ -30,6 +30,7 @@ mod commands;
 pub mod parser_bridge;
 pub mod prefix;
 mod session;
+pub mod status_format;
 mod sync;
 mod types;
 
@@ -39,6 +40,7 @@ pub use prefix::{PrefixKey, PrefixState, translate_command_key};
 pub use session::{
     GatewayState, SessionState, TmuxNotification, TmuxSession, escape_keys_for_tmux,
 };
+pub use status_format::{FormatContext, expand_format, sanitize_tmux_output};
 pub use sync::{SyncAction, TmuxSync};
 pub use types::{
     LayoutNode, TmuxLayout, TmuxPane, TmuxPaneId, TmuxSessionInfo, TmuxWindow, TmuxWindowId,
