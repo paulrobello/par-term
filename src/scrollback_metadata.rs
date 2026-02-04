@@ -1,4 +1,3 @@
-use log::debug;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -109,12 +108,6 @@ impl ScrollbackMetadata {
                         last_command.as_ref().map(|c| c.start_time),
                     );
                 }
-                debug!(
-                    target: "shell_integration",
-                    "PromptStart at line {} (history_len={})",
-                    absolute_line,
-                    history_len
-                );
             }
             Some(ShellIntegrationMarker::CommandStart)
             | Some(ShellIntegrationMarker::CommandExecuted) => {
@@ -124,12 +117,6 @@ impl ScrollbackMetadata {
                 }
                 self.current_command_start = Some(absolute_line);
                 self.current_command_start_time_ms = Some(now_ms());
-                debug!(
-                    target: "shell_integration",
-                    "Command start/executed at line {} (history_len={})",
-                    absolute_line,
-                    history_len
-                );
             }
             Some(ShellIntegrationMarker::CommandFinished) => {
                 #[allow(clippy::collapsible_if)]
@@ -158,12 +145,6 @@ impl ScrollbackMetadata {
                         duration_ms: Some(duration_ms),
                     };
                     let start_line = self.finish_command(absolute_line, synthetic);
-                    debug!(
-                        target: "shell_integration",
-                        "Synthesized command for exit code {} at line {}",
-                        exit_code,
-                        absolute_line
-                    );
                     // Keep ids monotonic to avoid duplicate marks on repeated frames
                     self.last_recorded_history_len =
                         self.last_recorded_history_len.saturating_add(1);
@@ -214,30 +195,12 @@ impl ScrollbackMetadata {
                 self.finish_command(candidate_line, synthetic);
                 self.last_recorded_history_len = self.last_recorded_history_len.saturating_add(1);
                 self.last_exit_code_line = Some(candidate_line);
-                debug!(
-                    target: "shell_integration",
-                    "Synthesized completion from exit code {} at line {} (history_len={})",
-                    code,
-                    candidate_line,
-                    history_len
-                );
             }
         }
 
         self.last_marker = marker;
         self.last_marker_line = Some(absolute_line);
         self.last_exit_code = last_exit_code;
-
-        debug!(
-            target: "shell_integration",
-            "apply_event marker={:?} line={} history_len={} prompts={} commands={} exit_code={:?}",
-            marker,
-            absolute_line,
-            history_len,
-            self.prompt_lines.len(),
-            self.commands.len(),
-            last_exit_code
-        );
     }
 
     /// Produce a list of marks suitable for rendering or navigation.
@@ -323,7 +286,6 @@ impl ScrollbackMetadata {
     fn record_prompt_line(&mut self, line: usize, timestamp: Option<u64>) {
         if let Err(pos) = self.prompt_lines.binary_search(&line) {
             self.prompt_lines.insert(pos, line);
-            debug!(target: "shell_integration", "Recorded prompt line {}", line);
         }
         if let Some(ts) = timestamp {
             self.line_timestamps.entry(line).or_insert(ts);
@@ -345,14 +307,6 @@ impl ScrollbackMetadata {
         let start_time = command.start_time;
         self.commands.insert(command.id, command);
         self.line_timestamps.entry(start_line).or_insert(start_time);
-        debug!(
-            target: "shell_integration",
-            "Finished command id={} exit={:?} line={}",
-            self.commands.len().saturating_sub(1),
-            self.commands.get(&self.commands.len().saturating_sub(1)).and_then(|c| c.exit_code),
-            start_line
-        );
-
         start_line
     }
 }
