@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Configurable Startup Directory** (#74): Control where new terminal sessions start
+  - **Three modes**: `home` (default), `previous` (remember last session), `custom` (user-specified path)
+  - **Session persistence**: Previous session mode saves working directory on close and restores on next launch
+  - **Graceful fallback**: If saved/custom directory doesn't exist, falls back to home directory
+  - **Settings UI**: New "Startup Directory" section in Terminal → Shell settings tab with mode dropdown and path picker
+  - **Legacy compatibility**: Existing `working_directory` config still works and takes precedence if set
+  - Config options: `startup_directory_mode`, `startup_directory`, `last_working_directory`
+
 - **Badge System**: iTerm2-style semi-transparent text overlays in the terminal corner (#73)
   - **Badge text overlay**: Displays dynamic session information in top-right corner
   - **Dynamic variables**: 12 built-in variables using `\(session.*)` syntax

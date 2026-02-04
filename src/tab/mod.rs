@@ -342,10 +342,13 @@ impl Tab {
         // Apply common terminal configuration
         configure_terminal_from_config(&mut terminal, config);
 
-        // Determine working directory
+        // Determine working directory:
+        // 1. If explicitly provided (e.g., from tab_inherit_cwd), use that
+        // 2. Otherwise, use the configured startup directory based on mode
+        let effective_startup_dir = config.get_effective_startup_directory();
         let work_dir = working_directory
             .as_deref()
-            .or(config.working_directory.as_deref());
+            .or(effective_startup_dir.as_deref());
 
         // Get shell command and apply login shell flag
         let (shell_cmd, mut shell_args) = get_shell_command(config);
@@ -475,11 +478,12 @@ impl Tab {
         // Apply common terminal configuration
         configure_terminal_from_config(&mut terminal, config);
 
-        // Determine working directory: profile overrides config
+        // Determine working directory: profile overrides config startup directory
+        let effective_startup_dir = config.get_effective_startup_directory();
         let work_dir = profile
             .working_directory
             .as_deref()
-            .or(config.working_directory.as_deref());
+            .or(effective_startup_dir.as_deref());
 
         // Determine command and args: profile command overrides config shell
         let (shell_cmd, mut shell_args) = if let Some(ref cmd) = profile.command {

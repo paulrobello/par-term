@@ -228,6 +228,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Custom shell command | ✅ `Command` | ✅ `custom_shell` | ✅ | - | - | - |
 | Shell arguments | ✅ | ✅ `shell_args` | ✅ | - | - | - |
 | Working directory | ✅ `Working Directory` | ✅ `working_directory` | ✅ | - | - | - |
+| **Startup directory mode** | ✅ Home/Recycle/Custom | ✅ `startup_directory_mode` | ✅ | - | - | Home/Previous/Custom with graceful fallback |
 | Login shell | ✅ | ✅ `login_shell` | ✅ | - | - | - |
 | Environment variables | ✅ | ✅ `shell_env` | ✅ | - | - | - |
 | Exit behavior | ✅ Close/Restart | ✅ `exit_on_shell_exit` | 🔶 | ⭐⭐ | 🟢 | Add restart option |

@@ -37,7 +37,15 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
     if section_matches(
         &query,
         "Shell",
-        &["shell", "custom shell", "working directory", "login"],
+        &[
+            "shell",
+            "custom shell",
+            "working directory",
+            "login",
+            "startup",
+            "previous",
+            "home",
+        ],
     ) {
         show_shell_section(ui, settings, changes_this_frame);
     }
@@ -305,34 +313,6 @@ fn show_shell_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this
             }
         });
 
-        ui.horizontal(|ui| {
-            ui.label("Working directory (optional):");
-            if ui
-                .add(
-                    egui::TextEdit::singleline(&mut settings.temp_working_directory)
-                        .desired_width(INPUT_WIDTH),
-                )
-                .changed()
-            {
-                settings.config.working_directory = if settings.temp_working_directory.is_empty() {
-                    None
-                } else {
-                    Some(settings.temp_working_directory.clone())
-                };
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-
-            if ui.button("Browse...").clicked()
-                && let Some(path) = settings.pick_folder_path("Select working directory")
-            {
-                settings.temp_working_directory = path.clone();
-                settings.config.working_directory = Some(path);
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-
         if ui
             .checkbox(&mut settings.config.login_shell, "Login shell (-l)")
             .on_hover_text(
@@ -342,6 +322,89 @@ fn show_shell_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this
         {
             settings.has_changes = true;
             *changes_this_frame = true;
+        }
+
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new("Startup Directory").strong());
+
+        // Startup directory mode dropdown
+        ui.horizontal(|ui| {
+            ui.label("Mode:");
+            let mode_text = settings.config.startup_directory_mode.display_name();
+            egui::ComboBox::from_id_salt("startup_directory_mode")
+                .selected_text(mode_text)
+                .show_ui(ui, |ui| {
+                    use crate::config::StartupDirectoryMode;
+                    for mode in StartupDirectoryMode::all() {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.startup_directory_mode,
+                                *mode,
+                                mode.display_name(),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                })
+                .response
+                .on_hover_text(
+                    "Controls where new terminal sessions start:\n\
+                     • Home: Start in your home directory\n\
+                     • Previous Session: Remember and restore the last working directory\n\
+                     • Custom: Start in a specific directory",
+                );
+        });
+
+        // Custom directory path (only shown when mode is Custom)
+        if settings.config.startup_directory_mode == crate::config::StartupDirectoryMode::Custom {
+            ui.horizontal(|ui| {
+                ui.label("Custom directory:");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.temp_startup_directory)
+                            .desired_width(INPUT_WIDTH),
+                    )
+                    .changed()
+                {
+                    settings.config.startup_directory =
+                        if settings.temp_startup_directory.is_empty() {
+                            None
+                        } else {
+                            Some(settings.temp_startup_directory.clone())
+                        };
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if ui.button("Browse...").clicked()
+                    && let Some(path) = settings.pick_folder_path("Select startup directory")
+                {
+                    settings.temp_startup_directory = path.clone();
+                    settings.config.startup_directory = Some(path);
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        }
+
+        // Show last working directory info when in Previous mode
+        if settings.config.startup_directory_mode == crate::config::StartupDirectoryMode::Previous {
+            if let Some(ref last_dir) = settings.config.last_working_directory {
+                ui.label(
+                    egui::RichText::new(format!("Last session: {}", last_dir))
+                        .small()
+                        .weak(),
+                );
+            } else {
+                ui.label(
+                    egui::RichText::new("No previous session directory saved yet")
+                        .small()
+                        .weak(),
+                );
+            }
         }
     });
 }

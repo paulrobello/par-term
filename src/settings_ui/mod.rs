@@ -76,6 +76,7 @@ pub struct SettingsUI {
     pub(crate) temp_custom_shell: String,
     pub(crate) temp_shell_args: String,
     pub(crate) temp_working_directory: String,
+    pub(crate) temp_startup_directory: String,
     pub(crate) temp_initial_text: String,
     pub(crate) temp_background_image: String,
     pub(crate) temp_custom_shader: String,
@@ -227,6 +228,7 @@ impl SettingsUI {
                 .map(|args| args.join(" "))
                 .unwrap_or_default(),
             temp_working_directory: config.working_directory.clone().unwrap_or_default(),
+            temp_startup_directory: config.startup_directory.clone().unwrap_or_default(),
             temp_initial_text: config.initial_text.clone(),
             temp_background_image: config.background_image.clone().unwrap_or_default(),
             temp_custom_shader: config.custom_shader.clone().unwrap_or_default(),
@@ -374,6 +376,7 @@ impl SettingsUI {
             .map(|args| args.join(" "))
             .unwrap_or_default();
         self.temp_working_directory = self.config.working_directory.clone().unwrap_or_default();
+        self.temp_startup_directory = self.config.startup_directory.clone().unwrap_or_default();
         self.temp_initial_text = self.config.initial_text.clone();
 
         // Background temps

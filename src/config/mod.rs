@@ -23,8 +23,9 @@ pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
     DroppedFileQuoteStyle, FontRange, InstallPromptState, IntegrationVersions, KeyBinding,
     OptionKeyMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellType,
-    SmartSelectionPrecision, SmartSelectionRule, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle,
-    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
+    SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, TabBarMode, ThinStrokesMode,
+    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -596,9 +597,27 @@ pub struct Config {
     #[serde(default)]
     pub shell_args: Option<Vec<String>>,
 
-    /// Working directory for the shell (defaults to current directory)
+    /// Working directory for the shell (legacy, use startup_directory_mode instead)
+    /// When set, overrides startup_directory_mode for backward compatibility
     #[serde(default)]
     pub working_directory: Option<String>,
+
+    /// Startup directory mode: controls where new sessions start
+    /// - home: Start in user's home directory (default)
+    /// - previous: Remember and restore last working directory from previous session
+    /// - custom: Start in the directory specified by startup_directory
+    #[serde(default)]
+    pub startup_directory_mode: StartupDirectoryMode,
+
+    /// Custom startup directory (used when startup_directory_mode is "custom")
+    /// Supports ~ for home directory expansion
+    #[serde(default)]
+    pub startup_directory: Option<String>,
+
+    /// Last working directory from previous session (auto-managed)
+    /// Used when startup_directory_mode is "previous"
+    #[serde(default)]
+    pub last_working_directory: Option<String>,
 
     /// Environment variables to set for the shell
     #[serde(default)]
@@ -1249,6 +1268,9 @@ impl Default for Config {
             custom_shell: None,
             shell_args: None,
             working_directory: None,
+            startup_directory_mode: StartupDirectoryMode::default(),
+            startup_directory: None,
+            last_working_directory: None,
             shell_env: None,
             login_shell: defaults::login_shell(),
             initial_text: defaults::initial_text(),
@@ -1385,6 +1407,9 @@ impl Config {
             // Merge in any new default keybindings that don't exist in user's config
             config.merge_default_keybindings();
 
+            // Load last working directory from state file (for "previous session" mode)
+            config.load_last_working_directory();
+
             Ok(config)
         } else {
             log::info!(
@@ -1392,11 +1417,15 @@ impl Config {
                 config_path
             );
             // Create default config and save it
-            let config = Self::default();
+            let mut config = Self::default();
             if let Err(e) = config.save() {
                 log::error!("Failed to save default config: {}", e);
                 return Err(e);
             }
+
+            // Load last working directory from state file (for "previous session" mode)
+            config.load_last_working_directory();
+
             log::info!("Default config created successfully");
             Ok(config)
         }
@@ -1833,5 +1862,158 @@ impl Config {
     /// Check if either integration should be prompted
     pub fn should_prompt_integrations(&self) -> bool {
         self.should_prompt_shader_install_versioned() || self.should_prompt_shell_integration()
+    }
+
+    /// Get the effective startup directory based on configuration mode.
+    ///
+    /// Priority:
+    /// 1. Legacy `working_directory` if set (backward compatibility)
+    /// 2. Based on `startup_directory_mode`:
+    ///    - Home: Returns user's home directory
+    ///    - Previous: Returns `last_working_directory` if valid, else home
+    ///    - Custom: Returns `startup_directory` if set and valid, else home
+    ///
+    /// Returns None if the effective directory doesn't exist (caller should fall back to default).
+    pub fn get_effective_startup_directory(&self) -> Option<String> {
+        // Legacy working_directory takes precedence for backward compatibility
+        if let Some(ref wd) = self.working_directory {
+            let expanded = Self::expand_home_dir(wd);
+            if std::path::Path::new(&expanded).exists() {
+                return Some(expanded);
+            }
+            log::warn!(
+                "Configured working_directory '{}' does not exist, using default",
+                wd
+            );
+        }
+
+        match self.startup_directory_mode {
+            StartupDirectoryMode::Home => {
+                // Return home directory
+                dirs::home_dir().map(|p| p.to_string_lossy().to_string())
+            }
+            StartupDirectoryMode::Previous => {
+                // Return last working directory if it exists
+                if let Some(ref last_dir) = self.last_working_directory {
+                    let expanded = Self::expand_home_dir(last_dir);
+                    if std::path::Path::new(&expanded).exists() {
+                        return Some(expanded);
+                    }
+                    log::warn!(
+                        "Previous session directory '{}' no longer exists, using home",
+                        last_dir
+                    );
+                }
+                // Fall back to home
+                dirs::home_dir().map(|p| p.to_string_lossy().to_string())
+            }
+            StartupDirectoryMode::Custom => {
+                // Return custom directory if set and exists
+                if let Some(ref custom_dir) = self.startup_directory {
+                    let expanded = Self::expand_home_dir(custom_dir);
+                    if std::path::Path::new(&expanded).exists() {
+                        return Some(expanded);
+                    }
+                    log::warn!(
+                        "Custom startup directory '{}' does not exist, using home",
+                        custom_dir
+                    );
+                }
+                // Fall back to home
+                dirs::home_dir().map(|p| p.to_string_lossy().to_string())
+            }
+        }
+    }
+
+    /// Expand ~ to home directory in a path string
+    fn expand_home_dir(path: &str) -> String {
+        if let Some(suffix) = path.strip_prefix("~/")
+            && let Some(home) = dirs::home_dir()
+        {
+            return home.join(suffix).to_string_lossy().to_string();
+        }
+        path.to_string()
+    }
+
+    /// Get the state file path for storing session state (like last working directory)
+    pub fn state_file_path() -> PathBuf {
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(data_dir) = dirs::data_local_dir() {
+                data_dir.join("par-term").join("state.yaml")
+            } else {
+                PathBuf::from("state.yaml")
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            if let Some(home_dir) = dirs::home_dir() {
+                home_dir
+                    .join(".local")
+                    .join("share")
+                    .join("par-term")
+                    .join("state.yaml")
+            } else {
+                PathBuf::from("state.yaml")
+            }
+        }
+    }
+
+    /// Save the last working directory to state file
+    pub fn save_last_working_directory(&mut self, directory: &str) -> Result<()> {
+        self.last_working_directory = Some(directory.to_string());
+
+        // Save to state file for persistence across sessions
+        let state_path = Self::state_file_path();
+        if let Some(parent) = state_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        // Create a minimal state struct for persistence
+        #[derive(Serialize)]
+        struct SessionState {
+            last_working_directory: Option<String>,
+        }
+
+        let state = SessionState {
+            last_working_directory: Some(directory.to_string()),
+        };
+
+        let yaml = serde_yaml::to_string(&state)?;
+        fs::write(&state_path, yaml)?;
+
+        log::debug!(
+            "Saved last working directory to {:?}: {}",
+            state_path,
+            directory
+        );
+        Ok(())
+    }
+
+    /// Load the last working directory from state file
+    pub fn load_last_working_directory(&mut self) {
+        let state_path = Self::state_file_path();
+        if !state_path.exists() {
+            return;
+        }
+
+        #[derive(Deserialize)]
+        struct SessionState {
+            last_working_directory: Option<String>,
+        }
+
+        match fs::read_to_string(&state_path) {
+            Ok(contents) => {
+                if let Ok(state) = serde_yaml::from_str::<SessionState>(&contents)
+                    && let Some(dir) = state.last_working_directory
+                {
+                    log::debug!("Loaded last working directory from state file: {}", dir);
+                    self.last_working_directory = Some(dir);
+                }
+            }
+            Err(e) => {
+                log::warn!("Failed to read state file {:?}: {}", state_path, e);
+            }
+        }
     }
 }

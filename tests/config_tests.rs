@@ -768,3 +768,183 @@ auto_log_sessions: true
     assert_eq!(config.session_log_format, SessionLogFormat::Asciicast);
     assert!(config.archive_on_close);
 }
+
+// ============================================================================
+// Startup Directory Configuration Tests
+// ============================================================================
+
+use par_term::config::StartupDirectoryMode;
+
+#[test]
+fn test_startup_directory_mode_defaults() {
+    let config = Config::default();
+    assert_eq!(
+        config.startup_directory_mode,
+        StartupDirectoryMode::Home,
+        "Default startup directory mode should be Home"
+    );
+    assert!(
+        config.startup_directory.is_none(),
+        "Default startup_directory should be None"
+    );
+    assert!(
+        config.last_working_directory.is_none(),
+        "Default last_working_directory should be None"
+    );
+}
+
+#[test]
+fn test_startup_directory_mode_yaml_parsing() {
+    // Test home mode
+    let yaml = r#"startup_directory_mode: home"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.startup_directory_mode, StartupDirectoryMode::Home);
+
+    // Test previous mode
+    let yaml = r#"startup_directory_mode: previous"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(
+        config.startup_directory_mode,
+        StartupDirectoryMode::Previous
+    );
+
+    // Test custom mode
+    let yaml = r#"startup_directory_mode: custom"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.startup_directory_mode, StartupDirectoryMode::Custom);
+}
+
+#[test]
+fn test_startup_directory_custom_path() {
+    let yaml = r#"
+startup_directory_mode: custom
+startup_directory: "/tmp/test-dir"
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.startup_directory_mode, StartupDirectoryMode::Custom);
+    assert_eq!(config.startup_directory, Some("/tmp/test-dir".to_string()));
+}
+
+#[test]
+fn test_startup_directory_mode_display_names() {
+    assert_eq!(StartupDirectoryMode::Home.display_name(), "Home Directory");
+    assert_eq!(
+        StartupDirectoryMode::Previous.display_name(),
+        "Previous Session"
+    );
+    assert_eq!(
+        StartupDirectoryMode::Custom.display_name(),
+        "Custom Directory"
+    );
+}
+
+#[test]
+fn test_startup_directory_mode_all() {
+    let all_modes = StartupDirectoryMode::all();
+    assert_eq!(all_modes.len(), 3);
+    assert!(all_modes.contains(&StartupDirectoryMode::Home));
+    assert!(all_modes.contains(&StartupDirectoryMode::Previous));
+    assert!(all_modes.contains(&StartupDirectoryMode::Custom));
+}
+
+#[test]
+fn test_get_effective_startup_directory_home_mode() {
+    let config = Config::default();
+    // Home mode should return the home directory
+    let effective_dir = config.get_effective_startup_directory();
+    assert!(effective_dir.is_some(), "Should return home directory");
+    let dir = effective_dir.unwrap();
+    assert!(
+        std::path::Path::new(&dir).exists(),
+        "Home directory should exist"
+    );
+}
+
+#[test]
+fn test_get_effective_startup_directory_custom_mode_nonexistent() {
+    let yaml = r#"
+startup_directory_mode: custom
+startup_directory: "/nonexistent/path/that/does/not/exist"
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    // Should fall back to home directory when custom path doesn't exist
+    let effective_dir = config.get_effective_startup_directory();
+    assert!(
+        effective_dir.is_some(),
+        "Should fall back to home directory"
+    );
+    let dir = effective_dir.unwrap();
+    assert!(
+        std::path::Path::new(&dir).exists(),
+        "Fallback directory should exist"
+    );
+}
+
+#[test]
+fn test_get_effective_startup_directory_previous_mode_nonexistent() {
+    let yaml = r#"
+startup_directory_mode: previous
+last_working_directory: "/nonexistent/path/that/does/not/exist"
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    // Should fall back to home directory when previous path doesn't exist
+    let effective_dir = config.get_effective_startup_directory();
+    assert!(
+        effective_dir.is_some(),
+        "Should fall back to home directory"
+    );
+    let dir = effective_dir.unwrap();
+    assert!(
+        std::path::Path::new(&dir).exists(),
+        "Fallback directory should exist"
+    );
+}
+
+#[test]
+fn test_get_effective_startup_directory_custom_mode_with_tilde() {
+    let yaml = r#"
+startup_directory_mode: custom
+startup_directory: "~"
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    // Tilde should expand to home directory
+    let effective_dir = config.get_effective_startup_directory();
+    assert!(
+        effective_dir.is_some(),
+        "Should return expanded home directory"
+    );
+    let dir = effective_dir.unwrap();
+    assert!(
+        std::path::Path::new(&dir).exists(),
+        "Expanded home directory should exist"
+    );
+}
+
+#[test]
+fn test_get_effective_startup_directory_legacy_working_directory() {
+    // Legacy working_directory should take precedence
+    let yaml = r#"
+working_directory: "/tmp"
+startup_directory_mode: custom
+startup_directory: "~"
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let effective_dir = config.get_effective_startup_directory();
+    assert!(effective_dir.is_some());
+    assert_eq!(
+        effective_dir.unwrap(),
+        "/tmp",
+        "Legacy working_directory should take precedence"
+    );
+}
+
+#[test]
+fn test_startup_directory_yaml_serialization() {
+    let mut config = Config::default();
+    config.startup_directory_mode = StartupDirectoryMode::Custom;
+    config.startup_directory = Some("~/Projects".to_string());
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("startup_directory_mode: custom"));
+    assert!(yaml.contains("startup_directory: ~/Projects"));
+}

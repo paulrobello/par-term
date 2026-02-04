@@ -332,6 +332,41 @@ pub struct IntegrationVersions {
     pub shell_integration_prompted_version: Option<String>,
 }
 
+/// Startup directory mode
+///
+/// Controls where the terminal starts its working directory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum StartupDirectoryMode {
+    /// Start in the user's home directory (default)
+    #[default]
+    Home,
+    /// Remember and restore the last working directory from the previous session
+    Previous,
+    /// Start in a user-specified custom path
+    Custom,
+}
+
+impl StartupDirectoryMode {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Home => "Home Directory",
+            Self::Previous => "Previous Session",
+            Self::Custom => "Custom Directory",
+        }
+    }
+
+    /// All available modes for UI iteration
+    pub fn all() -> &'static [StartupDirectoryMode] {
+        &[
+            StartupDirectoryMode::Home,
+            StartupDirectoryMode::Previous,
+            StartupDirectoryMode::Custom,
+        ]
+    }
+}
+
 /// Detected shell type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
