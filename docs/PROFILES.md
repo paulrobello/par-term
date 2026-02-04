@@ -10,6 +10,7 @@ par-term provides a profile system for saving and quickly launching terminal ses
   - [Profile Modal](#profile-modal)
 - [Creating Profiles](#creating-profiles)
 - [Using Profiles](#using-profiles)
+- [Default Startup Directory](#default-startup-directory)
 - [Storage](#storage)
 - [Related Documentation](#related-documentation)
 
@@ -156,6 +157,46 @@ The profile modal provides full CRUD (Create, Read, Update, Delete) operations.
 - Custom command runs (or default shell if not specified)
 - Tab name updates if specified
 
+## Default Startup Directory
+
+When opening a new terminal without a profile, par-term uses the configured startup directory mode.
+
+### Startup Modes
+
+| Mode | Description |
+|------|-------------|
+| `home` | Start in home directory (default) |
+| `previous` | Start in last session's working directory |
+| `custom` | Start in a user-specified directory |
+
+### Configuration
+
+```yaml
+# Startup mode: "home", "previous", or "custom"
+startup_directory_mode: "home"
+
+# Custom directory (only used when mode is "custom")
+startup_directory: "/path/to/directory"
+```
+
+### Settings UI
+
+1. Press `F12` to open Settings
+2. Navigate to **Terminal** → **Shell**
+3. Find the **Startup Directory** section
+4. Select mode and configure path if needed
+
+### Priority
+
+Directory selection follows this priority:
+
+1. **Profile working directory** - If launching a profile with a directory set
+2. **Legacy `working_directory`** - If set in config (for backwards compatibility)
+3. **Startup directory mode** - Based on `startup_directory_mode` setting
+4. **Home directory** - Fallback if configured path doesn't exist
+
+> **📝 Note:** The `previous` mode requires shell integration to track directory changes during a session.
+
 ## Storage
 
 Profiles are stored in YAML format:
@@ -185,5 +226,6 @@ Profiles are stored in YAML format:
 
 ## Related Documentation
 
-- [README.md](../README.md) - Project overview
-- [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) - Profile keyboard shortcuts
+- [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Profile keyboard shortcuts
+- [Tabs](TABS.md) - Tab management and directory inheritance
+- [Integrations](INTEGRATIONS.md) - Shell integration for directory tracking
