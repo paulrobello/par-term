@@ -12,9 +12,48 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.7.0
+## What's New in 0.8.0
 
-### 🔌 Integrations Install System
+### 📁 Configurable Startup Directory
+
+Control where new terminal sessions start.
+
+- **Three modes**: `home` (default), `previous` (remember last session), `custom` (user-specified path)
+- **Session persistence**: Previous mode saves working directory on close and restores on next launch
+- **Settings UI**: New "Startup Directory" section in Terminal → Shell settings tab
+
+### 🏷️ Badge System
+
+iTerm2-style semi-transparent text overlays in the terminal corner.
+
+- **Dynamic variables**: 12 built-in variables using `\(session.*)` syntax
+- **Configurable appearance**: RGBA color, opacity, font family, bold toggle
+- **OSC 1337 support**: Base64-encoded `SetBadgeFormat` escape sequence
+- **Settings UI**: Full badge configuration tab with General, Appearance, Position, and Variables sections
+
+### 📊 Scrollbar Mark Tooltips
+
+Hover over scrollbar command markers to see command details.
+
+- **Command info**: Shows command text, execution time, duration, and exit code
+- **Color-coded marks**: Green for success, red for failure
+- **Mark navigation**: `Cmd+Up/Down` to jump between command marks
+- Enable via Settings → Terminal → Scrollbar → "Show tooltips on hover"
+
+### 🎨 Tab Bar Enhancements
+
+- **Tab stretch**: Tabs auto-fill bar width (`tab_stretch_to_fill`, default on)
+- **HTML titles**: Support `<b>`, `<i>`, `<u>`, `<span style="color:...">` in tab titles
+
+### ⚙️ Settings Improvements
+
+- **Reset to Defaults**: New button to restore all settings to defaults
+- **Shader overwrite prompts**: Detect user-modified shaders and prompt before overwriting
+
+<details>
+<summary><strong>What's New in 0.7.0</strong></summary>
+
+#### 🔌 Integrations Install System
 
 Unified installation for optional par-term enhancements.
 
@@ -25,7 +64,7 @@ Unified installation for optional par-term enhancements.
 - **Welcome Dialog**: First-run prompt offering to install both integrations
 - **Settings UI Tab**: New "Integrations" tab (🔌) for managing installations
 
-### 👤 Profile System
+#### 👤 Profile System
 
 iTerm2-style profiles for saved terminal configurations.
 
@@ -34,7 +73,7 @@ iTerm2-style profiles for saved terminal configurations.
 - **Profile Settings**: Name, emoji icon, working directory, custom command, tab name override
 - **Persistence**: Profiles saved to `~/.config/par-term/profiles.yaml`
 
-### 📹 Session Logging & Recording
+#### 📹 Session Logging & Recording
 
 Automatic session logging to record terminal output.
 
@@ -42,13 +81,13 @@ Automatic session logging to record terminal output.
 - **Hotkey Toggle**: `Cmd/Ctrl+Shift+R` to start/stop session recording on demand
 - **CLI Option**: `--log-session` flag to enable logging at startup
 
-### 🔳 tmux Integration Enhancements
+#### 🔳 tmux Integration Enhancements
 
 - **Native Status Bar**: Session name, window list, and time display at terminal bottom
 - **Bidirectional Pane Resize**: Resizing in par-term updates external tmux clients
 - **Auto-Close Exited Panes**: Panes close when their shell process exits
 
-### 🔍 Terminal Search
+#### 🔍 Terminal Search
 
 Search through scrollback buffer with `Cmd/Ctrl+F`.
 
@@ -56,7 +95,7 @@ Search through scrollback buffer with `Cmd/Ctrl+F`.
 - Search options: case sensitive, regex mode, whole word
 - Proper Unicode support for multi-byte characters
 
-### 📋 Paste Special
+#### 📋 Paste Special
 
 Transform clipboard content before pasting with `Cmd/Ctrl+Shift+V`.
 
@@ -64,12 +103,14 @@ Transform clipboard content before pasting with `Cmd/Ctrl+Shift+V`.
 - Live preview with keyboard navigation
 - Integration with clipboard history via `Shift+Enter`
 
-### ⌨️ Option Key as Meta/Esc
+#### ⌨️ Option Key as Meta/Esc
 
 Essential feature for emacs/vim users.
 
 - Configure left and right Option/Alt key behavior independently
 - Three modes: Normal (special characters), Meta (high bit), Esc (ESC prefix)
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.6.0</strong></summary>
