@@ -127,6 +127,10 @@ version = "8.0"
 [dev-dependencies]
 tempfile = "3.24"
 
+# Windows resources (icon embedding)
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winres = "0.1"
+
 [lib]
 name = "par_term"
 path = "src/lib.rs"

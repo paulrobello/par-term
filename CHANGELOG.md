@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The `notify` crate was configured with macOS-only backend, leaving Windows without file watching support
   - Now uses platform-specific configuration: kqueue on macOS, ReadDirectoryChangesW on Windows, inotify on Linux
 
+- **Windows Taskbar Icon Loss** (#79): Fixed icon reverting to generic Windows icon when pinning app to taskbar
+  - Added Windows resource embedding via `winres` build dependency
+  - Created `assets/par-term.ico` with multiple icon sizes (16, 32, 48, 64, 128, 256)
+  - Icon is now properly embedded in the Windows executable
+
 ### Added
 
 - **Windows Install Script**: Added `scripts/install-windows.bat` for building on Windows
