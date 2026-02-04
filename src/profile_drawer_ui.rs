@@ -95,7 +95,7 @@ impl ProfileDrawerUI {
         &mut self,
         ctx: &egui::Context,
         profile_manager: &ProfileManager,
-        _config: &Config,
+        config: &Config,
         modal_visible: bool,
     ) -> ProfileDrawerAction {
         let mut action = ProfileDrawerAction::None;
@@ -143,8 +143,9 @@ impl ProfileDrawerUI {
             egui::vec2(button_width, button_height),
         );
 
-        // Render toggle button (skip if modal is open to avoid z-order issues)
-        if !modal_visible {
+        // Render toggle button (skip if modal is open to avoid z-order issues,
+        // or if profile drawer button is disabled in config)
+        if !modal_visible && config.show_profile_drawer_button {
             egui::Area::new(egui::Id::new("profile_drawer_toggle_area"))
                 .fixed_pos(button_rect.min)
                 .order(egui::Order::Foreground)

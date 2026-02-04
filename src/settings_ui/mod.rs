@@ -8,7 +8,7 @@ use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 use rfd::FileDialog;
 use std::collections::HashSet;
 
-// Reorganized settings tabs (9 consolidated tabs)
+// Reorganized settings tabs (10 consolidated tabs)
 pub mod advanced_tab;
 pub mod appearance_tab;
 pub mod badge_tab;
@@ -16,6 +16,7 @@ pub mod effects_tab;
 pub mod input_tab;
 pub mod integrations_tab;
 pub mod notifications_tab;
+pub mod profiles_tab;
 pub mod quick_settings;
 pub mod section;
 pub mod sidebar;
@@ -181,6 +182,10 @@ pub struct SettingsUI {
     // Integrations tab action state
     /// Pending shell integration action (install/uninstall)
     pub(crate) shell_integration_action: Option<integrations_tab::ShellIntegrationAction>,
+
+    // Profiles tab action state
+    /// Flag to request opening the profile manager modal
+    pub open_profile_manager_requested: bool,
     // Shader install workflow state
     /// Whether a shader install/uninstall operation is running
     shader_installing: bool,
@@ -282,6 +287,7 @@ impl SettingsUI {
             selected_tab: SettingsTab::default(),
             collapsed_sections: HashSet::new(),
             shell_integration_action: None,
+            open_profile_manager_requested: false,
             shader_installing: false,
             shader_status: None,
             shader_error: None,
@@ -588,6 +594,13 @@ impl SettingsUI {
     pub fn take_test_notification_request(&mut self) -> bool {
         let requested = self.test_notification_requested;
         self.test_notification_requested = false;
+        requested
+    }
+
+    /// Check if opening the profile manager was requested and clear the flag
+    pub fn take_open_profile_manager_request(&mut self) -> bool {
+        let requested = self.open_profile_manager_requested;
+        self.open_profile_manager_requested = false;
         requested
     }
 
@@ -1000,6 +1013,9 @@ impl SettingsUI {
             }
             SettingsTab::Badge => {
                 badge_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Profiles => {
+                profiles_tab::show(ui, self, changes_this_frame);
             }
             SettingsTab::Notifications => {
                 notifications_tab::show(ui, self, changes_this_frame);

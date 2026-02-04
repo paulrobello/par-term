@@ -894,6 +894,20 @@ impl ApplicationHandler for WindowManager {
                         // Send a test notification to verify permissions
                         self.send_test_notification();
                     }
+                    SettingsWindowAction::OpenProfileManager => {
+                        // Open the profile modal in the focused terminal window
+                        if let Some(window_id) = self.get_focused_window_id()
+                            && let Some(window_state) = self.windows.get_mut(&window_id)
+                        {
+                            window_state
+                                .profile_modal_ui
+                                .open(&window_state.profile_manager);
+                            window_state.needs_redraw = true;
+                            if let Some(window) = &window_state.window {
+                                window.request_redraw();
+                            }
+                        }
+                    }
                     SettingsWindowAction::None => {}
                 }
             }

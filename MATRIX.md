@@ -566,6 +566,6 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 ---
 
-*Updated: 2026-02-03*
+*Updated: 2026-02-04*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.7.0+*
+*par-term Version: 0.8.0+*

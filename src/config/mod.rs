@@ -779,6 +779,11 @@ pub struct Config {
     #[serde(default = "defaults::zero")]
     pub max_tabs: usize,
 
+    /// Show the profile drawer toggle button on the right edge of the terminal
+    /// When disabled, the profile drawer can still be opened via keyboard shortcut
+    #[serde(default = "defaults::bool_false")]
+    pub show_profile_drawer_button: bool,
+
     // ========================================================================
     // Tab Bar Colors
     // ========================================================================
@@ -1308,6 +1313,7 @@ impl Default for Config {
             tab_show_index: defaults::bool_false(),
             tab_inherit_cwd: defaults::bool_true(),
             max_tabs: defaults::zero(),
+            show_profile_drawer_button: defaults::bool_false(),
             tab_bar_background: defaults::tab_bar_background(),
             tab_active_background: defaults::tab_active_background(),
             tab_inactive_background: defaults::tab_inactive_background(),
