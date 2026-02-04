@@ -620,6 +620,17 @@ impl TerminalManager {
         term.shell_integration().command().map(String::from)
     }
 
+    /// Get hostname from shell integration (OSC 7)
+    ///
+    /// Returns the hostname extracted from OSC 7 `file://hostname/path` format.
+    /// Returns None for localhost (implicit in `file:///path` format).
+    pub fn shell_integration_hostname(&self) -> Option<String> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.shell_integration().hostname().map(String::from)
+    }
+
     // TODO: Shell integration stats API not yet available in par-term-emu-core-rust
     /*
     /// Get shell integration statistics

@@ -47,6 +47,12 @@ pub struct ProfileModalUI {
     temp_args: String,
     temp_tab_name: String,
     temp_icon: String,
+    // New fields for enhanced profile system (issue #78)
+    temp_tags: String,
+    temp_parent_id: Option<ProfileId>,
+    temp_keyboard_shortcut: String,
+    temp_hostname_patterns: String,
+    temp_badge_text: String,
 
     /// Selected profile in list view
     selected_id: Option<ProfileId>,
@@ -72,6 +78,11 @@ impl ProfileModalUI {
             temp_args: String::new(),
             temp_tab_name: String::new(),
             temp_icon: String::new(),
+            temp_tags: String::new(),
+            temp_parent_id: None,
+            temp_keyboard_shortcut: String::new(),
+            temp_hostname_patterns: String::new(),
+            temp_badge_text: String::new(),
             selected_id: None,
             has_changes: false,
             validation_error: None,
@@ -119,6 +130,11 @@ impl ProfileModalUI {
         self.temp_args.clear();
         self.temp_tab_name.clear();
         self.temp_icon.clear();
+        self.temp_tags.clear();
+        self.temp_parent_id = None;
+        self.temp_keyboard_shortcut.clear();
+        self.temp_hostname_patterns.clear();
+        self.temp_badge_text.clear();
         self.validation_error = None;
     }
 
@@ -134,6 +150,12 @@ impl ProfileModalUI {
             .unwrap_or_default();
         self.temp_tab_name = profile.tab_name.clone().unwrap_or_default();
         self.temp_icon = profile.icon.clone().unwrap_or_default();
+        // New fields
+        self.temp_tags = profile.tags.join(", ");
+        self.temp_parent_id = profile.parent_id;
+        self.temp_keyboard_shortcut = profile.keyboard_shortcut.clone().unwrap_or_default();
+        self.temp_hostname_patterns = profile.hostname_patterns.join(", ");
+        self.temp_badge_text = profile.badge_text.clone().unwrap_or_default();
     }
 
     /// Create a profile from form fields
@@ -161,6 +183,30 @@ impl ProfileModalUI {
         }
         if !self.temp_icon.is_empty() {
             profile.icon = Some(self.temp_icon.clone());
+        }
+        // New fields
+        if !self.temp_tags.is_empty() {
+            profile.tags = self
+                .temp_tags
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+        profile.parent_id = self.temp_parent_id;
+        if !self.temp_keyboard_shortcut.is_empty() {
+            profile.keyboard_shortcut = Some(self.temp_keyboard_shortcut.clone());
+        }
+        if !self.temp_hostname_patterns.is_empty() {
+            profile.hostname_patterns = self
+                .temp_hostname_patterns
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+        if !self.temp_badge_text.is_empty() {
+            profile.badge_text = Some(self.temp_badge_text.clone());
         }
 
         profile
@@ -305,7 +351,7 @@ impl ProfileModalUI {
             }
         }
 
-        let modal_size = egui::vec2(500.0, 450.0);
+        let modal_size = egui::vec2(550.0, 580.0);
 
         egui::Window::new("Manage Profiles")
             .collapsible(false)
@@ -505,82 +551,155 @@ impl ProfileModalUI {
         ui.heading(title);
         ui.separator();
 
-        // Form
-        egui::Grid::new("profile_form")
-            .num_columns(2)
-            .spacing([10.0, 8.0])
+        // Form in a scrollable area to handle many fields
+        egui::ScrollArea::vertical()
+            .max_height(ui.available_height() - 60.0)
             .show(ui, |ui| {
-                ui.label("Name:");
-                ui.text_edit_singleline(&mut self.temp_name);
-                ui.end_row();
+                egui::Grid::new("profile_form")
+                    .num_columns(2)
+                    .spacing([10.0, 8.0])
+                    .show(ui, |ui| {
+                        // === Basic Settings ===
+                        ui.label("Name:");
+                        ui.text_edit_singleline(&mut self.temp_name);
+                        ui.end_row();
 
-                ui.label("Icon:");
-                ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.temp_icon);
-                    ui.label(
-                        egui::RichText::new("(emoji)")
-                            .small()
-                            .color(egui::Color32::GRAY),
-                    );
-                });
-                ui.end_row();
+                        ui.label("Icon:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_icon);
+                            ui.label(
+                                egui::RichText::new("(emoji)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
 
-                ui.label("Working Directory:");
-                ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.temp_working_dir);
-                    if ui.small_button("Browse...").clicked()
-                        && let Some(path) = rfd::FileDialog::new().pick_folder()
-                    {
-                        self.temp_working_dir = path.display().to_string();
-                    }
-                });
-                ui.end_row();
+                        ui.label("Working Directory:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_working_dir);
+                            if ui.small_button("Browse...").clicked()
+                                && let Some(path) = rfd::FileDialog::new().pick_folder()
+                            {
+                                self.temp_working_dir = path.display().to_string();
+                            }
+                        });
+                        ui.end_row();
 
-                ui.label("Command:");
-                ui.text_edit_singleline(&mut self.temp_command);
-                ui.end_row();
+                        ui.label("Command:");
+                        ui.text_edit_singleline(&mut self.temp_command);
+                        ui.end_row();
 
-                ui.label("Arguments:");
-                ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.temp_args);
-                    ui.label(
-                        egui::RichText::new("(space-separated)")
-                            .small()
-                            .color(egui::Color32::GRAY),
-                    );
-                });
-                ui.end_row();
+                        ui.label("Arguments:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_args);
+                            ui.label(
+                                egui::RichText::new("(space-separated)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
 
-                ui.label("Tab Name:");
-                ui.horizontal(|ui| {
-                    ui.text_edit_singleline(&mut self.temp_tab_name);
-                    ui.label(
-                        egui::RichText::new("(optional)")
-                            .small()
-                            .color(egui::Color32::GRAY),
-                    );
-                });
-                ui.end_row();
+                        ui.label("Tab Name:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_tab_name);
+                            ui.label(
+                                egui::RichText::new("(optional)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
+                    });
+
+                // === Enhanced Features Section (issue #78) ===
+                ui.add_space(12.0);
+                ui.separator();
+                ui.label(
+                    egui::RichText::new("Enhanced Features")
+                        .strong()
+                        .color(egui::Color32::LIGHT_BLUE),
+                );
+                ui.add_space(4.0);
+
+                egui::Grid::new("profile_form_enhanced")
+                    .num_columns(2)
+                    .spacing([10.0, 8.0])
+                    .show(ui, |ui| {
+                        // Tags
+                        ui.label("Tags:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_tags);
+                            ui.label(
+                                egui::RichText::new("(comma-separated)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
+
+                        // Parent profile (inheritance)
+                        ui.label("Inherit From:");
+                        self.render_parent_selector(ui);
+                        ui.end_row();
+
+                        // Keyboard shortcut
+                        ui.label("Keyboard Shortcut:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_keyboard_shortcut);
+                            ui.label(
+                                egui::RichText::new("(e.g. Cmd+1)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
+
+                        // Hostname patterns for auto-switching
+                        ui.label("Auto-Switch Hosts:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_hostname_patterns);
+                            ui.label(
+                                egui::RichText::new("(*.example.com)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
+
+                        // Badge text
+                        ui.label("Badge Text:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_badge_text);
+                            ui.label(
+                                egui::RichText::new("(overrides global)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
+                    });
+
+                // Validation error
+                if let Some(error) = &self.validation_error {
+                    ui.add_space(8.0);
+                    ui.colored_label(egui::Color32::RED, error);
+                }
+
+                // Help text
+                ui.add_space(16.0);
+                ui.label(
+                    egui::RichText::new(
+                        "Note: Inherited settings from parent profiles are used when this profile's field is empty.",
+                    )
+                    .small()
+                    .color(egui::Color32::GRAY),
+                );
             });
 
-        // Validation error
-        if let Some(error) = &self.validation_error {
-            ui.add_space(8.0);
-            ui.colored_label(egui::Color32::RED, error);
-        }
-
-        // Help text
-        ui.add_space(16.0);
-        ui.label(
-            egui::RichText::new(
-                "Note: If a command is specified, it will run from the working directory.",
-            )
-            .small()
-            .color(egui::Color32::GRAY),
-        );
-
         // Footer buttons
-        ui.add_space(16.0);
+        ui.add_space(8.0);
         ui.separator();
         ui.horizontal(|ui| {
             if ui.button("Save Profile").clicked() {
@@ -590,6 +709,53 @@ impl ProfileModalUI {
                 self.cancel_edit();
             }
         });
+    }
+
+    /// Render the parent profile selector dropdown
+    fn render_parent_selector(&mut self, ui: &mut egui::Ui) {
+        // Get valid parents (excludes self and ancestors to prevent cycles)
+        let current_id = self.editing_id;
+        let valid_parents: Vec<_> = self
+            .working_profiles
+            .iter()
+            .filter(|p| {
+                // Cannot select self as parent
+                if Some(p.id) == current_id {
+                    return false;
+                }
+                // TODO: Full cycle detection would require checking if selecting this
+                // profile as parent would create a cycle. For now, allow any non-self.
+                true
+            })
+            .map(|p| (p.id, p.display_label()))
+            .collect();
+
+        let selected_label = self
+            .temp_parent_id
+            .and_then(|id| self.working_profiles.iter().find(|p| p.id == id))
+            .map(|p| p.display_label())
+            .unwrap_or_else(|| "(None)".to_string());
+
+        egui::ComboBox::from_id_salt("parent_profile_selector")
+            .selected_text(&selected_label)
+            .show_ui(ui, |ui| {
+                // Option to clear parent
+                if ui
+                    .selectable_label(self.temp_parent_id.is_none(), "(None)")
+                    .clicked()
+                {
+                    self.temp_parent_id = None;
+                }
+                // List valid parents
+                for (id, label) in valid_parents {
+                    if ui
+                        .selectable_label(self.temp_parent_id == Some(id), &label)
+                        .clicked()
+                    {
+                        self.temp_parent_id = Some(id);
+                    }
+                }
+            });
     }
 }
 

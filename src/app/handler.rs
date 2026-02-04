@@ -650,6 +650,11 @@ impl WindowState {
         // Update window title with shell integration info (CWD, exit code)
         self.update_window_title_with_shell_integration();
 
+        // Check for automatic profile switching based on hostname detection (OSC 7)
+        if self.check_auto_profile_switch() {
+            self.needs_redraw = true;
+        }
+
         // --- POWER SAVING & SMART REDRAW LOGIC ---
         // We use ControlFlow::WaitUntil to sleep until the next expected event.
         // This drastically reduces CPU/GPU usage compared to continuous polling (ControlFlow::Poll).
