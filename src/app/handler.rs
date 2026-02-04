@@ -179,6 +179,20 @@ impl WindowState {
         match event {
             WindowEvent::CloseRequested => {
                 log::info!("Close requested for window");
+
+                // Save last working directory for "previous session" mode
+                if self.config.startup_directory_mode
+                    == crate::config::StartupDirectoryMode::Previous
+                    && let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
+                    && let Some(cwd) = term.shell_integration_cwd()
+                {
+                    log::info!("Saving last working directory: {}", cwd);
+                    if let Err(e) = self.config.save_last_working_directory(&cwd) {
+                        log::warn!("Failed to save last working directory: {}", e);
+                    }
+                }
+
                 // Set shutdown flag to stop redraw loop
                 self.is_shutting_down = true;
                 // Abort refresh tasks for all tabs
