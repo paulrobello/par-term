@@ -24,6 +24,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify no local path dependencies
+        run: |
+          echo "Checking for local path dependencies in Cargo.toml..."
+
+          # Check specifically for par-term-emu-core-rust path dependency
+          if grep -E 'par-term-emu-core-rust.*path\s*=' Cargo.toml; then
+            echo "::error::Cargo.toml contains a local path dependency for par-term-emu-core-rust"
+            echo "::error::Please update to use the published crates.io version before releasing"
+            exit 1
+          fi
+
+          # Check for any path dependencies (general check)
+          if grep -E '^\s*path\s*=' Cargo.toml; then
+            echo "::error::Cargo.toml contains local path dependencies"
+            echo "::error::All dependencies must use published versions for release"
+            exit 1
+          fi
+
+          echo "✓ No local path dependencies found"
+          echo "✓ Cargo.toml is ready for publish"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
@@ -38,7 +59,7 @@ jobs:
         id: version
         run: |
           CARGO_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
-          echo "version=$CARGO_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$CARGO_VERSION" >> "$GITHUB_OUTPUT"
           echo "Cargo.toml version: $CARGO_VERSION"
 
       - name: Check if version exists on crates.io
@@ -49,10 +70,10 @@ jobs:
 
           # Search for the exact version
           if cargo search par-term --limit 1 | grep -q "par-term = \"$VERSION\""; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "Warning: Version $VERSION already exists on crates.io"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "Version $VERSION not found on crates.io, proceeding with publish"
           fi
 

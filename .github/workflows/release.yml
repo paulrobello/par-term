@@ -17,11 +17,41 @@ env:
   RUST_VERSION: "1.85.0"
 
 jobs:
+  # Preflight checks - verify Cargo.toml is ready for release
+  preflight-checks:
+    name: Preflight Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify no local path dependencies
+        run: |
+          echo "Checking for local path dependencies in Cargo.toml..."
+
+          # Check specifically for par-term-emu-core-rust path dependency
+          if grep -E 'par-term-emu-core-rust.*path\s*=' Cargo.toml; then
+            echo "::error::Cargo.toml contains a local path dependency for par-term-emu-core-rust"
+            echo "::error::Please update to use the published crates.io version before releasing"
+            exit 1
+          fi
+
+          # Check for any path dependencies (general check)
+          if grep -E '^\s*path\s*=' Cargo.toml; then
+            echo "::error::Cargo.toml contains local path dependencies"
+            echo "::error::All dependencies must use published versions for release"
+            exit 1
+          fi
+
+          echo "✓ No local path dependencies found"
+          echo "✓ Cargo.toml is ready for release"
+
   # Build Linux ARM64 using cross (parallel)
   build-linux-arm64:
     name: Build binary - Linux ARM64
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: [preflight-checks]
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +67,7 @@ jobs:
       - name: Get version
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Build binary with cross
         run: cross build --release --target aarch64-unknown-linux-gnu
@@ -59,6 +89,7 @@ jobs:
     name: Build binary - Linux x86_64
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: [preflight-checks]
     steps:
       - uses: actions/checkout@v4
 
@@ -79,7 +110,7 @@ jobs:
       - name: Get version
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Build binary
         run: cargo build --release --target x86_64-unknown-linux-gnu
@@ -104,6 +135,7 @@ jobs:
     name: Build binary - Windows x86_64
     runs-on: windows-latest
     timeout-minutes: 20
+    needs: [preflight-checks]
     steps:
       - uses: actions/checkout@v4
 
@@ -120,7 +152,7 @@ jobs:
         shell: bash
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Build binary
         run: cargo build --release --target x86_64-pc-windows-msvc
@@ -143,6 +175,7 @@ jobs:
     name: Build binary - macOS x86_64
     runs-on: macos-latest
     timeout-minutes: 20
+    needs: [preflight-checks]
     steps:
       - uses: actions/checkout@v4
 
@@ -158,7 +191,7 @@ jobs:
       - name: Get version
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Build binary
         run: cargo build --release --target x86_64-apple-darwin
@@ -221,6 +254,7 @@ jobs:
     name: Build binary - macOS ARM64
     runs-on: macos-latest
     timeout-minutes: 20
+    needs: [preflight-checks]
     steps:
       - uses: actions/checkout@v4
 
@@ -236,7 +270,7 @@ jobs:
       - name: Get version
         run: |
           VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Build binary
         run: cargo build --release --target aarch64-apple-darwin
@@ -317,7 +351,7 @@ jobs:
         id: version
         run: |
           CARGO_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
-          echo "version=$CARGO_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$CARGO_VERSION" >> "$GITHUB_OUTPUT"
           echo "Cargo.toml version: $CARGO_VERSION"
 
       - name: Run tests
@@ -363,7 +397,7 @@ jobs:
         id: get_version
         run: |
           version=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
-          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Package version: $version"
 
       - name: Download binary artifacts
