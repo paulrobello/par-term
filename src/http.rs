@@ -13,12 +13,11 @@ use ureq::Agent;
 /// the system's TLS library (Schannel on Windows, OpenSSL on Linux,
 /// Security.framework on macOS).
 ///
-/// We explicitly use WebPki (Mozilla's) root certificates instead of the
-/// platform verifier to avoid certificate trust issues on some Windows systems.
+/// We use PlatformVerifier to use the system's built-in root certificates.
 pub fn agent() -> Agent {
     let tls_config = TlsConfig::builder()
         .provider(TlsProvider::NativeTls)
-        .root_certs(RootCerts::WebPki)
+        .root_certs(RootCerts::PlatformVerifier)
         .build();
 
     Agent::config_builder()
