@@ -45,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - wgpu only allows one surface per window; old renderer must be dropped before creating new one
   - Now properly releases old surface before creating new renderer
 
+- **Windows File Watching**: Fixed shader hot reload not working on Windows
+  - The `notify` crate was configured with macOS-only backend, leaving Windows without file watching support
+  - Now uses platform-specific configuration: kqueue on macOS, ReadDirectoryChangesW on Windows, inotify on Linux
+
 ### Added
 
 - **Windows Install Script**: Added `scripts/install-windows.bat` for building on Windows

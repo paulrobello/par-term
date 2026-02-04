@@ -87,9 +87,6 @@ half = "2.7.1"
 # GLSL to WGSL transpilation for custom shaders
 naga = { version = "27", features = ["glsl-in", "wgsl-out"] }
 
-# File watching for shader hot reload
-notify = { version = "8.0", default-features = false, features = ["macos_kqueue"] }
-
 # Native window menus
 muda = "0.17.1"
 libc = "0.2.180"
@@ -115,6 +112,17 @@ objc2-app-kit = "0.3.2"
 objc2-foundation = "0.3.2"
 objc2-quartz-core = "0.3.2"
 raw-window-handle = "0.6.2"
+
+# File watching for shader hot reload - platform-specific backends
+# macOS: use kqueue for better performance
+[target.'cfg(target_os = "macos")'.dependencies.notify]
+version = "8.0"
+default-features = false
+features = ["macos_kqueue"]
+
+# Windows/Linux: use default backends (ReadDirectoryChangesW on Windows, inotify on Linux)
+[target.'cfg(not(target_os = "macos"))'.dependencies.notify]
+version = "8.0"
 
 [dev-dependencies]
 tempfile = "3.24"
