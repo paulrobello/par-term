@@ -4,8 +4,8 @@
 //! for TLS connections, which works better in VM environments where
 //! ring/rustls may have issues.
 
-use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 use ureq::Agent;
+use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 
 /// Create a new HTTP agent configured with native-tls.
 ///
