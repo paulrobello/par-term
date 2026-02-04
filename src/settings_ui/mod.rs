@@ -8,9 +8,10 @@ use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 use rfd::FileDialog;
 use std::collections::HashSet;
 
-// Reorganized settings tabs (8 consolidated tabs)
+// Reorganized settings tabs (9 consolidated tabs)
 pub mod advanced_tab;
 pub mod appearance_tab;
+pub mod badge_tab;
 pub mod effects_tab;
 pub mod input_tab;
 pub mod integrations_tab;
@@ -994,6 +995,9 @@ impl SettingsUI {
             }
             SettingsTab::Effects => {
                 effects_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Badge => {
+                badge_tab::show(ui, self, changes_this_frame);
             }
             SettingsTab::Notifications => {
                 notifications_tab::show(ui, self, changes_this_frame);

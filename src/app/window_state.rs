@@ -5,6 +5,7 @@
 
 use crate::app::anti_idle::should_send_keep_alive;
 use crate::app::debug_state::DebugState;
+use crate::badge::{BadgeState, render_badge};
 use crate::cell_renderer::PaneViewport;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::config::{
@@ -205,6 +206,10 @@ pub struct WindowState {
     // Broadcast input mode
     /// Whether keyboard input is broadcast to all panes in current tab
     pub(crate) broadcast_input: bool,
+
+    // Badge overlay
+    /// Badge state for session information display
+    pub(crate) badge_state: BadgeState,
 }
 
 impl WindowState {
@@ -227,6 +232,9 @@ impl WindowState {
                 ProfileManager::new()
             }
         };
+
+        // Create badge state before moving config
+        let badge_state = BadgeState::new(&config);
 
         Self {
             config,
@@ -304,6 +312,8 @@ impl WindowState {
             native_pane_to_tmux_pane: std::collections::HashMap::new(),
 
             broadcast_input: false,
+
+            badge_state,
         }
     }
 
@@ -1588,6 +1598,9 @@ impl WindowState {
         let status_bar_height =
             crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
 
+        // Capture window size before mutable borrow (for badge rendering in egui)
+        let window_size_for_badge = self.renderer.as_ref().map(|r| r.size());
+
         if let Some(renderer) = &mut self.renderer {
             // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
             let disable_cursor_shader =
@@ -1715,6 +1728,18 @@ impl WindowState {
                 avg.as_secs_f64() * 1000.0
             } else {
                 0.0
+            };
+
+            // Capture badge state for closure (uses window_size_for_badge captured earlier)
+            let badge_enabled = self.badge_state.enabled;
+            let badge_state = if badge_enabled {
+                // Update variables if dirty
+                if self.badge_state.is_dirty() {
+                    self.badge_state.interpolate();
+                }
+                Some(self.badge_state.clone())
+            } else {
+                None
             };
 
             let egui_data = if let (Some(egui_ctx), Some(egui_state)) =
@@ -1845,6 +1870,11 @@ impl WindowState {
 
                     // Render profile modal (management dialog)
                     pending_profile_modal_action = self.profile_modal_ui.show(ctx);
+
+                    // Render badge overlay (top-right corner)
+                    if let (Some(badge), Some(size)) = (&badge_state, window_size_for_badge) {
+                        render_badge(ctx, badge, size.width as f32, size.height as f32);
+                    }
                 });
 
                 // Handle egui platform output (clipboard, cursor changes, etc.)

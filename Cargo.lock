@@ -2069,6 +2069,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hostname"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "617aaa3557aef3810a6369d0a99fac8a080891b68bd9f9812a1eeda0c0730cbd"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "windows-link 0.2.1",
+]
+
+[[package]]
 name = "http"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3449,6 +3460,7 @@ version = "0.7.0"
 dependencies = [
  "anyhow",
  "arboard",
+ "base64",
  "bytemuck",
  "chrono",
  "clap",
@@ -3459,6 +3471,7 @@ dependencies = [
  "env_logger",
  "fontdb",
  "half",
+ "hostname",
  "image",
  "libc",
  "log",
@@ -3497,12 +3510,13 @@ dependencies = [
 [[package]]
 name = "par-term-emu-core-rust"
 version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea737891a2521febc41918d48ebec20f412b3d973f69cda1878b531f6f28b028"
 dependencies = [
  "base64",
  "bitflags 2.10.0",
  "image",
  "libc",
- "log",
  "parking_lot",
  "portable-pty",
  "regex",

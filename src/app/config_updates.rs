@@ -92,6 +92,9 @@ pub(crate) struct ConfigChanges {
 
     // Keybindings
     pub keybindings: bool,
+
+    // Badge
+    pub badge: bool,
 }
 
 impl ConfigChanges {
@@ -215,6 +218,17 @@ impl ConfigChanges {
             blur: new.blur_enabled != old.blur_enabled || new.blur_radius != old.blur_radius,
 
             keybindings: new.keybindings != old.keybindings,
+
+            badge: new.badge_enabled != old.badge_enabled
+                || new.badge_format != old.badge_format
+                || new.badge_color != old.badge_color
+                || (new.badge_color_alpha - old.badge_color_alpha).abs() > f32::EPSILON
+                || new.badge_font != old.badge_font
+                || new.badge_font_bold != old.badge_font_bold
+                || (new.badge_top_margin - old.badge_top_margin).abs() > f32::EPSILON
+                || (new.badge_right_margin - old.badge_right_margin).abs() > f32::EPSILON
+                || (new.badge_max_width - old.badge_max_width).abs() > f32::EPSILON
+                || (new.badge_max_height - old.badge_max_height).abs() > f32::EPSILON,
         }
     }
 

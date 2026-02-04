@@ -99,6 +99,10 @@ zip = "7.2.0"
 semver = "1.0"  # Semantic version parsing for update checks
 sha2 = "0.10.9"
 
+# Badge system
+hostname = "0.4"  # Cross-platform hostname detection
+base64 = "0.22"   # Base64 decoding for OSC 1337 SetBadgeFormat
+
 # Linux-specific: GTK for native menus (muda requires gtk feature on Linux)
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]
 version = "0.17"
@@ -141,6 +145,3 @@ strip = true
 opt-level = 0
 debug = true
 
-# Use local version of core library for development (includes latest OSC fixes)
-[patch.crates-io]
-par-term-emu-core-rust = { path = "../par-term-emu-core-rust" }

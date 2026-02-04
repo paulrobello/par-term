@@ -1096,6 +1096,50 @@ pub struct Config {
     /// When true, ensures the session is fully written before the tab closes
     #[serde(default = "defaults::bool_true")]
     pub archive_on_close: bool,
+
+    // ========================================================================
+    // Badge Settings (iTerm2-style session labels)
+    // ========================================================================
+    /// Enable badge display
+    #[serde(default = "defaults::bool_false")]
+    pub badge_enabled: bool,
+
+    /// Badge text format with variable interpolation
+    /// Supports \(session.username), \(session.hostname), \(session.path), etc.
+    #[serde(default = "defaults::badge_format")]
+    pub badge_format: String,
+
+    /// Badge text color [R, G, B] (0-255)
+    #[serde(default = "defaults::badge_color")]
+    pub badge_color: [u8; 3],
+
+    /// Badge opacity (0.0-1.0)
+    #[serde(default = "defaults::badge_color_alpha")]
+    pub badge_color_alpha: f32,
+
+    /// Badge font family (uses system font if not found)
+    #[serde(default = "defaults::badge_font")]
+    pub badge_font: String,
+
+    /// Use bold weight for badge font
+    #[serde(default = "defaults::bool_true")]
+    pub badge_font_bold: bool,
+
+    /// Top margin in pixels from terminal edge
+    #[serde(default = "defaults::badge_top_margin")]
+    pub badge_top_margin: f32,
+
+    /// Right margin in pixels from terminal edge
+    #[serde(default = "defaults::badge_right_margin")]
+    pub badge_right_margin: f32,
+
+    /// Maximum badge width as fraction of terminal width (0.0-1.0)
+    #[serde(default = "defaults::badge_max_width")]
+    pub badge_max_width: f32,
+
+    /// Maximum badge height as fraction of terminal height (0.0-1.0)
+    #[serde(default = "defaults::badge_max_height")]
+    pub badge_max_height: f32,
 }
 
 impl Default for Config {
@@ -1306,6 +1350,17 @@ impl Default for Config {
             session_log_format: SessionLogFormat::default(),
             session_log_directory: defaults::session_log_directory(),
             archive_on_close: defaults::bool_true(),
+            // Badge
+            badge_enabled: defaults::bool_false(),
+            badge_format: defaults::badge_format(),
+            badge_color: defaults::badge_color(),
+            badge_color_alpha: defaults::badge_color_alpha(),
+            badge_font: defaults::badge_font(),
+            badge_font_bold: defaults::bool_true(),
+            badge_top_margin: defaults::badge_top_margin(),
+            badge_right_margin: defaults::badge_right_margin(),
+            badge_max_width: defaults::badge_max_width(),
+            badge_max_height: defaults::badge_max_height(),
         }
     }
 }
