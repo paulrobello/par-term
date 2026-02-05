@@ -418,8 +418,8 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | Pause shaders when unfocused | ❌ | ✅ `pause_shaders_on_blur` | ✅ | - | - | par-term exclusive |
 | Reduce FPS when unfocused | ❌ | ✅ `pause_refresh_on_blur`, `unfocused_fps` | ✅ | - | - | par-term exclusive |
 | Maximize throughput | ✅ | ❌ | ❌ | ⭐ | 🟡 | Latency vs throughput |
-| Disable GPU when unplugged | ✅ | ❌ | ❌ | ⭐ | 🟢 | Battery optimization |
-| Prefer integrated GPU | ✅ | ❌ | ❌ | ⭐ | 🟢 | Power saving |
+| Disable GPU when unplugged | ✅ | ❌ | ❌ | ➖ | ➖ | Won't implement - par-term requires GPU |
+| Prefer integrated GPU | ✅ | ✅ `power_preference` | ✅ | - | - | None/LowPower/HighPerformance GPU selection |
 | Reduce flicker | ✅ `Reduce Flicker` | ❌ | ❌ | ⭐⭐ | 🟡 | Screen update optimization |
 
 ---

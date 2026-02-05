@@ -12,7 +12,7 @@
 
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
-use crate::config::{TabBarMode, VsyncMode, WindowType};
+use crate::config::{PowerPreference, TabBarMode, VsyncMode, WindowType};
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
@@ -42,7 +42,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
     if section_matches(
         &query,
         "Performance",
-        &["fps", "vsync", "refresh", "power", "unfocused"],
+        &["fps", "vsync", "refresh", "power", "unfocused", "gpu"],
     ) {
         show_performance_section(ui, settings, changes_this_frame);
     }
@@ -412,6 +412,32 @@ fn show_performance_section(
         if let Some(ref warning) = settings.vsync_warning {
             ui.colored_label(egui::Color32::YELLOW, warning);
         }
+
+        ui.horizontal(|ui| {
+            ui.label("GPU Power Preference:");
+            let current_pref = settings.config.power_preference;
+            egui::ComboBox::from_id_salt("gpu_power_preference")
+                .selected_text(current_pref.display_name())
+                .show_ui(ui, |ui| {
+                    for pref in PowerPreference::all() {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.power_preference,
+                                *pref,
+                                pref.display_name(),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+        });
+        ui.colored_label(
+            egui::Color32::GRAY,
+            "Note: Requires app restart to take effect",
+        );
 
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Power Saving").strong());

@@ -59,6 +59,51 @@ impl VsyncMode {
     }
 }
 
+/// GPU power preference for adapter selection
+///
+/// Controls which GPU adapter is preferred when multiple GPUs are available
+/// (e.g., integrated Intel GPU vs discrete NVIDIA/AMD GPU).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PowerPreference {
+    /// No preference - let the system decide (default)
+    #[default]
+    None,
+    /// Prefer integrated GPU (Intel/AMD iGPU) - saves battery
+    LowPower,
+    /// Prefer discrete GPU (NVIDIA/AMD) - maximum performance
+    HighPerformance,
+}
+
+impl PowerPreference {
+    /// Convert to wgpu::PowerPreference
+    pub fn to_wgpu(self) -> wgpu::PowerPreference {
+        match self {
+            PowerPreference::None => wgpu::PowerPreference::None,
+            PowerPreference::LowPower => wgpu::PowerPreference::LowPower,
+            PowerPreference::HighPerformance => wgpu::PowerPreference::HighPerformance,
+        }
+    }
+
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            PowerPreference::None => "None (System Default)",
+            PowerPreference::LowPower => "Low Power (Integrated GPU)",
+            PowerPreference::HighPerformance => "High Performance (Discrete GPU)",
+        }
+    }
+
+    /// All available power preferences for UI iteration
+    pub fn all() -> &'static [PowerPreference] {
+        &[
+            PowerPreference::None,
+            PowerPreference::LowPower,
+            PowerPreference::HighPerformance,
+        ]
+    }
+}
+
 /// Cursor style
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]

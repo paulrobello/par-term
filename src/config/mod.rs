@@ -22,10 +22,11 @@ pub use shader_metadata::{
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
     DroppedFileQuoteStyle, FontRange, InstallPromptState, IntegrationVersions, KeyBinding,
-    ModifierRemapping, ModifierTarget, OptionKeyMode, SessionLogFormat, ShaderConfig,
-    ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType, SmartSelectionPrecision,
-    SmartSelectionRule, StartupDirectoryMode, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle,
-    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
+    ModifierRemapping, ModifierTarget, OptionKeyMode, PowerPreference, SessionLogFormat,
+    ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType,
+    SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, TabBarMode, ThinStrokesMode,
+    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -172,6 +173,15 @@ pub struct Config {
     /// Default: immediate (for maximum performance)
     #[serde(default)]
     pub vsync_mode: VsyncMode,
+
+    /// GPU power preference for adapter selection
+    /// - none: Let the system decide (default)
+    /// - low_power: Prefer integrated GPU (saves battery)
+    /// - high_performance: Prefer discrete GPU (maximum performance)
+    ///
+    /// Note: Requires app restart to take effect.
+    #[serde(default)]
+    pub power_preference: PowerPreference,
 
     /// Window padding in pixels
     #[serde(default = "defaults::window_padding")]
@@ -1317,6 +1327,7 @@ impl Default for Config {
             screenshot_format: defaults::screenshot_format(),
             max_fps: defaults::max_fps(),
             vsync_mode: VsyncMode::default(),
+            power_preference: PowerPreference::default(),
             window_padding: defaults::window_padding(),
             window_opacity: defaults::window_opacity(),
             window_always_on_top: defaults::bool_false(),

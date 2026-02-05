@@ -204,6 +204,7 @@ impl CellRenderer {
         font_hinting: bool,
         font_thin_strokes: crate::config::ThinStrokesMode,
         vsync_mode: crate::config::VsyncMode,
+        power_preference: crate::config::PowerPreference,
         window_opacity: f32,
         background_color: [u8; 3],
         background_image_path: Option<&str>,
@@ -233,7 +234,7 @@ impl CellRenderer {
         let surface = instance.create_surface(window.clone())?;
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
+                power_preference: power_preference.to_wgpu(),
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
             })

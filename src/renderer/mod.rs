@@ -148,6 +148,7 @@ impl Renderer {
         font_hinting: bool,
         font_thin_strokes: crate::config::ThinStrokesMode,
         vsync_mode: crate::config::VsyncMode,
+        power_preference: crate::config::PowerPreference,
         window_opacity: f32,
         background_color: [u8; 3],
         background_image_path: Option<&str>,
@@ -253,6 +254,7 @@ impl Renderer {
             font_hinting,
             font_thin_strokes,
             vsync_mode,
+            power_preference,
             window_opacity,
             background_color,
             {

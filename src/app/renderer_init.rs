@@ -5,8 +5,8 @@
 //! and `initialize_async()`.
 
 use crate::config::{
-    BackgroundImageMode, BackgroundMode, Config, CursorShaderMetadata, FontRange, ShaderMetadata,
-    ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, resolve_cursor_shader_config,
+    BackgroundImageMode, BackgroundMode, Config, CursorShaderMetadata, FontRange, PowerPreference,
+    ShaderMetadata, ThinStrokesMode, UnfocusedCursorStyle, VsyncMode, resolve_cursor_shader_config,
     resolve_shader_config,
 };
 
@@ -49,6 +49,7 @@ pub(crate) struct RendererInitParams {
     pub font_hinting: bool,
     pub font_thin_strokes: ThinStrokesMode,
     pub vsync_mode: VsyncMode,
+    pub power_preference: PowerPreference,
     pub window_opacity: f32,
     /// Theme background color (used for Default mode and cell backgrounds)
     pub background_color: [u8; 3],
@@ -157,6 +158,7 @@ impl RendererInitParams {
             font_hinting: config.font_hinting,
             font_thin_strokes: config.font_thin_strokes,
             vsync_mode: config.vsync_mode,
+            power_preference: config.power_preference,
             window_opacity: config.window_opacity,
             background_color: theme.background.as_array(),
             background_mode: config.background_mode,
@@ -234,6 +236,7 @@ impl RendererInitParams {
             self.font_hinting,
             self.font_thin_strokes,
             self.vsync_mode,
+            self.power_preference,
             self.window_opacity,
             self.background_color,
             self.background_image_path.as_deref(),

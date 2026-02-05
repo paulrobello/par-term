@@ -60,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Settings UI: "Auto-Switch Tmux" field in profile editor with pattern hints
   - Profile cleared automatically when tmux session ends
 
+- **GPU Power Preference**: Control which GPU is used for rendering on multi-GPU systems
+  - New config option: `power_preference` with three modes:
+    - `none` - Let the system decide (default)
+    - `low_power` - Prefer integrated GPU (Intel/AMD iGPU) for battery savings
+    - `high_performance` - Prefer discrete GPU (NVIDIA/AMD) for maximum performance
+  - Settings UI: Window → Performance section with dropdown selector
+  - Note: Requires app restart to take effect (GPU adapter selected at startup)
+
 ---
 
 ## [0.9.0] - 2026-02-04
