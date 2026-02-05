@@ -20,6 +20,7 @@ use crate::scroll_state::ScrollState;
 use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_logger};
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
+use par_term_emu_core_rust::coprocess::{CoprocessId, CoprocessManager};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -327,6 +328,10 @@ pub struct Tab {
     pub auto_applied_profile_id: Option<crate::profile::ProfileId>,
     /// Badge text override from auto-applied profile (overrides global badge_format)
     pub badge_override: Option<String>,
+    /// Coprocess manager for this tab
+    pub coprocess_manager: CoprocessManager,
+    /// Mapping from config index to coprocess ID (for UI tracking)
+    pub coprocess_ids: Vec<Option<CoprocessId>>,
 }
 
 impl Tab {
@@ -380,6 +385,44 @@ impl Tab {
             work_dir,
             shell_env.as_ref(),
         )?;
+
+        // Sync triggers from config into the core TriggerRegistry
+        terminal.sync_triggers(&config.triggers);
+
+        // Initialize coprocess manager and auto-start configured coprocesses
+        let mut coprocess_manager = CoprocessManager::new();
+        let mut coprocess_ids = Vec::with_capacity(config.coprocesses.len());
+        for coproc_config in &config.coprocesses {
+            if coproc_config.auto_start {
+                let core_config = par_term_emu_core_rust::coprocess::CoprocessConfig {
+                    command: coproc_config.command.clone(),
+                    args: coproc_config.args.clone(),
+                    cwd: None,
+                    env: std::collections::HashMap::new(),
+                    copy_terminal_output: coproc_config.copy_terminal_output,
+                };
+                match coprocess_manager.start(core_config) {
+                    Ok(id) => {
+                        log::info!(
+                            "Auto-started coprocess '{}' (id={})",
+                            coproc_config.name,
+                            id
+                        );
+                        coprocess_ids.push(Some(id));
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to auto-start coprocess '{}': {}",
+                            coproc_config.name,
+                            e
+                        );
+                        coprocess_ids.push(None);
+                    }
+                }
+            } else {
+                coprocess_ids.push(None);
+            }
+        }
 
         // Create shared session logger
         let session_logger = create_shared_logger();
@@ -471,6 +514,8 @@ impl Tab {
             detected_hostname: None,
             auto_applied_profile_id: None,
             badge_override: None,
+            coprocess_manager,
+            coprocess_ids,
         })
     }
 
@@ -534,6 +579,44 @@ impl Tab {
             work_dir,
             shell_env.as_ref(),
         )?;
+
+        // Sync triggers from config into the core TriggerRegistry
+        terminal.sync_triggers(&config.triggers);
+
+        // Initialize coprocess manager and auto-start configured coprocesses
+        let mut coprocess_manager = CoprocessManager::new();
+        let mut coprocess_ids = Vec::with_capacity(config.coprocesses.len());
+        for coproc_config in &config.coprocesses {
+            if coproc_config.auto_start {
+                let core_config = par_term_emu_core_rust::coprocess::CoprocessConfig {
+                    command: coproc_config.command.clone(),
+                    args: coproc_config.args.clone(),
+                    cwd: None,
+                    env: std::collections::HashMap::new(),
+                    copy_terminal_output: coproc_config.copy_terminal_output,
+                };
+                match coprocess_manager.start(core_config) {
+                    Ok(id) => {
+                        log::info!(
+                            "Auto-started coprocess '{}' (id={})",
+                            coproc_config.name,
+                            id
+                        );
+                        coprocess_ids.push(Some(id));
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to auto-start coprocess '{}': {}",
+                            coproc_config.name,
+                            e
+                        );
+                        coprocess_ids.push(None);
+                    }
+                }
+            } else {
+                coprocess_ids.push(None);
+            }
+        }
 
         // Create shared session logger
         let session_logger = create_shared_logger();
@@ -619,6 +702,8 @@ impl Tab {
             detected_hostname: None,
             auto_applied_profile_id: None,
             badge_override: None,
+            coprocess_manager,
+            coprocess_ids,
         })
     }
 
