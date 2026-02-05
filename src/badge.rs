@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::config::Config;
+use crate::profile::Profile;
 
 /// Session variables available for badge interpolation
 #[derive(Debug, Clone, Default)]
@@ -224,6 +225,66 @@ impl BadgeState {
     /// Access session variables for mutation
     pub fn variables_mut(&self) -> parking_lot::RwLockWriteGuard<'_, SessionVariables> {
         self.variables.write()
+    }
+
+    /// Apply badge settings from a profile (overrides global config where set)
+    ///
+    /// This is called when a profile is activated to apply its custom badge settings.
+    /// Only non-None profile settings override the current values.
+    pub fn apply_profile_settings(&mut self, profile: &Profile) {
+        let mut changed = false;
+
+        // Badge format/text
+        if let Some(ref text) = profile.badge_text {
+            if self.format != *text {
+                self.format = text.clone();
+                changed = true;
+            }
+        }
+
+        // Badge color
+        if let Some(color) = profile.badge_color {
+            self.color = color;
+        }
+
+        // Badge alpha
+        if let Some(alpha) = profile.badge_color_alpha {
+            self.alpha = alpha;
+        }
+
+        // Badge font
+        if let Some(ref font) = profile.badge_font {
+            self.font = font.clone();
+        }
+
+        // Badge font bold
+        if let Some(bold) = profile.badge_font_bold {
+            self.font_bold = bold;
+        }
+
+        // Badge top margin
+        if let Some(margin) = profile.badge_top_margin {
+            self.top_margin = margin;
+        }
+
+        // Badge right margin
+        if let Some(margin) = profile.badge_right_margin {
+            self.right_margin = margin;
+        }
+
+        // Badge max width
+        if let Some(width) = profile.badge_max_width {
+            self.max_width = width;
+        }
+
+        // Badge max height
+        if let Some(height) = profile.badge_max_height {
+            self.max_height = height;
+        }
+
+        if changed {
+            self.dirty = true;
+        }
     }
 }
 

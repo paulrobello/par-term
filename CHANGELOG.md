@@ -90,6 +90,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Settings UI: Window → Performance → Throughput Mode section
   - Unlike reduce_flicker, this mode always batches regardless of cursor visibility
 
+- **Per-Profile Badge Configuration**: Full badge customization per profile (iTerm2 parity)
+  - Profiles can now override all badge settings, not just the text format
+  - New optional profile fields:
+    - `badge_color` - RGB color override
+    - `badge_color_alpha` - Opacity override (0.0-1.0)
+    - `badge_font` - Font family override
+    - `badge_font_bold` - Bold toggle override
+    - `badge_top_margin` / `badge_right_margin` - Position overrides
+    - `badge_max_width` / `badge_max_height` - Size constraint overrides
+  - Profile Modal UI: New collapsible "Badge Appearance" section with:
+    - Color picker with checkbox to enable override
+    - Opacity slider
+    - Font input and bold checkbox
+    - Margin and size controls
+  - Each setting can be individually overridden or use global defaults
+  - Supports profile inheritance - child profiles inherit badge settings from parent
+  - Use case: Different badge appearances per environment (e.g., red "PROD", green "DEV")
+
 ### Fixed
 
 - **Arrow Keys in `less` and Other Pagers**: Fixed arrow keys not working in programs that enable application cursor key mode (DECCKM)

@@ -68,6 +68,38 @@ pub struct Profile {
     /// Per-profile badge text (overrides global badge_format when this profile is active)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub badge_text: Option<String>,
+
+    /// Per-profile badge color [R, G, B] (overrides global badge_color)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge_color: Option<[u8; 3]>,
+
+    /// Per-profile badge opacity 0.0-1.0 (overrides global badge_color_alpha)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge_color_alpha: Option<f32>,
+
+    /// Per-profile badge font family (overrides global badge_font)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge_font: Option<String>,
+
+    /// Per-profile badge font bold (overrides global badge_font_bold)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge_font_bold: Option<bool>,
+
+    /// Per-profile badge top margin in pixels (overrides global badge_top_margin)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge_top_margin: Option<f32>,
+
+    /// Per-profile badge right margin in pixels (overrides global badge_right_margin)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge_right_margin: Option<f32>,
+
+    /// Per-profile badge max width as fraction 0.0-1.0 (overrides global badge_max_width)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge_max_width: Option<f32>,
+
+    /// Per-profile badge max height as fraction 0.0-1.0 (overrides global badge_max_height)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub badge_max_height: Option<f32>,
 }
 
 #[allow(dead_code)]
@@ -89,6 +121,14 @@ impl Profile {
             hostname_patterns: Vec::new(),
             tmux_session_patterns: Vec::new(),
             badge_text: None,
+            badge_color: None,
+            badge_color_alpha: None,
+            badge_font: None,
+            badge_font_bold: None,
+            badge_top_margin: None,
+            badge_right_margin: None,
+            badge_max_width: None,
+            badge_max_height: None,
         }
     }
 
@@ -109,6 +149,14 @@ impl Profile {
             hostname_patterns: Vec::new(),
             tmux_session_patterns: Vec::new(),
             badge_text: None,
+            badge_color: None,
+            badge_color_alpha: None,
+            badge_font: None,
+            badge_font_bold: None,
+            badge_top_margin: None,
+            badge_right_margin: None,
+            badge_max_width: None,
+            badge_max_height: None,
         }
     }
 
@@ -181,6 +229,54 @@ impl Profile {
     /// Builder method to set badge text
     pub fn badge_text(mut self, text: impl Into<String>) -> Self {
         self.badge_text = Some(text.into());
+        self
+    }
+
+    /// Builder method to set badge color
+    pub fn badge_color(mut self, color: [u8; 3]) -> Self {
+        self.badge_color = Some(color);
+        self
+    }
+
+    /// Builder method to set badge color alpha
+    pub fn badge_color_alpha(mut self, alpha: f32) -> Self {
+        self.badge_color_alpha = Some(alpha);
+        self
+    }
+
+    /// Builder method to set badge font
+    pub fn badge_font(mut self, font: impl Into<String>) -> Self {
+        self.badge_font = Some(font.into());
+        self
+    }
+
+    /// Builder method to set badge font bold
+    pub fn badge_font_bold(mut self, bold: bool) -> Self {
+        self.badge_font_bold = Some(bold);
+        self
+    }
+
+    /// Builder method to set badge top margin
+    pub fn badge_top_margin(mut self, margin: f32) -> Self {
+        self.badge_top_margin = Some(margin);
+        self
+    }
+
+    /// Builder method to set badge right margin
+    pub fn badge_right_margin(mut self, margin: f32) -> Self {
+        self.badge_right_margin = Some(margin);
+        self
+    }
+
+    /// Builder method to set badge max width
+    pub fn badge_max_width(mut self, width: f32) -> Self {
+        self.badge_max_width = Some(width);
+        self
+    }
+
+    /// Builder method to set badge max height
+    pub fn badge_max_height(mut self, height: f32) -> Self {
+        self.badge_max_height = Some(height);
         self
     }
 
@@ -551,6 +647,22 @@ impl ProfileManager {
                 profile.tmux_session_patterns.clone()
             },
             badge_text: profile.badge_text.clone().or(resolved_parent.badge_text),
+            badge_color: profile.badge_color.or(resolved_parent.badge_color),
+            badge_color_alpha: profile
+                .badge_color_alpha
+                .or(resolved_parent.badge_color_alpha),
+            badge_font: profile.badge_font.clone().or(resolved_parent.badge_font),
+            badge_font_bold: profile.badge_font_bold.or(resolved_parent.badge_font_bold),
+            badge_top_margin: profile
+                .badge_top_margin
+                .or(resolved_parent.badge_top_margin),
+            badge_right_margin: profile
+                .badge_right_margin
+                .or(resolved_parent.badge_right_margin),
+            badge_max_width: profile.badge_max_width.or(resolved_parent.badge_max_width),
+            badge_max_height: profile
+                .badge_max_height
+                .or(resolved_parent.badge_max_height),
         })
     }
 

@@ -655,8 +655,8 @@ impl WindowState {
 
     /// Apply profile badge settings
     ///
-    /// Updates the badge session variables and optionally sets a profile-specific
-    /// badge format if the profile has one defined.
+    /// Updates the badge session variables and applies any profile-specific
+    /// badge configuration (format, color, font, margins, etc.).
     fn apply_profile_badge(&mut self, profile: &crate::profile::Profile) {
         // Update session.profile_name variable
         {
@@ -664,10 +664,17 @@ impl WindowState {
             vars.profile_name = profile.name.clone();
         }
 
-        // If profile has a custom badge_text, use it as the badge format
-        if let Some(badge_text) = &profile.badge_text {
-            self.badge_state.set_format(badge_text.clone());
-            crate::debug_info!("PROFILE", "Applied profile badge format: '{}'", badge_text);
+        // Apply all profile badge settings (format, color, font, margins, etc.)
+        self.badge_state.apply_profile_settings(profile);
+
+        if profile.badge_text.is_some() {
+            crate::debug_info!(
+                "PROFILE",
+                "Applied profile badge settings: format='{}', color={:?}, alpha={}",
+                profile.badge_text.as_deref().unwrap_or(""),
+                profile.badge_color,
+                profile.badge_color_alpha.unwrap_or(0.0)
+            );
         }
 
         // Mark badge as dirty to trigger re-render

@@ -482,7 +482,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Badge max size | ✅ Width/Height fractions | ✅ `badge_max_width`, `badge_max_height` | ✅ | - | - | Default 50% width, 20% height |
 | Dynamic badge variables | ✅ `\(session.*)` syntax | ✅ 12 built-in + custom | ✅ | - | - | hostname, username, path, job, etc. |
 | Badge escape sequence | ✅ OSC 1337 SetBadgeFormat | ✅ Base64 decoding | ✅ | - | - | Update badge from shell with security checks |
-| Badge per-profile | ✅ Profile setting | ❌ | ❌ | ⭐⭐ | 🟡 | Different badges per profile (pending profiles) |
+| Badge per-profile | ✅ Profile setting | ✅ Full badge config | ✅ | - | - | Per-profile badge text, color, alpha, font, bold, margins, and size |
 | Badge configuration UI | ✅ Visual drag-and-drop | ✅ Settings tab | ✅ | - | - | Full settings with sliders and color picker |
 
 ### Badge Variables Available
