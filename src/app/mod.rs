@@ -29,6 +29,7 @@ pub mod search_highlight;
 pub mod tab_ops;
 pub mod text_selection;
 mod tmux_handler;
+mod triggers;
 pub mod url_hover;
 pub mod window_manager;
 pub mod window_state;

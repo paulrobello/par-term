@@ -622,6 +622,18 @@ impl TerminalManager {
         term.poll_cwd_events()
     }
 
+    /// Poll trigger action results from the core terminal.
+    ///
+    /// Returns all pending ActionResult events and removes them from the queue.
+    /// Called by the event loop to dispatch frontend-handled trigger actions
+    /// (RunCommand, PlaySound, SendText).
+    pub fn poll_action_results(&self) -> Vec<par_term_emu_core_rust::terminal::ActionResult> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.poll_action_results()
+    }
+
     /// Get shell integration statistics
     pub fn shell_integration_stats(
         &self,

@@ -696,6 +696,9 @@ impl WindowState {
         // Check for bell events and play audio/visual feedback
         self.check_bell();
 
+        // Check for trigger action results and dispatch them
+        self.check_trigger_actions();
+
         // Check for activity/idle notifications
         self.check_activity_idle_notifications();
 
