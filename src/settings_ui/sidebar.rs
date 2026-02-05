@@ -18,6 +18,7 @@ pub enum SettingsTab {
     Profiles,
     Notifications,
     Integrations,
+    Automation,
     Advanced,
 }
 
@@ -34,6 +35,7 @@ impl SettingsTab {
             Self::Profiles => "Profiles",
             Self::Notifications => "Notifications",
             Self::Integrations => "Integrations",
+            Self::Automation => "Automation",
             Self::Advanced => "Advanced",
         }
     }
@@ -50,6 +52,7 @@ impl SettingsTab {
             Self::Profiles => "👤",
             Self::Notifications => "🔔",
             Self::Integrations => "🔌",
+            Self::Automation => "⚡",
             Self::Advanced => "⚙",
         }
     }
@@ -66,6 +69,7 @@ impl SettingsTab {
             Self::Profiles,
             Self::Notifications,
             Self::Integrations,
+            Self::Automation,
             Self::Advanced,
         ]
     }
@@ -527,6 +531,28 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "uninstall",
             "bundle",
         ],
+        SettingsTab::Automation => &[
+            "trigger",
+            "triggers",
+            "regex",
+            "pattern",
+            "match",
+            "automation",
+            "automate",
+            "action",
+            "highlight",
+            "notify",
+            "notification",
+            "run command",
+            "play sound",
+            "send text",
+            "coprocess",
+            "coprocesses",
+            "pipe",
+            "subprocess",
+            "auto start",
+            "auto-start",
+        ],
         SettingsTab::Advanced => &[
             // tmux
             "tmux",
@@ -586,6 +612,7 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         SettingsTab::Profiles => "Create and manage terminal profiles",
         SettingsTab::Notifications => "Bell, activity alerts, desktop notifications",
         SettingsTab::Integrations => "Shell integration, shader bundle installation",
+        SettingsTab::Automation => "Regex triggers, trigger actions, coprocesses",
         SettingsTab::Advanced => "tmux integration, logging, updates",
     }
 }

@@ -11,6 +11,7 @@ use std::collections::HashSet;
 // Reorganized settings tabs (10 consolidated tabs)
 pub mod advanced_tab;
 pub mod appearance_tab;
+pub mod automation_tab;
 pub mod badge_tab;
 pub mod effects_tab;
 pub mod input_tab;
@@ -201,6 +202,32 @@ pub struct SettingsUI {
     shader_install_receiver:
         Option<std::sync::mpsc::Receiver<Result<crate::shader_installer::InstallResult, String>>>,
 
+    // Automation tab state
+    /// Index of trigger currently being edited (None = not editing)
+    pub(crate) editing_trigger_index: Option<usize>,
+    /// Temporary trigger name for edit form
+    pub(crate) temp_trigger_name: String,
+    /// Temporary trigger regex pattern for edit form
+    pub(crate) temp_trigger_pattern: String,
+    /// Temporary trigger actions for edit form
+    pub(crate) temp_trigger_actions: Vec<crate::config::automation::TriggerActionConfig>,
+    /// Whether the add-new-trigger form is active
+    pub(crate) adding_new_trigger: bool,
+    /// Regex validation error for trigger pattern
+    pub(crate) trigger_pattern_error: Option<String>,
+    /// Index of coprocess currently being edited (None = not editing)
+    pub(crate) editing_coprocess_index: Option<usize>,
+    /// Temporary coprocess name for edit form
+    pub(crate) temp_coprocess_name: String,
+    /// Temporary coprocess command for edit form
+    pub(crate) temp_coprocess_command: String,
+    /// Temporary coprocess args for edit form
+    pub(crate) temp_coprocess_args: String,
+    /// Whether the add-new-coprocess form is active
+    pub(crate) adding_new_coprocess: bool,
+    /// Flag to request trigger resync after save
+    pub trigger_resync_requested: bool,
+
     // Reset to defaults dialog state
     /// Whether to show the reset to defaults confirmation dialog
     pub(crate) show_reset_defaults_dialog: bool,
@@ -294,6 +321,18 @@ impl SettingsUI {
             shader_overwrite_prompt_visible: false,
             shader_conflicts: Vec::new(),
             shader_install_receiver: None,
+            editing_trigger_index: None,
+            temp_trigger_name: String::new(),
+            temp_trigger_pattern: String::new(),
+            temp_trigger_actions: Vec::new(),
+            adding_new_trigger: false,
+            trigger_pattern_error: None,
+            editing_coprocess_index: None,
+            temp_coprocess_name: String::new(),
+            temp_coprocess_command: String::new(),
+            temp_coprocess_args: String::new(),
+            adding_new_coprocess: false,
+            trigger_resync_requested: false,
             show_reset_defaults_dialog: false,
         }
     }
@@ -1022,6 +1061,9 @@ impl SettingsUI {
             }
             SettingsTab::Integrations => {
                 self.show_integrations_tab(ui, changes_this_frame);
+            }
+            SettingsTab::Automation => {
+                automation_tab::show(ui, self, changes_this_frame);
             }
             SettingsTab::Advanced => {
                 advanced_tab::show(ui, self, changes_this_frame);
