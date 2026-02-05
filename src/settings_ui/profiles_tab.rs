@@ -32,6 +32,8 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "keyboard",
             "auto switch",
             "hostname",
+            "tmux",
+            "session",
             "badge",
         ],
     ) {
@@ -127,6 +129,10 @@ fn show_features_section(ui: &mut egui::Ui) {
 
         ui.label(egui::RichText::new("Automatic Profile Switching").strong());
         ui.label("Configure hostname patterns to automatically switch profiles when connecting to specific servers via SSH. Uses glob patterns like \"*.prod.example.com\".");
+        ui.add_space(8.0);
+
+        ui.label(egui::RichText::new("Tmux Session Auto-Switching").strong());
+        ui.label("Configure tmux session name patterns to automatically apply profiles when connecting via tmux control mode. Uses glob patterns like \"work-*\" or \"*-production\".");
         ui.add_space(8.0);
 
         ui.label(egui::RichText::new("Per-Profile Badge").strong());

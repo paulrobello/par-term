@@ -379,7 +379,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | tmux clipboard sync | ✅ Bidirectional | ✅ `set-buffer` | ✅ | - | - | Sync with tmux paste buffers |
 | tmux pause mode handling | ✅ | ✅ | ✅ | - | - | Handle slow connection pausing with buffering |
 | Auto-attach on launch | ✅ | ✅ `tmux_auto_attach` | ✅ | - | - | Option to auto-attach to session |
-| tmux profile auto-switching | ✅ | 🔶 Config ready | 🔶 | ⭐ | 🟡 | Pending profiles feature |
+| tmux profile auto-switching | ✅ | ✅ | ✅ | - | - | Glob pattern matching on session names (e.g., `work-*`, `*-production`) |
 
 ### How par-term's tmux Control Mode Works
 

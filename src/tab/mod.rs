@@ -325,6 +325,8 @@ pub struct Tab {
     pub detected_hostname: Option<String>,
     /// Profile ID that was auto-applied based on hostname detection
     pub auto_applied_profile_id: Option<crate::profile::ProfileId>,
+    /// Badge text override from auto-applied profile (overrides global badge_format)
+    pub badge_override: Option<String>,
 }
 
 impl Tab {
@@ -468,6 +470,7 @@ impl Tab {
             tmux_pane_id: None,
             detected_hostname: None,
             auto_applied_profile_id: None,
+            badge_override: None,
         })
     }
 
@@ -615,6 +618,7 @@ impl Tab {
             tmux_pane_id: None,
             detected_hostname: None,
             auto_applied_profile_id: None,
+            badge_override: None,
         })
     }
 
@@ -748,9 +752,10 @@ impl Tab {
     /// Clear auto-applied profile tracking
     ///
     /// Call this when manually switching profiles or when the hostname
-    /// returns to local.
+    /// returns to local, or when disconnecting from tmux.
     pub fn clear_auto_profile(&mut self) {
         self.auto_applied_profile_id = None;
+        self.badge_override = None;
     }
 
     /// Start the refresh polling task for this tab

@@ -60,6 +60,11 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hostname_patterns: Vec<String>,
 
+    /// Tmux session name patterns for automatic profile switching when connecting via tmux control mode
+    /// Supports glob patterns (e.g., "work-*", "dev-session", "*-production")
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tmux_session_patterns: Vec<String>,
+
     /// Per-profile badge text (overrides global badge_format when this profile is active)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub badge_text: Option<String>,
@@ -82,6 +87,7 @@ impl Profile {
             parent_id: None,
             keyboard_shortcut: None,
             hostname_patterns: Vec::new(),
+            tmux_session_patterns: Vec::new(),
             badge_text: None,
         }
     }
@@ -101,6 +107,7 @@ impl Profile {
             parent_id: None,
             keyboard_shortcut: None,
             hostname_patterns: Vec::new(),
+            tmux_session_patterns: Vec::new(),
             badge_text: None,
         }
     }
@@ -162,6 +169,12 @@ impl Profile {
     /// Builder method to set hostname patterns
     pub fn hostname_patterns(mut self, patterns: Vec<String>) -> Self {
         self.hostname_patterns = patterns;
+        self
+    }
+
+    /// Builder method to set tmux session patterns
+    pub fn tmux_session_patterns(mut self, patterns: Vec<String>) -> Self {
+        self.tmux_session_patterns = patterns;
         self
     }
 
@@ -398,12 +411,26 @@ impl ProfileManager {
         self.profiles_ordered().into_iter().find(|p| {
             p.hostname_patterns
                 .iter()
-                .any(|pattern| Self::hostname_matches(&hostname_lower, pattern))
+                .any(|pattern| Self::pattern_matches(&hostname_lower, pattern))
         })
     }
 
-    /// Check if a hostname matches a glob-style pattern
-    fn hostname_matches(hostname: &str, pattern: &str) -> bool {
+    /// Find profile matching a tmux session name pattern for automatic switching
+    /// Uses glob-style pattern matching
+    pub fn find_by_tmux_session(&self, session_name: &str) -> Option<&Profile> {
+        let session_lower = session_name.to_lowercase();
+        self.profiles_ordered().into_iter().find(|p| {
+            p.tmux_session_patterns
+                .iter()
+                .any(|pattern| Self::pattern_matches(&session_lower, pattern))
+        })
+    }
+
+    /// Check if a string matches a glob-style pattern (case-insensitive)
+    /// Supports: exact match, prefix match (pattern*), suffix match (*pattern),
+    /// contains match (*pattern*), and wildcard (*)
+    fn pattern_matches(value: &str, pattern: &str) -> bool {
+        let value_lower = value.to_lowercase();
         let pattern_lower = pattern.to_lowercase();
 
         // Simple glob matching: * matches any characters
@@ -413,14 +440,14 @@ impl ProfileManager {
 
         // Check for prefix match (pattern ends with *)
         if let Some(prefix) = pattern_lower.strip_suffix('*')
-            && hostname.starts_with(prefix)
+            && value_lower.starts_with(prefix)
         {
             return true;
         }
 
         // Check for suffix match (pattern starts with *)
         if let Some(suffix) = pattern_lower.strip_prefix('*')
-            && hostname.ends_with(suffix)
+            && value_lower.ends_with(suffix)
         {
             return true;
         }
@@ -428,13 +455,19 @@ impl ProfileManager {
         // Check for contains match (*something*)
         if pattern_lower.starts_with('*')
             && pattern_lower.ends_with('*')
-            && hostname.contains(&pattern_lower[1..pattern_lower.len() - 1])
+            && value_lower.contains(&pattern_lower[1..pattern_lower.len() - 1])
         {
             return true;
         }
 
         // Exact match
-        hostname == pattern_lower
+        value_lower == pattern_lower
+    }
+
+    // Keep the old method name as an alias for backwards compatibility
+    #[allow(dead_code)]
+    fn hostname_matches(hostname: &str, pattern: &str) -> bool {
+        Self::pattern_matches(hostname, pattern)
     }
 
     /// Resolve a profile with inheritance - returns effective settings
@@ -511,6 +544,11 @@ impl ProfileManager {
                 resolved_parent.hostname_patterns
             } else {
                 profile.hostname_patterns.clone()
+            },
+            tmux_session_patterns: if profile.tmux_session_patterns.is_empty() {
+                resolved_parent.tmux_session_patterns
+            } else {
+                profile.tmux_session_patterns.clone()
             },
             badge_text: profile.badge_text.clone().or(resolved_parent.badge_text),
         })
@@ -835,6 +873,53 @@ mod tests {
             "Dev Servers"
         );
         assert!(manager.find_by_hostname("unknown.host").is_none());
+    }
+
+    #[test]
+    fn test_pattern_matching() {
+        // Suffix match
+        assert!(ProfileManager::pattern_matches("work-session", "*-session"));
+        // Prefix match
+        assert!(ProfileManager::pattern_matches("dev-server-01", "dev-*"));
+        // Contains match
+        assert!(ProfileManager::pattern_matches("my-production-env", "*production*"));
+        // Exact match
+        assert!(ProfileManager::pattern_matches("main", "main"));
+        // Wildcard
+        assert!(ProfileManager::pattern_matches("anything", "*"));
+        // Case insensitive
+        assert!(ProfileManager::pattern_matches("WORK-SESSION", "*-session"));
+        assert!(ProfileManager::pattern_matches("work-session", "*-SESSION"));
+
+        // Non-matches
+        assert!(!ProfileManager::pattern_matches("work-session", "dev-*"));
+        assert!(!ProfileManager::pattern_matches("dev-server", "*-session"));
+    }
+
+    #[test]
+    fn test_find_by_tmux_session() {
+        let mut manager = ProfileManager::new();
+        manager.add(
+            Profile::new("Work Profile").tmux_session_patterns(vec!["work-*".to_string()]),
+        );
+        manager.add(
+            Profile::new("Dev Profile").tmux_session_patterns(vec!["dev-*".to_string(), "*-development".to_string()]),
+        );
+        manager.add(Profile::new("Default")); // No patterns
+
+        assert_eq!(
+            manager.find_by_tmux_session("work-main").unwrap().name,
+            "Work Profile"
+        );
+        assert_eq!(
+            manager.find_by_tmux_session("dev-feature").unwrap().name,
+            "Dev Profile"
+        );
+        assert_eq!(
+            manager.find_by_tmux_session("staging-development").unwrap().name,
+            "Dev Profile"
+        );
+        assert!(manager.find_by_tmux_session("production").is_none());
     }
 
     #[test]

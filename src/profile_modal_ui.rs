@@ -52,6 +52,7 @@ pub struct ProfileModalUI {
     temp_parent_id: Option<ProfileId>,
     temp_keyboard_shortcut: String,
     temp_hostname_patterns: String,
+    temp_tmux_session_patterns: String,
     temp_badge_text: String,
 
     /// Selected profile in list view
@@ -82,6 +83,7 @@ impl ProfileModalUI {
             temp_parent_id: None,
             temp_keyboard_shortcut: String::new(),
             temp_hostname_patterns: String::new(),
+            temp_tmux_session_patterns: String::new(),
             temp_badge_text: String::new(),
             selected_id: None,
             has_changes: false,
@@ -134,6 +136,7 @@ impl ProfileModalUI {
         self.temp_parent_id = None;
         self.temp_keyboard_shortcut.clear();
         self.temp_hostname_patterns.clear();
+        self.temp_tmux_session_patterns.clear();
         self.temp_badge_text.clear();
         self.validation_error = None;
     }
@@ -155,6 +158,7 @@ impl ProfileModalUI {
         self.temp_parent_id = profile.parent_id;
         self.temp_keyboard_shortcut = profile.keyboard_shortcut.clone().unwrap_or_default();
         self.temp_hostname_patterns = profile.hostname_patterns.join(", ");
+        self.temp_tmux_session_patterns = profile.tmux_session_patterns.join(", ");
         self.temp_badge_text = profile.badge_text.clone().unwrap_or_default();
     }
 
@@ -200,6 +204,14 @@ impl ProfileModalUI {
         if !self.temp_hostname_patterns.is_empty() {
             profile.hostname_patterns = self
                 .temp_hostname_patterns
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+        if !self.temp_tmux_session_patterns.is_empty() {
+            profile.tmux_session_patterns = self
+                .temp_tmux_session_patterns
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
@@ -662,6 +674,18 @@ impl ProfileModalUI {
                             ui.text_edit_singleline(&mut self.temp_hostname_patterns);
                             ui.label(
                                 egui::RichText::new("(*.example.com)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
+
+                        // Tmux session patterns for auto-switching
+                        ui.label("Auto-Switch Tmux:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_tmux_session_patterns);
+                            ui.label(
+                                egui::RichText::new("(work-*, *-dev)")
                                     .small()
                                     .color(egui::Color32::GRAY),
                             );

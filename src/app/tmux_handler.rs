@@ -228,6 +228,9 @@ impl WindowState {
         // Update window title with session name: "par-term - [tmux: session_name]"
         self.update_window_title_with_tmux();
 
+        // Check for automatic profile switching based on tmux session name
+        self.apply_tmux_session_profile(session_name);
+
         // Update the gateway tab's title to show tmux session
         if let Some(gateway_tab_id) = self.tmux_gateway_tab_id
             && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
@@ -1356,13 +1359,14 @@ impl WindowState {
             let _ = self.tab_manager.close_tab(tab_id);
         }
 
-        // Disable tmux control mode on the gateway tab
+        // Disable tmux control mode on the gateway tab and clear auto-applied profile
         if let Some(gateway_tab_id) = self.tmux_gateway_tab_id
             && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
             && tab.tmux_gateway_active
         {
             tab.tmux_gateway_active = false;
             tab.tmux_pane_id = None;
+            tab.clear_auto_profile(); // Clear tmux session profile
             if let Ok(term) = tab.terminal.try_lock() {
                 term.set_tmux_control_mode(false);
             }
@@ -2056,6 +2060,94 @@ impl WindowState {
     // =========================================================================
     // Prefix Key Handling
     // =========================================================================
+
+    // =========================================================================
+    // Profile Auto-Switching
+    // =========================================================================
+
+    /// Apply a profile based on tmux session name
+    ///
+    /// This checks for profiles that match the session name pattern and applies
+    /// them to the gateway tab. Profile matching uses glob patterns (e.g., "work-*",
+    /// "*-production").
+    fn apply_tmux_session_profile(&mut self, session_name: &str) {
+        // First, check if there's a fixed tmux_profile configured
+        if let Some(ref profile_name) = self.config.tmux_profile {
+            if let Some(profile) = self.profile_manager.find_by_name(profile_name) {
+                let profile_id = profile.id;
+                let profile_display = profile.name.clone();
+                crate::debug_info!(
+                    "TMUX",
+                    "Applying configured tmux_profile '{}' for session '{}'",
+                    profile_display,
+                    session_name
+                );
+                self.apply_profile_to_gateway_tab(profile_id, &profile_display);
+                return;
+            } else {
+                crate::debug_info!(
+                    "TMUX",
+                    "Configured tmux_profile '{}' not found",
+                    profile_name
+                );
+            }
+        }
+
+        // Then, check for pattern-based matching
+        if let Some(profile) = self.profile_manager.find_by_tmux_session(session_name) {
+            let profile_id = profile.id;
+            let profile_display = profile.name.clone();
+            crate::debug_info!(
+                "TMUX",
+                "Auto-switching to profile '{}' for tmux session '{}'",
+                profile_display,
+                session_name
+            );
+            self.apply_profile_to_gateway_tab(profile_id, &profile_display);
+        } else {
+            crate::debug_info!(
+                "TMUX",
+                "No profile matches tmux session '{}' - consider adding tmux_session_patterns to a profile",
+                session_name
+            );
+        }
+    }
+
+    /// Apply a profile to the tmux gateway tab
+    fn apply_profile_to_gateway_tab(
+        &mut self,
+        profile_id: crate::profile::ProfileId,
+        profile_name: &str,
+    ) {
+        if let Some(gateway_tab_id) = self.tmux_gateway_tab_id
+            && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
+        {
+            // Mark the auto-applied profile
+            tab.auto_applied_profile_id = Some(profile_id);
+
+            // Apply profile badge text if configured
+            if let Some(profile) = self.profile_manager.get(&profile_id)
+                && let Some(badge_text) = &profile.badge_text
+            {
+                // Update the badge for this tab
+                tab.badge_override = Some(badge_text.clone());
+                crate::debug_info!(
+                    "TMUX",
+                    "Applied badge text '{}' from profile '{}'",
+                    badge_text,
+                    profile_name
+                );
+            }
+
+            // Show notification about profile switch
+            self.show_toast(format!("tmux: Profile '{}' applied", profile_name));
+            log::info!(
+                "Applied profile '{}' for tmux session (gateway tab {})",
+                profile_name,
+                gateway_tab_id
+            );
+        }
+    }
 
     /// Handle tmux prefix key mode
     ///

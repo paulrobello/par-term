@@ -52,6 +52,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Query support via `CSI ? 4 m` returns current mode
   - Requires par-term-emu-core-rust v0.30.0+
 
+- **Tmux Profile Auto-Switching**: Automatically apply profiles when connecting to tmux sessions
+  - New profile field `tmux_session_patterns` - glob patterns to match session names (e.g., `work-*`, `*-production`)
+  - Case-insensitive pattern matching with wildcards: prefix (`dev-*`), suffix (`*-prod`), contains (`*server*`), exact match
+  - Profile's `badge_text` is applied to the gateway tab when matched
+  - Fixed profile option: `tmux_profile` config to always use a specific profile for all tmux connections
+  - Settings UI: "Auto-Switch Tmux" field in profile editor with pattern hints
+  - Profile cleared automatically when tmux session ends
+
 ---
 
 ## [0.9.0] - 2026-02-04
