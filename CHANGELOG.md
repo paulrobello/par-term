@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **modifyOtherKeys Protocol Support**: XTerm extension for enhanced keyboard input reporting
+  - Applications can enable via `CSI > 4 ; mode m` escape sequence (mode 0=off, 1=special keys, 2=all keys)
+  - When enabled, keys with modifiers are reported as `CSI 27 ; modifier ; keycode ~`
+  - Allows applications to distinguish between e.g., Ctrl+i and Tab
+  - Query support via `CSI ? 4 m` returns current mode
+  - Requires par-term-emu-core-rust v0.30.0+
+
 ---
 
 ## [0.9.0] - 2026-02-04

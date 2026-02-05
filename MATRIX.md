@@ -215,11 +215,11 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Modifier remapping | ✅ Per-modifier remapping | ❌ | ❌ | ⭐⭐ | 🟡 | Remap Ctrl/Alt/Cmd |
 | Option as Meta/Esc | ✅ `Option Key Sends` | ✅ `left/right_option_key_mode` | ✅ | - | - | Normal/Meta/Esc modes per key |
 | Hotkey window | ✅ Global hotkey | ❌ | ❌ | ⭐⭐⭐ | 🔴 | Quake-style dropdown |
-| Haptic/sound feedback for Esc | ✅ | ❌ | ❌ | ⭐ | 🟢 | Touch Bar feedback |
+| Haptic/sound feedback for Esc | ✅ | ❌ | ❌ | ➖ | ➖ | Touch Bar feedback - won't implement (Touch Bar discontinued) |
 | Language-agnostic key bindings | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Non-US keyboard support |
 | Application keypad mode | ✅ `Application Keypad Allowed` | ✅ | ✅ | - | - | - |
-| Touch Bar customization | ✅ `Touch Bar Map` | ❌ | ❌ | ⭐ | 🟡 | macOS Touch Bar |
-| modifyOtherKeys protocol | ✅ `Allow Modify Other Keys` | ❌ | ❌ | ⭐⭐ | 🟡 | Extended key reporting |
+| Touch Bar customization | ✅ `Touch Bar Map` | ❌ | ❌ | ➖ | ➖ | macOS Touch Bar - won't implement (Touch Bar discontinued) |
+| modifyOtherKeys protocol | ✅ `Allow Modify Other Keys` | ✅ `CSI > 4 ; mode m` | ✅ | - | - | Extended key reporting (modes 0, 1, 2) |
 
 ---
 

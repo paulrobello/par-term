@@ -116,13 +116,37 @@ impl InputHandler {
     }
 
     /// Convert a keyboard event to terminal input bytes
+    ///
+    /// If `modify_other_keys_mode` is > 0, keys with modifiers will be reported
+    /// using the XTerm modifyOtherKeys format: CSI 27 ; modifier ; keycode ~
     pub fn handle_key_event(&mut self, event: KeyEvent) -> Option<Vec<u8>> {
+        self.handle_key_event_with_mode(event, 0)
+    }
+
+    /// Convert a keyboard event to terminal input bytes with modifyOtherKeys support
+    ///
+    /// `modify_other_keys_mode`:
+    /// - 0: Disabled (normal key handling)
+    /// - 1: Report modifiers for special keys only
+    /// - 2: Report modifiers for all keys
+    pub fn handle_key_event_with_mode(
+        &mut self,
+        event: KeyEvent,
+        modify_other_keys_mode: u8,
+    ) -> Option<Vec<u8>> {
         if event.state != ElementState::Pressed {
             return None;
         }
 
         let ctrl = self.modifiers.state().control_key();
         let alt = self.modifiers.state().alt_key();
+
+        // Check if we should use modifyOtherKeys encoding
+        if modify_other_keys_mode > 0
+            && let Some(bytes) = self.try_modify_other_keys_encoding(&event, modify_other_keys_mode)
+        {
+            return Some(bytes);
+        }
 
         match event.logical_key {
             // Character keys
@@ -223,6 +247,71 @@ impl InputHandler {
 
             _ => None,
         }
+    }
+
+    /// Try to encode a key event using modifyOtherKeys format
+    ///
+    /// Returns Some(bytes) if the key should be encoded with modifyOtherKeys,
+    /// None if normal handling should be used.
+    ///
+    /// modifyOtherKeys format: CSI 27 ; modifier ; keycode ~
+    /// Where modifier is:
+    /// - 2 = Shift
+    /// - 3 = Alt
+    /// - 4 = Shift+Alt
+    /// - 5 = Ctrl
+    /// - 6 = Shift+Ctrl
+    /// - 7 = Alt+Ctrl
+    /// - 8 = Shift+Alt+Ctrl
+    fn try_modify_other_keys_encoding(&self, event: &KeyEvent, mode: u8) -> Option<Vec<u8>> {
+        let ctrl = self.modifiers.state().control_key();
+        let alt = self.modifiers.state().alt_key();
+        let shift = self.modifiers.state().shift_key();
+
+        // No modifiers means no special encoding needed
+        if !ctrl && !alt && !shift {
+            return None;
+        }
+
+        // Get the base character for the key
+        let base_char = self.get_base_character(event)?;
+
+        // Mode 1: Only report modifiers for keys that normally don't report them
+        // Mode 2: Report modifiers for all keys
+        if mode == 1 {
+            // In mode 1, only use modifyOtherKeys for keys that would normally
+            // lose modifier information (e.g., Ctrl+letter becomes control character)
+            // Skip Shift-only since shifted letters are normally different characters
+            if shift && !ctrl && !alt {
+                return None;
+            }
+        }
+
+        // Calculate the modifier value
+        // bit 0 (1) = Shift
+        // bit 1 (2) = Alt
+        // bit 2 (4) = Ctrl
+        // The final value is bits + 1
+        let mut modifier_bits = 0u8;
+        if shift {
+            modifier_bits |= 1;
+        }
+        if alt {
+            modifier_bits |= 2;
+        }
+        if ctrl {
+            modifier_bits |= 4;
+        }
+
+        // Add 1 to get the XTerm modifier value (so no modifiers would be 1, but we already checked for that)
+        let modifier_value = modifier_bits + 1;
+
+        // Get the Unicode codepoint of the base character
+        let keycode = base_char as u32;
+
+        // Format: CSI 27 ; modifier ; keycode ~
+        // CSI = ESC [
+        Some(format!("\x1b[27;{};{}~", modifier_value, keycode).into_bytes())
     }
 
     /// Get the base character from a key event (the character without Alt modification)

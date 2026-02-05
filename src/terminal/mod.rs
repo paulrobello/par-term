@@ -723,6 +723,19 @@ impl TerminalManager {
         term.is_alt_screen_active()
     }
 
+    /// Get the modifyOtherKeys mode (XTerm extension for enhanced keyboard input)
+    ///
+    /// Returns:
+    /// - 0: Disabled (normal key handling)
+    /// - 1: Report modifiers for special keys only
+    /// - 2: Report modifiers for all keys
+    pub fn modify_other_keys_mode(&self) -> u8 {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.modify_other_keys_mode()
+    }
+
     /// Get the terminal title set by OSC 0, 1, or 2 sequences
     ///
     /// Returns the title string that applications have set via escape sequences.
