@@ -506,15 +506,51 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 ## Summary Statistics
 
+### Feature Counts
+
+| Category | Implemented | Partial | Not Implemented |
+|----------|-------------|---------|-----------------|
+| Window & Display | 14 | 0 | 2 |
+| Typography & Fonts | 16 | 1 | 0 |
+| Cursor | 12 | 0 | 0 |
+| Background & Effects | 10 | 0 | 1 |
+| Colors & Themes | 16 | 0 | 1 |
+| Tab Bar | 16 | 1 | 1 |
+| Scrollback & Scrollbar | 11 | 1 | 1 |
+| Selection & Clipboard | 12 | 0 | 0 |
+| Mouse & Pointer | 9 | 0 | 1 |
+| Keyboard & Input | 9 | 0 | 2 |
+| Shell & Session | 14 | 0 | 2 |
+| Notifications & Bell | 12 | 0 | 0 |
+| Logging & Recording | 6 | 0 | 0 |
+| Profiles | 12 | 0 | 0 |
+| Split Panes | 9 | 1 | 0 |
+| Inline Graphics | 5 | 0 | 0 |
+| Hyperlinks & URLs | 5 | 0 | 0 |
+| Triggers & Automation | 2 | 0 | 3 |
+| tmux Integration | 17 | 0 | 0 |
+| Performance & Power | 9 | 0 | 1 |
+| Accessibility | 2 | 0 | 2 |
+| AI Integration | 0 | 0 | 4 |
+| Miscellaneous | 10 | 0 | 7 |
+| Badges | 9 | 0 | 0 |
+| **TOTAL** | **~227** | **~4** | **~28** |
+
+**Overall Parity: ~88%** of iTerm2 features implemented
+
 ### par-term Exclusive Features (Not in iTerm2)
-- 49 custom GLSL background shaders with hot reload
-- 12 cursor shader effects (GPU-powered cursor animations)
+- 49+ custom GLSL background shaders with hot reload
+- 12+ cursor shader effects (GPU-powered cursor animations)
 - Per-shader configuration system with metadata
 - Shadertoy-compatible texture channels and cubemaps
 - First-run shader install prompt (auto-detect missing shaders)
 - Scrollbar customization (position, colors, width, auto-hide)
+- Scrollbar mark tooltips (command, time, duration, exit code)
 - FPS control and VSync modes
+- GPU power preference (low power/high performance)
 - Power saving options (pause shaders/refresh on blur)
+- Reduce flicker mode with configurable delay
+- Maximize throughput mode for bulk output
 - Tab minimum width and maximum tabs limit
 - Configuration hot reload (F5)
 - CLI with shader installation
@@ -536,43 +572,42 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 - Badge system with 12 dynamic variables and Settings UI tab
 - Per-side modifier remapping (left/right Ctrl, Alt, Super independently)
 - Physical key binding mode (language-agnostic keybindings via scan codes)
+- Keep text opaque (separate from window transparency)
+- Window decorations toggle
+- modifyOtherKeys protocol support (modes 0, 1, 2)
+- Semantic history with 3 editor modes (Custom/$EDITOR/System Default)
+- WCAG-compliant minimum contrast enforcement (1.0-21.0 range)
+- Shell exit action with 5 modes (close/keep/restart variants)
+- Close confirmation for running jobs with configurable ignore list
+- tmux profile auto-switching via session name patterns
 
-### High-Priority Missing Features (⭐⭐⭐)
-1. **Hotkey window** - Quake-style dropdown - 🔴 High effort
-2. **Multiple profiles** - Named configurations - 🔵 Very high effort
-3. ~~**Split panes** - Divide terminal~~ - ✅ **IMPLEMENTED**
-4. ~~**Shell integration** - Command tracking~~ - ✅ **IMPLEMENTED** (OSC 133/7/1337 in core)
-5. ~~**tmux control mode** - Native tmux integration~~ - ✅ **IMPLEMENTED**
+### Remaining High-Priority Features
 
-### Recommended Implementation Priority
+| Feature | Usefulness | Effort | Notes |
+|---------|------------|--------|-------|
+| Hotkey window | ⭐⭐⭐ | 🔴 High | Quake-style dropdown terminal |
+| Triggers & automation | ⭐⭐ | 🔴 High | Regex pattern matching with actions |
+| Light/Dark mode switching | ⭐⭐ | 🟡 Medium | Auto-switch with system theme |
+| Tab bar position | ⭐⭐ | 🟡 Medium | Top/Bottom/Left options |
+| Session undo timeout | ⭐⭐ | 🟡 Medium | Recover accidentally closed tabs |
+| Window arrangements | ⭐⭐ | 🟡 Medium | Save/restore window layouts |
+| Instant Replay | ⭐⭐ | 🔵 Very High | Rewind terminal state |
+| AI integration | ⭐⭐ | 🔵 Very High | Command help and generation |
+| VoiceOver/accessibility | ⭐⭐ | 🔵 Very High | Screen reader support |
+| Bidirectional text | ⭐⭐ | 🔴 High | RTL language support |
 
-**Phase 1 - Quick Wins (Low Effort, High Value)**
-1. ~~Smart cursor color (⭐⭐, 🟢)~~ - ✅ **IMPLEMENTED** in core
-2. ~~Faint text alpha (⭐, 🟢)~~ - ✅ **IMPLEMENTED** in core
-3. ~~Bold color/brightening (⭐⭐, 🟢)~~ - ✅ **IMPLEMENTED** in core
-4. ~~Link color (⭐⭐, 🟢)~~ - ✅ **IMPLEMENTED** in core
-5. ~~Underline color SGR 58/59 (⭐⭐, 🟢)~~ - ✅ **IMPLEMENTED** in core
-
-**Phase 2 - Medium Effort, High Value**
-1. Tab bar position options (⭐⭐, 🟡)
-2. Light/Dark mode theme switching (⭐⭐, 🟡)
-3. ~~Minimum contrast (⭐⭐, 🟡)~~ - ✅ **IMPLEMENTED**
-4. ~~Semantic history (⭐⭐, 🟡)~~ - ✅ **IMPLEMENTED**
-5. Timestamps in scrollback (⭐⭐, 🟡)
-6. Mark indicators (⭐⭐, 🟡)
-7. Session undo timeout (⭐⭐, 🟡)
-8. Window arrangements (⭐⭐, 🟡)
-
-**Phase 3 - High Effort, High Value**
-1. Hotkey window (⭐⭐⭐, 🔴)
-2. Triggers & automation (⭐⭐, 🔴)
-
-**Phase 4 - Very High Effort (Major Features)**
-1. ~~Split panes (⭐⭐⭐, 🔵)~~ - ✅ **IMPLEMENTED**
-2. Multiple profiles (⭐⭐⭐, 🔵)
-3. ~~Shell integration (⭐⭐⭐, 🔵)~~ - ✅ **IMPLEMENTED** (OSC 133/7/1337 in core)
-4. ~~tmux control mode (⭐⭐⭐, 🔵)~~ - ✅ **IMPLEMENTED**
-5. AI integration (⭐⭐, 🔵)
+### Recently Completed (v0.10.0)
+- ✅ Full profile system with inheritance, tags, and keyboard shortcuts
+- ✅ Automatic profile switching (hostname patterns, tmux session patterns)
+- ✅ Shell integration (OSC 133/7/1337) with command marks
+- ✅ tmux control mode with native tabs/panes
+- ✅ Semantic history (click file paths to open in editor)
+- ✅ Minimum contrast enforcement (WCAG compliance)
+- ✅ Shell exit action modes (5 options)
+- ✅ Close confirmation for running jobs
+- ✅ Modifier key remapping (per-side)
+- ✅ Physical key bindings (language-agnostic)
+- ✅ modifyOtherKeys protocol
 
 ---
 
