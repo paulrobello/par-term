@@ -3,6 +3,7 @@
 //! This module provides configuration loading, saving, and default values
 //! for the terminal emulator.
 
+pub mod automation;
 pub mod defaults;
 pub mod shader_config;
 pub mod shader_metadata;
@@ -29,6 +30,7 @@ pub use types::{
     default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
+pub use automation::{CoprocessDefConfig, TriggerActionConfig, TriggerConfig};
 #[allow(unused_imports)]
 pub use types::KeyModifier;
 #[allow(unused_imports)]
@@ -1322,6 +1324,17 @@ pub struct Config {
     /// Maximum badge height as fraction of terminal height (0.0-1.0)
     #[serde(default = "defaults::badge_max_height")]
     pub badge_max_height: f32,
+
+    // ========================================================================
+    // Triggers & Automation
+    // ========================================================================
+    /// Regex trigger definitions that match terminal output and fire actions
+    #[serde(default)]
+    pub triggers: Vec<automation::TriggerConfig>,
+
+    /// Coprocess definitions for piped subprocess management
+    #[serde(default)]
+    pub coprocesses: Vec<automation::CoprocessDefConfig>,
 }
 
 impl Default for Config {
@@ -1564,6 +1577,8 @@ impl Default for Config {
             badge_right_margin: defaults::badge_right_margin(),
             badge_max_width: defaults::badge_max_width(),
             badge_max_height: defaults::badge_max_height(),
+            triggers: Vec::new(),
+            coprocesses: Vec::new(),
         }
     }
 }
