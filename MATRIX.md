@@ -341,11 +341,13 @@ This document compares features between iTerm2 and par-term, including assessmen
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Regex triggers | ✅ Full trigger system | ❌ | ❌ | ⭐⭐ | 🔴 | Auto-respond to patterns |
-| Trigger actions | ✅ Many actions | ❌ | ❌ | ⭐⭐ | 🔴 | Highlight, alert, run, etc. |
-| Coprocesses | ✅ | ❌ | ❌ | ⭐ | 🔴 | Pipe output to process |
+| Regex triggers | ✅ Full trigger system | 🔶 Core ready | 🔶 | ⭐⭐ | 🟡 | **Core v0.31.0**: `TriggerRegistry` with RegexSet, capture groups, actions. Frontend UI needed |
+| Trigger actions | ✅ Many actions | 🔶 Core ready | 🔶 | ⭐⭐ | 🟡 | **Core v0.31.0**: Highlight/Notify/MarkLine/SetVariable (core-handled); RunCommand/PlaySound/SendText (emitted as events). Frontend integration needed |
+| Coprocesses | ✅ | 🔶 Core ready | 🔶 | ⭐ | 🟡 | **Core v0.31.0**: `CoprocessManager` with spawn/stop/communicate, auto-piping to stdin, line-buffered stdout. Frontend UI needed |
 | Shell integration | ✅ Full integration | ✅ OSC 133/7/1337 | ✅ | - | - | Command tracking, marks, CWD, badges |
 | Python API | ✅ Full scripting API | ❌ | ❌ | ⭐⭐ | 🔵 | Automation scripting |
+
+> **Core Readiness Note (v0.31.0):** The `par-term-emu-core-rust` library now provides full trigger and coprocess support with Python bindings. The streaming server also dispatches `TriggerMatched` and `CwdChanged` events to WebSocket clients. par-term frontend work needed: Settings UI for trigger/coprocess management, trigger highlight rendering, and wiring action events (RunCommand, PlaySound, SendText) to frontend handlers.
 
 ---
 
@@ -527,16 +529,16 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Split Panes | 9 | 1 | 0 |
 | Inline Graphics | 5 | 0 | 0 |
 | Hyperlinks & URLs | 5 | 0 | 0 |
-| Triggers & Automation | 2 | 0 | 3 |
+| Triggers & Automation | 2 | 3 | 0 |
 | tmux Integration | 17 | 0 | 0 |
 | Performance & Power | 9 | 0 | 1 |
 | Accessibility | 2 | 0 | 2 |
 | AI Integration | 0 | 0 | 4 |
 | Miscellaneous | 10 | 0 | 7 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~227** | **~4** | **~28** |
+| **TOTAL** | **~227** | **~7** | **~25** |
 
-**Overall Parity: ~88%** of iTerm2 features implemented
+**Overall Parity: ~89%** of iTerm2 features implemented
 
 ### par-term Exclusive Features (Not in iTerm2)
 - 49+ custom GLSL background shaders with hot reload
@@ -586,7 +588,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Feature | Usefulness | Effort | Notes |
 |---------|------------|--------|-------|
 | Hotkey window | ⭐⭐⭐ | 🔴 High | Quake-style dropdown terminal |
-| Triggers & automation | ⭐⭐ | 🔴 High | Regex pattern matching with actions |
+| Triggers & automation | ⭐⭐ | 🟡 Medium | Core v0.31.0 ready; frontend UI & wiring needed |
 | Light/Dark mode switching | ⭐⭐ | 🟡 Medium | Auto-switch with system theme |
 | Tab bar position | ⭐⭐ | 🟡 Medium | Top/Bottom/Left options |
 | Session undo timeout | ⭐⭐ | 🟡 Medium | Recover accidentally closed tabs |
