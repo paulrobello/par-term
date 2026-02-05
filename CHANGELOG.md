@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Settings Quick Search**: Expanded search keywords to cover all settings options, making it easier to find specific settings like "minimum contrast", "semantic history", "anti-idle", and many more
+
 - **Core Library API Integration**: Enabled previously dormant APIs from par-term-emu-core-rust
   - Recording API now accessible for future instant replay features
   - Shell integration stats API now accessible for badge variables and status bar
