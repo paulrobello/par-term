@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Shell Exit Action**: Configurable behavior when shell process exits
+  - New config option: `shell_exit_action` replaces boolean `exit_on_shell_exit`
+  - Five exit action options:
+    - `close` - Close the tab/pane (default, matches old `exit_on_shell_exit: true`)
+    - `keep` - Keep pane open showing terminated shell (matches old `exit_on_shell_exit: false`)
+    - `restart_immediately` - Spawn new shell instantly when previous exits
+    - `restart_with_prompt` - Show "[Process exited. Press Enter to restart...]" message and wait
+    - `restart_after_delay` - Restart shell after 1 second delay
+  - Settings UI: Terminal → Behavior section with dropdown selector
+  - Backward compatible: old boolean config values auto-migrate (`true`→Close, `false`→Keep)
+
 - **Modifier Key Remapping**: Remap modifier keys to different functions
   - Configure left/right Ctrl, Alt, and Super keys independently
   - Remap options: None (disabled), Ctrl, Alt, Shift, Super
