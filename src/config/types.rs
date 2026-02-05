@@ -444,6 +444,57 @@ impl StartupDirectoryMode {
     }
 }
 
+/// Action to take when the shell process exits
+///
+/// Controls what happens when a shell session terminates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ShellExitAction {
+    /// Close the tab/pane when shell exits (default)
+    #[default]
+    Close,
+    /// Keep the pane open showing the terminated shell
+    Keep,
+    /// Immediately restart the shell
+    RestartImmediately,
+    /// Show a prompt message and wait for Enter before restarting
+    RestartWithPrompt,
+    /// Restart the shell after a 1 second delay
+    RestartAfterDelay,
+}
+
+impl ShellExitAction {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Close => "Close tab/pane",
+            Self::Keep => "Keep open",
+            Self::RestartImmediately => "Restart immediately",
+            Self::RestartWithPrompt => "Restart with prompt",
+            Self::RestartAfterDelay => "Restart after 1s delay",
+        }
+    }
+
+    /// All available actions for UI iteration
+    pub fn all() -> &'static [ShellExitAction] {
+        &[
+            ShellExitAction::Close,
+            ShellExitAction::Keep,
+            ShellExitAction::RestartImmediately,
+            ShellExitAction::RestartWithPrompt,
+            ShellExitAction::RestartAfterDelay,
+        ]
+    }
+
+    /// Returns true if this action involves restarting the shell
+    pub fn is_restart(&self) -> bool {
+        matches!(
+            self,
+            Self::RestartImmediately | Self::RestartWithPrompt | Self::RestartAfterDelay
+        )
+    }
+}
+
 /// Detected shell type
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]

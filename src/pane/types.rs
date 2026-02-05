@@ -20,6 +20,15 @@ use tokio::task::JoinHandle;
 /// Unique identifier for a pane
 pub type PaneId = u64;
 
+/// State for shell restart behavior
+#[derive(Debug, Clone)]
+pub enum RestartState {
+    /// Waiting for user to press Enter to restart
+    AwaitingInput,
+    /// Waiting for delay timer before restart
+    AwaitingDelay(std::time::Instant),
+}
+
 /// Direction of a split
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplitDirection {
@@ -143,6 +152,8 @@ pub struct Pane {
     pub bounds: PaneBounds,
     /// Per-pane background image path (overrides global config if set)
     pub background_image: Option<String>,
+    /// State for shell restart behavior (None = shell running or closed normally)
+    pub restart_state: Option<RestartState>,
 }
 
 impl Pane {
@@ -258,6 +269,7 @@ impl Pane {
             session_logger,
             bounds: PaneBounds::default(),
             background_image: None, // Use global config by default
+            restart_state: None,
         })
     }
 
@@ -340,6 +352,7 @@ impl Pane {
             session_logger,
             bounds: PaneBounds::default(),
             background_image: None, // Use global config by default
+            restart_state: None,
         })
     }
 
@@ -387,6 +400,80 @@ impl Pane {
     /// Get the per-pane background image path (if set)
     pub fn get_background_image(&self) -> Option<&str> {
         self.background_image.as_deref()
+    }
+
+    /// Respawn the shell in this pane
+    ///
+    /// This resets the terminal state and spawns a new shell process.
+    /// Used when shell_exit_action is one of the restart variants.
+    pub fn respawn_shell(&mut self, config: &Config) -> anyhow::Result<()> {
+        // Clear restart state
+        self.restart_state = None;
+        self.exit_notified = false;
+
+        // Determine the shell command to use
+        #[allow(unused_mut)]
+        let (shell_cmd, mut shell_args) = if let Some(ref custom) = config.custom_shell {
+            (custom.clone(), config.shell_args.clone())
+        } else {
+            #[cfg(target_os = "windows")]
+            {
+                ("powershell.exe".to_string(), None)
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                (
+                    std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()),
+                    None,
+                )
+            }
+        };
+
+        // On Unix-like systems, spawn as login shell if configured
+        #[cfg(not(target_os = "windows"))]
+        if config.login_shell {
+            let args = shell_args.get_or_insert_with(Vec::new);
+            if !args.iter().any(|a| a == "-l" || a == "--login") {
+                args.insert(0, "-l".to_string());
+            }
+        }
+
+        // Determine working directory (use current CWD if available, else config)
+        let work_dir = self
+            .get_cwd()
+            .or_else(|| self.working_directory.clone())
+            .or_else(|| config.working_directory.clone());
+
+        let shell_args_deref = shell_args.as_deref();
+        let shell_env = config.shell_env.as_ref();
+
+        // Respawn the shell
+        if let Ok(mut term) = self.terminal.try_lock() {
+            // Clear the screen before respawning (using VT escape sequence)
+            // This clears screen and moves cursor to home position
+            term.process_data(b"\x1b[2J\x1b[H");
+
+            // Spawn new shell
+            term.spawn_custom_shell_with_dir(
+                &shell_cmd,
+                shell_args_deref,
+                work_dir.as_deref(),
+                shell_env,
+            )?;
+
+            log::info!("Respawned shell in pane {}", self.id);
+        }
+
+        Ok(())
+    }
+
+    /// Write a restart prompt message to the terminal
+    pub fn write_restart_prompt(&self) {
+        if let Ok(term) = self.terminal.try_lock() {
+            // Write the prompt message directly to terminal display
+            let message = "\r\n[Process exited. Press Enter to restart...]\r\n";
+            term.process_data(message.as_bytes());
+        }
     }
 
     /// Get the title for this pane (from OSC or CWD)

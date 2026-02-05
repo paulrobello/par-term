@@ -23,9 +23,9 @@ pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
     DroppedFileQuoteStyle, FontRange, InstallPromptState, IntegrationVersions, KeyBinding,
     ModifierRemapping, ModifierTarget, OptionKeyMode, SessionLogFormat, ShaderConfig,
-    ShaderInstallPrompt, ShaderMetadata, ShellType, SmartSelectionPrecision, SmartSelectionRule,
-    StartupDirectoryMode, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency,
-    VsyncMode, WindowType, default_smart_selection_rules,
+    ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType, SmartSelectionPrecision,
+    SmartSelectionRule, StartupDirectoryMode, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle,
+    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -40,6 +40,29 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::themes::Theme;
+
+/// Custom deserializer for `ShellExitAction` that supports backward compatibility.
+///
+/// Accepts either:
+/// - Boolean: `true` → `Close`, `false` → `Keep` (legacy format)
+/// - String enum: `"close"`, `"keep"`, `"restart_immediately"`, etc.
+fn deserialize_shell_exit_action<'de, D>(deserializer: D) -> Result<ShellExitAction, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum BoolOrAction {
+        Bool(bool),
+        Action(ShellExitAction),
+    }
+
+    match BoolOrAction::deserialize(deserializer)? {
+        BoolOrAction::Bool(true) => Ok(ShellExitAction::Close),
+        BoolOrAction::Bool(false) => Ok(ShellExitAction::Keep),
+        BoolOrAction::Action(action) => Ok(action),
+    }
+}
 
 /// Configuration for the terminal emulator
 /// Aligned with par-tui-term naming conventions for consistency
@@ -597,9 +620,16 @@ pub struct Config {
     // ========================================================================
     // Shell Behavior
     // ========================================================================
-    /// Exit when shell exits
-    #[serde(default = "defaults::bool_true", alias = "close_on_shell_exit")]
-    pub exit_on_shell_exit: bool,
+    /// Action to take when the shell process exits
+    /// Supports: close, keep, restart_immediately, restart_with_prompt, restart_after_delay
+    /// For backward compatibility, also accepts boolean values (true=close, false=keep)
+    #[serde(
+        default,
+        deserialize_with = "deserialize_shell_exit_action",
+        alias = "exit_on_shell_exit",
+        alias = "close_on_shell_exit"
+    )]
+    pub shell_exit_action: ShellExitAction,
 
     /// Custom shell command (defaults to system shell if not specified)
     #[serde(default)]
@@ -1316,7 +1346,7 @@ impl Default for Config {
             cursor_shader_glow_intensity: defaults::cursor_glow_intensity(),
             cursor_shader_hides_cursor: defaults::bool_false(),
             cursor_shader_disable_in_alt_screen: defaults::cursor_shader_disable_in_alt_screen(),
-            exit_on_shell_exit: defaults::bool_true(),
+            shell_exit_action: ShellExitAction::default(),
             custom_shell: None,
             shell_args: None,
             working_directory: None,

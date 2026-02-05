@@ -104,16 +104,16 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Foreground color | ✅ | ✅ | ✅ | - | - | Theme-controlled |
 | Background color | ✅ | ✅ | ✅ | - | - | Theme-controlled |
 | ANSI colors (0-15) | ✅ | ✅ | ✅ | - | - | Theme-controlled |
-| Bold color | ✅ | 🔶 | 🔶 | ⭐⭐ | 🟢 | Font weight only, no color intensity |
+| Bold color | ✅ | ✅ `bold_brightening`, `bold_color` | ✅ | - | - | Core supports both bright variant and custom color |
 | Selection color | ✅ | ✅ | ✅ | - | - | Theme-controlled |
 | Cursor color | ✅ | ✅ | ✅ | - | - | - |
-| Link color | ✅ `Link Color` | 🔶 | 🔶 | ⭐⭐ | 🟢 | OSC 8 tracked but not colored |
+| Link color | ✅ `Link Color` | ✅ `link_color` | ✅ | - | - | Core tracks and styles OSC 8 hyperlinks |
 | Theme presets | ✅ Many built-in | ✅ 17 themes | ✅ | - | - | Dracula, Nord, Monokai, Solarized, etc. |
 | Light/Dark mode variants | ✅ Separate colors per mode | ❌ | ❌ | ⭐⭐ | 🟡 | Auto-switch with system theme |
 | Minimum contrast | ✅ `Minimum Contrast` | ❌ | ❌ | ⭐⭐ | 🟡 | Accessibility feature |
-| Smart cursor color | ✅ `Smart Cursor Color` | ❌ | ❌ | ⭐⭐ | 🟢 | Auto-choose readable cursor |
-| Faint text alpha | ✅ `Faint Text Alpha` | ❌ | ❌ | ⭐ | 🟢 | Dim faint text |
-| Underline color | ✅ `Underline Color` | ❌ | ❌ | ⭐⭐ | 🟢 | Uses text foreground color |
+| Smart cursor color | ✅ `Smart Cursor Color` | ✅ `smart_cursor_color` | ✅ | - | - | Core exposes setting, frontend implements |
+| Faint text alpha | ✅ `Faint Text Alpha` | ✅ `faint_text_alpha` | ✅ | - | - | Core exposes 0.0-1.0 alpha multiplier |
+| Underline color | ✅ `Underline Color` | ✅ SGR 58/59 | ✅ | - | - | Full colored underline support in core |
 | Badge color | ✅ `Badge Color` | ✅ `badge_color`, `badge_color_alpha` | ✅ | - | - | RGBA color via config and Settings UI |
 | Tab color per profile | ✅ `Tab Color` | ✅ per-tab colors | ✅ | - | - | - |
 | Selection foreground color | ✅ | ✅ `selection_fg` | ✅ | - | - | Separate fg and bg colors |
@@ -233,7 +233,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | **Startup directory mode** | ✅ Home/Recycle/Custom | ✅ `startup_directory_mode` | ✅ | - | - | Home/Previous/Custom with graceful fallback |
 | Login shell | ✅ | ✅ `login_shell` | ✅ | - | - | - |
 | Environment variables | ✅ | ✅ `shell_env` | ✅ | - | - | - |
-| Exit behavior | ✅ Close/Restart | ✅ `exit_on_shell_exit` | 🔶 | ⭐⭐ | 🟢 | Add restart option |
+| Exit behavior | ✅ Close/Restart | ✅ `shell_exit_action` | ✅ | - | - | Close/Keep/Restart immediately/Restart with prompt/Restart after delay |
 | Initial text to send | ✅ `Initial Text` | ✅ `initial_text` | ✅ | ⭐⭐ | 🟢 | Send text on start with delay/newline + escapes |
 | Anti-idle (keep-alive) | ✅ `Send Code When Idle` | ✅ `anti_idle_enabled` | ✅ | ⭐⭐ | 🟢 | Prevent SSH timeouts |
 | Jobs to ignore | ✅ | ❌ | ❌ | ⭐ | 🟢 | Ignore specific processes |
@@ -547,8 +547,11 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 ### Recommended Implementation Priority
 
 **Phase 1 - Quick Wins (Low Effort, High Value)**
-1. Smart cursor color (⭐⭐, 🟢)
-2. Faint text alpha (⭐, 🟢)
+1. ~~Smart cursor color (⭐⭐, 🟢)~~ - ✅ **IMPLEMENTED** in core
+2. ~~Faint text alpha (⭐, 🟢)~~ - ✅ **IMPLEMENTED** in core
+3. ~~Bold color/brightening (⭐⭐, 🟢)~~ - ✅ **IMPLEMENTED** in core
+4. ~~Link color (⭐⭐, 🟢)~~ - ✅ **IMPLEMENTED** in core
+5. ~~Underline color SGR 58/59 (⭐⭐, 🟢)~~ - ✅ **IMPLEMENTED** in core
 
 **Phase 2 - Medium Effort, High Value**
 1. Tab bar position options (⭐⭐, 🟡)

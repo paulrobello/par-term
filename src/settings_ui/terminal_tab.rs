@@ -112,16 +112,26 @@ fn show_behavior_section(
             }
         });
 
-        if ui
-            .checkbox(
-                &mut settings.config.exit_on_shell_exit,
-                "Exit when shell exits",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+        ui.horizontal(|ui| {
+            ui.label("Shell exit action:");
+            egui::ComboBox::from_id_salt("shell_exit_action")
+                .selected_text(settings.config.shell_exit_action.display_name())
+                .show_ui(ui, |ui| {
+                    for action in crate::config::ShellExitAction::all() {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.shell_exit_action,
+                                *action,
+                                action.display_name(),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+        });
     });
 }
 

@@ -287,6 +287,33 @@ impl WindowState {
                 // Reset anti-idle timer on keyboard input
                 tab.anti_idle_last_activity = std::time::Instant::now();
 
+                // Check if focused pane is awaiting restart input (Enter key to restart)
+                if let Some(ref mut pane_manager) = tab.pane_manager
+                    && let Some(focused_pane) = pane_manager.focused_pane_mut()
+                    && matches!(
+                        focused_pane.restart_state,
+                        Some(crate::pane::RestartState::AwaitingInput)
+                    )
+                {
+                    // Check if this is an Enter key (bytes == "\r" or "\n")
+                    if bytes == b"\r" || bytes == b"\n" || bytes == b"\r\n" {
+                        log::info!(
+                            "Enter pressed, restarting shell in pane {}",
+                            focused_pane.id
+                        );
+                        if let Err(e) = focused_pane.respawn_shell(&self.config) {
+                            log::error!(
+                                "Failed to respawn shell in pane {}: {}",
+                                focused_pane.id,
+                                e
+                            );
+                        }
+                        return;
+                    }
+                    // For any other key, ignore it while awaiting input
+                    return;
+                }
+
                 // Check if we should broadcast to all panes
                 if self.broadcast_input
                     && let Some(ref mut pane_manager) = tab.pane_manager
