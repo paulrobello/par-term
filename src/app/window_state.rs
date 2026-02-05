@@ -144,6 +144,10 @@ pub struct WindowState {
     /// Whether we have pending terminal updates deferred due to cursor being hidden
     pub(crate) flicker_pending_render: bool,
 
+    // Throughput mode state
+    /// When throughput mode batching started (for render interval timing)
+    pub(crate) throughput_batch_start: Option<std::time::Instant>,
+
     // Shader hot reload
     /// Shader file watcher for hot reload support
     pub(crate) shader_watcher: Option<ShaderWatcher>,
@@ -290,6 +294,8 @@ impl WindowState {
 
             cursor_hidden_since: None,
             flicker_pending_render: false,
+
+            throughput_batch_start: None,
 
             shader_watcher: None,
             shader_reload_error: None,

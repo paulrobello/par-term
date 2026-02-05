@@ -79,6 +79,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatically bypasses delay for UI interactions (help, search, dialogs)
   - Respects `lock_cursor_visibility` config option
 
+- **Maximize Throughput Mode**: Manual toggle for prioritizing bulk output processing over immediate responsiveness
+  - Batches screen updates during bulk terminal output (e.g., `cat /usr/share/dict/words`)
+  - Reduces CPU overhead when processing large outputs by throttling render rate
+  - Toggle with `Cmd+Shift+T` (macOS) or `Ctrl+Shift+T` (other platforms)
+  - Toast notification confirms mode toggle
+  - New config options:
+    - `maximize_throughput` - Enable/disable feature (default: false)
+    - `throughput_render_interval_ms` - Render interval in throughput mode (50-500ms, default: 100ms)
+  - Settings UI: Window → Performance → Throughput Mode section
+  - Unlike reduce_flicker, this mode always batches regardless of cursor visibility
+
 ### Fixed
 
 - **Arrow Keys in `less` and Other Pagers**: Fixed arrow keys not working in programs that enable application cursor key mode (DECCKM)

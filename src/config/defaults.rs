@@ -214,6 +214,16 @@ pub fn reduce_flicker_delay_ms() -> u32 {
     16 // ~1 frame at 60fps
 }
 
+/// Default for maximize_throughput option
+pub fn maximize_throughput() -> bool {
+    false // Off by default
+}
+
+/// Default render interval in milliseconds when maximize_throughput is enabled
+pub fn throughput_render_interval_ms() -> u32 {
+    100 // 100ms default (~10 fps during bulk output)
+}
+
 pub fn shader_hot_reload_delay() -> u64 {
     100 // Debounce delay in milliseconds
 }
@@ -368,6 +378,11 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
         super::types::KeyBinding {
             key: "CmdOrCtrl+Alt+I".to_string(),
             action: "toggle_broadcast_input".to_string(),
+        },
+        // Throughput mode toggle
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+T".to_string(),
+            action: "toggle_throughput_mode".to_string(),
         },
         // tmux session picker
         super::types::KeyBinding {

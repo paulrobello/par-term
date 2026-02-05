@@ -534,6 +534,45 @@ fn show_performance_section(
                 *changes_this_frame = true;
             }
         });
+
+        ui.add_space(10.0);
+        ui.label(egui::RichText::new("Throughput Mode").strong());
+
+        if ui
+            .checkbox(
+                &mut settings.config.maximize_throughput,
+                "Maximize throughput (Cmd+Shift+T)",
+            )
+            .on_hover_text(
+                "Batches screen updates during bulk terminal output.\n\
+                 Reduces CPU overhead when processing large outputs.\n\
+                 Trade-off: display updates are delayed by the interval below.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.horizontal(|ui| {
+            ui.label("Render interval:");
+            if ui
+                .add_enabled(
+                    settings.config.maximize_throughput,
+                    egui::Slider::new(&mut settings.config.throughput_render_interval_ms, 50..=500)
+                        .suffix("ms"),
+                )
+                .on_hover_text(
+                    "How often to update the display in throughput mode.\n\
+                     Lower = more responsive, Higher = better throughput.\n\
+                     Default: 100ms (~10 updates/sec)",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
     });
 }
 

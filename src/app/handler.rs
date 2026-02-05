@@ -820,6 +820,47 @@ impl WindowState {
             }
         }
 
+        // --- THROUGHPUT MODE LOGIC ---
+        // When maximize_throughput is enabled, always batch renders regardless of cursor state.
+        // Uses a longer interval than flicker reduction for better throughput during bulk output.
+        let should_delay_for_throughput = if self.config.maximize_throughput {
+            // Initialize batch start time if not set
+            if self.throughput_batch_start.is_none() {
+                self.throughput_batch_start = Some(now);
+            }
+
+            let interval =
+                std::time::Duration::from_millis(self.config.throughput_render_interval_ms as u64);
+            let batch_start = self.throughput_batch_start.unwrap();
+
+            // Check if interval has elapsed
+            if now.duration_since(batch_start) >= interval {
+                self.throughput_batch_start = Some(now); // Reset for next batch
+                false // Allow render
+            } else {
+                true // Delay render
+            }
+        } else {
+            // Clear tracking when disabled
+            if self.throughput_batch_start.is_some() {
+                self.throughput_batch_start = None;
+            }
+            false
+        };
+
+        // Schedule wake for throughput mode
+        if should_delay_for_throughput && let Some(batch_start) = self.throughput_batch_start {
+            let interval =
+                std::time::Duration::from_millis(self.config.throughput_render_interval_ms as u64);
+            let render_time = batch_start + interval;
+            if render_time < next_wake {
+                next_wake = render_time;
+            }
+        }
+
+        // Combine delays: throughput mode OR flicker delay
+        let should_delay_render = should_delay_for_throughput || should_delay_for_flicker;
+
         // 1. Cursor Blinking
         // Wake up exactly when the cursor needs to toggle visibility or fade.
         // Skip cursor blinking when unfocused with pause_refresh_on_blur to save power.
@@ -972,9 +1013,9 @@ impl WindowState {
 
         // --- TRIGGER REDRAW ---
         // Request a redraw if any of the logic above determined an update is due.
-        // Respect flicker delay - don't redraw while cursor is hidden and delay not expired.
+        // Respect combined delay (throughput mode OR flicker reduction).
         if self.needs_redraw
-            && !should_delay_for_flicker
+            && !should_delay_render
             && let Some(window) = &self.window
         {
             window.request_redraw();

@@ -194,6 +194,17 @@ pub struct Config {
     #[serde(default = "defaults::reduce_flicker_delay_ms")]
     pub reduce_flicker_delay_ms: u32,
 
+    /// Enable throughput mode to batch rendering during bulk output.
+    /// When enabled, rendering is throttled to reduce CPU overhead for large outputs.
+    /// Toggle with Cmd+Shift+T (macOS) or Ctrl+Shift+T (other platforms).
+    #[serde(default = "defaults::maximize_throughput")]
+    pub maximize_throughput: bool,
+
+    /// Render interval in milliseconds when maximize_throughput is enabled.
+    /// Higher values = better throughput but delayed display. Range: 50-500ms.
+    #[serde(default = "defaults::throughput_render_interval_ms")]
+    pub throughput_render_interval_ms: u32,
+
     /// Window padding in pixels
     #[serde(default = "defaults::window_padding")]
     pub window_padding: f32,
@@ -1341,6 +1352,8 @@ impl Default for Config {
             power_preference: PowerPreference::default(),
             reduce_flicker: defaults::reduce_flicker(),
             reduce_flicker_delay_ms: defaults::reduce_flicker_delay_ms(),
+            maximize_throughput: defaults::maximize_throughput(),
+            throughput_render_interval_ms: defaults::throughput_render_interval_ms(),
             window_padding: defaults::window_padding(),
             window_opacity: defaults::window_opacity(),
             window_always_on_top: defaults::bool_false(),

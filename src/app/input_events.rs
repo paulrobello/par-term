@@ -1382,6 +1382,24 @@ impl WindowState {
                 self.switch_to_tab_index(9);
                 true
             }
+            "toggle_throughput_mode" => {
+                self.config.maximize_throughput = !self.config.maximize_throughput;
+                let message = if self.config.maximize_throughput {
+                    "Throughput Mode: ON"
+                } else {
+                    "Throughput Mode: OFF"
+                };
+                self.show_toast(message);
+                log::info!(
+                    "Throughput mode {}",
+                    if self.config.maximize_throughput {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                );
+                true
+            }
             _ => {
                 log::warn!("Unknown keybinding action: {}", action);
                 false
