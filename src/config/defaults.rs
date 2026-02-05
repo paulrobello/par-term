@@ -204,6 +204,16 @@ pub fn unfocused_fps() -> u32 {
     30 // Reduced FPS when window is not focused
 }
 
+/// Default for reduce_flicker option
+pub fn reduce_flicker() -> bool {
+    true
+}
+
+/// Default delay in milliseconds for reduce_flicker
+pub fn reduce_flicker_delay_ms() -> u32 {
+    16 // ~1 frame at 60fps
+}
+
 pub fn shader_hot_reload_delay() -> u64 {
     100 // Debounce delay in milliseconds
 }

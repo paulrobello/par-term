@@ -120,7 +120,7 @@ impl InputHandler {
     /// If `modify_other_keys_mode` is > 0, keys with modifiers will be reported
     /// using the XTerm modifyOtherKeys format: CSI 27 ; modifier ; keycode ~
     pub fn handle_key_event(&mut self, event: KeyEvent) -> Option<Vec<u8>> {
-        self.handle_key_event_with_mode(event, 0)
+        self.handle_key_event_with_mode(event, 0, false)
     }
 
     /// Convert a keyboard event to terminal input bytes with modifyOtherKeys support
@@ -129,10 +129,14 @@ impl InputHandler {
     /// - 0: Disabled (normal key handling)
     /// - 1: Report modifiers for special keys only
     /// - 2: Report modifiers for all keys
+    ///
+    /// `application_cursor`: When true (DECCKM mode enabled), arrow keys send
+    /// SS3 sequences (ESC O A) instead of CSI sequences (ESC [ A).
     pub fn handle_key_event_with_mode(
         &mut self,
         event: KeyEvent,
         modify_other_keys_mode: u8,
+        application_cursor: bool,
     ) -> Option<Vec<u8>> {
         if event.state != ElementState::Pressed {
             return None;
@@ -213,11 +217,36 @@ impl InputHandler {
                     NamedKey::Insert => "\x1b[2~",
                     NamedKey::Delete => "\x1b[3~",
 
-                    // Arrow keys
-                    NamedKey::ArrowUp => "\x1b[A",
-                    NamedKey::ArrowDown => "\x1b[B",
-                    NamedKey::ArrowRight => "\x1b[C",
-                    NamedKey::ArrowLeft => "\x1b[D",
+                    // Arrow keys - use SS3 (ESC O) in application cursor mode,
+                    // CSI (ESC [) in normal mode
+                    NamedKey::ArrowUp => {
+                        if application_cursor {
+                            "\x1bOA"
+                        } else {
+                            "\x1b[A"
+                        }
+                    }
+                    NamedKey::ArrowDown => {
+                        if application_cursor {
+                            "\x1bOB"
+                        } else {
+                            "\x1b[B"
+                        }
+                    }
+                    NamedKey::ArrowRight => {
+                        if application_cursor {
+                            "\x1bOC"
+                        } else {
+                            "\x1b[C"
+                        }
+                    }
+                    NamedKey::ArrowLeft => {
+                        if application_cursor {
+                            "\x1bOD"
+                        } else {
+                            "\x1b[D"
+                        }
+                    }
 
                     // Navigation keys
                     NamedKey::Home => "\x1b[H",

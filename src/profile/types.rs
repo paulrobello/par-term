@@ -882,7 +882,10 @@ mod tests {
         // Prefix match
         assert!(ProfileManager::pattern_matches("dev-server-01", "dev-*"));
         // Contains match
-        assert!(ProfileManager::pattern_matches("my-production-env", "*production*"));
+        assert!(ProfileManager::pattern_matches(
+            "my-production-env",
+            "*production*"
+        ));
         // Exact match
         assert!(ProfileManager::pattern_matches("main", "main"));
         // Wildcard
@@ -899,11 +902,10 @@ mod tests {
     #[test]
     fn test_find_by_tmux_session() {
         let mut manager = ProfileManager::new();
+        manager.add(Profile::new("Work Profile").tmux_session_patterns(vec!["work-*".to_string()]));
         manager.add(
-            Profile::new("Work Profile").tmux_session_patterns(vec!["work-*".to_string()]),
-        );
-        manager.add(
-            Profile::new("Dev Profile").tmux_session_patterns(vec!["dev-*".to_string(), "*-development".to_string()]),
+            Profile::new("Dev Profile")
+                .tmux_session_patterns(vec!["dev-*".to_string(), "*-development".to_string()]),
         );
         manager.add(Profile::new("Default")); // No patterns
 
@@ -916,7 +918,10 @@ mod tests {
             "Dev Profile"
         );
         assert_eq!(
-            manager.find_by_tmux_session("staging-development").unwrap().name,
+            manager
+                .find_by_tmux_session("staging-development")
+                .unwrap()
+                .name,
             "Dev Profile"
         );
         assert!(manager.find_by_tmux_session("production").is_none());

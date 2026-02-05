@@ -183,6 +183,17 @@ pub struct Config {
     #[serde(default)]
     pub power_preference: PowerPreference,
 
+    /// Reduce flicker by delaying redraws while cursor is hidden (DECTCEM off).
+    /// Many terminal programs hide cursor during bulk updates to prevent visual artifacts.
+    #[serde(default = "defaults::reduce_flicker")]
+    pub reduce_flicker: bool,
+
+    /// Maximum delay in milliseconds when reduce_flicker is enabled.
+    /// Rendering occurs when cursor becomes visible OR this delay expires.
+    /// Range: 1-100ms. Default: 16ms (~1 frame at 60fps).
+    #[serde(default = "defaults::reduce_flicker_delay_ms")]
+    pub reduce_flicker_delay_ms: u32,
+
     /// Window padding in pixels
     #[serde(default = "defaults::window_padding")]
     pub window_padding: f32,
@@ -1328,6 +1339,8 @@ impl Default for Config {
             max_fps: defaults::max_fps(),
             vsync_mode: VsyncMode::default(),
             power_preference: PowerPreference::default(),
+            reduce_flicker: defaults::reduce_flicker(),
+            reduce_flicker_delay_ms: defaults::reduce_flicker_delay_ms(),
             window_padding: defaults::window_padding(),
             window_opacity: defaults::window_opacity(),
             window_always_on_top: defaults::bool_false(),

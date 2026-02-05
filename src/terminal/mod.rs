@@ -736,6 +736,18 @@ impl TerminalManager {
         term.modify_other_keys_mode()
     }
 
+    /// Check if application cursor key mode (DECCKM) is enabled.
+    ///
+    /// When enabled, arrow keys should send SS3 sequences (ESC O A/B/C/D)
+    /// instead of CSI sequences (ESC [ A/B/C/D).
+    /// Applications like `less` enable this mode for arrow key navigation.
+    pub fn application_cursor(&self) -> bool {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.application_cursor()
+    }
+
     /// Get the terminal title set by OSC 0, 1, or 2 sequences
     ///
     /// Returns the title string that applications have set via escape sequences.

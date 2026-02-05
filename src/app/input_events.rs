@@ -257,22 +257,24 @@ impl WindowState {
             return; // Key was handled by prefix system
         }
 
-        // Get modifyOtherKeys mode from terminal (if available)
-        let modify_other_keys_mode = if let Some(tab) = self.tab_manager.active_tab() {
-            if let Ok(term) = tab.terminal.try_lock() {
-                term.modify_other_keys_mode()
+        // Get terminal modes (if available)
+        let (modify_other_keys_mode, application_cursor) =
+            if let Some(tab) = self.tab_manager.active_tab() {
+                if let Ok(term) = tab.terminal.try_lock() {
+                    (term.modify_other_keys_mode(), term.application_cursor())
+                } else {
+                    (0, false)
+                }
             } else {
-                0
-            }
-        } else {
-            0
-        };
+                (0, false)
+            };
 
         // Normal key handling - send to terminal (or via tmux if connected)
-        if let Some(bytes) = self
-            .input_handler
-            .handle_key_event_with_mode(event, modify_other_keys_mode)
-        {
+        if let Some(bytes) = self.input_handler.handle_key_event_with_mode(
+            event,
+            modify_other_keys_mode,
+            application_cursor,
+        ) {
             // Try to send via tmux if connected (check before borrowing tab)
             if self.send_input_via_tmux(&bytes) {
                 // Still need to reset anti-idle timer

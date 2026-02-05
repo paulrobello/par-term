@@ -138,6 +138,12 @@ pub struct WindowState {
     /// Last time a frame was rendered (for FPS throttling when unfocused)
     pub(crate) last_render_time: Option<std::time::Instant>,
 
+    // Flicker reduction state
+    /// When cursor was last hidden (for reduce_flicker feature)
+    pub(crate) cursor_hidden_since: Option<std::time::Instant>,
+    /// Whether we have pending terminal updates deferred due to cursor being hidden
+    pub(crate) flicker_pending_render: bool,
+
     // Shader hot reload
     /// Shader file watcher for hot reload support
     pub(crate) shader_watcher: Option<ShaderWatcher>,
@@ -281,6 +287,9 @@ impl WindowState {
 
             is_focused: true, // Assume focused on creation
             last_render_time: None,
+
+            cursor_hidden_since: None,
+            flicker_pending_render: false,
 
             shader_watcher: None,
             shader_reload_error: None,

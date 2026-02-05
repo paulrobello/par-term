@@ -68,6 +68,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Settings UI: Window → Performance section with dropdown selector
   - Note: Requires app restart to take effect (GPU adapter selected at startup)
 
+- **Reduce Flicker**: iTerm2-style flicker reduction for smoother terminal updates
+  - Delays screen redraws while cursor is hidden (DECTCEM off)
+  - Many terminal programs hide cursor during bulk updates (scrolling, screen redraws)
+  - Batches rapid updates to reduce visual flicker and tearing
+  - New config options:
+    - `reduce_flicker` - Enable/disable feature (default: true)
+    - `reduce_flicker_delay_ms` - Maximum delay before forced render (1-100ms, default: 16ms)
+  - Settings UI: Window → Performance → Flicker Reduction section
+  - Automatically bypasses delay for UI interactions (help, search, dialogs)
+  - Respects `lock_cursor_visibility` config option
+
+### Fixed
+
+- **Arrow Keys in `less` and Other Pagers**: Fixed arrow keys not working in programs that enable application cursor key mode (DECCKM)
+  - Programs like `less`, `more`, and some TUI apps enable DECCKM mode which expects SS3 sequences (`ESC O A`) instead of CSI sequences (`ESC [ A`)
+  - Arrow keys now correctly send `ESC O A/B/C/D` when application cursor mode is enabled
+  - Added `application_cursor()` method to `TerminalManager` to expose DECCKM state from core library
+
 ---
 
 ## [0.9.0] - 2026-02-04

@@ -420,7 +420,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | Maximize throughput | ✅ | ❌ | ❌ | ⭐ | 🟡 | Latency vs throughput |
 | Disable GPU when unplugged | ✅ | ❌ | ❌ | ➖ | ➖ | Won't implement - par-term requires GPU |
 | Prefer integrated GPU | ✅ | ✅ `power_preference` | ✅ | - | - | None/LowPower/HighPerformance GPU selection |
-| Reduce flicker | ✅ `Reduce Flicker` | ❌ | ❌ | ⭐⭐ | 🟡 | Screen update optimization |
+| Reduce flicker | ✅ `Reduce Flicker` | ✅ `reduce_flicker` | ✅ | - | - | Delay redraws while cursor hidden (DECTCEM off) |
 
 ---
 

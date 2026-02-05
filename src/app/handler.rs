@@ -746,6 +746,80 @@ impl WindowState {
             .unwrap_or(frame_interval); // If no last render, allow immediate render
         let can_render = time_since_last_render >= frame_interval;
 
+        // --- FLICKER REDUCTION LOGIC ---
+        // When reduce_flicker is enabled and cursor is hidden, delay rendering
+        // to batch updates and reduce visual flicker during bulk terminal operations.
+        let should_delay_for_flicker = if self.config.reduce_flicker {
+            let cursor_hidden = if let Some(tab) = self.tab_manager.active_tab() {
+                if let Ok(term) = tab.terminal.try_lock() {
+                    !term.is_cursor_visible() && !self.config.lock_cursor_visibility
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if cursor_hidden {
+                // Track when cursor was first hidden
+                if self.cursor_hidden_since.is_none() {
+                    self.cursor_hidden_since = Some(now);
+                }
+
+                // Check bypass conditions
+                let delay_expired = self
+                    .cursor_hidden_since
+                    .map(|t| {
+                        now.duration_since(t)
+                            >= std::time::Duration::from_millis(
+                                self.config.reduce_flicker_delay_ms as u64,
+                            )
+                    })
+                    .unwrap_or(false);
+
+                // Bypass for UI interactions
+                let any_ui_visible = self.help_ui.visible
+                    || self.clipboard_history_ui.visible
+                    || self.search_ui.visible
+                    || self.shader_install_ui.visible
+                    || self.integrations_ui.visible
+                    || self.profile_modal_ui.visible
+                    || self.resize_overlay_visible;
+
+                // Delay unless bypass conditions met
+                !delay_expired && !any_ui_visible
+            } else {
+                // Cursor visible - clear tracking and allow render
+                if self.cursor_hidden_since.is_some() {
+                    self.cursor_hidden_since = None;
+                    self.flicker_pending_render = false;
+                    self.needs_redraw = true; // Render accumulated updates
+                }
+                false
+            }
+        } else {
+            false
+        };
+
+        // Schedule wake at delay expiry if delaying
+        if should_delay_for_flicker {
+            self.flicker_pending_render = true;
+            if let Some(hidden_since) = self.cursor_hidden_since {
+                let delay =
+                    std::time::Duration::from_millis(self.config.reduce_flicker_delay_ms as u64);
+                let render_time = hidden_since + delay;
+                if render_time < next_wake {
+                    next_wake = render_time;
+                }
+            }
+        } else if self.flicker_pending_render {
+            // Delay ended - trigger accumulated render
+            self.flicker_pending_render = false;
+            if can_render {
+                self.needs_redraw = true;
+            }
+        }
+
         // 1. Cursor Blinking
         // Wake up exactly when the cursor needs to toggle visibility or fade.
         // Skip cursor blinking when unfocused with pause_refresh_on_blur to save power.
@@ -898,7 +972,9 @@ impl WindowState {
 
         // --- TRIGGER REDRAW ---
         // Request a redraw if any of the logic above determined an update is due.
+        // Respect flicker delay - don't redraw while cursor is hidden and delay not expired.
         if self.needs_redraw
+            && !should_delay_for_flicker
             && let Some(window) = &self.window
         {
             window.request_redraw();

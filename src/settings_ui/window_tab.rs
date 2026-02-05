@@ -42,7 +42,16 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
     if section_matches(
         &query,
         "Performance",
-        &["fps", "vsync", "refresh", "power", "unfocused", "gpu"],
+        &[
+            "fps",
+            "vsync",
+            "refresh",
+            "power",
+            "unfocused",
+            "gpu",
+            "flicker",
+            "reduce",
+        ],
     ) {
         show_performance_section(ui, settings, changes_this_frame);
     }
@@ -479,6 +488,45 @@ fn show_performance_section(
                 )
                 .on_hover_text(
                     "Target frame rate when window is unfocused (lower = more power savings)",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new("Flicker Reduction").strong());
+
+        if ui
+            .checkbox(
+                &mut settings.config.reduce_flicker,
+                "Reduce flicker during fast updates",
+            )
+            .on_hover_text(
+                "Delays screen redraws while the cursor is hidden (DECTCEM off).\n\
+                 Many terminal programs hide the cursor during bulk updates.\n\
+                 This batches updates to reduce visual flicker.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.horizontal(|ui| {
+            ui.label("Maximum delay:");
+            if ui
+                .add_enabled(
+                    settings.config.reduce_flicker,
+                    egui::Slider::new(&mut settings.config.reduce_flicker_delay_ms, 1..=100)
+                        .suffix("ms"),
+                )
+                .on_hover_text(
+                    "Maximum time to wait for cursor to become visible.\n\
+                     Lower = more responsive, Higher = smoother for slow programs.\n\
+                     Default: 16ms (~1 frame at 60fps)",
                 )
                 .changed()
             {
