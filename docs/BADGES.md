@@ -201,8 +201,48 @@ badge_max_width: 0.5
 badge_max_height: 0.2
 ```
 
+## Per-Profile Badge Overrides
+
+Profiles can override global badge settings for visual differentiation per environment.
+
+### Override Options
+
+All global badge settings can be overridden per profile:
+
+| Profile Setting | Overrides |
+|-----------------|-----------|
+| `badge_text` | `badge_format` |
+| `badge_color` | `badge_color` |
+| `badge_color_alpha` | `badge_color_alpha` |
+| `badge_font` | `badge_font` |
+| `badge_font_bold` | `badge_font_bold` |
+| `badge_top_margin` | `badge_top_margin` |
+| `badge_right_margin` | `badge_right_margin` |
+| `badge_max_width` | `badge_max_width` |
+| `badge_max_height` | `badge_max_height` |
+
+### Example Use Cases
+
+**Environment indicators:**
+- Production: Red badge with "PROD" text
+- Development: Green badge with "DEV" text
+- Staging: Yellow badge with "STAGING" text
+
+**Server identification:**
+- Different badge colors per server group
+- Hostname in badge text with profile-specific formatting
+
+### Settings UI
+
+1. Open profile editor (double-click profile or edit button)
+2. Expand "Badge Appearance" section
+3. Enable individual overrides with checkboxes
+4. Configure values (color picker, font input, sliders)
+
+See [Profiles documentation](PROFILES.md#per-profile-badge-configuration) for detailed examples.
+
 ## Related Documentation
 
-- [Profiles](PROFILES.md) - Terminal profiles with per-profile settings
+- [Profiles](PROFILES.md) - Terminal profiles with per-profile badge configuration
 - [Window Management](WINDOW_MANAGEMENT.md) - Window display options
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Access Settings UI with F12

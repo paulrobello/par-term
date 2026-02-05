@@ -84,6 +84,7 @@ Complete reference for all par-term keyboard shortcuts.
 | `Ctrl + Shift + K` | Clear scrollback buffer |
 | `Ctrl + Shift + S` | Take screenshot |
 | `Cmd/Ctrl + Shift + R` | Toggle session recording |
+| `Cmd/Ctrl + Shift + T` | Toggle maximize throughput mode |
 | `Ctrl + Shift + F5` | Fix rendering (after monitor change) |
 
 ## Font & Text Sizing
@@ -179,7 +180,7 @@ keybindings:
 
 **Features:**
 - `paste_special`, `toggle_clipboard_history`
-- `toggle_session_logging`
+- `toggle_session_logging`, `toggle_maximize_throughput`
 - `toggle_background_shader`, `toggle_cursor_shader`
 - `toggle_broadcast_input`, `toggle_profile_drawer`
 - `toggle_tmux_session_picker`

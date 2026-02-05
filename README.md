@@ -12,47 +12,93 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.9.0
+## What's New in 0.10.0
 
-### 📋 Welcome Dialog Changelog Link
+### 🏷️ Per-Profile Badge Configuration
+
+Full badge customization per profile (iTerm2 parity). Profiles can now override badge color, opacity, font, position, and size constraints individually.
+
+- **New profile fields**: `badge_color`, `badge_color_alpha`, `badge_font`, `badge_font_bold`, margins, and size overrides
+- **Settings UI**: Collapsible "Badge Appearance" section in profile editor with color picker and all controls
+- **Use case**: Different badge appearances per environment (e.g., red "PROD", green "DEV")
+
+### ⚡ Performance: Maximize Throughput Mode
+
+Manual toggle for prioritizing bulk output processing over immediate responsiveness.
+
+- **Toggle with `Cmd+Shift+T`** (macOS) or `Ctrl+Shift+T` (other platforms)
+- **Config options**: `maximize_throughput`, `throughput_render_interval_ms`
+- **Use case**: Processing large outputs (e.g., `cat /usr/share/dict/words`) faster
+
+### 🖥️ Reduce Flicker
+
+iTerm2-style flicker reduction for smoother terminal updates.
+
+- **Delays redraws** while cursor is hidden (DECTCEM off)
+- **Config options**: `reduce_flicker` (default: true), `reduce_flicker_delay_ms`
+- **Automatic bypass** for UI interactions (help, search, dialogs)
+
+### 🎮 GPU Power Preference
+
+Control which GPU is used for rendering on multi-GPU systems.
+
+- **Three modes**: `none` (system decides), `low_power` (integrated), `high_performance` (discrete)
+- **Settings UI**: Window → Performance section
+
+### 🔄 Tmux Profile Auto-Switching
+
+Automatically apply profiles when connecting to tmux sessions.
+
+- **New profile field**: `tmux_session_patterns` - glob patterns to match session names (e.g., `work-*`, `*-production`)
+- **Settings UI**: "Auto-Switch Tmux" field in profile editor
+- **Profile cleared** automatically when tmux session ends
+
+### ⌨️ Enhanced Keyboard Input
+
+- **Modifier Key Remapping**: Remap left/right Ctrl, Alt, and Super keys independently
+- **Physical Key Bindings**: `use_physical_keys` option for layout-independent shortcuts
+- **modifyOtherKeys Protocol**: XTerm extension for applications to distinguish Ctrl+i from Tab
+
+### 🛡️ Close Confirmation for Running Jobs
+
+Confirmation dialog when closing tabs/panes with active processes.
+
+- **Config options**: `confirm_close_running_jobs`, `jobs_to_ignore` (list of processes to skip)
+- **Settings UI**: Terminal → Behavior section
+
+### 🔧 Shell Exit Action
+
+Configurable behavior when shell process exits: `close`, `keep`, `restart_immediately`, `restart_with_prompt`, or `restart_after_delay`.
+
+### 🔧 Fixed
+
+- **Arrow Keys in `less`**: Fixed arrow keys not working in programs that enable application cursor key mode (DECCKM)
+
+<details>
+<summary><strong>What's New in 0.9.0</strong></summary>
+
+#### 📋 Welcome Dialog Changelog Link
 
 The welcome/onboarding popup now includes a "View Changelog" link for easy access to release notes.
 
-### 📁 Configurable Startup Directory
+#### 📁 Configurable Startup Directory
 
-Control where new terminal sessions start.
+Control where new terminal sessions start with three modes: `home`, `previous`, or `custom`.
 
-- **Three modes**: `home` (default), `previous` (remember last session), `custom` (user-specified path)
-- **Session persistence**: Previous mode saves working directory on close and restores on next launch
-- **Settings UI**: New "Startup Directory" section in Terminal → Shell settings tab
+#### 🏷️ Badge System
 
-### 🏷️ Badge System
+iTerm2-style semi-transparent text overlays with 12 dynamic variables and full appearance customization.
 
-iTerm2-style semi-transparent text overlays in the terminal corner.
+#### 📊 Scrollbar Mark Tooltips
 
-- **Dynamic variables**: 12 built-in variables using `\(session.*)` syntax
-- **Configurable appearance**: RGBA color, opacity, font family, bold toggle
-- **OSC 1337 support**: Base64-encoded `SetBadgeFormat` escape sequence
-- **Settings UI**: Full badge configuration tab with General, Appearance, Position, and Variables sections
+Hover over scrollbar command markers to see command text, execution time, duration, and exit code.
 
-### 📊 Scrollbar Mark Tooltips
+#### 🎨 Tab Bar Enhancements
 
-Hover over scrollbar command markers to see command details.
+- Tab stretch to fill bar width (`tab_stretch_to_fill`)
+- HTML markup support in tab titles
 
-- **Command info**: Shows command text, execution time, duration, and exit code
-- **Color-coded marks**: Green for success, red for failure
-- **Mark navigation**: `Cmd+Up/Down` to jump between command marks
-- Enable via Settings → Terminal → Scrollbar → "Show tooltips on hover"
-
-### 🎨 Tab Bar Enhancements
-
-- **Tab stretch**: Tabs auto-fill bar width (`tab_stretch_to_fill`, default on)
-- **HTML titles**: Support `<b>`, `<i>`, `<u>`, `<span style="color:...">` in tab titles
-
-### ⚙️ Settings Improvements
-
-- **Reset to Defaults**: New button to restore all settings to defaults
-- **Shader overwrite prompts**: Detect user-modified shaders and prompt before overwriting
+</details>
 
 <details>
 <summary><strong>What's New in 0.7.0</strong></summary>

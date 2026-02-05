@@ -55,6 +55,9 @@ Each profile can customize the following:
 | **Command** | Custom command (instead of default shell) | No |
 | **Command Arguments** | Arguments for the custom command | No |
 | **Tab Name** | Custom name for the terminal tab | No |
+| **Tmux Session Patterns** | Glob patterns for auto-switching (e.g., `work-*`) | No |
+| **Badge Text** | Custom badge format for this profile | No |
+| **Badge Appearance** | Override badge color, font, position, size | No |
 
 ## Managing Profiles
 
@@ -196,6 +199,90 @@ Directory selection follows this priority:
 4. **Home directory** - Fallback if configured path doesn't exist
 
 > **📝 Note:** The `previous` mode requires shell integration to track directory changes during a session.
+
+## Tmux Profile Auto-Switching
+
+Profiles can automatically apply when connecting to tmux sessions with matching names.
+
+### Configuration
+
+Add `tmux_session_patterns` to a profile with glob patterns:
+
+```yaml
+- id: 550e8400-e29b-41d4-a716-446655440000
+  name: Production
+  tmux_session_patterns:
+    - "*-prod"
+    - "*-production"
+    - "prod-*"
+  badge_text: "🔴 PROD"
+  badge_color: [255, 0, 0]
+```
+
+### Pattern Matching
+
+| Pattern | Matches |
+|---------|---------|
+| `dev-*` | `dev-api`, `dev-frontend`, etc. |
+| `*-prod` | `api-prod`, `web-prod`, etc. |
+| `*server*` | `webserver`, `api-server-1`, etc. |
+| `main` | Exact match only |
+
+- Patterns are case-insensitive
+- First matching profile wins (check profile order)
+- Profile is cleared when tmux session ends
+
+### Settings UI
+
+1. Open profile editor
+2. Find "Auto-Switch Tmux" field
+3. Enter comma-separated patterns: `work-*, *-production`
+
+## Per-Profile Badge Configuration
+
+Profiles can override global badge settings for visual differentiation per environment.
+
+### Available Overrides
+
+| Setting | Description |
+|---------|-------------|
+| `badge_text` | Custom badge format string |
+| `badge_color` | RGB color override |
+| `badge_color_alpha` | Opacity override (0.0-1.0) |
+| `badge_font` | Font family override |
+| `badge_font_bold` | Bold toggle override |
+| `badge_top_margin` | Position override |
+| `badge_right_margin` | Position override |
+| `badge_max_width` | Size constraint override |
+| `badge_max_height` | Size constraint override |
+
+### Example: Environment Indicators
+
+```yaml
+# Production profile - red badge
+- name: Production
+  badge_text: "🔴 PROD"
+  badge_color: [255, 0, 0]
+  badge_color_alpha: 0.3
+
+# Development profile - green badge
+- name: Development
+  badge_text: "🟢 DEV"
+  badge_color: [0, 255, 0]
+  badge_color_alpha: 0.2
+
+# Staging profile - yellow badge
+- name: Staging
+  badge_text: "🟡 STAGING"
+  badge_color: [255, 200, 0]
+```
+
+### Settings UI
+
+1. Open profile editor (double-click profile or click edit)
+2. Expand "Badge Appearance" section
+3. Check boxes to enable individual overrides
+4. Configure color, font, margins, and size as needed
 
 ## Storage
 
