@@ -19,7 +19,7 @@ impl TerminalManager {
     ) -> Vec<Cell> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let mut term = terminal.lock();
         let grid = term.active_grid();
 
         // Don't pass cursor to cells - we'll render it separately as geometry
@@ -68,6 +68,28 @@ impl TerminalManager {
                 );
             }
         }
+
+        // Apply trigger highlights on top of cell colors
+        let highlights = term.get_trigger_highlights();
+        for highlight in &highlights {
+            let abs_row = highlight.row;
+            if abs_row < start_line || abs_row >= end_line {
+                continue;
+            }
+            let screen_row = abs_row - start_line;
+            for col in highlight.col_start..highlight.col_end.min(cols) {
+                let cell_idx = screen_row * cols + col;
+                if cell_idx < cells.len() {
+                    if let Some((r, g, b)) = highlight.fg {
+                        cells[cell_idx].fg_color = [r, g, b, 255];
+                    }
+                    if let Some((r, g, b)) = highlight.bg {
+                        cells[cell_idx].bg_color = [r, g, b, 255];
+                    }
+                }
+            }
+        }
+        term.clear_expired_highlights();
 
         cells
     }
