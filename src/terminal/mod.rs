@@ -1021,6 +1021,57 @@ impl TerminalManager {
     }
 }
 
+// ========================================================================
+// Trigger Sync Methods
+// ========================================================================
+
+impl TerminalManager {
+    /// Sync trigger configs from Config into the core TriggerRegistry.
+    ///
+    /// Clears existing triggers and re-adds from config. Called on startup
+    /// and when settings are saved.
+    pub fn sync_triggers(&self, triggers: &[crate::config::automation::TriggerConfig]) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+
+        // Clear existing triggers by removing all
+        let existing: Vec<u64> = term.list_triggers().iter().map(|t| t.id).collect();
+        for id in existing {
+            term.remove_trigger(id);
+        }
+
+        // Add triggers from config
+        for trigger_config in triggers {
+            let actions: Vec<par_term_emu_core_rust::terminal::TriggerAction> = trigger_config
+                .actions
+                .iter()
+                .map(|a| a.to_core_action())
+                .collect();
+
+            match term.add_trigger(
+                trigger_config.name.clone(),
+                trigger_config.pattern.clone(),
+                actions,
+            ) {
+                Ok(id) => {
+                    if !trigger_config.enabled {
+                        term.set_trigger_enabled(id, false);
+                    }
+                    log::info!("Trigger '{}' registered (id={})", trigger_config.name, id);
+                }
+                Err(e) => {
+                    log::error!(
+                        "Failed to register trigger '{}': {}",
+                        trigger_config.name,
+                        e
+                    );
+                }
+            }
+        }
+    }
+}
+
 impl Drop for TerminalManager {
     fn drop(&mut self) {
         log::info!("Shutting down terminal manager");
