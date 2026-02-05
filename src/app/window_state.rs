@@ -8,6 +8,7 @@ use crate::app::debug_state::DebugState;
 use crate::badge::{BadgeState, render_badge};
 use crate::cell_renderer::PaneViewport;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
+use crate::close_confirmation_ui::{CloseConfirmAction, CloseConfirmationUI};
 use crate::config::{
     Config, CursorShaderMetadataCache, CursorStyle, ShaderInstallPrompt, ShaderMetadataCache,
 };
@@ -111,6 +112,8 @@ pub struct WindowState {
     pub(crate) shader_install_receiver: Option<std::sync::mpsc::Receiver<Result<usize, String>>>,
     /// Combined integrations welcome dialog UI
     pub(crate) integrations_ui: IntegrationsUI,
+    /// Close confirmation dialog UI (for tabs with running jobs)
+    pub(crate) close_confirmation_ui: CloseConfirmationUI,
     /// Whether terminal session recording is active
     pub(crate) is_recording: bool,
     /// When recording started
@@ -266,6 +269,7 @@ impl WindowState {
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
             integrations_ui: IntegrationsUI::new(),
+            close_confirmation_ui: CloseConfirmationUI::new(),
             is_recording: false,
             recording_start_time: None,
             is_shutting_down: false,
@@ -1617,6 +1621,8 @@ impl WindowState {
         let mut pending_profile_drawer_action = ProfileDrawerAction::None;
         // Profile modal action to handle after rendering
         let mut pending_profile_modal_action = ProfileModalAction::None;
+        // Close confirmation action to handle after rendering
+        let mut pending_close_confirm_action = CloseConfirmAction::None;
 
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts
         // When tmux controls the layout, we don't use pane padding
@@ -1980,6 +1986,9 @@ impl WindowState {
 
                     // Show integrations welcome dialog if visible
                     pending_integrations_response = self.integrations_ui.show(ctx);
+
+                    // Show close confirmation dialog if visible
+                    pending_close_confirm_action = self.close_confirmation_ui.show(ctx);
 
                     // Render profile drawer (right side panel)
                     pending_profile_drawer_action = self.profile_drawer_ui.render(
@@ -2374,6 +2383,35 @@ impl WindowState {
                 }
             }
             ClipboardHistoryAction::None => {}
+        }
+
+        // Handle close confirmation dialog actions
+        match pending_close_confirm_action {
+            CloseConfirmAction::Close { tab_id, pane_id } => {
+                // User confirmed close - close the tab/pane
+                if let Some(pane_id) = pane_id {
+                    // Close specific pane
+                    if let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                        && let Some(pm) = tab.pane_manager_mut()
+                    {
+                        pm.close_pane(pane_id);
+                        log::info!("Force-closed pane {} in tab {}", pane_id, tab_id);
+                    }
+                } else {
+                    // Close entire tab
+                    self.tab_manager.close_tab(tab_id);
+                    log::info!("Force-closed tab {}", tab_id);
+                }
+                self.needs_redraw = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            CloseConfirmAction::Cancel => {
+                // User cancelled - do nothing, dialog already hidden
+                log::debug!("Close confirmation cancelled");
+            }
+            CloseConfirmAction::None => {}
         }
 
         // Handle paste special actions collected during egui rendering

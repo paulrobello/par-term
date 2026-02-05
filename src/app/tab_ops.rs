@@ -118,6 +118,30 @@ impl WindowState {
     /// Close the current tab
     /// Returns true if the window should close (last tab was closed)
     pub fn close_current_tab(&mut self) -> bool {
+        // Check if we need to show confirmation for running jobs
+        if self.config.confirm_close_running_jobs
+            && let Some(command_name) = self.check_current_tab_running_job()
+            && let Some(tab) = self.tab_manager.active_tab()
+        {
+            let tab_id = tab.id;
+            let tab_title = if tab.title.is_empty() {
+                "Terminal".to_string()
+            } else {
+                tab.title.clone()
+            };
+            self.close_confirmation_ui
+                .show_for_tab(tab_id, &tab_title, &command_name);
+            self.needs_redraw = true;
+            self.request_redraw();
+            return false; // Don't close yet, waiting for confirmation
+        }
+
+        self.close_current_tab_immediately()
+    }
+
+    /// Close the current tab immediately without confirmation
+    /// Returns true if the window should close (last tab was closed)
+    pub fn close_current_tab_immediately(&mut self) -> bool {
         if let Some(tab_id) = self.tab_manager.active_tab_id() {
             // Remember tab count before closing to detect tab bar visibility change
             let old_tab_count = self.tab_manager.tab_count();
@@ -390,20 +414,74 @@ impl WindowState {
         }
         // Fall through to local close if tmux command failed or not connected
 
+        // Check if we need to show confirmation for running jobs
+        if self.config.confirm_close_running_jobs
+            && let Some(command_name) = self.check_current_pane_running_job()
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Some(pane_id) = tab.focused_pane_id()
+        {
+            let tab_id = tab.id;
+            let tab_title = if tab.title.is_empty() {
+                "Terminal".to_string()
+            } else {
+                tab.title.clone()
+            };
+            self.close_confirmation_ui
+                .show_for_pane(tab_id, pane_id, &tab_title, &command_name);
+            self.needs_redraw = true;
+            self.request_redraw();
+            return false; // Don't close yet, waiting for confirmation
+        }
+
+        self.close_focused_pane_immediately()
+    }
+
+    /// Close the focused pane immediately without confirmation
+    /// Returns true if the window should close (last tab was closed).
+    fn close_focused_pane_immediately(&mut self) -> bool {
         if let Some(tab) = self.tab_manager.active_tab_mut()
             && tab.has_multiple_panes()
         {
             let is_last_pane = tab.close_focused_pane();
             if is_last_pane {
                 // Last pane closed, close the tab
-                return self.close_current_tab();
+                return self.close_current_tab_immediately();
             }
             self.needs_redraw = true;
             self.request_redraw();
             return false;
         }
         // Single pane or no tab, close the tab
-        self.close_current_tab()
+        self.close_current_tab_immediately()
+    }
+
+    /// Check if the current tab's terminal has a running job that should trigger confirmation
+    ///
+    /// Returns Some(command_name) if confirmation should be shown, None otherwise.
+    fn check_current_tab_running_job(&self) -> Option<String> {
+        let tab = self.tab_manager.active_tab()?;
+        let term = tab.terminal.try_lock().ok()?;
+        term.should_confirm_close(&self.config.jobs_to_ignore)
+    }
+
+    /// Check if the current pane's terminal has a running job that should trigger confirmation
+    ///
+    /// Returns Some(command_name) if confirmation should be shown, None otherwise.
+    fn check_current_pane_running_job(&self) -> Option<String> {
+        let tab = self.tab_manager.active_tab()?;
+
+        // If the tab has split panes, check the focused pane
+        if tab.has_multiple_panes() {
+            let pane_manager = tab.pane_manager()?;
+            let focused_id = pane_manager.focused_pane_id()?;
+            let pane = pane_manager.get_pane(focused_id)?;
+            let term = pane.terminal.try_lock().ok()?;
+            return term.should_confirm_close(&self.config.jobs_to_ignore);
+        }
+
+        // Single pane - use the tab's terminal
+        let term = tab.terminal.try_lock().ok()?;
+        term.should_confirm_close(&self.config.jobs_to_ignore)
     }
 
     /// Check if the current tab has multiple panes

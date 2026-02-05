@@ -420,6 +420,29 @@ pub fn answerback_string() -> String {
     String::new() // Empty/disabled by default for security
 }
 
+/// Default list of jobs/processes to ignore when checking for running jobs
+/// These are common shells and utilities that shouldn't block tab close
+pub fn jobs_to_ignore() -> Vec<String> {
+    vec![
+        // Common shells - these are the parent process, not "jobs"
+        "bash".to_string(),
+        "zsh".to_string(),
+        "fish".to_string(),
+        "sh".to_string(),
+        "dash".to_string(),
+        "ksh".to_string(),
+        "tcsh".to_string(),
+        "csh".to_string(),
+        // Common pagers and viewers
+        "less".to_string(),
+        "more".to_string(),
+        "man".to_string(),
+        // Common utilities that are often left running
+        "cat".to_string(),
+        "sleep".to_string(),
+    ]
+}
+
 pub fn unicode_version() -> par_term_emu_core_rust::UnicodeVersion {
     par_term_emu_core_rust::UnicodeVersion::Auto
 }

@@ -20,7 +20,18 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
     let query = settings.search_query.trim().to_lowercase();
 
     // Behavior section
-    if section_matches(&query, "Behavior", &["scrollback", "exit", "shell exit"]) {
+    if section_matches(
+        &query,
+        "Behavior",
+        &[
+            "scrollback",
+            "exit",
+            "shell exit",
+            "jobs",
+            "confirm",
+            "close",
+        ],
+    ) {
         show_behavior_section(ui, settings, changes_this_frame);
     }
 
@@ -132,6 +143,72 @@ fn show_behavior_section(
                     }
                 });
         });
+
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new("Close Confirmation").strong());
+
+        if ui
+            .checkbox(
+                &mut settings.config.confirm_close_running_jobs,
+                "Confirm before closing tabs with running jobs",
+            )
+            .on_hover_text(
+                "When enabled, closing a tab with a running command will show a confirmation dialog.\n\
+                 Requires shell integration to detect running commands.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        // Jobs to ignore list (only shown when confirmation is enabled)
+        if settings.config.confirm_close_running_jobs {
+            ui.horizontal(|ui| {
+                ui.add_space(20.0);
+                ui.vertical(|ui| {
+                    ui.label(
+                        egui::RichText::new("Jobs to ignore (won't trigger confirmation):").small(),
+                    );
+                    ui.horizontal(|ui| {
+                        // Show current list as comma-separated
+                        let mut jobs_text = settings.config.jobs_to_ignore.join(", ");
+                        let response = ui
+                            .add(
+                                egui::TextEdit::singleline(&mut jobs_text)
+                                    .desired_width(INPUT_WIDTH)
+                                    .hint_text("bash, zsh, cat, sleep"),
+                            )
+                            .on_hover_text(
+                                "Comma-separated list of process names.\n\
+                                 These processes won't trigger the close confirmation.\n\
+                                 Common shells and pagers are ignored by default.",
+                            );
+                        if response.changed() {
+                            // Parse comma-separated list
+                            settings.config.jobs_to_ignore = jobs_text
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
+
+                    // Reset to defaults button
+                    if ui
+                        .small_button("Reset to defaults")
+                        .on_hover_text("Restore the default list of ignored jobs")
+                        .clicked()
+                    {
+                        settings.config.jobs_to_ignore = crate::config::defaults::jobs_to_ignore();
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+            });
+        }
     });
 }
 

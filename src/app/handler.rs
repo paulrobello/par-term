@@ -565,9 +565,10 @@ impl WindowState {
                                                     "Pane {} shell exited, will restart after 1s",
                                                     pane.id
                                                 );
-                                                pane.restart_state = Some(RestartState::AwaitingDelay(
-                                                    std::time::Instant::now(),
-                                                ));
+                                                pane.restart_state =
+                                                    Some(RestartState::AwaitingDelay(
+                                                        std::time::Instant::now(),
+                                                    ));
                                             }
                                             _ => {}
                                         }
@@ -576,8 +577,7 @@ impl WindowState {
                                     // Check if waiting for delay and time has elapsed
                                     if let Some(RestartState::AwaitingDelay(exit_time)) =
                                         &pane.restart_state
-                                        && exit_time.elapsed()
-                                            >= std::time::Duration::from_secs(1)
+                                        && exit_time.elapsed() >= std::time::Duration::from_secs(1)
                                     {
                                         log::info!(
                                             "Pane {} delay elapsed, restarting shell",

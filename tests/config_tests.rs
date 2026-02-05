@@ -5,7 +5,7 @@ fn test_config_defaults() {
     let config = Config::default();
     assert_eq!(config.cols, 80);
     assert_eq!(config.rows, 24);
-    assert_eq!(config.font_size, 13.0);
+    assert_eq!(config.font_size, 10.0);
     assert_eq!(config.font_family, "JetBrains Mono");
     assert_eq!(config.line_spacing, 1.0);
     assert_eq!(config.char_spacing, 1.0);
@@ -62,7 +62,7 @@ fn test_config_yaml_serialization() {
     let yaml = serde_yaml::to_string(&config).unwrap();
     assert!(yaml.contains("cols: 80"));
     assert!(yaml.contains("rows: 24"));
-    assert!(yaml.contains("font_size: 13.0"));
+    assert!(yaml.contains("font_size: 10.0"));
 }
 
 #[test]

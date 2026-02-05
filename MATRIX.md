@@ -236,7 +236,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Exit behavior | ✅ Close/Restart | ✅ `shell_exit_action` | ✅ | - | - | Close/Keep/Restart immediately/Restart with prompt/Restart after delay |
 | Initial text to send | ✅ `Initial Text` | ✅ `initial_text` | ✅ | ⭐⭐ | 🟢 | Send text on start with delay/newline + escapes |
 | Anti-idle (keep-alive) | ✅ `Send Code When Idle` | ✅ `anti_idle_enabled` | ✅ | ⭐⭐ | 🟢 | Prevent SSH timeouts |
-| Jobs to ignore | ✅ | ❌ | ❌ | ⭐ | 🟢 | Ignore specific processes |
+| Jobs to ignore | ✅ | ✅ `confirm_close_running_jobs`, `jobs_to_ignore` | ✅ | - | - | Confirmation dialog when closing tabs/panes with running jobs; configurable ignore list |
 | Session close undo timeout | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Recover closed tabs |
 | TERM variable | ✅ `Terminal Type` | ✅ | ✅ | - | - | Set via environment |
 | Character encoding | ✅ Multiple | ✅ UTF-8 | ✅ | - | - | UTF-8 only |

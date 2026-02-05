@@ -3,7 +3,7 @@
 //! This module provides configuration loading, saving, and default values
 //! for the terminal emulator.
 
-mod defaults;
+pub mod defaults;
 pub mod shader_config;
 pub mod shader_metadata;
 mod types;
@@ -692,6 +692,19 @@ pub struct Config {
     #[serde(default = "defaults::answerback_string")]
     pub answerback_string: String,
 
+    /// Show confirmation dialog before closing a tab with running jobs
+    /// When enabled, closing a tab that has a running command will show a confirmation dialog.
+    /// Default: false (close immediately without confirmation)
+    #[serde(default = "defaults::bool_false")]
+    pub confirm_close_running_jobs: bool,
+
+    /// List of job/process names to ignore when checking for running jobs
+    /// These jobs will not trigger a close confirmation dialog.
+    /// Common examples: "bash", "zsh", "fish", "cat", "less", "man", "sleep"
+    /// Default: common shell names that shouldn't block tab close
+    #[serde(default = "defaults::jobs_to_ignore")]
+    pub jobs_to_ignore: Vec<String>,
+
     // ========================================================================
     // Scrollbar (GUI-specific)
     // ========================================================================
@@ -1359,6 +1372,8 @@ impl Default for Config {
             initial_text_delay_ms: defaults::initial_text_delay_ms(),
             initial_text_send_newline: defaults::initial_text_send_newline(),
             answerback_string: defaults::answerback_string(),
+            confirm_close_running_jobs: defaults::bool_false(),
+            jobs_to_ignore: defaults::jobs_to_ignore(),
             scrollbar_position: defaults::scrollbar_position(),
             scrollbar_width: defaults::scrollbar_width(),
             scrollbar_thumb_color: defaults::scrollbar_thumb_color(),

@@ -9,6 +9,7 @@ pub mod badge;
 pub mod cell_renderer;
 pub mod cli;
 pub mod clipboard_history_ui;
+pub mod close_confirmation_ui;
 pub mod config;
 pub mod custom_shader_renderer;
 pub mod font_manager;

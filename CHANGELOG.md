@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Close Confirmation for Running Jobs**: Confirmation dialog when closing tabs/panes with active processes
+  - Detects running commands via shell integration markers
+  - Shows dialog with command name and options to "Close Anyway" or "Cancel"
+  - New config option: `confirm_close_running_jobs` (default: false)
+  - New config option: `jobs_to_ignore` - list of process names to skip (default: common shells like bash/zsh/fish, utilities like less/more/man)
+  - Settings UI: Terminal → Behavior section with checkbox and editable ignore list
+  - Escape key dismisses the confirmation dialog
+
 - **Shell Exit Action**: Configurable behavior when shell process exits
   - New config option: `shell_exit_action` replaces boolean `exit_on_shell_exit`
   - Five exit action options:

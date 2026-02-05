@@ -747,6 +747,86 @@ impl TerminalManager {
         term.title().to_string()
     }
 
+    /// Get the current shell integration marker state
+    ///
+    /// Returns the marker indicating what phase of command execution we're in:
+    /// - PromptStart: Shell is at prompt, waiting for input
+    /// - CommandStart: User has started typing a command
+    /// - CommandExecuted: Command has been submitted and is running
+    /// - CommandFinished: Command has completed
+    pub fn shell_integration_marker(
+        &self,
+    ) -> Option<par_term_emu_core_rust::shell_integration::ShellIntegrationMarker> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.shell_integration().marker()
+    }
+
+    /// Check if a command is currently running based on shell integration
+    ///
+    /// Returns true if the shell integration indicates a command is executing
+    /// (marker is CommandExecuted and no CommandFinished has been received).
+    ///
+    /// Note: This only works when shell integration is enabled (e.g., via iTerm2
+    /// shell integration scripts). Without shell integration, this always returns false.
+    pub fn is_command_running(&self) -> bool {
+        use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
+
+        matches!(
+            self.shell_integration_marker(),
+            Some(ShellIntegrationMarker::CommandExecuted)
+        )
+    }
+
+    /// Get the name of the currently running command (first word only)
+    ///
+    /// Returns the command name extracted from the shell integration command,
+    /// or None if no command is running or shell integration is not available.
+    pub fn get_running_command_name(&self) -> Option<String> {
+        if !self.is_command_running() {
+            return None;
+        }
+
+        self.shell_integration_command().and_then(|cmd| {
+            // Extract just the command name (first word)
+            // Handle cases like "sudo vim file.txt" -> "sudo"
+            // or "./script.sh" -> "script.sh"
+            // or "/usr/bin/python" -> "python"
+            let first_word = cmd.split_whitespace().next()?;
+
+            // Extract basename from path
+            let name = std::path::Path::new(first_word)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(first_word);
+
+            Some(name.to_string())
+        })
+    }
+
+    /// Check if tab close should show a confirmation dialog
+    ///
+    /// Returns Some(command_name) if a confirmation should be shown,
+    /// or None if the tab can be closed immediately.
+    ///
+    /// A confirmation is shown when:
+    /// - A command is currently running (via shell integration)
+    /// - The command name is NOT in the jobs_to_ignore list
+    pub fn should_confirm_close(&self, jobs_to_ignore: &[String]) -> Option<String> {
+        let command_name = self.get_running_command_name()?;
+
+        // Check if this command is in the ignore list (case-insensitive)
+        let command_lower = command_name.to_lowercase();
+        for ignore in jobs_to_ignore {
+            if ignore.to_lowercase() == command_lower {
+                return None;
+            }
+        }
+
+        Some(command_name)
+    }
+
     /// Check if mouse motion events should be reported
     /// Returns true if mode is ButtonEvent or AnyEvent
     pub fn should_report_mouse_motion(&self, button_pressed: bool) -> bool {
