@@ -205,7 +205,8 @@ impl ConfigChanges {
                 || (new.char_spacing - old.char_spacing).abs() > f32::EPSILON,
             font_rendering: new.font_antialias != old.font_antialias
                 || new.font_hinting != old.font_hinting
-                || new.font_thin_strokes != old.font_thin_strokes,
+                || new.font_thin_strokes != old.font_thin_strokes
+                || (new.minimum_contrast - old.minimum_contrast).abs() > f32::EPSILON,
             padding: (new.window_padding - old.window_padding).abs() > f32::EPSILON,
 
             shader_hot_reload: new.shader_hot_reload != old.shader_hot_reload,

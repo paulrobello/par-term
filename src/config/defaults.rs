@@ -28,6 +28,10 @@ pub fn text_shaping() -> bool {
     true // Enabled by default - OpenType features now properly configured via Feature::from_str()
 }
 
+pub fn minimum_contrast() -> f32 {
+    1.0 // Disabled by default (1.0 = no adjustment)
+}
+
 pub fn scrollback() -> usize {
     10000
 }
@@ -443,6 +447,12 @@ pub fn smart_selection_enabled() -> bool {
 
 pub fn answerback_string() -> String {
     String::new() // Empty/disabled by default for security
+}
+
+/// Default semantic history editor command
+/// Empty string means auto-detect from $EDITOR or use system default
+pub fn semantic_history_editor() -> String {
+    String::new() // Auto-detect by default
 }
 
 /// Default list of jobs/processes to ignore when checking for running jobs

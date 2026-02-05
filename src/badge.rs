@@ -235,11 +235,11 @@ impl BadgeState {
         let mut changed = false;
 
         // Badge format/text
-        if let Some(ref text) = profile.badge_text {
-            if self.format != *text {
-                self.format = text.clone();
-                changed = true;
-            }
+        if let Some(ref text) = profile.badge_text
+            && self.format != *text
+        {
+            self.format = text.clone();
+            changed = true;
         }
 
         // Badge color

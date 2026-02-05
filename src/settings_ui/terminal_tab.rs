@@ -79,6 +79,15 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         show_search_section(ui, settings, changes_this_frame);
     }
 
+    // Semantic History section
+    if section_matches(
+        &query,
+        "Semantic History",
+        &["semantic", "history", "file", "editor", "path", "click"],
+    ) {
+        show_semantic_history_section(ui, settings, changes_this_frame);
+    }
+
     // Scrollbar section
     if section_matches(
         &query,
@@ -767,4 +776,127 @@ fn show_scrollbar_section(
             }
         });
     });
+}
+
+// ============================================================================
+// Semantic History Section
+// ============================================================================
+
+fn show_semantic_history_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
+    collapsing_section(
+        ui,
+        "Semantic History",
+        "terminal_semantic_history",
+        true,
+        |ui| {
+            ui.label(
+                egui::RichText::new(
+                    "Click file paths in terminal output to open them in your editor.",
+                )
+                .weak(),
+            );
+
+            ui.add_space(4.0);
+
+            if ui
+                .checkbox(
+                    &mut settings.config.semantic_history_enabled,
+                    "Enable file path detection",
+                )
+                .on_hover_text(
+                    "Detect file paths in terminal output.\n\
+                 Cmd+Click (macOS) or Ctrl+Click (Windows/Linux) to open.",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.add_space(8.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Editor mode:");
+                egui::ComboBox::from_id_salt("semantic_history_editor_mode")
+                    .selected_text(settings.config.semantic_history_editor_mode.display_name())
+                    .show_ui(ui, |ui| {
+                        for mode in crate::config::SemanticHistoryEditorMode::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.semantic_history_editor_mode,
+                                    *mode,
+                                    mode.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+
+            // Show description based on selected mode
+            let mode_description = match settings.config.semantic_history_editor_mode {
+                crate::config::SemanticHistoryEditorMode::Custom => {
+                    "Use the custom editor command configured below"
+                }
+                crate::config::SemanticHistoryEditorMode::EnvironmentVariable => {
+                    "Use the $EDITOR environment variable"
+                }
+                crate::config::SemanticHistoryEditorMode::SystemDefault => {
+                    "Use the system default application for each file type"
+                }
+            };
+            ui.label(egui::RichText::new(mode_description).small().weak());
+
+            // Only show custom editor command when mode is Custom
+            if settings.config.semantic_history_editor_mode
+                == crate::config::SemanticHistoryEditorMode::Custom
+            {
+                ui.add_space(4.0);
+
+                ui.horizontal(|ui| {
+                    ui.label("Editor command:");
+                    if ui
+                        .add(
+                            egui::TextEdit::singleline(
+                                &mut settings.config.semantic_history_editor,
+                            )
+                            .desired_width(INPUT_WIDTH),
+                        )
+                        .on_hover_text(
+                            "Command to open files.\n\n\
+                         Placeholders:\n\
+                         • {file} - file path\n\
+                         • {line} - line number (if available)\n\
+                         • {col} - column number (if available)\n\n\
+                         Examples:\n\
+                         • code -g {file}:{line} (VS Code)\n\
+                         • subl {file}:{line} (Sublime Text)\n\
+                         • vim +{line} {file} (Vim)",
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+
+                if settings.config.semantic_history_editor.is_empty() {
+                    ui.label(
+                        egui::RichText::new(
+                            "Note: When custom command is empty, falls back to system default",
+                        )
+                        .small()
+                        .weak(),
+                    );
+                }
+            }
+        },
+    );
 }

@@ -80,6 +80,22 @@ impl WindowState {
                 let osc8_urls =
                     url_detection::detect_osc8_hyperlinks(row_cells, absolute_row, &hyperlink_urls);
                 tab.mouse.detected_urls.extend(osc8_urls);
+
+                // Detect file paths for semantic history (if enabled)
+                if self.config.semantic_history_enabled {
+                    let file_paths = url_detection::detect_file_paths_in_line(&line, absolute_row);
+                    for fp in &file_paths {
+                        crate::debug_trace!(
+                            "SEMANTIC",
+                            "Detected path: {:?} at cols {}..{} row {}",
+                            fp.url,
+                            fp.start_col,
+                            fp.end_col,
+                            fp.row
+                        );
+                    }
+                    tab.mouse.detected_urls.extend(file_paths);
+                }
             }
         }
     }
@@ -89,7 +105,7 @@ impl WindowState {
     pub(crate) fn apply_url_underlines(
         &self,
         cells: &mut [crate::cell_renderer::Cell],
-        renderer_size: &winit::dpi::PhysicalSize<u32>,
+        _renderer_size: &winit::dpi::PhysicalSize<u32>,
     ) {
         let tab = if let Some(t) = self.tab_manager.active_tab() {
             t
@@ -101,9 +117,13 @@ impl WindowState {
             return;
         }
 
-        // Calculate grid dimensions from renderer size
-        let char_width = self.config.font_size * 0.6;
-        let cols = (renderer_size.width as f32 / char_width) as usize;
+        // Get actual terminal columns from the terminal
+        let cols = if let Ok(term) = tab.terminal.try_lock() {
+            let (cols, _rows) = term.dimensions();
+            cols
+        } else {
+            return;
+        };
 
         // URL color: bright cyan (#4FC3F7) for visibility
         let url_color = [79, 195, 247, 255];

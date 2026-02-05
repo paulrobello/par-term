@@ -147,6 +147,7 @@ impl Renderer {
         font_antialias: bool,
         font_hinting: bool,
         font_thin_strokes: crate::config::ThinStrokesMode,
+        minimum_contrast: f32,
         vsync_mode: crate::config::VsyncMode,
         power_preference: crate::config::PowerPreference,
         window_opacity: f32,
@@ -253,6 +254,7 @@ impl Renderer {
             font_antialias,
             font_hinting,
             font_thin_strokes,
+            minimum_contrast,
             vsync_mode,
             power_preference,
             window_opacity,
@@ -1639,6 +1641,16 @@ impl Renderer {
     /// Returns true if the setting changed (requiring glyph cache clear)
     pub fn update_font_thin_strokes(&mut self, mode: crate::config::ThinStrokesMode) -> bool {
         let changed = self.cell_renderer.update_font_thin_strokes(mode);
+        if changed {
+            self.dirty = true;
+        }
+        changed
+    }
+
+    /// Update minimum contrast ratio
+    /// Returns true if the setting changed (requiring redraw)
+    pub fn update_minimum_contrast(&mut self, ratio: f32) -> bool {
+        let changed = self.cell_renderer.update_minimum_contrast(ratio);
         if changed {
             self.dirty = true;
         }

@@ -677,6 +677,41 @@ impl SessionLogFormat {
     }
 }
 
+/// Editor selection mode for semantic history
+///
+/// Controls how the editor is selected when opening files via semantic history.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SemanticHistoryEditorMode {
+    /// Use custom editor command from `semantic_history_editor` setting
+    Custom,
+    /// Use $EDITOR or $VISUAL environment variable
+    #[default]
+    EnvironmentVariable,
+    /// Use system default application for each file type
+    SystemDefault,
+}
+
+impl SemanticHistoryEditorMode {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            SemanticHistoryEditorMode::Custom => "Custom Editor",
+            SemanticHistoryEditorMode::EnvironmentVariable => "Environment Variable ($EDITOR)",
+            SemanticHistoryEditorMode::SystemDefault => "System Default",
+        }
+    }
+
+    /// All available modes for UI iteration
+    pub fn all() -> &'static [SemanticHistoryEditorMode] {
+        &[
+            SemanticHistoryEditorMode::Custom,
+            SemanticHistoryEditorMode::EnvironmentVariable,
+            SemanticHistoryEditorMode::SystemDefault,
+        ]
+    }
+}
+
 // ============================================================================
 // Per-Shader Configuration Types
 // ============================================================================

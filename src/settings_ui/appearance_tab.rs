@@ -360,6 +360,36 @@ fn show_font_rendering_section(
             });
             ui.label("  Lighter font strokes for improved readability on HiDPI displays.")
             .on_hover_text("Similar to macOS font smoothing. Works best on Retina/HiDPI displays with dark backgrounds.");
+
+            // Minimum contrast setting
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.label("Minimum contrast:");
+                let mut contrast = settings.config.minimum_contrast;
+                let slider = egui::Slider::new(&mut contrast, 1.0..=7.0)
+                    .text("")
+                    .clamping(egui::SliderClamping::Always);
+                if ui.add(slider).changed() {
+                    settings.config.minimum_contrast = contrast;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+            let wcag_label = if settings.config.minimum_contrast <= 1.0 {
+                "Disabled"
+            } else if settings.config.minimum_contrast < 4.5 {
+                "Custom"
+            } else if settings.config.minimum_contrast < 7.0 {
+                "WCAG AA (4.5:1)"
+            } else {
+                "WCAG AAA (7:1)"
+            };
+            ui.label(format!(
+                "  {wcag_label} - Adjusts text color to ensure readability against background."
+            ))
+            .on_hover_text(
+                "Set to 1.0 to disable. WCAG AA (4.5:1) is recommended for accessibility.",
+            );
         },
     );
 }

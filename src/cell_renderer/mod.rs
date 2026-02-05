@@ -165,6 +165,9 @@ pub struct CellRenderer {
     pub(crate) font_hinting: bool,
     /// Thin strokes mode for font rendering
     pub(crate) font_thin_strokes: crate::config::ThinStrokesMode,
+    /// Minimum contrast ratio for text against background (WCAG standard)
+    /// 1.0 = disabled, 4.5 = WCAG AA, 7.0 = WCAG AAA
+    pub(crate) minimum_contrast: f32,
 
     // Solid white pixel in atlas for geometric block rendering
     pub(crate) solid_pixel_offset: (u32, u32),
@@ -203,6 +206,7 @@ impl CellRenderer {
         font_antialias: bool,
         font_hinting: bool,
         font_thin_strokes: crate::config::ThinStrokesMode,
+        minimum_contrast: f32,
         vsync_mode: crate::config::VsyncMode,
         power_preference: crate::config::PowerPreference,
         window_opacity: f32,
@@ -509,6 +513,7 @@ impl CellRenderer {
             font_antialias,
             font_hinting,
             font_thin_strokes,
+            minimum_contrast: minimum_contrast.clamp(1.0, 21.0),
             solid_pixel_offset: (0, 0),
             transparency_affects_only_default_background: false,
             keep_text_opaque: true,
@@ -1081,6 +1086,109 @@ impl CellRenderer {
             true
         } else {
             false
+        }
+    }
+
+    /// Update minimum contrast ratio
+    /// Returns true if the setting changed (requiring redraw)
+    pub fn update_minimum_contrast(&mut self, ratio: f32) -> bool {
+        // Clamp to valid range: 1.0 (disabled) to 21.0 (max possible contrast)
+        let ratio = ratio.clamp(1.0, 21.0);
+        if (self.minimum_contrast - ratio).abs() > 0.001 {
+            self.minimum_contrast = ratio;
+            self.dirty_rows.fill(true);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Adjust foreground color to meet minimum contrast ratio against background
+    /// Uses WCAG luminance formula for accurate contrast calculation.
+    /// Returns the adjusted color [R, G, B, A] with preserved alpha.
+    pub(crate) fn ensure_minimum_contrast(&self, fg: [f32; 4], bg: [f32; 4]) -> [f32; 4] {
+        // If minimum_contrast is 1.0 (disabled) or less, no adjustment needed
+        if self.minimum_contrast <= 1.0 {
+            return fg;
+        }
+
+        // Calculate luminance using WCAG formula
+        fn luminance(color: [f32; 4]) -> f32 {
+            let r = color[0].powf(2.2);
+            let g = color[1].powf(2.2);
+            let b = color[2].powf(2.2);
+            0.2126 * r + 0.7152 * g + 0.0722 * b
+        }
+
+        fn contrast_ratio(l1: f32, l2: f32) -> f32 {
+            let (lighter, darker) = if l1 > l2 { (l1, l2) } else { (l2, l1) };
+            (lighter + 0.05) / (darker + 0.05)
+        }
+
+        let fg_lum = luminance(fg);
+        let bg_lum = luminance(bg);
+        let current_ratio = contrast_ratio(fg_lum, bg_lum);
+
+        // If already meets minimum contrast, return unchanged
+        if current_ratio >= self.minimum_contrast {
+            return fg;
+        }
+
+        // Determine if we need to lighten or darken the foreground
+        // If background is dark, lighten fg; if light, darken fg
+        let bg_is_dark = bg_lum < 0.5;
+
+        // Binary search for the minimum adjustment needed
+        let mut low = 0.0f32;
+        let mut high = 1.0f32;
+
+        for _ in 0..20 {
+            // 20 iterations gives ~1/1_000_000 precision
+            let mid = (low + high) / 2.0;
+
+            let adjusted = if bg_is_dark {
+                // Lighten: mix with white
+                [
+                    fg[0] + (1.0 - fg[0]) * mid,
+                    fg[1] + (1.0 - fg[1]) * mid,
+                    fg[2] + (1.0 - fg[2]) * mid,
+                    fg[3],
+                ]
+            } else {
+                // Darken: mix with black
+                [
+                    fg[0] * (1.0 - mid),
+                    fg[1] * (1.0 - mid),
+                    fg[2] * (1.0 - mid),
+                    fg[3],
+                ]
+            };
+
+            let adjusted_lum = luminance(adjusted);
+            let new_ratio = contrast_ratio(adjusted_lum, bg_lum);
+
+            if new_ratio >= self.minimum_contrast {
+                high = mid;
+            } else {
+                low = mid;
+            }
+        }
+
+        // Apply the final adjustment
+        if bg_is_dark {
+            [
+                fg[0] + (1.0 - fg[0]) * high,
+                fg[1] + (1.0 - fg[1]) * high,
+                fg[2] + (1.0 - fg[2]) * high,
+                fg[3],
+            ]
+        } else {
+            [
+                fg[0] * (1.0 - high),
+                fg[1] * (1.0 - high),
+                fg[2] * (1.0 - high),
+                fg[3],
+            ]
         }
     }
 

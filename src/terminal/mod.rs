@@ -533,28 +533,6 @@ impl TerminalManager {
         Ok(())
     }
 
-    // TODO: Recording APIs not yet available in par-term-emu-core-rust
-    // Uncomment when the core library supports recording again
-
-    /*
-    /// Start recording a terminal session
-    pub fn start_recording(&self, title: Option<String>) {
-        log::info!("Starting session recording");
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.start_recording(title);
-    }
-
-    /// Stop recording and return the recording session
-    pub fn stop_recording(&self) -> Option<par_term_emu_core_rust::terminal::RecordingSession> {
-        log::info!("Stopping session recording");
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let mut term = terminal.lock();
-        term.stop_recording()
-    }
-
     /// Add a marker to the recording
     pub fn record_marker(&self, label: String) {
         log::debug!("Recording marker: {}", label);
@@ -585,15 +563,6 @@ impl TerminalManager {
         log::info!("Recording exported successfully");
         Ok(())
     }
-
-    /// Check if currently recording
-    pub fn is_recording(&self) -> bool {
-        let pty = self.pty_session.lock();
-        let terminal = pty.terminal();
-        let term = terminal.lock();
-        term.is_recording()
-    }
-    */
 
     /// Get current working directory from shell integration (OSC 7)
     pub fn shell_integration_cwd(&self) -> Option<String> {
@@ -653,8 +622,6 @@ impl TerminalManager {
         term.poll_cwd_events()
     }
 
-    // TODO: Shell integration stats API not yet available in par-term-emu-core-rust
-    /*
     /// Get shell integration statistics
     pub fn shell_integration_stats(
         &self,
@@ -664,7 +631,6 @@ impl TerminalManager {
         let term = terminal.lock();
         term.get_shell_integration_stats()
     }
-    */
 
     /// Get cursor position
     #[allow(dead_code)]

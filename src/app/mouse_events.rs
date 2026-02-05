@@ -134,15 +134,44 @@ impl WindowState {
                 {
                     let adjusted_row = row + tab.scroll_state.offset;
 
-                    if let Some(url) = url_detection::find_url_at_position(
+                    if let Some(item) = url_detection::find_url_at_position(
                         &tab.mouse.detected_urls,
                         col,
                         adjusted_row,
                     ) {
-                        if let Err(e) = url_detection::open_url(&url.url) {
-                            log::error!("Failed to open URL: {}", e);
+                        match &item.item_type {
+                            url_detection::DetectedItemType::Url => {
+                                if let Err(e) = url_detection::open_url(&item.url) {
+                                    log::error!("Failed to open URL: {}", e);
+                                }
+                            }
+                            url_detection::DetectedItemType::FilePath { line, column } => {
+                                let editor_mode = self.config.semantic_history_editor_mode;
+                                let editor_cmd = &self.config.semantic_history_editor;
+                                let cwd = tab.get_cwd();
+                                crate::debug_info!(
+                                    "SEMANTIC",
+                                    "Opening file path: {:?} line={:?} col={:?} mode={:?} editor_cmd={:?} cwd={:?}",
+                                    item.url,
+                                    line,
+                                    column,
+                                    editor_mode,
+                                    editor_cmd,
+                                    cwd
+                                );
+                                if let Err(e) = url_detection::open_file_in_editor(
+                                    &item.url,
+                                    *line,
+                                    *column,
+                                    editor_mode,
+                                    editor_cmd,
+                                    cwd.as_deref(),
+                                ) {
+                                    crate::debug_error!("SEMANTIC", "Failed to open file: {}", e);
+                                }
+                            }
                         }
-                        return; // Exit early: URL click handled
+                        return; // Exit early: click handled
                     }
                 }
 

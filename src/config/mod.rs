@@ -22,10 +22,10 @@ pub use shader_metadata::{
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
     DroppedFileQuoteStyle, FontRange, InstallPromptState, IntegrationVersions, KeyBinding,
-    ModifierRemapping, ModifierTarget, OptionKeyMode, PowerPreference, SessionLogFormat,
-    ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType,
-    SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, TabBarMode, ThinStrokesMode,
-    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    ModifierRemapping, ModifierTarget, OptionKeyMode, PowerPreference, SemanticHistoryEditorMode,
+    SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction,
+    ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
+    ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
     default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
@@ -147,6 +147,16 @@ pub struct Config {
     /// - always: Always use lighter strokes
     #[serde(default)]
     pub font_thin_strokes: ThinStrokesMode,
+
+    /// Minimum contrast ratio for text against background (WCAG standard)
+    /// When set, adjusts foreground colors to ensure they meet the specified contrast ratio.
+    /// - 1.0: No adjustment (disabled)
+    /// - 4.5: WCAG AA standard for normal text
+    /// - 7.0: WCAG AAA standard for normal text
+    ///
+    /// Range: 1.0 to 21.0 (maximum possible contrast)
+    #[serde(default = "defaults::minimum_contrast")]
+    pub minimum_contrast: f32,
 
     /// Window title
     #[serde(default = "defaults::window_title")]
@@ -738,6 +748,34 @@ pub struct Config {
     pub jobs_to_ignore: Vec<String>,
 
     // ========================================================================
+    // Semantic History
+    // ========================================================================
+    /// Enable semantic history (file path detection and opening)
+    /// When enabled, Cmd/Ctrl+Click on detected file paths opens them in the editor.
+    #[serde(default = "defaults::bool_true")]
+    pub semantic_history_enabled: bool,
+
+    /// Editor selection mode for semantic history
+    ///
+    /// - `custom` - Use the editor command specified in `semantic_history_editor`
+    /// - `environment_variable` - Use `$EDITOR` or `$VISUAL` environment variable (default)
+    /// - `system_default` - Use system default application for each file type
+    #[serde(default)]
+    pub semantic_history_editor_mode: SemanticHistoryEditorMode,
+
+    /// Editor command for semantic history (when mode is `custom`).
+    ///
+    /// Placeholders: `{file}` = file path, `{line}` = line number (if available)
+    ///
+    /// Examples:
+    /// - `code -g {file}:{line}` (VS Code with line number)
+    /// - `subl {file}:{line}` (Sublime Text)
+    /// - `vim +{line} {file}` (Vim)
+    /// - `emacs +{line} {file}` (Emacs)
+    #[serde(default = "defaults::semantic_history_editor")]
+    pub semantic_history_editor: String,
+
+    // ========================================================================
     // Scrollbar (GUI-specific)
     // ========================================================================
     /// Scrollbar position (left or right)
@@ -1305,6 +1343,7 @@ impl Default for Config {
             font_antialias: defaults::bool_true(),
             font_hinting: defaults::bool_true(),
             font_thin_strokes: ThinStrokesMode::default(),
+            minimum_contrast: defaults::minimum_contrast(),
             scrollback_lines: defaults::scrollback(),
             unicode_version: defaults::unicode_version(),
             ambiguous_width: defaults::ambiguous_width(),
@@ -1411,6 +1450,9 @@ impl Default for Config {
             answerback_string: defaults::answerback_string(),
             confirm_close_running_jobs: defaults::bool_false(),
             jobs_to_ignore: defaults::jobs_to_ignore(),
+            semantic_history_enabled: defaults::bool_true(),
+            semantic_history_editor_mode: SemanticHistoryEditorMode::default(),
+            semantic_history_editor: defaults::semantic_history_editor(),
             scrollbar_position: defaults::scrollbar_position(),
             scrollbar_width: defaults::scrollbar_width(),
             scrollbar_thumb_color: defaults::scrollbar_thumb_color(),

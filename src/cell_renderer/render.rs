@@ -566,7 +566,16 @@ impl CellRenderer {
 
                 // Text
                 let mut x_offset = 0.0;
-                let cell_data: Vec<(String, bool, bool, [u8; 4], bool, bool)> = row_cells
+                #[allow(clippy::type_complexity)]
+                let cell_data: Vec<(
+                    String,
+                    bool,
+                    bool,
+                    [u8; 4],
+                    [u8; 4],
+                    bool,
+                    bool,
+                )> = row_cells
                     .iter()
                     .map(|c| {
                         (
@@ -574,6 +583,7 @@ impl CellRenderer {
                             c.bold,
                             c.italic,
                             c.fg_color,
+                            c.bg_color,
                             c.wide_char_spacer,
                             c.wide_char,
                         )
@@ -606,7 +616,7 @@ impl CellRenderer {
                 };
 
                 let mut current_col = 0usize;
-                for (grapheme, bold, italic, fg_color, is_spacer, is_wide) in cell_data {
+                for (grapheme, bold, italic, fg_color, bg_color, is_spacer, is_wide) in cell_data {
                     if is_spacer || grapheme == " " {
                         x_offset += self.cell_width;
                         current_col += 1;
@@ -641,12 +651,35 @@ impl CellRenderer {
                                 }
                             }
                         } else {
-                            [
+                            // Determine the effective background color for contrast calculation
+                            // If the cell has a non-default bg, use that; otherwise use terminal background
+                            let effective_bg = if bg_color[3] > 0 {
+                                // Cell has explicit background
+                                [
+                                    bg_color[0] as f32 / 255.0,
+                                    bg_color[1] as f32 / 255.0,
+                                    bg_color[2] as f32 / 255.0,
+                                    1.0,
+                                ]
+                            } else {
+                                // Use terminal default background
+                                [
+                                    self.background_color[0],
+                                    self.background_color[1],
+                                    self.background_color[2],
+                                    1.0,
+                                ]
+                            };
+
+                            let base_fg = [
                                 fg_color[0] as f32 / 255.0,
                                 fg_color[1] as f32 / 255.0,
                                 fg_color[2] as f32 / 255.0,
                                 text_alpha,
-                            ]
+                            ];
+
+                            // Apply minimum contrast adjustment if enabled
+                            self.ensure_minimum_contrast(base_fg, effective_bg)
                         };
 
                     let chars: Vec<char> = grapheme.chars().collect();

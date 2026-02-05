@@ -9,7 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-*No unreleased changes yet.*
+### Added
+
+- **Minimum Contrast Enforcement**: WCAG-based accessibility feature for readable text
+  - Automatically adjusts text color when contrast ratio against background is too low
+  - Uses WCAG luminance formula for perceptually accurate contrast calculation
+  - New config option: `minimum_contrast` (range 1.0-21.0, default: 1.0 = disabled)
+  - Set to 4.5 for WCAG AA compliance, 7.0 for WCAG AAA compliance
+  - Settings UI: Appearance → Colors section with slider
+
+- **Semantic History**: Click file paths to open them in your editor (iTerm2 parity)
+  - Detects file paths in terminal output with optional line:column numbers
+  - Supports formats: `/path/file.rs`, `src/main.rs:42`, `file.py:10:5`
+  - Ctrl+click (Cmd+click on macOS) opens file in configured editor
+  - Directories open in system file manager (Finder/Explorer/Nautilus)
+  - Configurable editor selection mode:
+    - **Custom** - Use a user-specified editor command
+    - **Environment Variable** - Use `$EDITOR`/`$VISUAL` (default)
+    - **System Default** - Open with system's default application
+  - Falls back to system default if configured editor unavailable
+  - Uses login shell (`$SHELL -lc`) to run editor commands, ensuring user's PATH is available
+  - New config options:
+    - `semantic_history_enabled` - Enable/disable feature (default: true)
+    - `semantic_history_editor_mode` - Editor selection mode: `custom`, `environment_variable`, `system_default`
+    - `semantic_history_editor` - Custom editor command with placeholders: `{file}`, `{line}`, `{col}`
+  - Example editor commands: `code -g {file}:{line}`, `vim +{line} {file}`
+  - Settings UI: Terminal → Semantic History section with editor mode dropdown
+
+### Changed
+
+- **Core Library API Integration**: Enabled previously dormant APIs from par-term-emu-core-rust
+  - Recording API now accessible for future instant replay features
+  - Shell integration stats API now accessible for badge variables and status bar
 
 ---
 

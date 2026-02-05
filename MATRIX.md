@@ -110,7 +110,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Link color | ✅ `Link Color` | ✅ `link_color` | ✅ | - | - | Core tracks and styles OSC 8 hyperlinks |
 | Theme presets | ✅ Many built-in | ✅ 17 themes | ✅ | - | - | Dracula, Nord, Monokai, Solarized, etc. |
 | Light/Dark mode variants | ✅ Separate colors per mode | ❌ | ❌ | ⭐⭐ | 🟡 | Auto-switch with system theme |
-| Minimum contrast | ✅ `Minimum Contrast` | ❌ | ❌ | ⭐⭐ | 🟡 | Accessibility feature |
+| Minimum contrast | ✅ `Minimum Contrast` | ✅ `minimum_contrast` | ✅ | - | - | WCAG luminance-based contrast adjustment (1.0-21.0) |
 | Smart cursor color | ✅ `Smart Cursor Color` | ✅ `smart_cursor_color` | ✅ | - | - | Core exposes setting, frontend implements |
 | Faint text alpha | ✅ `Faint Text Alpha` | ✅ `faint_text_alpha` | ✅ | - | - | Core exposes 0.0-1.0 alpha multiplier |
 | Underline color | ✅ `Underline Color` | ✅ SGR 58/59 | ✅ | - | - | Full colored underline support in core |
@@ -333,7 +333,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Regex URL detection | ✅ | ✅ | ✅ | - | - | - |
 | Click to open URLs | ✅ Cmd+click | ✅ Ctrl+click | ✅ | - | - | Different modifier |
 | Hover highlighting | ✅ | ✅ | ✅ | - | - | - |
-| Semantic history | ✅ Open in editor | ❌ | ❌ | ⭐⭐ | 🟡 | Click to open file in editor |
+| Semantic history | ✅ Open in editor | ✅ `semantic_history_*` | ✅ | - | - | Ctrl+click file paths to open in editor with line:column support. Editor modes: Custom, $EDITOR, System Default |
 
 ---
 
@@ -428,7 +428,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Minimum contrast | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Ensure readable text |
+| Minimum contrast | ✅ | ✅ `minimum_contrast` | ✅ | - | - | WCAG luminance-based contrast (1.0-21.0) |
 | Focus on click | ✅ | ✅ | ✅ | - | - | - |
 | Bidirectional text | ✅ `Bidi` | ❌ | ❌ | ⭐⭐ | 🔴 | RTL language support |
 | VoiceOver support | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | Screen reader support |
@@ -556,11 +556,12 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 **Phase 2 - Medium Effort, High Value**
 1. Tab bar position options (⭐⭐, 🟡)
 2. Light/Dark mode theme switching (⭐⭐, 🟡)
-3. Minimum contrast (⭐⭐, 🟡)
-4. Timestamps in scrollback (⭐⭐, 🟡)
-5. Mark indicators (⭐⭐, 🟡)
-6. Session undo timeout (⭐⭐, 🟡)
-7. Window arrangements (⭐⭐, 🟡)
+3. ~~Minimum contrast (⭐⭐, 🟡)~~ - ✅ **IMPLEMENTED**
+4. ~~Semantic history (⭐⭐, 🟡)~~ - ✅ **IMPLEMENTED**
+5. Timestamps in scrollback (⭐⭐, 🟡)
+6. Mark indicators (⭐⭐, 🟡)
+7. Session undo timeout (⭐⭐, 🟡)
+8. Window arrangements (⭐⭐, 🟡)
 
 **Phase 3 - High Effort, High Value**
 1. Hotkey window (⭐⭐⭐, 🔴)
@@ -575,6 +576,6 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 ---
 
-*Updated: 2026-02-04*
+*Updated: 2026-02-05*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.9.0+*
+*par-term Version: 0.10.0+*
