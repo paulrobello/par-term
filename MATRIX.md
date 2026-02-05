@@ -212,11 +212,11 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
 | Custom keybindings | ✅ Full keyboard map | ✅ `keybindings` | ✅ | - | - | - |
-| Modifier remapping | ✅ Per-modifier remapping | ❌ | ❌ | ⭐⭐ | 🟡 | Remap Ctrl/Alt/Cmd |
+| Modifier remapping | ✅ Per-modifier remapping | ✅ `modifier_remapping` | ✅ | - | - | Remap Ctrl/Alt/Super per-side |
 | Option as Meta/Esc | ✅ `Option Key Sends` | ✅ `left/right_option_key_mode` | ✅ | - | - | Normal/Meta/Esc modes per key |
 | Hotkey window | ✅ Global hotkey | ❌ | ❌ | ⭐⭐⭐ | 🔴 | Quake-style dropdown |
 | Haptic/sound feedback for Esc | ✅ | ❌ | ❌ | ➖ | ➖ | Touch Bar feedback - won't implement (Touch Bar discontinued) |
-| Language-agnostic key bindings | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Non-US keyboard support |
+| Language-agnostic key bindings | ✅ | ✅ `use_physical_keys` | ✅ | - | - | Match by scan code, works across layouts |
 | Application keypad mode | ✅ `Application Keypad Allowed` | ✅ | ✅ | - | - | - |
 | Touch Bar customization | ✅ `Touch Bar Map` | ❌ | ❌ | ➖ | ➖ | macOS Touch Bar - won't implement (Touch Bar discontinued) |
 | modifyOtherKeys protocol | ✅ `Allow Modify Other Keys` | ✅ `CSI > 4 ; mode m` | ✅ | - | - | Extended key reporting (modes 0, 1, 2) |
@@ -344,7 +344,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Regex triggers | ✅ Full trigger system | ❌ | ❌ | ⭐⭐ | 🔴 | Auto-respond to patterns |
 | Trigger actions | ✅ Many actions | ❌ | ❌ | ⭐⭐ | 🔴 | Highlight, alert, run, etc. |
 | Coprocesses | ✅ | ❌ | ❌ | ⭐ | 🔴 | Pipe output to process |
-| Shell integration | ✅ Full integration | ❌ | ❌ | ⭐⭐⭐ | 🔵 | Command tracking, marks |
+| Shell integration | ✅ Full integration | ✅ OSC 133/7/1337 | ✅ | - | - | Command tracking, marks, CWD, badges |
 | Python API | ✅ Full scripting API | ❌ | ❌ | ⭐⭐ | 🔵 | Automation scripting |
 
 ---
@@ -534,12 +534,14 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 - tmux control mode integration with session picker
 - Broadcast input mode (type to all panes)
 - Badge system with 12 dynamic variables and Settings UI tab
+- Per-side modifier remapping (left/right Ctrl, Alt, Super independently)
+- Physical key binding mode (language-agnostic keybindings via scan codes)
 
 ### High-Priority Missing Features (⭐⭐⭐)
 1. **Hotkey window** - Quake-style dropdown - 🔴 High effort
 2. **Multiple profiles** - Named configurations - 🔵 Very high effort
 3. ~~**Split panes** - Divide terminal~~ - ✅ **IMPLEMENTED**
-4. **Shell integration** - Command tracking - 🔵 Very high effort
+4. ~~**Shell integration** - Command tracking~~ - ✅ **IMPLEMENTED** (OSC 133/7/1337 in core)
 5. ~~**tmux control mode** - Native tmux integration~~ - ✅ **IMPLEMENTED**
 
 ### Recommended Implementation Priority
@@ -564,7 +566,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 **Phase 4 - Very High Effort (Major Features)**
 1. ~~Split panes (⭐⭐⭐, 🔵)~~ - ✅ **IMPLEMENTED**
 2. Multiple profiles (⭐⭐⭐, 🔵)
-3. Shell integration (⭐⭐⭐, 🔵)
+3. ~~Shell integration (⭐⭐⭐, 🔵)~~ - ✅ **IMPLEMENTED** (OSC 133/7/1337 in core)
 4. ~~tmux control mode (⭐⭐⭐, 🔵)~~ - ✅ **IMPLEMENTED**
 5. AI integration (⭐⭐, 🔵)
 
@@ -572,4 +574,4 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 *Updated: 2026-02-04*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.8.0+*
+*par-term Version: 0.9.0+*

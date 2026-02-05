@@ -248,6 +248,83 @@ pub enum OptionKeyMode {
     Esc,
 }
 
+// ============================================================================
+// Modifier Remapping Types
+// ============================================================================
+
+/// Target modifier for remapping.
+///
+/// Allows remapping one modifier key to behave as another.
+/// For example, remap Caps Lock to Ctrl, or swap Ctrl and Super.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ModifierTarget {
+    /// No remapping - use the key's normal function
+    #[default]
+    None,
+    /// Remap to Control key
+    Ctrl,
+    /// Remap to Alt/Option key
+    Alt,
+    /// Remap to Shift key
+    Shift,
+    /// Remap to Super/Cmd/Windows key
+    Super,
+}
+
+impl ModifierTarget {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            ModifierTarget::None => "None (disabled)",
+            ModifierTarget::Ctrl => "Ctrl",
+            ModifierTarget::Alt => "Alt/Option",
+            ModifierTarget::Shift => "Shift",
+            ModifierTarget::Super => "Super/Cmd",
+        }
+    }
+
+    /// All available targets for UI iteration
+    pub fn all() -> &'static [ModifierTarget] {
+        &[
+            ModifierTarget::None,
+            ModifierTarget::Ctrl,
+            ModifierTarget::Alt,
+            ModifierTarget::Shift,
+            ModifierTarget::Super,
+        ]
+    }
+}
+
+/// Modifier remapping configuration.
+///
+/// Allows users to remap modifier keys to different functions.
+/// This is useful for:
+/// - Swapping Ctrl and Caps Lock
+/// - Using Ctrl as Cmd on macOS
+/// - Customizing modifier layout for ergonomic keyboards
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ModifierRemapping {
+    /// What the left Ctrl key should act as
+    #[serde(default)]
+    pub left_ctrl: ModifierTarget,
+    /// What the right Ctrl key should act as
+    #[serde(default)]
+    pub right_ctrl: ModifierTarget,
+    /// What the left Alt key should act as
+    #[serde(default)]
+    pub left_alt: ModifierTarget,
+    /// What the right Alt key should act as
+    #[serde(default)]
+    pub right_alt: ModifierTarget,
+    /// What the left Super/Cmd key should act as
+    #[serde(default)]
+    pub left_super: ModifierTarget,
+    /// What the right Super/Cmd key should act as
+    #[serde(default)]
+    pub right_super: ModifierTarget,
+}
+
 /// Font mapping for a specific Unicode range
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FontRange {

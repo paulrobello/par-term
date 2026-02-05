@@ -1,9 +1,10 @@
 //! Key combination parser.
 //!
 //! Parses human-readable key strings like "Ctrl+Shift+B" into KeyCombo structs.
+//! Also supports physical key codes for language-agnostic bindings (e.g., "Ctrl+[KeyZ]").
 
 use std::fmt;
-use winit::keyboard::NamedKey;
+use winit::keyboard::{KeyCode, NamedKey};
 
 /// Error type for key parsing failures.
 #[derive(Debug, Clone)]
@@ -58,6 +59,7 @@ impl fmt::Display for KeyCombo {
         match &self.key {
             ParsedKey::Character(c) => parts.push(c.to_string()),
             ParsedKey::Named(n) => parts.push(format!("{:?}", n)),
+            ParsedKey::Physical(k) => parts.push(format!("[{:?}]", k)),
         }
 
         write!(f, "{}", parts.join("+"))
@@ -71,6 +73,9 @@ pub enum ParsedKey {
     Character(char),
     /// A named key (e.g., F1, Enter, Escape)
     Named(NamedKey),
+    /// A physical key code (e.g., KeyZ, KeyA) for language-agnostic bindings
+    /// This matches by key position rather than character produced.
+    Physical(KeyCode),
 }
 
 /// Parse a key combination string into a KeyCombo.
@@ -150,6 +155,18 @@ pub fn parse_key_combo(s: &str) -> Result<KeyCombo, ParseError> {
 
 /// Parse a key string into a ParsedKey.
 fn parse_key(s: &str) -> Result<ParsedKey, ParseError> {
+    // Check for physical key syntax: [KeyCode] (e.g., [KeyZ], [KeyA])
+    if s.starts_with('[') && s.ends_with(']') {
+        let code_str = &s[1..s.len() - 1];
+        if let Some(code) = parse_physical_key_code(code_str) {
+            return Ok(ParsedKey::Physical(code));
+        }
+        return Err(ParseError(format!(
+            "Unknown physical key code: '{}'",
+            code_str
+        )));
+    }
+
     // Try named keys first (case-insensitive)
     if let Some(named) = parse_named_key(s) {
         return Ok(ParsedKey::Named(named));
@@ -162,6 +179,100 @@ fn parse_key(s: &str) -> Result<ParsedKey, ParseError> {
     }
 
     Err(ParseError(format!("Unknown key: '{}'", s)))
+}
+
+/// Parse a physical key code string into a KeyCode.
+/// Supports common key code names like "KeyA", "KeyZ", "Digit0", etc.
+fn parse_physical_key_code(s: &str) -> Option<KeyCode> {
+    match s.to_lowercase().as_str() {
+        // Letter keys
+        "keya" => Some(KeyCode::KeyA),
+        "keyb" => Some(KeyCode::KeyB),
+        "keyc" => Some(KeyCode::KeyC),
+        "keyd" => Some(KeyCode::KeyD),
+        "keye" => Some(KeyCode::KeyE),
+        "keyf" => Some(KeyCode::KeyF),
+        "keyg" => Some(KeyCode::KeyG),
+        "keyh" => Some(KeyCode::KeyH),
+        "keyi" => Some(KeyCode::KeyI),
+        "keyj" => Some(KeyCode::KeyJ),
+        "keyk" => Some(KeyCode::KeyK),
+        "keyl" => Some(KeyCode::KeyL),
+        "keym" => Some(KeyCode::KeyM),
+        "keyn" => Some(KeyCode::KeyN),
+        "keyo" => Some(KeyCode::KeyO),
+        "keyp" => Some(KeyCode::KeyP),
+        "keyq" => Some(KeyCode::KeyQ),
+        "keyr" => Some(KeyCode::KeyR),
+        "keys" => Some(KeyCode::KeyS),
+        "keyt" => Some(KeyCode::KeyT),
+        "keyu" => Some(KeyCode::KeyU),
+        "keyv" => Some(KeyCode::KeyV),
+        "keyw" => Some(KeyCode::KeyW),
+        "keyx" => Some(KeyCode::KeyX),
+        "keyy" => Some(KeyCode::KeyY),
+        "keyz" => Some(KeyCode::KeyZ),
+
+        // Number row
+        "digit0" => Some(KeyCode::Digit0),
+        "digit1" => Some(KeyCode::Digit1),
+        "digit2" => Some(KeyCode::Digit2),
+        "digit3" => Some(KeyCode::Digit3),
+        "digit4" => Some(KeyCode::Digit4),
+        "digit5" => Some(KeyCode::Digit5),
+        "digit6" => Some(KeyCode::Digit6),
+        "digit7" => Some(KeyCode::Digit7),
+        "digit8" => Some(KeyCode::Digit8),
+        "digit9" => Some(KeyCode::Digit9),
+
+        // Punctuation/symbols by position
+        "minus" => Some(KeyCode::Minus),
+        "equal" => Some(KeyCode::Equal),
+        "bracketleft" => Some(KeyCode::BracketLeft),
+        "bracketright" => Some(KeyCode::BracketRight),
+        "backslash" => Some(KeyCode::Backslash),
+        "semicolon" => Some(KeyCode::Semicolon),
+        "quote" => Some(KeyCode::Quote),
+        "backquote" => Some(KeyCode::Backquote),
+        "comma" => Some(KeyCode::Comma),
+        "period" => Some(KeyCode::Period),
+        "slash" => Some(KeyCode::Slash),
+
+        // Function keys
+        "f1" => Some(KeyCode::F1),
+        "f2" => Some(KeyCode::F2),
+        "f3" => Some(KeyCode::F3),
+        "f4" => Some(KeyCode::F4),
+        "f5" => Some(KeyCode::F5),
+        "f6" => Some(KeyCode::F6),
+        "f7" => Some(KeyCode::F7),
+        "f8" => Some(KeyCode::F8),
+        "f9" => Some(KeyCode::F9),
+        "f10" => Some(KeyCode::F10),
+        "f11" => Some(KeyCode::F11),
+        "f12" => Some(KeyCode::F12),
+
+        // Navigation keys
+        "arrowup" => Some(KeyCode::ArrowUp),
+        "arrowdown" => Some(KeyCode::ArrowDown),
+        "arrowleft" => Some(KeyCode::ArrowLeft),
+        "arrowright" => Some(KeyCode::ArrowRight),
+        "home" => Some(KeyCode::Home),
+        "end" => Some(KeyCode::End),
+        "pageup" => Some(KeyCode::PageUp),
+        "pagedown" => Some(KeyCode::PageDown),
+        "insert" => Some(KeyCode::Insert),
+        "delete" => Some(KeyCode::Delete),
+
+        // Special keys
+        "enter" => Some(KeyCode::Enter),
+        "escape" => Some(KeyCode::Escape),
+        "space" => Some(KeyCode::Space),
+        "tab" => Some(KeyCode::Tab),
+        "backspace" => Some(KeyCode::Backspace),
+
+        _ => None,
+    }
 }
 
 /// Parse a named key string into a NamedKey.
@@ -322,5 +433,32 @@ mod tests {
         assert!(display.contains("Ctrl"));
         assert!(display.contains("Shift"));
         assert!(display.contains("B"));
+    }
+
+    #[test]
+    fn test_physical_key() {
+        let combo = parse_key_combo("Ctrl+[KeyZ]").unwrap();
+        assert!(combo.modifiers.ctrl);
+        assert_eq!(combo.key, ParsedKey::Physical(KeyCode::KeyZ));
+    }
+
+    #[test]
+    fn test_physical_key_case_insensitive() {
+        let combo = parse_key_combo("Ctrl+[keya]").unwrap();
+        assert!(combo.modifiers.ctrl);
+        assert_eq!(combo.key, ParsedKey::Physical(KeyCode::KeyA));
+    }
+
+    #[test]
+    fn test_physical_key_display() {
+        let combo = parse_key_combo("Ctrl+[KeyZ]").unwrap();
+        let display = format!("{}", combo);
+        assert!(display.contains("Ctrl"));
+        assert!(display.contains("[KeyZ]"));
+    }
+
+    #[test]
+    fn test_invalid_physical_key() {
+        assert!(parse_key_combo("Ctrl+[Unknown]").is_err());
     }
 }

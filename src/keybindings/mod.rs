@@ -2,6 +2,11 @@
 //!
 //! This module provides runtime-configurable keybindings that allow users
 //! to define custom keyboard shortcuts in their config.yaml.
+//!
+//! Features:
+//! - Configurable key combinations (Ctrl+Shift+B, CmdOrCtrl+V, etc.)
+//! - Modifier remapping (swap Ctrl and Super, etc.)
+//! - Physical key support for language-agnostic bindings
 
 mod matcher;
 mod parser;
@@ -12,7 +17,7 @@ pub use parser::KeyCombo;
 #[allow(unused_imports)]
 pub use parser::ParseError;
 
-use crate::config::KeyBinding;
+use crate::config::{KeyBinding, ModifierRemapping};
 use std::collections::HashMap;
 
 /// Registry of keybindings mapping key combinations to action names.
@@ -70,10 +75,30 @@ impl KeybindingRegistry {
         event: &winit::event::KeyEvent,
         modifiers: &winit::event::Modifiers,
     ) -> Option<&str> {
-        let matcher = KeybindingMatcher::from_event(event, modifiers);
+        self.lookup_with_options(event, modifiers, &ModifierRemapping::default(), false)
+    }
+
+    /// Look up an action for a key event with advanced options.
+    ///
+    /// # Arguments
+    /// * `event` - The key event from winit
+    /// * `modifiers` - Current modifier state
+    /// * `remapping` - Modifier key remapping configuration
+    /// * `use_physical_keys` - If true, match by physical key position (scan code) for
+    ///   language-agnostic bindings. This makes keybindings consistent across keyboard layouts.
+    ///
+    /// Returns the action name if a matching keybinding is found.
+    pub fn lookup_with_options(
+        &self,
+        event: &winit::event::KeyEvent,
+        modifiers: &winit::event::Modifiers,
+        remapping: &ModifierRemapping,
+        use_physical_keys: bool,
+    ) -> Option<&str> {
+        let matcher = KeybindingMatcher::from_event_with_remapping(event, modifiers, remapping);
 
         for (combo, action) in &self.bindings {
-            if matcher.matches(combo) {
+            if matcher.matches_with_physical_preference(combo, use_physical_keys) {
                 return Some(action.as_str());
             }
         }

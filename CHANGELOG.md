@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Modifier Key Remapping**: Remap modifier keys to different functions
+  - Configure left/right Ctrl, Alt, and Super keys independently
+  - Remap options: None (disabled), Ctrl, Alt, Shift, Super
+  - New config option: `modifier_remapping` with `left_ctrl`, `right_ctrl`, `left_alt`, `right_alt`, `left_super`, `right_super`
+  - Settings UI: Input → Modifier Remapping section
+  - Use cases: swap Ctrl and Caps Lock, use Ctrl as Cmd on macOS
+
+- **Language-Agnostic Key Bindings**: Keybindings that work consistently across keyboard layouts
+  - New config option: `use_physical_keys` (default: false)
+  - When enabled, keybindings match by physical key position (scan code) instead of character produced
+  - Makes shortcuts like Ctrl+Z work the same on QWERTY, AZERTY, Dvorak, etc.
+  - Physical key syntax for keybindings: `[KeyCode]` (e.g., `Ctrl+[KeyZ]`)
+  - Settings UI: Input → Keyboard section checkbox
+  - Supports all letter keys, digits, punctuation, and function keys
+
 - **modifyOtherKeys Protocol Support**: XTerm extension for enhanced keyboard input reporting
   - Applications can enable via `CSI > 4 ; mode m` escape sequence (mode 0=off, 1=special keys, 2=all keys)
   - When enabled, keys with modifiers are reported as `CSI 27 ; modifier ; keycode ~`

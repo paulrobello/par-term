@@ -22,10 +22,10 @@ pub use shader_metadata::{
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
     DroppedFileQuoteStyle, FontRange, InstallPromptState, IntegrationVersions, KeyBinding,
-    OptionKeyMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellType,
-    SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, TabBarMode, ThinStrokesMode,
-    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
-    default_smart_selection_rules,
+    ModifierRemapping, ModifierTarget, OptionKeyMode, SessionLogFormat, ShaderConfig,
+    ShaderInstallPrompt, ShaderMetadata, ShellType, SmartSelectionPrecision, SmartSelectionRule,
+    StartupDirectoryMode, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency,
+    VsyncMode, WindowType, default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 #[allow(unused_imports)]
@@ -379,6 +379,18 @@ pub struct Config {
     /// - esc: Sends Escape prefix before the character (most compatible for emacs/vim)
     #[serde(default)]
     pub right_option_key_mode: OptionKeyMode,
+
+    /// Modifier key remapping configuration
+    /// Allows remapping modifier keys to different functions (e.g., swap Ctrl and Caps Lock)
+    #[serde(default)]
+    pub modifier_remapping: ModifierRemapping,
+
+    /// Use physical key positions for keybindings instead of logical characters
+    /// When enabled, keybindings work based on key position (scan code) rather than
+    /// the character produced, making shortcuts consistent across keyboard layouts.
+    /// For example, Ctrl+Z will always be the bottom-left key regardless of QWERTY/AZERTY/Dvorak.
+    #[serde(default = "defaults::bool_false")]
+    pub use_physical_keys: bool,
 
     // ========================================================================
     // Selection & Clipboard
@@ -1244,6 +1256,8 @@ impl Default for Config {
             theme: defaults::theme(),
             left_option_key_mode: OptionKeyMode::default(),
             right_option_key_mode: OptionKeyMode::default(),
+            modifier_remapping: ModifierRemapping::default(),
+            use_physical_keys: defaults::bool_false(),
             auto_copy_selection: defaults::bool_true(),
             copy_trailing_newline: defaults::bool_false(),
             middle_click_paste: defaults::bool_true(),

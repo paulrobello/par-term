@@ -79,9 +79,12 @@ impl WindowState {
 
         // Check user-defined keybindings first (before hardcoded shortcuts)
         if event.state == ElementState::Pressed
-            && let Some(action) = self
-                .keybinding_registry
-                .lookup(&event, &self.input_handler.modifiers)
+            && let Some(action) = self.keybinding_registry.lookup_with_options(
+                &event,
+                &self.input_handler.modifiers,
+                &self.config.modifier_remapping,
+                self.config.use_physical_keys,
+            )
         {
             // Clone to avoid borrow conflict
             let action = action.to_string();
@@ -405,6 +408,10 @@ impl WindowState {
                     new_config.left_option_key_mode,
                     new_config.right_option_key_mode,
                 );
+
+                // Update modifier remapping and physical keys preference
+                self.config.modifier_remapping = new_config.modifier_remapping;
+                self.config.use_physical_keys = new_config.use_physical_keys;
 
                 // Update auto_copy_selection
                 self.config.auto_copy_selection = new_config.auto_copy_selection;

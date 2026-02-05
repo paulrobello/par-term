@@ -3,14 +3,14 @@
 //! Consolidates: keyboard_tab, mouse_tab, keybindings_tab
 //!
 //! Contains:
-//! - Keyboard settings (Option/Alt key modes)
+//! - Keyboard settings (Option/Alt key modes, modifier remapping, physical keys)
 //! - Mouse behavior (scroll speed, click thresholds)
 //! - Selection & Clipboard settings
 //! - Keybindings editor
 
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
-use crate::config::{DroppedFileQuoteStyle, KeyBinding, OptionKeyMode};
+use crate::config::{DroppedFileQuoteStyle, KeyBinding, ModifierTarget, OptionKeyMode};
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
@@ -29,8 +29,21 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
     let query = settings.search_query.trim().to_lowercase();
 
     // Keyboard section
-    if section_matches(&query, "Keyboard", &["option", "alt", "meta", "esc"]) {
+    if section_matches(
+        &query,
+        "Keyboard",
+        &["option", "alt", "meta", "esc", "physical"],
+    ) {
         show_keyboard_section(ui, settings, changes_this_frame);
+    }
+
+    // Modifier Remapping section
+    if section_matches(
+        &query,
+        "Modifier Remapping",
+        &["remap", "swap", "ctrl", "super", "cmd", "modifier"],
+    ) {
+        show_modifier_remapping_section(ui, settings, changes_this_frame);
     }
 
     // Mouse section
@@ -176,11 +189,215 @@ fn show_keyboard_section(
 
         ui.add_space(8.0);
         ui.separator();
+
+        // Physical key preference
+        if ui
+            .checkbox(
+                &mut settings.config.use_physical_keys,
+                "Use physical key positions for keybindings",
+            )
+            .on_hover_text(
+                "Match keybindings by key position (scan code) instead of character produced.\n\
+                 This makes shortcuts like Ctrl+Z work consistently across keyboard layouts\n\
+                 (QWERTY, AZERTY, Dvorak, etc.).",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.add_space(8.0);
+        ui.separator();
         ui.label(egui::RichText::new("Tips:").strong());
         ui.label("• Use \"Esc\" mode for emacs Meta key (M-x, M-f, M-b, etc.)");
         ui.label("• Use \"Esc\" mode for vim Alt mappings");
         ui.label("• Use \"Normal\" to type special characters (ƒ, ∂, ß, etc.)");
+        ui.label("• Enable physical keys if shortcuts feel wrong on non-US layouts");
     });
+}
+
+// ============================================================================
+// Modifier Remapping Section
+// ============================================================================
+
+fn show_modifier_remapping_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
+    collapsing_section(
+        ui,
+        "Modifier Remapping",
+        "input_modifier_remapping",
+        false,
+        |ui| {
+            ui.label("Remap modifier keys to different functions.");
+            ui.label(
+                egui::RichText::new(
+                    "Note: Changes apply to par-term keybindings only, not system-wide.",
+                )
+                .weak()
+                .small(),
+            );
+            ui.add_space(4.0);
+
+            // Left Ctrl
+            ui.horizontal(|ui| {
+                ui.label("Left Ctrl acts as:");
+                let current = settings.config.modifier_remapping.left_ctrl;
+                egui::ComboBox::from_id_salt("input_remap_left_ctrl")
+                    .selected_text(current.display_name())
+                    .show_ui(ui, |ui| {
+                        for target in ModifierTarget::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.modifier_remapping.left_ctrl,
+                                    *target,
+                                    target.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+
+            // Right Ctrl
+            ui.horizontal(|ui| {
+                ui.label("Right Ctrl acts as:");
+                let current = settings.config.modifier_remapping.right_ctrl;
+                egui::ComboBox::from_id_salt("input_remap_right_ctrl")
+                    .selected_text(current.display_name())
+                    .show_ui(ui, |ui| {
+                        for target in ModifierTarget::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.modifier_remapping.right_ctrl,
+                                    *target,
+                                    target.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+
+            ui.add_space(4.0);
+
+            // Left Alt
+            ui.horizontal(|ui| {
+                ui.label("Left Alt acts as:");
+                let current = settings.config.modifier_remapping.left_alt;
+                egui::ComboBox::from_id_salt("input_remap_left_alt")
+                    .selected_text(current.display_name())
+                    .show_ui(ui, |ui| {
+                        for target in ModifierTarget::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.modifier_remapping.left_alt,
+                                    *target,
+                                    target.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+
+            // Right Alt
+            ui.horizontal(|ui| {
+                ui.label("Right Alt acts as:");
+                let current = settings.config.modifier_remapping.right_alt;
+                egui::ComboBox::from_id_salt("input_remap_right_alt")
+                    .selected_text(current.display_name())
+                    .show_ui(ui, |ui| {
+                        for target in ModifierTarget::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.modifier_remapping.right_alt,
+                                    *target,
+                                    target.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+
+            ui.add_space(4.0);
+
+            #[cfg(target_os = "macos")]
+            let super_label = "Cmd";
+            #[cfg(not(target_os = "macos"))]
+            let super_label = "Super";
+
+            // Left Super/Cmd
+            ui.horizontal(|ui| {
+                ui.label(format!("Left {} acts as:", super_label));
+                let current = settings.config.modifier_remapping.left_super;
+                egui::ComboBox::from_id_salt("input_remap_left_super")
+                    .selected_text(current.display_name())
+                    .show_ui(ui, |ui| {
+                        for target in ModifierTarget::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.modifier_remapping.left_super,
+                                    *target,
+                                    target.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+
+            // Right Super/Cmd
+            ui.horizontal(|ui| {
+                ui.label(format!("Right {} acts as:", super_label));
+                let current = settings.config.modifier_remapping.right_super;
+                egui::ComboBox::from_id_salt("input_remap_right_super")
+                    .selected_text(current.display_name())
+                    .show_ui(ui, |ui| {
+                        for target in ModifierTarget::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.modifier_remapping.right_super,
+                                    *target,
+                                    target.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+
+            ui.add_space(8.0);
+
+            if ui.button("Reset to defaults").clicked() {
+                settings.config.modifier_remapping = Default::default();
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        },
+    );
 }
 
 fn option_key_mode_label(mode: OptionKeyMode) -> &'static str {
