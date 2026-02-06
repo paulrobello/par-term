@@ -70,9 +70,11 @@ impl TerminalManager {
         }
 
         // Apply trigger highlights on top of cell colors
+        // Note: highlight.row is a grid row (0-based in active screen),
+        // so convert to absolute row by adding scrollback_len.
         let highlights = term.get_trigger_highlights();
         for highlight in &highlights {
-            let abs_row = highlight.row;
+            let abs_row = scrollback_len + highlight.row;
             if abs_row < start_line || abs_row >= end_line {
                 continue;
             }
