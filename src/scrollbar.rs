@@ -391,10 +391,14 @@ impl Scrollbar {
                 mark: mark.clone(),
             });
 
-            let color = match mark.exit_code {
-                Some(0) => [0.2, 0.8, 0.4, 1.0],
-                Some(_) => [0.9, 0.25, 0.2, 1.0],
-                None => [0.6, 0.6, 0.6, 0.9],
+            let color = if let Some((r, g, b)) = mark.color {
+                [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0]
+            } else {
+                match mark.exit_code {
+                    Some(0) => [0.2, 0.8, 0.4, 1.0],
+                    Some(_) => [0.9, 0.25, 0.2, 1.0],
+                    None => [0.6, 0.6, 0.6, 0.9],
+                }
             };
 
             let mark_uniforms = ScrollbarUniforms {

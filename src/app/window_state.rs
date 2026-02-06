@@ -1524,7 +1524,7 @@ impl WindowState {
                 .clamp_to_scrollback(tab.cache.scrollback_len);
         }
 
-        let scrollback_marks = if self.config.scrollbar_command_marks {
+        let mut scrollback_marks = if self.config.scrollbar_command_marks {
             if let Ok(term) = terminal.try_lock() {
                 term.scrollback_marks()
             } else {
@@ -1534,8 +1534,13 @@ impl WindowState {
             Vec::new()
         };
 
+        // Append trigger-generated marks
+        if let Some(tab) = self.tab_manager.active_tab() {
+            scrollback_marks.extend(tab.trigger_marks.iter().cloned());
+        }
+
         // Keep scrollbar visible when mark indicators exist (even if no scrollback).
-        if self.config.scrollbar_command_marks && !scrollback_marks.is_empty() {
+        if !scrollback_marks.is_empty() {
             show_scrollbar = true;
         }
 

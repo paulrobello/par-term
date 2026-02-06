@@ -36,6 +36,8 @@ pub struct ScrollbackMark {
     pub start_time: Option<u64>,
     pub duration_ms: Option<u64>,
     pub command: Option<String>,
+    /// Custom color override (from trigger marks). When set, overrides exit_code-based coloring.
+    pub color: Option<(u8, u8, u8)>,
 }
 
 /// Metadata for displaying timing/command info for a specific line.
@@ -227,6 +229,7 @@ impl ScrollbackMetadata {
                 start_time,
                 duration_ms,
                 command,
+                color: None,
             });
         }
 

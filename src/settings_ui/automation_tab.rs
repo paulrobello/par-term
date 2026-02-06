@@ -80,7 +80,10 @@ fn default_action_for_type(type_index: usize) -> TriggerActionConfig {
             title: "Trigger".to_string(),
             message: "Pattern matched".to_string(),
         },
-        2 => TriggerActionConfig::MarkLine { label: None },
+        2 => TriggerActionConfig::MarkLine {
+            label: None,
+            color: Some([0, 180, 255]),
+        },
         3 => TriggerActionConfig::SetVariable {
             name: String::new(),
             value: String::new(),
@@ -418,11 +421,11 @@ fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionConfig) {
             ui.label("msg:");
             ui.add(egui::TextEdit::singleline(message).desired_width(100.0));
         }
-        TriggerActionConfig::MarkLine { label } => {
+        TriggerActionConfig::MarkLine { label, color } => {
             ui.label("label:");
             let mut label_text = label.clone().unwrap_or_default();
             if ui
-                .add(egui::TextEdit::singleline(&mut label_text).desired_width(100.0))
+                .add(egui::TextEdit::singleline(&mut label_text).desired_width(80.0))
                 .changed()
             {
                 *label = if label_text.is_empty() {
@@ -430,6 +433,21 @@ fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionConfig) {
                 } else {
                     Some(label_text)
                 };
+            }
+            ui.label("color:");
+            let mut c = color.unwrap_or([0, 180, 255]);
+            let mut color_f = [
+                c[0] as f32 / 255.0,
+                c[1] as f32 / 255.0,
+                c[2] as f32 / 255.0,
+            ];
+            if ui.color_edit_button_rgb(&mut color_f).changed() {
+                c = [
+                    (color_f[0] * 255.0) as u8,
+                    (color_f[1] * 255.0) as u8,
+                    (color_f[2] * 255.0) as u8,
+                ];
+                *color = Some(c);
             }
         }
         TriggerActionConfig::SetVariable { name, value } => {

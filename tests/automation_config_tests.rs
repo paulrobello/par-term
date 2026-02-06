@@ -69,6 +69,7 @@ fn test_all_trigger_action_variants_serialize_deserialize() {
         },
         TriggerActionConfig::MarkLine {
             label: Some("mark".into()),
+            color: None,
         },
         TriggerActionConfig::SetVariable {
             name: "n".into(),
@@ -164,9 +165,11 @@ fn test_trigger_action_to_core_action_all_variants() {
         (
             TriggerActionConfig::MarkLine {
                 label: Some("L".into()),
+                color: None,
             },
             TriggerAction::MarkLine {
                 label: Some("L".into()),
+                color: None,
             },
         ),
         (

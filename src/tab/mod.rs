@@ -332,6 +332,8 @@ pub struct Tab {
     pub coprocess_manager: CoprocessManager,
     /// Mapping from config index to coprocess ID (for UI tracking)
     pub coprocess_ids: Vec<Option<CoprocessId>>,
+    /// Trigger-generated scrollbar marks (from MarkLine actions)
+    pub trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
 }
 
 impl Tab {
@@ -516,6 +518,7 @@ impl Tab {
             badge_override: None,
             coprocess_manager,
             coprocess_ids,
+            trigger_marks: Vec::new(),
         })
     }
 
@@ -704,6 +707,7 @@ impl Tab {
             badge_override: None,
             coprocess_manager,
             coprocess_ids,
+            trigger_marks: Vec::new(),
         })
     }
 

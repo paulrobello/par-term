@@ -31,6 +31,8 @@ pub enum TriggerActionConfig {
     MarkLine {
         #[serde(default)]
         label: Option<String>,
+        #[serde(default)]
+        color: Option<[u8; 3]>,
     },
     SetVariable {
         name: String,
@@ -88,7 +90,10 @@ impl TriggerActionConfig {
                 duration_ms,
             },
             Self::Notify { title, message } => TriggerAction::Notify { title, message },
-            Self::MarkLine { label } => TriggerAction::MarkLine { label },
+            Self::MarkLine { label, color } => TriggerAction::MarkLine {
+                label,
+                color: color.map(|c| (c[0], c[1], c[2])),
+            },
             Self::SetVariable { name, value } => TriggerAction::SetVariable { name, value },
             Self::RunCommand { command, args } => TriggerAction::RunCommand { command, args },
             Self::PlaySound { sound_id, volume } => TriggerAction::PlaySound { sound_id, volume },
