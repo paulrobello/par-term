@@ -3,12 +3,16 @@
 //! This module handles polling trigger action results from the core library
 //! and executing frontend-handled actions: RunCommand, PlaySound, SendText.
 
+use std::collections::HashMap;
 use std::io::BufReader;
 use std::path::PathBuf;
 
 use par_term_emu_core_rust::terminal::ActionResult;
 
 use super::window_state::WindowState;
+
+/// (grid_row, label, color) tuple for a pending MarkLine action.
+type MarkLineEntry = (usize, Option<String>, Option<(u8, u8, u8)>);
 
 impl WindowState {
     /// Check for trigger action results and dispatch them.
@@ -34,6 +38,14 @@ impl WindowState {
         if action_results.is_empty() {
             return;
         }
+
+        // Collect MarkLine events for batch deduplication (processed after the loop).
+        // Between frames, the core may fire the same trigger multiple times for the
+        // same physical line (once per PTY read). Each scan records a different grid
+        // row because scrollback grows between scans, but we only get the scrollback_len
+        // at poll time. Batch dedup clusters these into one mark per physical line.
+        let mut pending_marks: HashMap<u64, Vec<MarkLineEntry>> =
+            HashMap::new();
 
         for action in action_results {
             match action {
@@ -129,39 +141,88 @@ impl WindowState {
                     label,
                     color,
                 } => {
-                    log::info!(
-                        "Trigger {} firing MarkLine: row={} label={:?} color={:?}",
-                        trigger_id,
-                        row,
-                        label,
-                        color
-                    );
-                    // Convert grid row to absolute line for scrollbar mark positioning.
-                    // Use current_scrollback_len (from the same terminal lock as
-                    // poll_action_results) rather than the cached value, which may be
-                    // stale by one frame. A stale value causes the absolute_line to
-                    // drift, bypassing the de-duplication check below.
-                    if let Some(tab) = self.tab_manager.active_tab_mut() {
-                        let absolute_line = current_scrollback_len + row;
-                        if let Some(existing) = tab
-                            .trigger_marks
-                            .iter_mut()
-                            .find(|m| m.line == absolute_line)
-                        {
-                            existing.command = label;
-                            existing.color = color;
-                        } else {
-                            tab.trigger_marks
-                                .push(crate::scrollback_metadata::ScrollbackMark {
-                                    line: absolute_line,
-                                    exit_code: None,
-                                    start_time: None,
-                                    duration_ms: None,
-                                    command: label,
-                                    color,
-                                });
-                        }
-                    }
+                    pending_marks
+                        .entry(trigger_id)
+                        .or_default()
+                        .push((row, label, color));
+                }
+            }
+        }
+
+        // Process collected MarkLine events with deduplication.
+        if !pending_marks.is_empty() {
+            self.apply_mark_line_results(pending_marks, current_scrollback_len);
+        }
+    }
+
+    /// Deduplicate and apply MarkLine trigger results.
+    ///
+    /// Between frames, the same trigger can scan the same physical line multiple
+    /// times (once per PTY read cycle). Each scan sees the line at a different
+    /// grid row because scrollback grows between scans. For example, a single
+    /// match might produce rows [10, 9, 8, 7] across 4 scans.
+    ///
+    /// This method clusters consecutive rows per trigger_id (they represent the
+    /// same physical line shifting), keeps only the smallest row from each cluster
+    /// (most current, consistent with `current_scrollback_len`), then updates or
+    /// adds marks using trigger_id + proximity matching.
+    fn apply_mark_line_results(
+        &mut self,
+        pending_marks: HashMap<u64, Vec<MarkLineEntry>>,
+        current_scrollback_len: usize,
+    ) {
+        let tab = if let Some(t) = self.tab_manager.active_tab_mut() {
+            t
+        } else {
+            return;
+        };
+
+        for (trigger_id, mut entries) in pending_marks {
+            // Sort by row ascending, then cluster consecutive rows.
+            // Each cluster represents the same physical line seen at different
+            // scroll positions. Keep the first (smallest row) from each cluster
+            // — it's the most recent and matches current_scrollback_len.
+            entries.sort_by_key(|(row, _, _)| *row);
+            let mut deduped: Vec<MarkLineEntry> = Vec::new();
+            for (row, label, color) in entries {
+                if let Some((last_row, _, _)) = deduped.last()
+                    && row <= *last_row + 1
+                {
+                    continue; // Same cluster — skip (we already kept the smallest)
+                }
+                deduped.push((row, label, color));
+            }
+
+            for (row, label, color) in deduped {
+                let absolute_line = current_scrollback_len + row;
+                log::info!(
+                    "Trigger {} MarkLine: row={} abs={} label={:?}",
+                    trigger_id,
+                    row,
+                    absolute_line,
+                    label
+                );
+
+                // Find existing mark with same trigger_id within a proximity window.
+                // The window accounts for frame-to-frame drift of ±5 lines.
+                const PROXIMITY: usize = 5;
+                if let Some(existing) = tab.trigger_marks.iter_mut().find(|m| {
+                    m.trigger_id == Some(trigger_id) && absolute_line.abs_diff(m.line) <= PROXIMITY
+                }) {
+                    existing.line = absolute_line;
+                    existing.command = label;
+                    existing.color = color;
+                } else {
+                    tab.trigger_marks
+                        .push(crate::scrollback_metadata::ScrollbackMark {
+                            line: absolute_line,
+                            exit_code: None,
+                            start_time: None,
+                            duration_ms: None,
+                            command: label,
+                            color,
+                            trigger_id: Some(trigger_id),
+                        });
                 }
             }
         }

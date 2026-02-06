@@ -38,6 +38,10 @@ pub struct ScrollbackMark {
     pub command: Option<String>,
     /// Custom color override (from trigger marks). When set, overrides exit_code-based coloring.
     pub color: Option<(u8, u8, u8)>,
+    /// Trigger ID that created this mark (None for shell integration marks).
+    /// Used for deduplication: the same trigger matching the same physical line
+    /// across multiple scans produces marks at different absolute positions.
+    pub trigger_id: Option<u64>,
 }
 
 /// Metadata for displaying timing/command info for a specific line.
@@ -230,6 +234,7 @@ impl ScrollbackMetadata {
                 duration_ms,
                 command,
                 color: None,
+                trigger_id: None,
             });
         }
 
