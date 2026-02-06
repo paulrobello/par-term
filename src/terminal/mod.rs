@@ -208,18 +208,23 @@ impl TerminalManager {
         current_scrollback_len: usize,
     ) -> String {
         let grid = term.active_grid();
-        // Read up to 3 lines (handles wrapped commands) starting from the command line.
-        // Most commands fit on one line; multi-line commands rarely exceed 3.
+        // Read the command line, continuing only if the line is soft-wrapped
+        // (indicating a long command that wraps to the next line). Non-wrapped
+        // lines mark the end of the command — what follows is command output.
         let mut parts = Vec::new();
-        for offset in 0..3 {
+        for offset in 0..5 {
             let abs_line = start_abs_line + offset;
-            let text = if abs_line < current_scrollback_len {
-                // Line has scrolled into scrollback - read from scrollback buffer
-                Self::scrollback_line_text(grid, abs_line)
+            let (text, is_wrapped) = if abs_line < current_scrollback_len {
+                // Line has scrolled into scrollback
+                let t = Self::scrollback_line_text(grid, abs_line);
+                let w = grid.is_scrollback_wrapped(abs_line);
+                (t, w)
             } else {
                 // Line is still in the visible grid
                 let grid_row = abs_line - current_scrollback_len;
-                grid.row_text(grid_row)
+                let t = grid.row_text(grid_row);
+                let w = grid.is_line_wrapped(grid_row);
+                (t, w)
             };
             let trimmed = if offset == 0 {
                 // Skip prompt characters on the first line
@@ -231,12 +236,15 @@ impl TerminalManager {
             } else {
                 text.trim_end().to_string()
             };
-            if trimmed.is_empty() {
-                break; // Stop at first empty line
+            if !trimmed.is_empty() {
+                parts.push(trimmed);
             }
-            parts.push(trimmed);
+            // Only continue to the next line if this line is soft-wrapped
+            if !is_wrapped {
+                break;
+            }
         }
-        parts.join(" ").trim().to_string()
+        parts.join("").trim().to_string()
     }
 
     /// Read text from a scrollback line, converting cells to a string.
