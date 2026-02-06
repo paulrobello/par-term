@@ -286,13 +286,24 @@ impl ScrollbackMetadata {
         }
     }
 
-    /// Set the command text on the most recent mark that doesn't have one.
+    /// Set the command text on the mark at or nearest to `target_line`.
     ///
     /// Called after `apply_event()` when the frontend has extracted command text
-    /// from the terminal grid. This fills in the `command` field on synthetic
-    /// snapshots that would otherwise have `command: None`.
-    pub fn set_latest_mark_command(&mut self, command: String) {
-        if let Some(&line) = self.prompt_lines.last()
+    /// from the terminal grid. `target_line` is the absolute line where the
+    /// command was entered (recorded at CommandStart/B marker time).
+    ///
+    /// We search for the mark at `target_line` first, then fall back to the
+    /// nearest mark before it. This handles the case where the exact line may
+    /// differ slightly from what was recorded in `prompt_lines`.
+    pub fn set_mark_command_at(&mut self, target_line: usize, command: String) {
+        // Find the mark at or just before the target line
+        let line = match self.prompt_lines.binary_search(&target_line) {
+            Ok(_) => Some(target_line),
+            Err(idx) => idx
+                .checked_sub(1)
+                .and_then(|i| self.prompt_lines.get(i).copied()),
+        };
+        if let Some(line) = line
             && let Some(id) = self.line_to_command.get(&line)
             && let Some(snapshot) = self.commands.get_mut(id)
             && snapshot.command.is_none()

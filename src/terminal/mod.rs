@@ -66,10 +66,14 @@ pub struct TerminalManager {
     pub(crate) scrollback_metadata: ScrollbackMetadata,
     /// Previous shell integration marker for detecting transitions
     last_shell_marker: Option<ShellIntegrationMarker>,
-    /// Cursor position (row, col) at CommandStart for extracting command text
+    /// Absolute line and column at CommandStart (B marker) for extracting command text.
+    /// Stored as (absolute_line, col) where absolute_line = scrollback_len + cursor_row
+    /// at the time the B marker was seen. Using absolute line rather than grid row
+    /// ensures we can still find the command text even after it scrolls into scrollback.
     command_start_pos: Option<(usize, usize)>,
-    /// Command text captured from the grid (waiting to be applied to a mark)
-    captured_command_text: Option<String>,
+    /// Command text captured from the terminal (waiting to be applied to a mark).
+    /// Stored as (absolute_line, text) so we can target the correct mark.
+    captured_command_text: Option<(usize, String)>,
 }
 
 impl TerminalManager {
@@ -128,23 +132,29 @@ impl TerminalManager {
         let prev_marker = self.last_shell_marker;
 
         // Track cursor position at CommandStart (B) for command text extraction.
-        // When the marker changes away from CommandStart (to C, D, or A), extract
-        // the command text from the grid using the saved position.
+        // We store the ABSOLUTE line (scrollback_len + cursor_row) so that even if
+        // the command line scrolls into the scrollback buffer before we can read it
+        // (common for fast commands like `ls`), we can still find it.
         if marker != prev_marker {
             let cursor_col = term.cursor().col;
             match marker {
                 Some(ShellIntegrationMarker::CommandStart) => {
-                    // Record where the command input starts (after the prompt)
-                    self.command_start_pos = Some((cursor_row, cursor_col));
+                    // Record absolute line where command input starts (after prompt)
+                    let abs_line = scrollback_len + cursor_row;
+                    self.command_start_pos = Some((abs_line, cursor_col));
                 }
                 _ => {
                     // Any other transition: if we had a CommandStart position,
                     // extract the command text now (handles B→C, B→D, B→A).
-                    if let Some((start_row, start_col)) = self.command_start_pos.take() {
-                        let text =
-                            Self::extract_command_text(&term, start_row, start_col, cursor_row);
+                    if let Some((start_abs_line, start_col)) = self.command_start_pos.take() {
+                        let text = Self::extract_command_text(
+                            &term,
+                            start_abs_line,
+                            start_col,
+                            scrollback_len,
+                        );
                         if !text.is_empty() {
-                            self.captured_command_text = Some(text);
+                            self.captured_command_text = Some((start_abs_line, text));
                         }
                     }
                 }
@@ -171,31 +181,47 @@ impl TerminalManager {
             last_exit_code,
         );
 
-        // If we captured command text, apply it to the latest mark.
-        // This fills in the `command` field on synthetic snapshots that
-        // apply_event creates when markers fire without command history.
-        if let Some(cmd) = self.captured_command_text.take() {
-            self.scrollback_metadata.set_latest_mark_command(cmd);
+        // If we captured command text, apply it to the mark at the command's
+        // absolute line. This fills in the `command` field on synthetic snapshots
+        // that apply_event creates when markers fire without command history.
+        if let Some((abs_line, cmd)) = self.captured_command_text.take() {
+            self.scrollback_metadata.set_mark_command_at(abs_line, cmd);
         }
     }
 
-    /// Extract command text from the terminal grid.
+    /// Extract command text from the terminal using absolute line positioning.
     ///
-    /// Uses the cursor position recorded at CommandStart (B marker) to know
-    /// where the prompt ends and command text begins. The start_col is the
-    /// column right after the prompt where the user's input starts.
+    /// `start_abs_line` is the absolute line (scrollback_len + grid_row) recorded
+    /// at CommandStart (B marker). `start_col` is the column after the prompt.
+    /// `current_scrollback_len` is the current scrollback length, used to determine
+    /// whether the command line is still in the visible grid or has scrolled into
+    /// the scrollback buffer.
+    ///
+    /// For fast commands (e.g., `ls`), by the time we detect the marker transition,
+    /// the command line may have scrolled into scrollback. This method handles both
+    /// cases by checking whether the absolute line falls within scrollback or the
+    /// visible grid.
     fn extract_command_text(
         term: &Terminal,
-        start_row: usize,
+        start_abs_line: usize,
         start_col: usize,
-        end_row: usize,
+        current_scrollback_len: usize,
     ) -> String {
         let grid = term.active_grid();
+        // Read up to 3 lines (handles wrapped commands) starting from the command line.
+        // Most commands fit on one line; multi-line commands rarely exceed 3.
         let mut parts = Vec::new();
-        let last_row = end_row.min(start_row + 5); // cap to avoid runaway
-        for row in start_row..=last_row {
-            let text = grid.row_text(row);
-            let trimmed = if row == start_row {
+        for offset in 0..3 {
+            let abs_line = start_abs_line + offset;
+            let text = if abs_line < current_scrollback_len {
+                // Line has scrolled into scrollback - read from scrollback buffer
+                Self::scrollback_line_text(grid, abs_line)
+            } else {
+                // Line is still in the visible grid
+                let grid_row = abs_line - current_scrollback_len;
+                grid.row_text(grid_row)
+            };
+            let trimmed = if offset == 0 {
                 // Skip prompt characters on the first line
                 text.chars()
                     .skip(start_col)
@@ -205,11 +231,29 @@ impl TerminalManager {
             } else {
                 text.trim_end().to_string()
             };
-            if !trimmed.is_empty() {
-                parts.push(trimmed);
+            if trimmed.is_empty() {
+                break; // Stop at first empty line
             }
+            parts.push(trimmed);
         }
         parts.join(" ").trim().to_string()
+    }
+
+    /// Read text from a scrollback line, converting cells to a string.
+    fn scrollback_line_text(
+        grid: &par_term_emu_core_rust::grid::Grid,
+        scrollback_index: usize,
+    ) -> String {
+        if let Some(cells) = grid.scrollback_line(scrollback_index) {
+            cells
+                .iter()
+                .filter(|cell| !cell.flags.wide_char_spacer())
+                .map(|cell| cell.get_grapheme())
+                .collect::<Vec<String>>()
+                .join("")
+        } else {
+            String::new()
+        }
     }
 
     /// Get rendered scrollback marks (prompt/command boundaries).
