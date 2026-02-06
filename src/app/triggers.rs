@@ -44,8 +44,7 @@ impl WindowState {
         // same physical line (once per PTY read). Each scan records a different grid
         // row because scrollback grows between scans, but we only get the scrollback_len
         // at poll time. Batch dedup clusters these into one mark per physical line.
-        let mut pending_marks: HashMap<u64, Vec<MarkLineEntry>> =
-            HashMap::new();
+        let mut pending_marks: HashMap<u64, Vec<MarkLineEntry>> = HashMap::new();
 
         for action in action_results {
             match action {
@@ -184,13 +183,18 @@ impl WindowState {
             // — it's the most recent and matches current_scrollback_len.
             entries.sort_by_key(|(row, _, _)| *row);
             let mut deduped: Vec<MarkLineEntry> = Vec::new();
+            let mut prev_row: Option<usize> = None;
             for (row, label, color) in entries {
-                if let Some((last_row, _, _)) = deduped.last()
-                    && row <= *last_row + 1
+                if let Some(prev) = prev_row
+                    && row <= prev + 1
                 {
-                    continue; // Same cluster — skip (we already kept the smallest)
+                    // Same cluster (consecutive row) — skip, keep the first
+                    prev_row = Some(row);
+                    continue;
                 }
+                // New cluster starts here
                 deduped.push((row, label, color));
+                prev_row = Some(row);
             }
 
             for (row, label, color) in deduped {
