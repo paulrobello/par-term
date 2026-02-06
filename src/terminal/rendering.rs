@@ -72,8 +72,8 @@ impl TerminalManager {
         // Apply trigger highlights on top of cell colors
         // Note: highlight.row is a grid row (0-based in active screen),
         // so convert to absolute row by adding scrollback_len.
-        // Note: highlight.col_start/col_end are byte offsets from regex matches
-        // on row_text(), which must be converted to grid column indices.
+        // Note: col_start/col_end are grid column indices (converted from byte
+        // offsets in the core library's process_trigger_scans).
         let highlights = term.get_trigger_highlights();
         for highlight in &highlights {
             let abs_row = scrollback_len + highlight.row;
@@ -82,16 +82,7 @@ impl TerminalManager {
             }
             let screen_row = abs_row - start_line;
 
-            // Convert byte offsets to grid column indices
-            let (col_start, col_end) = Self::byte_offsets_to_grid_cols(
-                grid,
-                highlight.row,
-                highlight.col_start,
-                highlight.col_end,
-                cols,
-            );
-
-            for col in col_start..col_end.min(cols) {
+            for col in highlight.col_start..highlight.col_end.min(cols) {
                 let cell_idx = screen_row * cols + col;
                 if cell_idx < cells.len() {
                     if let Some((r, g, b)) = highlight.fg {
@@ -188,61 +179,6 @@ impl TerminalManager {
         for _ in 0..count {
             dest.push(Cell::default());
         }
-    }
-
-    /// Convert byte offsets from row_text() regex matches to grid column indices.
-    ///
-    /// The core library's trigger system runs regex on `grid.row_text(row)` which:
-    /// 1. Filters out wide_char_spacer cells
-    /// 2. Joins graphemes into a UTF-8 string
-    ///
-    /// Regex `Match::start()`/`end()` return byte offsets, not column indices.
-    /// When multi-byte UTF-8 chars are present, byte offsets exceed char indices.
-    /// When wide chars are present, char indices don't match grid columns.
-    fn byte_offsets_to_grid_cols(
-        grid: &par_term_emu_core_rust::grid::Grid,
-        row: usize,
-        byte_start: usize,
-        byte_end: usize,
-        cols: usize,
-    ) -> (usize, usize) {
-        let row_text = grid.row_text(row);
-
-        // Convert byte offsets to character indices in the filtered text
-        let char_start = row_text
-            .get(..byte_start)
-            .map(|s| s.chars().count())
-            .unwrap_or(byte_start);
-        let char_end = row_text
-            .get(..byte_end)
-            .map(|s| s.chars().count())
-            .unwrap_or(byte_end);
-
-        // Map character indices to grid columns by walking cells,
-        // skipping wide_char_spacer cells (matching row_text() behavior)
-        let mut char_count = 0;
-        let mut grid_start = 0;
-        let mut grid_end = cols;
-        let mut found_start = false;
-
-        for col in 0..cols {
-            if let Some(cell) = grid.get(col, row) {
-                if cell.flags.wide_char_spacer() {
-                    continue;
-                }
-                if char_count == char_start && !found_start {
-                    grid_start = col;
-                    found_start = true;
-                }
-                if char_count == char_end {
-                    grid_end = col;
-                    break;
-                }
-                char_count += 1;
-            }
-        }
-
-        (grid_start, grid_end)
     }
 
     /// Check if a cell at (col, row) is within the selection range

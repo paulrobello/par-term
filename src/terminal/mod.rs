@@ -3,6 +3,7 @@ use crate::styled_content::{StyledSegment, extract_styled_segments};
 use crate::themes::Theme;
 use anyhow::Result;
 use par_term_emu_core_rust::pty_session::PtySession;
+use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
 use par_term_emu_core_rust::terminal::Terminal;
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -63,6 +64,10 @@ pub struct TerminalManager {
     pub(crate) theme: Theme,
     /// Scrollback metadata for shell integration markers
     pub(crate) scrollback_metadata: ScrollbackMetadata,
+    /// Previous shell integration marker for detecting transitions
+    last_shell_marker: Option<ShellIntegrationMarker>,
+    /// Cursor position (row, col) at CommandStart for extracting command text
+    command_start_pos: Option<(usize, usize)>,
 }
 
 impl TerminalManager {
@@ -89,6 +94,8 @@ impl TerminalManager {
             dimensions: (cols, rows),
             theme: Theme::default(),
             scrollback_metadata: ScrollbackMetadata::new(),
+            last_shell_marker: None,
+            command_start_pos: None,
         })
     }
 
@@ -102,13 +109,50 @@ impl TerminalManager {
     /// This should be called once per frame (after obtaining cursor position) to
     /// track prompt markers and command timing information for scrollback
     /// visualization.
+    ///
+    /// Detects shell integration marker transitions to capture command text from
+    /// the terminal grid and feed it into the core's command history tracking.
     pub fn update_scrollback_metadata(&mut self, scrollback_len: usize, cursor_row: usize) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let term = terminal.lock();
+        let mut term = terminal.lock();
 
         let marker = term.shell_integration().marker();
         let last_exit_code = term.shell_integration().exit_code();
+        let prev_marker = self.last_shell_marker;
+
+        // Detect marker transitions to capture command text and drive command
+        // history tracking. This bridges the gap between shell integration
+        // markers (which only signal phases) and command history (which needs
+        // explicit start/end calls with command text).
+        if marker != prev_marker {
+            let cursor_col = term.cursor().col;
+            match marker {
+                Some(ShellIntegrationMarker::CommandStart) => {
+                    // Record cursor position (col is where command text starts)
+                    self.command_start_pos = Some((cursor_row, cursor_col));
+                }
+                Some(ShellIntegrationMarker::CommandExecuted) => {
+                    // Extract command text from the grid and start tracking
+                    let (start_row, start_col) =
+                        self.command_start_pos.unwrap_or((cursor_row, 0));
+                    let command_text =
+                        Self::extract_command_text(&term, start_row, start_col, cursor_row);
+                    if !command_text.is_empty() {
+                        term.start_command_execution(command_text);
+                    }
+                    self.command_start_pos = None;
+                }
+                Some(ShellIntegrationMarker::CommandFinished) => {
+                    if let Some(exit_code) = last_exit_code {
+                        term.end_command_execution(exit_code);
+                    }
+                }
+                _ => {}
+            }
+            self.last_shell_marker = marker;
+        }
+
         let history = term.get_command_history();
         let history_len = history.len();
         let last_command = history
@@ -127,6 +171,39 @@ impl TerminalManager {
             last_command,
             last_exit_code,
         );
+    }
+
+    /// Extract command text from the terminal grid.
+    ///
+    /// Uses the cursor position recorded at CommandStart (B marker) to know
+    /// where the prompt ends and command text begins. The start_col is the
+    /// column right after the prompt where the user's input starts.
+    fn extract_command_text(
+        term: &Terminal,
+        start_row: usize,
+        start_col: usize,
+        end_row: usize,
+    ) -> String {
+        let grid = term.active_grid();
+        let mut parts = Vec::new();
+        let last_row = end_row.min(start_row + 5); // cap to avoid runaway
+        for row in start_row..=last_row {
+            let text = grid.row_text(row);
+            let trimmed = if row == start_row {
+                // Skip prompt characters on the first line
+                text.chars()
+                    .skip(start_col)
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            } else {
+                text.trim_end().to_string()
+            };
+            if !trimmed.is_empty() {
+                parts.push(trimmed);
+            }
+        }
+        parts.join(" ").trim().to_string()
     }
 
     /// Get rendered scrollback marks (prompt/command boundaries).
