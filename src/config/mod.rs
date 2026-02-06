@@ -30,7 +30,7 @@ pub use types::{
     default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
-pub use automation::{CoprocessDefConfig, TriggerActionConfig, TriggerConfig};
+pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
 #[allow(unused_imports)]
 pub use types::KeyModifier;
 #[allow(unused_imports)]

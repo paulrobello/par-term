@@ -20,7 +20,7 @@ use crate::scroll_state::ScrollState;
 use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_logger};
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
-use par_term_emu_core_rust::coprocess::{CoprocessId, CoprocessManager};
+use par_term_emu_core_rust::coprocess::CoprocessId;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -328,8 +328,6 @@ pub struct Tab {
     pub auto_applied_profile_id: Option<crate::profile::ProfileId>,
     /// Badge text override from auto-applied profile (overrides global badge_format)
     pub badge_override: Option<String>,
-    /// Coprocess manager for this tab
-    pub coprocess_manager: CoprocessManager,
     /// Mapping from config index to coprocess ID (for UI tracking)
     pub coprocess_ids: Vec<Option<CoprocessId>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
@@ -391,8 +389,7 @@ impl Tab {
         // Sync triggers from config into the core TriggerRegistry
         terminal.sync_triggers(&config.triggers);
 
-        // Initialize coprocess manager and auto-start configured coprocesses
-        let mut coprocess_manager = CoprocessManager::new();
+        // Auto-start configured coprocesses via the PtySession's built-in manager
         let mut coprocess_ids = Vec::with_capacity(config.coprocesses.len());
         for coproc_config in &config.coprocesses {
             if coproc_config.auto_start {
@@ -400,10 +397,12 @@ impl Tab {
                     command: coproc_config.command.clone(),
                     args: coproc_config.args.clone(),
                     cwd: None,
-                    env: std::collections::HashMap::new(),
+                    env: crate::terminal::coprocess_env(),
                     copy_terminal_output: coproc_config.copy_terminal_output,
+                    restart_policy: coproc_config.restart_policy.to_core(),
+                    restart_delay_ms: coproc_config.restart_delay_ms,
                 };
-                match coprocess_manager.start(core_config) {
+                match terminal.start_coprocess(core_config) {
                     Ok(id) => {
                         log::info!(
                             "Auto-started coprocess '{}' (id={})",
@@ -516,7 +515,6 @@ impl Tab {
             detected_hostname: None,
             auto_applied_profile_id: None,
             badge_override: None,
-            coprocess_manager,
             coprocess_ids,
             trigger_marks: Vec::new(),
         })
@@ -586,8 +584,7 @@ impl Tab {
         // Sync triggers from config into the core TriggerRegistry
         terminal.sync_triggers(&config.triggers);
 
-        // Initialize coprocess manager and auto-start configured coprocesses
-        let mut coprocess_manager = CoprocessManager::new();
+        // Auto-start configured coprocesses via the PtySession's built-in manager
         let mut coprocess_ids = Vec::with_capacity(config.coprocesses.len());
         for coproc_config in &config.coprocesses {
             if coproc_config.auto_start {
@@ -595,10 +592,12 @@ impl Tab {
                     command: coproc_config.command.clone(),
                     args: coproc_config.args.clone(),
                     cwd: None,
-                    env: std::collections::HashMap::new(),
+                    env: crate::terminal::coprocess_env(),
                     copy_terminal_output: coproc_config.copy_terminal_output,
+                    restart_policy: coproc_config.restart_policy.to_core(),
+                    restart_delay_ms: coproc_config.restart_delay_ms,
                 };
-                match coprocess_manager.start(core_config) {
+                match terminal.start_coprocess(core_config) {
                     Ok(id) => {
                         log::info!(
                             "Auto-started coprocess '{}' (id={})",
@@ -705,7 +704,6 @@ impl Tab {
             detected_hostname: None,
             auto_applied_profile_id: None,
             badge_override: None,
-            coprocess_manager,
             coprocess_ids,
             trigger_marks: Vec::new(),
         })

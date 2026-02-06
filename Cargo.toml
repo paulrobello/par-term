@@ -51,7 +51,6 @@ anyhow = "1.0.101"
 
 # Logging
 log = "0.4.29"
-env_logger = "0.11.8"
 
 # Platform-specific directories
 dirs = "6.0"

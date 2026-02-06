@@ -56,6 +56,44 @@ pub enum TriggerActionConfig {
     },
 }
 
+/// Policy for restarting a coprocess when it exits
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RestartPolicy {
+    /// Never restart (default)
+    #[default]
+    Never,
+    /// Always restart regardless of exit code
+    Always,
+    /// Restart only on non-zero exit code
+    OnFailure,
+}
+
+impl RestartPolicy {
+    /// All available restart policies for UI dropdowns
+    pub fn all() -> &'static [RestartPolicy] {
+        &[Self::Never, Self::Always, Self::OnFailure]
+    }
+
+    /// Human-readable display name
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::Never => "Never",
+            Self::Always => "Always",
+            Self::OnFailure => "On Failure",
+        }
+    }
+
+    /// Convert to core library RestartPolicy
+    pub fn to_core(self) -> par_term_emu_core_rust::coprocess::RestartPolicy {
+        match self {
+            Self::Never => par_term_emu_core_rust::coprocess::RestartPolicy::Never,
+            Self::Always => par_term_emu_core_rust::coprocess::RestartPolicy::Always,
+            Self::OnFailure => par_term_emu_core_rust::coprocess::RestartPolicy::OnFailure,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CoprocessDefConfig {
     pub name: String,
@@ -66,6 +104,10 @@ pub struct CoprocessDefConfig {
     pub auto_start: bool,
     #[serde(default = "super::defaults::bool_true")]
     pub copy_terminal_output: bool,
+    #[serde(default)]
+    pub restart_policy: RestartPolicy,
+    #[serde(default)]
+    pub restart_delay_ms: u64,
 }
 
 fn default_highlight_duration() -> u64 {

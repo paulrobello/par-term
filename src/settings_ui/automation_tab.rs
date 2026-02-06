@@ -6,7 +6,9 @@
 
 use super::SettingsUI;
 use super::section::collapsing_section;
-use crate::config::automation::{CoprocessDefConfig, TriggerActionConfig, TriggerConfig};
+use crate::config::automation::{
+    CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
+};
 
 /// Show the automation tab content.
 pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
@@ -39,6 +41,9 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "subprocess",
             "auto start",
             "auto-start",
+            "restart",
+            "restart policy",
+            "restart delay",
         ],
     ) {
         show_coprocesses_section(ui, settings, changes_this_frame);
@@ -472,6 +477,24 @@ fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionConfig) {
         TriggerActionConfig::PlaySound { sound_id, volume } => {
             ui.label("sound:");
             ui.add(egui::TextEdit::singleline(sound_id).desired_width(80.0));
+            if ui.button("Browse...").clicked() {
+                let sounds_dir = dirs::config_dir()
+                    .map(|d| d.join("par-term").join("sounds"))
+                    .unwrap_or_default();
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title("Select sound file")
+                    .set_directory(&sounds_dir)
+                    .add_filter("Audio", &["wav", "mp3", "ogg", "flac", "aac", "m4a"])
+                    .pick_file()
+                {
+                    // If the file is inside the sounds directory, store just the filename;
+                    // otherwise store the full path so play_sound_file can find it.
+                    *sound_id = path
+                        .strip_prefix(&sounds_dir)
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|_| path.display().to_string());
+                }
+            }
             ui.label("vol:");
             ui.add(egui::DragValue::new(volume).range(0..=100).speed(1.0));
         }
@@ -511,9 +534,21 @@ fn show_coprocesses_section(
             if is_editing {
                 show_coprocess_edit_form(ui, settings, changes_this_frame, Some(i));
             } else {
+                let is_running = settings
+                    .coprocess_running
+                    .get(i)
+                    .copied()
+                    .unwrap_or(false);
+
+                // First row: status + name + buttons (right-aligned)
                 ui.horizontal(|ui| {
-                    // Auto/manual badge
-                    if coproc.auto_start {
+                    // Running/stopped status indicator
+                    if is_running {
+                        ui.label(
+                            egui::RichText::new("●")
+                                .color(egui::Color32::from_rgb(100, 200, 100)),
+                        );
+                    } else if coproc.auto_start {
                         ui.label(
                             egui::RichText::new("[auto]")
                                 .color(egui::Color32::from_rgb(100, 200, 100))
@@ -521,43 +556,159 @@ fn show_coprocesses_section(
                         );
                     } else {
                         ui.label(
-                            egui::RichText::new("[manual]")
-                                .color(egui::Color32::GRAY)
-                                .small(),
+                            egui::RichText::new("○")
+                                .color(egui::Color32::GRAY),
                         );
                     }
 
                     // Name (bold)
                     ui.label(egui::RichText::new(&coproc.name).strong());
 
-                    // Command (monospace)
-                    let cmd_display = if coproc.args.is_empty() {
-                        coproc.command.clone()
-                    } else {
-                        format!("{} {}", coproc.command, coproc.args.join(" "))
-                    };
-                    ui.label(
-                        egui::RichText::new(&cmd_display)
-                            .monospace()
-                            .color(egui::Color32::from_rgb(150, 150, 200)),
-                    );
+                    // Right-align buttons
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Delete button (rightmost)
+                        if ui
+                            .small_button(
+                                egui::RichText::new("Delete")
+                                    .color(egui::Color32::from_rgb(200, 80, 80)),
+                            )
+                            .clicked()
+                        {
+                            delete_index = Some(i);
+                        }
 
-                    // Edit button
-                    if ui.small_button("Edit").clicked() {
-                        start_edit_index = Some(i);
-                    }
+                        // Edit button
+                        if ui.small_button("Edit").clicked() {
+                            start_edit_index = Some(i);
+                        }
 
-                    // Delete button
-                    if ui
-                        .small_button(
-                            egui::RichText::new("Delete")
-                                .color(egui::Color32::from_rgb(200, 80, 80)),
-                        )
-                        .clicked()
-                    {
-                        delete_index = Some(i);
-                    }
+                        // Start/Stop button
+                        if is_running {
+                            if ui
+                                .small_button(
+                                    egui::RichText::new("Stop")
+                                        .color(egui::Color32::from_rgb(220, 160, 50)),
+                                )
+                                .clicked()
+                            {
+                                settings.pending_coprocess_actions.push((i, false));
+                            }
+                        } else if ui.small_button("Start").clicked() {
+                            log::debug!("Coprocess Start button clicked for index {}", i);
+                            // Clear any previous error message
+                            if let Some(err) = settings.coprocess_errors.get_mut(i) {
+                                err.clear();
+                            }
+                            settings.pending_coprocess_actions.push((i, true));
+                        }
+                    });
                 });
+
+                // Second row: command (indented, truncated if long)
+                let cmd_display = if coproc.args.is_empty() {
+                    coproc.command.clone()
+                } else {
+                    format!("{} {}", coproc.command, coproc.args.join(" "))
+                };
+                ui.indent(format!("coproc_cmd_{}", i), |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(&cmd_display)
+                                .monospace()
+                                .small()
+                                .color(egui::Color32::from_rgb(150, 150, 200)),
+                        );
+                        // Show restart policy info
+                        if coproc.restart_policy != RestartPolicy::Never {
+                            let restart_text = if coproc.restart_delay_ms > 0 {
+                                format!(
+                                    "[restart: {}, delay: {}ms]",
+                                    coproc.restart_policy.display_name(),
+                                    coproc.restart_delay_ms
+                                )
+                            } else {
+                                format!(
+                                    "[restart: {}]",
+                                    coproc.restart_policy.display_name()
+                                )
+                            };
+                            ui.label(
+                                egui::RichText::new(restart_text)
+                                    .small()
+                                    .color(egui::Color32::from_rgb(180, 180, 100)),
+                            );
+                        }
+                    });
+                });
+
+                // Show error message if coprocess died with stderr output
+                let has_error = settings
+                    .coprocess_errors
+                    .get(i)
+                    .is_some_and(|e| !e.is_empty());
+                if has_error && !is_running {
+                    let err_text = &settings.coprocess_errors[i];
+                    ui.indent(format!("coproc_err_{}", i), |ui| {
+                        ui.label(
+                            egui::RichText::new(format!("Error: {}", err_text))
+                                .small()
+                                .color(egui::Color32::from_rgb(220, 80, 80)),
+                        );
+                    });
+                }
+
+                // Output viewer (collapsible)
+                let has_output = settings
+                    .coprocess_output
+                    .get(i)
+                    .is_some_and(|lines| !lines.is_empty());
+                if has_output {
+                    let is_expanded = settings
+                        .coprocess_output_expanded
+                        .get(i)
+                        .copied()
+                        .unwrap_or(false);
+                    let line_count = settings.coprocess_output[i].len();
+                    ui.indent(format!("coproc_out_{}", i), |ui| {
+                        let toggle_text = if is_expanded {
+                            format!("▼ Output ({} lines)", line_count)
+                        } else {
+                            format!("▶ Output ({} lines)", line_count)
+                        };
+                        if ui
+                            .small_button(
+                                egui::RichText::new(&toggle_text)
+                                    .small()
+                                    .color(egui::Color32::from_rgb(140, 180, 140)),
+                            )
+                            .clicked()
+                            && let Some(expanded) =
+                                settings.coprocess_output_expanded.get_mut(i)
+                        {
+                            *expanded = !*expanded;
+                        }
+                        if is_expanded {
+                            let output_text = settings.coprocess_output[i].join("\n");
+                            egui::ScrollArea::vertical()
+                                .id_salt(format!("coproc_output_scroll_{}", i))
+                                .max_height(150.0)
+                                .stick_to_bottom(true)
+                                .show(ui, |ui| {
+                                    ui.label(
+                                        egui::RichText::new(&output_text)
+                                            .monospace()
+                                            .small()
+                                            .color(egui::Color32::from_rgb(180, 180, 180)),
+                                    );
+                                });
+                            if ui.small_button("Clear").clicked() {
+                                settings.coprocess_output[i].clear();
+                            }
+                        }
+                    });
+                }
+
+                ui.add_space(2.0);
             }
         }
 
@@ -577,6 +728,10 @@ fn show_coprocesses_section(
             settings.temp_coprocess_name = coproc.name.clone();
             settings.temp_coprocess_command = coproc.command.clone();
             settings.temp_coprocess_args = coproc.args.join(" ");
+            settings.temp_coprocess_auto_start = coproc.auto_start;
+            settings.temp_coprocess_copy_output = coproc.copy_terminal_output;
+            settings.temp_coprocess_restart_policy = coproc.restart_policy;
+            settings.temp_coprocess_restart_delay_ms = coproc.restart_delay_ms;
         }
 
         ui.add_space(4.0);
@@ -597,6 +752,10 @@ fn show_coprocesses_section(
             settings.temp_coprocess_name = String::new();
             settings.temp_coprocess_command = String::new();
             settings.temp_coprocess_args = String::new();
+            settings.temp_coprocess_auto_start = false;
+            settings.temp_coprocess_copy_output = true;
+            settings.temp_coprocess_restart_policy = RestartPolicy::Never;
+            settings.temp_coprocess_restart_delay_ms = 0;
         }
     });
 }
@@ -626,21 +785,49 @@ fn show_coprocess_edit_form(
             ui.text_edit_singleline(&mut settings.temp_coprocess_args);
         });
 
-        // Options
-        let auto_start_val = edit_index
-            .map(|i| settings.config.coprocesses[i].auto_start)
-            .unwrap_or(false);
-        let copy_output_val = edit_index
-            .map(|i| settings.config.coprocesses[i].copy_terminal_output)
-            .unwrap_or(true);
+        // Options (use persistent temp fields so checkbox state survives across frames)
+        ui.checkbox(
+            &mut settings.temp_coprocess_auto_start,
+            "Auto-start with terminal",
+        )
+        .on_hover_text("Start this coprocess automatically when a new tab is opened");
+        ui.checkbox(
+            &mut settings.temp_coprocess_copy_output,
+            "Copy terminal output",
+        )
+        .on_hover_text("Send terminal output to the coprocess stdin");
 
-        let mut auto_start = auto_start_val;
-        let mut copy_output = copy_output_val;
+        // Restart policy
+        ui.horizontal(|ui| {
+            ui.label("Restart policy:");
+            egui::ComboBox::from_id_salt(if edit_index.is_some() {
+                "coproc_restart_policy_edit"
+            } else {
+                "coproc_restart_policy_new"
+            })
+            .selected_text(settings.temp_coprocess_restart_policy.display_name())
+            .show_ui(ui, |ui| {
+                for &policy in RestartPolicy::all() {
+                    ui.selectable_value(
+                        &mut settings.temp_coprocess_restart_policy,
+                        policy,
+                        policy.display_name(),
+                    );
+                }
+            });
+        });
 
-        ui.checkbox(&mut auto_start, "Auto-start with terminal")
-            .on_hover_text("Start this coprocess automatically when a new tab is opened");
-        ui.checkbox(&mut copy_output, "Copy terminal output")
-            .on_hover_text("Send terminal output to the coprocess stdin");
+        // Restart delay (only shown when restart policy is not Never)
+        if settings.temp_coprocess_restart_policy != RestartPolicy::Never {
+            ui.horizontal(|ui| {
+                ui.label("Restart delay (ms):");
+                ui.add(
+                    egui::DragValue::new(&mut settings.temp_coprocess_restart_delay_ms)
+                        .range(0..=60000)
+                        .speed(100.0),
+                );
+            });
+        }
 
         ui.add_space(4.0);
 
@@ -663,8 +850,10 @@ fn show_coprocess_edit_form(
                     name: settings.temp_coprocess_name.trim().to_string(),
                     command: settings.temp_coprocess_command.trim().to_string(),
                     args,
-                    auto_start,
-                    copy_terminal_output: copy_output,
+                    auto_start: settings.temp_coprocess_auto_start,
+                    copy_terminal_output: settings.temp_coprocess_copy_output,
+                    restart_policy: settings.temp_coprocess_restart_policy,
+                    restart_delay_ms: settings.temp_coprocess_restart_delay_ms,
                 };
 
                 if let Some(i) = edit_index {

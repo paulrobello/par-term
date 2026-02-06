@@ -15,13 +15,11 @@ fn main() -> Result<()> {
         }
         cli::CliResult::Continue(options) => options,
     };
-    // Initialize logging - respect RUST_LOG env var, suppress verbose wgpu logs
-    env_logger::Builder::from_default_env()
-        .filter_module("wgpu_core", log::LevelFilter::Warn)
-        .filter_module("wgpu_hal", log::LevelFilter::Warn)
-        .filter_module("rodio", log::LevelFilter::Error)
-        .filter_module("cpal", log::LevelFilter::Error)
-        .init();
+    // Initialize unified logging — routes all log::info!() etc. to /tmp/par_term_debug.log.
+    // When RUST_LOG is set, also mirrors to stderr for terminal debugging.
+    // This ensures logs are always captured, even in macOS app bundles and Windows GUI apps
+    // where stderr is invisible.
+    par_term::debug::init_log_bridge();
 
     log::info!("Starting par-term terminal emulator");
 

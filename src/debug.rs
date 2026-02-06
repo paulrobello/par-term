@@ -1,23 +1,28 @@
-use parking_lot::Mutex;
 /// Comprehensive debugging infrastructure for par-term
 ///
-/// Controlled by DEBUG_LEVEL environment variable:
-/// - 0 or unset: No debugging
-/// - 1: Errors only
-/// - 2: Info level (app events, graphics operations)
-/// - 3: Debug level (rendering, calculations)
-/// - 4: Trace level (every operation, detailed info)
+/// Two logging systems are unified into a single log file:
 ///
-/// All output goes to /tmp/par_term_debug.log on Unix/macOS,
-/// or %TEMP%\par_term_debug.log on Windows.
-/// This avoids breaking TUI apps by keeping debug output separate from stdout/stderr.
+/// 1. **Custom debug macros** (`crate::debug_info!()`, etc.)
+///    - Controlled by `DEBUG_LEVEL` environment variable (0-4)
+///    - Best for high-frequency rendering/input logging with category tags
+///
+/// 2. **Standard `log` crate** (`log::info!()`, etc.)
+///    - Controlled by `RUST_LOG` environment variable
+///    - Used by most application code and third-party crates
+///
+/// Both write to `/tmp/par_term_debug.log` (Unix/macOS) or `%TEMP%\par_term_debug.log` (Windows).
+/// The log file is always created so that errors are captured even in GUI-only contexts
+/// (macOS app bundles, Windows GUI apps) where stderr is invisible.
+///
+/// When `RUST_LOG` is set, `log` crate output is also mirrored to stderr for terminal debugging.
+use parking_lot::Mutex;
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Debug level configuration
+/// Debug level configuration for custom debug macros
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DebugLevel {
     Off = 0,
@@ -43,9 +48,11 @@ impl DebugLevel {
     }
 }
 
-/// Global debug logger
+/// Global debug logger that handles both custom debug macros and `log` crate output.
 struct DebugLogger {
+    /// Level for custom debug macros (controlled by DEBUG_LEVEL)
     level: DebugLevel,
+    /// Log file handle (always opened)
     file: Option<std::fs::File>,
 }
 
@@ -53,44 +60,28 @@ impl DebugLogger {
     fn new() -> Self {
         let level = DebugLevel::from_env();
 
-        let file = if level != DebugLevel::Off {
-            #[cfg(unix)]
-            let log_path = std::path::PathBuf::from("/tmp/par_term_debug.log");
-            #[cfg(windows)]
-            let log_path = std::env::temp_dir().join("par_term_debug.log");
+        #[cfg(unix)]
+        let log_path = std::path::PathBuf::from("/tmp/par_term_debug.log");
+        #[cfg(windows)]
+        let log_path = std::env::temp_dir().join("par_term_debug.log");
 
-            match OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open(&log_path)
-            {
-                Ok(f) => {
-                    // Write header
-                    let mut logger = DebugLogger {
-                        level,
-                        file: Some(f),
-                    };
-                    logger.write_raw(&format!(
-                        "\n{}\npar-term debug session started at {} (level={:?})\n{}\n",
-                        "=".repeat(80),
-                        get_timestamp(),
-                        level,
-                        "=".repeat(80)
-                    ));
-                    return logger;
-                }
-                Err(_e) => {
-                    // Silently fail if log file can't be opened
-                    // This prevents debug output from interfering with TUI applications
-                    None
-                }
-            }
-        } else {
-            None
-        };
+        let file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(&log_path)
+            .ok();
 
-        DebugLogger { level, file }
+        let mut logger = DebugLogger { level, file };
+        logger.write_raw(&format!(
+            "\n{}\npar-term log session started at {} (debug_level={:?}, rust_log={})\n{}\n",
+            "=".repeat(80),
+            get_timestamp(),
+            level,
+            std::env::var("RUST_LOG").unwrap_or_else(|_| "unset".to_string()),
+            "=".repeat(80)
+        ));
+        logger
     }
 
     fn write_raw(&mut self, msg: &str) {
@@ -100,6 +91,7 @@ impl DebugLogger {
         }
     }
 
+    /// Write a custom debug macro message (respects DEBUG_LEVEL)
     fn log(&mut self, level: DebugLevel, category: &str, msg: &str) {
         if level <= self.level {
             let timestamp = get_timestamp();
@@ -116,6 +108,22 @@ impl DebugLogger {
             ));
         }
     }
+
+    /// Write a `log` crate record (always writes to file)
+    fn log_record(&mut self, record: &log::Record) {
+        let timestamp = get_timestamp();
+        let level_str = match record.level() {
+            log::Level::Error => "ERROR",
+            log::Level::Warn => "WARN ",
+            log::Level::Info => "INFO ",
+            log::Level::Debug => "DEBUG",
+            log::Level::Trace => "TRACE",
+        };
+        self.write_raw(&format!(
+            "[{}] [{}] [{}] {}\n",
+            timestamp, level_str, record.target(), record.args()
+        ));
+    }
 }
 
 static LOGGER: OnceLock<Mutex<DebugLogger>> = OnceLock::new();
@@ -129,26 +137,136 @@ fn get_timestamp() -> String {
     format!("{}.{:06}", now.as_secs(), now.subsec_micros())
 }
 
-/// Check if debugging is enabled at given level
+/// Check if debugging is enabled at given level (for custom debug macros)
 pub fn is_enabled(level: DebugLevel) -> bool {
     let logger = get_logger().lock();
     level <= logger.level
 }
 
-/// Log a message at specified level
+/// Log a message at specified level (for custom debug macros)
 pub fn log(level: DebugLevel, category: &str, msg: &str) {
     let mut logger = get_logger().lock();
     logger.log(level, category, msg);
 }
 
-/// Log formatted message
+/// Log formatted message (for custom debug macros)
 pub fn logf(level: DebugLevel, category: &str, args: fmt::Arguments) {
     if is_enabled(level) {
         log(level, category, &format!("{}", args));
     }
 }
 
-// Convenience macros for logging
+// ============================================================================
+// log crate bridge — routes log::info!() etc. to the debug log file
+// ============================================================================
+
+/// Bridge that implements the `log` crate's `Log` trait, routing all log
+/// output to the par-term debug log file. Optionally mirrors to stderr
+/// when `RUST_LOG` is set (for terminal debugging).
+struct LogCrateBridge {
+    /// Maximum level to accept (parsed from RUST_LOG, default: Info)
+    max_level: log::LevelFilter,
+    /// Whether to also write to stderr (true when RUST_LOG is explicitly set)
+    mirror_stderr: bool,
+    /// Module-level filters (module_prefix, max_level) for noisy crates
+    module_filters: Vec<(&'static str, log::LevelFilter)>,
+}
+
+impl LogCrateBridge {
+    fn new() -> Self {
+        let rust_log_set = std::env::var("RUST_LOG").is_ok();
+        let max_level = if rust_log_set {
+            // Parse RUST_LOG for the default level (simplified: just use the first token)
+            match std::env::var("RUST_LOG")
+                .unwrap_or_default()
+                .to_lowercase()
+                .as_str()
+            {
+                "trace" => log::LevelFilter::Trace,
+                "debug" => log::LevelFilter::Debug,
+                "info" => log::LevelFilter::Info,
+                "warn" => log::LevelFilter::Warn,
+                "error" => log::LevelFilter::Error,
+                "off" => log::LevelFilter::Off,
+                _ => log::LevelFilter::Info, // default if RUST_LOG has module-specific syntax
+            }
+        } else {
+            // No RUST_LOG: capture info and above to the log file
+            log::LevelFilter::Info
+        };
+
+        LogCrateBridge {
+            max_level,
+            mirror_stderr: rust_log_set,
+            module_filters: vec![
+                ("wgpu_core", log::LevelFilter::Warn),
+                ("wgpu_hal", log::LevelFilter::Warn),
+                ("naga", log::LevelFilter::Warn),
+                ("rodio", log::LevelFilter::Error),
+                ("cpal", log::LevelFilter::Error),
+            ],
+        }
+    }
+
+    fn level_for_module(&self, target: &str) -> log::LevelFilter {
+        for (prefix, filter) in &self.module_filters {
+            if target.starts_with(prefix) {
+                return *filter;
+            }
+        }
+        self.max_level
+    }
+}
+
+impl log::Log for LogCrateBridge {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        metadata.level() <= self.level_for_module(metadata.target())
+    }
+
+    fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+
+        // Write to the debug log file
+        let mut logger = get_logger().lock();
+        logger.log_record(record);
+        drop(logger);
+
+        // Mirror to stderr when RUST_LOG is set (for terminal debugging)
+        if self.mirror_stderr {
+            eprintln!(
+                "[{}] {}: {}",
+                record.level(),
+                record.target(),
+                record.args()
+            );
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+/// Initialize the `log` crate bridge. Call this once from main() instead of env_logger::init().
+/// Routes all `log::info!()` etc. calls to the par-term debug log file.
+/// When `RUST_LOG` is set, also mirrors to stderr for terminal debugging.
+pub fn init_log_bridge() {
+    // Force logger initialization (opens the log file)
+    let _ = get_logger();
+
+    let bridge = LogCrateBridge::new();
+    let max_level = bridge.max_level;
+
+    // Install as the global logger
+    if log::set_boxed_logger(Box::new(bridge)).is_ok() {
+        log::set_max_level(max_level);
+    }
+}
+
+// ============================================================================
+// Custom debug macros (unchanged, controlled by DEBUG_LEVEL)
+// ============================================================================
+
 #[macro_export]
 macro_rules! debug_error {
     ($category:expr, $($arg:tt)*) => {

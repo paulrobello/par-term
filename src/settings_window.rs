@@ -32,6 +32,10 @@ pub enum SettingsWindowAction {
     TestNotification,
     /// Open the profile manager modal
     OpenProfileManager,
+    /// Start a coprocess by config index on the active tab
+    StartCoprocess(usize),
+    /// Stop a coprocess by config index on the active tab
+    StopCoprocess(usize),
 }
 
 /// Manages a separate settings window with its own egui context and wgpu renderer
@@ -63,6 +67,10 @@ pub struct SettingsWindow {
     ready: bool,
     /// Flag to indicate window should close
     should_close: bool,
+    /// Pending paste text from menu accelerator (injected into egui next frame)
+    pending_paste: Option<String>,
+    /// Pending egui events from menu accelerators (Copy, Cut, SelectAll)
+    pending_events: Vec<egui::Event>,
 }
 
 impl SettingsWindow {
@@ -206,6 +214,8 @@ impl SettingsWindow {
             settings_ui,
             ready: true,
             should_close: false,
+            pending_paste: None,
+            pending_events: Vec::new(),
         })
     }
 
@@ -217,6 +227,24 @@ impl SettingsWindow {
     /// Check if the window should close
     pub fn should_close(&self) -> bool {
         self.should_close
+    }
+
+    /// Queue a paste event for the next egui frame.
+    ///
+    /// Used when the macOS menu accelerator intercepts Cmd+V before
+    /// the keypress reaches egui.
+    pub fn inject_paste(&mut self, text: String) {
+        self.pending_paste = Some(text);
+        self.window.request_redraw();
+    }
+
+    /// Queue an egui event for the next frame.
+    ///
+    /// Used when menu accelerators intercept Cmd+C, Cmd+X, Cmd+A, etc.
+    /// before egui sees them.
+    pub fn inject_event(&mut self, event: egui::Event) {
+        self.pending_events.push(event);
+        self.window.request_redraw();
     }
 
     /// Update the config in the settings UI
@@ -336,7 +364,14 @@ impl SettingsWindow {
         let mut cursor_shader_apply = None;
 
         // Run egui
-        let raw_input = self.egui_state.take_egui_input(&self.window);
+        let mut raw_input = self.egui_state.take_egui_input(&self.window);
+
+        // Inject pending events from menu accelerators (Cmd+V/C/X/A intercepted by muda)
+        if let Some(text) = self.pending_paste.take() {
+            raw_input.events.push(egui::Event::Paste(text));
+        }
+        raw_input.events.append(&mut self.pending_events);
+
         let egui_output = self.egui_ctx.run(raw_input, |ctx| {
             // Show the settings UI as a panel (not a nested window) and capture results
             let (save, live, shader, cursor_shader) = self.settings_ui.show_as_panel(ctx);
@@ -347,6 +382,16 @@ impl SettingsWindow {
         });
 
         // Handle platform output (clipboard, cursor)
+        // Manually handle clipboard copy as a fallback for macOS menu accelerator issues.
+        // In egui 0.33, copy commands are in platform_output.commands as OutputCommand::CopyText.
+        for cmd in &egui_output.platform_output.commands {
+            if let egui::OutputCommand::CopyText(text) = cmd
+                && let Ok(mut clipboard) = arboard::Clipboard::new()
+                && let Err(e) = clipboard.set_text(text)
+            {
+                log::warn!("Settings window: failed to copy to clipboard: {}", e);
+            }
+        }
         self.egui_state
             .handle_platform_output(&self.window, egui_output.platform_output.clone());
 
@@ -432,6 +477,22 @@ impl SettingsWindow {
             return SettingsWindowAction::OpenProfileManager;
         }
 
+        // Check for coprocess start/stop actions
+        if let Some((index, start)) = self.settings_ui.pending_coprocess_actions.pop() {
+            log::info!(
+                "Settings window: popped coprocess action index={} start={}",
+                index,
+                start
+            );
+            // Request another redraw to process remaining actions (if any) and config changes
+            self.window.request_redraw();
+            return if start {
+                SettingsWindowAction::StartCoprocess(index)
+            } else {
+                SettingsWindowAction::StopCoprocess(index)
+            };
+        }
+
         // Determine action based on settings UI results
         if let Some(config) = config_to_save {
             return SettingsWindowAction::SaveConfig(config);
@@ -458,5 +519,10 @@ impl SettingsWindow {
     pub fn focus(&self) {
         self.window.focus_window();
         self.window.request_redraw();
+    }
+
+    /// Check if the settings window currently has focus.
+    pub fn is_focused(&self) -> bool {
+        self.window.has_focus()
     }
 }

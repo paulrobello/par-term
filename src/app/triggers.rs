@@ -11,6 +11,16 @@ use par_term_emu_core_rust::terminal::ActionResult;
 
 use super::window_state::WindowState;
 
+/// Expand a leading `~/` to the user's home directory.
+fn expand_tilde(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix("~/")
+        && let Some(home) = dirs::home_dir()
+    {
+        return home.join(rest).to_string_lossy().to_string();
+    }
+    path.to_string()
+}
+
 /// (grid_row, label, color) tuple for a pending MarkLine action.
 type MarkLineEntry = (usize, Option<String>, Option<(u8, u8, u8)>);
 
@@ -53,6 +63,8 @@ impl WindowState {
                     command,
                     args,
                 } => {
+                    let command = expand_tilde(&command);
+                    let args: Vec<String> = args.iter().map(|a| expand_tilde(a)).collect();
                     log::info!(
                         "Trigger {} firing RunCommand: {} {:?}",
                         trigger_id,
@@ -71,6 +83,7 @@ impl WindowState {
                     sound_id,
                     volume,
                 } => {
+                    let sound_id = expand_tilde(&sound_id);
                     log::info!(
                         "Trigger {} firing PlaySound: '{}' at volume {}",
                         trigger_id,
@@ -233,10 +246,15 @@ impl WindowState {
         }
     }
 
-    /// Play a sound file from the par-term sounds directory.
+    /// Play a sound file. Absolute paths are used directly; relative names
+    /// are resolved against the par-term sounds directory.
     fn play_sound_file(sound_id: &str, volume: u8) {
-        let sounds_dir = Self::sounds_dir();
-        let path = sounds_dir.join(sound_id);
+        let candidate = std::path::Path::new(sound_id);
+        let path = if candidate.is_absolute() {
+            candidate.to_path_buf()
+        } else {
+            Self::sounds_dir().join(sound_id)
+        };
 
         if !path.exists() {
             log::warn!("Sound file not found: {}", path.display());

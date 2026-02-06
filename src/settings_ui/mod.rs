@@ -223,10 +223,28 @@ pub struct SettingsUI {
     pub(crate) temp_coprocess_command: String,
     /// Temporary coprocess args for edit form
     pub(crate) temp_coprocess_args: String,
+    /// Temporary coprocess auto_start for edit form
+    pub(crate) temp_coprocess_auto_start: bool,
+    /// Temporary coprocess copy_terminal_output for edit form
+    pub(crate) temp_coprocess_copy_output: bool,
+    /// Temporary coprocess restart policy for edit form
+    pub(crate) temp_coprocess_restart_policy: crate::config::automation::RestartPolicy,
+    /// Temporary coprocess restart delay for edit form
+    pub(crate) temp_coprocess_restart_delay_ms: u64,
     /// Whether the add-new-coprocess form is active
     pub(crate) adding_new_coprocess: bool,
     /// Flag to request trigger resync after save
     pub trigger_resync_requested: bool,
+    /// Pending coprocess start/stop actions: (config_index, start=true/stop=false)
+    pub(crate) pending_coprocess_actions: Vec<(usize, bool)>,
+    /// Running state of coprocesses (indexed by config position, updated by main window)
+    pub coprocess_running: Vec<bool>,
+    /// Last error messages per coprocess (indexed by config position, updated by main window)
+    pub coprocess_errors: Vec<String>,
+    /// Buffered stdout output per coprocess (indexed by config position, drained from core)
+    pub coprocess_output: Vec<Vec<String>>,
+    /// Which coprocess output viewers are expanded (indexed by config position)
+    pub(crate) coprocess_output_expanded: Vec<bool>,
 
     // Reset to defaults dialog state
     /// Whether to show the reset to defaults confirmation dialog
@@ -331,8 +349,17 @@ impl SettingsUI {
             temp_coprocess_name: String::new(),
             temp_coprocess_command: String::new(),
             temp_coprocess_args: String::new(),
+            temp_coprocess_auto_start: false,
+            temp_coprocess_copy_output: true,
+            temp_coprocess_restart_policy: crate::config::automation::RestartPolicy::Never,
+            temp_coprocess_restart_delay_ms: 0,
             adding_new_coprocess: false,
             trigger_resync_requested: false,
+            pending_coprocess_actions: Vec::new(),
+            coprocess_running: Vec::new(),
+            coprocess_errors: Vec::new(),
+            coprocess_output: Vec::new(),
+            coprocess_output_expanded: Vec::new(),
             show_reset_defaults_dialog: false,
         }
     }

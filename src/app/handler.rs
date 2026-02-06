@@ -1093,6 +1093,14 @@ impl ApplicationHandler for WindowManager {
                             }
                         }
                     }
+                    SettingsWindowAction::StartCoprocess(index) => {
+                        log::debug!("Handler: received StartCoprocess({})", index);
+                        self.start_coprocess(index);
+                    }
+                    SettingsWindowAction::StopCoprocess(index) => {
+                        log::debug!("Handler: received StopCoprocess({})", index);
+                        self.stop_coprocess(index);
+                    }
                     SettingsWindowAction::None => {}
                 }
             }
@@ -1216,6 +1224,11 @@ impl ApplicationHandler for WindowManager {
                     None => settings_window.clear_cursor_shader_error(),
                 }
             }
+        }
+
+        // Sync coprocess running state to settings window
+        if self.settings_window.is_some() {
+            self.sync_coprocess_running_state();
         }
 
         // Request redraw for settings window if it needs continuous updates

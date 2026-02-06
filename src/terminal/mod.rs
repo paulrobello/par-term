@@ -54,6 +54,60 @@ pub mod hyperlinks;
 pub mod rendering;
 pub mod spawn;
 
+/// Resolve the user's login shell PATH and return environment variables for coprocess spawning.
+///
+/// On macOS (and other Unix), app bundles have a minimal PATH that doesn't include
+/// user-installed paths like `/opt/homebrew/bin`, `/usr/local/bin`, etc.
+/// This function runs the user's login shell once to resolve the full PATH,
+/// caches the result, and returns it as a HashMap suitable for `CoprocessConfig.env`.
+pub fn coprocess_env() -> std::collections::HashMap<String, String> {
+    use std::sync::OnceLock;
+    static CACHED_PATH: OnceLock<Option<String>> = OnceLock::new();
+
+    let resolved_path = CACHED_PATH.get_or_init(|| {
+        #[cfg(unix)]
+        {
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+            match std::process::Command::new(&shell)
+                .args(["-lc", "printf '%s' \"$PATH\""])
+                .output()
+            {
+                Ok(output) if output.status.success() => {
+                    let path = String::from_utf8_lossy(&output.stdout).to_string();
+                    if !path.is_empty() {
+                        log::debug!("Resolved login shell PATH: {}", path);
+                        Some(path)
+                    } else {
+                        log::warn!("Login shell returned empty PATH");
+                        None
+                    }
+                }
+                Ok(output) => {
+                    log::warn!(
+                        "Login shell PATH resolution failed (exit={})",
+                        output.status
+                    );
+                    None
+                }
+                Err(e) => {
+                    log::warn!("Failed to run login shell for PATH resolution: {}", e);
+                    None
+                }
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            None
+        }
+    });
+
+    let mut env = std::collections::HashMap::new();
+    if let Some(path) = resolved_path {
+        env.insert("PATH".to_string(), path.clone());
+    }
+    env
+}
+
 /// Terminal manager that wraps the PTY session
 pub struct TerminalManager {
     /// The underlying PTY session
@@ -1111,6 +1165,66 @@ impl TerminalManager {
         let terminal = pty.terminal();
         let term = terminal.lock();
         term.export_asciicast(session)
+    }
+}
+
+// ========================================================================
+// Coprocess Management Methods
+// ========================================================================
+
+impl TerminalManager {
+    /// Start a new coprocess via the PtySession's built-in coprocess manager.
+    ///
+    /// The coprocess receives terminal output on its stdin (if `copy_terminal_output` is true)
+    /// and its stdout is buffered for reading via `read_from_coprocess()`.
+    pub fn start_coprocess(
+        &self,
+        config: par_term_emu_core_rust::coprocess::CoprocessConfig,
+    ) -> std::result::Result<par_term_emu_core_rust::coprocess::CoprocessId, String> {
+        let pty = self.pty_session.lock();
+        pty.start_coprocess(config)
+    }
+
+    /// Stop a coprocess by ID.
+    pub fn stop_coprocess(
+        &self,
+        id: par_term_emu_core_rust::coprocess::CoprocessId,
+    ) -> std::result::Result<(), String> {
+        let pty = self.pty_session.lock();
+        pty.stop_coprocess(id)
+    }
+
+    /// Check if a coprocess is still running.
+    pub fn coprocess_status(
+        &self,
+        id: par_term_emu_core_rust::coprocess::CoprocessId,
+    ) -> Option<bool> {
+        let pty = self.pty_session.lock();
+        pty.coprocess_status(id)
+    }
+
+    /// Read buffered output from a coprocess (drains the buffer).
+    pub fn read_from_coprocess(
+        &self,
+        id: par_term_emu_core_rust::coprocess::CoprocessId,
+    ) -> std::result::Result<Vec<String>, String> {
+        let pty = self.pty_session.lock();
+        pty.read_from_coprocess(id)
+    }
+
+    /// List all coprocess IDs.
+    pub fn list_coprocesses(&self) -> Vec<par_term_emu_core_rust::coprocess::CoprocessId> {
+        let pty = self.pty_session.lock();
+        pty.list_coprocesses()
+    }
+
+    /// Read buffered stderr output from a coprocess (drains the buffer).
+    pub fn read_coprocess_errors(
+        &self,
+        id: par_term_emu_core_rust::coprocess::CoprocessId,
+    ) -> std::result::Result<Vec<String>, String> {
+        let pty = self.pty_session.lock();
+        pty.read_coprocess_errors(id)
     }
 }
 

@@ -1,4 +1,6 @@
-use par_term::config::{Config, CoprocessDefConfig, TriggerActionConfig, TriggerConfig};
+use par_term::config::{
+    Config, CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
+};
 
 #[test]
 fn test_default_config_has_empty_triggers_and_coprocesses() {
@@ -228,6 +230,8 @@ fn test_coprocess_def_config_yaml_roundtrip() {
         args: vec!["/tmp/log.txt".to_string()],
         auto_start: true,
         copy_terminal_output: true,
+        restart_policy: RestartPolicy::Never,
+        restart_delay_ms: 0,
     };
 
     let yaml = serde_yaml::to_string(&coproc).unwrap();
@@ -247,9 +251,12 @@ command: /bin/cat
     assert!(coproc.args.is_empty());
     assert!(!coproc.auto_start);
     assert!(coproc.copy_terminal_output); // defaults to true
+    assert_eq!(coproc.restart_policy, RestartPolicy::Never); // defaults to Never
+    assert_eq!(coproc.restart_delay_ms, 0); // defaults to 0
 }
 
 #[test]
+#[allow(clippy::field_reassign_with_default)]
 fn test_config_with_triggers_and_coprocesses_yaml_roundtrip() {
     let mut config = Config::default();
     config.triggers = vec![TriggerConfig {
@@ -268,6 +275,8 @@ fn test_config_with_triggers_and_coprocesses_yaml_roundtrip() {
         args: vec!["/tmp/log.txt".to_string()],
         auto_start: false,
         copy_terminal_output: true,
+        restart_policy: RestartPolicy::Never,
+        restart_delay_ms: 0,
     }];
 
     let yaml = serde_yaml::to_string(&config).unwrap();
