@@ -806,6 +806,7 @@ impl WindowManager {
                     if cleared {
                         if let Some(tab) = window_state.tab_manager.active_tab_mut() {
                             tab.cache.scrollback_len = 0;
+                            tab.trigger_marks.clear();
                         }
                         window_state.set_scroll_target(0);
                         log::info!("Cleared scrollback buffer");

@@ -715,6 +715,7 @@ impl WindowState {
                 if let Ok(term) = tab.terminal.try_lock() {
                     term.clear_scrollback();
                     tab.cache.scrollback_len = 0;
+                    tab.trigger_marks.clear();
                     true
                 } else {
                     false
@@ -1249,6 +1250,7 @@ impl WindowState {
                     if let Ok(term) = tab.terminal.try_lock() {
                         term.clear_scrollback();
                         tab.cache.scrollback_len = 0;
+                        tab.trigger_marks.clear();
                         true
                     } else {
                         false
