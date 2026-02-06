@@ -22,9 +22,11 @@ impl WindowState {
             return;
         };
 
-        // Poll action results from core terminal
-        let action_results = if let Ok(term) = tab.terminal.try_lock() {
-            term.poll_action_results()
+        // Poll action results from core terminal.
+        // Also grab the current scrollback_len so our absolute line calculations
+        // are consistent with the row values the trigger system produced.
+        let (action_results, current_scrollback_len) = if let Ok(term) = tab.terminal.try_lock() {
+            (term.poll_action_results(), term.scrollback_len())
         } else {
             return;
         };
@@ -135,14 +137,16 @@ impl WindowState {
                         color
                     );
                     // Convert grid row to absolute line for scrollbar mark positioning.
-                    // De-duplicate: if a mark already exists at this line, update it
-                    // instead of adding a duplicate (triggers can re-fire when the
-                    // terminal redraws a line).
+                    // Use current_scrollback_len (from the same terminal lock as
+                    // poll_action_results) rather than the cached value, which may be
+                    // stale by one frame. A stale value causes the absolute_line to
+                    // drift, bypassing the de-duplication check below.
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
-                        let scrollback_len = tab.cache.scrollback_len;
-                        let absolute_line = scrollback_len + row;
-                        if let Some(existing) =
-                            tab.trigger_marks.iter_mut().find(|m| m.line == absolute_line)
+                        let absolute_line = current_scrollback_len + row;
+                        if let Some(existing) = tab
+                            .trigger_marks
+                            .iter_mut()
+                            .find(|m| m.line == absolute_line)
                         {
                             existing.command = label;
                             existing.color = color;

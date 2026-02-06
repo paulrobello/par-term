@@ -68,6 +68,8 @@ pub struct TerminalManager {
     last_shell_marker: Option<ShellIntegrationMarker>,
     /// Cursor position (row, col) at CommandStart for extracting command text
     command_start_pos: Option<(usize, usize)>,
+    /// Command text captured from the grid (waiting to be applied to a mark)
+    captured_command_text: Option<String>,
 }
 
 impl TerminalManager {
@@ -96,6 +98,7 @@ impl TerminalManager {
             scrollback_metadata: ScrollbackMetadata::new(),
             last_shell_marker: None,
             command_start_pos: None,
+            captured_command_text: None,
         })
     }
 
@@ -110,61 +113,41 @@ impl TerminalManager {
     /// track prompt markers and command timing information for scrollback
     /// visualization.
     ///
-    /// Detects shell integration marker transitions to capture command text from
-    /// the terminal grid and feed it into the core's command history tracking.
+    /// Command text is captured from the terminal grid when the marker changes
+    /// away from CommandStart, then injected into scrollback marks after
+    /// `apply_event()` creates them. This decouples command text capture from
+    /// the unreliable marker transition timing (markers can be missed between
+    /// frames when multiple transitions happen within one frame).
     pub fn update_scrollback_metadata(&mut self, scrollback_len: usize, cursor_row: usize) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
-        let mut term = terminal.lock();
+        let term = terminal.lock();
 
         let marker = term.shell_integration().marker();
         let last_exit_code = term.shell_integration().exit_code();
         let prev_marker = self.last_shell_marker;
 
-        // Detect marker transitions to capture command text and drive command
-        // history tracking. This bridges the gap between shell integration
-        // markers (which only signal phases) and command history (which needs
-        // explicit start/end calls with command text).
-        //
-        // Marker transitions may be missed if multiple happen within a single
-        // frame. For example, B→C→D could all happen between two calls. We
-        // handle this by:
-        // - At CommandFinished (D): also extract text if we still have a
-        //   saved command_start_pos (meaning we saw B but missed C).
-        // - At CommandExecuted (C): fall back to (cursor_row, 0) if B was
-        //   missed (command_start_pos is None).
+        // Track cursor position at CommandStart (B) for command text extraction.
+        // When the marker changes away from CommandStart (to C, D, or A), extract
+        // the command text from the grid using the saved position.
         if marker != prev_marker {
             let cursor_col = term.cursor().col;
             match marker {
                 Some(ShellIntegrationMarker::CommandStart) => {
-                    // Record cursor position (col is where command text starts)
+                    // Record where the command input starts (after the prompt)
                     self.command_start_pos = Some((cursor_row, cursor_col));
                 }
-                Some(ShellIntegrationMarker::CommandExecuted) => {
-                    // Extract command text from the grid and start tracking
-                    let (start_row, start_col) =
-                        self.command_start_pos.take().unwrap_or((cursor_row, 0));
-                    let command_text =
-                        Self::extract_command_text(&term, start_row, start_col, cursor_row);
-                    if !command_text.is_empty() {
-                        term.start_command_execution(command_text);
-                    }
-                }
-                Some(ShellIntegrationMarker::CommandFinished) => {
-                    // If we still have command_start_pos, we missed the C
-                    // marker. Extract command text now before finishing.
+                _ => {
+                    // Any other transition: if we had a CommandStart position,
+                    // extract the command text now (handles B→C, B→D, B→A).
                     if let Some((start_row, start_col)) = self.command_start_pos.take() {
-                        let command_text =
+                        let text =
                             Self::extract_command_text(&term, start_row, start_col, cursor_row);
-                        if !command_text.is_empty() {
-                            term.start_command_execution(command_text);
+                        if !text.is_empty() {
+                            self.captured_command_text = Some(text);
                         }
                     }
-                    if let Some(exit_code) = last_exit_code {
-                        term.end_command_execution(exit_code);
-                    }
                 }
-                _ => {}
             }
             self.last_shell_marker = marker;
         }
@@ -187,6 +170,13 @@ impl TerminalManager {
             last_command,
             last_exit_code,
         );
+
+        // If we captured command text, apply it to the latest mark.
+        // This fills in the `command` field on synthetic snapshots that
+        // apply_event creates when markers fire without command history.
+        if let Some(cmd) = self.captured_command_text.take() {
+            self.scrollback_metadata.set_latest_mark_command(cmd);
+        }
     }
 
     /// Extract command text from the terminal grid.

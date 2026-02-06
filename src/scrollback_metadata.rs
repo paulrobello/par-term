@@ -286,6 +286,21 @@ impl ScrollbackMetadata {
         }
     }
 
+    /// Set the command text on the most recent mark that doesn't have one.
+    ///
+    /// Called after `apply_event()` when the frontend has extracted command text
+    /// from the terminal grid. This fills in the `command` field on synthetic
+    /// snapshots that would otherwise have `command: None`.
+    pub fn set_latest_mark_command(&mut self, command: String) {
+        if let Some(&line) = self.prompt_lines.last()
+            && let Some(id) = self.line_to_command.get(&line)
+            && let Some(snapshot) = self.commands.get_mut(id)
+            && snapshot.command.is_none()
+        {
+            snapshot.command = Some(command);
+        }
+    }
+
     fn record_prompt_line(&mut self, line: usize, timestamp: Option<u64>) {
         if let Err(pos) = self.prompt_lines.binary_search(&line) {
             self.prompt_lines.insert(pos, line);
