@@ -134,19 +134,29 @@ impl WindowState {
                         label,
                         color
                     );
-                    // Convert grid row to absolute line for scrollbar mark positioning
+                    // Convert grid row to absolute line for scrollbar mark positioning.
+                    // De-duplicate: if a mark already exists at this line, update it
+                    // instead of adding a duplicate (triggers can re-fire when the
+                    // terminal redraws a line).
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
                         let scrollback_len = tab.cache.scrollback_len;
                         let absolute_line = scrollback_len + row;
-                        tab.trigger_marks
-                            .push(crate::scrollback_metadata::ScrollbackMark {
-                                line: absolute_line,
-                                exit_code: None,
-                                start_time: None,
-                                duration_ms: None,
-                                command: label,
-                                color,
-                            });
+                        if let Some(existing) =
+                            tab.trigger_marks.iter_mut().find(|m| m.line == absolute_line)
+                        {
+                            existing.command = label;
+                            existing.color = color;
+                        } else {
+                            tab.trigger_marks
+                                .push(crate::scrollback_metadata::ScrollbackMark {
+                                    line: absolute_line,
+                                    exit_code: None,
+                                    start_time: None,
+                                    duration_ms: None,
+                                    command: label,
+                                    color,
+                                });
+                        }
                     }
                 }
             }

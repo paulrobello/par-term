@@ -435,19 +435,20 @@ fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionConfig) {
                 };
             }
             ui.label("color:");
-            let mut c = color.unwrap_or([0, 180, 255]);
+            // Ensure color is always set (backfill for configs created before
+            // the color field was added)
+            let c = color.get_or_insert([0, 180, 255]);
             let mut color_f = [
                 c[0] as f32 / 255.0,
                 c[1] as f32 / 255.0,
                 c[2] as f32 / 255.0,
             ];
             if ui.color_edit_button_rgb(&mut color_f).changed() {
-                c = [
+                *c = [
                     (color_f[0] * 255.0) as u8,
                     (color_f[1] * 255.0) as u8,
                     (color_f[2] * 255.0) as u8,
                 ];
-                *color = Some(c);
             }
         }
         TriggerActionConfig::SetVariable { name, value } => {

@@ -125,6 +125,14 @@ impl TerminalManager {
         // history tracking. This bridges the gap between shell integration
         // markers (which only signal phases) and command history (which needs
         // explicit start/end calls with command text).
+        //
+        // Marker transitions may be missed if multiple happen within a single
+        // frame. For example, B→C→D could all happen between two calls. We
+        // handle this by:
+        // - At CommandFinished (D): also extract text if we still have a
+        //   saved command_start_pos (meaning we saw B but missed C).
+        // - At CommandExecuted (C): fall back to (cursor_row, 0) if B was
+        //   missed (command_start_pos is None).
         if marker != prev_marker {
             let cursor_col = term.cursor().col;
             match marker {
@@ -135,15 +143,23 @@ impl TerminalManager {
                 Some(ShellIntegrationMarker::CommandExecuted) => {
                     // Extract command text from the grid and start tracking
                     let (start_row, start_col) =
-                        self.command_start_pos.unwrap_or((cursor_row, 0));
+                        self.command_start_pos.take().unwrap_or((cursor_row, 0));
                     let command_text =
                         Self::extract_command_text(&term, start_row, start_col, cursor_row);
                     if !command_text.is_empty() {
                         term.start_command_execution(command_text);
                     }
-                    self.command_start_pos = None;
                 }
                 Some(ShellIntegrationMarker::CommandFinished) => {
+                    // If we still have command_start_pos, we missed the C
+                    // marker. Extract command text now before finishing.
+                    if let Some((start_row, start_col)) = self.command_start_pos.take() {
+                        let command_text =
+                            Self::extract_command_text(&term, start_row, start_col, cursor_row);
+                        if !command_text.is_empty() {
+                            term.start_command_execution(command_text);
+                        }
+                    }
                     if let Some(exit_code) = last_exit_code {
                         term.end_command_execution(exit_code);
                     }
