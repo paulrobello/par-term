@@ -323,12 +323,27 @@ impl WindowState {
         }
     }
 
+    /// Deliver a notification unconditionally (bypasses focus suppression).
+    ///
+    /// Used for trigger-generated notifications which the user explicitly configured,
+    /// so they should always be delivered regardless of window focus state.
+    pub(crate) fn deliver_notification_force(&self, title: &str, message: &str) {
+        self.deliver_notification_inner(title, message, true);
+    }
+
     /// Deliver a notification via desktop notification system and logs.
     ///
     /// If `suppress_notifications_when_focused` is enabled and the window is focused,
     /// only log the notification without sending a desktop notification (since the user
     /// is already looking at the terminal).
     pub(crate) fn deliver_notification(&self, title: &str, message: &str) {
+        self.deliver_notification_inner(title, message, false);
+    }
+
+    /// Inner notification delivery with force option.
+    ///
+    /// When `force` is true, bypasses focus suppression (used for trigger notifications).
+    fn deliver_notification_inner(&self, title: &str, message: &str, force: bool) {
         // Always log notifications
         if !title.is_empty() {
             log::info!("=== Notification: {} ===", title);
@@ -341,7 +356,8 @@ impl WindowState {
         }
 
         // Skip desktop notification if window is focused and suppression is enabled
-        if self.config.suppress_notifications_when_focused && self.is_focused {
+        // (unless force is set, e.g. for trigger-generated notifications)
+        if !force && self.config.suppress_notifications_when_focused && self.is_focused {
             log::debug!(
                 "Suppressing desktop notification (window is focused): {}",
                 title

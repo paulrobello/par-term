@@ -106,6 +106,49 @@ impl WindowState {
                         }
                     }
                 }
+                ActionResult::Notify {
+                    trigger_id,
+                    title,
+                    message,
+                } => {
+                    log::info!(
+                        "Trigger {} firing Notify: '{}' - '{}'",
+                        trigger_id,
+                        title,
+                        message
+                    );
+                    // Trigger notifications always deliver (bypass focus suppression)
+                    // since the user explicitly configured them
+                    self.deliver_notification_force(&title, &message);
+                }
+                ActionResult::MarkLine {
+                    trigger_id,
+                    row,
+                    label,
+                    color,
+                } => {
+                    log::info!(
+                        "Trigger {} firing MarkLine: row={} label={:?} color={:?}",
+                        trigger_id,
+                        row,
+                        label,
+                        color
+                    );
+                    // Convert grid row to absolute line for scrollbar mark positioning
+                    if let Some(tab) = self.tab_manager.active_tab_mut() {
+                        let scrollback_len = tab.cache.scrollback_len;
+                        let absolute_line = scrollback_len + row;
+                        tab.trigger_marks
+                            .push(crate::scrollback_metadata::ScrollbackMark {
+                                line: absolute_line,
+                                exit_code: None,
+                                start_time: None,
+                                duration_ms: None,
+                                command: label,
+                                color,
+                            });
+                    }
+                }
             }
         }
     }
