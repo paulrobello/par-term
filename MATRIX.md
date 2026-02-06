@@ -341,13 +341,13 @@ This document compares features between iTerm2 and par-term, including assessmen
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Regex triggers | ✅ Full trigger system | 🔶 Core ready | 🔶 | ⭐⭐ | 🟡 | **Core v0.31.0**: `TriggerRegistry` with RegexSet, capture groups, actions. Frontend UI needed |
-| Trigger actions | ✅ Many actions | 🔶 Core ready | 🔶 | ⭐⭐ | 🟡 | **Core v0.31.0**: Highlight/Notify/MarkLine/SetVariable (core-handled); RunCommand/PlaySound/SendText (emitted as events). Frontend integration needed |
-| Coprocesses | ✅ | 🔶 Core ready | 🔶 | ⭐ | 🟡 | **Core v0.31.0**: `CoprocessManager` with spawn/stop/communicate, auto-piping to stdin, line-buffered stdout. Frontend UI needed |
+| Regex triggers | ✅ Full trigger system | ✅ `TriggerConfig` | ✅ | - | - | Core `TriggerRegistry` + Settings UI for CRUD with regex validation |
+| Trigger actions | ✅ Many actions | ✅ 7 action types | ✅ | - | - | Highlight, Notify, MarkLine, SetVariable, RunCommand, PlaySound, SendText |
+| Trigger highlight rendering | ✅ | ✅ Cell overlay | ✅ | - | - | Overlays fg/bg colors on matched cells with automatic expiry |
+| Coprocesses | ✅ | ✅ `CoprocessManager` | ✅ | - | - | Per-tab coprocess with auto-start, config persistence, Settings UI |
 | Shell integration | ✅ Full integration | ✅ OSC 133/7/1337 | ✅ | - | - | Command tracking, marks, CWD, badges |
+| **Automation Settings Tab** | ❌ | ✅ Settings > Automation | ✅ | - | - | **par-term exclusive** - Full CRUD for triggers and coprocesses |
 | Python API | ✅ Full scripting API | ❌ | ❌ | ⭐⭐ | 🔵 | Automation scripting |
-
-> **Core Readiness Note (v0.31.0):** The `par-term-emu-core-rust` library now provides full trigger and coprocess support with Python bindings. The streaming server also dispatches `TriggerMatched` and `CwdChanged` events to WebSocket clients. par-term frontend work needed: Settings UI for trigger/coprocess management, trigger highlight rendering, and wiring action events (RunCommand, PlaySound, SendText) to frontend handlers.
 
 ---
 
@@ -529,14 +529,14 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Split Panes | 9 | 1 | 0 |
 | Inline Graphics | 5 | 0 | 0 |
 | Hyperlinks & URLs | 5 | 0 | 0 |
-| Triggers & Automation | 2 | 3 | 0 |
+| Triggers & Automation | 6 | 0 | 1 |
 | tmux Integration | 17 | 0 | 0 |
 | Performance & Power | 9 | 0 | 1 |
 | Accessibility | 2 | 0 | 2 |
 | AI Integration | 0 | 0 | 4 |
 | Miscellaneous | 10 | 0 | 7 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~227** | **~7** | **~25** |
+| **TOTAL** | **~231** | **~4** | **~26** |
 
 **Overall Parity: ~89%** of iTerm2 features implemented
 
@@ -588,7 +588,6 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Feature | Usefulness | Effort | Notes |
 |---------|------------|--------|-------|
 | Hotkey window | ⭐⭐⭐ | 🔴 High | Quake-style dropdown terminal |
-| Triggers & automation | ⭐⭐ | 🟡 Medium | Core v0.31.0 ready; frontend UI & wiring needed |
 | Light/Dark mode switching | ⭐⭐ | 🟡 Medium | Auto-switch with system theme |
 | Tab bar position | ⭐⭐ | 🟡 Medium | Top/Bottom/Left options |
 | Session undo timeout | ⭐⭐ | 🟡 Medium | Recover accidentally closed tabs |
@@ -599,6 +598,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Bidirectional text | ⭐⭐ | 🔴 High | RTL language support |
 
 ### Recently Completed (v0.10.0)
+- ✅ Triggers & automation (regex triggers, 7 action types, coprocesses, Settings UI)
 - ✅ Full profile system with inheritance, tags, and keyboard shortcuts
 - ✅ Automatic profile switching (hostname patterns, tmux session patterns)
 - ✅ Shell integration (OSC 133/7/1337) with command marks

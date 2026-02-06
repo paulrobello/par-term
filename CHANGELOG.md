@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Triggers, Trigger Actions & Coprocesses** (#84): Full frontend UI and event wiring for automation features
+  - **Regex Triggers**: Define regex patterns that match terminal output and fire actions
+    - 7 action types: Highlight, Notify, MarkLine, SetVariable, RunCommand, PlaySound, SendText
+    - Config persistence in `config.yaml` via `triggers` array with `TriggerConfig` structs
+    - Triggers synced into core `TriggerRegistry` on startup and settings save
+    - Regex validation in Settings UI with error feedback
+  - **Trigger Highlight Rendering**: Matched text highlighted with configurable fg/bg colors
+    - Colors overlaid on terminal cells during rendering
+    - Automatic expiry cleanup each frame
+  - **Trigger Action Dispatch**: Per-frame polling of core `ActionResult` events
+    - `RunCommand`: Spawns detached process with args
+    - `PlaySound`: Plays WAV/OGG/FLAC/MP3 from `~/.config/par-term/sounds/` via rodio; `"bell"` or empty plays built-in tone
+    - `SendText`: Writes text to PTY with optional delay
+  - **Coprocesses**: Background processes that receive terminal output
+    - Per-tab `CoprocessManager` with auto-start support for configured coprocesses
+    - Config persistence via `coprocesses` array with `CoprocessDefConfig` structs
+    - Settings UI with name, command, args, auto_start, and copy_terminal_output controls
+  - **Automation Settings Tab**: New "Automation" tab (⚡) in Settings UI
+    - Collapsible sections for Triggers and Coprocesses
+    - Inline add/edit forms with type-specific action editors (color pickers, sliders, text inputs)
+    - Enable/disable toggles, delete with confirmation
+    - Searchable via sidebar keywords (trigger, regex, automation, coprocess, action, pattern, etc.)
+
 - **Minimum Contrast Enforcement**: WCAG-based accessibility feature for readable text
   - Automatically adjusts text color when contrast ratio against background is too low
   - Uses WCAG luminance formula for perceptually accurate contrast calculation
