@@ -208,37 +208,30 @@ fn show_action_edit_form(
     changes_this_frame: &mut bool,
     edit_index: Option<usize>,
 ) {
-    ui.horizontal(|ui| {
-        ui.label("Title:");
-        if ui.text_edit_singleline(&mut settings.temp_action_title).changed() {
-            *changes_this_frame = true;
-        }
-    });
+    ui.label("Title:");
+    if ui.text_edit_singleline(&mut settings.temp_action_title).changed() {
+        *changes_this_frame = true;
+    }
 
-    ui.horizontal(|ui| {
-        ui.label("ID:");
-        ui.label(egui::RichText::new(&settings.temp_action_id).monospace().small());
-    });
+    ui.label("ID:");
+    ui.label(egui::RichText::new(&settings.temp_action_id).monospace().small());
 
-    ui.horizontal(|ui| {
-        ui.label("Type:");
-        let types = ["Shell Command", "Insert Text", "Key Sequence"];
-        egui::ComboBox::from_id_salt("action_type")
-            .selected_text(types[settings.temp_action_type])
-            .width(150.0)
-            .show_ui(ui, |ui| {
-                for (i, &type_name) in types.iter().enumerate() {
-                    if ui.selectable_label(settings.temp_action_type == i, type_name).clicked() {
-                        settings.temp_action_type = i;
-                        *changes_this_frame = true;
-                    }
+    ui.label("Type:");
+    let types = ["Shell Command", "Insert Text", "Key Sequence"];
+    egui::ComboBox::from_id_salt("action_type")
+        .selected_text(types[settings.temp_action_type])
+        .width(150.0)
+        .show_ui(ui, |ui| {
+            for (i, &type_name) in types.iter().enumerate() {
+                if ui.selectable_label(settings.temp_action_type == i, type_name).clicked() {
+                    settings.temp_action_type = i;
+                    *changes_this_frame = true;
                 }
-            });
-    });
+            }
+        });
 
+    ui.label("Keybinding:");
     ui.horizontal(|ui| {
-        ui.label("Keybinding (optional):");
-
         // Check for recording state
         if settings.recording_action_keybinding {
             // Show recording indicator and capture key combo
@@ -273,7 +266,7 @@ fn show_action_edit_form(
             }
 
             // Record button
-            if ui.small_button("🎤 Record").clicked() {
+            if ui.small_button("🎤").on_hover_text("Record keybinding").clicked() {
                 settings.recording_action_keybinding = true;
                 settings.action_recorded_combo = None;
             }
@@ -284,18 +277,14 @@ fn show_action_edit_form(
     match settings.temp_action_type {
         0 => {
             // Shell Command
-            ui.horizontal(|ui| {
-                ui.label("Command:");
-                if ui.text_edit_singleline(&mut settings.temp_action_command).changed() {
-                    *changes_this_frame = true;
-                }
-            });
-            ui.horizontal(|ui| {
-                ui.label("Arguments (space-separated):");
-                if ui.text_edit_singleline(&mut settings.temp_action_args).changed() {
-                    *changes_this_frame = true;
-                }
-            });
+            ui.label("Command:");
+            if ui.text_edit_singleline(&mut settings.temp_action_command).changed() {
+                *changes_this_frame = true;
+            }
+            ui.label("Arguments (space-separated):");
+            if ui.text_edit_singleline(&mut settings.temp_action_args).changed() {
+                *changes_this_frame = true;
+            }
         }
         1 => {
             // Insert Text
@@ -306,12 +295,10 @@ fn show_action_edit_form(
         }
         2 => {
             // Key Sequence
-            ui.horizontal(|ui| {
-                ui.label("Key sequence:");
-                if ui.text_edit_singleline(&mut settings.temp_action_keys).changed() {
-                    *changes_this_frame = true;
-                }
-            });
+            ui.label("Key sequence:");
+            if ui.text_edit_singleline(&mut settings.temp_action_keys).changed() {
+                *changes_this_frame = true;
+            }
         }
         _ => {}
     }

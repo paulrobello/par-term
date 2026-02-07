@@ -233,37 +233,30 @@ fn show_snippet_edit_form(
     changes_this_frame: &mut bool,
     edit_index: Option<usize>,
 ) {
-    ui.horizontal(|ui| {
-        ui.label("Title:");
-        if ui.text_edit_singleline(&mut settings.temp_snippet_title).changed() {
-            *changes_this_frame = true;
-        }
-    });
+    ui.label("Title:");
+    if ui.text_edit_singleline(&mut settings.temp_snippet_title).changed() {
+        *changes_this_frame = true;
+    }
+
+    ui.label("ID:");
+    ui.label(egui::RichText::new(&settings.temp_snippet_id).monospace().small());
+
+    ui.label("Content:");
+    if ui.text_edit_multiline(&mut settings.temp_snippet_content).changed() {
+        *changes_this_frame = true;
+    }
 
     ui.horizontal(|ui| {
-        ui.label("ID:");
-        ui.label(egui::RichText::new(&settings.temp_snippet_id).monospace().small());
-    });
-
-    ui.horizontal(|ui| {
-        ui.label("Content:");
-        if ui.text_edit_multiline(&mut settings.temp_snippet_content).changed() {
+        if ui.checkbox(&mut settings.temp_snippet_auto_execute, "Auto-execute").changed() {
             *changes_this_frame = true;
         }
-    });
-
-    ui.horizontal(|ui| {
-        if ui.checkbox(&mut settings.temp_snippet_auto_execute, "Auto-execute (send Enter after inserting)").changed() {
-            *changes_this_frame = true;
-        }
-        ui.label(egui::RichText::new("⚡ Automatically runs the command")
+        ui.label(egui::RichText::new("⚡ run immediately")
             .small()
             .color(egui::Color32::GRAY));
     });
 
+    ui.label("Keybinding:");
     ui.horizontal(|ui| {
-        ui.label("Keybinding (optional):");
-
         // Check for recording state
         if settings.recording_snippet_keybinding {
             // Show recording indicator and capture key combo
@@ -298,7 +291,7 @@ fn show_snippet_edit_form(
             }
 
             // Record button
-            if ui.small_button("🎤 Record").clicked() {
+            if ui.small_button("🎤").on_hover_text("Record keybinding").clicked() {
                 settings.recording_snippet_keybinding = true;
                 settings.snippet_recorded_combo = None;
             }
@@ -308,32 +301,28 @@ fn show_snippet_edit_form(
     // Show keybinding enabled checkbox if keybinding is set
     if !settings.temp_snippet_keybinding.is_empty() {
         ui.horizontal(|ui| {
-            if ui.checkbox(&mut settings.temp_snippet_keybinding_enabled, "Enable keybinding").changed() {
+            if ui.checkbox(&mut settings.temp_snippet_keybinding_enabled, "Enabled").changed() {
                 *changes_this_frame = true;
             }
-            ui.label(egui::RichText::new("(uncheck to disable without removing)")
+            ui.label(egui::RichText::new("(disable without removing)")
                 .small()
                 .color(egui::Color32::GRAY));
         });
     }
 
-    ui.horizontal(|ui| {
-        ui.label("Folder (optional):");
-        if ui.text_edit_singleline(&mut settings.temp_snippet_folder).changed() {
-            *changes_this_frame = true;
-        }
-    });
+    ui.label("Folder:");
+    if ui.text_edit_singleline(&mut settings.temp_snippet_folder).changed() {
+        *changes_this_frame = true;
+    }
 
-    ui.horizontal(|ui| {
-        ui.label("Description (optional):");
-        if ui.text_edit_singleline(&mut settings.temp_snippet_description).changed() {
-            *changes_this_frame = true;
-        }
-    });
+    ui.label("Description:");
+    if ui.text_edit_singleline(&mut settings.temp_snippet_description).changed() {
+        *changes_this_frame = true;
+    }
 
     // Show variable hint
     ui.label(
-        egui::RichText::new("💡 Use \\(variable) for substitution: \\(date), \\(time), \\(user), \\(path), etc.")
+        egui::RichText::new("💡 Variables: \\(date), \\(time), \\(session.path), etc.")
             .small()
             .color(egui::Color32::GRAY),
     );
