@@ -12,67 +12,87 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.10.0
+## What's New in 0.11.0
 
-### 🏷️ Per-Profile Badge Configuration
+### ⚡ Triggers, Trigger Actions & Coprocesses
 
-Full badge customization per profile (iTerm2 parity). Profiles can now override badge color, opacity, font, position, and size constraints individually.
+Full automation system for terminal output processing.
 
-- **New profile fields**: `badge_color`, `badge_color_alpha`, `badge_font`, `badge_font_bold`, margins, and size overrides
-- **Settings UI**: Collapsible "Badge Appearance" section in profile editor with color picker and all controls
-- **Use case**: Different badge appearances per environment (e.g., red "PROD", green "DEV")
+- **Regex Triggers**: Define patterns that match terminal output and fire actions
+- **7 Action Types**: Highlight, Notify, MarkLine, SetVariable, RunCommand, PlaySound, SendText
+- **Coprocesses**: Background processes that receive terminal output with restart policies and output viewer
+- **Scrollbar Marks**: Trigger-created marks with color and labels visible in scrollbar tooltips
+- **Settings UI**: New "Automation" tab with inline editors for triggers and coprocesses
 
-### ⚡ Performance: Maximize Throughput Mode
+### ♿ Minimum Contrast Enforcement
 
-Manual toggle for prioritizing bulk output processing over immediate responsiveness.
+WCAG-based accessibility feature for readable text.
 
-- **Toggle with `Cmd+Shift+T`** (macOS) or `Ctrl+Shift+T` (other platforms)
-- **Config options**: `maximize_throughput`, `throughput_render_interval_ms`
-- **Use case**: Processing large outputs (e.g., `cat /usr/share/dict/words`) faster
+- Automatically adjusts text color when contrast ratio is too low
+- Set to 4.5 for WCAG AA, 7.0 for WCAG AAA compliance
+- **Config option**: `minimum_contrast` (range 1.0-21.0, default: 1.0 = disabled)
 
-### 🖥️ Reduce Flicker
+### 📂 Semantic History
 
-iTerm2-style flicker reduction for smoother terminal updates.
+Click file paths in terminal output to open them in your editor (iTerm2 parity).
 
-- **Delays redraws** while cursor is hidden (DECTCEM off)
-- **Config options**: `reduce_flicker` (default: true), `reduce_flicker_delay_ms`
-- **Automatic bypass** for UI interactions (help, search, dialogs)
+- Detects file paths with optional line:column numbers (`src/main.rs:42:5`)
+- Ctrl+click (Cmd+click on macOS) opens in configured editor
+- Directories open in system file manager
+- **Editor modes**: Custom command, `$EDITOR`/`$VISUAL`, or system default
 
-### 🎮 GPU Power Preference
+### 🔧 Configurable Log Level
 
-Control which GPU is used for rendering on multi-GPU systems.
+Runtime log level control with unified logging.
 
-- **Three modes**: `none` (system decides), `low_power` (integrated), `high_performance` (discrete)
-- **Settings UI**: Window → Performance section
-
-### 🔄 Tmux Profile Auto-Switching
-
-Automatically apply profiles when connecting to tmux sessions.
-
-- **New profile field**: `tmux_session_patterns` - glob patterns to match session names (e.g., `work-*`, `*-production`)
-- **Settings UI**: "Auto-Switch Tmux" field in profile editor
-- **Profile cleared** automatically when tmux session ends
-
-### ⌨️ Enhanced Keyboard Input
-
-- **Modifier Key Remapping**: Remap left/right Ctrl, Alt, and Super keys independently
-- **Physical Key Bindings**: `use_physical_keys` option for layout-independent shortcuts
-- **modifyOtherKeys Protocol**: XTerm extension for applications to distinguish Ctrl+i from Tab
-
-### 🛡️ Close Confirmation for Running Jobs
-
-Confirmation dialog when closing tabs/panes with active processes.
-
-- **Config options**: `confirm_close_running_jobs`, `jobs_to_ignore` (list of processes to skip)
-- **Settings UI**: Terminal → Behavior section
-
-### 🔧 Shell Exit Action
-
-Configurable behavior when shell process exits: `close`, `keep`, `restart_immediately`, `restart_with_prompt`, or `restart_after_delay`.
+- **Config option**: `log_level` (off/error/warn/info/debug/trace)
+- **CLI flag**: `--log-level <LEVEL>` overrides config
+- **Settings UI**: Advanced → Debug Logging with "Open Log File" button
+- All `log::*!()` calls routed to `/tmp/par_term_debug.log`
 
 ### 🔧 Fixed
 
-- **Arrow Keys in `less`**: Fixed arrow keys not working in programs that enable application cursor key mode (DECCKM)
+- **Trigger MarkLine deduplication**: Fixed duplicate scrollbar marks from PTY read batching
+- **Scrollbar command text**: Mark tooltips now correctly show command text
+- **Trigger marks cleared on scrollback clear**: Marks properly removed on buffer clear
+- **Settings Quick Search**: Expanded keywords for better discoverability
+
+<details>
+<summary><strong>What's New in 0.10.0</strong></summary>
+
+#### 🏷️ Per-Profile Badge Configuration
+
+Full badge customization per profile (iTerm2 parity). Profiles can now override badge color, opacity, font, position, and size constraints individually.
+
+#### ⚡ Performance: Maximize Throughput Mode
+
+Manual toggle for prioritizing bulk output processing over immediate responsiveness. Toggle with `Cmd+Shift+T` (macOS) or `Ctrl+Shift+T` (other platforms).
+
+#### 🖥️ Reduce Flicker
+
+iTerm2-style flicker reduction for smoother terminal updates. Delays redraws while cursor is hidden (DECTCEM off).
+
+#### 🎮 GPU Power Preference
+
+Control which GPU is used for rendering on multi-GPU systems: `none`, `low_power`, or `high_performance`.
+
+#### 🔄 Tmux Profile Auto-Switching
+
+Automatically apply profiles when connecting to tmux sessions via `tmux_session_patterns` glob patterns.
+
+#### ⌨️ Enhanced Keyboard Input
+
+Modifier key remapping, physical key bindings, and modifyOtherKeys protocol support.
+
+#### 🛡️ Close Confirmation for Running Jobs
+
+Confirmation dialog when closing tabs/panes with active processes.
+
+#### 🔧 Shell Exit Action
+
+Configurable behavior when shell exits: `close`, `keep`, `restart_immediately`, `restart_with_prompt`, or `restart_after_delay`.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.9.0</strong></summary>
@@ -308,12 +328,16 @@ Essential feature for emacs/vim users.
 ### Features
 - **[Keyboard Shortcuts](docs/KEYBOARD_SHORTCUTS.md)** - Complete keyboard shortcut reference.
 - **[Mouse Features](docs/MOUSE_FEATURES.md)** - Text selection, URL handling, and pane interaction.
+- **[Semantic History](docs/SEMANTIC_HISTORY.md)** - Click file paths to open in your editor.
+- **[Automation](docs/AUTOMATION.md)** - Regex triggers, actions, and coprocesses.
 - **[Profiles](docs/PROFILES.md)** - Profile system for saving terminal configurations.
 - **[Session Logging](docs/SESSION_LOGGING.md)** - Recording sessions in Plain/HTML/Asciicast formats.
 - **[Search](docs/SEARCH.md)** - Terminal search with regex, case-sensitive, and whole-word modes.
 - **[Paste Special](docs/PASTE_SPECIAL.md)** - 28 clipboard transformations for pasting.
+- **[Accessibility](docs/ACCESSIBILITY.md)** - Minimum contrast enforcement and display options.
 - **[Integrations](docs/INTEGRATIONS.md)** - Shell integration and shader installation system.
 - **[Window Management](docs/WINDOW_MANAGEMENT.md)** - Window types, multi-monitor, and transparency.
+- **[Debug Logging](docs/LOGGING.md)** - Configurable log levels and troubleshooting.
 
 ### Shaders
 - **[Shader Gallery](https://paulrobello.github.io/par-term/)** - Visual gallery of 49+ included shaders with screenshots.

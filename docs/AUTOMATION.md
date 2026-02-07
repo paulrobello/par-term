@@ -19,14 +19,17 @@ Par Terminal provides an automation system that lets you react to terminal outpu
   - [Send Text](#send-text)
 - [Trigger Highlights](#trigger-highlights)
 - [Action Dispatch](#action-dispatch)
+- [Trigger Marks on Scrollbar](#trigger-marks-on-scrollbar)
 - [Coprocesses](#coprocesses)
   - [Defining a Coprocess](#defining-a-coprocess)
+  - [Restart Policy](#restart-policy)
   - [Auto-Start Behavior](#auto-start-behavior)
   - [Per-Tab Lifecycle](#per-tab-lifecycle)
 - [Sound Files](#sound-files)
 - [Settings UI](#settings-ui)
   - [Managing Triggers](#managing-triggers)
   - [Managing Coprocesses](#managing-coprocesses)
+  - [Coprocess Output Viewer](#coprocess-output-viewer)
 - [Complete Configuration Examples](#complete-configuration-examples)
 - [Related Documentation](#related-documentation)
 
@@ -178,16 +181,20 @@ Sends a desktop notification using the system notification service.
 
 ### Mark Line
 
-Marks the current line in the scrollback for easy navigation. An optional label is displayed alongside the marker.
+Creates a colored mark on the scrollbar at the current line for easy navigation. Marks are visible in the scrollbar and display a tooltip with the label text on hover.
 
 ```yaml
 - type: mark_line
-  label: "Build started"    # Optional label text
+  label: "Build started"       # Optional label text
+  color: [255, 200, 0]        # Optional RGB color (default: cyan)
 ```
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `label` | string | No | `null` | Text label for the mark |
+| `label` | string | No | `null` | Text label shown in scrollbar tooltip on hover |
+| `color` | `[u8, u8, u8]` | No | `[0, 180, 255]` | RGB color for the scrollbar mark (cyan by default) |
+
+See [Trigger Marks on Scrollbar](#trigger-marks-on-scrollbar) for details on how marks are displayed.
 
 ### Set Variable
 
@@ -326,6 +333,43 @@ sequenceDiagram
     end
 ```
 
+## Trigger Marks on Scrollbar
+
+When a trigger fires a **Mark Line** action, a colored mark appears on the scrollbar at the corresponding line position. These marks provide visual landmarks for navigating long output.
+
+```mermaid
+graph LR
+    Trigger[Trigger Fires]
+    Mark[Create Mark]
+    Scrollbar[Scrollbar Display]
+    Hover[Hover Tooltip]
+
+    Trigger --> Mark
+    Mark --> Scrollbar
+    Scrollbar --> Hover
+
+    style Trigger fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style Mark fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Scrollbar fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Hover fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+```
+
+**Mark behavior:**
+- Marks appear as colored horizontal bars on the scrollbar
+- Hover over a mark to see a tooltip with the label text, command context, and timing
+- Mark position tracks the absolute line in the scrollback buffer
+- Marks are automatically cleared when the scrollback buffer is cleared (e.g., via `clear` or `Cmd+K`)
+
+**Deduplication:**
+- When triggers fire multiple times per frame (due to PTY read batching), marks are deduplicated
+- Historical marks in scrollback are preserved across scans
+- Visible-grid marks are rebuilt from fresh scan results to eliminate duplicates
+- Each mark is identified by its trigger ID and line number
+
+**Color priority:**
+- If the mark has a custom `color` from the trigger config, that color is used
+- Otherwise, marks fall back to shell integration coloring (green for success, red for failure, gray for unknown)
+
 ## Coprocesses
 
 A coprocess is a long-running external process that runs alongside a terminal tab. When `copy_terminal_output` is enabled, all output that appears in the terminal is also piped to the coprocess's stdin. The coprocess can process, filter, or log this output independently.
@@ -352,6 +396,31 @@ Each coprocess definition requires:
 | `args` | array of strings | No | `[]` | Command-line arguments |
 | `auto_start` | boolean | No | `false` | Start automatically when a tab is created |
 | `copy_terminal_output` | boolean | No | `true` | Send terminal output to the coprocess stdin |
+| `restart_policy` | enum | No | `never` | When to restart: `never`, `always`, or `on_failure` |
+| `restart_delay_ms` | integer | No | `0` | Delay in milliseconds before restarting |
+
+### Restart Policy
+
+Control what happens when a coprocess exits:
+
+| Policy | Behavior |
+|--------|----------|
+| `never` | Do not restart (default). The coprocess stays stopped after exit. |
+| `always` | Restart the coprocess regardless of exit code. |
+| `on_failure` | Restart only if the coprocess exited with a non-zero code. |
+
+The `restart_delay_ms` option adds a delay before restarting to prevent rapid restart loops. Set to `0` for immediate restart.
+
+```yaml
+coprocesses:
+  - name: "Resilient log watcher"
+    command: "tail"
+    args: ["-f", "/var/log/syslog"]
+    auto_start: true
+    copy_terminal_output: false
+    restart_policy: on_failure
+    restart_delay_ms: 2000    # Wait 2 seconds before restarting
+```
 
 ### Auto-Start Behavior
 
@@ -462,7 +531,9 @@ Changes are applied immediately when saved and synced to the core trigger regist
 
 The **Coprocesses** section provides:
 
-- **Coprocess list**: Each entry shows an `[auto]` or `[manual]` badge, the name, and the full command (in monospace)
+- **Coprocess list**: Each entry shows a status indicator, `[auto]` or `[manual]` badge, the name, and the full command (in monospace). If a restart policy is set, it appears as a badge (e.g., `[restart: Always, delay: 500ms]`).
+- **Start/Stop buttons**: Start a stopped coprocess or stop a running one directly from the list
+- **Status indicator**: Green dot when running, gray dot when stopped
 - **Edit button**: Opens an inline edit form
 - **Delete button**: Removes the coprocess definition
 - **Add Coprocess button**: Opens a form to create a new definition
@@ -474,8 +545,22 @@ The coprocess edit form includes:
 - **Arguments field**: Space-separated arguments
 - **Auto-start checkbox**: Whether to start the coprocess automatically with new tabs
 - **Copy terminal output checkbox**: Whether to pipe terminal output to the coprocess stdin
+- **Restart policy dropdown**: Never, Always, or On Failure
+- **Restart delay slider**: Delay in milliseconds before restarting (shown when restart policy is not Never)
 
-> **📝 Note:** The quick search bar in Settings supports the following keywords for the Automation tab: `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`.
+If a coprocess fails to start, the error message is displayed inline in red below the coprocess entry.
+
+### Coprocess Output Viewer
+
+Each coprocess has a collapsible output viewer that displays the coprocess's stdout in real time:
+
+- Click **"Output (N lines)"** to expand or collapse the viewer
+- Output is displayed in a scrollable area (max 150px) in monospace font
+- The viewer auto-scrolls to the latest output
+- Click **"Clear"** to discard buffered output
+- Output accumulates in memory until cleared or the tab is closed
+
+> **📝 Note:** The quick search bar in Settings supports the following keywords for the Automation tab: `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`.
 
 ## Complete Configuration Examples
 
@@ -539,7 +624,7 @@ triggers:
 
 ### Test Runner Notifications
 
-Mark test result lines and set variables for badge display:
+Mark test result lines with color-coded scrollbar marks and set variables for badge display:
 
 ```yaml
 triggers:
@@ -549,6 +634,7 @@ triggers:
     actions:
       - type: mark_line
         label: "Tests passed"
+        color: [0, 200, 80]     # Green mark on scrollbar
       - type: set_variable
         name: "test_result"
         value: "PASS ($1)"
@@ -559,6 +645,7 @@ triggers:
     actions:
       - type: mark_line
         label: "Tests failed"
+        color: [255, 60, 60]    # Red mark on scrollbar
       - type: set_variable
         name: "test_result"
         value: "FAIL ($1)"
@@ -586,7 +673,7 @@ triggers:
 
 ### Coprocess for Log Filtering
 
-Run a log filter coprocess that receives all terminal output and filters for warnings:
+Run a log filter coprocess that receives all terminal output and filters for warnings. The restart policy ensures it restarts if it crashes:
 
 ```yaml
 coprocesses:
@@ -595,6 +682,8 @@ coprocesses:
     args: ["--line-buffered", "WARN"]
     auto_start: true
     copy_terminal_output: true
+    restart_policy: on_failure
+    restart_delay_ms: 1000
 ```
 
 ### Full Automation Configuration
@@ -651,18 +740,23 @@ coprocesses:
     args: ["-c", "grep --line-buffered ERROR >> /tmp/terminal_errors.log"]
     auto_start: true
     copy_terminal_output: true
+    restart_policy: always
+    restart_delay_ms: 500
 
   - name: "Activity monitor"
     command: "wc"
     args: ["-l"]
     auto_start: false
     copy_terminal_output: true
+    restart_policy: never
 ```
 
 ## Related Documentation
 
 - [Architecture](ARCHITECTURE.md) - System design and data flow overview
+- [Scrollback](SCROLLBACK.md) - Scrollbar marks, command markers, and navigation
 - [Tabs](TABS.md) - Tab management and per-tab state
 - [Badges](BADGES.md) - Dynamic badge display using trigger variables
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Quick access to settings and features
 - [Profiles](PROFILES.md) - Per-profile trigger and coprocess configuration
+- [Debug Logging](LOGGING.md) - Log levels for troubleshooting automation

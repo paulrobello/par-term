@@ -60,7 +60,7 @@ Complete reference for all par-term keyboard shortcuts.
 | Click + Drag | Normal selection |
 | Double-Click | Select word |
 | Triple-Click | Select line |
-| Cmd/Ctrl + Click | Open URL |
+| Cmd/Ctrl + Click | Open URL or file path |
 | Alt/Option + Click | Move cursor to position |
 | Alt + Cmd/Ctrl + Drag | Rectangular selection |
 | Middle-Click | Paste primary selection |
@@ -193,5 +193,6 @@ keybindings:
 ## Related Documentation
 
 - [README.md](../README.md) - Project overview
-- [PROFILES.md](PROFILES.md) - Profile keyboard shortcuts
-- [SEARCH.md](SEARCH.md) - Search keyboard shortcuts
+- [Mouse Features](MOUSE_FEATURES.md) - Mouse interactions and semantic history
+- [Profiles](PROFILES.md) - Profile keyboard shortcuts
+- [Search](SEARCH.md) - Search keyboard shortcuts

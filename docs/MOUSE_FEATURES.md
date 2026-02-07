@@ -6,6 +6,7 @@ par-term provides comprehensive mouse support for text selection, URL handling, 
 - [Overview](#overview)
 - [Text Selection](#text-selection)
 - [URL Handling](#url-handling)
+- [Semantic History](#semantic-history)
 - [Cursor Positioning](#cursor-positioning)
 - [Scrolling](#scrolling)
 - [Pane Interaction](#pane-interaction)
@@ -32,6 +33,7 @@ graph TD
 
     Left --> Selection[Text Selection]
     Left --> URLs[URL Clicking]
+    Left --> Files[File Path Opening]
     Left --> Cursor[Cursor Position]
     Left --> Scrollbar[Scrollbar]
     Left --> Divider[Pane Dividers]
@@ -46,6 +48,7 @@ graph TD
     style Wheel fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Selection fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style URLs fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Files fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Cursor fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Scrollbar fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Divider fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
@@ -124,6 +127,35 @@ Hold `Cmd` (macOS) or `Ctrl` (Windows/Linux) and click a URL to open it.
 ### OSC 8 Hyperlinks
 
 par-term supports terminal-embedded hyperlinks (OSC 8 protocol) for more reliable URL detection.
+
+## Semantic History
+
+### Opening File Paths
+
+Hold `Cmd` (macOS) or `Ctrl` (Windows/Linux) and click a detected file path to open it in your editor.
+
+**Detected Paths:**
+- Relative paths: `./src/main.rs`, `../lib/utils.py`
+- Home-relative paths: `~/projects/app.js`
+- Paths with line numbers: `./src/main.rs:42` or `./src/main.rs:42:10`
+
+**Visual Feedback:**
+- Detected paths are highlighted in bright cyan with an underline
+- Cursor changes to hand pointer on hover
+
+**Editor Selection:**
+- Uses `$EDITOR` / `$VISUAL` by default
+- Configurable custom editor command with `{file}`, `{line}`, `{col}` placeholders
+- Directories open in the system file manager
+
+Configure:
+```yaml
+semantic_history_enabled: true
+semantic_history_editor_mode: environment_variable  # or: custom, system_default
+semantic_history_editor: "code -g {file}:{line}"    # custom mode only
+```
+
+> See [Semantic History](SEMANTIC_HISTORY.md) for full documentation.
 
 ## Cursor Positioning
 
@@ -237,4 +269,5 @@ The Input tab in Settings provides:
 ## Related Documentation
 
 - [README.md](../README.md) - Project overview
-- [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) - Keyboard shortcuts
+- [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Keyboard shortcut reference
+- [Semantic History](SEMANTIC_HISTORY.md) - File path clicking details

@@ -602,7 +602,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | VoiceOver/accessibility | ⭐⭐ | 🔵 Very High | Screen reader support |
 | Bidirectional text | ⭐⭐ | 🔴 High | RTL language support |
 
-### Recently Completed (v0.10.0)
+### Recently Completed (v0.11.0)
 - ✅ Triggers & automation (regex triggers, 7 action types, coprocesses with restart policy & output viewer, Settings UI)
 - ✅ SetVariable → badge sync (trigger-captured variables displayed in badge overlay)
 - ✅ Trigger marks on scrollbar with deduplication and tooltips
@@ -623,4 +623,4 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 *Updated: 2026-02-06*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.10.0+*
+*par-term Version: 0.11.0+*
