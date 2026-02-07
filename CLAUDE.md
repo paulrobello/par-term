@@ -502,3 +502,23 @@ Both use the same transpiler (`src/custom_shader_renderer/transpiler.rs`) and GL
    - Choose the appropriate tab (e.g., `bell_tab.rs` for notifications, `window_tab.rs` for display)
    - Use checkboxes for booleans, sliders for numeric ranges, dropdowns for enums
    - Remember to set `settings.has_changes = true` and `*changes_this_frame = true` on change
+
+### Adding Snippet or Action Keybindings
+
+When adding keybindings for snippets or actions:
+
+1. **Snippets with keybindings**: Set the `keybinding` field in the snippet config (e.g., `Ctrl+Shift+D`)
+2. **Auto-generation**: The system auto-generates keybindings during config load via `generate_snippet_action_keybindings()`
+3. **Action format**: Snippets use `snippet:<id>`, actions use `action:<id>` as the keybinding action name
+4. **Manual setup**: For actions without keybinding fields, add to keybindings list manually in config.yaml:
+   ```yaml
+   keybindings:
+     - key: "Ctrl+Shift+T"
+       action: "snippet:date_stamp"
+     - key: "Ctrl+Shift+R"
+       action: "action:run_tests"
+   ```
+5. **Execution**: `execute_keybinding_action()` in `input_events.rs` handles `snippet:` and `action:` prefixes
+
+**Important**: Use `try_lock()` from sync contexts when accessing `tab.terminal` (tokio::sync::Mutex). See MEMORY.md for details.
+

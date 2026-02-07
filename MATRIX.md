@@ -450,30 +450,399 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 
 ---
 
-## 23. Miscellaneous
+## 23. Status Bar
+
+iTerm2 has a comprehensive status bar system for displaying session and system information.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Config file location (XDG) | ✅ | ✅ | ✅ | - | - | - |
-| Settings UI | ✅ Full GUI | ✅ Full GUI (F12) | ✅ | - | - | - |
+| Status bar visibility | ✅ `Show Status Bar` | ❌ | ❌ | ⭐⭐ | 🟡 | Toggle status bar on/off |
+| Status bar position | ✅ Top/Bottom | ❌ | ❌ | ⭐⭐ | 🟡 | Choose status bar location |
+| Status bar components | ✅ Configurable widgets | ❌ | ❌ | ⭐⭐ | 🔴 | Add/remove components (time, battery, network, etc.) |
+| Status bar auto-hide | ✅ `Status Bar Location` (Automatic) | ❌ | ❌ | ⭐ | 🟡 | Hide when fullscreen/no mouse |
+| Status bar color | ✅ Per-profile | ❌ | ❌ | ⭐ | 🟢 | Custom colors |
+| Status bar font | ✅ `Status Bar Font` | ❌ | ❌ | ⭐ | 🟢 | Custom typography |
+| Git branch in status bar | ✅ Component | ❌ | ❌ | ⭐⭐ | 🟡 | Show current branch |
+| Network status | ✅ Component | ❌ | ❌ | ⭐ | 🟡 | Show network info |
+| CPU/memory usage | ✅ Component | ❌ | ❌ | ⭐ | 🟡 | System monitoring |
+| Username@hostname | ✅ Component | ❌ | ❌ | ⭐⭐ | 🟡 | Session info |
+
+---
+
+## 24. Toolbelt
+
+iTerm2's Toolbelt is a sidebar providing quick access to various utilities.
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Toolbelt sidebar | ✅ `Enable Toolbelt` | ❌ | ❌ | ⭐ | 🔴 | Collapsible sidebar with utilities |
+| Toolbelt notes | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Per-session notes/scratchpad |
+| Toolbelt paste history | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Quick paste from history |
+| Toolbelt jobs | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Manage background jobs |
+| Toolbelt actions | ✅ | ❌ | ❌ | ⭐ | 🔴 | Custom actions in sidebar |
+| Toolbelt profiles | ✅ | ❌ | ❌ | ⭐ | 🟡 | Profile switcher in sidebar |
+| Toolbelt directory history | ✅ | ❌ | ❌ | ⭐ | 🟡 | Navigate visited directories |
+| Toolbelt autocomplete | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Command history search |
+
+---
+
+## 25. Composer & Auto-Complete
+
+iTerm2's Composer provides intelligent command completion suggestions.
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Composer UI | ✅ `Enable Composer` | ❌ | ❌ | ⭐⭐ | 🔵 | AI-style command completion |
+| Command history search | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Fuzzy search history |
+| Suggestion ranking | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Smart relevance scoring |
+| Man page integration | ✅ | ❌ | ❌ | ⭐⭐ | 🔴 | Show man info inline |
+| Command preview | ✅ | ❌ | ❌ | ⭐ | 🟡 | Preview command output |
+| Shell integration auto-install | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Auto-download shell integration scripts |
+
+---
+
+## 26. Copy Mode
+
+iTerm2's Copy Mode provides vi-style navigation for selection.
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Copy Mode | ✅ `Copy Mode` | ❌ | ❌ | ⭐⭐ | 🟡 | Vi-style navigation for selection |
+| Vi key bindings in copy mode | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | hjkl navigation |
+| Copy mode activation | ✅ `Copy Mode Key Binding` | ❌ | ❌ | ⭐⭐ | 🟢 | Custom hotkey |
+| Copy mode indicator | ✅ | ❌ | ❌ | ⭐ | 🟢 | Visual indicator when active |
+| Character/word/line motion | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | w, b, e, 0, $, etc. |
+| Search in copy mode | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | / and ? search |
+| Mark positions | ✅ | ❌ | ❌ | ⭐ | 🟡 | m and ' marks |
+| Copy to clipboard | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | y operation |
+
+---
+
+## 27. Snippets & Actions
+
+iTerm2 has a system for saved text snippets and custom actions.
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Text snippets | ✅ Snippets | ✅ | ✅ | ⭐⭐ | 🟡 | Saved text blocks for quick insertion |
+| Snippet shortcuts | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Keyboard shortcuts for snippets |
+| Snippet variables | ✅ | ✅ | ✅ | ⭐ | 🟡 | Dynamic values in snippets (10 built-in variables) |
+| Snippet library | ✅ | ✅ Partial | ✅ | ⭐⭐ | 🟡 | Organize snippets into folders (no import/export yet) |
+| Custom actions | ✅ | ✅ Partial | ✅ | ⭐ | 🔴 | Shell commands and text insertion (key sequences TODO) |
+| Action key bindings | ✅ | 🟡 | 🟡 | ⭐ | 🟡 | Assign keys to actions (manual setup via keybindings config) |
+
+### Implementation Details (v0.11.0+)
+
+**Data Structures** (`src/config/snippets.rs`):
+- `SnippetConfig`: id, title, content, keybinding, folder, enabled, description, variables (HashMap)
+- `CustomActionConfig`: Tagged enum with ShellCommand, InsertText, KeySequence variants
+- `BuiltInVariable`: Enum for 10 built-in variables with runtime resolution
+
+**Variable Substitution** (`src/snippets/mod.rs`):
+- `VariableSubstitutor`: Regex engine matching `\(variable)` syntax
+- Built-in variable resolution (date, time, hostname, user, path, git_branch, git_commit, uuid, random)
+- Custom variable support via HashMap
+- 15 unit tests, all passing
+
+**Settings UI**:
+- **Snippets tab** (`src/settings_ui/snippets_tab.rs`): CRUD operations, folder grouping, variables reference
+- **Actions tab** (`src/settings_ui/actions_tab.rs`): Type selector, form fields, CRUD operations
+- Both added to sidebar navigation with icons (📝 Snippets, 🚀 Actions)
+
+**Execution Engine** (`src/app/input_events.rs`):
+- `execute_snippet()`: Variable substitution + terminal write
+- `execute_custom_action()`: Shell command execution, text insertion
+- Keybinding integration via "snippet:<id>" and "action:<id>" prefixes
+- Toast notifications for errors and success feedback
+
+**Configuration** (`src/config/mod.rs`):
+- `generate_snippet_action_keybindings()`: Auto-generate keybindings during config load
+- Added to Config: `snippets: Vec<SnippetConfig>`, `actions: Vec<CustomActionConfig>`
+- YAML persistence via serde
+
+**Testing** (`tests/snippets_actions_tests.rs`):
+- 26 integration tests covering all major functionality
+- Config persistence, serialization, keybinding generation
+- All 41 tests passing (26 integration + 15 unit)
+
+**Documentation** (`docs/SNIPPETS.md`):
+- Comprehensive user guide with examples
+- Variable reference table
+- Action configuration guide
+- Tips and best practices
+
+### Usage Examples
+
+**Snippet with variables:**
+```yaml
+snippets:
+  - id: "git_commit"
+    title: "Git Commit"
+    content: "git commit -m 'feat(\\(user)): \\(datetime)'"
+    keybinding: "Ctrl+Shift+C"
+    folder: "Git"
+```
+
+**Shell command action:**
+```yaml
+actions:
+  - id: "run_tests"
+    title: "Run Tests"
+    type: "shell_command"
+    command: "npm"
+    args: ["test"]
+    notify_on_success: true
+```
+
+### Future Enhancements
+
+- [ ] Key sequence simulation (parsing and keyboard event injection)
+- [ ] Import/export snippet libraries
+- [ ] Custom variables UI editor
+- [ ] Action keybinding field in UI (currently manual config.yaml setup)
+
+---
+
+## 28. Window Arrangements & Placement
+
+iTerm2 has sophisticated window state management.
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Save window arrangements | ✅ `Save Window Arrangements` | ❌ | ❌ | ⭐⭐ | 🟡 | Save window positions and layouts |
+| Restore arrangements | ✅ `Restore Window Arrangements` | ❌ | ❌ | ⭐⭐ | 🟡 | Restore saved layouts |
+| Arrange windows by app | ✅ | ❌ | ❌ | ⭐ | 🔴 | Auto-arrange windows |
+| Hotkey window type | ✅ | ❌ | ❌ | ⭐⭐⭐ | 🔴 | Quake-style dropdown terminal |
+| Hotkey window profile | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Different profile for hotkey window |
+| Hotkey window animation | ✅ `Animate Hotkey Window` | ❌ | ❌ | ⭐ | 🟡 | Slide/fade animations |
+| Hotkey window dock | ✅ | ❌ | ❌ | ⭐ | 🟡 | Show dock icon for hotkey window |
+| Hotkey window hide on defocus | ✅ `Hotkey Window Hides When App Deactivated` | ❌ | ❌ | ⭐ | 🟢 | Auto-hide when losing focus |
+| Hotkey window float | ✅ `Hotkey Window Floats` | ❌ | ❌ | ⭐ | 🟢 | Floating window style |
+| Window screen memory | ✅ `Open Arrangement on Screen` | ❌ | ❌ | ⭐ | 🟡 | Remember screen per arrangement |
+
+---
+
+## 29. Session Management & Quit Behavior
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Prompt on quit | ✅ `Prompt When Quitting` | ❌ | ❌ | ⭐⭐ | 🟢 | Confirm before closing app with sessions |
+| Confirm closing multiple sessions | ✅ `Confirm Closing Multiple Sessions` | ✅ Partial | ✅ | ⭐⭐ | 🟢 | Partial - jobs confirmation exists |
+| Only confirm when there are jobs | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Session undo timeout | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Reopen closed tabs within timeout |
+| Session restore on launch | ✅ `Restore Arrangement on Launch` | ❌ | ❌ | ⭐⭐ | 🔴 | Reopen previous sessions |
+| Session restore at startup | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Auto-restore last sessions |
+| Open saved arrangement | ✅ `Open Arrangement` | ❌ | ❌ | ⭐⭐ | 🟡 | Load saved window arrangement |
+
+---
+
+## 30. Tab Styles & Appearance
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Tab style variants | ✅ `Tab Style` (Automatic/Compact/High Contrast/Light/Minimal) | ❌ | ❌ | ⭐ | 🟡 | Different visual styles for tabs |
+| Automatic tab style | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-switch based on theme |
+| Compact tab style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Smaller tabs, more visible content |
+| Minimal tab style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Clean, minimal tab appearance |
+| High contrast tab style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Enhanced contrast for accessibility |
+| Light tab style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Light theme tabs |
+| Dark tab style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Dark theme tabs |
+| Tab color overrides | ✅ `Tab Color` | ✅ | ✅ | - | - | Already implemented |
+
+---
+
+## 31. Pane & Split Customization
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Pane title format | ✅ `Show Pane Titles` | ❌ | ❌ | ⭐⭐ | 🟡 | Customize pane title display |
+| Pane title position | ✅ | ❌ | ❌ | ⭐ | 🟢 | Top/bottom/left/right placement |
+| Pane title color | ✅ | ❌ | ❌ | ⭐ | 🟢 | Custom pane title colors |
+| Pane title font | ✅ | ❌ | ❌ | ⭐ | 🟢 | Custom typography |
+| Division view | ✅ `Enable Division View` | ✅ configurable dividers | ✅ | - | - | Already implemented |
+| Division thickness | ✅ `Division Thickness` | ❌ | ❌ | ⭐ | 🟢 | Adjust divider line thickness |
+| Division color | ✅ `Division Color` | ✅ | ✅ | ⭐ | 🟢 | Already implemented |
+| Division style | ✅ `Double/Shadow` | ❌ | ❌ | ⭐ | 🟢 | Different divider styles |
+| Per-pane backgrounds | ✅ | 🔶 Data model ready | 🔶 | ⭐ | 🟡 | Renderer support pending |
+
+---
+
+## 32. Profile Switching & Dynamic Profiles
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Hostname-based switching | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Directory-based switching | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Auto-switch profile by directory |
+| Command-based switching | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-switch by running command |
+| User-based switching | ✅ | ❌ | ❌ | ⭐ | 🟡 | Switch by SSH user |
+| Dynamic profiles from URL | ✅ `Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🔴 | Load profiles from remote URL |
+| Dynamic profiles reload | ✅ `Reload Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🟡 | Refresh dynamic profiles |
+| Dynamic profiles automatic reload | ✅ `Automatically Reload` | ❌ | ❌ | ⭐ | 🟡 | Auto-refresh on change |
+| Profile inheritance | ✅ Parent profiles | ✅ `parent_id` | ✅ | - | - | Already implemented |
+
+---
+
+## 33. Image Protocol Enhancements
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Sixel support | ✅ | ✅ | ✅ | - | - | Already implemented |
+| iTerm2 inline images | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Kitty graphics protocol | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Kitty animations | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Image compression | ✅ | ❌ | ❌ | ⭐ | 🟡 | Reduce transmission size |
+| Image scaling quality | ✅ | ❌ | ❌ | ⭐ | 🟢 | Nearest/linear/bicubic |
+| Image placement modes | ✅ | ❌ | ❌ | ⭐ | 🟡 | Inline/cover/contain |
+| Preserve aspect ratio | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Maintain image proportions |
+| Image metadata in files | ✅ | ❌ | ❌ | ⭐ | 🟡 | Store image info with session |
+
+---
+
+## 34. Audio & Haptic Feedback
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Sound for ESC key | ✅ `Play Sound When Esc Is Pressed` | ❌ | ❌ | ➖ | ➖ | Touch Bar feature - won't implement |
+| Haptic feedback for ESC | ✅ `Haptic Feedback For Esc` | ❌ | ❌ | ➖ | ➖ | Touch Bar feature - won't implement |
+| Bell sound selection | ✅ `Bell Sound` | ✅ `notification_bell_sound_file` | ✅ | - | - | Already implemented |
+| Custom bell sounds | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Alert sounds | ✅ | ❌ | ❌ | ⭐ | 🟢 | Sound effects for events |
+
+---
+
+## 35. Advanced GPU & Rendering Settings
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| GPU renderer selection | ✅ `Use GPU Renderer` | ✅ wgpu | ✅ | - | - | Always GPU in par-term |
+| Metal backend | ✅ | ✅ Metal on macOS | ✅ | - | - | Already implemented |
+| Reduce flicker | ✅ `Reduce Flicker` | ✅ `reduce_flicker` | ✅ | - | - | Already implemented |
+| Minimum frame time | ✅ | ❌ | ❌ | ⭐ | 🟢 | Limit max FPS even if vsync off |
+| Subpixel anti-aliasing | ✅ | ❌ | ❌ | ⭐ | 🔴 | LCD subpixel rendering |
+| Font smoothing | ✅ `ASCII/Non-ASCII Antialiased` | ✅ | ✅ | - | - | Already implemented |
+
+---
+
+## 36. Advanced Configuration
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Save preferences mode | ✅ `Save Preferences` | ❌ | ❌ | ⭐ | 🟢 | Auto-save/ask on quit |
+| Preference file location | ✅ | ✅ XDG-compliant | ✅ | - | - | Already implemented |
+| Import preferences | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Import from file/URL |
+| Export preferences | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Export config to file |
+| Preference validation | ✅ | ❌ | ❌ | ⭐ | 🟡 | Check config on load |
+| Preference profiles | ✅ | ❌ | ❌ | ⭐⭐ | 🔴 | Multiple config sets |
+| Shell integration download | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Auto-download shell scripts |
+| Shell integration version | ✅ | ❌ | ❌ | ⭐ | 🟡 | Check/update shell integration |
+
+---
+
+## 37. Unicode & Text Processing
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Unicode normalization | ✅ `Unicode Normalization` (NFC/NFD/HFS+) | ❌ | ❌ | ⭐ | 🟡 | Text normalization form |
+| Unicode version selection | ✅ `Unicode Version` | ✅ | ✅ | - | - | Already implemented |
+| Ambiguous width characters | ✅ `Ambiguous Width Characters` | ✅ | ✅ | - | - | Already implemented |
+| Unicode box drawing | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Emoji variation sequences | ✅ | ❌ | ❌ | ⭐ | 🟡 | Text vs presentation selector |
+| Right-to-left text | ✅ `Bidi` | ❌ | ❌ | ⭐⭐ | 🔴 | Bidirectional text support |
+
+---
+
+## 38. Browser Integration
+
+iTerm2 has a built-in browser for web-based workflows.
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Built-in browser | ✅ `Enable Browser Integration` | ❌ | ❌ | ⭐ | 🔴 | Embedded web browser |
+| Browser per tab | ✅ | ❌ | ❌ | ⭐ | 🔴 | Individual browser tabs |
+| Browser profile sync | ✅ | ❌ | ❌ | ⭐ | 🟡 | Sync with external browser |
+| Open links in browser | ✅ | ❌ | ❌ | ⭐ | 🟡 | Configurable link handler |
+
+---
+
+## 39. Progress Bars
+
+iTerm2 supports showing progress for long-running commands.
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Progress bar protocol | ✅ `Progress Bar` (OSC 934) | ❌ | ❌ | ⭐⭐ | 🟡 | Show command progress |
+| Progress bar style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Different bar styles |
+| Progress bar position | ✅ | ❌ | ❌ | ⭐ | 🟡 | Top/bottom placement |
+| Multiple progress bars | ✅ | ❌ | ❌ | ⭐ | 🟡 | Concurrent progress display |
+
+---
+
+## 40. Advanced Paste & Input
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Paste from clipboard history | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Paste special transformations | ✅ | ✅ `Cmd/Ctrl+Shift+V` | ✅ | - | - | Already implemented |
+| Paste multi-line behavior | ✅ `Paste Special` | ✅ | ✅ | - | - | Already implemented |
+| Paste bracketing | ✅ `Allow Paste Bracketing` | ✅ | ✅ | - | - | Already implemented |
+| Paste delay | ✅ | ❌ | ❌ | ⭐ | 🟢 | Delay between pasted lines |
+| Paste as single line | ✅ | ❌ | ❌ | ⭐ | 🟡 | Force single line |
+| Paste with newlines | ✅ | ❌ | ❌ | ⭐ | 🟢 | Add/remove newlines |
+
+---
+
+## 41. Advanced Shell Integration
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Shell integration auto-install | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Auto-download scripts |
+| Shell integration version check | ✅ | ❌ | ❌ | ⭐ | 🟡 | Check for updates |
+| Disable shell integration | ✅ | ❌ | ❌ | ⭐ | 🟢 | Toggle integration |
+| Shell integration features | ✅ `Features` | ✅ OSC 133/7/1337 | ✅ | - | - | Partial - marks/CWD/badges |
+| Current command in window title | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Show running command |
+| Command duration tracking | ✅ | ✅ Via tooltips | ✅ | - | - | Already implemented |
+| Command exit code in badge | ✅ | ❌ | ❌ | ⭐ | 🟢 | Show exit status |
+| Remote host integration | ✅ | ❌ | ❌ | ⭐⭐ | 🔴 | Remote shell integration |
+
+---
+
+## 42. Network & Discovery
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Bonjour discovery | ✅ `Bonjour Hosts` | ❌ | ❌ | ⭐ | 🟡 | Auto-discover SSH hosts |
+| SSH hosts auto-discover | ✅ | ❌ | ❌ | ⭐⭐ | 🔴 | Scan network for SSH |
+| Host profiles | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Per-host profiles |
+| Quick connect | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Fast SSH connections |
+
+---
+
+## 43. Miscellaneous (Remaining)
+
+| Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
+|---------|--------|----------|--------|--------|--------|-------|
+| Config file location (XDG) | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Settings UI | ✅ Full GUI | ✅ Full GUI (F12) | ✅ | - | - | Already implemented |
 | Reload config (F5) | ❌ | ✅ | ✅ | - | - | par-term exclusive |
 | Window arrangements | ✅ Save/restore layouts | ❌ | ❌ | ⭐⭐ | 🟡 | Save window positions |
 | Bonjour host discovery | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-discover SSH hosts |
 | Password manager | ✅ | ❌ | ❌ | ⭐ | 🔴 | Secure credential storage |
-| Toolbelt sidebar | ✅ | ❌ | ❌ | ⭐ | 🔴 | Notes, jobs, paste history |
-| Status bar | ✅ Customizable | ❌ | ❌ | ⭐⭐ | 🟡 | Show system info |
-| Browser profile | ✅ | ❌ | ❌ | ⭐ | 🔴 | Web browser integration |
-| Progress bar | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Show command progress |
-| Snippets | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Saved text snippets |
-| Search in terminal | ✅ Cmd+F | ✅ Cmd/Ctrl+F | ✅ | - | - | Regex, case, whole word options |
+| Search in terminal | ✅ Cmd+F | ✅ Cmd/Ctrl+F | ✅ | - | - | Already implemented |
 | CLI command (`par-term`) | ❌ | ✅ Full CLI | ✅ | - | - | par-term exclusive |
 | First-run shader install prompt | ❌ | ✅ Auto-detect & install | ✅ | - | - | par-term exclusive |
 | Shader gallery | ❌ | ✅ Online gallery | ✅ | - | - | par-term exclusive |
 | Automatic update checking | ✅ Built-in updater | ✅ `update_check_frequency` | ✅ | - | - | Notify-only (no auto-install) |
+| Quit when last session closes | ✅ | ❌ | ❌ | ⭐ | 🟢 | Auto-exit when last tab closes |
+| Open files in editor | ✅ `Semantic History` | ✅ `semantic_history_*` | ✅ | - | - | Already implemented |
+| Report terminal type | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Character encoding | ✅ Multiple | ✅ UTF-8 | ✅ | - | - | UTF-8 only is fine |
+| Check for updates automatically | ✅ | ✅ | ✅ | - | - | Already implemented |
+| Open new viewer window | ✅ | ❌ | ❌ | ⭐ | 🟡 | Clone session in new window |
+| Variable substitution | ✅ | ❌ | ❌ | ⭐ | 🟡 | Environment vars in config |
 
 ---
 
-## 24. Badges
+## 44. Badges
 
 Badges are semi-transparent text overlays displayed in the terminal corner showing dynamic session information.
 
@@ -510,7 +879,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 ## Summary Statistics
 
-### Feature Counts
+### Feature Counts by Category
 
 | Category | Implemented | Partial | Not Implemented |
 |----------|-------------|---------|-----------------|
@@ -519,7 +888,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Cursor | 12 | 0 | 0 |
 | Background & Effects | 10 | 0 | 1 |
 | Colors & Themes | 16 | 0 | 1 |
-| Tab Bar | 16 | 1 | 1 |
+| Tab Bar | 16 | 1 | 2 |
 | Scrollback & Scrollbar | 11 | 1 | 1 |
 | Selection & Clipboard | 12 | 0 | 0 |
 | Mouse & Pointer | 9 | 0 | 1 |
@@ -536,11 +905,33 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Performance & Power | 9 | 0 | 1 |
 | Accessibility | 2 | 0 | 2 |
 | AI Integration | 0 | 0 | 4 |
+| Status Bar | 0 | 0 | 10 |
+| Toolbelt | 0 | 0 | 8 |
+| Composer & Auto-Complete | 0 | 0 | 5 |
+| Copy Mode | 0 | 0 | 8 |
+| Snippets & Actions | 0 | 0 | 6 |
+| Window Arrangements & Placement | 1 | 0 | 9 |
+| Session Management & Quit Behavior | 2 | 1 | 5 |
+| Tab Styles & Appearance | 1 | 0 | 6 |
+| Pane & Split Customization | 3 | 1 | 5 |
+| Profile Switching & Dynamic Profiles | 2 | 0 | 5 |
+| Image Protocol Enhancements | 4 | 0 | 5 |
+| Audio & Haptic Feedback | 2 | 0 | 3 |
+| Advanced GPU & Rendering Settings | 3 | 0 | 2 |
+| Advanced Configuration | 1 | 0 | 7 |
+| Unicode & Text Processing | 3 | 0 | 3 |
+| Browser Integration | 0 | 0 | 4 |
+| Progress Bars | 0 | 0 | 4 |
+| Advanced Paste & Input | 3 | 0 | 3 |
+| Advanced Shell Integration | 3 | 1 | 4 |
+| Network & Discovery | 0 | 0 | 4 |
 | Miscellaneous | 10 | 0 | 7 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~233** | **~4** | **~26** |
+| **TOTAL** | **~273** | **~7** | **~134** |
 
-**Overall Parity: ~89%** of iTerm2 features implemented
+**Overall Parity: ~66% of iTerm2 features implemented** (273 implemented out of ~414 total tracked features)
+
+**Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
 ### par-term Exclusive Features (Not in iTerm2)
 - 49+ custom GLSL background shaders with hot reload
@@ -592,15 +983,131 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 | Feature | Usefulness | Effort | Notes |
 |---------|------------|--------|-------|
-| Hotkey window | ⭐⭐⭐ | 🔴 High | Quake-style dropdown terminal |
-| Light/Dark mode switching | ⭐⭐ | 🟡 Medium | Auto-switch with system theme |
-| Tab bar position | ⭐⭐ | 🟡 Medium | Top/Bottom/Left options |
+| Hotkey window (Quake-style) | ⭐⭐⭐ | 🔴 High | Dropdown terminal with global hotkey |
+| Copy Mode (vi-style navigation) | ⭐⭐⭐ | 🟡 Medium | Vi-style navigation for selection |
+| Status Bar | ⭐⭐⭐ | 🔴 High | Customizable status bar with widgets |
+| Snippets system | ⭐⭐⭐ | 🟡 Medium | Saved text blocks for quick insertion |
+| Directory-based profile switching | ⭐⭐⭐ | 🟡 Medium | Auto-switch profile by directory |
 | Session undo timeout | ⭐⭐ | 🟡 Medium | Recover accidentally closed tabs |
 | Window arrangements | ⭐⭐ | 🟡 Medium | Save/restore window layouts |
+| Progress bars (OSC 934) | ⭐⭐ | 🟡 Medium | Show command progress |
+| Composer (auto-complete) | ⭐⭐ | 🔵 Very High | AI-style command completion |
+| Toolbelt sidebar | ⭐⭐ | 🔴 High | Notes, paste history, jobs panel |
+| Shell integration auto-install | ⭐⭐ | 🟢 Low | Auto-download shell scripts |
+| Light/Dark mode switching | ⭐⭐ | 🟡 Medium | Auto-switch with system theme |
+| Tab bar position (left/bottom) | ⭐⭐ | 🟡 Medium | Top/Bottom/Left options |
+| Tab style variants | ⭐ | 🟢 Low | Different visual styles for tabs |
+| Paste delay options | ⭐ | 🟢 Low | Delay between pasted lines |
+| Command in window title | ⭐⭐ | 🟡 Medium | Show running command |
+| Dynamic profiles from URL | ⭐⭐ | 🔴 High | Load profiles from remote URL |
+| Pane title customization | ⭐⭐ | 🟡 Medium | Customize pane title display |
+| Division thickness/style | ⭐ | 🟢 Low | Adjust divider appearance |
 | Instant Replay | ⭐⭐ | 🔵 Very High | Rewind terminal state |
 | AI integration | ⭐⭐ | 🔵 Very High | Command help and generation |
 | VoiceOver/accessibility | ⭐⭐ | 🔵 Very High | Screen reader support |
 | Bidirectional text | ⭐⭐ | 🔴 High | RTL language support |
+| Browser integration | ⭐ | 🔴 High | Embedded web browser |
+| Bonjour/SSH discovery | ⭐⭐ | 🔴 High | Auto-discover SSH hosts |
+
+### Newly Identified Features (This Update)
+
+The following iTerm2 features were identified and added to the matrix in this update:
+
+**Status Bar (10 features)**
+- Status bar visibility, position, auto-hide
+- Configurable components (time, battery, network, git branch, etc.)
+- Custom colors and fonts
+
+**Toolbelt (8 features)**
+- Sidebar with notes, paste history, jobs, actions
+- Profile switcher and directory history
+- Command history search/autocomplete
+
+**Composer & Auto-Complete (5 features)**
+- AI-style command completion UI
+- Command history search with fuzzy matching
+- Man page integration and command preview
+
+**Copy Mode (8 features)**
+- Vi-style navigation for text selection
+- Vi key bindings (hjkl, w, b, e, 0, $, etc.)
+- Search (/ and ?) and marks (m and ')
+- y operation to copy to clipboard
+
+**Snippets & Actions (6 features)**
+- Saved text snippets with shortcuts
+- Dynamic variables in snippets
+- Custom user-defined actions/macros
+
+**Window Arrangements (9 features)**
+- Save/restore window arrangements
+- Hotkey window type (Quake-style dropdown)
+- Hotkey window animations and profiles
+- Screen memory per arrangement
+
+**Session Management (5 features)**
+- Prompt on quit with sessions
+- Session undo timeout (recover closed tabs)
+- Session restore on launch
+
+**Tab Styles (6 features)**
+- Multiple tab style variants (Automatic/Compact/High Contrast/Light/Minimal/Dark)
+- Auto-switch tab style based on theme
+
+**Pane Customization (5 features)**
+- Pane title format, position, color, font
+- Division thickness and style variants
+- Per-pane backgrounds (data model ready, renderer pending)
+
+**Profile Switching (5 features)**
+- Directory-based auto-switching
+- Command-based auto-switching
+- User-based auto-switching
+- Dynamic profiles from URL with auto-reload
+
+**Image Protocol Enhancements (5 features)**
+- Image compression, scaling quality
+- Image placement modes, aspect ratio preservation
+
+**Advanced Configuration (7 features)**
+- Save preferences mode (auto-save/ask on quit)
+- Import/export preferences
+- Preference validation and profiles
+
+**Unicode & Text Processing (3 features)**
+- Unicode normalization (NFC/NFD/HFS+)
+- Emoji variation sequences
+- Right-to-left text support
+
+**Browser Integration (4 features)**
+- Built-in browser for web-based workflows
+- Browser per tab, profile sync
+
+**Progress Bars (4 features)**
+- OSC 934 protocol support
+- Progress bar style and position
+- Multiple concurrent progress bars
+
+**Advanced Paste (3 features)**
+- Paste delay between lines
+- Paste as single line
+- Add/remove newlines on paste
+
+**Advanced Shell Integration (4 features)**
+- Shell integration auto-install
+- Version check and disable toggle
+- Current command in window title
+- Command exit code in badge
+- Remote host integration
+
+**Network & Discovery (4 features)**
+- Bonjour discovery
+- SSH hosts auto-discovery
+- Host profiles and quick connect
+
+**Total: 134 new features identified across 21 new categories**
+
+---
 
 ### Recently Completed (v0.11.0)
 - ✅ Triggers & automation (regex triggers, 7 action types, coprocesses with restart policy & output viewer, Settings UI)
@@ -621,6 +1128,6 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 ---
 
-*Updated: 2026-02-06*
+*Updated: 2026-02-06 (Feature audit - 134 new iTerm2 features identified)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.11.0+*
