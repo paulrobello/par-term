@@ -200,6 +200,7 @@ fn show_snippets_section(
             settings.temp_snippet_folder = snippet.folder.clone().unwrap_or_default();
             settings.temp_snippet_description = snippet.description.clone().unwrap_or_default();
             settings.temp_snippet_keybinding_enabled = snippet.keybinding_enabled;
+            settings.temp_snippet_auto_execute = snippet.auto_execute;
         }
 
         ui.separator();
@@ -219,6 +220,7 @@ fn show_snippets_section(
                 settings.temp_snippet_folder = String::new();
                 settings.temp_snippet_description = String::new();
                 settings.temp_snippet_keybinding_enabled = true;
+                settings.temp_snippet_auto_execute = false;
             }
         }
     });
@@ -248,6 +250,15 @@ fn show_snippet_edit_form(
         if ui.text_edit_multiline(&mut settings.temp_snippet_content).changed() {
             *changes_this_frame = true;
         }
+    });
+
+    ui.horizontal(|ui| {
+        if ui.checkbox(&mut settings.temp_snippet_auto_execute, "Auto-execute (send Enter after inserting)").changed() {
+            *changes_this_frame = true;
+        }
+        ui.label(egui::RichText::new("⚡ Automatically runs the command")
+            .small()
+            .color(egui::Color32::GRAY));
     });
 
     ui.horizontal(|ui| {
@@ -350,6 +361,7 @@ fn show_snippet_edit_form(
                 } else {
                     Some(settings.temp_snippet_description.clone())
                 },
+                auto_execute: settings.temp_snippet_auto_execute,
                 variables: HashMap::new(), // TODO: Add custom variables UI
             };
 

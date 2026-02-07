@@ -28,12 +28,17 @@ Snippets are saved text blocks that can be quickly inserted into the terminal. T
 4. Fill in the snippet details:
    - **Title**: A human-readable name (e.g., "Git Commit Message")
    - **Content**: The text to insert (supports variables)
+     - For commands that need to run in a specific directory, include the cd command: `cd ~/projects && npm test`
+     - The **Folder** field is only for organizing snippets in the UI, not for changing directories
+   - **Auto-execute** (optional): Check this box to automatically send Enter after inserting the snippet
+     - Useful for commands that should run immediately
+     - Equivalent to adding `\n` at the end of the content
    - **Keybinding** (optional): Keyboard shortcut to trigger the snippet
      - Click the **🎤 Record** button and press the desired key combination
      - Or type it manually (e.g., `Ctrl+Shift+D`)
      - Conflict warnings appear if the keybinding is already in use (⚠️)
      - **Enable keybinding** checkbox: Uncheck to disable the keybinding without removing it (useful for temporary disable)
-   - **Folder** (optional): Group snippets into folders
+   - **Folder** (optional): Group snippets into folders for organization (e.g., "Git", "Docker", "AWS")
    - **Description** (optional): Notes about what the snippet does
 
 ### Using Snippets
@@ -87,6 +92,15 @@ Title: Project Header
 Content: echo "Working on \(user)@\(hostname) in \(path)"
 ```
 Inserts: `echo "Working on alice@my-computer in /home/alice/projects"`
+
+**Command with Auto-execute:**
+```yaml
+Title: Run Tests
+Content: cd ~/projects/myapp && npm test
+Auto-execute: true
+Keybinding: Ctrl+Shift+T
+```
+When triggered, changes directory and runs tests immediately (sends Enter automatically)
 
 ### Organizing Snippets
 
@@ -187,10 +201,18 @@ snippets:
     content: "echo 'Report: \(date)'"
     keybinding: "Ctrl+Shift+D"  # optional, set via Record button
     keybinding_enabled: true    # enable/disable keybinding (default: true)
+    auto_execute: false         # send Enter after inserting (default: false)
     folder: "Common"            # optional
     enabled: true
     description: "Insert current date"
     variables: {}                # custom variables
+
+  - id: "snippet_002"
+    title: "Run Tests"
+    content: "cd ~/projects/myapp && npm test"
+    keybinding: "Ctrl+Shift+T"
+    auto_execute: true          # Automatically runs the command
+    folder: "Development"
 
 # Custom actions
 actions:
@@ -206,6 +228,8 @@ keybindings:
   - key: "Ctrl+Shift+D"
     action: "snippet:snippet_001"
   - key: "Ctrl+Shift+T"
+    action: "snippet:snippet_002"
+  - key: "Ctrl+Shift+R"
     action: "action:action_001"
 ```
 
@@ -311,6 +335,13 @@ Folder: SSH
    - Useful when you need to free up a keybinding for another use
    - The keybinding configuration is preserved but won't trigger
    - Re-enable the checkbox to restore the keybinding functionality
+9. **Use Auto-execute for Commands**: Check "Auto-execute" for snippets that should run immediately
+   - Perfect for frequently-run commands (tests, builds, git operations)
+   - Automatically sends Enter after inserting the snippet
+   - Equivalent to adding `\n` at the end of the content
+10. **Folders Don't Change Directories**: The folder field is only for organizing snippets in the UI
+    - To run commands in a specific directory, include `cd /path/to/dir &&` in the snippet content
+    - Example: `cd ~/projects/myapp && npm test`
 
 ## Limitations
 

@@ -601,3 +601,47 @@ fn test_generate_snippet_keybindings_remove_when_cleared() {
     // Should not have the snippet keybinding anymore
     assert!(!config.keybindings.iter().any(|kb| kb.action == "snippet:test"));
 }
+
+#[test]
+fn test_snippet_auto_execute_field() {
+    // Test default value is false
+    let snippet = SnippetConfig::new(
+        "test".to_string(),
+        "Test".to_string(),
+        "echo 'hello'".to_string(),
+    );
+
+    assert_eq!(snippet.auto_execute, false);
+
+    // Test with_auto_execute builder
+    let snippet_auto = SnippetConfig::new(
+        "test2".to_string(),
+        "Test2".to_string(),
+        "echo 'world'".to_string(),
+    )
+    .with_auto_execute();
+
+    assert_eq!(snippet_auto.auto_execute, true);
+}
+
+#[test]
+fn test_snippet_serialization_with_auto_execute() {
+    let snippet = SnippetConfig::new(
+        "test".to_string(),
+        "Test".to_string(),
+        "content".to_string(),
+    )
+    .with_auto_execute();
+
+    // Serialize
+    let yaml = serde_yaml::to_string(&snippet).unwrap();
+
+    // Check that auto_execute is in the YAML
+    assert!(yaml.contains("auto_execute"));
+
+    // Deserialize
+    let deserialized: SnippetConfig = serde_yaml::from_str(&yaml).unwrap();
+
+    assert_eq!(deserialized.id, snippet.id);
+    assert_eq!(deserialized.auto_execute, true);
+}

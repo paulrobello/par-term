@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Keyboard shortcut assignment via `keybinding` field
     - Folder organization for grouping related snippets
     - Config persistence in `config.yaml` via `snippets` array with `SnippetConfig` structs
+    - **Auto-execute**: Optional checkbox to send Enter after inserting snippet content
+      - Automatically runs commands when keybinding is pressed
+      - Equivalent to appending `\n` to snippet content
+      - Perfect for frequently-run commands (tests, builds, git operations)
   - **Variable Substitution Engine**: Regex-based parser with real-time resolution
     - `VariableSubstitutor` in `src/snippets/mod.rs`
     - Built-in variable resolution using system APIs
@@ -29,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Variable substitution performed at insertion time
     - Error handling with toast notifications
     - Proper terminal locking (tokio::sync::Mutex try_lock)
+    - Auto-execute appends newline to run commands immediately
   - **Custom Actions**: User-defined macros triggered via keyboard shortcuts
     - **ShellCommand**: Execute shell commands with std::process::Command
       - Optional success notification with stdout display
@@ -45,9 +50,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       - Folder grouping with alphabetical sorting
       - Variables reference section with built-in variable documentation
       - Enable/disable toggles, delete with confirmation
+      - **Auto-execute checkbox** (⚡): Automatically send Enter after inserting
+      - **Keybinding enable/disable toggle**: Temporarily disable keybindings without removing
     - **Actions tab** (🚀): Full CRUD operations for custom actions
       - Type selector (Shell Command, Insert Text, Key Sequence)
       - Type-specific form fields (command/args, text, keys)
+  - **Keybinding Management**:
+    - **Record Button** (🎤): Capture keybindings by pressing keys
+    - **Conflict Detection**: Visual warnings (⚠️) for duplicate keybindings
+    - **Update on Save**: Keybindings regenerated when settings are saved
+    - **Smart Updates**: Existing keybindings are updated when keys change, not skipped
+    - **Stale Removal**: Keybindings removed when snippet keybindings are cleared
+  - **Debug Logging**: Comprehensive logging for keybinding execution troubleshooting
       - Action ID and title configuration
     - Searchable via sidebar keywords (snippet, text, insert, variable, keybinding, action, shell, command)
   - **Keybinding Auto-Generation**: Snippets with keybinding field auto-generate keybindings

@@ -1454,12 +1454,23 @@ impl WindowState {
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             // Use try_lock in sync context (per MEMORY.md guidance)
             if let Ok(terminal) = tab.terminal.try_lock() {
-                if let Err(e) = terminal.write(substituted_content.as_bytes()) {
+                // Append newline if auto_execute is enabled
+                let content_to_write = if snippet.auto_execute {
+                    format!("{}\n", substituted_content)
+                } else {
+                    substituted_content.clone()
+                };
+
+                if let Err(e) = terminal.write(content_to_write.as_bytes()) {
                     log::error!("Failed to write snippet to terminal: {}", e);
                     return false;
                 }
 
-                log::info!("Executed snippet '{}'", snippet.title);
+                log::info!(
+                    "Executed snippet '{}' (auto_execute={})",
+                    snippet.title,
+                    snippet.auto_execute
+                );
                 return true;
             } else {
                 log::error!("Failed to lock terminal for snippet execution");

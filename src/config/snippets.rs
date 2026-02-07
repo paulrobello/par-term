@@ -44,6 +44,11 @@ pub struct SnippetConfig {
     #[serde(default)]
     pub description: Option<String>,
 
+    /// Whether to automatically send Enter after inserting the snippet (default: false)
+    /// If true, a newline character is appended to execute the command immediately
+    #[serde(default)]
+    pub auto_execute: bool,
+
     /// Custom variables defined for this snippet
     #[serde(default)]
     pub variables: HashMap<String, String>,
@@ -61,6 +66,7 @@ impl SnippetConfig {
             folder: None,
             enabled: true,
             description: None,
+            auto_execute: false,
             variables: HashMap::new(),
         }
     }
@@ -86,6 +92,12 @@ impl SnippetConfig {
     /// Add a custom variable to the snippet.
     pub fn with_variable(mut self, name: String, value: String) -> Self {
         self.variables.insert(name, value);
+        self
+    }
+
+    /// Enable auto-execute (send Enter after inserting the snippet).
+    pub fn with_auto_execute(mut self) -> Self {
+        self.auto_execute = true;
         self
     }
 }

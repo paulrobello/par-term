@@ -267,6 +267,8 @@ pub struct SettingsUI {
     pub(crate) temp_snippet_description: String,
     /// Temporary snippet keybinding enabled for edit form
     pub(crate) temp_snippet_keybinding_enabled: bool,
+    /// Temporary snippet auto_execute for edit form
+    pub(crate) temp_snippet_auto_execute: bool,
     /// Whether the add-new-snippet form is active
     pub(crate) adding_new_snippet: bool,
     /// Whether currently recording a keybinding for a snippet
@@ -423,6 +425,7 @@ impl SettingsUI {
             temp_snippet_folder: String::new(),
             temp_snippet_description: String::new(),
             temp_snippet_keybinding_enabled: true,
+            temp_snippet_auto_execute: false,
             adding_new_snippet: false,
             editing_action_index: None,
             temp_action_type: 0,
