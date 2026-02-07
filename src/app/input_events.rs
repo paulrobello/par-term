@@ -86,14 +86,25 @@ impl WindowState {
                 self.config.use_physical_keys,
             )
         {
-            crate::debug_info!("KEYBINDING", "Keybinding matched: action={}, key={:?}, modifiers={:?}", action, event.logical_key, self.input_handler.modifiers);
+            crate::debug_info!(
+                "KEYBINDING",
+                "Keybinding matched: action={}, key={:?}, modifiers={:?}",
+                action,
+                event.logical_key,
+                self.input_handler.modifiers
+            );
             // Clone to avoid borrow conflict
             let action = action.to_string();
             if self.execute_keybinding_action(&action) {
                 return; // Key was handled by user-defined keybinding
             }
         } else if event.state == ElementState::Pressed {
-            crate::debug_log!("KEYBINDING", "No keybinding match for key={:?}, modifiers={:?}", event.logical_key, self.input_handler.modifiers);
+            crate::debug_log!(
+                "KEYBINDING",
+                "No keybinding match for key={:?}, modifiers={:?}",
+                event.logical_key,
+                self.input_handler.modifiers
+            );
         }
 
         // Check if this is a scroll navigation key
@@ -1441,13 +1452,20 @@ impl WindowState {
         // Substitute variables in the snippet content, including session variables
         let substituted_content = {
             let session_vars = self.badge_state.variables.read();
-            let result = crate::snippets::VariableSubstitutor::new()
-                .substitute_with_session(&snippet.content, &snippet.variables, Some(&session_vars));
+            let result = crate::snippets::VariableSubstitutor::new().substitute_with_session(
+                &snippet.content,
+                &snippet.variables,
+                Some(&session_vars),
+            );
             drop(session_vars); // Explicitly drop before using self again
             match result {
                 Ok(content) => content,
                 Err(e) => {
-                    log::error!("Failed to substitute variables in snippet '{}': {}", snippet.title, e);
+                    log::error!(
+                        "Failed to substitute variables in snippet '{}': {}",
+                        snippet.title,
+                        e
+                    );
                     self.show_toast(format!("Snippet Error: {}", e));
                     return false;
                 }
@@ -1510,21 +1528,21 @@ impl WindowState {
                 log::info!("Executing shell command: {} {}", command, args.join(" "));
 
                 // Execute the shell command
-                let result = std::process::Command::new(command)
-                    .args(args)
-                    .output();
+                let result = std::process::Command::new(command).args(args).output();
 
                 match result {
                     Ok(output) => {
                         if output.status.success() {
                             if *notify_on_success {
-                                let message = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                                let message =
+                                    String::from_utf8_lossy(&output.stdout).trim().to_string();
                                 self.show_toast(format!("Command completed: {}", message));
                             }
                             log::info!("Shell command completed successfully");
                             true
                         } else {
-                            let error_msg = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                            let error_msg =
+                                String::from_utf8_lossy(&output.stderr).trim().to_string();
                             log::error!("Shell command failed: {}", error_msg);
                             self.show_toast(format!("Command failed: {}", error_msg));
                             false
@@ -1537,18 +1555,19 @@ impl WindowState {
                     }
                 }
             }
-            CustomActionConfig::InsertText { text, variables, .. } => {
+            CustomActionConfig::InsertText {
+                text, variables, ..
+            } => {
                 // Substitute variables
-                let substituted_text = match crate::snippets::VariableSubstitutor::new()
-                    .substitute(text, variables)
-                {
-                    Ok(content) => content,
-                    Err(e) => {
-                        log::error!("Failed to substitute variables in action: {}", e);
-                        self.show_toast(format!("Action Error: {}", e));
-                        return false;
-                    }
-                };
+                let substituted_text =
+                    match crate::snippets::VariableSubstitutor::new().substitute(text, variables) {
+                        Ok(content) => content,
+                        Err(e) => {
+                            log::error!("Failed to substitute variables in action: {}", e);
+                            self.show_toast(format!("Action Error: {}", e));
+                            return false;
+                        }
+                    };
 
                 // Write to the active terminal
                 if let Some(tab) = self.tab_manager.active_tab_mut() {

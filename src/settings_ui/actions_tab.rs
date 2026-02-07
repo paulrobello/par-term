@@ -19,15 +19,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         &query,
         "Actions",
         &[
-            "action",
-            "custom",
-            "shell",
-            "command",
-            "text",
-            "insert",
-            "key",
-            "sequence",
-            "macro",
+            "action", "custom", "shell", "command", "text", "insert", "key", "sequence", "macro",
         ],
     ) {
         show_actions_section(ui, settings, changes_this_frame);
@@ -93,7 +85,7 @@ fn show_actions_section(
                     match action {
                         CustomActionConfig::ShellCommand { command, .. } => {
                             ui.label(
-                                egui::RichText::new(format!("{}", command))
+                                egui::RichText::new(command.to_string())
                                     .monospace()
                                     .color(egui::Color32::GRAY),
                             );
@@ -184,19 +176,17 @@ fn show_actions_section(
         // Add new action button or form
         if settings.adding_new_action {
             show_action_edit_form(ui, settings, changes_this_frame, None);
-        } else {
-            if ui.button("+ Add Action").clicked() {
-                settings.adding_new_action = true;
-                settings.editing_action_index = None;
-                // Clear temp fields
-                settings.temp_action_id = format!("action_{}", uuid::Uuid::new_v4());
-                settings.temp_action_title = String::new();
-                settings.temp_action_type = 0;
-                settings.temp_action_command = String::new();
-                settings.temp_action_args = String::new();
-                settings.temp_action_text = String::new();
-                settings.temp_action_keys = String::new();
-            }
+        } else if ui.button("+ Add Action").clicked() {
+            settings.adding_new_action = true;
+            settings.editing_action_index = None;
+            // Clear temp fields
+            settings.temp_action_id = format!("action_{}", uuid::Uuid::new_v4());
+            settings.temp_action_title = String::new();
+            settings.temp_action_type = 0;
+            settings.temp_action_command = String::new();
+            settings.temp_action_args = String::new();
+            settings.temp_action_text = String::new();
+            settings.temp_action_keys = String::new();
         }
     });
 }
@@ -209,12 +199,19 @@ fn show_action_edit_form(
     edit_index: Option<usize>,
 ) {
     ui.label("Title:");
-    if ui.text_edit_singleline(&mut settings.temp_action_title).changed() {
+    if ui
+        .text_edit_singleline(&mut settings.temp_action_title)
+        .changed()
+    {
         *changes_this_frame = true;
     }
 
     ui.label("ID:");
-    ui.label(egui::RichText::new(&settings.temp_action_id).monospace().small());
+    ui.label(
+        egui::RichText::new(&settings.temp_action_id)
+            .monospace()
+            .small(),
+    );
 
     ui.label("Type:");
     let types = ["Shell Command", "Insert Text", "Key Sequence"];
@@ -223,7 +220,10 @@ fn show_action_edit_form(
         .width(150.0)
         .show_ui(ui, |ui| {
             for (i, &type_name) in types.iter().enumerate() {
-                if ui.selectable_label(settings.temp_action_type == i, type_name).clicked() {
+                if ui
+                    .selectable_label(settings.temp_action_type == i, type_name)
+                    .clicked()
+                {
                     settings.temp_action_type = i;
                     *changes_this_frame = true;
                 }
@@ -244,19 +244,24 @@ fn show_action_edit_form(
             }
         } else {
             // Show text input and record button
-            if ui.text_edit_singleline(&mut settings.temp_action_keybinding).changed() {
+            if ui
+                .text_edit_singleline(&mut settings.temp_action_keybinding)
+                .changed()
+            {
                 *changes_this_frame = true;
             }
 
             // Check for conflicts
             if !settings.temp_action_keybinding.is_empty() {
                 let exclude_id = if let Some(i) = edit_index {
-                    settings.config.actions.get(i).map(|a| a.id().as_ref())
+                    settings.config.actions.get(i).map(|a| a.id())
                 } else {
                     None
                 };
 
-                if let Some(conflict) = settings.check_keybinding_conflict(&settings.temp_action_keybinding, exclude_id) {
+                if let Some(conflict) =
+                    settings.check_keybinding_conflict(&settings.temp_action_keybinding, exclude_id)
+                {
                     ui.label(
                         egui::RichText::new(format!("⚠️ {}", conflict))
                             .color(egui::Color32::from_rgb(255, 180, 0))
@@ -266,7 +271,11 @@ fn show_action_edit_form(
             }
 
             // Record button
-            if ui.small_button("🎤").on_hover_text("Record keybinding").clicked() {
+            if ui
+                .small_button("🎤")
+                .on_hover_text("Record keybinding")
+                .clicked()
+            {
                 settings.recording_action_keybinding = true;
                 settings.action_recorded_combo = None;
             }
@@ -278,25 +287,41 @@ fn show_action_edit_form(
         0 => {
             // Shell Command
             ui.label("Command:");
-            if ui.text_edit_singleline(&mut settings.temp_action_command).changed() {
+            if ui
+                .text_edit_singleline(&mut settings.temp_action_command)
+                .changed()
+            {
                 *changes_this_frame = true;
             }
             ui.label("Arguments (space-separated):");
-            if ui.text_edit_singleline(&mut settings.temp_action_args).changed() {
+            if ui
+                .text_edit_singleline(&mut settings.temp_action_args)
+                .changed()
+            {
                 *changes_this_frame = true;
             }
         }
         1 => {
             // Insert Text
             ui.label("Text to insert:");
-            if ui.text_edit_multiline(&mut settings.temp_action_text).changed() {
-                *changes_this_frame = true;
-            }
+            egui::ScrollArea::vertical()
+                .max_height(100.0)
+                .show(ui, |ui| {
+                    if ui
+                        .text_edit_multiline(&mut settings.temp_action_text)
+                        .changed()
+                    {
+                        *changes_this_frame = true;
+                    }
+                });
         }
         2 => {
             // Key Sequence
             ui.label("Key sequence:");
-            if ui.text_edit_singleline(&mut settings.temp_action_keys).changed() {
+            if ui
+                .text_edit_singleline(&mut settings.temp_action_keys)
+                .changed()
+            {
                 *changes_this_frame = true;
             }
         }
@@ -313,7 +338,11 @@ fn show_action_edit_form(
                     args: if settings.temp_action_args.is_empty() {
                         Vec::new()
                     } else {
-                        settings.temp_action_args.split_whitespace().map(|s| s.to_string()).collect()
+                        settings
+                            .temp_action_args
+                            .split_whitespace()
+                            .map(|s| s.to_string())
+                            .collect()
                     },
                     notify_on_success: false,
                     description: None,
@@ -347,7 +376,9 @@ fn show_action_edit_form(
             if !settings.temp_action_keybinding.is_empty() {
                 let keybinding_action = format!("action:{}", settings.temp_action_id);
                 // Check if this keybinding already exists in the config
-                let existing_index = settings.config.keybindings.iter().position(|kb| kb.key == settings.temp_action_keybinding && kb.action == keybinding_action);
+                let existing_index = settings.config.keybindings.iter().position(|kb| {
+                    kb.key == settings.temp_action_keybinding && kb.action == keybinding_action
+                });
 
                 if existing_index.is_none() {
                     // Add new keybinding

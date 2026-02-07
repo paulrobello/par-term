@@ -9,6 +9,7 @@ use rfd::FileDialog;
 use std::collections::HashSet;
 
 // Reorganized settings tabs (12 consolidated tabs)
+pub mod actions_tab;
 pub mod advanced_tab;
 pub mod appearance_tab;
 pub mod automation_tab;
@@ -21,10 +22,9 @@ pub mod profiles_tab;
 pub mod quick_settings;
 pub mod section;
 pub mod sidebar;
+pub mod snippets_tab;
 pub mod terminal_tab;
 pub mod window_tab;
-pub mod snippets_tab;
-pub mod actions_tab;
 
 // Background tab is still needed by effects_tab for delegation
 pub mod background_tab;
@@ -1194,7 +1194,11 @@ impl SettingsUI {
     /// Check if a keybinding conflicts with existing keybindings.
     ///
     /// Returns Some(conflict_description) if there's a conflict, None otherwise.
-    pub(crate) fn check_keybinding_conflict(&self, key: &str, exclude_id: Option<&str>) -> Option<String> {
+    pub(crate) fn check_keybinding_conflict(
+        &self,
+        key: &str,
+        exclude_id: Option<&str>,
+    ) -> Option<String> {
         // Check against existing keybindings in config
         for binding in &self.config.keybindings {
             if binding.key == key {
@@ -1204,14 +1208,14 @@ impl SettingsUI {
 
         // Check against snippets with keybindings (exclude the current snippet being edited)
         for snippet in &self.config.snippets {
-            if let Some(snippet_key) = &snippet.keybinding {
-                if snippet_key == key {
-                    // Skip if this is the snippet being edited
-                    if exclude_id == Some(&snippet.id) {
-                        continue;
-                    }
-                    return Some(format!("Already bound to snippet: {}", snippet.title));
+            if let Some(snippet_key) = &snippet.keybinding
+                && snippet_key == key
+            {
+                // Skip if this is the snippet being edited
+                if exclude_id == Some(&snippet.id) {
+                    continue;
                 }
+                return Some(format!("Already bound to snippet: {}", snippet.title));
             }
         }
 

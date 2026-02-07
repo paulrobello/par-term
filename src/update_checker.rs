@@ -354,25 +354,31 @@ mod tests {
     #[test]
     fn test_should_check_never() {
         let checker = UpdateChecker::new();
-        let mut config = Config::default();
-        config.update_check_frequency = UpdateCheckFrequency::Never;
+        let config = Config {
+            update_check_frequency: UpdateCheckFrequency::Never,
+            ..Default::default()
+        };
         assert!(!checker.should_check(&config));
     }
 
     #[test]
     fn test_should_check_no_previous() {
         let checker = UpdateChecker::new();
-        let mut config = Config::default();
-        config.update_check_frequency = UpdateCheckFrequency::Weekly;
-        config.last_update_check = None;
+        let config = Config {
+            update_check_frequency: UpdateCheckFrequency::Weekly,
+            last_update_check: None,
+            ..Default::default()
+        };
         assert!(checker.should_check(&config));
     }
 
     #[test]
     fn test_should_check_time_elapsed() {
         let checker = UpdateChecker::new();
-        let mut config = Config::default();
-        config.update_check_frequency = UpdateCheckFrequency::Daily;
+        let mut config = Config {
+            update_check_frequency: UpdateCheckFrequency::Daily,
+            ..Default::default()
+        };
 
         // Set last check to 2 days ago
         let two_days_ago = Utc::now() - chrono::Duration::days(2);

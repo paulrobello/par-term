@@ -208,20 +208,18 @@ fn show_snippets_section(
         // Add new snippet button or form
         if settings.adding_new_snippet {
             show_snippet_edit_form(ui, settings, changes_this_frame, None);
-        } else {
-            if ui.button("+ Add Snippet").clicked() {
-                settings.adding_new_snippet = true;
-                settings.editing_snippet_index = None;
-                // Clear temp fields
-                settings.temp_snippet_id = format!("snippet_{}", uuid::Uuid::new_v4());
-                settings.temp_snippet_title = String::new();
-                settings.temp_snippet_content = String::new();
-                settings.temp_snippet_keybinding = String::new();
-                settings.temp_snippet_folder = String::new();
-                settings.temp_snippet_description = String::new();
-                settings.temp_snippet_keybinding_enabled = true;
-                settings.temp_snippet_auto_execute = false;
-            }
+        } else if ui.button("+ Add Snippet").clicked() {
+            settings.adding_new_snippet = true;
+            settings.editing_snippet_index = None;
+            // Clear temp fields
+            settings.temp_snippet_id = format!("snippet_{}", uuid::Uuid::new_v4());
+            settings.temp_snippet_title = String::new();
+            settings.temp_snippet_content = String::new();
+            settings.temp_snippet_keybinding = String::new();
+            settings.temp_snippet_folder = String::new();
+            settings.temp_snippet_description = String::new();
+            settings.temp_snippet_keybinding_enabled = true;
+            settings.temp_snippet_auto_execute = false;
         }
     });
 }
@@ -234,25 +232,44 @@ fn show_snippet_edit_form(
     edit_index: Option<usize>,
 ) {
     ui.label("Title:");
-    if ui.text_edit_singleline(&mut settings.temp_snippet_title).changed() {
+    if ui
+        .text_edit_singleline(&mut settings.temp_snippet_title)
+        .changed()
+    {
         *changes_this_frame = true;
     }
 
     ui.label("ID:");
-    ui.label(egui::RichText::new(&settings.temp_snippet_id).monospace().small());
+    ui.label(
+        egui::RichText::new(&settings.temp_snippet_id)
+            .monospace()
+            .small(),
+    );
 
     ui.label("Content:");
-    if ui.text_edit_multiline(&mut settings.temp_snippet_content).changed() {
-        *changes_this_frame = true;
-    }
+    egui::ScrollArea::vertical()
+        .max_height(150.0)
+        .show(ui, |ui| {
+            if ui
+                .text_edit_multiline(&mut settings.temp_snippet_content)
+                .changed()
+            {
+                *changes_this_frame = true;
+            }
+        });
 
     ui.horizontal(|ui| {
-        if ui.checkbox(&mut settings.temp_snippet_auto_execute, "Auto-execute").changed() {
+        if ui
+            .checkbox(&mut settings.temp_snippet_auto_execute, "Auto-execute")
+            .changed()
+        {
             *changes_this_frame = true;
         }
-        ui.label(egui::RichText::new("⚡ run immediately")
-            .small()
-            .color(egui::Color32::GRAY));
+        ui.label(
+            egui::RichText::new("⚡ run immediately")
+                .small()
+                .color(egui::Color32::GRAY),
+        );
     });
 
     ui.label("Keybinding:");
@@ -269,7 +286,10 @@ fn show_snippet_edit_form(
             }
         } else {
             // Show text input and record button
-            if ui.text_edit_singleline(&mut settings.temp_snippet_keybinding).changed() {
+            if ui
+                .text_edit_singleline(&mut settings.temp_snippet_keybinding)
+                .changed()
+            {
                 *changes_this_frame = true;
             }
 
@@ -281,7 +301,9 @@ fn show_snippet_edit_form(
                     None
                 };
 
-                if let Some(conflict) = settings.check_keybinding_conflict(&settings.temp_snippet_keybinding, exclude_id) {
+                if let Some(conflict) = settings
+                    .check_keybinding_conflict(&settings.temp_snippet_keybinding, exclude_id)
+                {
                     ui.label(
                         egui::RichText::new(format!("⚠️ {}", conflict))
                             .color(egui::Color32::from_rgb(255, 180, 0))
@@ -291,7 +313,11 @@ fn show_snippet_edit_form(
             }
 
             // Record button
-            if ui.small_button("🎤").on_hover_text("Record keybinding").clicked() {
+            if ui
+                .small_button("🎤")
+                .on_hover_text("Record keybinding")
+                .clicked()
+            {
                 settings.recording_snippet_keybinding = true;
                 settings.snippet_recorded_combo = None;
             }
@@ -301,22 +327,33 @@ fn show_snippet_edit_form(
     // Show keybinding enabled checkbox if keybinding is set
     if !settings.temp_snippet_keybinding.is_empty() {
         ui.horizontal(|ui| {
-            if ui.checkbox(&mut settings.temp_snippet_keybinding_enabled, "Enabled").changed() {
+            if ui
+                .checkbox(&mut settings.temp_snippet_keybinding_enabled, "Enabled")
+                .changed()
+            {
                 *changes_this_frame = true;
             }
-            ui.label(egui::RichText::new("(disable without removing)")
-                .small()
-                .color(egui::Color32::GRAY));
+            ui.label(
+                egui::RichText::new("(disable without removing)")
+                    .small()
+                    .color(egui::Color32::GRAY),
+            );
         });
     }
 
     ui.label("Folder:");
-    if ui.text_edit_singleline(&mut settings.temp_snippet_folder).changed() {
+    if ui
+        .text_edit_singleline(&mut settings.temp_snippet_folder)
+        .changed()
+    {
         *changes_this_frame = true;
     }
 
     ui.label("Description:");
-    if ui.text_edit_singleline(&mut settings.temp_snippet_description).changed() {
+    if ui
+        .text_edit_singleline(&mut settings.temp_snippet_description)
+        .changed()
+    {
         *changes_this_frame = true;
     }
 
@@ -382,32 +419,42 @@ fn show_snippet_edit_form(
 // ============================================================================
 
 fn show_variables_reference_section(ui: &mut egui::Ui, _settings: &mut SettingsUI) {
-    collapsing_section(ui, "Variables Reference", "snippets_variables", false, |ui| {
-        ui.label("Built-in variables available for use in snippets:");
-        ui.add_space(4.0);
+    collapsing_section(
+        ui,
+        "Variables Reference",
+        "snippets_variables",
+        false,
+        |ui| {
+            ui.label("Built-in variables available for use in snippets:");
+            ui.add_space(4.0);
 
-        use crate::config::snippets::BuiltInVariable;
+            use crate::config::snippets::BuiltInVariable;
 
-        egui::Grid::new("snippet_variables_grid")
-            .num_columns(2)
-            .spacing([20.0, 4.0])
-            .show(ui, |ui| {
-                ui.label(egui::RichText::new("Variable").strong());
-                ui.label(egui::RichText::new("Description").strong());
-                ui.end_row();
-
-                for (name, description) in BuiltInVariable::all() {
-                    ui.label(egui::RichText::new(format!("\\({})", name)).monospace());
-                    ui.label(egui::RichText::new(*description).small().color(egui::Color32::GRAY));
+            egui::Grid::new("snippet_variables_grid")
+                .num_columns(2)
+                .spacing([20.0, 4.0])
+                .show(ui, |ui| {
+                    ui.label(egui::RichText::new("Variable").strong());
+                    ui.label(egui::RichText::new("Description").strong());
                     ui.end_row();
-                }
-            });
 
-        ui.add_space(8.0);
-        ui.label(
-            egui::RichText::new("Example: \"echo 'Report for \\(user) on \\(date)'\"")
-                .monospace()
-                .small(),
-        );
-    });
+                    for (name, description) in BuiltInVariable::all() {
+                        ui.label(egui::RichText::new(format!("\\({})", name)).monospace());
+                        ui.label(
+                            egui::RichText::new(*description)
+                                .small()
+                                .color(egui::Color32::GRAY),
+                        );
+                        ui.end_row();
+                    }
+                });
+
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new("Example: \"echo 'Report for \\(user) on \\(date)'\"")
+                    .monospace()
+                    .small(),
+            );
+        },
+    );
 }

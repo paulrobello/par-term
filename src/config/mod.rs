@@ -1715,7 +1715,9 @@ impl Config {
 
                 if !key.is_empty() && snippet.enabled && snippet.keybinding_enabled {
                     // Check if this action already has a keybinding
-                    if let Some(existing) = self.keybindings.iter_mut().find(|kb| kb.action == action) {
+                    if let Some(existing) =
+                        self.keybindings.iter_mut().find(|kb| kb.action == action)
+                    {
                         // Update existing keybinding if the key changed
                         if existing.key != *key {
                             log::info!(

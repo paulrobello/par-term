@@ -308,17 +308,13 @@ impl BuiltInVariable {
                             .unwrap_or_else(|| "unknown".to_string())
                     })
             }
-            Self::User => {
-                std::env::var("USER")
-                    .or_else(|_| std::env::var("USERNAME"))
-                    .unwrap_or_else(|_| "unknown".to_string())
-            }
-            Self::Path => {
-                std::env::current_dir()
-                    .ok()
-                    .and_then(|p| p.to_str().map(|s| s.to_string()))
-                    .unwrap_or_else(|| ".".to_string())
-            }
+            Self::User => std::env::var("USER")
+                .or_else(|_| std::env::var("USERNAME"))
+                .unwrap_or_else(|_| "unknown".to_string()),
+            Self::Path => std::env::current_dir()
+                .ok()
+                .and_then(|p| p.to_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| ".".to_string()),
             Self::GitBranch => {
                 // Try to get git branch from environment or command
                 match std::env::var("GIT_BRANCH") {
@@ -331,7 +327,7 @@ impl BuiltInVariable {
                             .ok()
                             .and_then(|o| String::from_utf8(o.stdout).ok())
                             .map(|s| s.trim().to_string())
-                            .unwrap_or_else(|| "".to_string())
+                            .unwrap_or_default()
                     }
                 }
             }
@@ -339,20 +335,16 @@ impl BuiltInVariable {
                 // Try to get git commit from environment or command
                 match std::env::var("GIT_COMMIT") {
                     Ok(commit) => commit,
-                    Err(_) => {
-                        std::process::Command::new("git")
-                            .args(["rev-parse", "--short", "HEAD"])
-                            .output()
-                            .ok()
-                            .and_then(|o| String::from_utf8(o.stdout).ok())
-                            .map(|s| s.trim().to_string())
-                            .unwrap_or_else(|| "".to_string())
-                    }
+                    Err(_) => std::process::Command::new("git")
+                        .args(["rev-parse", "--short", "HEAD"])
+                        .output()
+                        .ok()
+                        .and_then(|o| String::from_utf8(o.stdout).ok())
+                        .map(|s| s.trim().to_string())
+                        .unwrap_or_default(),
                 }
             }
-            Self::Uuid => {
-                uuid::Uuid::new_v4().to_string()
-            }
+            Self::Uuid => uuid::Uuid::new_v4().to_string(),
             Self::Random => {
                 use std::time::{SystemTime, UNIX_EPOCH};
                 let duration = SystemTime::now()

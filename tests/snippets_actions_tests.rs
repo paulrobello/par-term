@@ -7,9 +7,9 @@
 //! - Keybinding generation
 //! - Config persistence
 
+use par_term::badge::SessionVariables;
 use par_term::config::{Config, CustomActionConfig, SnippetConfig};
 use par_term::snippets::VariableSubstitutor;
-use par_term::badge::SessionVariables;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -285,12 +285,14 @@ fn test_generate_snippet_keybindings() {
     let initial_count = config.keybindings.len();
 
     // Add snippet with keybinding
-    config.snippets.push(SnippetConfig::new(
-        "test".to_string(),
-        "Test".to_string(),
-        "content".to_string(),
-    )
-    .with_keybinding("Ctrl+Shift+T".to_string()));
+    config.snippets.push(
+        SnippetConfig::new(
+            "test".to_string(),
+            "Test".to_string(),
+            "content".to_string(),
+        )
+        .with_keybinding("Ctrl+Shift+T".to_string()),
+    );
 
     // Generate keybindings
     config.generate_snippet_action_keybindings();
@@ -306,12 +308,14 @@ fn test_generate_snippet_keybindings_no_duplicates() {
     let mut config = Config::default();
 
     // Add snippet with keybinding
-    config.snippets.push(SnippetConfig::new(
-        "test".to_string(),
-        "Test".to_string(),
-        "content".to_string(),
-    )
-    .with_keybinding("Ctrl+Shift+T".to_string()));
+    config.snippets.push(
+        SnippetConfig::new(
+            "test".to_string(),
+            "Test".to_string(),
+            "content".to_string(),
+        )
+        .with_keybinding("Ctrl+Shift+T".to_string()),
+    );
 
     // Generate keybindings twice
     config.generate_snippet_action_keybindings();
@@ -416,15 +420,27 @@ fn test_variable_substitution_all_builtins() {
 
     // Test that all built-in variables resolve without errors
     let builtins = vec![
-        "date", "time", "datetime", "hostname", "user", "path",
-        "git_branch", "git_commit", "uuid", "random"
+        "date",
+        "time",
+        "datetime",
+        "hostname",
+        "user",
+        "path",
+        "git_branch",
+        "git_commit",
+        "uuid",
+        "random",
     ];
 
     for var in builtins {
         let result = substitutor.substitute(&format!("\\({})", var), &custom_vars);
         assert!(result.is_ok(), "Variable {} should resolve", var);
         let resolved = result.unwrap();
-        assert!(!resolved.contains("\\("), "Variable {} should be substituted", var);
+        assert!(
+            !resolved.contains("\\("),
+            "Variable {} should be substituted",
+            var
+        );
     }
 }
 
@@ -525,7 +541,7 @@ fn test_snippet_keybinding_enabled_field() {
     .with_keybinding("Ctrl+Shift+T".to_string());
 
     assert_eq!(snippet.keybinding, Some("Ctrl+Shift+T".to_string()));
-    assert_eq!(snippet.keybinding_enabled, true);
+    assert!(snippet.keybinding_enabled);
 
     // Test with_keybinding_disabled builder
     let snippet_disabled = SnippetConfig::new(
@@ -536,8 +552,11 @@ fn test_snippet_keybinding_enabled_field() {
     .with_keybinding("Ctrl+Shift+X".to_string())
     .with_keybinding_disabled();
 
-    assert_eq!(snippet_disabled.keybinding, Some("Ctrl+Shift+X".to_string()));
-    assert_eq!(snippet_disabled.keybinding_enabled, false);
+    assert_eq!(
+        snippet_disabled.keybinding,
+        Some("Ctrl+Shift+X".to_string())
+    );
+    assert!(!snippet_disabled.keybinding_enabled);
 }
 
 #[test]
@@ -564,7 +583,8 @@ fn test_generate_snippet_keybindings_update_existing() {
     config.generate_snippet_action_keybindings();
 
     // Should still have the same number of keybindings (not add a duplicate)
-    let snippet_keybindings: Vec<_> = config.keybindings
+    let snippet_keybindings: Vec<_> = config
+        .keybindings
         .iter()
         .filter(|kb| kb.action == "snippet:test")
         .collect();
@@ -600,7 +620,12 @@ fn test_generate_snippet_keybindings_remove_when_cleared() {
     // Should be back to initial count
     assert_eq!(config.keybindings.len(), initial_count);
     // Should not have the snippet keybinding anymore
-    assert!(!config.keybindings.iter().any(|kb| kb.action == "snippet:test"));
+    assert!(
+        !config
+            .keybindings
+            .iter()
+            .any(|kb| kb.action == "snippet:test")
+    );
 }
 
 #[test]
@@ -612,7 +637,7 @@ fn test_snippet_auto_execute_field() {
         "echo 'hello'".to_string(),
     );
 
-    assert_eq!(snippet.auto_execute, false);
+    assert!(!snippet.auto_execute);
 
     // Test with_auto_execute builder
     let snippet_auto = SnippetConfig::new(
@@ -622,7 +647,7 @@ fn test_snippet_auto_execute_field() {
     )
     .with_auto_execute();
 
-    assert_eq!(snippet_auto.auto_execute, true);
+    assert!(snippet_auto.auto_execute);
 }
 
 #[test]
@@ -644,7 +669,7 @@ fn test_snippet_serialization_with_auto_execute() {
     let deserialized: SnippetConfig = serde_yaml::from_str(&yaml).unwrap();
 
     assert_eq!(deserialized.id, snippet.id);
-    assert_eq!(deserialized.auto_execute, true);
+    assert!(deserialized.auto_execute);
 }
 
 #[test]
@@ -668,7 +693,10 @@ fn test_session_variable_substitution() {
         )
         .unwrap();
 
-    assert_eq!(result, "User: testuser, Host: testhost, Path: /home/test/projects, Job: vim");
+    assert_eq!(
+        result,
+        "User: testuser, Host: testhost, Path: /home/test/projects, Job: vim"
+    );
 }
 
 #[test]
@@ -716,4 +744,3 @@ fn test_custom_variables_override_session() {
 
     assert_eq!(result, "session-host vs custom-host");
 }
-

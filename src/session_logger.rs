@@ -469,7 +469,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut logger = SessionLogger::new(
             SessionLogFormat::Plain,
-            &temp_dir.path().to_path_buf(),
+            temp_dir.path(),
             (80, 24),
             Some("Test Session".to_string()),
         )
@@ -491,7 +491,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut logger = SessionLogger::new(
             SessionLogFormat::Asciicast,
-            &temp_dir.path().to_path_buf(),
+            temp_dir.path(),
             (80, 24),
             Some("Test Session".to_string()),
         )

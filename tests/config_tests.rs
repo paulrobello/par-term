@@ -1,3 +1,5 @@
+#![allow(clippy::field_reassign_with_default)]
+
 use par_term::config::{Config, UnfocusedCursorStyle, WindowType};
 
 #[test]

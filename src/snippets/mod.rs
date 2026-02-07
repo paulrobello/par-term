@@ -62,7 +62,11 @@ impl VariableSubstitutor {
     ///
     /// # Returns
     /// The text with all variables replaced by their values.
-    pub fn substitute(&self, text: &str, custom_vars: &HashMap<String, String>) -> SubstitutionResult<String> {
+    pub fn substitute(
+        &self,
+        text: &str,
+        custom_vars: &HashMap<String, String>,
+    ) -> SubstitutionResult<String> {
         self.substitute_with_session(text, custom_vars, None)
     }
 
@@ -99,7 +103,12 @@ impl VariableSubstitutor {
     }
 
     /// Resolve a single variable to its value (without session variables).
-    fn resolve_variable(&self, name: &str, custom_vars: &HashMap<String, String>) -> SubstitutionResult<String> {
+    #[allow(dead_code)]
+    fn resolve_variable(
+        &self,
+        name: &str,
+        custom_vars: &HashMap<String, String>,
+    ) -> SubstitutionResult<String> {
         self.resolve_variable_with_session(name, custom_vars, None)
     }
 
@@ -116,10 +125,8 @@ impl VariableSubstitutor {
         }
 
         // Check session variables (second priority)
-        if let Some(session) = session_vars {
-            if let Some(value) = session.get(name) {
-                return Ok(value);
-            }
+        if let Some(value) = session_vars.and_then(|session| session.get(name)) {
+            return Ok(value);
         }
 
         // Check built-in variables (third priority)
@@ -161,12 +168,16 @@ mod tests {
         let custom_vars = HashMap::new();
 
         // Test date variable (should produce something like YYYY-MM-DD)
-        let result = substitutor.substitute("Today is \\(date)", &custom_vars).unwrap();
+        let result = substitutor
+            .substitute("Today is \\(date)", &custom_vars)
+            .unwrap();
         assert!(result.starts_with("Today is "));
         assert!(!result.contains("\\(date)"));
 
         // Test user variable
-        let result = substitutor.substitute("User: \\(user)", &custom_vars).unwrap();
+        let result = substitutor
+            .substitute("User: \\(user)", &custom_vars)
+            .unwrap();
         assert!(result.starts_with("User: "));
         assert!(!result.contains("\\(user)"));
     }
