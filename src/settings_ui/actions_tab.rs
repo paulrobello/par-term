@@ -198,136 +198,141 @@ fn show_action_edit_form(
     changes_this_frame: &mut bool,
     edit_index: Option<usize>,
 ) {
-    ui.label("Title:");
-    if ui
-        .text_edit_singleline(&mut settings.temp_action_title)
-        .changed()
-    {
-        *changes_this_frame = true;
-    }
-
-    ui.label("ID:");
-    ui.label(
-        egui::RichText::new(&settings.temp_action_id)
-            .monospace()
-            .small(),
-    );
-
-    ui.label("Type:");
-    let types = ["Shell Command", "Insert Text", "Key Sequence"];
-    egui::ComboBox::from_id_salt("action_type")
-        .selected_text(types[settings.temp_action_type])
-        .width(150.0)
-        .show_ui(ui, |ui| {
-            for (i, &type_name) in types.iter().enumerate() {
-                if ui
-                    .selectable_label(settings.temp_action_type == i, type_name)
-                    .clicked()
-                {
-                    settings.temp_action_type = i;
-                    *changes_this_frame = true;
-                }
-            }
-        });
-
-    ui.label("Keybinding:");
-    ui.horizontal(|ui| {
-        // Check for recording state
-        if settings.recording_action_keybinding {
-            // Show recording indicator and capture key combo
-            ui.label(egui::RichText::new("🔴 Recording...").color(egui::Color32::RED));
-            if let Some(combo) = capture_key_combo(ui) {
-                settings.action_recorded_combo = Some(combo.clone());
-                settings.temp_action_keybinding = combo;
-                settings.recording_action_keybinding = false;
-                *changes_this_frame = true;
-            }
-        } else {
-            // Show text input and record button
+    // Scrollable area for form fields (buttons will be outside)
+    egui::ScrollArea::vertical()
+        .max_height(300.0)
+        .show(ui, |ui| {
+            ui.label("Title:");
             if ui
-                .text_edit_singleline(&mut settings.temp_action_keybinding)
+                .text_edit_singleline(&mut settings.temp_action_title)
                 .changed()
             {
                 *changes_this_frame = true;
             }
 
-            // Check for conflicts
-            if !settings.temp_action_keybinding.is_empty() {
-                let exclude_id = if let Some(i) = edit_index {
-                    settings.config.actions.get(i).map(|a| a.id())
+            ui.label("ID:");
+            ui.label(
+                egui::RichText::new(&settings.temp_action_id)
+                    .monospace()
+                    .small(),
+            );
+
+            ui.label("Type:");
+            let types = ["Shell Command", "Insert Text", "Key Sequence"];
+            egui::ComboBox::from_id_salt("action_type")
+                .selected_text(types[settings.temp_action_type])
+                .width(150.0)
+                .show_ui(ui, |ui| {
+                    for (i, &type_name) in types.iter().enumerate() {
+                        if ui
+                            .selectable_label(settings.temp_action_type == i, type_name)
+                            .clicked()
+                        {
+                            settings.temp_action_type = i;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+
+            ui.label("Keybinding:");
+            ui.horizontal(|ui| {
+                // Check for recording state
+                if settings.recording_action_keybinding {
+                    // Show recording indicator and capture key combo
+                    ui.label(egui::RichText::new("🔴 Recording...").color(egui::Color32::RED));
+                    if let Some(combo) = capture_key_combo(ui) {
+                        settings.action_recorded_combo = Some(combo.clone());
+                        settings.temp_action_keybinding = combo;
+                        settings.recording_action_keybinding = false;
+                        *changes_this_frame = true;
+                    }
                 } else {
-                    None
-                };
+                    // Show text input and record button
+                    if ui
+                        .text_edit_singleline(&mut settings.temp_action_keybinding)
+                        .changed()
+                    {
+                        *changes_this_frame = true;
+                    }
 
-                if let Some(conflict) =
-                    settings.check_keybinding_conflict(&settings.temp_action_keybinding, exclude_id)
-                {
-                    ui.label(
-                        egui::RichText::new(format!("⚠️ {}", conflict))
-                            .color(egui::Color32::from_rgb(255, 180, 0))
-                            .small(),
-                    );
+                    // Check for conflicts
+                    if !settings.temp_action_keybinding.is_empty() {
+                        let exclude_id = if let Some(i) = edit_index {
+                            settings.config.actions.get(i).map(|a| a.id())
+                        } else {
+                            None
+                        };
+
+                        if let Some(conflict) = settings.check_keybinding_conflict(
+                            &settings.temp_action_keybinding,
+                            exclude_id,
+                        ) {
+                            ui.label(
+                                egui::RichText::new(format!("⚠️ {}", conflict))
+                                    .color(egui::Color32::from_rgb(255, 180, 0))
+                                    .small(),
+                            );
+                        }
+                    }
+
+                    // Record button
+                    if ui
+                        .small_button("🎤")
+                        .on_hover_text("Record keybinding")
+                        .clicked()
+                    {
+                        settings.recording_action_keybinding = true;
+                        settings.action_recorded_combo = None;
+                    }
                 }
-            }
+            });
 
-            // Record button
-            if ui
-                .small_button("🎤")
-                .on_hover_text("Record keybinding")
-                .clicked()
-            {
-                settings.recording_action_keybinding = true;
-                settings.action_recorded_combo = None;
-            }
-        }
-    });
-
-    // Type-specific fields
-    match settings.temp_action_type {
-        0 => {
-            // Shell Command
-            ui.label("Command:");
-            if ui
-                .text_edit_singleline(&mut settings.temp_action_command)
-                .changed()
-            {
-                *changes_this_frame = true;
-            }
-            ui.label("Arguments (space-separated):");
-            if ui
-                .text_edit_singleline(&mut settings.temp_action_args)
-                .changed()
-            {
-                *changes_this_frame = true;
-            }
-        }
-        1 => {
-            // Insert Text
-            ui.label("Text to insert:");
-            egui::ScrollArea::vertical()
-                .max_height(100.0)
-                .show(ui, |ui| {
+            // Type-specific fields
+            match settings.temp_action_type {
+                0 => {
+                    // Shell Command
+                    ui.label("Command:");
+                    if ui
+                        .text_edit_singleline(&mut settings.temp_action_command)
+                        .changed()
+                    {
+                        *changes_this_frame = true;
+                    }
+                    ui.label("Arguments (space-separated):");
+                    if ui
+                        .text_edit_singleline(&mut settings.temp_action_args)
+                        .changed()
+                    {
+                        *changes_this_frame = true;
+                    }
+                }
+                1 => {
+                    // Insert Text
+                    ui.label("Text to insert:");
                     if ui
                         .text_edit_multiline(&mut settings.temp_action_text)
                         .changed()
                     {
                         *changes_this_frame = true;
                     }
-                });
-        }
-        2 => {
-            // Key Sequence
-            ui.label("Key sequence:");
-            if ui
-                .text_edit_singleline(&mut settings.temp_action_keys)
-                .changed()
-            {
-                *changes_this_frame = true;
+                }
+                2 => {
+                    // Key Sequence
+                    ui.label("Key sequence:");
+                    if ui
+                        .text_edit_singleline(&mut settings.temp_action_keys)
+                        .changed()
+                    {
+                        *changes_this_frame = true;
+                    }
+                }
+                _ => {}
             }
-        }
-        _ => {}
-    }
+        });
 
+    ui.separator();
+
+    // Buttons outside scroll area - always visible
     ui.horizontal(|ui| {
         if ui.button("Save").clicked() {
             let action = match settings.temp_action_type {
