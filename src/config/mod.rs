@@ -1630,6 +1630,9 @@ impl Config {
             // Merge in any new default keybindings that don't exist in user's config
             config.merge_default_keybindings();
 
+            // Generate keybindings for snippets and actions
+            config.generate_snippet_action_keybindings();
+
             // Load last working directory from state file (for "previous session" mode)
             config.load_last_working_directory();
 
@@ -1684,6 +1687,61 @@ impl Config {
         if added_count > 0 {
             log::info!(
                 "Merged {} new default keybinding(s) into user config",
+                added_count
+            );
+        }
+    }
+
+    /// Generate keybindings for snippets and actions that have keybindings configured.
+    ///
+    /// This method adds keybindings for snippets and actions to the keybindings list,
+    /// using the format "snippet:<id>" for snippets and "action:<id>" for actions.
+    /// Keybindings are only added if they don't already exist in the config.
+    pub fn generate_snippet_action_keybindings(&mut self) {
+        use crate::config::KeyBinding;
+
+        // Get existing keybinding actions to avoid duplicates
+        let existing_actions: std::collections::HashSet<String> = self
+            .keybindings
+            .iter()
+            .map(|kb| kb.action.clone())
+            .collect();
+
+        let mut added_count = 0;
+
+        // Generate keybindings for snippets
+        for snippet in &self.snippets {
+            if let Some(key) = &snippet.keybinding {
+                if !key.is_empty() && snippet.enabled {
+                    let action = format!("snippet:{}", snippet.id);
+                    if !existing_actions.contains(&action) {
+                        log::info!(
+                            "Adding keybinding for snippet '{}': {} -> {}",
+                            snippet.title,
+                            key,
+                            action
+                        );
+                        self.keybindings.push(KeyBinding {
+                            key: key.clone(),
+                            action,
+                        });
+                        added_count += 1;
+                    }
+                }
+            }
+        }
+
+        // Generate keybindings for actions
+        // Note: Actions don't have a keybinding field in the current design
+        // They would need to be added to the keybindings list manually
+        // or we could add a keybinding field to CustomActionConfig in the future
+        for _action_config in &self.actions {
+            // Future: add keybinding field to CustomActionConfig
+        }
+
+        if added_count > 0 {
+            log::info!(
+                "Generated {} keybinding(s) for snippets and actions",
                 added_count
             );
         }
