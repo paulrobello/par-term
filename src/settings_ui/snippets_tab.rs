@@ -199,6 +199,7 @@ fn show_snippets_section(
             settings.temp_snippet_keybinding = snippet.keybinding.clone().unwrap_or_default();
             settings.temp_snippet_folder = snippet.folder.clone().unwrap_or_default();
             settings.temp_snippet_description = snippet.description.clone().unwrap_or_default();
+            settings.temp_snippet_keybinding_enabled = snippet.keybinding_enabled;
         }
 
         ui.separator();
@@ -217,6 +218,7 @@ fn show_snippets_section(
                 settings.temp_snippet_keybinding = String::new();
                 settings.temp_snippet_folder = String::new();
                 settings.temp_snippet_description = String::new();
+                settings.temp_snippet_keybinding_enabled = true;
             }
         }
     });
@@ -292,6 +294,18 @@ fn show_snippet_edit_form(
         }
     });
 
+    // Show keybinding enabled checkbox if keybinding is set
+    if !settings.temp_snippet_keybinding.is_empty() {
+        ui.horizontal(|ui| {
+            if ui.checkbox(&mut settings.temp_snippet_keybinding_enabled, "Enable keybinding").changed() {
+                *changes_this_frame = true;
+            }
+            ui.label(egui::RichText::new("(uncheck to disable without removing)")
+                .small()
+                .color(egui::Color32::GRAY));
+        });
+    }
+
     ui.horizontal(|ui| {
         ui.label("Folder (optional):");
         if ui.text_edit_singleline(&mut settings.temp_snippet_folder).changed() {
@@ -324,6 +338,7 @@ fn show_snippet_edit_form(
                 } else {
                     Some(settings.temp_snippet_keybinding.clone())
                 },
+                keybinding_enabled: settings.temp_snippet_keybinding_enabled,
                 folder: if settings.temp_snippet_folder.is_empty() {
                     None
                 } else {

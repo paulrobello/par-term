@@ -32,6 +32,7 @@ Snippets are saved text blocks that can be quickly inserted into the terminal. T
      - Click the **🎤 Record** button and press the desired key combination
      - Or type it manually (e.g., `Ctrl+Shift+D`)
      - Conflict warnings appear if the keybinding is already in use (⚠️)
+     - **Enable keybinding** checkbox: Uncheck to disable the keybinding without removing it (useful for temporary disable)
    - **Folder** (optional): Group snippets into folders
    - **Description** (optional): Notes about what the snippet does
 
@@ -185,6 +186,7 @@ snippets:
     title: "Date Stamp"
     content: "echo 'Report: \(date)'"
     keybinding: "Ctrl+Shift+D"  # optional, set via Record button
+    keybinding_enabled: true    # enable/disable keybinding (default: true)
     folder: "Common"            # optional
     enabled: true
     description: "Insert current date"
@@ -305,6 +307,10 @@ Folder: SSH
    - Captures modifier keys correctly (Ctrl, Shift, Alt, Super/Windows/Command)
    - Avoids typos from manual entry
    - Shows real-time feedback during recording (🔴)
+8. **Disable Keybindings Temporarily**: Use the "Enable keybinding" checkbox to temporarily disable a keybinding without removing it
+   - Useful when you need to free up a keybinding for another use
+   - The keybinding configuration is preserved but won't trigger
+   - Re-enable the checkbox to restore the keybinding functionality
 
 ## Limitations
 

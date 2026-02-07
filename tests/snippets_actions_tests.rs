@@ -490,3 +490,51 @@ fn test_action_types_serialization_roundtrip() {
         assert_eq!(deserialized.is_key_sequence(), action.is_key_sequence());
     }
 }
+
+#[test]
+fn test_generate_snippet_keybindings_disabled_keybinding() {
+    let mut config = Config::default();
+    let initial_count = config.keybindings.len();
+
+    // Add snippet with keybinding but keybinding disabled
+    let mut snippet = SnippetConfig::new(
+        "test".to_string(),
+        "Test".to_string(),
+        "content".to_string(),
+    )
+    .with_keybinding("Ctrl+Shift+T".to_string());
+    snippet.keybinding_enabled = false;
+    config.snippets.push(snippet);
+
+    // Generate keybindings
+    config.generate_snippet_action_keybindings();
+
+    // Should not generate keybinding when keybinding_enabled is false
+    assert_eq!(config.keybindings.len(), initial_count);
+}
+
+#[test]
+fn test_snippet_keybinding_enabled_field() {
+    // Test default value is true
+    let snippet = SnippetConfig::new(
+        "test".to_string(),
+        "Test".to_string(),
+        "content".to_string(),
+    )
+    .with_keybinding("Ctrl+Shift+T".to_string());
+
+    assert_eq!(snippet.keybinding, Some("Ctrl+Shift+T".to_string()));
+    assert_eq!(snippet.keybinding_enabled, true);
+
+    // Test with_keybinding_disabled builder
+    let snippet_disabled = SnippetConfig::new(
+        "test2".to_string(),
+        "Test2".to_string(),
+        "content".to_string(),
+    )
+    .with_keybinding("Ctrl+Shift+X".to_string())
+    .with_keybinding_disabled();
+
+    assert_eq!(snippet_disabled.keybinding, Some("Ctrl+Shift+X".to_string()));
+    assert_eq!(snippet_disabled.keybinding_enabled, false);
+}

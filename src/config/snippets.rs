@@ -27,6 +27,11 @@ pub struct SnippetConfig {
     #[serde(default)]
     pub keybinding: Option<String>,
 
+    /// Whether the keybinding is enabled (default: true)
+    /// If false, the keybinding won't be registered even if keybinding is set
+    #[serde(default = "crate::config::defaults::bool_true")]
+    pub keybinding_enabled: bool,
+
     /// Optional folder/collection for organization (e.g., "Git", "Docker")
     #[serde(default)]
     pub folder: Option<String>,
@@ -52,6 +57,7 @@ impl SnippetConfig {
             title,
             content,
             keybinding: None,
+            keybinding_enabled: true,
             folder: None,
             enabled: true,
             description: None,
@@ -62,6 +68,12 @@ impl SnippetConfig {
     /// Add a keybinding to the snippet.
     pub fn with_keybinding(mut self, keybinding: String) -> Self {
         self.keybinding = Some(keybinding);
+        self
+    }
+
+    /// Disable the keybinding for this snippet.
+    pub fn with_keybinding_disabled(mut self) -> Self {
+        self.keybinding_enabled = false;
         self
     }
 

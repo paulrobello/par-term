@@ -1714,7 +1714,7 @@ impl Config {
         // Generate keybindings for snippets
         for snippet in &self.snippets {
             if let Some(key) = &snippet.keybinding {
-                if !key.is_empty() && snippet.enabled {
+                if !key.is_empty() && snippet.enabled && snippet.keybinding_enabled {
                     let action = format!("snippet:{}", snippet.id);
                     if !existing_actions.contains(&action) {
                         log::info!(
