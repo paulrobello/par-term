@@ -10,6 +10,7 @@
 use super::SettingsUI;
 use super::section::collapsing_section;
 use crate::config::snippets::SnippetConfig;
+use crate::settings_ui::input_tab::capture_key_combo;
 use std::collections::HashMap;
 
 /// Show the snippets tab content.
@@ -249,8 +250,45 @@ fn show_snippet_edit_form(
 
     ui.horizontal(|ui| {
         ui.label("Keybinding (optional):");
-        if ui.text_edit_singleline(&mut settings.temp_snippet_keybinding).changed() {
-            *changes_this_frame = true;
+
+        // Check for recording state
+        if settings.recording_snippet_keybinding {
+            // Show recording indicator and capture key combo
+            ui.label(egui::RichText::new("🔴 Recording...").color(egui::Color32::RED));
+            if let Some(combo) = capture_key_combo(ui) {
+                settings.snippet_recorded_combo = Some(combo.clone());
+                settings.temp_snippet_keybinding = combo;
+                settings.recording_snippet_keybinding = false;
+                *changes_this_frame = true;
+            }
+        } else {
+            // Show text input and record button
+            if ui.text_edit_singleline(&mut settings.temp_snippet_keybinding).changed() {
+                *changes_this_frame = true;
+            }
+
+            // Check for conflicts
+            if !settings.temp_snippet_keybinding.is_empty() {
+                let exclude_id = if let Some(i) = edit_index {
+                    settings.config.snippets.get(i).map(|s| s.id.as_ref())
+                } else {
+                    None
+                };
+
+                if let Some(conflict) = settings.check_keybinding_conflict(&settings.temp_snippet_keybinding, exclude_id) {
+                    ui.label(
+                        egui::RichText::new(format!("⚠️ {}", conflict))
+                            .color(egui::Color32::from_rgb(255, 180, 0))
+                            .small(),
+                    );
+                }
+            }
+
+            // Record button
+            if ui.small_button("🎤 Record").clicked() {
+                settings.recording_snippet_keybinding = true;
+                settings.snippet_recorded_combo = None;
+            }
         }
     });
 

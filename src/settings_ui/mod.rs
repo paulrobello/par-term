@@ -267,6 +267,10 @@ pub struct SettingsUI {
     pub(crate) temp_snippet_description: String,
     /// Whether the add-new-snippet form is active
     pub(crate) adding_new_snippet: bool,
+    /// Whether currently recording a keybinding for a snippet
+    pub(crate) recording_snippet_keybinding: bool,
+    /// Recorded keybinding combo for snippet (displayed during recording)
+    pub(crate) snippet_recorded_combo: Option<String>,
 
     // Actions tab state
     /// Index of action currently being edited (None = not editing)
@@ -285,8 +289,14 @@ pub struct SettingsUI {
     pub(crate) temp_action_text: String,
     /// Temporary action keys (for KeySequence type)
     pub(crate) temp_action_keys: String,
+    /// Temporary action keybinding for edit form
+    pub(crate) temp_action_keybinding: String,
     /// Whether the add-new-action form is active
     pub(crate) adding_new_action: bool,
+    /// Whether currently recording a keybinding for an action
+    pub(crate) recording_action_keybinding: bool,
+    /// Recorded keybinding combo for action (displayed during recording)
+    pub(crate) action_recorded_combo: Option<String>,
 
     // Reset to defaults dialog state
     /// Whether to show the reset to defaults confirmation dialog
@@ -419,7 +429,12 @@ impl SettingsUI {
             temp_action_args: String::new(),
             temp_action_text: String::new(),
             temp_action_keys: String::new(),
+            temp_action_keybinding: String::new(),
             adding_new_action: false,
+            recording_snippet_keybinding: false,
+            snippet_recorded_combo: None,
+            recording_action_keybinding: false,
+            action_recorded_combo: None,
             show_reset_defaults_dialog: false,
         }
     }
@@ -1162,5 +1177,32 @@ impl SettingsUI {
                 advanced_tab::show(ui, self, changes_this_frame);
             }
         }
+    }
+
+    /// Check if a keybinding conflicts with existing keybindings.
+    ///
+    /// Returns Some(conflict_description) if there's a conflict, None otherwise.
+    pub(crate) fn check_keybinding_conflict(&self, key: &str, exclude_id: Option<&str>) -> Option<String> {
+        // Check against existing keybindings in config
+        for binding in &self.config.keybindings {
+            if binding.key == key {
+                return Some(format!("Already bound to: {}", binding.action));
+            }
+        }
+
+        // Check against snippets with keybindings (exclude the current snippet being edited)
+        for snippet in &self.config.snippets {
+            if let Some(snippet_key) = &snippet.keybinding {
+                if snippet_key == key {
+                    // Skip if this is the snippet being edited
+                    if exclude_id == Some(&snippet.id) {
+                        continue;
+                    }
+                    return Some(format!("Already bound to snippet: {}", snippet.title));
+                }
+            }
+        }
+
+        None
     }
 }

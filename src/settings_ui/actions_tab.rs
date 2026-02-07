@@ -8,6 +8,7 @@
 use super::SettingsUI;
 use super::section::collapsing_section;
 use crate::config::snippets::CustomActionConfig;
+use crate::settings_ui::input_tab::capture_key_combo;
 
 /// Show the actions tab content.
 pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
@@ -235,6 +236,50 @@ fn show_action_edit_form(
             });
     });
 
+    ui.horizontal(|ui| {
+        ui.label("Keybinding (optional):");
+
+        // Check for recording state
+        if settings.recording_action_keybinding {
+            // Show recording indicator and capture key combo
+            ui.label(egui::RichText::new("🔴 Recording...").color(egui::Color32::RED));
+            if let Some(combo) = capture_key_combo(ui) {
+                settings.action_recorded_combo = Some(combo.clone());
+                settings.temp_action_keybinding = combo;
+                settings.recording_action_keybinding = false;
+                *changes_this_frame = true;
+            }
+        } else {
+            // Show text input and record button
+            if ui.text_edit_singleline(&mut settings.temp_action_keybinding).changed() {
+                *changes_this_frame = true;
+            }
+
+            // Check for conflicts
+            if !settings.temp_action_keybinding.is_empty() {
+                let exclude_id = if let Some(i) = edit_index {
+                    settings.config.actions.get(i).map(|a| a.id().as_ref())
+                } else {
+                    None
+                };
+
+                if let Some(conflict) = settings.check_keybinding_conflict(&settings.temp_action_keybinding, exclude_id) {
+                    ui.label(
+                        egui::RichText::new(format!("⚠️ {}", conflict))
+                            .color(egui::Color32::from_rgb(255, 180, 0))
+                            .small(),
+                    );
+                }
+            }
+
+            // Record button
+            if ui.small_button("🎤 Record").clicked() {
+                settings.recording_action_keybinding = true;
+                settings.action_recorded_combo = None;
+            }
+        }
+    });
+
     // Type-specific fields
     match settings.temp_action_type {
         0 => {
@@ -302,12 +347,28 @@ fn show_action_edit_form(
                 _ => unreachable!(),
             };
 
+            // Save the action
             if let Some(i) = edit_index {
                 // Update existing action
                 settings.config.actions[i] = action;
             } else {
                 // Add new action
                 settings.config.actions.push(action);
+            }
+
+            // Handle keybinding for the action
+            if !settings.temp_action_keybinding.is_empty() {
+                let keybinding_action = format!("action:{}", settings.temp_action_id);
+                // Check if this keybinding already exists in the config
+                let existing_index = settings.config.keybindings.iter().position(|kb| kb.key == settings.temp_action_keybinding && kb.action == keybinding_action);
+
+                if existing_index.is_none() {
+                    // Add new keybinding
+                    settings.config.keybindings.push(crate::config::KeyBinding {
+                        key: settings.temp_action_keybinding.clone(),
+                        action: keybinding_action,
+                    });
+                }
             }
 
             settings.has_changes = true;
@@ -319,6 +380,9 @@ fn show_action_edit_form(
         if ui.button("Cancel").clicked() {
             settings.editing_action_index = None;
             settings.adding_new_action = false;
+            // Also clear recording state if active
+            settings.recording_action_keybinding = false;
+            settings.action_recorded_combo = None;
         }
     });
 
