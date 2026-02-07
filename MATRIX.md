@@ -527,9 +527,79 @@ iTerm2 has a system for saved text snippets and custom actions.
 | Text snippets | ✅ Snippets | ✅ | ✅ | ⭐⭐ | 🟡 | Saved text blocks for quick insertion |
 | Snippet shortcuts | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Keyboard shortcuts for snippets |
 | Snippet variables | ✅ | ✅ | ✅ | ⭐ | 🟡 | Dynamic values in snippets (10 built-in variables) |
-| Snippet library | ✅ | ✅ Partial | ✅ | ⭐⭐ | 🟡 | Organize snippets into folders |
+| Snippet library | ✅ | ✅ Partial | ✅ | ⭐⭐ | 🟡 | Organize snippets into folders (no import/export yet) |
 | Custom actions | ✅ | ✅ Partial | ✅ | ⭐ | 🔴 | Shell commands and text insertion (key sequences TODO) |
 | Action key bindings | ✅ | 🟡 | 🟡 | ⭐ | 🟡 | Assign keys to actions (manual setup via keybindings config) |
+
+### Implementation Details (v0.11.0+)
+
+**Data Structures** (`src/config/snippets.rs`):
+- `SnippetConfig`: id, title, content, keybinding, folder, enabled, description, variables (HashMap)
+- `CustomActionConfig`: Tagged enum with ShellCommand, InsertText, KeySequence variants
+- `BuiltInVariable`: Enum for 10 built-in variables with runtime resolution
+
+**Variable Substitution** (`src/snippets/mod.rs`):
+- `VariableSubstitutor`: Regex engine matching `\(variable)` syntax
+- Built-in variable resolution (date, time, hostname, user, path, git_branch, git_commit, uuid, random)
+- Custom variable support via HashMap
+- 15 unit tests, all passing
+
+**Settings UI**:
+- **Snippets tab** (`src/settings_ui/snippets_tab.rs`): CRUD operations, folder grouping, variables reference
+- **Actions tab** (`src/settings_ui/actions_tab.rs`): Type selector, form fields, CRUD operations
+- Both added to sidebar navigation with icons (📝 Snippets, 🚀 Actions)
+
+**Execution Engine** (`src/app/input_events.rs`):
+- `execute_snippet()`: Variable substitution + terminal write
+- `execute_custom_action()`: Shell command execution, text insertion
+- Keybinding integration via "snippet:<id>" and "action:<id>" prefixes
+- Toast notifications for errors and success feedback
+
+**Configuration** (`src/config/mod.rs`):
+- `generate_snippet_action_keybindings()`: Auto-generate keybindings during config load
+- Added to Config: `snippets: Vec<SnippetConfig>`, `actions: Vec<CustomActionConfig>`
+- YAML persistence via serde
+
+**Testing** (`tests/snippets_actions_tests.rs`):
+- 26 integration tests covering all major functionality
+- Config persistence, serialization, keybinding generation
+- All 41 tests passing (26 integration + 15 unit)
+
+**Documentation** (`docs/SNIPPETS.md`):
+- Comprehensive user guide with examples
+- Variable reference table
+- Action configuration guide
+- Tips and best practices
+
+### Usage Examples
+
+**Snippet with variables:**
+```yaml
+snippets:
+  - id: "git_commit"
+    title: "Git Commit"
+    content: "git commit -m 'feat(\\(user)): \\(datetime)'"
+    keybinding: "Ctrl+Shift+C"
+    folder: "Git"
+```
+
+**Shell command action:**
+```yaml
+actions:
+  - id: "run_tests"
+    title: "Run Tests"
+    type: "shell_command"
+    command: "npm"
+    args: ["test"]
+    notify_on_success: true
+```
+
+### Future Enhancements
+
+- [ ] Key sequence simulation (parsing and keyboard event injection)
+- [ ] Import/export snippet libraries
+- [ ] Custom variables UI editor
+- [ ] Action keybinding field in UI (currently manual config.yaml setup)
 
 ---
 

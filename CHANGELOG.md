@@ -9,6 +9,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Snippets & Actions System** (#86): Text automation and custom actions (iTerm2 parity)
+  - **Text Snippets**: Save frequently-used text blocks for quick insertion
+    - Variable substitution with `\(variable)` syntax
+    - 10 built-in variables: `date`, `time`, `datetime`, `hostname`, `user`, `path`, `git_branch`, `git_commit`, `uuid`, `random`
+    - Custom variables per snippet via HashMap
+    - Keyboard shortcut assignment via `keybinding` field
+    - Folder organization for grouping related snippets
+    - Config persistence in `config.yaml` via `snippets` array with `SnippetConfig` structs
+  - **Variable Substitution Engine**: Regex-based parser with real-time resolution
+    - `VariableSubstitutor` in `src/snippets/mod.rs`
+    - Built-in variable resolution using system APIs
+    - Custom variable support for snippet-specific values
+    - 15 unit tests ensuring correctness
+  - **Snippet Execution**: Insert snippets into active terminal via keybindings
+    - Uses "snippet:<id>" action format for keybinding system
+    - Variable substitution performed at insertion time
+    - Error handling with toast notifications
+    - Proper terminal locking (tokio::sync::Mutex try_lock)
+  - **Custom Actions**: User-defined macros triggered via keyboard shortcuts
+    - **ShellCommand**: Execute shell commands with std::process::Command
+      - Optional success notification with stdout display
+      - Error handling with stderr feedback
+      - Configurable command arguments
+    - **InsertText**: Insert text with variable substitution
+      - Supports all built-in and custom variables
+      - Direct terminal write
+    - **KeySequence**: Placeholder for future keyboard simulation
+    - Config persistence in `config.yaml` via `actions` array with `CustomActionConfig` enum
+  - **Settings UI**: Two new tabs in settings sidebar
+    - **Snippets tab** (📝): Full CRUD operations for text snippets
+      - Inline add/edit forms with title, content, keybinding, folder
+      - Folder grouping with alphabetical sorting
+      - Variables reference section with built-in variable documentation
+      - Enable/disable toggles, delete with confirmation
+    - **Actions tab** (🚀): Full CRUD operations for custom actions
+      - Type selector (Shell Command, Insert Text, Key Sequence)
+      - Type-specific form fields (command/args, text, keys)
+      - Action ID and title configuration
+    - Searchable via sidebar keywords (snippet, text, insert, variable, keybinding, action, shell, command)
+  - **Keybinding Auto-Generation**: Snippets with keybinding field auto-generate keybindings
+    - `generate_snippet_action_keybindings()` called during config load
+    - Creates keybindings using "snippet:<id>" format
+    - Prevents duplicate keybindings on reload
+    - Only generates for enabled snippets
+  - **Comprehensive Test Suite**: 26 integration tests in `tests/snippets_actions_tests.rs`
+    - Snippet creation, storage, and serialization tests
+    - Variable substitution tests (builtin, custom, mixed, edge cases)
+    - Custom action type tests
+    - Keybinding generation tests
+    - Config persistence verification
+    - All 41 tests passing (26 integration + 15 unit)
+  - **Documentation**: Complete user guide in `docs/SNIPPETS.md`
+    - Creating and using snippets
+    - Variable reference table
+    - Action types and configuration
+    - Practical examples (Git, Docker, SSH, project templates)
+    - Tips and best practices
+
 ---
 
 ## [0.11.0] - 2026-02-06
