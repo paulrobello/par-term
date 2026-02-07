@@ -1101,6 +1101,13 @@ impl ApplicationHandler for WindowManager {
                         log::debug!("Handler: received StopCoprocess({})", index);
                         self.stop_coprocess(index);
                     }
+                    SettingsWindowAction::OpenLogFile => {
+                        let log_path = crate::debug::log_path();
+                        log::info!("Opening log file: {}", log_path.display());
+                        if let Err(e) = open::that(&log_path) {
+                            log::error!("Failed to open log file: {}", e);
+                        }
+                    }
                     SettingsWindowAction::None => {}
                 }
             }

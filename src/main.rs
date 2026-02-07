@@ -17,9 +17,8 @@ fn main() -> Result<()> {
     };
     // Initialize unified logging — routes all log::info!() etc. to /tmp/par_term_debug.log.
     // When RUST_LOG is set, also mirrors to stderr for terminal debugging.
-    // This ensures logs are always captured, even in macOS app bundles and Windows GUI apps
-    // where stderr is invisible.
-    par_term::debug::init_log_bridge();
+    // CLI --log-level flag takes highest precedence, then RUST_LOG, then config (applied later).
+    par_term::debug::init_log_bridge(runtime_options.log_level);
 
     log::info!("Starting par-term terminal emulator");
 

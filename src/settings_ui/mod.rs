@@ -245,6 +245,8 @@ pub struct SettingsUI {
     pub coprocess_output: Vec<Vec<String>>,
     /// Which coprocess output viewers are expanded (indexed by config position)
     pub(crate) coprocess_output_expanded: Vec<bool>,
+    /// Flag to request opening the debug log file
+    pub(crate) open_log_requested: bool,
 
     // Reset to defaults dialog state
     /// Whether to show the reset to defaults confirmation dialog
@@ -360,6 +362,7 @@ impl SettingsUI {
             coprocess_errors: Vec::new(),
             coprocess_output: Vec::new(),
             coprocess_output_expanded: Vec::new(),
+            open_log_requested: false,
             show_reset_defaults_dialog: false,
         }
     }

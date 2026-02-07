@@ -596,6 +596,14 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "release",
             "update check",
             "skipped version",
+            // Debug Logging
+            "debug",
+            "debug logging",
+            "log level",
+            "log file",
+            "trace",
+            "verbose",
+            "diagnostics",
         ],
     }
 }
@@ -613,7 +621,7 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         SettingsTab::Notifications => "Bell, activity alerts, desktop notifications",
         SettingsTab::Integrations => "Shell integration, shader bundle installation",
         SettingsTab::Automation => "Regex triggers, trigger actions, coprocesses",
-        SettingsTab::Advanced => "tmux integration, logging, updates",
+        SettingsTab::Advanced => "tmux integration, logging, updates, debug logging",
     }
 }
 

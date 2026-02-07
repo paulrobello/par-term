@@ -54,6 +54,35 @@ pub struct Cli {
     /// Enable session logging (overrides config setting)
     #[arg(long)]
     pub log_session: bool,
+
+    /// Set debug log level (overrides config and RUST_LOG)
+    #[arg(long, value_enum, value_name = "LEVEL")]
+    pub log_level: Option<LogLevelArg>,
+}
+
+/// Log level argument for CLI
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum LogLevelArg {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl LogLevelArg {
+    /// Convert to `log::LevelFilter`
+    pub fn to_level_filter(self) -> log::LevelFilter {
+        match self {
+            LogLevelArg::Off => log::LevelFilter::Off,
+            LogLevelArg::Error => log::LevelFilter::Error,
+            LogLevelArg::Warn => log::LevelFilter::Warn,
+            LogLevelArg::Info => log::LevelFilter::Info,
+            LogLevelArg::Debug => log::LevelFilter::Debug,
+            LogLevelArg::Trace => log::LevelFilter::Trace,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -107,6 +136,8 @@ pub struct RuntimeOptions {
     pub command_to_send: Option<String>,
     /// Enable session logging (overrides config)
     pub log_session: bool,
+    /// Log level override from CLI
+    pub log_level: Option<log::LevelFilter>,
 }
 
 /// Result of CLI processing
@@ -150,6 +181,7 @@ pub fn process_cli() -> CliResult {
                 screenshot: cli.screenshot,
                 command_to_send: cli.command_to_send,
                 log_session: cli.log_session,
+                log_level: cli.log_level.map(|l| l.to_level_filter()),
             };
             CliResult::Continue(options)
         }

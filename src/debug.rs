@@ -121,7 +121,10 @@ impl DebugLogger {
         };
         self.write_raw(&format!(
             "[{}] [{}] [{}] {}\n",
-            timestamp, level_str, record.target(), record.args()
+            timestamp,
+            level_str,
+            record.target(),
+            record.args()
         ));
     }
 }
@@ -135,6 +138,18 @@ fn get_logger() -> &'static Mutex<DebugLogger> {
 fn get_timestamp() -> String {
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
     format!("{}.{:06}", now.as_secs(), now.subsec_micros())
+}
+
+/// Get the path to the debug log file.
+pub fn log_path() -> std::path::PathBuf {
+    #[cfg(unix)]
+    {
+        std::path::PathBuf::from("/tmp/par_term_debug.log")
+    }
+    #[cfg(windows)]
+    {
+        std::env::temp_dir().join("par_term_debug.log")
+    }
 }
 
 /// Check if debugging is enabled at given level (for custom debug macros)
@@ -250,17 +265,28 @@ impl log::Log for LogCrateBridge {
 /// Initialize the `log` crate bridge. Call this once from main() instead of env_logger::init().
 /// Routes all `log::info!()` etc. calls to the par-term debug log file.
 /// When `RUST_LOG` is set, also mirrors to stderr for terminal debugging.
-pub fn init_log_bridge() {
+///
+/// `level_override` allows CLI or config to set the level. If `None`, uses
+/// `RUST_LOG` env var (or defaults to `Info`).
+pub fn init_log_bridge(level_override: Option<log::LevelFilter>) {
     // Force logger initialization (opens the log file)
     let _ = get_logger();
 
     let bridge = LogCrateBridge::new();
-    let max_level = bridge.max_level;
+    // CLI/config override takes precedence, then RUST_LOG, then default
+    let max_level = level_override.unwrap_or(bridge.max_level);
 
     // Install as the global logger
     if log::set_boxed_logger(Box::new(bridge)).is_ok() {
         log::set_max_level(max_level);
     }
+}
+
+/// Update the log level at runtime (e.g., from settings UI).
+/// This only changes `log::max_level()` — the bridge itself always writes
+/// whatever passes the filter.
+pub fn set_log_level(level: log::LevelFilter) {
+    log::set_max_level(level);
 }
 
 // ============================================================================

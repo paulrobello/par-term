@@ -10,7 +10,7 @@
 
 use super::SettingsUI;
 use super::section::{INPUT_WIDTH, collapsing_section};
-use crate::config::{SessionLogFormat, UpdateCheckFrequency};
+use crate::config::{LogLevel, SessionLogFormat, UpdateCheckFrequency};
 use crate::update_checker::format_timestamp;
 
 /// Show the advanced tab content.
@@ -51,6 +51,23 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         &["update", "version", "check", "release"],
     ) {
         show_updates_section(ui, settings, changes_this_frame);
+    }
+
+    // Debug Logging section
+    if section_matches(
+        &query,
+        "Debug Logging",
+        &[
+            "debug",
+            "log",
+            "log level",
+            "log file",
+            "trace",
+            "verbose",
+            "diagnostics",
+        ],
+    ) {
+        show_debug_logging_section(ui, settings, changes_this_frame);
     }
 }
 
@@ -506,6 +523,69 @@ fn show_updates_section(
             egui::RichText::new(help_text)
                 .small()
                 .color(egui::Color32::GRAY),
+        );
+    });
+}
+
+// ============================================================================
+// Debug Logging Section
+// ============================================================================
+
+fn show_debug_logging_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
+    collapsing_section(ui, "Debug Logging", "advanced_debug_logging", true, |ui| {
+        ui.label("Configure diagnostic logging to file for troubleshooting.");
+        ui.add_space(8.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Log level:");
+
+            let current = settings.config.log_level;
+            egui::ComboBox::from_id_salt("advanced_log_level")
+                .width(120.0)
+                .selected_text(current.display_name())
+                .show_ui(ui, |ui| {
+                    for level in LogLevel::all() {
+                        if ui
+                            .selectable_label(current == *level, level.display_name())
+                            .clicked()
+                            && current != *level
+                        {
+                            settings.config.log_level = *level;
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+        });
+
+        ui.add_space(4.0);
+        let log_path = crate::debug::log_path();
+        ui.horizontal(|ui| {
+            ui.label("Log file:");
+            ui.label(
+                egui::RichText::new(log_path.display().to_string())
+                    .small()
+                    .color(egui::Color32::GRAY),
+            );
+        });
+
+        ui.add_space(4.0);
+        if ui.button("Open Log File").clicked() {
+            settings.open_log_requested = true;
+        }
+
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(
+                "Set to Off to suppress log file creation. \
+                     RUST_LOG env var and --log-level CLI flag override this setting.",
+            )
+            .small()
+            .color(egui::Color32::GRAY),
         );
     });
 }

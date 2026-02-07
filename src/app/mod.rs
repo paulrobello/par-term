@@ -61,6 +61,12 @@ impl App {
             log::info!("CLI override: session logging enabled");
         }
 
+        // Apply config log level (unless CLI --log-level was specified)
+        if runtime_options.log_level.is_none() {
+            crate::debug::set_log_level(config.log_level.to_level_filter());
+            log::info!("Config log level: {}", config.log_level.display_name());
+        }
+
         Ok(Self {
             config,
             runtime,

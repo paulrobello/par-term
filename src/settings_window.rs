@@ -36,6 +36,8 @@ pub enum SettingsWindowAction {
     StartCoprocess(usize),
     /// Stop a coprocess by config index on the active tab
     StopCoprocess(usize),
+    /// Open the debug log file in the system's default editor/viewer
+    OpenLogFile,
 }
 
 /// Manages a separate settings window with its own egui context and wgpu renderer
@@ -475,6 +477,12 @@ impl SettingsWindow {
         // Check for profile manager request
         if self.settings_ui.take_open_profile_manager_request() {
             return SettingsWindowAction::OpenProfileManager;
+        }
+
+        // Check for open log file request
+        if self.settings_ui.open_log_requested {
+            self.settings_ui.open_log_requested = false;
+            return SettingsWindowAction::OpenLogFile;
         }
 
         // Check for coprocess start/stop actions

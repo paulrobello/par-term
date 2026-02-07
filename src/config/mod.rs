@@ -23,10 +23,10 @@ pub use shader_metadata::{
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
     DroppedFileQuoteStyle, FontRange, InstallPromptState, IntegrationVersions, KeyBinding,
-    ModifierRemapping, ModifierTarget, OptionKeyMode, PowerPreference, SemanticHistoryEditorMode,
-    SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction,
-    ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, TabBarMode,
-    ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode, PowerPreference,
+    SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata,
+    ShellExitAction, ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode,
+    TabBarMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
     default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
@@ -1282,6 +1282,15 @@ pub struct Config {
     pub archive_on_close: bool,
 
     // ========================================================================
+    // Debug Logging
+    // ========================================================================
+    /// Log level for debug log file output.
+    /// Controls verbosity of `/tmp/par_term_debug.log`.
+    /// Environment variable RUST_LOG and --log-level CLI flag take precedence.
+    #[serde(default)]
+    pub log_level: LogLevel,
+
+    // ========================================================================
     // Badge Settings (iTerm2-style session labels)
     // ========================================================================
     /// Enable badge display
@@ -1566,6 +1575,8 @@ impl Default for Config {
             session_log_format: SessionLogFormat::default(),
             session_log_directory: defaults::session_log_directory(),
             archive_on_close: defaults::bool_true(),
+            // Debug Logging
+            log_level: LogLevel::default(),
             // Badge
             badge_enabled: defaults::bool_false(),
             badge_format: defaults::badge_format(),

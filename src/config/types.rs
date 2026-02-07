@@ -677,6 +677,66 @@ impl SessionLogFormat {
     }
 }
 
+/// Log level for debug logging to file.
+///
+/// Controls the verbosity of log output written to the debug log file.
+/// Environment variables `RUST_LOG` and `--log-level` CLI flag take precedence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    /// No logging (log file not created)
+    #[default]
+    Off,
+    /// Errors only
+    Error,
+    /// Warnings and errors
+    Warn,
+    /// Informational messages
+    Info,
+    /// Debug messages
+    Debug,
+    /// Most verbose
+    Trace,
+}
+
+impl LogLevel {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            LogLevel::Off => "Off",
+            LogLevel::Error => "Error",
+            LogLevel::Warn => "Warn",
+            LogLevel::Info => "Info",
+            LogLevel::Debug => "Debug",
+            LogLevel::Trace => "Trace",
+        }
+    }
+
+    /// All available levels for UI iteration
+    pub fn all() -> &'static [LogLevel] {
+        &[
+            LogLevel::Off,
+            LogLevel::Error,
+            LogLevel::Warn,
+            LogLevel::Info,
+            LogLevel::Debug,
+            LogLevel::Trace,
+        ]
+    }
+
+    /// Convert to `log::LevelFilter`
+    pub fn to_level_filter(self) -> log::LevelFilter {
+        match self {
+            LogLevel::Off => log::LevelFilter::Off,
+            LogLevel::Error => log::LevelFilter::Error,
+            LogLevel::Warn => log::LevelFilter::Warn,
+            LogLevel::Info => log::LevelFilter::Info,
+            LogLevel::Debug => log::LevelFilter::Debug,
+            LogLevel::Trace => log::LevelFilter::Trace,
+        }
+    }
+}
+
 /// Editor selection mode for semantic history
 ///
 /// Controls how the editor is selected when opening files via semantic history.

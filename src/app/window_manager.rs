@@ -1116,6 +1116,9 @@ impl WindowManager {
     pub fn apply_config_to_windows(&mut self, config: &Config) {
         use crate::app::config_updates::ConfigChanges;
 
+        // Apply log level change immediately
+        crate::debug::set_log_level(config.log_level.to_level_filter());
+
         // Track shader errors for the standalone settings window
         // Option<Option<String>>: None = no change attempted, Some(None) = success, Some(Some(err)) = error
         let mut last_shader_result: Option<Option<String>> = None;
@@ -1583,11 +1586,7 @@ impl WindowManager {
             let term = tab.terminal.blocking_lock();
             match term.start_coprocess(core_config) {
                 Ok(id) => {
-                    log::info!(
-                        "Started coprocess '{}' (id={})",
-                        coproc_config.name,
-                        id
-                    );
+                    log::info!("Started coprocess '{}' (id={})", coproc_config.name, id);
                     // Ensure coprocess_ids vec is large enough
                     while tab.coprocess_ids.len() <= config_index {
                         tab.coprocess_ids.push(None);
@@ -1596,11 +1595,7 @@ impl WindowManager {
                 }
                 Err(e) => {
                     let err_msg = format!("Failed to start: {}", e);
-                    log::error!(
-                        "Failed to start coprocess '{}': {}",
-                        coproc_config.name,
-                        e
-                    );
+                    log::error!("Failed to start coprocess '{}': {}", coproc_config.name, e);
                     // Show error in settings UI
                     if let Some(sw) = &mut self.settings_window {
                         let errors = &mut sw.settings_ui.coprocess_errors;
@@ -1633,11 +1628,7 @@ impl WindowManager {
                 // Use blocking_lock since this is an infrequent user-initiated operation
                 let term = tab.terminal.blocking_lock();
                 if let Err(e) = term.stop_coprocess(id) {
-                    log::error!(
-                        "Failed to stop coprocess at index {}: {}",
-                        config_index,
-                        e
-                    );
+                    log::error!("Failed to stop coprocess at index {}: {}", config_index, e);
                 } else {
                     log::info!("Stopped coprocess at index {} (id={})", config_index, id);
                 }
@@ -1679,8 +1670,7 @@ impl WindowManager {
                                     .join("\n")
                             }
                         } else if let Some(sw) = &self.settings_window
-                            && let Some(existing) =
-                                sw.settings_ui.coprocess_errors.get(i)
+                            && let Some(existing) = sw.settings_ui.coprocess_errors.get(i)
                             && !existing.is_empty()
                         {
                             existing.clone()

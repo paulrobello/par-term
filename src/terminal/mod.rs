@@ -823,6 +823,16 @@ impl TerminalManager {
         term.poll_action_results()
     }
 
+    /// Get custom session variables set by trigger SetVariable actions.
+    ///
+    /// Returns a clone of the core terminal's custom variables HashMap.
+    pub fn custom_session_variables(&self) -> std::collections::HashMap<String, String> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.session_variables().custom.clone()
+    }
+
     /// Get shell integration statistics
     pub fn shell_integration_stats(
         &self,

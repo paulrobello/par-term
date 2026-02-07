@@ -36,14 +36,42 @@ impl WindowState {
             return;
         };
 
-        // Poll action results from core terminal.
+        // Poll action results and custom session variables from core terminal.
         // Also grab the current scrollback_len so our absolute line calculations
         // are consistent with the row values the trigger system produced.
-        let (action_results, current_scrollback_len) = if let Ok(term) = tab.terminal.try_lock() {
-            (term.poll_action_results(), term.scrollback_len())
-        } else {
-            return;
-        };
+        let (action_results, current_scrollback_len, custom_vars) =
+            if let Ok(term) = tab.terminal.try_lock() {
+                let ar = term.poll_action_results();
+                let sl = term.scrollback_len();
+                let cv = term.custom_session_variables();
+                (ar, sl, cv)
+            } else {
+                return;
+            };
+
+        // Sync custom session variables from core (set by SetVariable triggers)
+        // to the frontend badge state. Values are trimmed because the core
+        // captures the full terminal row which may include trailing padding.
+        if !custom_vars.is_empty() {
+            let mut changed = false;
+            let mut vars = self.badge_state.variables_mut();
+            for (name, value) in &custom_vars {
+                let trimmed = value.trim();
+                if vars.custom.get(name).map(|v| v.as_str()) != Some(trimmed) {
+                    log::debug!(
+                        "Trigger SetVariable synced to badge: {}='{}'",
+                        name,
+                        trimmed
+                    );
+                    vars.custom.insert(name.clone(), trimmed.to_string());
+                    changed = true;
+                }
+            }
+            drop(vars);
+            if changed {
+                self.badge_state.mark_dirty();
+            }
+        }
 
         if action_results.is_empty() {
             return;

@@ -344,7 +344,9 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Regex triggers | ✅ Full trigger system | ✅ `TriggerConfig` | ✅ | - | - | Core `TriggerRegistry` + Settings UI for CRUD with regex validation |
 | Trigger actions | ✅ Many actions | ✅ 7 action types | ✅ | - | - | Highlight, Notify, MarkLine, SetVariable, RunCommand, PlaySound, SendText |
 | Trigger highlight rendering | ✅ | ✅ Cell overlay | ✅ | - | - | Overlays fg/bg colors on matched cells with automatic expiry |
-| Coprocesses | ✅ | ✅ `CoprocessManager` | ✅ | - | - | Per-tab coprocess with auto-start, config persistence, Settings UI |
+| Trigger marks on scrollbar | ✅ | ✅ MarkLine marks | ✅ | - | - | Color-coded trigger marks with labels in scrollbar tooltips |
+| SetVariable → badge sync | ✅ | ✅ Custom variables | ✅ | - | - | Trigger-captured variables (e.g., git branch) displayed in badge overlay |
+| Coprocesses | ✅ | ✅ `CoprocessManager` | ✅ | - | - | Per-tab coprocess with auto-start, restart policy (Never/Always/OnFailure), output viewer, start/stop controls, config persistence, Settings UI |
 | Shell integration | ✅ Full integration | ✅ OSC 133/7/1337 | ✅ | - | - | Command tracking, marks, CWD, badges |
 | **Automation Settings Tab** | ❌ | ✅ Settings > Automation | ✅ | - | - | **par-term exclusive** - Full CRUD for triggers and coprocesses |
 | Python API | ✅ Full scripting API | ❌ | ❌ | ⭐⭐ | 🔵 | Automation scripting |
@@ -529,14 +531,14 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Split Panes | 9 | 1 | 0 |
 | Inline Graphics | 5 | 0 | 0 |
 | Hyperlinks & URLs | 5 | 0 | 0 |
-| Triggers & Automation | 6 | 0 | 1 |
+| Triggers & Automation | 8 | 0 | 1 |
 | tmux Integration | 17 | 0 | 0 |
 | Performance & Power | 9 | 0 | 1 |
 | Accessibility | 2 | 0 | 2 |
 | AI Integration | 0 | 0 | 4 |
 | Miscellaneous | 10 | 0 | 7 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~231** | **~4** | **~26** |
+| **TOTAL** | **~233** | **~4** | **~26** |
 
 **Overall Parity: ~89%** of iTerm2 features implemented
 
@@ -582,6 +584,9 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 - Shell exit action with 5 modes (close/keep/restart variants)
 - Close confirmation for running jobs with configurable ignore list
 - tmux profile auto-switching via session name patterns
+- Automation Settings Tab with full CRUD for triggers and coprocesses
+- Trigger-to-badge variable sync (SetVariable action updates badge overlay)
+- Configurable log level (config/CLI/Settings UI) with unified log file routing
 
 ### Remaining High-Priority Features
 
@@ -598,7 +603,10 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Bidirectional text | ⭐⭐ | 🔴 High | RTL language support |
 
 ### Recently Completed (v0.10.0)
-- ✅ Triggers & automation (regex triggers, 7 action types, coprocesses, Settings UI)
+- ✅ Triggers & automation (regex triggers, 7 action types, coprocesses with restart policy & output viewer, Settings UI)
+- ✅ SetVariable → badge sync (trigger-captured variables displayed in badge overlay)
+- ✅ Trigger marks on scrollbar with deduplication and tooltips
+- ✅ Unified logging with configurable log level (config, CLI `--log-level`, Settings UI)
 - ✅ Full profile system with inheritance, tags, and keyboard shortcuts
 - ✅ Automatic profile switching (hostname patterns, tmux session patterns)
 - ✅ Shell integration (OSC 133/7/1337) with command marks
@@ -613,6 +621,6 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 ---
 
-*Updated: 2026-02-05*
+*Updated: 2026-02-06*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.10.0+*

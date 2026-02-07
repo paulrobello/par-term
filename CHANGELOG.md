@@ -24,10 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `RunCommand`: Spawns detached process with args
     - `PlaySound`: Plays WAV/OGG/FLAC/MP3 from `~/.config/par-term/sounds/` via rodio; `"bell"` or empty plays built-in tone
     - `SendText`: Writes text to PTY with optional delay
+    - `Notify`: Desktop notifications via `notify-rust`
+    - `MarkLine`: Scrollbar marks with configurable color and label, visible in scrollbar tooltips
+    - `SetVariable`: Custom session variables synced to badge overlay (e.g., capture git branch for badge display)
+  - **Trigger Marks on Scrollbar**: MarkLine trigger actions create color-coded marks on the scrollbar
+    - Marks include label text shown in scrollbar tooltips
+    - Rebuild strategy eliminates duplicate marks when triggers fire multiple times per frame
+    - Historical marks preserved in scrollback; visible-grid marks rebuilt from fresh scan results
+    - Marks cleared automatically when scrollback is cleared
   - **Coprocesses**: Background processes that receive terminal output
     - Per-tab `CoprocessManager` with auto-start support for configured coprocesses
     - Config persistence via `coprocesses` array with `CoprocessDefConfig` structs
     - Settings UI with name, command, args, auto_start, and copy_terminal_output controls
+    - **Restart policy**: Configurable restart behavior (Never, Always, OnFailure) with optional delay
+    - **Output viewer**: Collapsible per-coprocess output display in Automation settings tab
+    - **Start/Stop controls**: Start and stop coprocesses directly from Settings UI
+    - **Error display**: Failed coprocess starts show error messages inline in the UI
   - **Automation Settings Tab**: New "Automation" tab (⚡) in Settings UI
     - Collapsible sections for Triggers and Coprocesses
     - Inline add/edit forms with type-specific action editors (color pickers, sliders, text inputs)
@@ -59,7 +71,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Example editor commands: `code -g {file}:{line}`, `vim +{line} {file}`
   - Settings UI: Terminal → Semantic History section with editor mode dropdown
 
+- **Configurable Log Level**: Runtime log level control for the `log` crate bridge
+  - New config option: `log_level` (off/error/warn/info/debug/trace, default: off)
+  - CLI flag: `--log-level <LEVEL>` overrides config setting
+  - Settings UI: Advanced → Debug Logging section with dropdown and "Open Log File" button
+  - Log output routed to `/tmp/par_term_debug.log`
+
 ### Changed
+
+- **Unified Logging**: Replaced `env_logger` with custom `log::Log` bridge that routes all `log::info!()`, `log::error!()` etc. to `/tmp/par_term_debug.log`. Ensures logs are always captured in macOS app bundles and Windows GUI apps where stderr is invisible. When `RUST_LOG` is set, also mirrors to stderr for terminal debugging.
+
+- **Coprocess PATH Resolution**: Coprocesses now inherit the user's login shell PATH, fixing "command not found" errors when running from macOS app bundles with minimal PATH environments.
+
+### Fixed
+
+- **Trigger MarkLine deduplication**: Fixed duplicate scrollbar marks when triggers fire multiple times per frame due to PTY read batching. Uses a rebuild strategy that preserves historical marks in scrollback while deduplicating visible-grid marks.
+
+- **Scrollbar command text capture**: Mark tooltips now correctly show command text instead of output lines, reading from scrollback metadata when the command mark scrolls off the visible grid.
+
+- **Trigger marks cleared on scrollback clear**: Trigger marks are now properly removed when the scrollback buffer is cleared (e.g., via `clear` command or Cmd+K).
 
 - **Settings Quick Search**: Expanded search keywords to cover all settings options, making it easier to find specific settings like "minimum contrast", "semantic history", "anti-idle", and many more
 

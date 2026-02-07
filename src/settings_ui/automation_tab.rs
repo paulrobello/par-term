@@ -534,19 +534,14 @@ fn show_coprocesses_section(
             if is_editing {
                 show_coprocess_edit_form(ui, settings, changes_this_frame, Some(i));
             } else {
-                let is_running = settings
-                    .coprocess_running
-                    .get(i)
-                    .copied()
-                    .unwrap_or(false);
+                let is_running = settings.coprocess_running.get(i).copied().unwrap_or(false);
 
                 // First row: status + name + buttons (right-aligned)
                 ui.horizontal(|ui| {
                     // Running/stopped status indicator
                     if is_running {
                         ui.label(
-                            egui::RichText::new("●")
-                                .color(egui::Color32::from_rgb(100, 200, 100)),
+                            egui::RichText::new("●").color(egui::Color32::from_rgb(100, 200, 100)),
                         );
                     } else if coproc.auto_start {
                         ui.label(
@@ -555,10 +550,7 @@ fn show_coprocesses_section(
                                 .small(),
                         );
                     } else {
-                        ui.label(
-                            egui::RichText::new("○")
-                                .color(egui::Color32::GRAY),
-                        );
+                        ui.label(egui::RichText::new("○").color(egui::Color32::GRAY));
                     }
 
                     // Name (bold)
@@ -627,10 +619,7 @@ fn show_coprocesses_section(
                                     coproc.restart_delay_ms
                                 )
                             } else {
-                                format!(
-                                    "[restart: {}]",
-                                    coproc.restart_policy.display_name()
-                                )
+                                format!("[restart: {}]", coproc.restart_policy.display_name())
                             };
                             ui.label(
                                 egui::RichText::new(restart_text)
@@ -682,8 +671,7 @@ fn show_coprocesses_section(
                                     .color(egui::Color32::from_rgb(140, 180, 140)),
                             )
                             .clicked()
-                            && let Some(expanded) =
-                                settings.coprocess_output_expanded.get_mut(i)
+                            && let Some(expanded) = settings.coprocess_output_expanded.get_mut(i)
                         {
                             *expanded = !*expanded;
                         }
