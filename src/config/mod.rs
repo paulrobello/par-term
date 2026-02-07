@@ -1644,6 +1644,8 @@ impl Config {
             );
             // Create default config and save it
             let mut config = Self::default();
+            // Generate keybindings for snippets and actions
+            config.generate_snippet_action_keybindings();
             if let Err(e) = config.save() {
                 log::error!("Failed to save default config: {}", e);
                 return Err(e);

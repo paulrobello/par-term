@@ -905,7 +905,10 @@ impl SettingsUI {
                 self.apply_font_changes();
             }
             self.has_changes = false;
-            Some(self.config.clone())
+            // Generate keybindings for snippets and actions before saving
+            let mut config = self.config.clone();
+            config.generate_snippet_action_keybindings();
+            Some(config)
         } else {
             None
         };
@@ -1054,7 +1057,10 @@ impl SettingsUI {
                 self.apply_font_changes();
             }
             self.has_changes = false;
-            Some(self.config.clone())
+            // Generate keybindings for snippets and actions before saving
+            let mut config = self.config.clone();
+            config.generate_snippet_action_keybindings();
+            Some(config)
         } else {
             None
         };
