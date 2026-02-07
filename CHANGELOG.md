@@ -15,7 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Text Snippets**: Save frequently-used text blocks for quick insertion
     - Variable substitution with `\(variable)` syntax
     - 10 built-in variables: `date`, `time`, `datetime`, `hostname`, `user`, `path`, `git_branch`, `git_commit`, `uuid`, `random`
+    - **Session variables**: Access live terminal state via `\(session.*)` syntax
+      - 12 session variables: hostname, username, path, job, last_command, profile_name, tty, columns, rows, bell_count, selection, tmux_pane_title
+      - Pulled from badge/automation system in real-time
+      - Reflect current terminal state (e.g., current job, working directory, selection)
     - Custom variables per snippet via HashMap
+    - Variable priority: Custom > Session > Built-in
     - Keyboard shortcut assignment via `keybinding` field
     - Folder organization for grouping related snippets
     - Config persistence in `config.yaml` via `snippets` array with `SnippetConfig` structs
@@ -26,11 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Variable Substitution Engine**: Regex-based parser with real-time resolution
     - `VariableSubstitutor` in `src/snippets/mod.rs`
     - Built-in variable resolution using system APIs
+    - Session variable integration via `SessionVariables`
     - Custom variable support for snippet-specific values
-    - 15 unit tests ensuring correctness
+    - Support for dotted variable names (e.g., `session.hostname`)
+    - 18 unit tests ensuring correctness (15 original + 3 new)
   - **Snippet Execution**: Insert snippets into active terminal via keybindings
     - Uses "snippet:<id>" action format for keybinding system
-    - Variable substitution performed at insertion time
+    - Variable substitution performed at insertion time with session context
     - Error handling with toast notifications
     - Proper terminal locking (tokio::sync::Mutex try_lock)
     - Auto-execute appends newline to run commands immediately

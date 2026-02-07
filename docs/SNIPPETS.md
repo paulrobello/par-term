@@ -70,6 +70,32 @@ Snippets support dynamic variable substitution using the `\(variable)` syntax. W
 | `\(uuid)` | Random UUID | `550e8400-e29b-41d4-a716-446655440000` |
 | `\(random)` | Random number (0-999999) | `482910` |
 
+#### Session Variables (Live Terminal State)
+
+Snippets can also access live session variables from the badge/automation system using the `\(session.*)` syntax. These variables reflect the current terminal state:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `\(session.hostname)` | Current hostname (from SSH session or system) | `my-server` |
+| `\(session.username)` | Current username | `alice` |
+| `\(session.path)` | Current working directory | `/home/alice/projects` |
+| `\(session.job)` | Foreground job name (if any) | `vim` |
+| `\(session.last_command)` | Last executed command | `git status` |
+| `\(session.profile_name)` | Active profile name | `Development` |
+| `\(session.tty)` | TTY device name | `/dev/pts/0` |
+| `\(session.columns)` | Terminal column count | `120` |
+| `\(session.rows)` | Terminal row count | `40` |
+| `\(session.bell_count)` | Number of bells received | `5` |
+| `\(session.selection)` | Currently selected text | `selected text` |
+| `\(session.tmux_pane_title)` | tmux pane title (in tmux mode) | `vim` |
+
+**Variable Priority:**
+1. Custom snippet variables (highest)
+2. Session variables (`session.*`)
+3. Built-in variables (lowest)
+
+This means you can override built-in or session variables by defining a custom variable with the same name.
+
 #### Example Snippets
 
 **Date Stamp:**
@@ -92,6 +118,14 @@ Title: Project Header
 Content: echo "Working on \(user)@\(hostname) in \(path)"
 ```
 Inserts: `echo "Working on alice@my-computer in /home/alice/projects"`
+
+**Session State Snippet:**
+```yaml
+Title: Save Context
+Content: echo "Working on \(session.job) in \(session.path) on \(session.hostname)"
+Auto-execute: true
+```
+When triggered while editing a file in vim: `echo "Working on vim in /home/alice/projects on my-server"`
 
 **Command with Auto-execute:**
 ```yaml

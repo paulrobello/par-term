@@ -2,9 +2,11 @@
 //!
 //! This module provides:
 //! - Variable substitution for snippets (built-in and custom variables)
-//! - Snippet text processing with \(variable\) syntax
+//! - Session variable access (hostname, username, path, job, etc.)
+//! - Snippet text processing with \(variable) syntax
 //! - Integration with the terminal for text insertion
 
+use crate::badge::SessionVariables;
 use crate::config::snippets::BuiltInVariable;
 use regex::Regex;
 use std::collections::HashMap;
@@ -45,8 +47,9 @@ pub struct VariableSubstitutor {
 impl VariableSubstitutor {
     /// Create a new variable substitutor.
     pub fn new() -> Self {
-        // Match \(variable_name) where variable_name is alphanumeric + underscore
-        let pattern = Regex::new(r"\\\(([a-zA-Z_][a-zA-Z0-9_]*)\)").unwrap();
+        // Match \(variable_name) where variable_name is alphanumeric + underscore + dot
+        // Dot allows session.hostname style variables
+        let pattern = Regex::new(r"\\\(([a-zA-Z_][a-zA-Z0-9_.]*)\)").unwrap();
 
         Self { pattern }
     }
@@ -60,6 +63,24 @@ impl VariableSubstitutor {
     /// # Returns
     /// The text with all variables replaced by their values.
     pub fn substitute(&self, text: &str, custom_vars: &HashMap<String, String>) -> SubstitutionResult<String> {
+        self.substitute_with_session(text, custom_vars, None)
+    }
+
+    /// Substitute all variables in the given text, including session variables.
+    ///
+    /// # Arguments
+    /// * `text` - The text containing variables to substitute
+    /// * `custom_vars` - Custom variables defined for this snippet
+    /// * `session_vars` - Optional session variables (hostname, path, job, etc.)
+    ///
+    /// # Returns
+    /// The text with all variables replaced by their values.
+    pub fn substitute_with_session(
+        &self,
+        text: &str,
+        custom_vars: &HashMap<String, String>,
+        session_vars: Option<&SessionVariables>,
+    ) -> SubstitutionResult<String> {
         let mut result = text.to_string();
 
         // Find all variable placeholders
@@ -68,7 +89,7 @@ impl VariableSubstitutor {
             let var_name = cap.get(1).unwrap().as_str();
 
             // Resolve the variable value
-            let value = self.resolve_variable(var_name, custom_vars)?;
+            let value = self.resolve_variable_with_session(var_name, custom_vars, session_vars)?;
 
             // Replace the placeholder with the value
             result = result.replace(full_match, &value);
@@ -77,14 +98,31 @@ impl VariableSubstitutor {
         Ok(result)
     }
 
-    /// Resolve a single variable to its value.
+    /// Resolve a single variable to its value (without session variables).
     fn resolve_variable(&self, name: &str, custom_vars: &HashMap<String, String>) -> SubstitutionResult<String> {
+        self.resolve_variable_with_session(name, custom_vars, None)
+    }
+
+    /// Resolve a single variable to its value, including session variables.
+    fn resolve_variable_with_session(
+        &self,
+        name: &str,
+        custom_vars: &HashMap<String, String>,
+        session_vars: Option<&SessionVariables>,
+    ) -> SubstitutionResult<String> {
         // Check custom variables first (highest priority)
         if let Some(value) = custom_vars.get(name) {
             return Ok(value.clone());
         }
 
-        // Check built-in variables
+        // Check session variables (second priority)
+        if let Some(session) = session_vars {
+            if let Some(value) = session.get(name) {
+                return Ok(value);
+            }
+        }
+
+        // Check built-in variables (third priority)
         if let Some(builtin) = BuiltInVariable::parse(name) {
             return Ok(builtin.resolve());
         }

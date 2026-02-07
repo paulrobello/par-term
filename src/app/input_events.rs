@@ -1438,15 +1438,19 @@ impl WindowState {
             return false;
         }
 
-        // Substitute variables in the snippet content
-        let substituted_content = match crate::snippets::VariableSubstitutor::new()
-            .substitute(&snippet.content, &snippet.variables)
-        {
-            Ok(content) => content,
-            Err(e) => {
-                log::error!("Failed to substitute variables in snippet '{}': {}", snippet.title, e);
-                self.show_toast(format!("Snippet Error: {}", e));
-                return false;
+        // Substitute variables in the snippet content, including session variables
+        let substituted_content = {
+            let session_vars = self.badge_state.variables.read();
+            let result = crate::snippets::VariableSubstitutor::new()
+                .substitute_with_session(&snippet.content, &snippet.variables, Some(&session_vars));
+            drop(session_vars); // Explicitly drop before using self again
+            match result {
+                Ok(content) => content,
+                Err(e) => {
+                    log::error!("Failed to substitute variables in snippet '{}': {}", snippet.title, e);
+                    self.show_toast(format!("Snippet Error: {}", e));
+                    return false;
+                }
             }
         };
 

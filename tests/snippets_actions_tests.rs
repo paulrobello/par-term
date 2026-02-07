@@ -9,6 +9,7 @@
 
 use par_term::config::{Config, CustomActionConfig, SnippetConfig};
 use par_term::snippets::VariableSubstitutor;
+use par_term::badge::SessionVariables;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -645,3 +646,74 @@ fn test_snippet_serialization_with_auto_execute() {
     assert_eq!(deserialized.id, snippet.id);
     assert_eq!(deserialized.auto_execute, true);
 }
+
+#[test]
+fn test_session_variable_substitution() {
+    // Create session variables with test data
+    let mut session_vars = SessionVariables::new();
+    session_vars.hostname = "testhost".to_string();
+    session_vars.username = "testuser".to_string();
+    session_vars.path = "/home/test/projects".to_string();
+    session_vars.job = Some("vim".to_string());
+
+    // Test substitution with session variables
+    let substitutor = VariableSubstitutor::new();
+    let custom_vars = std::collections::HashMap::new();
+
+    let result = substitutor
+        .substitute_with_session(
+            "User: \\(session.username), Host: \\(session.hostname), Path: \\(session.path), Job: \\(session.job)",
+            &custom_vars,
+            Some(&session_vars),
+        )
+        .unwrap();
+
+    assert_eq!(result, "User: testuser, Host: testhost, Path: /home/test/projects, Job: vim");
+}
+
+#[test]
+fn test_session_variables_override_builtins() {
+    // Create session variables
+    let mut session_vars = SessionVariables::new();
+    session_vars.hostname = "session-host".to_string();
+
+    // Test that session variables take precedence over built-in
+    let substitutor = VariableSubstitutor::new();
+    let custom_vars = std::collections::HashMap::new();
+
+    let result = substitutor
+        .substitute_with_session(
+            "\\(session.hostname) vs \\(hostname)",
+            &custom_vars,
+            Some(&session_vars),
+        )
+        .unwrap();
+
+    // Both should work, giving different values
+    assert!(result.contains("session-host"));
+    assert!(result.contains(" vs "));
+}
+
+#[test]
+fn test_custom_variables_override_session() {
+    // Create session and custom variables
+    let mut session_vars = SessionVariables::new();
+    session_vars.hostname = "session-host".to_string();
+
+    let mut custom_vars = std::collections::HashMap::new();
+    custom_vars.insert("hostname".to_string(), "custom-host".to_string());
+
+    // Test that custom variables have highest priority
+    let substitutor = VariableSubstitutor::new();
+
+    let result = substitutor
+        .substitute_with_session(
+            "\\(session.hostname) vs \\(hostname)",
+            &custom_vars,
+            Some(&session_vars),
+        )
+        .unwrap();
+
+    assert_eq!(result, "session-host vs custom-host");
+}
+
