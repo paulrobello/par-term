@@ -7,6 +7,7 @@ pub mod automation;
 pub mod defaults;
 pub mod shader_config;
 pub mod shader_metadata;
+pub mod snippets;
 mod types;
 
 // Re-export shader config resolution functions (used by consumers)
@@ -31,6 +32,8 @@ pub use types::{
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
+// Snippets and custom actions
+pub use snippets::{BuiltInVariable, CustomActionConfig, SnippetConfig};
 #[allow(unused_imports)]
 pub use types::KeyModifier;
 #[allow(unused_imports)]
@@ -1344,6 +1347,17 @@ pub struct Config {
     /// Coprocess definitions for piped subprocess management
     #[serde(default)]
     pub coprocesses: Vec<automation::CoprocessDefConfig>,
+
+    // ========================================================================
+    // Snippets & Actions
+    // ========================================================================
+    /// Text snippets for quick insertion
+    #[serde(default)]
+    pub snippets: Vec<SnippetConfig>,
+
+    /// Custom actions (shell commands, text insertion, key sequences)
+    #[serde(default)]
+    pub actions: Vec<CustomActionConfig>,
 }
 
 impl Default for Config {
@@ -1590,6 +1604,8 @@ impl Default for Config {
             badge_max_height: defaults::badge_max_height(),
             triggers: Vec::new(),
             coprocesses: Vec::new(),
+            snippets: Vec::new(),
+            actions: Vec::new(),
         }
     }
 }

@@ -19,6 +19,8 @@ pub enum SettingsTab {
     Notifications,
     Integrations,
     Automation,
+    Snippets,
+    Actions,
     Advanced,
 }
 
@@ -36,6 +38,8 @@ impl SettingsTab {
             Self::Notifications => "Notifications",
             Self::Integrations => "Integrations",
             Self::Automation => "Automation",
+            Self::Snippets => "Snippets",
+            Self::Actions => "Actions",
             Self::Advanced => "Advanced",
         }
     }
@@ -53,6 +57,8 @@ impl SettingsTab {
             Self::Notifications => "🔔",
             Self::Integrations => "🔌",
             Self::Automation => "⚡",
+            Self::Snippets => "📝",
+            Self::Actions => "🚀",
             Self::Advanced => "⚙",
         }
     }
@@ -70,6 +76,8 @@ impl SettingsTab {
             Self::Notifications,
             Self::Integrations,
             Self::Automation,
+            Self::Snippets,
+            Self::Actions,
             Self::Advanced,
         ]
     }
@@ -553,6 +561,32 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "auto start",
             "auto-start",
         ],
+        SettingsTab::Snippets => &[
+            "snippet",
+            "snippets",
+            "text",
+            "insert",
+            "template",
+            "variable",
+            "keybinding",
+            "folder",
+            "substitution",
+            "date",
+            "time",
+            "hostname",
+            "path",
+        ],
+        SettingsTab::Actions => &[
+            "action",
+            "actions",
+            "custom action",
+            "shell command",
+            "text insert",
+            "key sequence",
+            "macro",
+            "automation",
+            "shortcut",
+        ],
         SettingsTab::Advanced => &[
             // tmux
             "tmux",
@@ -621,6 +655,8 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         SettingsTab::Notifications => "Bell, activity alerts, desktop notifications",
         SettingsTab::Integrations => "Shell integration, shader bundle installation",
         SettingsTab::Automation => "Regex triggers, trigger actions, coprocesses",
+        SettingsTab::Snippets => "Text snippets with variable substitution",
+        SettingsTab::Actions => "Custom actions (shell, text, keys)",
         SettingsTab::Advanced => "tmux integration, logging, updates, debug logging",
     }
 }

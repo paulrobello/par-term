@@ -8,7 +8,7 @@ use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 use rfd::FileDialog;
 use std::collections::HashSet;
 
-// Reorganized settings tabs (10 consolidated tabs)
+// Reorganized settings tabs (12 consolidated tabs)
 pub mod advanced_tab;
 pub mod appearance_tab;
 pub mod automation_tab;
@@ -23,6 +23,8 @@ pub mod section;
 pub mod sidebar;
 pub mod terminal_tab;
 pub mod window_tab;
+pub mod snippets_tab;
+pub mod actions_tab;
 
 // Background tab is still needed by effects_tab for delegation
 pub mod background_tab;
@@ -248,6 +250,44 @@ pub struct SettingsUI {
     /// Flag to request opening the debug log file
     pub(crate) open_log_requested: bool,
 
+    // Snippets tab state
+    /// Index of snippet currently being edited (None = not editing)
+    pub(crate) editing_snippet_index: Option<usize>,
+    /// Temporary snippet ID for edit form
+    pub(crate) temp_snippet_id: String,
+    /// Temporary snippet title for edit form
+    pub(crate) temp_snippet_title: String,
+    /// Temporary snippet content for edit form
+    pub(crate) temp_snippet_content: String,
+    /// Temporary snippet keybinding for edit form
+    pub(crate) temp_snippet_keybinding: String,
+    /// Temporary snippet folder for edit form
+    pub(crate) temp_snippet_folder: String,
+    /// Temporary snippet description for edit form
+    pub(crate) temp_snippet_description: String,
+    /// Whether the add-new-snippet form is active
+    pub(crate) adding_new_snippet: bool,
+
+    // Actions tab state
+    /// Index of action currently being edited (None = not editing)
+    pub(crate) editing_action_index: Option<usize>,
+    /// Temporary action type for edit form (0=ShellCommand, 1=InsertText, 2=KeySequence)
+    pub(crate) temp_action_type: usize,
+    /// Temporary action ID for edit form
+    pub(crate) temp_action_id: String,
+    /// Temporary action title for edit form
+    pub(crate) temp_action_title: String,
+    /// Temporary action command (for ShellCommand type)
+    pub(crate) temp_action_command: String,
+    /// Temporary action args (for ShellCommand type)
+    pub(crate) temp_action_args: String,
+    /// Temporary action text (for InsertText type)
+    pub(crate) temp_action_text: String,
+    /// Temporary action keys (for KeySequence type)
+    pub(crate) temp_action_keys: String,
+    /// Whether the add-new-action form is active
+    pub(crate) adding_new_action: bool,
+
     // Reset to defaults dialog state
     /// Whether to show the reset to defaults confirmation dialog
     pub(crate) show_reset_defaults_dialog: bool,
@@ -363,6 +403,23 @@ impl SettingsUI {
             coprocess_output: Vec::new(),
             coprocess_output_expanded: Vec::new(),
             open_log_requested: false,
+            editing_snippet_index: None,
+            temp_snippet_id: String::new(),
+            temp_snippet_title: String::new(),
+            temp_snippet_content: String::new(),
+            temp_snippet_keybinding: String::new(),
+            temp_snippet_folder: String::new(),
+            temp_snippet_description: String::new(),
+            adding_new_snippet: false,
+            editing_action_index: None,
+            temp_action_type: 0,
+            temp_action_id: String::new(),
+            temp_action_title: String::new(),
+            temp_action_command: String::new(),
+            temp_action_args: String::new(),
+            temp_action_text: String::new(),
+            temp_action_keys: String::new(),
+            adding_new_action: false,
             show_reset_defaults_dialog: false,
         }
     }
@@ -1094,6 +1151,12 @@ impl SettingsUI {
             }
             SettingsTab::Automation => {
                 automation_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Snippets => {
+                snippets_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Actions => {
+                actions_tab::show(ui, self, changes_this_frame);
             }
             SettingsTab::Advanced => {
                 advanced_tab::show(ui, self, changes_this_frame);
