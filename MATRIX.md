@@ -524,12 +524,12 @@ iTerm2 has a system for saved text snippets and custom actions.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Text snippets | ✅ Snippets | ❌ | ❌ | ⭐⭐ | 🟡 | Saved text blocks for quick insertion |
-| Snippet shortcuts | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Keyboard shortcuts for snippets |
-| Snippet variables | ✅ | ❌ | ❌ | ⭐ | 🟡 | Dynamic values in snippets |
-| Snippet library | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Organize snippets |
-| Custom actions | ✅ | ❌ | ❌ | ⭐ | 🔴 | User-defined actions/macros |
-| Action key bindings | ✅ | ❌ | ❌ | ⭐ | 🟡 | Assign keys to actions |
+| Text snippets | ✅ Snippets | ✅ | ✅ | ⭐⭐ | 🟡 | Saved text blocks for quick insertion |
+| Snippet shortcuts | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Keyboard shortcuts for snippets |
+| Snippet variables | ✅ | ✅ | ✅ | ⭐ | 🟡 | Dynamic values in snippets (10 built-in variables) |
+| Snippet library | ✅ | ✅ Partial | ✅ | ⭐⭐ | 🟡 | Organize snippets into folders |
+| Custom actions | ✅ | ✅ Partial | ✅ | ⭐ | 🔴 | Shell commands and text insertion (key sequences TODO) |
+| Action key bindings | ✅ | 🟡 | 🟡 | ⭐ | 🟡 | Assign keys to actions (manual setup via keybindings config) |
 
 ---
 
