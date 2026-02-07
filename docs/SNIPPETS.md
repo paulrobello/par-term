@@ -29,6 +29,9 @@ Snippets are saved text blocks that can be quickly inserted into the terminal. T
    - **Title**: A human-readable name (e.g., "Git Commit Message")
    - **Content**: The text to insert (supports variables)
    - **Keybinding** (optional): Keyboard shortcut to trigger the snippet
+     - Click the **🎤 Record** button and press the desired key combination
+     - Or type it manually (e.g., `Ctrl+Shift+D`)
+     - Conflict warnings appear if the keybinding is already in use (⚠️)
    - **Folder** (optional): Group snippets into folders
    - **Description** (optional): Notes about what the snippet does
 
@@ -139,25 +142,41 @@ Simulate keyboard input. This feature is planned for a future release.
 1. Open Settings (⌘+, / Ctrl+,)
 2. Navigate to the **Actions** tab
 3. Click **+ Add Action**
-4. Select the action type:
-   - **Shell Command**: Enter command and arguments
-   - **Insert Text**: Enter the text to insert (supports variables)
-   - **Key Sequence**: Coming soon
+4. Fill in the action details:
+   - **Title**: A human-readable name (e.g., "Run Tests")
+   - **Type**: Select from Shell Command, Insert Text, or Key Sequence
+   - **Keybinding** (optional): Keyboard shortcut to trigger the action
+     - Click the **🎤 Record** button and press the desired key combination
+     - Or type it manually (e.g., `Ctrl+Shift+T`)
+     - Conflict warnings appear if the keybinding is already in use (⚠️)
+   - **Type-specific fields**: Enter command, text, or key sequence based on type
 
 ### Using Actions
 
-Actions are triggered via keyboard shortcuts. To assign a keybinding to an action:
+Actions are triggered via keyboard shortcuts. You can assign keybindings in two ways:
 
+**Via Action Editor (Recommended):**
+1. Open Settings → **Actions** tab
+2. Edit or create an action
+3. Click the **🎤 Record** button in the Keybinding field
+4. Press the desired key combination
+5. Save the action
+
+**Via Keybindings List:**
 1. Open Settings → **Input** tab
 2. Add a new keybinding:
    - **Key**: e.g., `Ctrl+Shift+T`
    - **Action**: `action:<action_id>` (e.g., `action:run_tests`)
 
-**Note:** Currently, action keybindings must be configured manually in the keybindings list. A future update will add keybinding fields directly to the action editor.
+**Keybinding Recording:**
+- The **🎤 Record** button captures your exact key combination
+- A **🔴 Recording...** indicator appears while recording
+- **⚠️ Conflict warnings** show if the keybinding is already used elsewhere
+- When editing, the current keybinding is excluded from conflict detection
 
 ## Configuration
 
-Snippets and actions are stored in your `config.yaml` file:
+Snippets and actions are stored in your `config.yaml` file. Keybindings are automatically saved to the keybindings list when you set them in the snippet or action editor.
 
 ```yaml
 # Text snippets
@@ -165,7 +184,7 @@ snippets:
   - id: "snippet_001"
     title: "Date Stamp"
     content: "echo 'Report: \(date)'"
-    keybinding: "Ctrl+Shift+D"  # optional
+    keybinding: "Ctrl+Shift+D"  # optional, set via Record button
     folder: "Common"            # optional
     enabled: true
     description: "Insert current date"
@@ -179,6 +198,13 @@ actions:
     command: "npm"
     args: ["test"]
     notify_on_success: true
+
+# Keybindings (auto-generated from snippets and actions)
+keybindings:
+  - key: "Ctrl+Shift+D"
+    action: "snippet:snippet_001"
+  - key: "Ctrl+Shift+T"
+    action: "action:action_001"
 ```
 
 ## Examples
@@ -271,13 +297,20 @@ Folder: SSH
 3. **Leverage Variables**: Use built-in variables for dynamic content
 4. **Test Snippets**: Try snippets in a safe environment before relying on them
 5. **Backup Your Config**: Snippets and actions are part of your config.yaml
-6. **Keybinding Conflicts**: Avoid using keybindings that conflict with system or app shortcuts
+6. **Keybinding Conflicts**: Use the **🎤 Record** button to detect conflicts automatically
+   - **⚠️ Yellow warnings** indicate existing keybindings
+   - Conflicts show what the keybinding is currently assigned to
+   - When editing, your current keybinding is excluded from conflict detection
+7. **Use Record Button**: The Record button ensures accurate keybinding capture
+   - Captures modifier keys correctly (Ctrl, Shift, Alt, Super/Windows/Command)
+   - Avoids typos from manual entry
+   - Shows real-time feedback during recording (🔴)
 
 ## Limitations
 
 - **Key Sequence Actions**: Not yet implemented (planned for future release)
-- **Action Keybindings in UI**: Currently require manual configuration in keybindings list
 - **Custom Variables UI**: Custom variables must be configured in YAML (UI planned)
+- **Import/Export**: Snippet libraries cannot be imported/exported yet (planned)
 
 ## Future Enhancements
 
@@ -286,5 +319,4 @@ Folder: SSH
 - [ ] Snippet sharing between users
 - [ ] Search/filter snippets in UI
 - [ ] Custom variables editor in UI
-- [ ] Action keybinding field in editor
 - [ ] Snippet templates
