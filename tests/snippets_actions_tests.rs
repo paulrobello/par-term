@@ -538,3 +538,66 @@ fn test_snippet_keybinding_enabled_field() {
     assert_eq!(snippet_disabled.keybinding, Some("Ctrl+Shift+X".to_string()));
     assert_eq!(snippet_disabled.keybinding_enabled, false);
 }
+
+#[test]
+fn test_generate_snippet_keybindings_update_existing() {
+    let mut config = Config::default();
+
+    // Add snippet with initial keybinding
+    let snippet = SnippetConfig::new(
+        "test".to_string(),
+        "Test".to_string(),
+        "content".to_string(),
+    )
+    .with_keybinding("Ctrl+Shift+T".to_string());
+    config.snippets.push(snippet);
+
+    // Generate keybindings first time
+    config.generate_snippet_action_keybindings();
+    assert_eq!(config.keybindings.last().unwrap().key, "Ctrl+Shift+T");
+
+    // Update snippet keybinding
+    config.snippets[0].keybinding = Some("Ctrl+Shift+X".to_string());
+
+    // Generate keybindings again - should update existing keybinding
+    config.generate_snippet_action_keybindings();
+
+    // Should still have the same number of keybindings (not add a duplicate)
+    let snippet_keybindings: Vec<_> = config.keybindings
+        .iter()
+        .filter(|kb| kb.action == "snippet:test")
+        .collect();
+
+    assert_eq!(snippet_keybindings.len(), 1);
+    assert_eq!(snippet_keybindings[0].key, "Ctrl+Shift+X");
+}
+
+#[test]
+fn test_generate_snippet_keybindings_remove_when_cleared() {
+    let mut config = Config::default();
+    let initial_count = config.keybindings.len();
+
+    // Add snippet with keybinding
+    let snippet = SnippetConfig::new(
+        "test".to_string(),
+        "Test".to_string(),
+        "content".to_string(),
+    )
+    .with_keybinding("Ctrl+Shift+T".to_string());
+    config.snippets.push(snippet);
+
+    // Generate keybindings
+    config.generate_snippet_action_keybindings();
+    assert_eq!(config.keybindings.len(), initial_count + 1);
+
+    // Remove keybinding from snippet
+    config.snippets[0].keybinding = None;
+
+    // Generate keybindings again - should remove the keybinding
+    config.generate_snippet_action_keybindings();
+
+    // Should be back to initial count
+    assert_eq!(config.keybindings.len(), initial_count);
+    // Should not have the snippet keybinding anymore
+    assert!(!config.keybindings.iter().any(|kb| kb.action == "snippet:test"));
+}

@@ -86,11 +86,14 @@ impl WindowState {
                 self.config.use_physical_keys,
             )
         {
+            crate::debug_info!("KEYBINDING", "Keybinding matched: action={}, key={:?}, modifiers={:?}", action, event.logical_key, self.input_handler.modifiers);
             // Clone to avoid borrow conflict
             let action = action.to_string();
             if self.execute_keybinding_action(&action) {
                 return; // Key was handled by user-defined keybinding
             }
+        } else if event.state == ElementState::Pressed {
+            crate::debug_log!("KEYBINDING", "No keybinding match for key={:?}, modifiers={:?}", event.logical_key, self.input_handler.modifiers);
         }
 
         // Check if this is a scroll navigation key
