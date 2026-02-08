@@ -198,7 +198,88 @@ fn show_action_edit_form(
     changes_this_frame: &mut bool,
     edit_index: Option<usize>,
 ) {
-    // Scrollable area for form fields (buttons will be outside)
+    ui.separator();
+
+    // Buttons at TOP - always visible first
+    ui.horizontal(|ui| {
+        if ui.button("Save").clicked() {
+            let action = match settings.temp_action_type {
+                0 => CustomActionConfig::ShellCommand {
+                    id: settings.temp_action_id.clone(),
+                    title: settings.temp_action_title.clone(),
+                    command: settings.temp_action_command.clone(),
+                    args: if settings.temp_action_args.is_empty() {
+                        Vec::new()
+                    } else {
+                        settings
+                            .temp_action_args
+                            .split_whitespace()
+                            .map(|s| s.to_string())
+                            .collect()
+                    },
+                    notify_on_success: false,
+                    description: None,
+                },
+                1 => CustomActionConfig::InsertText {
+                    id: settings.temp_action_id.clone(),
+                    title: settings.temp_action_title.clone(),
+                    text: settings.temp_action_text.clone(),
+                    variables: std::collections::HashMap::new(),
+                    description: None,
+                },
+                2 => CustomActionConfig::KeySequence {
+                    id: settings.temp_action_id.clone(),
+                    title: settings.temp_action_title.clone(),
+                    keys: settings.temp_action_keys.clone(),
+                    description: None,
+                },
+                _ => unreachable!(),
+            };
+
+            // Save the action
+            if let Some(i) = edit_index {
+                // Update existing action
+                settings.config.actions[i] = action;
+            } else {
+                // Add new action
+                settings.config.actions.push(action);
+            }
+
+            // Handle keybinding for the action
+            if !settings.temp_action_keybinding.is_empty() {
+                let keybinding_action = format!("action:{}", settings.temp_action_id);
+                // Check if this keybinding already exists in the config
+                let existing_index = settings.config.keybindings.iter().position(|kb| {
+                    kb.key == settings.temp_action_keybinding && kb.action == keybinding_action
+                });
+
+                if existing_index.is_none() {
+                    // Add new keybinding
+                    settings.config.keybindings.push(crate::config::KeyBinding {
+                        key: settings.temp_action_keybinding.clone(),
+                        action: keybinding_action,
+                    });
+                }
+            }
+
+            settings.has_changes = true;
+            *changes_this_frame = true;
+            settings.editing_action_index = None;
+            settings.adding_new_action = false;
+        }
+
+        if ui.button("Cancel").clicked() {
+            settings.editing_action_index = None;
+            settings.adding_new_action = false;
+            // Also clear recording state if active
+            settings.recording_action_keybinding = false;
+            settings.action_recorded_combo = None;
+        }
+    });
+
+    ui.separator();
+
+    // Scrollable area for form fields
     egui::ScrollArea::vertical()
         .max_height(300.0)
         .show(ui, |ui| {
@@ -329,85 +410,6 @@ fn show_action_edit_form(
                 _ => {}
             }
         });
-
-    ui.separator();
-
-    // Buttons outside scroll area - always visible
-    ui.horizontal(|ui| {
-        if ui.button("Save").clicked() {
-            let action = match settings.temp_action_type {
-                0 => CustomActionConfig::ShellCommand {
-                    id: settings.temp_action_id.clone(),
-                    title: settings.temp_action_title.clone(),
-                    command: settings.temp_action_command.clone(),
-                    args: if settings.temp_action_args.is_empty() {
-                        Vec::new()
-                    } else {
-                        settings
-                            .temp_action_args
-                            .split_whitespace()
-                            .map(|s| s.to_string())
-                            .collect()
-                    },
-                    notify_on_success: false,
-                    description: None,
-                },
-                1 => CustomActionConfig::InsertText {
-                    id: settings.temp_action_id.clone(),
-                    title: settings.temp_action_title.clone(),
-                    text: settings.temp_action_text.clone(),
-                    variables: std::collections::HashMap::new(),
-                    description: None,
-                },
-                2 => CustomActionConfig::KeySequence {
-                    id: settings.temp_action_id.clone(),
-                    title: settings.temp_action_title.clone(),
-                    keys: settings.temp_action_keys.clone(),
-                    description: None,
-                },
-                _ => unreachable!(),
-            };
-
-            // Save the action
-            if let Some(i) = edit_index {
-                // Update existing action
-                settings.config.actions[i] = action;
-            } else {
-                // Add new action
-                settings.config.actions.push(action);
-            }
-
-            // Handle keybinding for the action
-            if !settings.temp_action_keybinding.is_empty() {
-                let keybinding_action = format!("action:{}", settings.temp_action_id);
-                // Check if this keybinding already exists in the config
-                let existing_index = settings.config.keybindings.iter().position(|kb| {
-                    kb.key == settings.temp_action_keybinding && kb.action == keybinding_action
-                });
-
-                if existing_index.is_none() {
-                    // Add new keybinding
-                    settings.config.keybindings.push(crate::config::KeyBinding {
-                        key: settings.temp_action_keybinding.clone(),
-                        action: keybinding_action,
-                    });
-                }
-            }
-
-            settings.has_changes = true;
-            *changes_this_frame = true;
-            settings.editing_action_index = None;
-            settings.adding_new_action = false;
-        }
-
-        if ui.button("Cancel").clicked() {
-            settings.editing_action_index = None;
-            settings.adding_new_action = false;
-            // Also clear recording state if active
-            settings.recording_action_keybinding = false;
-            settings.action_recorded_combo = None;
-        }
-    });
 
     ui.separator();
 }

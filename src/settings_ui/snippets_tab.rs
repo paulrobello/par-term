@@ -231,7 +231,59 @@ fn show_snippet_edit_form(
     changes_this_frame: &mut bool,
     edit_index: Option<usize>,
 ) {
-    // Scrollable area for form fields (buttons will be outside)
+    ui.separator();
+
+    // Buttons at TOP - always visible first
+    ui.horizontal(|ui| {
+        if ui.button("Save").clicked() {
+            let snippet = SnippetConfig {
+                id: settings.temp_snippet_id.clone(),
+                title: settings.temp_snippet_title.clone(),
+                content: settings.temp_snippet_content.clone(),
+                keybinding: if settings.temp_snippet_keybinding.is_empty() {
+                    None
+                } else {
+                    Some(settings.temp_snippet_keybinding.clone())
+                },
+                keybinding_enabled: settings.temp_snippet_keybinding_enabled,
+                folder: if settings.temp_snippet_folder.is_empty() {
+                    None
+                } else {
+                    Some(settings.temp_snippet_folder.clone())
+                },
+                enabled: true,
+                description: if settings.temp_snippet_description.is_empty() {
+                    None
+                } else {
+                    Some(settings.temp_snippet_description.clone())
+                },
+                auto_execute: settings.temp_snippet_auto_execute,
+                variables: HashMap::new(), // TODO: Add custom variables UI
+            };
+
+            if let Some(i) = edit_index {
+                // Update existing snippet
+                settings.config.snippets[i] = snippet;
+            } else {
+                // Add new snippet
+                settings.config.snippets.push(snippet);
+            }
+
+            settings.has_changes = true;
+            *changes_this_frame = true;
+            settings.editing_snippet_index = None;
+            settings.adding_new_snippet = false;
+        }
+
+        if ui.button("Cancel").clicked() {
+            settings.editing_snippet_index = None;
+            settings.adding_new_snippet = false;
+        }
+    });
+
+    ui.separator();
+
+    // Scrollable area for form fields
     egui::ScrollArea::vertical()
         .max_height(300.0)
         .show(ui, |ui| {
@@ -364,56 +416,6 @@ fn show_snippet_edit_form(
                     .color(egui::Color32::GRAY),
             );
         });
-
-    ui.separator();
-
-    // Buttons outside scroll area - always visible
-    ui.horizontal(|ui| {
-        if ui.button("Save").clicked() {
-            let snippet = SnippetConfig {
-                id: settings.temp_snippet_id.clone(),
-                title: settings.temp_snippet_title.clone(),
-                content: settings.temp_snippet_content.clone(),
-                keybinding: if settings.temp_snippet_keybinding.is_empty() {
-                    None
-                } else {
-                    Some(settings.temp_snippet_keybinding.clone())
-                },
-                keybinding_enabled: settings.temp_snippet_keybinding_enabled,
-                folder: if settings.temp_snippet_folder.is_empty() {
-                    None
-                } else {
-                    Some(settings.temp_snippet_folder.clone())
-                },
-                enabled: true,
-                description: if settings.temp_snippet_description.is_empty() {
-                    None
-                } else {
-                    Some(settings.temp_snippet_description.clone())
-                },
-                auto_execute: settings.temp_snippet_auto_execute,
-                variables: HashMap::new(), // TODO: Add custom variables UI
-            };
-
-            if let Some(i) = edit_index {
-                // Update existing snippet
-                settings.config.snippets[i] = snippet;
-            } else {
-                // Add new snippet
-                settings.config.snippets.push(snippet);
-            }
-
-            settings.has_changes = true;
-            *changes_this_frame = true;
-            settings.editing_snippet_index = None;
-            settings.adding_new_snippet = false;
-        }
-
-        if ui.button("Cancel").clicked() {
-            settings.editing_snippet_index = None;
-            settings.adding_new_snippet = false;
-        }
-    });
 
     ui.separator();
 }
