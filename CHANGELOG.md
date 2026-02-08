@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Snippet/Action Row Overflow**: Fixed Edit/Delete buttons being pushed off-screen by long command text in Snippets and Actions settings tabs. Buttons are now anchored to the right with content preview auto-truncating to fill remaining space.
+
+- **Platform-Specific Keybinding Display**: Keybinding labels in snippet rows now show `Cmd` on macOS and `Ctrl` on Linux/Windows instead of the raw `CmdOrCtrl` config format.
+
+
 ### Added
 
 - **Snippets & Actions System** (#86): Text automation and custom actions (iTerm2 parity)

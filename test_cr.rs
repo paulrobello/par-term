@@ -4,8 +4,6 @@ use std::thread;
 use std::time::Duration;
 
 fn main() {
-    env_logger::init();
-
     let mut pty = PtySession::new(80, 24, 1000);
 
     // Spawn a shell

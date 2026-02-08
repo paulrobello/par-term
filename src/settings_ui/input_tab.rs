@@ -874,7 +874,7 @@ const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
 ];
 
-fn display_key_combo(combo: &str) -> String {
+pub(super) fn display_key_combo(combo: &str) -> String {
     #[cfg(target_os = "macos")]
     {
         combo.replace("CmdOrCtrl", "Cmd")

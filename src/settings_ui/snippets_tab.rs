@@ -10,7 +10,7 @@
 use super::SettingsUI;
 use super::section::collapsing_section;
 use crate::config::snippets::SnippetConfig;
-use crate::settings_ui::input_tab::capture_key_combo;
+use crate::settings_ui::input_tab::{capture_key_combo, display_key_combo};
 use std::collections::HashMap;
 
 /// Show the snippets tab content.
@@ -132,39 +132,46 @@ fn show_snippets_section(
                         // Keybinding (if any)
                         if let Some(keybinding) = &snippet.keybinding {
                             ui.label(
-                                egui::RichText::new(format!("[{}]", keybinding))
-                                    .monospace()
-                                    .color(egui::Color32::from_rgb(150, 150, 200)),
+                                egui::RichText::new(format!(
+                                    "[{}]",
+                                    display_key_combo(keybinding)
+                                ))
+                                .monospace()
+                                .color(egui::Color32::from_rgb(150, 150, 200)),
                             );
                         }
 
-                        // Content preview (truncated)
-                        let preview = if snippet.content.len() > 40 {
-                            format!("{}...", &snippet.content[..40])
-                        } else {
-                            snippet.content.clone()
-                        };
-                        ui.label(
-                            egui::RichText::new(preview)
-                                .monospace()
-                                .color(egui::Color32::GRAY),
+                        // Right-aligned buttons + truncated preview for remaining space
+                        ui.with_layout(
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                // Delete button (rightmost)
+                                if ui
+                                    .small_button(
+                                        egui::RichText::new("Delete")
+                                            .color(egui::Color32::from_rgb(200, 80, 80)),
+                                    )
+                                    .clicked()
+                                {
+                                    delete_index = Some(i);
+                                }
+
+                                // Edit button
+                                if ui.small_button("Edit").clicked() {
+                                    start_edit_index = Some(i);
+                                }
+
+                                // Content preview (truncated to remaining space)
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(&snippet.content)
+                                            .monospace()
+                                            .color(egui::Color32::GRAY),
+                                    )
+                                    .truncate(),
+                                );
+                            },
                         );
-
-                        // Edit button
-                        if ui.small_button("Edit").clicked() {
-                            start_edit_index = Some(i);
-                        }
-
-                        // Delete button
-                        if ui
-                            .small_button(
-                                egui::RichText::new("Delete")
-                                    .color(egui::Color32::from_rgb(200, 80, 80)),
-                            )
-                            .clicked()
-                        {
-                            delete_index = Some(i);
-                        }
                     });
                 }
             }

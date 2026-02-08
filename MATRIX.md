@@ -548,6 +548,8 @@ iTerm2 has a system for saved text snippets and custom actions.
 - **Snippets tab** (`src/settings_ui/snippets_tab.rs`): CRUD operations, folder grouping, variables reference
 - **Actions tab** (`src/settings_ui/actions_tab.rs`): Type selector, form fields, CRUD operations
 - Both added to sidebar navigation with icons (📝 Snippets, 🚀 Actions)
+- Right-anchored Edit/Delete buttons with auto-truncating content preview (prevents overflow)
+- Platform-specific keybinding display (shows `Cmd` on macOS, `Ctrl` on Linux/Windows instead of `CmdOrCtrl`)
 
 **Execution Engine** (`src/app/input_events.rs`):
 - `execute_snippet()`: Variable substitution + terminal write

@@ -81,51 +81,46 @@ fn show_actions_section(
                             .color(egui::Color32::from_rgb(150, 150, 200)),
                     );
 
-                    // Type-specific details
-                    match action {
-                        CustomActionConfig::ShellCommand { command, .. } => {
-                            ui.label(
-                                egui::RichText::new(command.to_string())
-                                    .monospace()
-                                    .color(egui::Color32::GRAY),
-                            );
-                        }
-                        CustomActionConfig::InsertText { text, .. } => {
-                            let preview = if text.len() > 30 {
-                                format!("{}...", &text[..30])
-                            } else {
-                                text.clone()
+                    // Right-aligned buttons + truncated detail for remaining space
+                    ui.with_layout(
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            // Delete button (rightmost)
+                            if ui
+                                .small_button(
+                                    egui::RichText::new("Delete")
+                                        .color(egui::Color32::from_rgb(200, 80, 80)),
+                                )
+                                .clicked()
+                            {
+                                delete_index = Some(i);
+                            }
+
+                            // Edit button
+                            if ui.small_button("Edit").clicked() {
+                                start_edit_index = Some(i);
+                            }
+
+                            // Type-specific details (truncated to remaining space)
+                            let detail_text = match action {
+                                CustomActionConfig::ShellCommand { command, .. } => {
+                                    command.to_string()
+                                }
+                                CustomActionConfig::InsertText { text, .. } => text.clone(),
+                                CustomActionConfig::KeySequence { keys, .. } => {
+                                    format!("[{}]", keys)
+                                }
                             };
-                            ui.label(
-                                egui::RichText::new(preview)
-                                    .monospace()
-                                    .color(egui::Color32::GRAY),
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(detail_text)
+                                        .monospace()
+                                        .color(egui::Color32::GRAY),
+                                )
+                                .truncate(),
                             );
-                        }
-                        CustomActionConfig::KeySequence { keys, .. } => {
-                            ui.label(
-                                egui::RichText::new(format!("[{}]", keys))
-                                    .monospace()
-                                    .color(egui::Color32::GRAY),
-                            );
-                        }
-                    }
-
-                    // Edit button
-                    if ui.small_button("Edit").clicked() {
-                        start_edit_index = Some(i);
-                    }
-
-                    // Delete button
-                    if ui
-                        .small_button(
-                            egui::RichText::new("Delete")
-                                .color(egui::Color32::from_rgb(200, 80, 80)),
-                        )
-                        .clicked()
-                    {
-                        delete_index = Some(i);
-                    }
+                        },
+                    );
                 });
             }
         }

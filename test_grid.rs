@@ -26,8 +26,6 @@ fn print_grid_row(pty: &PtySession, row: usize, cols: usize) {
 }
 
 fn main() {
-    env_logger::init();
-
     let mut pty = PtySession::new(80, 24, 1000);
 
     // Spawn shell
