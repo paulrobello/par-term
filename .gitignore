@@ -21,3 +21,4 @@ log.txt
 *-mcp.json
 .gemini-clipboard
 claude_scratch/
+.claude/settings.local.json.bak
