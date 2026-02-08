@@ -874,7 +874,7 @@ const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
     ),
 ];
 
-fn display_key_combo(combo: &str) -> String {
+pub(super) fn display_key_combo(combo: &str) -> String {
     #[cfg(target_os = "macos")]
     {
         combo.replace("CmdOrCtrl", "Cmd")
@@ -1068,7 +1068,11 @@ fn show_keybindings_section(
     });
 }
 
-fn capture_key_combo(ui: &egui::Ui) -> Option<String> {
+/// Capture a keyboard combination from user input.
+///
+/// Returns the key combo string (e.g., "Ctrl+Shift+T") if a key was pressed,
+/// or None if no valid key combo was detected.
+pub fn capture_key_combo(ui: &egui::Ui) -> Option<String> {
     ui.input(|input| {
         let ctrl = input.modifiers.ctrl;
         let alt = input.modifiers.alt;

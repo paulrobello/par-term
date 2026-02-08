@@ -266,9 +266,11 @@ mod tests {
     #[test]
     fn test_resolve_with_metadata_defaults() {
         let config = make_test_config();
-        let mut shader_defaults = ShaderConfig::default();
-        shader_defaults.animation_speed = Some(0.5);
-        shader_defaults.brightness = Some(0.7);
+        let shader_defaults = ShaderConfig {
+            animation_speed: Some(0.5),
+            brightness: Some(0.7),
+            ..Default::default()
+        };
 
         let metadata = ShaderMetadata {
             name: Some("Test".to_string()),
@@ -287,13 +289,17 @@ mod tests {
     #[test]
     fn test_resolve_with_user_override() {
         let config = make_test_config();
-        let mut user_override = ShaderConfig::default();
-        user_override.animation_speed = Some(2.0);
-        user_override.brightness = Some(0.9);
+        let user_override = ShaderConfig {
+            animation_speed: Some(2.0),
+            brightness: Some(0.9),
+            ..Default::default()
+        };
 
-        let mut shader_defaults = ShaderConfig::default();
-        shader_defaults.animation_speed = Some(0.5); // Should be overridden
-        shader_defaults.text_opacity = Some(0.8); // Should be used (no user override)
+        let shader_defaults = ShaderConfig {
+            animation_speed: Some(0.5), // Should be overridden
+            text_opacity: Some(0.8),    // Should be used (no user override)
+            ..Default::default()
+        };
 
         let metadata = ShaderMetadata {
             name: Some("Test".to_string()),

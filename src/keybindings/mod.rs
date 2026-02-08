@@ -39,13 +39,18 @@ impl KeybindingRegistry {
     pub fn from_config(keybindings: &[KeyBinding]) -> Self {
         let mut registry = Self::new();
 
+        log::info!(
+            "Building keybinding registry from {} config keybindings",
+            keybindings.len()
+        );
         for binding in keybindings {
             match parser::parse_key_combo(&binding.key) {
                 Ok(combo) => {
-                    log::debug!(
-                        "Registered keybinding: {} -> {}",
+                    log::info!(
+                        "Registered keybinding: {} -> {} (parsed as: {:?})",
                         binding.key,
-                        binding.action
+                        binding.action,
+                        combo
                     );
                     registry.bindings.insert(combo, binding.action.clone());
                 }

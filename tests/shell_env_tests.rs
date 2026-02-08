@@ -3,6 +3,10 @@
 //! These tests cover the cross-platform PATH augmentation used when launching
 //! terminal sessions, particularly important when launching from Finder/Explorer.
 
+#![allow(clippy::field_reassign_with_default)]
+#![allow(clippy::useless_vec)]
+#![allow(clippy::const_is_empty)]
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 

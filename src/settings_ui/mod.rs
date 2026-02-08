@@ -8,7 +8,8 @@ use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 use rfd::FileDialog;
 use std::collections::HashSet;
 
-// Reorganized settings tabs (10 consolidated tabs)
+// Reorganized settings tabs (12 consolidated tabs)
+pub mod actions_tab;
 pub mod advanced_tab;
 pub mod appearance_tab;
 pub mod automation_tab;
@@ -21,6 +22,7 @@ pub mod profiles_tab;
 pub mod quick_settings;
 pub mod section;
 pub mod sidebar;
+pub mod snippets_tab;
 pub mod terminal_tab;
 pub mod window_tab;
 
@@ -248,6 +250,58 @@ pub struct SettingsUI {
     /// Flag to request opening the debug log file
     pub(crate) open_log_requested: bool,
 
+    // Snippets tab state
+    /// Index of snippet currently being edited (None = not editing)
+    pub(crate) editing_snippet_index: Option<usize>,
+    /// Temporary snippet ID for edit form
+    pub(crate) temp_snippet_id: String,
+    /// Temporary snippet title for edit form
+    pub(crate) temp_snippet_title: String,
+    /// Temporary snippet content for edit form
+    pub(crate) temp_snippet_content: String,
+    /// Temporary snippet keybinding for edit form
+    pub(crate) temp_snippet_keybinding: String,
+    /// Temporary snippet folder for edit form
+    pub(crate) temp_snippet_folder: String,
+    /// Temporary snippet description for edit form
+    pub(crate) temp_snippet_description: String,
+    /// Temporary snippet keybinding enabled for edit form
+    pub(crate) temp_snippet_keybinding_enabled: bool,
+    /// Temporary snippet auto_execute for edit form
+    pub(crate) temp_snippet_auto_execute: bool,
+    /// Whether the add-new-snippet form is active
+    pub(crate) adding_new_snippet: bool,
+    /// Whether currently recording a keybinding for a snippet
+    pub(crate) recording_snippet_keybinding: bool,
+    /// Recorded keybinding combo for snippet (displayed during recording)
+    pub(crate) snippet_recorded_combo: Option<String>,
+
+    // Actions tab state
+    /// Index of action currently being edited (None = not editing)
+    pub(crate) editing_action_index: Option<usize>,
+    /// Temporary action type for edit form (0=ShellCommand, 1=InsertText, 2=KeySequence)
+    pub(crate) temp_action_type: usize,
+    /// Temporary action ID for edit form
+    pub(crate) temp_action_id: String,
+    /// Temporary action title for edit form
+    pub(crate) temp_action_title: String,
+    /// Temporary action command (for ShellCommand type)
+    pub(crate) temp_action_command: String,
+    /// Temporary action args (for ShellCommand type)
+    pub(crate) temp_action_args: String,
+    /// Temporary action text (for InsertText type)
+    pub(crate) temp_action_text: String,
+    /// Temporary action keys (for KeySequence type)
+    pub(crate) temp_action_keys: String,
+    /// Temporary action keybinding for edit form
+    pub(crate) temp_action_keybinding: String,
+    /// Whether the add-new-action form is active
+    pub(crate) adding_new_action: bool,
+    /// Whether currently recording a keybinding for an action
+    pub(crate) recording_action_keybinding: bool,
+    /// Recorded keybinding combo for action (displayed during recording)
+    pub(crate) action_recorded_combo: Option<String>,
+
     // Reset to defaults dialog state
     /// Whether to show the reset to defaults confirmation dialog
     pub(crate) show_reset_defaults_dialog: bool,
@@ -363,6 +417,30 @@ impl SettingsUI {
             coprocess_output: Vec::new(),
             coprocess_output_expanded: Vec::new(),
             open_log_requested: false,
+            editing_snippet_index: None,
+            temp_snippet_id: String::new(),
+            temp_snippet_title: String::new(),
+            temp_snippet_content: String::new(),
+            temp_snippet_keybinding: String::new(),
+            temp_snippet_folder: String::new(),
+            temp_snippet_description: String::new(),
+            temp_snippet_keybinding_enabled: true,
+            temp_snippet_auto_execute: false,
+            adding_new_snippet: false,
+            editing_action_index: None,
+            temp_action_type: 0,
+            temp_action_id: String::new(),
+            temp_action_title: String::new(),
+            temp_action_command: String::new(),
+            temp_action_args: String::new(),
+            temp_action_text: String::new(),
+            temp_action_keys: String::new(),
+            temp_action_keybinding: String::new(),
+            adding_new_action: false,
+            recording_snippet_keybinding: false,
+            snippet_recorded_combo: None,
+            recording_action_keybinding: false,
+            action_recorded_combo: None,
             show_reset_defaults_dialog: false,
         }
     }
@@ -833,7 +911,10 @@ impl SettingsUI {
                 self.apply_font_changes();
             }
             self.has_changes = false;
-            Some(self.config.clone())
+            // Generate keybindings for snippets and actions before saving
+            let mut config = self.config.clone();
+            config.generate_snippet_action_keybindings();
+            Some(config)
         } else {
             None
         };
@@ -982,7 +1063,10 @@ impl SettingsUI {
                 self.apply_font_changes();
             }
             self.has_changes = false;
-            Some(self.config.clone())
+            // Generate keybindings for snippets and actions before saving
+            let mut config = self.config.clone();
+            config.generate_snippet_action_keybindings();
+            Some(config)
         } else {
             None
         };
@@ -1095,9 +1179,46 @@ impl SettingsUI {
             SettingsTab::Automation => {
                 automation_tab::show(ui, self, changes_this_frame);
             }
+            SettingsTab::Snippets => {
+                snippets_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Actions => {
+                actions_tab::show(ui, self, changes_this_frame);
+            }
             SettingsTab::Advanced => {
                 advanced_tab::show(ui, self, changes_this_frame);
             }
         }
+    }
+
+    /// Check if a keybinding conflicts with existing keybindings.
+    ///
+    /// Returns Some(conflict_description) if there's a conflict, None otherwise.
+    pub(crate) fn check_keybinding_conflict(
+        &self,
+        key: &str,
+        exclude_id: Option<&str>,
+    ) -> Option<String> {
+        // Check against existing keybindings in config
+        for binding in &self.config.keybindings {
+            if binding.key == key {
+                return Some(format!("Already bound to: {}", binding.action));
+            }
+        }
+
+        // Check against snippets with keybindings (exclude the current snippet being edited)
+        for snippet in &self.config.snippets {
+            if let Some(snippet_key) = &snippet.keybinding
+                && snippet_key == key
+            {
+                // Skip if this is the snippet being edited
+                if exclude_id == Some(&snippet.id) {
+                    continue;
+                }
+                return Some(format!("Already bound to snippet: {}", snippet.title));
+            }
+        }
+
+        None
     }
 }

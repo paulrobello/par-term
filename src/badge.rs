@@ -426,9 +426,11 @@ mod tests {
 
     #[test]
     fn test_interpolate_basic() {
-        let mut vars = SessionVariables::default();
-        vars.hostname = "myhost".to_string();
-        vars.username = "testuser".to_string();
+        let vars = SessionVariables {
+            hostname: "myhost".to_string(),
+            username: "testuser".to_string(),
+            ..Default::default()
+        };
 
         let result = interpolate_badge_format("\\(session.username)@\\(session.hostname)", &vars);
         assert_eq!(result, "testuser@myhost");
@@ -485,10 +487,12 @@ mod tests {
 
     #[test]
     fn test_session_variables_get() {
-        let mut vars = SessionVariables::default();
-        vars.hostname = "test".to_string();
-        vars.columns = 120;
-        vars.rows = 40;
+        let vars = SessionVariables {
+            hostname: "test".to_string(),
+            columns: 120,
+            rows: 40,
+            ..Default::default()
+        };
 
         assert_eq!(vars.get("session.hostname"), Some("test".to_string()));
         assert_eq!(vars.get("session.columns"), Some("120".to_string()));

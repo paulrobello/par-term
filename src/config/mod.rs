@@ -7,6 +7,7 @@ pub mod automation;
 pub mod defaults;
 pub mod shader_config;
 pub mod shader_metadata;
+pub mod snippets;
 mod types;
 
 // Re-export shader config resolution functions (used by consumers)
@@ -31,6 +32,8 @@ pub use types::{
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
+// Snippets and custom actions
+pub use snippets::{BuiltInVariable, CustomActionConfig, SnippetConfig};
 #[allow(unused_imports)]
 pub use types::KeyModifier;
 #[allow(unused_imports)]
@@ -1344,6 +1347,17 @@ pub struct Config {
     /// Coprocess definitions for piped subprocess management
     #[serde(default)]
     pub coprocesses: Vec<automation::CoprocessDefConfig>,
+
+    // ========================================================================
+    // Snippets & Actions
+    // ========================================================================
+    /// Text snippets for quick insertion
+    #[serde(default)]
+    pub snippets: Vec<SnippetConfig>,
+
+    /// Custom actions (shell commands, text insertion, key sequences)
+    #[serde(default)]
+    pub actions: Vec<CustomActionConfig>,
 }
 
 impl Default for Config {
@@ -1590,6 +1604,8 @@ impl Default for Config {
             badge_max_height: defaults::badge_max_height(),
             triggers: Vec::new(),
             coprocesses: Vec::new(),
+            snippets: Vec::new(),
+            actions: Vec::new(),
         }
     }
 }
@@ -1614,6 +1630,9 @@ impl Config {
             // Merge in any new default keybindings that don't exist in user's config
             config.merge_default_keybindings();
 
+            // Generate keybindings for snippets and actions
+            config.generate_snippet_action_keybindings();
+
             // Load last working directory from state file (for "previous session" mode)
             config.load_last_working_directory();
 
@@ -1625,6 +1644,8 @@ impl Config {
             );
             // Create default config and save it
             let mut config = Self::default();
+            // Generate keybindings for snippets and actions
+            config.generate_snippet_action_keybindings();
             if let Err(e) = config.save() {
                 log::error!("Failed to save default config: {}", e);
                 return Err(e);
@@ -1669,6 +1690,100 @@ impl Config {
             log::info!(
                 "Merged {} new default keybinding(s) into user config",
                 added_count
+            );
+        }
+    }
+
+    /// Generate keybindings for snippets and actions that have keybindings configured.
+    ///
+    /// This method adds or updates keybindings for snippets and actions in the keybindings list,
+    /// using the format "snippet:<id>" for snippets and "action:<id>" for actions.
+    /// If a keybinding for a snippet/action already exists, it will be updated with the new key.
+    pub fn generate_snippet_action_keybindings(&mut self) {
+        use crate::config::KeyBinding;
+
+        // Track actions we've seen to remove stale keybindings later
+        let mut seen_actions = std::collections::HashSet::new();
+        let mut added_count = 0;
+        let mut updated_count = 0;
+
+        // Generate keybindings for snippets
+        for snippet in &self.snippets {
+            if let Some(key) = &snippet.keybinding {
+                let action = format!("snippet:{}", snippet.id);
+                seen_actions.insert(action.clone());
+
+                if !key.is_empty() && snippet.enabled && snippet.keybinding_enabled {
+                    // Check if this action already has a keybinding
+                    if let Some(existing) =
+                        self.keybindings.iter_mut().find(|kb| kb.action == action)
+                    {
+                        // Update existing keybinding if the key changed
+                        if existing.key != *key {
+                            log::info!(
+                                "Updating keybinding for snippet '{}': {} -> {} (was: {})",
+                                snippet.title,
+                                key,
+                                action,
+                                existing.key
+                            );
+                            existing.key = key.clone();
+                            updated_count += 1;
+                        }
+                    } else {
+                        // Add new keybinding
+                        log::info!(
+                            "Adding keybinding for snippet '{}': {} -> {} (enabled={}, keybinding_enabled={})",
+                            snippet.title,
+                            key,
+                            action,
+                            snippet.enabled,
+                            snippet.keybinding_enabled
+                        );
+                        self.keybindings.push(KeyBinding {
+                            key: key.clone(),
+                            action,
+                        });
+                        added_count += 1;
+                    }
+                } else if !key.is_empty() {
+                    log::info!(
+                        "Skipping keybinding for snippet '{}': {} (enabled={}, keybinding_enabled={})",
+                        snippet.title,
+                        key,
+                        snippet.enabled,
+                        snippet.keybinding_enabled
+                    );
+                }
+            }
+        }
+
+        // Generate keybindings for actions
+        // Note: Actions don't have a keybinding field in the current design
+        // They would need to be added to the keybindings list manually
+        // or we could add a keybinding field to CustomActionConfig in the future
+        for _action_config in &self.actions {
+            // Future: add keybinding field to CustomActionConfig
+        }
+
+        // Remove stale keybindings for snippets that no longer have keybindings or are disabled
+        let original_len = self.keybindings.len();
+        self.keybindings.retain(|kb| {
+            // Keep if it's not a snippet/action keybinding
+            if !kb.action.starts_with("snippet:") && !kb.action.starts_with("action:") {
+                return true;
+            }
+            // Keep if we saw it during our scan
+            seen_actions.contains(&kb.action)
+        });
+        let removed_count = original_len - self.keybindings.len();
+
+        if added_count > 0 || updated_count > 0 || removed_count > 0 {
+            log::info!(
+                "Snippet/Action keybindings: {} added, {} updated, {} removed",
+                added_count,
+                updated_count,
+                removed_count
             );
         }
     }
