@@ -26,6 +26,8 @@ pub struct PaneManager {
     next_pane_id: PaneId,
     /// Width of dividers between panes in pixels
     divider_width: f32,
+    /// Width of the hit area for divider drag detection
+    divider_hit_width: f32,
     /// Current total bounds available for panes
     total_bounds: PaneBounds,
 }
@@ -38,6 +40,7 @@ impl PaneManager {
             focused_pane_id: None,
             next_pane_id: 1,
             divider_width: 1.0, // Default 1 pixel divider
+            divider_hit_width: 8.0, // Default 8 pixel hit area
             total_bounds: PaneBounds::default(),
         }
     }
@@ -50,6 +53,7 @@ impl PaneManager {
     ) -> Result<Self> {
         let mut manager = Self::new();
         manager.divider_width = config.pane_divider_width.unwrap_or(1.0);
+        manager.divider_hit_width = config.pane_divider_hit_width;
         manager.create_initial_pane(config, runtime, working_directory)?;
         Ok(manager)
     }
@@ -571,24 +575,29 @@ impl PaneManager {
     /// This should be called after bounds are updated (split, resize, window resize)
     /// to ensure each PTY is sized correctly for its pane area.
     pub fn resize_all_terminals(&self, cell_width: f32, cell_height: f32) {
-        self.resize_all_terminals_with_padding(cell_width, cell_height, 0.0);
+        self.resize_all_terminals_with_padding(cell_width, cell_height, 0.0, 0.0);
     }
 
     /// Resize all terminal PTYs to match their pane bounds, accounting for padding.
     ///
     /// The padding reduces the content area where text is rendered, so terminals
     /// should be sized for the padded (smaller) area to avoid content being cut off.
+    ///
+    /// `height_offset` is an additional height reduction (e.g., pane title bar height)
+    /// subtracted once from each pane's content height.
     pub fn resize_all_terminals_with_padding(
         &self,
         cell_width: f32,
         cell_height: f32,
         padding: f32,
+        height_offset: f32,
     ) {
         if let Some(ref root) = self.root {
             for pane in root.all_panes() {
-                // Calculate content size (bounds minus padding on each side)
+                // Calculate content size (bounds minus padding on each side, minus title bar)
                 let content_width = (pane.bounds.width - padding * 2.0).max(cell_width);
-                let content_height = (pane.bounds.height - padding * 2.0).max(cell_height);
+                let content_height =
+                    (pane.bounds.height - padding * 2.0 - height_offset).max(cell_height);
 
                 let cols = (content_width / cell_width).floor() as usize;
                 let rows = (content_height / cell_height).floor() as usize;
@@ -607,6 +616,11 @@ impl PaneManager {
     /// Get the divider width
     pub fn divider_width(&self) -> f32 {
         self.divider_width
+    }
+
+    /// Get the hit detection padding (extra area around divider for easier grabbing)
+    pub fn divider_hit_padding(&self) -> f32 {
+        (self.divider_hit_width - self.divider_width).max(0.0) / 2.0
     }
 
     /// Resize a split by adjusting its ratio
@@ -690,8 +704,13 @@ impl PaneManager {
 
     /// Check if a position is on a divider
     pub fn is_on_divider(&self, x: f32, y: f32) -> bool {
-        // Use 2 pixel padding for easier detection
-        self.find_divider_at(x, y, 2.0).is_some()
+        let padding = (self.divider_hit_width - self.divider_width).max(0.0) / 2.0;
+        self.find_divider_at(x, y, padding).is_some()
+    }
+
+    /// Set the divider hit width
+    pub fn set_divider_hit_width(&mut self, width: f32) {
+        self.divider_hit_width = width;
     }
 
     /// Get the divider at an index

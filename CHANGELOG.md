@@ -17,6 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Ctrl+C Not Sending SIGINT on Linux/Windows**: On non-macOS platforms, `Ctrl+C` was intercepted for copy even when no text was selected, preventing SIGINT from reaching the terminal. Now uses `Ctrl+Shift+C` for copy, allowing bare `Ctrl+C` to pass through as SIGINT.
 
+- **Pane Focus Indicator Settings** (#88): `show_focus_indicator`, `focus_color`, and `focus_width` were hardcoded instead of reading from config. Toggling focus indicator and changing focus color now works correctly.
+
+- **Pane Background Opacity** (#88): The `pane_background_opacity` slider had no effect because it was never wired to the rendering pipeline. Now applies as the base opacity for all pane backgrounds, allowing background images/shaders to show through.
+
+- **Divider Hover Color** (#88): Hovering over a pane divider did not change its color because the hover state was never passed to the renderer. Now correctly highlights the hovered divider with `pane_divider_hover_color`.
+
+- **Divider Width/Hit Width Not Updating** (#88): Changing divider width or drag hit width in settings had no effect because the values were only read at pane creation, never propagated on config change. Now updates immediately.
+
+- **Background Solid Color in Split Panes** (#88): Setting background mode to "Color" with a custom color showed black in split pane mode. The split pane render path always used the theme background color, ignoring the solid color setting.
+
+- **Double Divider Style** (#88): Two-line divider style was indistinguishable from Solid because adjacent 1px lines had no visible gap. Now renders proper double lines with a gap when divider width >= 4px, and a centered thin line when < 4px to visually differentiate from Solid.
+
+- **Shadow Divider Style** (#88): Shadow/highlight extended outside divider bounds into pane content, causing visual artifacts. Now renders a beveled/embossed effect entirely within the divider area: highlight on top/left edge, shadow on bottom/right edge.
+
 ### Changed
 
 - **Cross-Platform Keybindings Overhaul**: Redesigned default keybindings on Linux/Windows to avoid conflicts with standard terminal control codes (Ctrl+C, Ctrl+D, Ctrl+V, Ctrl+W, etc.). macOS keybindings are unchanged (Cmd+key is safe). Following conventions from WezTerm, Kitty, GNOME Terminal, and Windows Terminal:
@@ -35,6 +49,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Prompt on Quit**: Configurable confirmation dialog before closing the window when there are active terminal sessions. Enable via Settings > Terminal > Behavior > "Confirm before quitting with open sessions" or `prompt_on_quit: true` in config. Shows session count and requires explicit confirmation to quit.
+
+- **Pane Title Bars** (#88): GPU-rendered title bars for split panes showing OSC title, CWD path, or fallback pane name
+  - Configurable height (14-30px), position (top/bottom), text color, and background color
+  - Titles auto-truncate with ellipsis when pane is too narrow
+  - Focused pane title renders at full opacity; unfocused panes slightly dimmed
+  - Enable via Settings > Window > Split Panes > "Show pane titles" or `show_pane_titles: true` in config
+  - New config options: `pane_title_position`, `pane_title_color`, `pane_title_bg_color`, `pane_title_font`
+
+- **Divider Style Customization** (#88): Four visual styles for pane dividers
+  - **Solid**: Standard single-line divider (default)
+  - **Double**: Two thin parallel lines with a gap between
+  - **Dashed**: Segmented dashed line effect
+  - **Shadow**: Main line with a semi-transparent shadow offset
+  - Configure via Settings > Window > Split Panes > "Divider Style" or `pane_divider_style` in config
 
 - **Snippets & Actions System** (#86): Text automation and custom actions (iTerm2 parity)
   - **Text Snippets**: Save frequently-used text blocks for quick insertion

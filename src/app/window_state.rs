@@ -21,7 +21,9 @@ use crate::profile::{ProfileManager, storage as profile_storage};
 use crate::profile_drawer_ui::{ProfileDrawerAction, ProfileDrawerUI};
 use crate::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
 use crate::quit_confirmation_ui::{QuitConfirmAction, QuitConfirmationUI};
-use crate::renderer::{DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, Renderer};
+use crate::renderer::{
+    DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
+};
 use crate::scrollback_metadata::ScrollbackMark;
 use crate::search::SearchUI;
 use crate::selection::SelectionMode;
@@ -2142,9 +2144,11 @@ impl WindowState {
                     - sizing.status_bar_height;
 
                 // Gather all necessary data upfront while we can borrow tab_manager
+                #[allow(clippy::type_complexity)]
                 let pane_render_data: Option<(
                     Vec<PaneRenderData>,
                     Vec<crate::pane::DividerRect>,
+                    Vec<PaneTitleInfo>,
                     Option<PaneViewport>,
                 )> = {
                     let tab = self.tab_manager.active_tab_mut();
@@ -2159,11 +2163,19 @@ impl WindowState {
                             );
                             pm.set_bounds(bounds);
 
+                            // Calculate title bar height offset for terminal sizing
+                            let title_height_offset = if self.config.show_pane_titles {
+                                self.config.pane_title_height
+                            } else {
+                                0.0
+                            };
+
                             // Resize all pane terminals to match their new bounds
                             pm.resize_all_terminals_with_padding(
                                 sizing.cell_width,
                                 sizing.cell_height,
                                 effective_pane_padding,
+                                title_height_offset,
                             );
 
                             // Gather pane info
@@ -2172,6 +2184,7 @@ impl WindowState {
                                 pm.all_panes().iter().map(|p| p.id).collect();
                             let dividers = pm.get_dividers();
 
+                            let pane_bg_opacity = self.config.pane_background_opacity;
                             let inactive_opacity = if self.config.dim_inactive_panes {
                                 self.config.inactive_pane_opacity
                             } else {
@@ -2179,7 +2192,23 @@ impl WindowState {
                             };
                             let cursor_opacity = self.cursor_opacity;
 
+                            // Pane title settings
+                            let show_titles = self.config.show_pane_titles;
+                            let title_height = self.config.pane_title_height;
+                            let title_position = self.config.pane_title_position;
+                            let title_text_color = [
+                                self.config.pane_title_color[0] as f32 / 255.0,
+                                self.config.pane_title_color[1] as f32 / 255.0,
+                                self.config.pane_title_color[2] as f32 / 255.0,
+                            ];
+                            let title_bg_color = [
+                                self.config.pane_title_bg_color[0] as f32 / 255.0,
+                                self.config.pane_title_bg_color[1] as f32 / 255.0,
+                                self.config.pane_title_bg_color[2] as f32 / 255.0,
+                            ];
+
                             let mut pane_data = Vec::new();
+                            let mut pane_titles = Vec::new();
                             let mut focused_viewport: Option<PaneViewport> = None;
 
                             for pane_id in &all_pane_ids {
@@ -2187,19 +2216,60 @@ impl WindowState {
                                     let is_focused = Some(*pane_id) == focused_pane_id;
                                     let bounds = pane.bounds;
 
+                                    // Calculate viewport, adjusting for title bar if shown
+                                    let (viewport_y, viewport_height) = if show_titles {
+                                        use crate::config::PaneTitlePosition;
+                                        match title_position {
+                                            PaneTitlePosition::Top => (
+                                                bounds.y + title_height,
+                                                (bounds.height - title_height).max(0.0),
+                                            ),
+                                            PaneTitlePosition::Bottom => {
+                                                (bounds.y, (bounds.height - title_height).max(0.0))
+                                            }
+                                        }
+                                    } else {
+                                        (bounds.y, bounds.height)
+                                    };
+
                                     // Create viewport with padding for content inset
                                     let viewport = PaneViewport::with_padding(
                                         bounds.x,
-                                        bounds.y,
+                                        viewport_y,
                                         bounds.width,
-                                        bounds.height,
+                                        viewport_height,
                                         is_focused,
-                                        if is_focused { 1.0 } else { inactive_opacity },
+                                        if is_focused {
+                                            pane_bg_opacity
+                                        } else {
+                                            pane_bg_opacity * inactive_opacity
+                                        },
                                         effective_pane_padding,
                                     );
 
                                     if is_focused {
                                         focused_viewport = Some(viewport);
+                                    }
+
+                                    // Build pane title info
+                                    if show_titles {
+                                        use crate::config::PaneTitlePosition;
+                                        let title_y = match title_position {
+                                            PaneTitlePosition::Top => bounds.y,
+                                            PaneTitlePosition::Bottom => {
+                                                bounds.y + bounds.height - title_height
+                                            }
+                                        };
+                                        pane_titles.push(PaneTitleInfo {
+                                            x: bounds.x,
+                                            y: title_y,
+                                            width: bounds.width,
+                                            height: title_height,
+                                            title: pane.get_title(),
+                                            focused: is_focused,
+                                            text_color: title_text_color,
+                                            bg_color: title_bg_color,
+                                        });
                                     }
 
                                     let cells = if let Ok(term) = pane.terminal.try_lock() {
@@ -2244,8 +2314,19 @@ impl WindowState {
                                         None
                                     };
 
-                                    let (cols, rows) =
-                                        bounds.grid_size(sizing.cell_width, sizing.cell_height);
+                                    // Grid size must match the terminal's actual size
+                                    // (accounting for padding and title bar, same as resize_all_terminals_with_padding)
+                                    let content_width = (bounds.width
+                                        - effective_pane_padding * 2.0)
+                                        .max(sizing.cell_width);
+                                    let content_height = (viewport_height
+                                        - effective_pane_padding * 2.0)
+                                        .max(sizing.cell_height);
+                                    let cols = (content_width / sizing.cell_width).floor() as usize;
+                                    let rows =
+                                        (content_height / sizing.cell_height).floor() as usize;
+                                    let cols = cols.max(1);
+                                    let rows = rows.max(1);
 
                                     pane_data.push((
                                         viewport,
@@ -2258,7 +2339,7 @@ impl WindowState {
                                 }
                             }
 
-                            Some((pane_data, dividers, focused_viewport))
+                            Some((pane_data, dividers, pane_titles, focused_viewport))
                         } else {
                             None
                         }
@@ -2267,15 +2348,24 @@ impl WindowState {
                     }
                 };
 
-                if let Some((pane_data, dividers, focused_viewport)) = pane_render_data {
+                if let Some((pane_data, dividers, pane_titles, focused_viewport)) = pane_render_data
+                {
+                    // Get hovered divider index for hover color rendering
+                    let hovered_divider_index = self
+                        .tab_manager
+                        .active_tab()
+                        .and_then(|t| t.mouse.hovered_divider_index);
+
                     // Render split panes
                     Self::render_split_panes_with_data(
                         renderer,
                         pane_data,
                         dividers,
+                        pane_titles,
                         focused_viewport,
                         &self.config,
                         egui_data,
+                        hovered_divider_index,
                     )
                 } else {
                     // Fallback to single pane render
@@ -2628,13 +2718,16 @@ impl WindowState {
     }
 
     /// Render split panes when the active tab has multiple panes
+    #[allow(clippy::too_many_arguments)]
     fn render_split_panes_with_data(
         renderer: &mut Renderer,
         pane_data: Vec<PaneRenderData>,
         dividers: Vec<crate::pane::DividerRect>,
+        pane_titles: Vec<PaneTitleInfo>,
         focused_viewport: Option<PaneViewport>,
         config: &Config,
         egui_data: Option<(egui::FullOutput, &egui::Context)>,
+        hovered_divider_index: Option<usize>,
     ) -> Result<bool> {
         // Build pane render infos - we need to leak the cells temporarily
         let mut pane_render_infos: Vec<PaneRenderInfo> = Vec::new();
@@ -2660,7 +2753,8 @@ impl WindowState {
         // Build divider render info
         let divider_render_infos: Vec<DividerRenderInfo> = dividers
             .iter()
-            .map(|d| DividerRenderInfo::from_rect(d, false))
+            .enumerate()
+            .map(|(i, d)| DividerRenderInfo::from_rect(d, hovered_divider_index == Some(i)))
             .collect();
 
         // Build divider settings from config
@@ -2675,15 +2769,21 @@ impl WindowState {
                 config.pane_divider_hover_color[1] as f32 / 255.0,
                 config.pane_divider_hover_color[2] as f32 / 255.0,
             ],
-            show_focus_indicator: true,
-            focus_color: [0.3, 0.5, 0.9],
-            focus_width: 2.0,
+            show_focus_indicator: config.pane_focus_indicator,
+            focus_color: [
+                config.pane_focus_color[0] as f32 / 255.0,
+                config.pane_focus_color[1] as f32 / 255.0,
+                config.pane_focus_color[2] as f32 / 255.0,
+            ],
+            focus_width: config.pane_focus_width,
+            divider_style: config.pane_divider_style,
         };
 
         // Call the split pane renderer
         let result = renderer.render_split_panes(
             &pane_render_infos,
             &divider_render_infos,
+            &pane_titles,
             focused_viewport.as_ref(),
             &divider_settings,
             egui_data,

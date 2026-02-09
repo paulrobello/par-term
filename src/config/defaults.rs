@@ -620,6 +620,14 @@ pub fn pane_title_height() -> f32 {
     20.0 // 20 pixel title bar height for panes
 }
 
+pub fn pane_title_color() -> [u8; 3] {
+    [200, 200, 200] // Light gray text for pane titles
+}
+
+pub fn pane_title_bg_color() -> [u8; 3] {
+    [40, 40, 50] // Dark background for pane title bars
+}
+
 pub fn pane_focus_color() -> [u8; 3] {
     [100, 150, 255] // Blue highlight for focused pane
 }

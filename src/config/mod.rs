@@ -23,12 +23,12 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
-    DroppedFileQuoteStyle, FontRange, InstallPromptState, IntegrationVersions, KeyBinding,
-    LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode, PowerPreference,
-    SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata,
-    ShellExitAction, ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode,
-    TabBarMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
-    default_smart_selection_rules,
+    DividerStyle, DroppedFileQuoteStyle, FontRange, InstallPromptState, IntegrationVersions,
+    KeyBinding, LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode, PaneTitlePosition,
+    PowerPreference, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
+    ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType, SmartSelectionPrecision,
+    SmartSelectionRule, StartupDirectoryMode, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle,
+    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
@@ -1053,6 +1053,26 @@ pub struct Config {
     #[serde(default = "defaults::pane_title_height")]
     pub pane_title_height: f32,
 
+    /// Position of pane title bars (top or bottom)
+    #[serde(default)]
+    pub pane_title_position: PaneTitlePosition,
+
+    /// Pane title text color [R, G, B] (0-255)
+    #[serde(default = "defaults::pane_title_color")]
+    pub pane_title_color: [u8; 3],
+
+    /// Pane title background color [R, G, B] (0-255)
+    #[serde(default = "defaults::pane_title_bg_color")]
+    pub pane_title_bg_color: [u8; 3],
+
+    /// Pane title font family (empty string = use terminal font)
+    #[serde(default)]
+    pub pane_title_font: String,
+
+    /// Style of dividers between panes (solid, double, dashed, shadow)
+    #[serde(default)]
+    pub pane_divider_style: DividerStyle,
+
     /// Maximum panes per tab (0 = unlimited)
     #[serde(default = "defaults::max_panes")]
     pub max_panes: usize,
@@ -1555,6 +1575,11 @@ impl Default for Config {
             inactive_pane_opacity: defaults::inactive_pane_opacity(),
             show_pane_titles: defaults::bool_false(),
             pane_title_height: defaults::pane_title_height(),
+            pane_title_position: PaneTitlePosition::default(),
+            pane_title_color: defaults::pane_title_color(),
+            pane_title_bg_color: defaults::pane_title_bg_color(),
+            pane_title_font: String::new(),
+            pane_divider_style: DividerStyle::default(),
             max_panes: defaults::max_panes(),
             pane_focus_indicator: defaults::bool_true(),
             pane_focus_color: defaults::pane_focus_color(),

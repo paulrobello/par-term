@@ -18,6 +18,7 @@ pub struct MouseState {
     // Divider drag state
     pub dragging_divider: Option<usize>, // Index of divider being dragged
     pub divider_hover: bool,             // Whether hovering over a divider
+    pub hovered_divider_index: Option<usize>, // Index of the hovered divider
 }
 
 impl Default for MouseState {
@@ -40,6 +41,7 @@ impl MouseState {
             hovered_url: None,
             dragging_divider: None,
             divider_hover: false,
+            hovered_divider_index: None,
         }
     }
 }
