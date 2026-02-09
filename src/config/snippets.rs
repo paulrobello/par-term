@@ -127,6 +127,14 @@ pub enum CustomActionConfig {
         #[serde(default)]
         notify_on_success: bool,
 
+        /// Optional keyboard shortcut to trigger the action (e.g., "Ctrl+Shift+R")
+        #[serde(default)]
+        keybinding: Option<String>,
+
+        /// Whether the keybinding is enabled (default: true)
+        #[serde(default = "crate::config::defaults::bool_true")]
+        keybinding_enabled: bool,
+
         /// Optional description
         #[serde(default)]
         description: Option<String>,
@@ -147,6 +155,14 @@ pub enum CustomActionConfig {
         #[serde(default)]
         variables: HashMap<String, String>,
 
+        /// Optional keyboard shortcut to trigger the action
+        #[serde(default)]
+        keybinding: Option<String>,
+
+        /// Whether the keybinding is enabled (default: true)
+        #[serde(default = "crate::config::defaults::bool_true")]
+        keybinding_enabled: bool,
+
         /// Optional description
         #[serde(default)]
         description: Option<String>,
@@ -162,6 +178,14 @@ pub enum CustomActionConfig {
 
         /// Key sequence to simulate (e.g., "Ctrl+C", "Up Up Down Down")
         keys: String,
+
+        /// Optional keyboard shortcut to trigger the action
+        #[serde(default)]
+        keybinding: Option<String>,
+
+        /// Whether the keybinding is enabled (default: true)
+        #[serde(default = "crate::config::defaults::bool_true")]
+        keybinding_enabled: bool,
 
         /// Optional description
         #[serde(default)]
@@ -185,6 +209,54 @@ impl CustomActionConfig {
             Self::ShellCommand { title, .. } => title,
             Self::InsertText { title, .. } => title,
             Self::KeySequence { title, .. } => title,
+        }
+    }
+
+    /// Get the optional keybinding for this action.
+    pub fn keybinding(&self) -> Option<&str> {
+        match self {
+            Self::ShellCommand { keybinding, .. }
+            | Self::InsertText { keybinding, .. }
+            | Self::KeySequence { keybinding, .. } => keybinding.as_deref(),
+        }
+    }
+
+    /// Check if the keybinding is enabled.
+    pub fn keybinding_enabled(&self) -> bool {
+        match self {
+            Self::ShellCommand {
+                keybinding_enabled, ..
+            }
+            | Self::InsertText {
+                keybinding_enabled, ..
+            }
+            | Self::KeySequence {
+                keybinding_enabled, ..
+            } => *keybinding_enabled,
+        }
+    }
+
+    /// Set the keybinding for this action.
+    pub fn set_keybinding(&mut self, kb: Option<String>) {
+        match self {
+            Self::ShellCommand { keybinding, .. }
+            | Self::InsertText { keybinding, .. }
+            | Self::KeySequence { keybinding, .. } => *keybinding = kb,
+        }
+    }
+
+    /// Set whether the keybinding is enabled.
+    pub fn set_keybinding_enabled(&mut self, enabled: bool) {
+        match self {
+            Self::ShellCommand {
+                keybinding_enabled, ..
+            }
+            | Self::InsertText {
+                keybinding_enabled, ..
+            }
+            | Self::KeySequence {
+                keybinding_enabled, ..
+            } => *keybinding_enabled = enabled,
         }
     }
 
@@ -424,6 +496,8 @@ mod tests {
             command: "echo".to_string(),
             args: vec!["hello".to_string()],
             notify_on_success: false,
+            keybinding: None,
+            keybinding_enabled: true,
             description: None,
         };
 

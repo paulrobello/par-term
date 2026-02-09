@@ -183,6 +183,8 @@ fn test_custom_action_shell_command() {
         command: "echo".to_string(),
         args: vec!["hello".to_string()],
         notify_on_success: false,
+        keybinding: None,
+        keybinding_enabled: true,
         description: None,
     };
 
@@ -200,6 +202,8 @@ fn test_custom_action_insert_text() {
         title: "Test Action".to_string(),
         text: "echo 'test'".to_string(),
         variables: HashMap::new(),
+        keybinding: None,
+        keybinding_enabled: true,
         description: None,
     };
 
@@ -215,6 +219,8 @@ fn test_custom_action_key_sequence() {
         id: "test_action".to_string(),
         title: "Test Action".to_string(),
         keys: "Ctrl+C".to_string(),
+        keybinding: None,
+        keybinding_enabled: true,
         description: None,
     };
 
@@ -262,6 +268,8 @@ fn test_config_persistence_actions() {
         command: "echo".to_string(),
         args: vec![],
         notify_on_success: false,
+        keybinding: None,
+        keybinding_enabled: true,
         description: None,
     });
 
@@ -400,6 +408,8 @@ fn test_action_serialization() {
         command: "npm".to_string(),
         args: vec!["test".to_string()],
         notify_on_success: true,
+        keybinding: Some("Ctrl+Shift+R".to_string()),
+        keybinding_enabled: true,
         description: Some("Run tests".to_string()),
     };
 
@@ -476,6 +486,8 @@ fn test_action_types_serialization_roundtrip() {
             command: "echo".to_string(),
             args: vec!["test".to_string()],
             notify_on_success: false,
+            keybinding: Some("Ctrl+Shift+S".to_string()),
+            keybinding_enabled: true,
             description: None,
         },
         CustomActionConfig::InsertText {
@@ -483,12 +495,16 @@ fn test_action_types_serialization_roundtrip() {
             title: "Insert".to_string(),
             text: "hello".to_string(),
             variables: HashMap::new(),
+            keybinding: None,
+            keybinding_enabled: true,
             description: None,
         },
         CustomActionConfig::KeySequence {
             id: "keys".to_string(),
             title: "Keys".to_string(),
             keys: "Ctrl+C".to_string(),
+            keybinding: Some("Ctrl+Shift+K".to_string()),
+            keybinding_enabled: false,
             description: None,
         },
     ];
@@ -743,4 +759,199 @@ fn test_custom_variables_override_session() {
         .unwrap();
 
     assert_eq!(result, "session-host vs custom-host");
+}
+
+#[test]
+fn test_generate_action_keybindings() {
+    let mut config = Config::default();
+    let initial_count = config.keybindings.len();
+
+    // Add action with keybinding
+    config.actions.push(CustomActionConfig::ShellCommand {
+        id: "run_tests".to_string(),
+        title: "Run Tests".to_string(),
+        command: "cargo".to_string(),
+        args: vec!["test".to_string()],
+        notify_on_success: false,
+        keybinding: Some("Ctrl+Shift+R".to_string()),
+        keybinding_enabled: true,
+        description: None,
+    });
+
+    // Generate keybindings
+    config.generate_snippet_action_keybindings();
+
+    // Check that keybinding was generated
+    assert_eq!(config.keybindings.len(), initial_count + 1);
+    assert_eq!(config.keybindings.last().unwrap().key, "Ctrl+Shift+R");
+    assert_eq!(
+        config.keybindings.last().unwrap().action,
+        "action:run_tests"
+    );
+}
+
+#[test]
+fn test_generate_action_keybindings_no_duplicates() {
+    let mut config = Config::default();
+
+    config.actions.push(CustomActionConfig::ShellCommand {
+        id: "run_tests".to_string(),
+        title: "Run Tests".to_string(),
+        command: "cargo".to_string(),
+        args: vec!["test".to_string()],
+        notify_on_success: false,
+        keybinding: Some("Ctrl+Shift+R".to_string()),
+        keybinding_enabled: true,
+        description: None,
+    });
+
+    // Generate keybindings twice
+    config.generate_snippet_action_keybindings();
+    let count_after_first = config.keybindings.len();
+
+    config.generate_snippet_action_keybindings();
+    let count_after_second = config.keybindings.len();
+
+    // Should not add duplicates
+    assert_eq!(count_after_first, count_after_second);
+}
+
+#[test]
+fn test_generate_action_keybindings_disabled() {
+    let mut config = Config::default();
+    let initial_count = config.keybindings.len();
+
+    // Add action with keybinding but disabled
+    config.actions.push(CustomActionConfig::ShellCommand {
+        id: "run_tests".to_string(),
+        title: "Run Tests".to_string(),
+        command: "cargo".to_string(),
+        args: vec!["test".to_string()],
+        notify_on_success: false,
+        keybinding: Some("Ctrl+Shift+R".to_string()),
+        keybinding_enabled: false,
+        description: None,
+    });
+
+    // Generate keybindings
+    config.generate_snippet_action_keybindings();
+
+    // Should not generate keybinding when keybinding_enabled is false
+    assert_eq!(config.keybindings.len(), initial_count);
+}
+
+#[test]
+fn test_generate_action_keybindings_update_existing() {
+    let mut config = Config::default();
+
+    config.actions.push(CustomActionConfig::ShellCommand {
+        id: "run_tests".to_string(),
+        title: "Run Tests".to_string(),
+        command: "cargo".to_string(),
+        args: vec!["test".to_string()],
+        notify_on_success: false,
+        keybinding: Some("Ctrl+Shift+R".to_string()),
+        keybinding_enabled: true,
+        description: None,
+    });
+
+    // Generate keybindings first time
+    config.generate_snippet_action_keybindings();
+    assert_eq!(config.keybindings.last().unwrap().key, "Ctrl+Shift+R");
+
+    // Update action keybinding
+    config.actions[0].set_keybinding(Some("Ctrl+Shift+X".to_string()));
+
+    // Generate keybindings again - should update existing
+    config.generate_snippet_action_keybindings();
+
+    let action_keybindings: Vec<_> = config
+        .keybindings
+        .iter()
+        .filter(|kb| kb.action == "action:run_tests")
+        .collect();
+
+    assert_eq!(action_keybindings.len(), 1);
+    assert_eq!(action_keybindings[0].key, "Ctrl+Shift+X");
+}
+
+#[test]
+fn test_generate_action_keybindings_remove_when_cleared() {
+    let mut config = Config::default();
+    let initial_count = config.keybindings.len();
+
+    config.actions.push(CustomActionConfig::ShellCommand {
+        id: "run_tests".to_string(),
+        title: "Run Tests".to_string(),
+        command: "cargo".to_string(),
+        args: vec!["test".to_string()],
+        notify_on_success: false,
+        keybinding: Some("Ctrl+Shift+R".to_string()),
+        keybinding_enabled: true,
+        description: None,
+    });
+
+    // Generate keybindings
+    config.generate_snippet_action_keybindings();
+    assert_eq!(config.keybindings.len(), initial_count + 1);
+
+    // Clear keybinding from action
+    config.actions[0].set_keybinding(None);
+
+    // Generate keybindings again - should remove the stale keybinding
+    config.generate_snippet_action_keybindings();
+
+    assert_eq!(config.keybindings.len(), initial_count);
+    assert!(
+        !config
+            .keybindings
+            .iter()
+            .any(|kb| kb.action == "action:run_tests")
+    );
+}
+
+#[test]
+fn test_action_keybinding_accessors() {
+    let mut action = CustomActionConfig::ShellCommand {
+        id: "test".to_string(),
+        title: "Test".to_string(),
+        command: "echo".to_string(),
+        args: vec![],
+        notify_on_success: false,
+        keybinding: None,
+        keybinding_enabled: true,
+        description: None,
+    };
+
+    assert!(action.keybinding().is_none());
+    assert!(action.keybinding_enabled());
+
+    action.set_keybinding(Some("Ctrl+Shift+T".to_string()));
+    assert_eq!(action.keybinding(), Some("Ctrl+Shift+T"));
+
+    action.set_keybinding_enabled(false);
+    assert!(!action.keybinding_enabled());
+}
+
+#[test]
+fn test_action_keybinding_serialization_roundtrip() {
+    let action = CustomActionConfig::ShellCommand {
+        id: "test".to_string(),
+        title: "Test".to_string(),
+        command: "echo".to_string(),
+        args: vec![],
+        notify_on_success: false,
+        keybinding: Some("Ctrl+Shift+T".to_string()),
+        keybinding_enabled: true,
+        description: None,
+    };
+
+    // Serialize
+    let yaml = serde_yaml::to_string(&action).unwrap();
+    assert!(yaml.contains("keybinding"));
+
+    // Deserialize
+    let deserialized: CustomActionConfig = serde_yaml::from_str(&yaml).unwrap();
+    assert_eq!(deserialized.keybinding(), Some("Ctrl+Shift+T"));
+    assert!(deserialized.keybinding_enabled());
 }

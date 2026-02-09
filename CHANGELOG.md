@@ -94,18 +94,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Debug Logging**: Comprehensive logging for keybinding execution troubleshooting
       - Action ID and title configuration
     - Searchable via sidebar keywords (snippet, text, insert, variable, keybinding, action, shell, command)
-  - **Keybinding Auto-Generation**: Snippets with keybinding field auto-generate keybindings
+  - **Keybinding Auto-Generation**: Snippets and actions with keybinding field auto-generate keybindings
     - `generate_snippet_action_keybindings()` called during config load
-    - Creates keybindings using "snippet:<id>" format
+    - Creates keybindings using "snippet:<id>" and "action:<id>" formats
     - Prevents duplicate keybindings on reload
-    - Only generates for enabled snippets
-  - **Comprehensive Test Suite**: 26 integration tests in `tests/snippets_actions_tests.rs`
+    - Only generates for enabled snippets/actions
+    - Stale action keybindings cleaned up when keybinding is cleared or disabled
+  - **Action Keybinding Support**: `CustomActionConfig` now has `keybinding` and `keybinding_enabled` fields
+    - Keybindings stored directly on action structs (same pattern as snippets)
+    - Auto-generated on config load via `generate_snippet_action_keybindings()`
+    - Settings UI pre-populates keybinding when editing existing actions
+    - Accessor methods: `keybinding()`, `keybinding_enabled()`, `set_keybinding()`, `set_keybinding_enabled()`
+  - **Comprehensive Test Suite**: 42 integration tests in `tests/snippets_actions_tests.rs`
     - Snippet creation, storage, and serialization tests
     - Variable substitution tests (builtin, custom, mixed, edge cases)
     - Custom action type tests
-    - Keybinding generation tests
+    - Keybinding generation tests (snippets and actions)
+    - Action keybinding lifecycle tests (create, update, disable, remove)
     - Config persistence verification
-    - All 41 tests passing (26 integration + 15 unit)
+    - All 62 tests passing (42 integration + 20 unit)
   - **Documentation**: Complete user guide in `docs/SNIPPETS.md`
     - Creating and using snippets
     - Variable reference table

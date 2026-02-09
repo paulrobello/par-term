@@ -139,6 +139,7 @@ fn show_actions_section(
             let action = &settings.config.actions[i];
             settings.temp_action_id = action.id().to_string();
             settings.temp_action_title = action.title().to_string();
+            settings.temp_action_keybinding = action.keybinding().unwrap_or_default().to_string();
             match action {
                 CustomActionConfig::ShellCommand {
                     command,
@@ -177,6 +178,7 @@ fn show_actions_section(
             settings.temp_action_args = String::new();
             settings.temp_action_text = String::new();
             settings.temp_action_keys = String::new();
+            settings.temp_action_keybinding = String::new();
         }
     });
 }
@@ -193,6 +195,12 @@ fn show_action_edit_form(
     // Buttons at TOP - always visible first
     ui.horizontal(|ui| {
         if ui.button("Save").clicked() {
+            let keybinding = if settings.temp_action_keybinding.is_empty() {
+                None
+            } else {
+                Some(settings.temp_action_keybinding.clone())
+            };
+
             let action = match settings.temp_action_type {
                 0 => CustomActionConfig::ShellCommand {
                     id: settings.temp_action_id.clone(),
@@ -208,6 +216,8 @@ fn show_action_edit_form(
                             .collect()
                     },
                     notify_on_success: false,
+                    keybinding,
+                    keybinding_enabled: true,
                     description: None,
                 },
                 1 => CustomActionConfig::InsertText {
@@ -215,12 +225,16 @@ fn show_action_edit_form(
                     title: settings.temp_action_title.clone(),
                     text: settings.temp_action_text.clone(),
                     variables: std::collections::HashMap::new(),
+                    keybinding,
+                    keybinding_enabled: true,
                     description: None,
                 },
                 2 => CustomActionConfig::KeySequence {
                     id: settings.temp_action_id.clone(),
                     title: settings.temp_action_title.clone(),
                     keys: settings.temp_action_keys.clone(),
+                    keybinding,
+                    keybinding_enabled: true,
                     description: None,
                 },
                 _ => unreachable!(),
@@ -233,23 +247,6 @@ fn show_action_edit_form(
             } else {
                 // Add new action
                 settings.config.actions.push(action);
-            }
-
-            // Handle keybinding for the action
-            if !settings.temp_action_keybinding.is_empty() {
-                let keybinding_action = format!("action:{}", settings.temp_action_id);
-                // Check if this keybinding already exists in the config
-                let existing_index = settings.config.keybindings.iter().position(|kb| {
-                    kb.key == settings.temp_action_keybinding && kb.action == keybinding_action
-                });
-
-                if existing_index.is_none() {
-                    // Add new keybinding
-                    settings.config.keybindings.push(crate::config::KeyBinding {
-                        key: settings.temp_action_keybinding.clone(),
-                        action: keybinding_action,
-                    });
-                }
             }
 
             settings.has_changes = true;

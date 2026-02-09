@@ -529,7 +529,7 @@ iTerm2 has a system for saved text snippets and custom actions.
 | Snippet variables | ✅ | ✅ | ✅ | ⭐ | 🟡 | Dynamic values in snippets (10 built-in variables) |
 | Snippet library | ✅ | ✅ Partial | ✅ | ⭐⭐ | 🟡 | Organize snippets into folders (no import/export yet) |
 | Custom actions | ✅ | ✅ Partial | ✅ | ⭐ | 🔴 | Shell commands and text insertion (key sequences TODO) |
-| Action key bindings | ✅ | 🟡 | 🟡 | ⭐ | 🟡 | Assign keys to actions (manual setup via keybindings config) |
+| Action key bindings | ✅ | ✅ | ✅ | ⭐ | 🟡 | Assign keys to actions via UI or config (auto-generated on load) |
 
 ### Implementation Details (v0.11.0+)
 
@@ -601,7 +601,6 @@ actions:
 - [ ] Key sequence simulation (parsing and keyboard event injection)
 - [ ] Import/export snippet libraries
 - [ ] Custom variables UI editor
-- [ ] Action keybinding field in UI (currently manual config.yaml setup)
 
 ---
 

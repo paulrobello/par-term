@@ -1759,11 +1759,52 @@ impl Config {
         }
 
         // Generate keybindings for actions
-        // Note: Actions don't have a keybinding field in the current design
-        // They would need to be added to the keybindings list manually
-        // or we could add a keybinding field to CustomActionConfig in the future
-        for _action_config in &self.actions {
-            // Future: add keybinding field to CustomActionConfig
+        for action_config in &self.actions {
+            if let Some(key) = action_config.keybinding() {
+                let action = format!("action:{}", action_config.id());
+                seen_actions.insert(action.clone());
+
+                if !key.is_empty() && action_config.keybinding_enabled() {
+                    // Check if this action already has a keybinding
+                    if let Some(existing) =
+                        self.keybindings.iter_mut().find(|kb| kb.action == action)
+                    {
+                        // Update existing keybinding if the key changed
+                        if existing.key != key {
+                            log::info!(
+                                "Updating keybinding for action '{}': {} -> {} (was: {})",
+                                action_config.title(),
+                                key,
+                                action,
+                                existing.key
+                            );
+                            existing.key = key.to_string();
+                            updated_count += 1;
+                        }
+                    } else {
+                        // Add new keybinding
+                        log::info!(
+                            "Adding keybinding for action '{}': {} -> {} (keybinding_enabled={})",
+                            action_config.title(),
+                            key,
+                            action,
+                            action_config.keybinding_enabled()
+                        );
+                        self.keybindings.push(KeyBinding {
+                            key: key.to_string(),
+                            action,
+                        });
+                        added_count += 1;
+                    }
+                } else if !key.is_empty() {
+                    log::info!(
+                        "Skipping keybinding for action '{}': {} (keybinding_enabled={})",
+                        action_config.title(),
+                        key,
+                        action_config.keybinding_enabled()
+                    );
+                }
+            }
         }
 
         // Remove stale keybindings for snippets that no longer have keybindings or are disabled
