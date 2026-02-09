@@ -443,7 +443,12 @@ impl WindowState {
                         {
                             let cell_width = renderer.cell_width();
                             let cell_height = renderer.cell_height();
-                            let padding = self.config.window_padding;
+                            let padding = self.config.pane_padding;
+                            let title_offset = if self.config.show_pane_titles {
+                                self.config.pane_title_height
+                            } else {
+                                0.0
+                            };
                             for tab_id in tabs_needing_resize {
                                 if let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
                                     && let Some(pm) = tab.pane_manager_mut()
@@ -452,7 +457,7 @@ impl WindowState {
                                         cell_width,
                                         cell_height,
                                         padding,
-                                        0.0,
+                                        title_offset,
                                     );
                                 }
                             }

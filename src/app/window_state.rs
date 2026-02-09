@@ -2309,15 +2309,19 @@ impl WindowState {
                                         None
                                     };
 
-                                    // Use adjusted height for grid size calculation
-                                    let adjusted_bounds = crate::pane::PaneBounds::new(
-                                        bounds.x,
-                                        viewport_y,
-                                        bounds.width,
-                                        viewport_height,
-                                    );
-                                    let (cols, rows) = adjusted_bounds
-                                        .grid_size(sizing.cell_width, sizing.cell_height);
+                                    // Grid size must match the terminal's actual size
+                                    // (accounting for padding and title bar, same as resize_all_terminals_with_padding)
+                                    let content_width = (bounds.width
+                                        - effective_pane_padding * 2.0)
+                                        .max(sizing.cell_width);
+                                    let content_height = (viewport_height
+                                        - effective_pane_padding * 2.0)
+                                        .max(sizing.cell_height);
+                                    let cols = (content_width / sizing.cell_width).floor() as usize;
+                                    let rows =
+                                        (content_height / sizing.cell_height).floor() as usize;
+                                    let cols = cols.max(1);
+                                    let rows = rows.max(1);
 
                                     pane_data.push((
                                         viewport,
