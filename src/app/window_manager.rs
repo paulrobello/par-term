@@ -1461,6 +1461,15 @@ impl WindowManager {
                 window_state.badge_state.mark_dirty();
             }
 
+            // Update pane divider settings on all tabs with pane managers
+            let divider_width = config.pane_divider_width.unwrap_or(2.0);
+            for tab in window_state.tab_manager.tabs_mut() {
+                if let Some(pm) = tab.pane_manager_mut() {
+                    pm.set_divider_width(divider_width);
+                    pm.set_divider_hit_width(config.pane_divider_hit_width);
+                }
+            }
+
             // Resync triggers from config into core registry for all tabs
             for tab in window_state.tab_manager.tabs() {
                 if let Ok(term) = tab.terminal.try_lock() {

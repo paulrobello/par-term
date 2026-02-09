@@ -2184,6 +2184,7 @@ impl WindowState {
                                 pm.all_panes().iter().map(|p| p.id).collect();
                             let dividers = pm.get_dividers();
 
+                            let pane_bg_opacity = self.config.pane_background_opacity;
                             let inactive_opacity = if self.config.dim_inactive_panes {
                                 self.config.inactive_pane_opacity
                             } else {
@@ -2238,7 +2239,11 @@ impl WindowState {
                                         bounds.width,
                                         viewport_height,
                                         is_focused,
-                                        if is_focused { 1.0 } else { inactive_opacity },
+                                        if is_focused {
+                                            pane_bg_opacity
+                                        } else {
+                                            pane_bg_opacity * inactive_opacity
+                                        },
                                         effective_pane_padding,
                                     );
 
@@ -2345,6 +2350,12 @@ impl WindowState {
 
                 if let Some((pane_data, dividers, pane_titles, focused_viewport)) = pane_render_data
                 {
+                    // Get hovered divider index for hover color rendering
+                    let hovered_divider_index = self
+                        .tab_manager
+                        .active_tab()
+                        .and_then(|t| t.mouse.hovered_divider_index);
+
                     // Render split panes
                     Self::render_split_panes_with_data(
                         renderer,
@@ -2354,6 +2365,7 @@ impl WindowState {
                         focused_viewport,
                         &self.config,
                         egui_data,
+                        hovered_divider_index,
                     )
                 } else {
                     // Fallback to single pane render
@@ -2706,6 +2718,7 @@ impl WindowState {
     }
 
     /// Render split panes when the active tab has multiple panes
+    #[allow(clippy::too_many_arguments)]
     fn render_split_panes_with_data(
         renderer: &mut Renderer,
         pane_data: Vec<PaneRenderData>,
@@ -2714,6 +2727,7 @@ impl WindowState {
         focused_viewport: Option<PaneViewport>,
         config: &Config,
         egui_data: Option<(egui::FullOutput, &egui::Context)>,
+        hovered_divider_index: Option<usize>,
     ) -> Result<bool> {
         // Build pane render infos - we need to leak the cells temporarily
         let mut pane_render_infos: Vec<PaneRenderInfo> = Vec::new();
@@ -2739,7 +2753,8 @@ impl WindowState {
         // Build divider render info
         let divider_render_infos: Vec<DividerRenderInfo> = dividers
             .iter()
-            .map(|d| DividerRenderInfo::from_rect(d, false))
+            .enumerate()
+            .map(|(i, d)| DividerRenderInfo::from_rect(d, hovered_divider_index == Some(i)))
             .collect();
 
         // Build divider settings from config
@@ -2754,9 +2769,13 @@ impl WindowState {
                 config.pane_divider_hover_color[1] as f32 / 255.0,
                 config.pane_divider_hover_color[2] as f32 / 255.0,
             ],
-            show_focus_indicator: true,
-            focus_color: [0.3, 0.5, 0.9],
-            focus_width: 2.0,
+            show_focus_indicator: config.pane_focus_indicator,
+            focus_color: [
+                config.pane_focus_color[0] as f32 / 255.0,
+                config.pane_focus_color[1] as f32 / 255.0,
+                config.pane_focus_color[2] as f32 / 255.0,
+            ],
+            focus_width: config.pane_focus_width,
             divider_style: config.pane_divider_style,
         };
 

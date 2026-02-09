@@ -940,7 +940,7 @@ impl Renderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Clear the surface first with the background color
+        // Clear the surface first with the background color (respecting solid color mode)
         {
             let mut encoder = self.cell_renderer.device().create_command_encoder(
                 &wgpu::CommandEncoderDescriptor {
@@ -948,14 +948,21 @@ impl Renderer {
                 },
             );
 
-            let clear_color = wgpu::Color {
-                r: self.cell_renderer.background_color[0] as f64
-                    * self.cell_renderer.window_opacity as f64,
-                g: self.cell_renderer.background_color[1] as f64
-                    * self.cell_renderer.window_opacity as f64,
-                b: self.cell_renderer.background_color[2] as f64
-                    * self.cell_renderer.window_opacity as f64,
-                a: self.cell_renderer.window_opacity as f64,
+            let opacity = self.cell_renderer.window_opacity as f64;
+            let clear_color = if self.cell_renderer.bg_is_solid_color {
+                wgpu::Color {
+                    r: self.cell_renderer.solid_bg_color[0] as f64 * opacity,
+                    g: self.cell_renderer.solid_bg_color[1] as f64 * opacity,
+                    b: self.cell_renderer.solid_bg_color[2] as f64 * opacity,
+                    a: opacity,
+                }
+            } else {
+                wgpu::Color {
+                    r: self.cell_renderer.background_color[0] as f64 * opacity,
+                    g: self.cell_renderer.background_color[1] as f64 * opacity,
+                    b: self.cell_renderer.background_color[2] as f64 * opacity,
+                    a: opacity,
+                }
             };
 
             {
@@ -1060,15 +1067,22 @@ impl Renderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Clear the surface with background color
-        let clear_color = wgpu::Color {
-            r: self.cell_renderer.background_color[0] as f64
-                * self.cell_renderer.window_opacity as f64,
-            g: self.cell_renderer.background_color[1] as f64
-                * self.cell_renderer.window_opacity as f64,
-            b: self.cell_renderer.background_color[2] as f64
-                * self.cell_renderer.window_opacity as f64,
-            a: self.cell_renderer.window_opacity as f64,
+        // Clear the surface with background color (respecting solid color mode)
+        let opacity = self.cell_renderer.window_opacity as f64;
+        let clear_color = if self.cell_renderer.bg_is_solid_color {
+            wgpu::Color {
+                r: self.cell_renderer.solid_bg_color[0] as f64 * opacity,
+                g: self.cell_renderer.solid_bg_color[1] as f64 * opacity,
+                b: self.cell_renderer.solid_bg_color[2] as f64 * opacity,
+                a: opacity,
+            }
+        } else {
+            wgpu::Color {
+                r: self.cell_renderer.background_color[0] as f64 * opacity,
+                g: self.cell_renderer.background_color[1] as f64 * opacity,
+                b: self.cell_renderer.background_color[2] as f64 * opacity,
+                a: opacity,
+            }
         };
 
         // If custom shader is enabled, render it with the background clear color
@@ -1223,46 +1237,81 @@ impl Renderer {
                     });
                 }
                 DividerStyle::Double => {
-                    // Two thin lines with a gap in between
+                    // Two parallel lines with a visible gap between them
                     let is_horizontal = divider.width > divider.height;
-                    if is_horizontal {
-                        // Horizontal divider: two horizontal lines
-                        let line_h = (divider.height * 0.3).max(1.0);
-                        let gap = divider.height - line_h * 2.0;
-                        // Top line
-                        instances.push(crate::cell_renderer::types::BackgroundInstance {
-                            position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                            size: [divider.width / w * 2.0, line_h / h * 2.0],
-                            color: [color[0], color[1], color[2], 1.0],
-                        });
-                        // Bottom line
-                        instances.push(crate::cell_renderer::types::BackgroundInstance {
-                            position: [
-                                divider.x / w * 2.0 - 1.0,
-                                1.0 - ((divider.y + line_h + gap) / h * 2.0),
-                            ],
-                            size: [divider.width / w * 2.0, line_h / h * 2.0],
-                            color: [color[0], color[1], color[2], 1.0],
-                        });
+                    let thickness = if is_horizontal {
+                        divider.height
                     } else {
-                        // Vertical divider: two vertical lines
-                        let line_w = (divider.width * 0.3).max(1.0);
-                        let gap = divider.width - line_w * 2.0;
-                        // Left line
-                        instances.push(crate::cell_renderer::types::BackgroundInstance {
-                            position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                            size: [line_w / w * 2.0, divider.height / h * 2.0],
-                            color: [color[0], color[1], color[2], 1.0],
-                        });
-                        // Right line
-                        instances.push(crate::cell_renderer::types::BackgroundInstance {
-                            position: [
-                                (divider.x + line_w + gap) / w * 2.0 - 1.0,
-                                1.0 - (divider.y / h * 2.0),
-                            ],
-                            size: [line_w / w * 2.0, divider.height / h * 2.0],
-                            color: [color[0], color[1], color[2], 1.0],
-                        });
+                        divider.width
+                    };
+
+                    if thickness >= 4.0 {
+                        // Enough space for two 1px lines with visible gap
+                        if is_horizontal {
+                            // Top line
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    divider.x / w * 2.0 - 1.0,
+                                    1.0 - (divider.y / h * 2.0),
+                                ],
+                                size: [divider.width / w * 2.0, 1.0 / h * 2.0],
+                                color: [color[0], color[1], color[2], 1.0],
+                            });
+                            // Bottom line (gap in between shows background)
+                            let bottom_y = divider.y + divider.height - 1.0;
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    divider.x / w * 2.0 - 1.0,
+                                    1.0 - (bottom_y / h * 2.0),
+                                ],
+                                size: [divider.width / w * 2.0, 1.0 / h * 2.0],
+                                color: [color[0], color[1], color[2], 1.0],
+                            });
+                        } else {
+                            // Left line
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    divider.x / w * 2.0 - 1.0,
+                                    1.0 - (divider.y / h * 2.0),
+                                ],
+                                size: [1.0 / w * 2.0, divider.height / h * 2.0],
+                                color: [color[0], color[1], color[2], 1.0],
+                            });
+                            // Right line
+                            let right_x = divider.x + divider.width - 1.0;
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    right_x / w * 2.0 - 1.0,
+                                    1.0 - (divider.y / h * 2.0),
+                                ],
+                                size: [1.0 / w * 2.0, divider.height / h * 2.0],
+                                color: [color[0], color[1], color[2], 1.0],
+                            });
+                        }
+                    } else {
+                        // Divider too thin for double lines — render centered 1px line
+                        // (visibly thinner than Solid to differentiate)
+                        if is_horizontal {
+                            let center_y = divider.y + (divider.height - 1.0) / 2.0;
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    divider.x / w * 2.0 - 1.0,
+                                    1.0 - (center_y / h * 2.0),
+                                ],
+                                size: [divider.width / w * 2.0, 1.0 / h * 2.0],
+                                color: [color[0], color[1], color[2], 1.0],
+                            });
+                        } else {
+                            let center_x = divider.x + (divider.width - 1.0) / 2.0;
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    center_x / w * 2.0 - 1.0,
+                                    1.0 - (divider.y / h * 2.0),
+                                ],
+                                size: [1.0 / w * 2.0, divider.height / h * 2.0],
+                                color: [color[0], color[1], color[2], 1.0],
+                            });
+                        }
                     }
                 }
                 DividerStyle::Dashed => {
@@ -1296,30 +1345,148 @@ impl Renderer {
                     }
                 }
                 DividerStyle::Shadow => {
-                    // Main divider line
-                    instances.push(crate::cell_renderer::types::BackgroundInstance {
-                        position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
-                        size: [divider.width / w * 2.0, divider.height / h * 2.0],
-                        color: [color[0], color[1], color[2], 1.0],
-                    });
-                    // Shadow offset (semi-transparent, offset by 1px)
-                    let shadow_alpha = 0.3;
+                    // Beveled/embossed effect — all rendering stays within divider bounds
+                    // Highlight on top/left edge, shadow on bottom/right edge
                     let is_horizontal = divider.width > divider.height;
-                    let (sx, sy) = if is_horizontal {
-                        (divider.x, divider.y + divider.height)
+                    let thickness = if is_horizontal {
+                        divider.height
                     } else {
-                        (divider.x + divider.width, divider.y)
+                        divider.width
                     };
-                    let (sw, sh) = if is_horizontal {
-                        (divider.width, divider.height.min(2.0))
+
+                    // Brighter highlight color
+                    let highlight = [
+                        (color[0] + 0.3).min(1.0),
+                        (color[1] + 0.3).min(1.0),
+                        (color[2] + 0.3).min(1.0),
+                        1.0,
+                    ];
+                    // Darker shadow color
+                    let shadow = [
+                        (color[0] * 0.3),
+                        (color[1] * 0.3),
+                        (color[2] * 0.3),
+                        1.0,
+                    ];
+
+                    if thickness >= 3.0 {
+                        // 3+ px: highlight line / main body / shadow line
+                        let edge = 1.0_f32;
+                        if is_horizontal {
+                            // Top highlight
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    divider.x / w * 2.0 - 1.0,
+                                    1.0 - (divider.y / h * 2.0),
+                                ],
+                                size: [divider.width / w * 2.0, edge / h * 2.0],
+                                color: highlight,
+                            });
+                            // Main body (middle portion)
+                            let body_y = divider.y + edge;
+                            let body_h = divider.height - edge * 2.0;
+                            if body_h > 0.0 {
+                                instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                    position: [
+                                        divider.x / w * 2.0 - 1.0,
+                                        1.0 - (body_y / h * 2.0),
+                                    ],
+                                    size: [divider.width / w * 2.0, body_h / h * 2.0],
+                                    color: [color[0], color[1], color[2], 1.0],
+                                });
+                            }
+                            // Bottom shadow
+                            let shadow_y = divider.y + divider.height - edge;
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    divider.x / w * 2.0 - 1.0,
+                                    1.0 - (shadow_y / h * 2.0),
+                                ],
+                                size: [divider.width / w * 2.0, edge / h * 2.0],
+                                color: shadow,
+                            });
+                        } else {
+                            // Left highlight
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    divider.x / w * 2.0 - 1.0,
+                                    1.0 - (divider.y / h * 2.0),
+                                ],
+                                size: [edge / w * 2.0, divider.height / h * 2.0],
+                                color: highlight,
+                            });
+                            // Main body
+                            let body_x = divider.x + edge;
+                            let body_w = divider.width - edge * 2.0;
+                            if body_w > 0.0 {
+                                instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                    position: [
+                                        body_x / w * 2.0 - 1.0,
+                                        1.0 - (divider.y / h * 2.0),
+                                    ],
+                                    size: [body_w / w * 2.0, divider.height / h * 2.0],
+                                    color: [color[0], color[1], color[2], 1.0],
+                                });
+                            }
+                            // Right shadow
+                            let shadow_x = divider.x + divider.width - edge;
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    shadow_x / w * 2.0 - 1.0,
+                                    1.0 - (divider.y / h * 2.0),
+                                ],
+                                size: [edge / w * 2.0, divider.height / h * 2.0],
+                                color: shadow,
+                            });
+                        }
                     } else {
-                        (divider.width.min(2.0), divider.height)
-                    };
-                    instances.push(crate::cell_renderer::types::BackgroundInstance {
-                        position: [sx / w * 2.0 - 1.0, 1.0 - (sy / h * 2.0)],
-                        size: [sw / w * 2.0, sh / h * 2.0],
-                        color: [color[0] * 0.3, color[1] * 0.3, color[2] * 0.3, shadow_alpha],
-                    });
+                        // 2px or less: top/left half highlight, bottom/right half shadow
+                        if is_horizontal {
+                            let half = (divider.height / 2.0).max(1.0);
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    divider.x / w * 2.0 - 1.0,
+                                    1.0 - (divider.y / h * 2.0),
+                                ],
+                                size: [divider.width / w * 2.0, half / h * 2.0],
+                                color: highlight,
+                            });
+                            let bottom_y = divider.y + half;
+                            let bottom_h = divider.height - half;
+                            if bottom_h > 0.0 {
+                                instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                    position: [
+                                        divider.x / w * 2.0 - 1.0,
+                                        1.0 - (bottom_y / h * 2.0),
+                                    ],
+                                    size: [divider.width / w * 2.0, bottom_h / h * 2.0],
+                                    color: shadow,
+                                });
+                            }
+                        } else {
+                            let half = (divider.width / 2.0).max(1.0);
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [
+                                    divider.x / w * 2.0 - 1.0,
+                                    1.0 - (divider.y / h * 2.0),
+                                ],
+                                size: [half / w * 2.0, divider.height / h * 2.0],
+                                color: highlight,
+                            });
+                            let right_x = divider.x + half;
+                            let right_w = divider.width - half;
+                            if right_w > 0.0 {
+                                instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                    position: [
+                                        right_x / w * 2.0 - 1.0,
+                                        1.0 - (divider.y / h * 2.0),
+                                    ],
+                                    size: [right_w / w * 2.0, divider.height / h * 2.0],
+                                    color: shadow,
+                                });
+                            }
+                        }
+                    }
                 }
             }
         }

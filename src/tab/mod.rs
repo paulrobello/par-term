@@ -1050,6 +1050,7 @@ impl Tab {
             if self.pane_manager.is_none() {
                 let mut pm = PaneManager::new();
                 pm.set_divider_width(config.pane_divider_width.unwrap_or(2.0));
+                pm.set_divider_hit_width(config.pane_divider_hit_width);
                 self.pane_manager = Some(pm);
             }
 
@@ -1247,7 +1248,7 @@ impl Tab {
     pub fn find_divider_at(&self, x: f32, y: f32) -> Option<usize> {
         self.pane_manager
             .as_ref()
-            .and_then(|pm| pm.find_divider_at(x, y, 3.0)) // 3px padding for easier grabbing
+            .and_then(|pm| pm.find_divider_at(x, y, pm.divider_hit_padding()))
     }
 
     /// Get divider info by index

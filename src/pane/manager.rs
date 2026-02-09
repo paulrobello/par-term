@@ -26,6 +26,8 @@ pub struct PaneManager {
     next_pane_id: PaneId,
     /// Width of dividers between panes in pixels
     divider_width: f32,
+    /// Width of the hit area for divider drag detection
+    divider_hit_width: f32,
     /// Current total bounds available for panes
     total_bounds: PaneBounds,
 }
@@ -38,6 +40,7 @@ impl PaneManager {
             focused_pane_id: None,
             next_pane_id: 1,
             divider_width: 1.0, // Default 1 pixel divider
+            divider_hit_width: 8.0, // Default 8 pixel hit area
             total_bounds: PaneBounds::default(),
         }
     }
@@ -50,6 +53,7 @@ impl PaneManager {
     ) -> Result<Self> {
         let mut manager = Self::new();
         manager.divider_width = config.pane_divider_width.unwrap_or(1.0);
+        manager.divider_hit_width = config.pane_divider_hit_width;
         manager.create_initial_pane(config, runtime, working_directory)?;
         Ok(manager)
     }
@@ -614,6 +618,11 @@ impl PaneManager {
         self.divider_width
     }
 
+    /// Get the hit detection padding (extra area around divider for easier grabbing)
+    pub fn divider_hit_padding(&self) -> f32 {
+        (self.divider_hit_width - self.divider_width).max(0.0) / 2.0
+    }
+
     /// Resize a split by adjusting its ratio
     ///
     /// `pane_id`: The pane whose adjacent split should be resized
@@ -695,8 +704,13 @@ impl PaneManager {
 
     /// Check if a position is on a divider
     pub fn is_on_divider(&self, x: f32, y: f32) -> bool {
-        // Use 2 pixel padding for easier detection
-        self.find_divider_at(x, y, 2.0).is_some()
+        let padding = (self.divider_hit_width - self.divider_width).max(0.0) / 2.0;
+        self.find_divider_at(x, y, padding).is_some()
+    }
+
+    /// Set the divider hit width
+    pub fn set_divider_hit_width(&mut self, width: f32) {
+        self.divider_hit_width = width;
     }
 
     /// Get the divider at an index

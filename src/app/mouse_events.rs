@@ -667,6 +667,11 @@ impl WindowState {
             // Hover state changed
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 tab.mouse.divider_hover = is_on_divider;
+                tab.mouse.hovered_divider_index = if is_on_divider {
+                    tab.find_divider_at(position.0 as f32, position.1 as f32)
+                } else {
+                    None
+                };
             }
             if let Some(window) = &self.window {
                 if is_on_divider {
