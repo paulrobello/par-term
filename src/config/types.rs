@@ -130,6 +130,42 @@ pub enum UnfocusedCursorStyle {
     Hidden,
 }
 
+/// Image scaling quality for inline graphics (Sixel, iTerm2, Kitty)
+///
+/// Controls the GPU texture sampling filter used when scaling inline images.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ImageScalingMode {
+    /// Nearest-neighbor filtering - sharp pixels, good for pixel art
+    Nearest,
+    /// Bilinear filtering - smooth scaling (default)
+    #[default]
+    Linear,
+}
+
+impl ImageScalingMode {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            ImageScalingMode::Nearest => "Nearest (Sharp)",
+            ImageScalingMode::Linear => "Linear (Smooth)",
+        }
+    }
+
+    /// All available modes for UI iteration
+    pub fn all() -> &'static [ImageScalingMode] {
+        &[ImageScalingMode::Nearest, ImageScalingMode::Linear]
+    }
+
+    /// Convert to wgpu FilterMode
+    pub fn to_filter_mode(self) -> wgpu::FilterMode {
+        match self {
+            ImageScalingMode::Nearest => wgpu::FilterMode::Nearest,
+            ImageScalingMode::Linear => wgpu::FilterMode::Linear,
+        }
+    }
+}
+
 /// Background image display mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]

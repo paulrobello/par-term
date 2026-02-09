@@ -1259,6 +1259,16 @@ impl WindowManager {
                     window_state.needs_redraw = true;
                 }
 
+                // Apply inline image settings changes
+                if changes.image_scaling_mode {
+                    renderer.update_image_scaling_mode(config.image_scaling_mode);
+                    window_state.needs_redraw = true;
+                }
+                if changes.image_preserve_aspect_ratio {
+                    renderer.update_image_preserve_aspect_ratio(config.image_preserve_aspect_ratio);
+                    window_state.needs_redraw = true;
+                }
+
                 // Apply theme changes
                 if changes.theme
                     && let Some(tab) = window_state.tab_manager.active_tab()

@@ -39,7 +39,7 @@ impl PaneManager {
             root: None,
             focused_pane_id: None,
             next_pane_id: 1,
-            divider_width: 1.0, // Default 1 pixel divider
+            divider_width: 1.0,     // Default 1 pixel divider
             divider_hit_width: 8.0, // Default 8 pixel hit area
             total_bounds: PaneBounds::default(),
         }
