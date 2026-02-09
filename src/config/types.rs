@@ -995,6 +995,66 @@ impl SmartSelectionPrecision {
     }
 }
 
+/// Position of pane title bars
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PaneTitlePosition {
+    /// Title bar at the top of the pane (default)
+    #[default]
+    Top,
+    /// Title bar at the bottom of the pane
+    Bottom,
+}
+
+impl PaneTitlePosition {
+    /// All available positions for UI dropdowns
+    pub const ALL: &'static [PaneTitlePosition] =
+        &[PaneTitlePosition::Top, PaneTitlePosition::Bottom];
+
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            PaneTitlePosition::Top => "Top",
+            PaneTitlePosition::Bottom => "Bottom",
+        }
+    }
+}
+
+/// Style of dividers between panes
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DividerStyle {
+    /// Solid line (default)
+    #[default]
+    Solid,
+    /// Double line effect (two thin lines with gap)
+    Double,
+    /// Dashed line effect
+    Dashed,
+    /// Shadow effect (gradient fade)
+    Shadow,
+}
+
+impl DividerStyle {
+    /// All available styles for UI dropdowns
+    pub const ALL: &'static [DividerStyle] = &[
+        DividerStyle::Solid,
+        DividerStyle::Double,
+        DividerStyle::Dashed,
+        DividerStyle::Shadow,
+    ];
+
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            DividerStyle::Solid => "Solid",
+            DividerStyle::Double => "Double",
+            DividerStyle::Dashed => "Dashed",
+            DividerStyle::Shadow => "Shadow",
+        }
+    }
+}
+
 /// A smart selection rule for pattern-based text selection.
 ///
 /// When double-clicking, rules are evaluated by precision (highest first).

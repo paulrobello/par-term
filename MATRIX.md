@@ -656,14 +656,14 @@ iTerm2 has sophisticated window state management.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Pane title format | ✅ `Show Pane Titles` | ❌ | ❌ | ⭐⭐ | 🟡 | Customize pane title display |
-| Pane title position | ✅ | ❌ | ❌ | ⭐ | 🟢 | Top/bottom/left/right placement |
-| Pane title color | ✅ | ❌ | ❌ | ⭐ | 🟢 | Custom pane title colors |
-| Pane title font | ✅ | ❌ | ❌ | ⭐ | 🟢 | Custom typography |
+| Pane title format | ✅ `Show Pane Titles` | ✅ OSC/CWD/fallback titles | ✅ | ⭐⭐ | 🟡 | Configurable title display with text/bg colors |
+| Pane title position | ✅ | ✅ top/bottom | ✅ | ⭐ | 🟢 | Top/bottom placement via settings |
+| Pane title color | ✅ | ✅ text + background colors | ✅ | ⭐ | 🟢 | Configurable via settings UI |
+| Pane title font | ✅ | ✅ uses terminal font | ✅ | ⭐ | 🟢 | Config field ready, uses terminal font |
 | Division view | ✅ `Enable Division View` | ✅ configurable dividers | ✅ | - | - | Already implemented |
-| Division thickness | ✅ `Division Thickness` | ❌ | ❌ | ⭐ | 🟢 | Adjust divider line thickness |
+| Division thickness | ✅ `Division Thickness` | ✅ configurable width | ✅ | ⭐ | 🟢 | 1-10px slider in settings |
 | Division color | ✅ `Division Color` | ✅ | ✅ | ⭐ | 🟢 | Already implemented |
-| Division style | ✅ `Double/Shadow` | ❌ | ❌ | ⭐ | 🟢 | Different divider styles |
+| Division style | ✅ `Double/Shadow` | ✅ solid/double/dashed/shadow | ✅ | ⭐ | 🟢 | Four styles via settings UI |
 | Per-pane backgrounds | ✅ | 🔶 Data model ready | 🔶 | ⭐ | 🟡 | Renderer support pending |
 
 ---
@@ -914,7 +914,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Window Arrangements & Placement | 1 | 0 | 9 |
 | Session Management & Quit Behavior | 2 | 1 | 5 |
 | Tab Styles & Appearance | 1 | 0 | 6 |
-| Pane & Split Customization | 3 | 1 | 5 |
+| Pane & Split Customization | 9 | 0 | 0 |
 | Profile Switching & Dynamic Profiles | 2 | 0 | 5 |
 | Image Protocol Enhancements | 4 | 0 | 5 |
 | Audio & Haptic Feedback | 2 | 0 | 3 |
@@ -1001,8 +1001,8 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Paste delay options | ⭐ | 🟢 Low | Delay between pasted lines |
 | Command in window title | ⭐⭐ | 🟡 Medium | Show running command |
 | Dynamic profiles from URL | ⭐⭐ | 🔴 High | Load profiles from remote URL |
-| Pane title customization | ⭐⭐ | 🟡 Medium | Customize pane title display |
-| Division thickness/style | ⭐ | 🟢 Low | Adjust divider appearance |
+| ~~Pane title customization~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Implemented |
+| ~~Division thickness/style~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented |
 | Instant Replay | ⭐⭐ | 🔵 Very High | Rewind terminal state |
 | AI integration | ⭐⭐ | 🔵 Very High | Command help and generation |
 | VoiceOver/accessibility | ⭐⭐ | 🔵 Very High | Screen reader support |
@@ -1055,9 +1055,9 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Multiple tab style variants (Automatic/Compact/High Contrast/Light/Minimal/Dark)
 - Auto-switch tab style based on theme
 
-**Pane Customization (5 features)**
-- Pane title format, position, color, font
-- Division thickness and style variants
+**Pane Customization (1 remaining feature)**
+- ~~Pane title format, position, color, font~~ ✅ Implemented
+- ~~Division thickness and style variants~~ ✅ Implemented
 - Per-pane backgrounds (data model ready, renderer pending)
 
 **Profile Switching (5 features)**

@@ -12,7 +12,9 @@
 
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
-use crate::config::{PowerPreference, TabBarMode, VsyncMode, WindowType};
+use crate::config::{
+    DividerStyle, PaneTitlePosition, PowerPreference, TabBarMode, VsyncMode, WindowType,
+};
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
@@ -1116,6 +1118,28 @@ fn show_panes_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this
             }
         });
 
+        ui.horizontal(|ui| {
+            ui.label("Divider Style:");
+            let current_style = settings.config.pane_divider_style;
+            egui::ComboBox::from_id_salt("pane_divider_style")
+                .selected_text(current_style.display_name())
+                .show_ui(ui, |ui| {
+                    for style in DividerStyle::ALL {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.pane_divider_style,
+                                *style,
+                                style.display_name(),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+        });
+
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Focus Indicator").strong());
 
@@ -1323,6 +1347,48 @@ fn show_pane_appearance_section(
                         .on_hover_text("Height of pane title bars")
                         .changed()
                     {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Title Position:");
+                    let current_pos = settings.config.pane_title_position;
+                    egui::ComboBox::from_id_salt("pane_title_position")
+                        .selected_text(current_pos.display_name())
+                        .show_ui(ui, |ui| {
+                            for pos in PaneTitlePosition::ALL {
+                                if ui
+                                    .selectable_value(
+                                        &mut settings.config.pane_title_position,
+                                        *pos,
+                                        pos.display_name(),
+                                    )
+                                    .changed()
+                                {
+                                    settings.has_changes = true;
+                                    *changes_this_frame = true;
+                                }
+                            }
+                        });
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Title text color:");
+                    let mut color = settings.config.pane_title_color;
+                    if ui.color_edit_button_srgb(&mut color).changed() {
+                        settings.config.pane_title_color = color;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Title background:");
+                    let mut color = settings.config.pane_title_bg_color;
+                    if ui.color_edit_button_srgb(&mut color).changed() {
+                        settings.config.pane_title_bg_color = color;
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }

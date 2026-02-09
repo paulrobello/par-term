@@ -56,6 +56,27 @@ impl DividerRenderInfo {
     }
 }
 
+/// Information needed to render a pane title bar
+#[derive(Clone, Debug)]
+pub struct PaneTitleInfo {
+    /// X position of the title bar in pixels
+    pub x: f32,
+    /// Y position of the title bar in pixels
+    pub y: f32,
+    /// Width of the title bar in pixels
+    pub width: f32,
+    /// Height of the title bar in pixels
+    pub height: f32,
+    /// Title text to display
+    pub title: String,
+    /// Whether this pane is focused
+    pub focused: bool,
+    /// Text color [R, G, B] as floats (0.0-1.0)
+    pub text_color: [f32; 3],
+    /// Background color [R, G, B] as floats (0.0-1.0)
+    pub bg_color: [f32; 3],
+}
+
 /// Settings for rendering pane dividers and focus indicators
 #[derive(Clone, Copy, Debug)]
 pub struct PaneDividerSettings {
@@ -69,6 +90,8 @@ pub struct PaneDividerSettings {
     pub focus_color: [f32; 3],
     /// Width of focus indicator border in pixels
     pub focus_width: f32,
+    /// Style of dividers (solid, double, dashed, shadow)
+    pub divider_style: crate::config::DividerStyle,
 }
 
 impl Default for PaneDividerSettings {
@@ -79,6 +102,7 @@ impl Default for PaneDividerSettings {
             show_focus_indicator: true,
             focus_color: [0.4, 0.6, 1.0],
             focus_width: 2.0,
+            divider_style: crate::config::DividerStyle::default(),
         }
     }
 }
@@ -1011,11 +1035,12 @@ impl Renderer {
     ///
     /// # Returns
     /// `true` if rendering was performed, `false` if skipped
-    #[allow(dead_code)]
+    #[allow(dead_code, clippy::too_many_arguments)]
     pub fn render_split_panes(
         &mut self,
         panes: &[PaneRenderInfo<'_>],
         dividers: &[DividerRenderInfo],
+        pane_titles: &[PaneTitleInfo],
         focused_viewport: Option<&PaneViewport>,
         divider_settings: &PaneDividerSettings,
         egui_data: Option<(egui::FullOutput, &egui::Context)>,
@@ -1126,6 +1151,11 @@ impl Renderer {
             self.render_dividers(&surface_view, dividers, divider_settings)?;
         }
 
+        // Render pane title bars (background + text)
+        if !pane_titles.is_empty() {
+            self.render_pane_titles(&surface_view, pane_titles)?;
+        }
+
         // Render focus indicator around focused pane (only if multiple panes)
         if panes.len() > 1
             && let Some(viewport) = focused_viewport
@@ -1166,7 +1196,10 @@ impl Renderer {
 
         // Build divider instances using the cell renderer's background pipeline
         // We reuse the bg_instances buffer for dividers
-        let mut instances = Vec::with_capacity(dividers.len());
+        let mut instances = Vec::with_capacity(dividers.len() * 3); // Extra capacity for multi-rect styles
+
+        let w = self.size.width as f32;
+        let h = self.size.height as f32;
 
         for divider in dividers {
             let color = if divider.hovered {
@@ -1175,16 +1208,120 @@ impl Renderer {
                 settings.divider_color
             };
 
-            let x_ndc = divider.x / self.size.width as f32 * 2.0 - 1.0;
-            let y_ndc = 1.0 - (divider.y / self.size.height as f32 * 2.0);
-            let w_ndc = divider.width / self.size.width as f32 * 2.0;
-            let h_ndc = divider.height / self.size.height as f32 * 2.0;
+            use crate::config::DividerStyle;
+            match settings.divider_style {
+                DividerStyle::Solid => {
+                    let x_ndc = divider.x / w * 2.0 - 1.0;
+                    let y_ndc = 1.0 - (divider.y / h * 2.0);
+                    let w_ndc = divider.width / w * 2.0;
+                    let h_ndc = divider.height / h * 2.0;
 
-            instances.push(crate::cell_renderer::types::BackgroundInstance {
-                position: [x_ndc, y_ndc],
-                size: [w_ndc, h_ndc],
-                color: [color[0], color[1], color[2], 1.0],
-            });
+                    instances.push(crate::cell_renderer::types::BackgroundInstance {
+                        position: [x_ndc, y_ndc],
+                        size: [w_ndc, h_ndc],
+                        color: [color[0], color[1], color[2], 1.0],
+                    });
+                }
+                DividerStyle::Double => {
+                    // Two thin lines with a gap in between
+                    let is_horizontal = divider.width > divider.height;
+                    if is_horizontal {
+                        // Horizontal divider: two horizontal lines
+                        let line_h = (divider.height * 0.3).max(1.0);
+                        let gap = divider.height - line_h * 2.0;
+                        // Top line
+                        instances.push(crate::cell_renderer::types::BackgroundInstance {
+                            position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
+                            size: [divider.width / w * 2.0, line_h / h * 2.0],
+                            color: [color[0], color[1], color[2], 1.0],
+                        });
+                        // Bottom line
+                        instances.push(crate::cell_renderer::types::BackgroundInstance {
+                            position: [
+                                divider.x / w * 2.0 - 1.0,
+                                1.0 - ((divider.y + line_h + gap) / h * 2.0),
+                            ],
+                            size: [divider.width / w * 2.0, line_h / h * 2.0],
+                            color: [color[0], color[1], color[2], 1.0],
+                        });
+                    } else {
+                        // Vertical divider: two vertical lines
+                        let line_w = (divider.width * 0.3).max(1.0);
+                        let gap = divider.width - line_w * 2.0;
+                        // Left line
+                        instances.push(crate::cell_renderer::types::BackgroundInstance {
+                            position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
+                            size: [line_w / w * 2.0, divider.height / h * 2.0],
+                            color: [color[0], color[1], color[2], 1.0],
+                        });
+                        // Right line
+                        instances.push(crate::cell_renderer::types::BackgroundInstance {
+                            position: [
+                                (divider.x + line_w + gap) / w * 2.0 - 1.0,
+                                1.0 - (divider.y / h * 2.0),
+                            ],
+                            size: [line_w / w * 2.0, divider.height / h * 2.0],
+                            color: [color[0], color[1], color[2], 1.0],
+                        });
+                    }
+                }
+                DividerStyle::Dashed => {
+                    // Dashed line effect using segments
+                    let is_horizontal = divider.width > divider.height;
+                    let dash_len: f32 = 6.0;
+                    let gap_len: f32 = 4.0;
+
+                    if is_horizontal {
+                        let mut x = divider.x;
+                        while x < divider.x + divider.width {
+                            let seg_w = dash_len.min(divider.x + divider.width - x);
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
+                                size: [seg_w / w * 2.0, divider.height / h * 2.0],
+                                color: [color[0], color[1], color[2], 1.0],
+                            });
+                            x += dash_len + gap_len;
+                        }
+                    } else {
+                        let mut y = divider.y;
+                        while y < divider.y + divider.height {
+                            let seg_h = dash_len.min(divider.y + divider.height - y);
+                            instances.push(crate::cell_renderer::types::BackgroundInstance {
+                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (y / h * 2.0)],
+                                size: [divider.width / w * 2.0, seg_h / h * 2.0],
+                                color: [color[0], color[1], color[2], 1.0],
+                            });
+                            y += dash_len + gap_len;
+                        }
+                    }
+                }
+                DividerStyle::Shadow => {
+                    // Main divider line
+                    instances.push(crate::cell_renderer::types::BackgroundInstance {
+                        position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
+                        size: [divider.width / w * 2.0, divider.height / h * 2.0],
+                        color: [color[0], color[1], color[2], 1.0],
+                    });
+                    // Shadow offset (semi-transparent, offset by 1px)
+                    let shadow_alpha = 0.3;
+                    let is_horizontal = divider.width > divider.height;
+                    let (sx, sy) = if is_horizontal {
+                        (divider.x, divider.y + divider.height)
+                    } else {
+                        (divider.x + divider.width, divider.y)
+                    };
+                    let (sw, sh) = if is_horizontal {
+                        (divider.width, divider.height.min(2.0))
+                    } else {
+                        (divider.width.min(2.0), divider.height)
+                    };
+                    instances.push(crate::cell_renderer::types::BackgroundInstance {
+                        position: [sx / w * 2.0 - 1.0, 1.0 - (sy / h * 2.0)],
+                        size: [sw / w * 2.0, sh / h * 2.0],
+                        color: [color[0] * 0.3, color[1] * 0.3, color[2] * 0.3, shadow_alpha],
+                    });
+                }
+            }
         }
 
         // Write instances to GPU buffer
@@ -1352,6 +1489,224 @@ impl Renderer {
         self.cell_renderer
             .queue()
             .submit(std::iter::once(encoder.finish()));
+        Ok(())
+    }
+
+    /// Render pane title bars (background rectangles + text)
+    ///
+    /// Title bars are rendered on top of pane content and dividers.
+    /// Each title bar consists of a colored background rectangle and centered text.
+    #[allow(dead_code)]
+    pub fn render_pane_titles(
+        &mut self,
+        surface_view: &wgpu::TextureView,
+        titles: &[PaneTitleInfo],
+    ) -> Result<()> {
+        if titles.is_empty() {
+            return Ok(());
+        }
+
+        let width = self.size.width as f32;
+        let height = self.size.height as f32;
+
+        // Phase 1: Render title bar backgrounds
+        let mut bg_instances = Vec::with_capacity(titles.len());
+        for title in titles {
+            let x_ndc = title.x / width * 2.0 - 1.0;
+            let y_ndc = 1.0 - (title.y / height * 2.0);
+            let w_ndc = title.width / width * 2.0;
+            let h_ndc = title.height / height * 2.0;
+
+            // Slightly brighter background for focused pane title
+            let alpha = if title.focused { 1.0 } else { 0.85 };
+
+            bg_instances.push(crate::cell_renderer::types::BackgroundInstance {
+                position: [x_ndc, y_ndc],
+                size: [w_ndc, h_ndc],
+                color: [
+                    title.bg_color[0] * alpha,
+                    title.bg_color[1] * alpha,
+                    title.bg_color[2] * alpha,
+                    alpha,
+                ],
+            });
+        }
+
+        // Write background instances to GPU buffer
+        self.cell_renderer.queue().write_buffer(
+            &self.cell_renderer.bg_instance_buffer,
+            0,
+            bytemuck::cast_slice(&bg_instances),
+        );
+
+        // Render title backgrounds
+        let mut encoder =
+            self.cell_renderer
+                .device()
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("pane title bg encoder"),
+                });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("pane title bg pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: surface_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            render_pass.set_pipeline(&self.cell_renderer.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.cell_renderer.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.cell_renderer.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..bg_instances.len() as u32);
+        }
+
+        self.cell_renderer
+            .queue()
+            .submit(std::iter::once(encoder.finish()));
+
+        // Phase 2: Render title text using glyph atlas
+        let mut text_instances = Vec::new();
+        let baseline_y = self.cell_renderer.font_ascent;
+
+        for title in titles {
+            let title_text = &title.title;
+            if title_text.is_empty() {
+                continue;
+            }
+
+            // Calculate starting X position (centered in title bar with left padding)
+            let padding_x = 8.0;
+            let mut x_pos = title.x + padding_x;
+            let y_base = title.y + (title.height - self.cell_renderer.cell_height) / 2.0;
+
+            let text_color = [
+                title.text_color[0],
+                title.text_color[1],
+                title.text_color[2],
+                if title.focused { 1.0 } else { 0.8 },
+            ];
+
+            // Truncate title if it would overflow the title bar
+            let max_chars =
+                ((title.width - padding_x * 2.0) / self.cell_renderer.cell_width) as usize;
+            let display_text: String = if title_text.len() > max_chars && max_chars > 3 {
+                let truncated: String = title_text.chars().take(max_chars - 1).collect();
+                format!("{}\u{2026}", truncated) // ellipsis
+            } else {
+                title_text.clone()
+            };
+
+            for ch in display_text.chars() {
+                if x_pos >= title.x + title.width - padding_x {
+                    break;
+                }
+
+                if let Some((font_idx, glyph_id)) =
+                    self.cell_renderer.font_manager.find_glyph(ch, false, false)
+                {
+                    let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
+                    let info = if self.cell_renderer.glyph_cache.contains_key(&cache_key) {
+                        self.cell_renderer.lru_remove(cache_key);
+                        self.cell_renderer.lru_push_front(cache_key);
+                        self.cell_renderer
+                            .glyph_cache
+                            .get(&cache_key)
+                            .unwrap()
+                            .clone()
+                    } else if let Some(raster) =
+                        self.cell_renderer.rasterize_glyph(font_idx, glyph_id)
+                    {
+                        let info = self.cell_renderer.upload_glyph(cache_key, &raster);
+                        self.cell_renderer
+                            .glyph_cache
+                            .insert(cache_key, info.clone());
+                        self.cell_renderer.lru_push_front(cache_key);
+                        info
+                    } else {
+                        x_pos += self.cell_renderer.cell_width;
+                        continue;
+                    };
+
+                    let glyph_left = x_pos + info.bearing_x;
+                    let glyph_top = y_base + (baseline_y - info.bearing_y);
+
+                    text_instances.push(crate::cell_renderer::types::TextInstance {
+                        position: [
+                            glyph_left / width * 2.0 - 1.0,
+                            1.0 - (glyph_top / height * 2.0),
+                        ],
+                        size: [
+                            info.width as f32 / width * 2.0,
+                            info.height as f32 / height * 2.0,
+                        ],
+                        tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
+                        tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
+                        color: text_color,
+                        is_colored: if info.is_colored { 1 } else { 0 },
+                    });
+                }
+
+                x_pos += self.cell_renderer.cell_width;
+            }
+        }
+
+        if text_instances.is_empty() {
+            return Ok(());
+        }
+
+        // Write text instances to GPU buffer
+        self.cell_renderer.queue().write_buffer(
+            &self.cell_renderer.text_instance_buffer,
+            0,
+            bytemuck::cast_slice(&text_instances),
+        );
+
+        // Render title text
+        let mut encoder =
+            self.cell_renderer
+                .device()
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("pane title text encoder"),
+                });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("pane title text pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: surface_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            render_pass.set_pipeline(&self.cell_renderer.text_pipeline);
+            render_pass.set_bind_group(0, &self.cell_renderer.text_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.cell_renderer.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.cell_renderer.text_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..text_instances.len() as u32);
+        }
+
+        self.cell_renderer
+            .queue()
+            .submit(std::iter::once(encoder.finish()));
+
         Ok(())
     }
 
