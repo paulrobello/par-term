@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Prompt on Quit**: Configurable confirmation dialog before closing the window when there are active terminal sessions. Enable via Settings > Terminal > Behavior > "Confirm before quitting with open sessions" or `prompt_on_quit: true` in config. Shows session count and requires explicit confirmation to quit.
+
 - **Snippets & Actions System** (#86): Text automation and custom actions (iTerm2 parity)
   - **Text Snippets**: Save frequently-used text blocks for quick insertion
     - Variable substitution with `\(variable)` syntax

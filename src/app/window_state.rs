@@ -20,6 +20,7 @@ use crate::paste_special_ui::{PasteSpecialAction, PasteSpecialUI};
 use crate::profile::{ProfileManager, storage as profile_storage};
 use crate::profile_drawer_ui::{ProfileDrawerAction, ProfileDrawerUI};
 use crate::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
+use crate::quit_confirmation_ui::{QuitConfirmAction, QuitConfirmationUI};
 use crate::renderer::{DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, Renderer};
 use crate::scrollback_metadata::ScrollbackMark;
 use crate::search::SearchUI;
@@ -114,6 +115,8 @@ pub struct WindowState {
     pub(crate) integrations_ui: IntegrationsUI,
     /// Close confirmation dialog UI (for tabs with running jobs)
     pub(crate) close_confirmation_ui: CloseConfirmationUI,
+    /// Quit confirmation dialog UI (prompt before closing window)
+    pub(crate) quit_confirmation_ui: QuitConfirmationUI,
     /// Whether terminal session recording is active
     pub(crate) is_recording: bool,
     /// When recording started
@@ -280,6 +283,7 @@ impl WindowState {
             shader_install_receiver: None,
             integrations_ui: IntegrationsUI::new(),
             close_confirmation_ui: CloseConfirmationUI::new(),
+            quit_confirmation_ui: QuitConfirmationUI::new(),
             is_recording: false,
             recording_start_time: None,
             is_shutting_down: false,
@@ -1643,6 +1647,8 @@ impl WindowState {
         let mut pending_profile_modal_action = ProfileModalAction::None;
         // Close confirmation action to handle after rendering
         let mut pending_close_confirm_action = CloseConfirmAction::None;
+        // Quit confirmation action to handle after rendering
+        let mut pending_quit_confirm_action = QuitConfirmAction::None;
 
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts
         // When tmux controls the layout, we don't use pane padding
@@ -2009,6 +2015,9 @@ impl WindowState {
 
                     // Show close confirmation dialog if visible
                     pending_close_confirm_action = self.close_confirmation_ui.show(ctx);
+
+                    // Show quit confirmation dialog if visible
+                    pending_quit_confirm_action = self.quit_confirmation_ui.show(ctx);
 
                     // Render profile drawer (right side panel)
                     pending_profile_drawer_action = self.profile_drawer_ui.render(
@@ -2432,6 +2441,19 @@ impl WindowState {
                 log::debug!("Close confirmation cancelled");
             }
             CloseConfirmAction::None => {}
+        }
+
+        // Handle quit confirmation dialog actions
+        match pending_quit_confirm_action {
+            QuitConfirmAction::Quit => {
+                // User confirmed quit - proceed with shutdown
+                log::info!("Quit confirmed by user");
+                self.perform_shutdown();
+            }
+            QuitConfirmAction::Cancel => {
+                log::debug!("Quit confirmation cancelled");
+            }
+            QuitConfirmAction::None => {}
         }
 
         // Handle paste special actions collected during egui rendering
@@ -2900,6 +2922,31 @@ impl WindowState {
         if response.closed {
             self.integrations_ui.hide();
         }
+    }
+
+    /// Perform the shutdown sequence (save state and set shutdown flag)
+    pub(crate) fn perform_shutdown(&mut self) {
+        // Save last working directory for "previous session" mode
+        if self.config.startup_directory_mode == crate::config::StartupDirectoryMode::Previous
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Ok(term) = tab.terminal.try_lock()
+            && let Some(cwd) = term.shell_integration_cwd()
+        {
+            log::info!("Saving last working directory: {}", cwd);
+            if let Err(e) = self.config.save_last_working_directory(&cwd) {
+                log::warn!("Failed to save last working directory: {}", e);
+            }
+        }
+
+        // Set shutdown flag to stop redraw loop
+        self.is_shutting_down = true;
+        // Abort refresh tasks for all tabs
+        for tab in self.tab_manager.tabs_mut() {
+            if let Some(task) = tab.refresh_task.take() {
+                task.abort();
+            }
+        }
+        log::info!("Refresh tasks aborted, shutdown initiated");
     }
 }
 

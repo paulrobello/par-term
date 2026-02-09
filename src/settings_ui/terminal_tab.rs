@@ -158,6 +158,21 @@ fn show_behavior_section(
 
         if ui
             .checkbox(
+                &mut settings.config.prompt_on_quit,
+                "Confirm before quitting with open sessions",
+            )
+            .on_hover_text(
+                "When enabled, closing the window will show a confirmation dialog\n\
+                 if there are any open terminal sessions.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
                 &mut settings.config.confirm_close_running_jobs,
                 "Confirm before closing tabs with running jobs",
             )

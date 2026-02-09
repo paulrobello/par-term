@@ -739,6 +739,13 @@ pub struct Config {
     #[serde(default = "defaults::answerback_string")]
     pub answerback_string: String,
 
+    /// Show confirmation dialog before quitting the application
+    /// When enabled, closing the window will show a confirmation dialog
+    /// if there are any open terminal sessions.
+    /// Default: false (close immediately without confirmation)
+    #[serde(default = "defaults::bool_false")]
+    pub prompt_on_quit: bool,
+
     /// Show confirmation dialog before closing a tab with running jobs
     /// When enabled, closing a tab that has a running command will show a confirmation dialog.
     /// Default: false (close immediately without confirmation)
@@ -1484,6 +1491,7 @@ impl Default for Config {
             initial_text_delay_ms: defaults::initial_text_delay_ms(),
             initial_text_send_newline: defaults::initial_text_send_newline(),
             answerback_string: defaults::answerback_string(),
+            prompt_on_quit: defaults::bool_false(),
             confirm_close_running_jobs: defaults::bool_false(),
             jobs_to_ignore: defaults::jobs_to_ignore(),
             semantic_history_enabled: defaults::bool_true(),

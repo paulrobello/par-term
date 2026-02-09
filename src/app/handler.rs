@@ -180,28 +180,25 @@ impl WindowState {
             WindowEvent::CloseRequested => {
                 log::info!("Close requested for window");
 
-                // Save last working directory for "previous session" mode
-                if self.config.startup_directory_mode
-                    == crate::config::StartupDirectoryMode::Previous
-                    && let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
-                    && let Some(cwd) = term.shell_integration_cwd()
+                // Check if prompt_on_quit is enabled and there are active sessions
+                let tab_count = self.tab_manager.tab_count();
+                if self.config.prompt_on_quit
+                    && tab_count > 0
+                    && !self.quit_confirmation_ui.is_visible()
                 {
-                    log::info!("Saving last working directory: {}", cwd);
-                    if let Err(e) = self.config.save_last_working_directory(&cwd) {
-                        log::warn!("Failed to save last working directory: {}", e);
+                    log::info!(
+                        "Showing quit confirmation dialog ({} active sessions)",
+                        tab_count
+                    );
+                    self.quit_confirmation_ui.show_confirmation(tab_count);
+                    self.needs_redraw = true;
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
                     }
+                    return false; // Don't close yet - wait for user confirmation
                 }
 
-                // Set shutdown flag to stop redraw loop
-                self.is_shutting_down = true;
-                // Abort refresh tasks for all tabs
-                for tab in self.tab_manager.tabs_mut() {
-                    if let Some(task) = tab.refresh_task.take() {
-                        task.abort();
-                    }
-                }
-                log::info!("Refresh tasks aborted");
+                self.perform_shutdown();
                 return true; // Signal to close this window
             }
 
@@ -1231,6 +1228,18 @@ impl ApplicationHandler for WindowManager {
                     None => settings_window.clear_cursor_shader_error(),
                 }
             }
+        }
+
+        // Close any windows that have is_shutting_down set
+        // This handles deferred closes from quit confirmation, tab bar close, and shell exit
+        let shutting_down: Vec<_> = self
+            .windows
+            .iter()
+            .filter(|(_, ws)| ws.is_shutting_down)
+            .map(|(id, _)| *id)
+            .collect();
+        for window_id in shutting_down {
+            self.close_window(window_id);
         }
 
         // Sync coprocess running state to settings window

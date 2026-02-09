@@ -627,7 +627,7 @@ iTerm2 has sophisticated window state management.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Prompt on quit | ✅ `Prompt When Quitting` | ❌ | ❌ | ⭐⭐ | 🟢 | Confirm before closing app with sessions |
+| Prompt on quit | ✅ `Prompt When Quitting` | ✅ `prompt_on_quit` | ✅ | ⭐⭐ | 🟢 | Confirm before closing app with sessions |
 | Confirm closing multiple sessions | ✅ `Confirm Closing Multiple Sessions` | ✅ Partial | ✅ | ⭐⭐ | 🟢 | Partial - jobs confirmation exists |
 | Only confirm when there are jobs | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Session undo timeout | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Reopen closed tabs within timeout |
