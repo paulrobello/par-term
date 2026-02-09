@@ -36,6 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Prompt on Quit**: Configurable confirmation dialog before closing the window when there are active terminal sessions. Enable via Settings > Terminal > Behavior > "Confirm before quitting with open sessions" or `prompt_on_quit: true` in config. Shows session count and requires explicit confirmation to quit.
 
+- **Pane Title Bars** (#88): GPU-rendered title bars for split panes showing OSC title, CWD path, or fallback pane name
+  - Configurable height (14-30px), position (top/bottom), text color, and background color
+  - Titles auto-truncate with ellipsis when pane is too narrow
+  - Focused pane title renders at full opacity; unfocused panes slightly dimmed
+  - Enable via Settings > Window > Split Panes > "Show pane titles" or `show_pane_titles: true` in config
+  - New config options: `pane_title_position`, `pane_title_color`, `pane_title_bg_color`, `pane_title_font`
+
+- **Divider Style Customization** (#88): Four visual styles for pane dividers
+  - **Solid**: Standard single-line divider (default)
+  - **Double**: Two thin parallel lines with a gap between
+  - **Dashed**: Segmented dashed line effect
+  - **Shadow**: Main line with a semi-transparent shadow offset
+  - Configure via Settings > Window > Split Panes > "Divider Style" or `pane_divider_style` in config
+
 - **Snippets & Actions System** (#86): Text automation and custom actions (iTerm2 parity)
   - **Text Snippets**: Save frequently-used text blocks for quick insertion
     - Variable substitution with `\(variable)` syntax
