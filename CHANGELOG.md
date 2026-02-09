@@ -15,6 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Platform-Specific Keybinding Display**: Keybinding labels in snippet rows now show `Cmd` on macOS and `Ctrl` on Linux/Windows instead of the raw `CmdOrCtrl` config format.
 
+- **Ctrl+C Not Sending SIGINT on Linux/Windows**: On non-macOS platforms, `Ctrl+C` was intercepted for copy even when no text was selected, preventing SIGINT from reaching the terminal. Now uses `Ctrl+Shift+C` for copy, allowing bare `Ctrl+C` to pass through as SIGINT.
+
+### Changed
+
+- **Cross-Platform Keybindings Overhaul**: Redesigned default keybindings on Linux/Windows to avoid conflicts with standard terminal control codes (Ctrl+C, Ctrl+D, Ctrl+V, Ctrl+W, etc.). macOS keybindings are unchanged (Cmd+key is safe). Following conventions from WezTerm, Kitty, GNOME Terminal, and Windows Terminal:
+  - Copy/Paste/Select All: `Ctrl+Shift+C` / `Ctrl+Shift+V` / `Ctrl+Shift+A` (was `Ctrl+C/V/A`)
+  - Find: `Ctrl+Shift+F` (was `Ctrl+F`)
+  - New Tab: `Ctrl+Shift+T` (was `Ctrl+T`)
+  - Close Tab: `Ctrl+Shift+W` (was `Ctrl+W`)
+  - Split Horizontal: `Ctrl+Shift+D` (was `Ctrl+D`)
+  - Split Vertical: `Ctrl+Shift+E` (was `Ctrl+Shift+D`)
+  - Close Pane: `Ctrl+Shift+X` (was `Ctrl+Shift+W`)
+  - Tab Switching: `Alt+1-9` (was `Ctrl+1-9`)
+  - Paste Special: `Ctrl+Alt+V` (was `Ctrl+Shift+V`)
+  - Throughput Mode: `Ctrl+Shift+M` (was `Ctrl+Shift+T`)
+  - All UI labels, tooltips, and help text updated to show platform-correct shortcuts
 
 ### Added
 

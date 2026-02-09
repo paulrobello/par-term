@@ -132,46 +132,40 @@ fn show_snippets_section(
                         // Keybinding (if any)
                         if let Some(keybinding) = &snippet.keybinding {
                             ui.label(
-                                egui::RichText::new(format!(
-                                    "[{}]",
-                                    display_key_combo(keybinding)
-                                ))
-                                .monospace()
-                                .color(egui::Color32::from_rgb(150, 150, 200)),
+                                egui::RichText::new(format!("[{}]", display_key_combo(keybinding)))
+                                    .monospace()
+                                    .color(egui::Color32::from_rgb(150, 150, 200)),
                             );
                         }
 
                         // Right-aligned buttons + truncated preview for remaining space
-                        ui.with_layout(
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                // Delete button (rightmost)
-                                if ui
-                                    .small_button(
-                                        egui::RichText::new("Delete")
-                                            .color(egui::Color32::from_rgb(200, 80, 80)),
-                                    )
-                                    .clicked()
-                                {
-                                    delete_index = Some(i);
-                                }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            // Delete button (rightmost)
+                            if ui
+                                .small_button(
+                                    egui::RichText::new("Delete")
+                                        .color(egui::Color32::from_rgb(200, 80, 80)),
+                                )
+                                .clicked()
+                            {
+                                delete_index = Some(i);
+                            }
 
-                                // Edit button
-                                if ui.small_button("Edit").clicked() {
-                                    start_edit_index = Some(i);
-                                }
+                            // Edit button
+                            if ui.small_button("Edit").clicked() {
+                                start_edit_index = Some(i);
+                            }
 
-                                // Content preview (truncated to remaining space)
-                                ui.add(
-                                    egui::Label::new(
-                                        egui::RichText::new(&snippet.content)
-                                            .monospace()
-                                            .color(egui::Color32::GRAY),
-                                    )
-                                    .truncate(),
-                                );
-                            },
-                        );
+                            // Content preview (truncated to remaining space)
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(&snippet.content)
+                                        .monospace()
+                                        .color(egui::Color32::GRAY),
+                                )
+                                .truncate(),
+                            );
+                        });
                     });
                 }
             }
@@ -360,9 +354,10 @@ fn show_snippet_edit_form(
                             None
                         };
 
-                        if let Some(conflict) = settings
-                            .check_keybinding_conflict(&settings.temp_snippet_keybinding, exclude_id)
-                        {
+                        if let Some(conflict) = settings.check_keybinding_conflict(
+                            &settings.temp_snippet_keybinding,
+                            exclude_id,
+                        ) {
                             ui.label(
                                 egui::RichText::new(format!("⚠️ {}", conflict))
                                     .color(egui::Color32::from_rgb(255, 180, 0))

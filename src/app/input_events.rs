@@ -172,20 +172,23 @@ impl WindowState {
             return; // Key was handled by utility shortcut
         }
 
-        // Check for tab shortcuts (Cmd+T, Cmd+W, Cmd+Shift+[/], Cmd+1-9)
+        // Check for tab shortcuts
         if self.handle_tab_shortcuts(&event, event_loop) {
             return; // Key was handled by tab shortcut
         }
 
         // Handle paste shortcuts with bracketed paste support
         if event.state == ElementState::Pressed {
-            // Ctrl/Cmd+V, Shift+Insert, or NamedKey::Paste
+            // macOS: Cmd+V, NamedKey::Paste
+            // Windows/Linux: Ctrl+Shift+V, Shift+Insert, NamedKey::Paste
+            // (Ctrl+V is "literal next" in terminals, must not be intercepted)
             #[cfg(not(target_os = "macos"))]
             let is_paste = {
                 let ctrl = self.input_handler.modifiers.state().control_key();
                 let shift = self.input_handler.modifiers.state().shift_key();
                 matches!(event.logical_key, Key::Named(NamedKey::Paste))
                     || (ctrl
+                        && shift
                         && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("v")))
                     || (shift && matches!(event.logical_key, Key::Named(NamedKey::Insert)))
             };
@@ -211,7 +214,9 @@ impl WindowState {
                 return;
             }
 
-            // Cmd/Ctrl+C or NamedKey::Copy
+            // macOS: Cmd+C, NamedKey::Copy
+            // Windows/Linux: Ctrl+Shift+C, NamedKey::Copy
+            // (Ctrl+C is SIGINT in terminals, must not be intercepted)
             #[cfg(target_os = "macos")]
             let is_copy = {
                 let cmd = self.input_handler.modifiers.state().super_key();
@@ -223,8 +228,10 @@ impl WindowState {
             #[cfg(not(target_os = "macos"))]
             let is_copy = {
                 let ctrl = self.input_handler.modifiers.state().control_key();
+                let shift = self.input_handler.modifiers.state().shift_key();
                 matches!(event.logical_key, Key::Named(NamedKey::Copy))
                     || (ctrl
+                        && shift
                         && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("c")))
             };
 
@@ -681,25 +688,31 @@ impl WindowState {
             return false;
         }
 
-        // Cmd+F (macOS) or Ctrl+F: Open search
+        // macOS: Cmd+F / Windows/Linux: Ctrl+Shift+F
+        // (Ctrl+F is "forward character" in readline, must not be intercepted on non-macOS)
         if event.state == ElementState::Pressed {
-            #[cfg(target_os = "macos")]
-            let cmd_or_ctrl = self.input_handler.modifiers.state().super_key();
-            #[cfg(not(target_os = "macos"))]
-            let cmd_or_ctrl = self.input_handler.modifiers.state().control_key();
-
             let shift = self.input_handler.modifiers.state().shift_key();
 
-            if cmd_or_ctrl
-                && !shift
-                && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("f"))
-            {
+            #[cfg(target_os = "macos")]
+            let is_search = {
+                let cmd = self.input_handler.modifiers.state().super_key();
+                cmd && !shift
+                    && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("f"))
+            };
+            #[cfg(not(target_os = "macos"))]
+            let is_search = {
+                let ctrl = self.input_handler.modifiers.state().control_key();
+                ctrl && shift
+                    && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("f"))
+            };
+
+            if is_search {
                 self.search_ui.open();
                 // Initialize from config
                 self.search_ui
                     .init_from_config(self.config.search_case_sensitive, self.config.search_regex);
                 self.needs_redraw = true;
-                log::debug!("Search UI opened via Cmd/Ctrl+F");
+                log::debug!("Search UI opened");
                 return true;
             }
         }
@@ -871,94 +884,135 @@ impl WindowState {
 
         let ctrl = self.input_handler.modifiers.state().control_key();
         let shift = self.input_handler.modifiers.state().shift_key();
+        let alt = self.input_handler.modifiers.state().alt_key();
 
-        // Use Cmd on macOS, Ctrl on other platforms
+        // macOS: Cmd is the primary modifier (doesn't conflict with terminal control codes)
+        // Windows/Linux: Ctrl+Shift is used to avoid conflicts with Ctrl+T (transpose),
+        // Ctrl+W (delete word), Ctrl+N (next history), etc.
         #[cfg(target_os = "macos")]
-        let cmd_or_ctrl = self.input_handler.modifiers.state().super_key();
-        #[cfg(not(target_os = "macos"))]
-        let cmd_or_ctrl = ctrl;
+        let cmd = self.input_handler.modifiers.state().super_key();
 
-        // Cmd+T: New tab
-        if cmd_or_ctrl
+        // New Tab: Cmd+T (macOS) / Ctrl+Shift+T (other)
+        #[cfg(target_os = "macos")]
+        let is_new_tab = cmd
             && !shift
-            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "t" || c.as_str() == "T")
-        {
+            && !alt
+            && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("t"));
+        #[cfg(not(target_os = "macos"))]
+        let is_new_tab = ctrl
+            && shift
+            && !alt
+            && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("t"));
+
+        if is_new_tab {
             self.new_tab();
-            log::info!("New tab created via Cmd+T");
+            log::info!("New tab created");
             return true;
         }
 
-        // Cmd+W: Smart close (close tab if multiple, close window if single)
-        // Note: This is typically handled by the menu accelerator, but we handle it here
-        // as a fallback in case the menu is not available
-        if cmd_or_ctrl
+        // Close Tab: Cmd+W (macOS) / Ctrl+Shift+W (other)
+        // Ctrl+W is "delete word backward" in terminals, must not be intercepted on non-macOS
+        #[cfg(target_os = "macos")]
+        let is_close = cmd
             && !shift
-            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "w" || c.as_str() == "W")
-        {
-            // Always close the current tab - if it's the last tab,
-            // close_current_tab returns true and signals window should close
+            && !alt
+            && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("w"));
+        #[cfg(not(target_os = "macos"))]
+        let is_close = ctrl
+            && shift
+            && !alt
+            && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("w"));
+
+        if is_close {
             let should_close_window = self.close_current_tab();
-            log::info!(
-                "Tab closed via Cmd+W (should_close_window: {})",
-                should_close_window
-            );
-            // If last tab was closed, signal that window should close
+            log::info!("Tab closed (should_close_window: {})", should_close_window);
             if should_close_window {
                 self.is_shutting_down = true;
             }
             return true;
         }
 
-        // Cmd+Shift+]: Next tab
-        if cmd_or_ctrl
+        // Next Tab: Cmd+Shift+] (macOS) / Ctrl+Shift+] (other)
+        #[cfg(target_os = "macos")]
+        let is_next_bracket =
+            cmd && shift && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "]");
+        #[cfg(not(target_os = "macos"))]
+        let is_next_bracket = ctrl
             && shift
-            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "]")
-        {
+            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "]");
+
+        if is_next_bracket {
             self.next_tab();
-            log::debug!("Switched to next tab via Cmd+Shift+]");
+            log::debug!("Switched to next tab");
             return true;
         }
 
-        // Cmd+Shift+[: Previous tab
-        if cmd_or_ctrl
+        // Previous Tab: Cmd+Shift+[ (macOS) / Ctrl+Shift+[ (other)
+        #[cfg(target_os = "macos")]
+        let is_prev_bracket =
+            cmd && shift && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "[");
+        #[cfg(not(target_os = "macos"))]
+        let is_prev_bracket = ctrl
             && shift
-            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "[")
-        {
+            && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "[");
+
+        if is_prev_bracket {
             self.prev_tab();
-            log::debug!("Switched to previous tab via Cmd+Shift+[");
+            log::debug!("Switched to previous tab");
             return true;
         }
 
-        // Ctrl+Tab: Next tab (alternative)
+        // Ctrl+Tab: Next tab (alternative, universal)
         if ctrl && !shift && matches!(event.logical_key, Key::Named(NamedKey::Tab)) {
             self.next_tab();
             log::debug!("Switched to next tab via Ctrl+Tab");
             return true;
         }
 
-        // Ctrl+Shift+Tab: Previous tab (alternative)
+        // Ctrl+Shift+Tab: Previous tab (alternative, universal)
         if ctrl && shift && matches!(event.logical_key, Key::Named(NamedKey::Tab)) {
             self.prev_tab();
             log::debug!("Switched to previous tab via Ctrl+Shift+Tab");
             return true;
         }
 
-        // Cmd+Shift+Left: Move tab left
-        if cmd_or_ctrl && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowLeft)) {
+        // Move Tab Left: Cmd+Shift+Left (macOS) / Ctrl+Shift+Left (other)
+        #[cfg(target_os = "macos")]
+        let is_move_left =
+            cmd && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowLeft));
+        #[cfg(not(target_os = "macos"))]
+        let is_move_left =
+            ctrl && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowLeft));
+
+        if is_move_left {
             self.move_tab_left();
-            log::debug!("Moved tab left via Cmd+Shift+Left");
+            log::debug!("Moved tab left");
             return true;
         }
 
-        // Cmd+Shift+Right: Move tab right
-        if cmd_or_ctrl && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowRight)) {
+        // Move Tab Right: Cmd+Shift+Right (macOS) / Ctrl+Shift+Right (other)
+        #[cfg(target_os = "macos")]
+        let is_move_right =
+            cmd && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowRight));
+        #[cfg(not(target_os = "macos"))]
+        let is_move_right =
+            ctrl && shift && matches!(event.logical_key, Key::Named(NamedKey::ArrowRight));
+
+        if is_move_right {
             self.move_tab_right();
-            log::debug!("Moved tab right via Cmd+Shift+Right");
+            log::debug!("Moved tab right");
             return true;
         }
 
-        // Cmd+1-9: Switch to tab N
-        if cmd_or_ctrl && !shift {
+        // Tab switching by number:
+        // macOS: Cmd+1-9 / Windows/Linux: Alt+1-9
+        // (Ctrl+1-9 don't conflict, but Alt+1-9 is the convention on Linux/Windows)
+        #[cfg(target_os = "macos")]
+        let is_tab_switch_mod = cmd && !shift;
+        #[cfg(not(target_os = "macos"))]
+        let is_tab_switch_mod = alt && !shift && !ctrl;
+
+        if is_tab_switch_mod {
             let tab_num = match &event.logical_key {
                 Key::Character(c) => match c.as_str() {
                     "1" => Some(1),
@@ -977,7 +1031,7 @@ impl WindowState {
 
             if let Some(n) = tab_num {
                 self.switch_to_tab_index(n);
-                log::debug!("Switched to tab {} via Cmd+{}", n, n);
+                log::debug!("Switched to tab {}", n);
                 return true;
             }
         }

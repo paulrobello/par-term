@@ -539,10 +539,16 @@ fn show_performance_section(
         ui.label(egui::RichText::new("Throughput Mode").strong());
 
         if ui
-            .checkbox(
-                &mut settings.config.maximize_throughput,
-                "Maximize throughput (Cmd+Shift+T)",
-            )
+            .checkbox(&mut settings.config.maximize_throughput, {
+                #[cfg(target_os = "macos")]
+                {
+                    "Maximize throughput (Cmd+Shift+T)"
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    "Maximize throughput (Ctrl+Shift+M)"
+                }
+            })
             .on_hover_text(
                 "Batches screen updates during bulk terminal output.\n\
                  Reduces CPU overhead when processing large outputs.\n\
@@ -1184,16 +1190,34 @@ fn show_panes_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this
 
         ui.add_space(8.0);
         ui.label(egui::RichText::new("Keyboard Shortcuts").weak().small());
-        ui.label(
-            egui::RichText::new("  Cmd+D: Horizontal split, Cmd+Shift+D: Vertical split")
+        #[cfg(target_os = "macos")]
+        {
+            ui.label(
+                egui::RichText::new("  Cmd+D: Horizontal split, Cmd+Shift+D: Vertical split")
+                    .weak()
+                    .small(),
+            );
+            ui.label(
+                egui::RichText::new("  Cmd+Option+Arrow: Navigate, Cmd+Option+Shift+Arrow: Resize")
+                    .weak()
+                    .small(),
+            );
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            ui.label(
+                egui::RichText::new(
+                    "  Ctrl+Shift+D: Horizontal split, Ctrl+Shift+E: Vertical split",
+                )
                 .weak()
                 .small(),
-        );
-        ui.label(
-            egui::RichText::new("  Cmd+Option+Arrow: Navigate, Cmd+Option+Shift+Arrow: Resize")
-                .weak()
-                .small(),
-        );
+            );
+            ui.label(
+                egui::RichText::new("  Ctrl+Alt+Arrow: Navigate, Ctrl+Alt+Shift+Arrow: Resize")
+                    .weak()
+                    .small(),
+            );
+        }
     });
 }
 

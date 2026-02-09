@@ -314,7 +314,12 @@ pub fn use_background_as_channel0() -> bool {
 }
 
 pub fn keybindings() -> Vec<super::types::KeyBinding> {
-    vec![
+    // macOS: Cmd+key is safe because Cmd is separate from Ctrl (terminal control codes).
+    // Windows/Linux: Ctrl+key conflicts with terminal control codes (Ctrl+C=SIGINT, Ctrl+D=EOF, etc.)
+    // so we use Ctrl+Shift+key following standard terminal emulator conventions
+    // (WezTerm, Kitty, Alacritty, GNOME Terminal, Windows Terminal).
+    #[cfg(target_os = "macos")]
+    let bindings = vec![
         super::types::KeyBinding {
             key: "CmdOrCtrl+Shift+B".to_string(),
             action: "toggle_background_shader".to_string(),
@@ -331,7 +336,7 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
             key: "CmdOrCtrl+Shift+R".to_string(),
             action: "toggle_session_logging".to_string(),
         },
-        // Split pane shortcuts
+        // Split pane shortcuts (Cmd+D / Cmd+Shift+D matches iTerm2)
         super::types::KeyBinding {
             key: "CmdOrCtrl+D".to_string(),
             action: "split_horizontal".to_string(),
@@ -361,7 +366,7 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
             key: "CmdOrCtrl+Alt+Down".to_string(),
             action: "navigate_pane_down".to_string(),
         },
-        // Pane resize shortcuts (grow focused pane in direction)
+        // Pane resize shortcuts
         super::types::KeyBinding {
             key: "CmdOrCtrl+Alt+Shift+Left".to_string(),
             action: "resize_pane_left".to_string(),
@@ -393,7 +398,95 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
             key: "CmdOrCtrl+Alt+T".to_string(),
             action: "toggle_tmux_session_picker".to_string(),
         },
-    ]
+    ];
+
+    #[cfg(not(target_os = "macos"))]
+    let bindings = vec![
+        super::types::KeyBinding {
+            key: "Ctrl+Shift+B".to_string(),
+            action: "toggle_background_shader".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "Ctrl+Shift+U".to_string(),
+            action: "toggle_cursor_shader".to_string(),
+        },
+        // Ctrl+Shift+V is standard paste on Linux terminals, so use Ctrl+Alt+V for paste special
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+V".to_string(),
+            action: "paste_special".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "Ctrl+Shift+R".to_string(),
+            action: "toggle_session_logging".to_string(),
+        },
+        // Split pane shortcuts
+        // Ctrl+D is EOF/logout - use Ctrl+Shift+D for horizontal split
+        super::types::KeyBinding {
+            key: "Ctrl+Shift+D".to_string(),
+            action: "split_horizontal".to_string(),
+        },
+        // Ctrl+Shift+E for vertical split (Tilix/Terminator convention)
+        super::types::KeyBinding {
+            key: "Ctrl+Shift+E".to_string(),
+            action: "split_vertical".to_string(),
+        },
+        // Ctrl+Shift+W is standard close tab - use Ctrl+Shift+X for close pane
+        super::types::KeyBinding {
+            key: "Ctrl+Shift+X".to_string(),
+            action: "close_pane".to_string(),
+        },
+        // Pane navigation shortcuts
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+Left".to_string(),
+            action: "navigate_pane_left".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+Right".to_string(),
+            action: "navigate_pane_right".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+Up".to_string(),
+            action: "navigate_pane_up".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+Down".to_string(),
+            action: "navigate_pane_down".to_string(),
+        },
+        // Pane resize shortcuts
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+Shift+Left".to_string(),
+            action: "resize_pane_left".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+Shift+Right".to_string(),
+            action: "resize_pane_right".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+Shift+Up".to_string(),
+            action: "resize_pane_up".to_string(),
+        },
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+Shift+Down".to_string(),
+            action: "resize_pane_down".to_string(),
+        },
+        // Broadcast input mode
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+I".to_string(),
+            action: "toggle_broadcast_input".to_string(),
+        },
+        // Ctrl+Shift+T is standard new tab - use Ctrl+Shift+M for throughput mode
+        super::types::KeyBinding {
+            key: "Ctrl+Shift+M".to_string(),
+            action: "toggle_throughput_mode".to_string(),
+        },
+        // tmux session picker
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+T".to_string(),
+            action: "toggle_tmux_session_picker".to_string(),
+        },
+    ];
+
+    bindings
 }
 
 // Cursor enhancement defaults

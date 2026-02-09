@@ -268,7 +268,10 @@ impl TabBarUI {
                     }
 
                     if new_tab_btn.hovered() {
+                        #[cfg(target_os = "macos")]
                         new_tab_btn.on_hover_text("New Tab (Cmd+T)");
+                        #[cfg(not(target_os = "macos"))]
+                        new_tab_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
                     }
                 });
             });

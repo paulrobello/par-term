@@ -709,7 +709,12 @@ impl ProfileModalUI {
                         ui.horizontal(|ui| {
                             ui.text_edit_singleline(&mut self.temp_keyboard_shortcut);
                             ui.label(
-                                egui::RichText::new("(e.g. Cmd+1)")
+                                egui::RichText::new({
+                                    #[cfg(target_os = "macos")]
+                                    { "(e.g. Cmd+1)" }
+                                    #[cfg(not(target_os = "macos"))]
+                                    { "(e.g. Ctrl+Shift+1)" }
+                                })
                                     .small()
                                     .color(egui::Color32::GRAY),
                             );

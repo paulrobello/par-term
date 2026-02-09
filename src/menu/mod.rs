@@ -37,11 +37,26 @@ impl MenuManager {
         let menu = Menu::new();
         let mut action_map = HashMap::new();
 
-        // Platform-specific modifier key
+        // Platform-specific modifier keys
+        // macOS: Cmd (META) is safe — it's separate from Ctrl used by terminal control codes
+        // Windows/Linux: Use Ctrl+Shift to avoid conflicts with terminal control codes
+        // (Ctrl+C=SIGINT, Ctrl+D=EOF, Ctrl+W=delete-word, Ctrl+V=literal-next, etc.)
         #[cfg(target_os = "macos")]
         let cmd_or_ctrl = Modifiers::META;
         #[cfg(not(target_os = "macos"))]
-        let cmd_or_ctrl = Modifiers::CONTROL;
+        let cmd_or_ctrl = Modifiers::CONTROL | Modifiers::SHIFT;
+
+        // For items that already include Shift (same on all platforms)
+        #[cfg(target_os = "macos")]
+        let cmd_or_ctrl_shift = Modifiers::META | Modifiers::SHIFT;
+        #[cfg(not(target_os = "macos"))]
+        let cmd_or_ctrl_shift = Modifiers::CONTROL | Modifiers::SHIFT;
+
+        // Tab number switching: Cmd+N (macOS) / Alt+N (Windows/Linux)
+        #[cfg(target_os = "macos")]
+        let tab_switch_mod = Modifiers::META;
+        #[cfg(not(target_os = "macos"))]
+        let tab_switch_mod = Modifiers::ALT;
 
         // File menu
         let file_menu = Submenu::new("File", true);
@@ -98,7 +113,7 @@ impl MenuManager {
             "close_tab",
             "Close Tab",
             true,
-            None, // Cmd+W handled in File menu (smart close)
+            None, // Same as Close in File menu (smart close)
         );
         action_map.insert(close_tab.id().clone(), MenuAction::CloseTab);
         tab_menu.append(&close_tab)?;
@@ -110,7 +125,7 @@ impl MenuManager {
             "Next Tab",
             true,
             Some(Accelerator::new(
-                Some(cmd_or_ctrl | Modifiers::SHIFT),
+                Some(cmd_or_ctrl_shift),
                 Code::BracketRight,
             )),
         );
@@ -121,17 +136,14 @@ impl MenuManager {
             "prev_tab",
             "Previous Tab",
             true,
-            Some(Accelerator::new(
-                Some(cmd_or_ctrl | Modifiers::SHIFT),
-                Code::BracketLeft,
-            )),
+            Some(Accelerator::new(Some(cmd_or_ctrl_shift), Code::BracketLeft)),
         );
         action_map.insert(prev_tab.id().clone(), MenuAction::PreviousTab);
         tab_menu.append(&prev_tab)?;
 
         tab_menu.append(&PredefinedMenuItem::separator())?;
 
-        // Tab 1-9 shortcuts
+        // Tab 1-9 shortcuts: Cmd+N (macOS) / Alt+N (Windows/Linux)
         for i in 1..=9 {
             let code = match i {
                 1 => Code::Digit1,
@@ -149,7 +161,7 @@ impl MenuManager {
                 format!("tab_{}", i),
                 format!("Tab {}", i),
                 true,
-                Some(Accelerator::new(Some(cmd_or_ctrl), code)),
+                Some(Accelerator::new(Some(tab_switch_mod), code)),
             );
             action_map.insert(tab_item.id().clone(), MenuAction::SwitchToTab(i));
             tab_menu.append(&tab_item)?;
@@ -164,10 +176,7 @@ impl MenuManager {
             "manage_profiles",
             "Manage Profiles...",
             true,
-            Some(Accelerator::new(
-                Some(cmd_or_ctrl | Modifiers::SHIFT),
-                Code::KeyP,
-            )),
+            Some(Accelerator::new(Some(cmd_or_ctrl_shift), Code::KeyP)),
         );
         action_map.insert(manage_profiles.id().clone(), MenuAction::ManageProfiles);
         profiles_menu.append(&manage_profiles)?;
@@ -193,6 +202,7 @@ impl MenuManager {
         // Edit menu
         let edit_menu = Submenu::new("Edit", true);
 
+        // Copy/Paste/Select All: Cmd+C/V/A (macOS) / Ctrl+Shift+C/V/A (other)
         let copy = MenuItem::with_id(
             "copy",
             "Copy",
@@ -226,10 +236,7 @@ impl MenuManager {
             "clear_scrollback",
             "Clear Scrollback",
             true,
-            Some(Accelerator::new(
-                Some(cmd_or_ctrl | Modifiers::SHIFT),
-                Code::KeyK,
-            )),
+            Some(Accelerator::new(Some(cmd_or_ctrl_shift), Code::KeyK)),
         );
         action_map.insert(clear_scrollback.id().clone(), MenuAction::ClearScrollback);
         edit_menu.append(&clear_scrollback)?;
@@ -238,10 +245,7 @@ impl MenuManager {
             "clipboard_history",
             "Clipboard History",
             true,
-            Some(Accelerator::new(
-                Some(cmd_or_ctrl | Modifiers::SHIFT),
-                Code::KeyH,
-            )),
+            Some(Accelerator::new(Some(cmd_or_ctrl_shift), Code::KeyH)),
         );
         action_map.insert(clipboard_history.id().clone(), MenuAction::ClipboardHistory);
         edit_menu.append(&clipboard_history)?;

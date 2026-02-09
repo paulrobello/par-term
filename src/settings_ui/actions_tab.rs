@@ -82,45 +82,40 @@ fn show_actions_section(
                     );
 
                     // Right-aligned buttons + truncated detail for remaining space
-                    ui.with_layout(
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            // Delete button (rightmost)
-                            if ui
-                                .small_button(
-                                    egui::RichText::new("Delete")
-                                        .color(egui::Color32::from_rgb(200, 80, 80)),
-                                )
-                                .clicked()
-                            {
-                                delete_index = Some(i);
-                            }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Delete button (rightmost)
+                        if ui
+                            .small_button(
+                                egui::RichText::new("Delete")
+                                    .color(egui::Color32::from_rgb(200, 80, 80)),
+                            )
+                            .clicked()
+                        {
+                            delete_index = Some(i);
+                        }
 
-                            // Edit button
-                            if ui.small_button("Edit").clicked() {
-                                start_edit_index = Some(i);
-                            }
+                        // Edit button
+                        if ui.small_button("Edit").clicked() {
+                            start_edit_index = Some(i);
+                        }
 
-                            // Type-specific details (truncated to remaining space)
-                            let detail_text = match action {
-                                CustomActionConfig::ShellCommand { command, .. } => {
-                                    command.to_string()
-                                }
-                                CustomActionConfig::InsertText { text, .. } => text.clone(),
-                                CustomActionConfig::KeySequence { keys, .. } => {
-                                    format!("[{}]", keys)
-                                }
-                            };
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(detail_text)
-                                        .monospace()
-                                        .color(egui::Color32::GRAY),
-                                )
-                                .truncate(),
-                            );
-                        },
-                    );
+                        // Type-specific details (truncated to remaining space)
+                        let detail_text = match action {
+                            CustomActionConfig::ShellCommand { command, .. } => command.to_string(),
+                            CustomActionConfig::InsertText { text, .. } => text.clone(),
+                            CustomActionConfig::KeySequence { keys, .. } => {
+                                format!("[{}]", keys)
+                            }
+                        };
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(detail_text)
+                                    .monospace()
+                                    .color(egui::Color32::GRAY),
+                            )
+                            .truncate(),
+                        );
+                    });
                 });
             }
         }
@@ -339,10 +334,9 @@ fn show_action_edit_form(
                             None
                         };
 
-                        if let Some(conflict) = settings.check_keybinding_conflict(
-                            &settings.temp_action_keybinding,
-                            exclude_id,
-                        ) {
+                        if let Some(conflict) = settings
+                            .check_keybinding_conflict(&settings.temp_action_keybinding, exclude_id)
+                        {
                             ui.label(
                                 egui::RichText::new(format!("⚠️ {}", conflict))
                                     .color(egui::Color32::from_rgb(255, 180, 0))
