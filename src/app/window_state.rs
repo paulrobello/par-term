@@ -2163,11 +2163,19 @@ impl WindowState {
                             );
                             pm.set_bounds(bounds);
 
+                            // Calculate title bar height offset for terminal sizing
+                            let title_height_offset = if self.config.show_pane_titles {
+                                self.config.pane_title_height
+                            } else {
+                                0.0
+                            };
+
                             // Resize all pane terminals to match their new bounds
                             pm.resize_all_terminals_with_padding(
                                 sizing.cell_width,
                                 sizing.cell_height,
                                 effective_pane_padding,
+                                title_height_offset,
                             );
 
                             // Gather pane info

@@ -1517,17 +1517,18 @@ impl Renderer {
             let w_ndc = title.width / width * 2.0;
             let h_ndc = title.height / height * 2.0;
 
-            // Slightly brighter background for focused pane title
-            let alpha = if title.focused { 1.0 } else { 0.85 };
+            // Title bar must be fully opaque (alpha=1.0) to cover the background.
+            // Differentiate focused/unfocused by lightening/darkening the color.
+            let brightness = if title.focused { 1.0 } else { 0.7 };
 
             bg_instances.push(crate::cell_renderer::types::BackgroundInstance {
                 position: [x_ndc, y_ndc],
                 size: [w_ndc, h_ndc],
                 color: [
-                    title.bg_color[0] * alpha,
-                    title.bg_color[1] * alpha,
-                    title.bg_color[2] * alpha,
-                    alpha,
+                    title.bg_color[0] * brightness,
+                    title.bg_color[1] * brightness,
+                    title.bg_color[2] * brightness,
+                    1.0, // Always fully opaque
                 ],
             });
         }

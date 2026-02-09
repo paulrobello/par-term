@@ -571,24 +571,29 @@ impl PaneManager {
     /// This should be called after bounds are updated (split, resize, window resize)
     /// to ensure each PTY is sized correctly for its pane area.
     pub fn resize_all_terminals(&self, cell_width: f32, cell_height: f32) {
-        self.resize_all_terminals_with_padding(cell_width, cell_height, 0.0);
+        self.resize_all_terminals_with_padding(cell_width, cell_height, 0.0, 0.0);
     }
 
     /// Resize all terminal PTYs to match their pane bounds, accounting for padding.
     ///
     /// The padding reduces the content area where text is rendered, so terminals
     /// should be sized for the padded (smaller) area to avoid content being cut off.
+    ///
+    /// `height_offset` is an additional height reduction (e.g., pane title bar height)
+    /// subtracted once from each pane's content height.
     pub fn resize_all_terminals_with_padding(
         &self,
         cell_width: f32,
         cell_height: f32,
         padding: f32,
+        height_offset: f32,
     ) {
         if let Some(ref root) = self.root {
             for pane in root.all_panes() {
-                // Calculate content size (bounds minus padding on each side)
+                // Calculate content size (bounds minus padding on each side, minus title bar)
                 let content_width = (pane.bounds.width - padding * 2.0).max(cell_width);
-                let content_height = (pane.bounds.height - padding * 2.0).max(cell_height);
+                let content_height =
+                    (pane.bounds.height - padding * 2.0 - height_offset).max(cell_height);
 
                 let cols = (content_width / cell_width).floor() as usize;
                 let rows = (content_height / cell_height).floor() as usize;

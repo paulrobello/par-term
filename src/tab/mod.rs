@@ -1200,7 +1200,7 @@ impl Tab {
             self.pane_manager = Some(pm);
         } else if let Some(ref mut pm) = self.pane_manager {
             pm.set_bounds(bounds);
-            pm.resize_all_terminals_with_padding(cell_width, cell_height, padding);
+            pm.resize_all_terminals_with_padding(cell_width, cell_height, padding, 0.0);
         }
     }
 

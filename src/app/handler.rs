@@ -452,6 +452,7 @@ impl WindowState {
                                         cell_width,
                                         cell_height,
                                         padding,
+                                        0.0,
                                     );
                                 }
                             }
