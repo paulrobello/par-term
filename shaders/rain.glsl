@@ -21,8 +21,8 @@ defaults:
 // Original: https://www.shadertoy.com/view/ltffzl
 
 // ============== ADJUSTABLE FOG SETTINGS ==============
-// FOG_ENABLED: Comment out to disable fog entirely (saves GPU cycles)
-#define FOG_ENABLED
+// FOG_ENABLED: Uncomment to enable fog (costs GPU cycles)
+//#define FOG_ENABLED
 // FOG_AMOUNT: Controls overall glass fogginess (0.0 = clear, 1.0 = fully fogged)
 #define FOG_AMOUNT 0.4
 // FOG_CLEAR_AMOUNT: How much drops clear the fog (0.0 = no clearing, 1.0 = full clearing)

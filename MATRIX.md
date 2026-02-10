@@ -498,7 +498,7 @@ iTerm2's Composer provides intelligent command completion suggestions.
 | Suggestion ranking | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Smart relevance scoring |
 | Man page integration | ✅ | ❌ | ❌ | ⭐⭐ | 🔴 | Show man info inline |
 | Command preview | ✅ | ❌ | ❌ | ⭐ | 🟡 | Preview command output |
-| Shell integration auto-install | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Auto-download shell integration scripts |
+| Shell integration auto-install | ✅ | ✅ Embedded auto-install | ✅ | - | - | See §41 - bash/zsh/fish scripts embedded, auto-installed to RC files |
 
 ---
 
@@ -910,7 +910,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | AI Integration | 0 | 0 | 4 |
 | Status Bar | 0 | 0 | 10 |
 | Toolbelt | 0 | 0 | 8 |
-| Composer & Auto-Complete | 0 | 0 | 5 |
+| Composer & Auto-Complete | 1 | 0 | 4 |
 | Copy Mode | 0 | 0 | 8 |
 | Snippets & Actions | 0 | 0 | 6 |
 | Window Arrangements & Placement | 1 | 0 | 9 |
@@ -997,7 +997,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | ~~Progress bars (OSC 934)~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (OSC 9;4 + OSC 934) |
 | Composer (auto-complete) | ⭐⭐ | 🔵 Very High | AI-style command completion |
 | Toolbelt sidebar | ⭐⭐ | 🔴 High | Notes, paste history, jobs panel |
-| Shell integration auto-install | ⭐⭐ | 🟢 Low | Auto-download shell scripts |
+| ~~Shell integration auto-install~~ | ⭐⭐ | 🟢 Low | ✅ Complete (§41 - embedded auto-install) |
 | Light/Dark mode switching | ⭐⭐ | 🟡 Medium | Auto-switch with system theme |
 | Tab bar position (left/bottom) | ⭐⭐ | 🟡 Medium | Top/Bottom/Left options |
 | Tab style variants | ⭐ | 🟢 Low | Different visual styles for tabs |
@@ -1027,10 +1027,11 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Profile switcher and directory history
 - Command history search/autocomplete
 
-**Composer & Auto-Complete (5 features)**
+**Composer & Auto-Complete (4 remaining features)**
 - AI-style command completion UI
 - Command history search with fuzzy matching
 - Man page integration and command preview
+- ~~Shell integration auto-install~~ ✅ Complete
 
 **Copy Mode (8 features)**
 - Vi-style navigation for text selection
