@@ -786,9 +786,9 @@ iTerm2 supports showing progress for long-running commands.
 | Paste special transformations | ✅ | ✅ `Cmd/Ctrl+Shift+V` | ✅ | - | - | Already implemented |
 | Paste multi-line behavior | ✅ `Paste Special` | ✅ | ✅ | - | - | Already implemented |
 | Paste bracketing | ✅ `Allow Paste Bracketing` | ✅ | ✅ | - | - | Already implemented |
-| Paste delay | ✅ | ❌ | ❌ | ⭐ | 🟢 | Delay between pasted lines |
-| Paste as single line | ✅ | ❌ | ❌ | ⭐ | 🟡 | Force single line |
-| Paste with newlines | ✅ | ❌ | ❌ | ⭐ | 🟢 | Add/remove newlines |
+| Paste delay | ✅ | ✅ `paste_delay_ms` config | ✅ | - | - | Configurable delay between pasted lines (0-500ms) |
+| Paste as single line | ✅ | ✅ Paste Special transform | ✅ | - | - | `Newline: Paste as Single Line` transform |
+| Paste with newlines | ✅ | ✅ Paste Special transforms | ✅ | - | - | `Newline: Add/Remove Newlines` transforms |
 
 ---
 
@@ -923,14 +923,14 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Unicode & Text Processing | 3 | 0 | 3 |
 | Browser Integration | 0 | 0 | 4 |
 | Progress Bars | 0 | 0 | 4 |
-| Advanced Paste & Input | 3 | 0 | 3 |
+| Advanced Paste & Input | 6 | 0 | 0 |
 | Advanced Shell Integration | 6 | 1 | 1 |
 | Network & Discovery | 0 | 0 | 4 |
 | Miscellaneous | 10 | 0 | 7 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~278** | **~5** | **~131** |
+| **TOTAL** | **~281** | **~5** | **~128** |
 
-**Overall Parity: ~67% of iTerm2 features implemented** (276 implemented out of ~414 total tracked features)
+**Overall Parity: ~67% of iTerm2 features implemented** (279 implemented out of ~414 total tracked features)
 
 **Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
@@ -1086,9 +1086,9 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Multiple concurrent progress bars
 
 **Advanced Paste (3 features)**
-- Paste delay between lines
-- Paste as single line
-- Add/remove newlines on paste
+- ~~Paste delay between lines~~ ✅
+- ~~Paste as single line~~ ✅
+- ~~Add/remove newlines on paste~~ ✅
 
 **Advanced Shell Integration (1 feature)**
 - ~~Current command in window title~~ ✅

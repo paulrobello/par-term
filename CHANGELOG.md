@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Paste Delay** (#93): New `paste_delay_ms` config option (0-500ms) adds a configurable delay between pasted lines. Useful for slow terminals or remote connections that can't handle rapid paste. Exposed as a slider in Settings > Input > Selection & Clipboard.
+
+- **Paste Transforms: Newline Control** (#93): Three new paste transformations available via Paste Special (`Cmd/Ctrl+Shift+V`):
+  - `Newline: Paste as Single Line` — strips all newlines and joins text with spaces
+  - `Newline: Add Newlines` — ensures text ends with a newline after each line
+  - `Newline: Remove Newlines` — removes all newline characters
+
 - **Current Command in Window Title** (#94): When a command is running (via OSC 133;C shell integration), the window title bar now shows `[command_name]`. Reverts automatically when the command finishes.
 
 - **Shell Integration Badge Variables** (#94): Two new badge variables for use in badge format strings:
