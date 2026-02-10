@@ -82,11 +82,19 @@ pub(crate) struct CustomShaderUniforms {
     /// When A > 0, this color is used as the background instead of shader output.
     /// RGB values are NOT premultiplied. Alpha indicates solid color mode is active.
     pub background_color: [f32; 4],
+
+    // ============ Progress bar uniform ============
+    /// Progress bar state [state, percent, isActive, activeCount] - offset 288, size 16
+    /// x = state of simple progress bar (0=hidden, 1=normal, 2=error, 3=indeterminate, 4=warning)
+    /// y = percent as 0.0-1.0 (from simple bar's 0-100)
+    /// z = 1.0 if any progress bar is active, 0.0 otherwise
+    /// w = total count of active bars (simple + named)
+    pub progress: [f32; 4],
 }
-// Total size: 288 bytes
+// Total size: 304 bytes
 
 // Compile-time assertion to ensure uniform struct size matches expectations
 const _: () = assert!(
-    std::mem::size_of::<CustomShaderUniforms>() == 288,
-    "CustomShaderUniforms must be exactly 288 bytes for GPU compatibility"
+    std::mem::size_of::<CustomShaderUniforms>() == 304,
+    "CustomShaderUniforms must be exactly 304 bytes for GPU compatibility"
 );

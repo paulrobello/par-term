@@ -1717,6 +1717,28 @@ impl WindowState {
                 renderer.clear_cursor();
             }
 
+            // Update progress bar state for shader uniforms
+            if let Some(ref snap) = progress_snapshot {
+                use par_term_emu_core_rust::terminal::ProgressState;
+                let state_val = match snap.simple.state {
+                    ProgressState::Hidden => 0.0,
+                    ProgressState::Normal => 1.0,
+                    ProgressState::Error => 2.0,
+                    ProgressState::Indeterminate => 3.0,
+                    ProgressState::Warning => 4.0,
+                };
+                let active_count = (if snap.simple.is_active() { 1 } else { 0 })
+                    + snap.named.values().filter(|b| b.state.is_active()).count();
+                renderer.update_shader_progress(
+                    state_val,
+                    snap.simple.progress as f32 / 100.0,
+                    if snap.has_active() { 1.0 } else { 0.0 },
+                    active_count as f32,
+                );
+            } else {
+                renderer.update_shader_progress(0.0, 0.0, 0.0, 0.0);
+            }
+
             // Update scrollbar
             let scroll_offset = self
                 .tab_manager

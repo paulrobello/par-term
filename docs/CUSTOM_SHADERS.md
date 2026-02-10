@@ -23,6 +23,7 @@ For a list of all included shaders, see [SHADERS.md](SHADERS.md).
   - [Texture Channel Uniforms](#texture-channel-uniforms)
   - [Cursor Uniforms](#cursor-uniforms)
   - [Cursor Shader Configuration Uniforms](#cursor-shader-configuration-uniforms)
+  - [Progress Bar Uniforms](#progress-bar-uniforms)
 - [Creating Custom Shaders](#creating-custom-shaders)
   - [Basic Structure](#basic-structure)
   - [Shader Modes](#shader-modes)
@@ -416,6 +417,44 @@ These uniforms pass cursor shader configuration values to the shader:
 | `iCursorGlowRadius` | `float` | Glow radius in pixels (from config) |
 | `iCursorGlowIntensity` | `float` | Glow intensity 0.0-1.0 (from config) |
 | `iCursorShaderColor` | `vec4` | User-configured cursor color `[R, G, B, 1.0]` (0.0-1.0 normalized) |
+
+### Progress Bar Uniforms
+
+Progress bar state from OSC 9;4 (simple) and OSC 934 (named/concurrent) protocols:
+
+| Uniform | Type | Description |
+|---------|------|-------------|
+| `iProgress` | `vec4` | Progress bar state: `x` = state, `y` = percent, `z` = isActive, `w` = activeCount |
+
+**Component details:**
+- `iProgress.x` — State of the simple progress bar: `0` = hidden, `1` = normal, `2` = error, `3` = indeterminate, `4` = warning
+- `iProgress.y` — Progress percentage as `0.0`–`1.0` (from the simple bar's 0–100%)
+- `iProgress.z` — `1.0` if any progress bar (simple or named) is active, `0.0` otherwise
+- `iProgress.w` — Total count of active progress bars (simple + named combined)
+
+**Example — screen edge glow during active progress:**
+```glsl
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / iResolution.xy;
+
+    // Base background color
+    vec3 color = vec3(0.05, 0.05, 0.1);
+
+    // Glow at top edge when progress is active
+    if (iProgress.z > 0.5) {
+        float edge = smoothstep(0.0, 0.15, 1.0 - uv.y);
+        // Color based on state: green=normal, red=error, yellow=warning
+        vec3 glowColor = vec3(0.0, 0.8, 0.2);  // normal (green)
+        if (iProgress.x > 1.5 && iProgress.x < 2.5) glowColor = vec3(0.9, 0.1, 0.1); // error
+        if (iProgress.x > 3.5) glowColor = vec3(0.9, 0.8, 0.1); // warning
+
+        color += glowColor * edge * 0.3 * iProgress.y;
+    }
+
+    fragColor = vec4(color, 1.0);
+}
+```
 
 ---
 
