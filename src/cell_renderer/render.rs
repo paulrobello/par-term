@@ -856,14 +856,20 @@ impl CellRenderer {
                             let scale_x = cell_w / char_w;
                             let scale_y = cell_h / self.cell_height;
 
-                            // Position glyph relative to snapped cell top-left
+                            // Position glyph relative to snapped cell top-left.
+                            // Round the scaled baseline position once, then subtract
+                            // the integer bearing_y. This ensures all glyphs on a row
+                            // share the same rounded baseline, with bearing offsets
+                            // applied exactly (no scale_y on bearing avoids rounding
+                            // artifacts between glyphs with different bearings).
                             let baseline_offset = baseline_y_unrounded
                                 - (self.window_padding
                                     + self.content_offset_y
                                     + row as f32 * self.cell_height);
                             let glyph_left = x0 + (info.bearing_x * scale_x).round();
-                            let glyph_top =
-                                y0 + ((baseline_offset - info.bearing_y) * scale_y).round();
+                            let baseline_in_cell =
+                                (baseline_offset * scale_y).round();
+                            let glyph_top = y0 + baseline_in_cell - info.bearing_y;
 
                             let render_w = info.width as f32 * scale_x;
                             let render_h = info.height as f32 * scale_y;
@@ -1622,7 +1628,8 @@ impl CellRenderer {
 
                     let baseline_offset = baseline_y - (content_y + row as f32 * self.cell_height);
                     let glyph_left = x0 + (info.bearing_x * scale_x).round();
-                    let glyph_top = y0 + ((baseline_offset - info.bearing_y) * scale_y).round();
+                    let baseline_in_cell = (baseline_offset * scale_y).round();
+                    let glyph_top = y0 + baseline_in_cell - info.bearing_y;
 
                     let render_w = info.width as f32 * scale_x;
                     let render_h = info.height as f32 * scale_y;
