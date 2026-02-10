@@ -608,6 +608,10 @@ pub fn ambiguous_width() -> par_term_emu_core_rust::AmbiguousWidth {
     par_term_emu_core_rust::AmbiguousWidth::Narrow
 }
 
+pub fn normalization_form() -> par_term_emu_core_rust::NormalizationForm {
+    par_term_emu_core_rust::NormalizationForm::NFC
+}
+
 // Split pane defaults
 pub fn pane_divider_width() -> Option<f32> {
     Some(2.0) // 2 pixel divider between panes

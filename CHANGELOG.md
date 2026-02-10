@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Unicode Normalization**: Configurable Unicode normalization form (NFC/NFD/NFKC/NFKD/None) for text processing. NFC is the default. Exposed in Settings > Terminal > Unicode section. Live-updates across all tabs when changed.
+
 ---
 
 ## [0.12.0] - 2026-02-10

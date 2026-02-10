@@ -1304,6 +1304,15 @@ impl WindowManager {
                     }
                 }
 
+                // Apply Unicode normalization form
+                if changes.normalization_form {
+                    for tab in window_state.tab_manager.tabs_mut() {
+                        if let Ok(term) = tab.terminal.try_lock() {
+                            term.set_normalization_form(config.normalization_form);
+                        }
+                    }
+                }
+
                 // Resolve per-shader settings (user override -> metadata defaults -> global)
                 // This is computed once and used for both shader enable and background-as-channel0
                 let shader_override = config

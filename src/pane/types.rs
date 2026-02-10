@@ -191,6 +191,9 @@ impl Pane {
         );
         terminal.set_width_config(width_config);
 
+        // Apply Unicode normalization form
+        terminal.set_normalization_form(config.normalization_form);
+
         // Initialize cursor style from config
         {
             use crate::config::CursorStyle as ConfigCursorStyle;
@@ -313,6 +316,9 @@ impl Pane {
             config.ambiguous_width,
         );
         terminal.set_width_config(width_config);
+
+        // Apply Unicode normalization form
+        terminal.set_normalization_form(config.normalization_form);
 
         // Initialize cursor style from config
         {

@@ -60,6 +60,9 @@ pub(crate) struct ConfigChanges {
     // Unicode width settings
     pub unicode_width: bool,
 
+    // Unicode normalization form
+    pub normalization_form: bool,
+
     // Anti-idle keep-alive
     pub anti_idle_enabled: bool,
     pub anti_idle_seconds: bool,
@@ -187,6 +190,8 @@ impl ConfigChanges {
 
             unicode_width: new.unicode_version != old.unicode_version
                 || new.ambiguous_width != old.ambiguous_width,
+
+            normalization_form: new.normalization_form != old.normalization_form,
 
             anti_idle_enabled: new.anti_idle_enabled != old.anti_idle_enabled,
             anti_idle_seconds: new.anti_idle_seconds != old.anti_idle_seconds,

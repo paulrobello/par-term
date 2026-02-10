@@ -580,6 +580,16 @@ pub struct Config {
     #[serde(default = "defaults::ambiguous_width")]
     pub ambiguous_width: par_term_emu_core_rust::AmbiguousWidth,
 
+    /// Unicode normalization form for text processing
+    /// Controls how Unicode text is normalized before being stored in terminal cells.
+    /// - NFC: Canonical composition (default, most compatible)
+    /// - NFD: Canonical decomposition (macOS HFS+ style)
+    /// - NFKC: Compatibility composition (resolves ligatures like ﬁ → fi)
+    /// - NFKD: Compatibility decomposition
+    /// - none: No normalization
+    #[serde(default = "defaults::normalization_form")]
+    pub normalization_form: par_term_emu_core_rust::NormalizationForm,
+
     /// Enable cursor blinking
     #[serde(default = "defaults::bool_false")]
     pub cursor_blink: bool,
@@ -1471,6 +1481,7 @@ impl Default for Config {
             scrollback_lines: defaults::scrollback(),
             unicode_version: defaults::unicode_version(),
             ambiguous_width: defaults::ambiguous_width(),
+            normalization_form: defaults::normalization_form(),
             cursor_blink: defaults::bool_false(),
             cursor_blink_interval: defaults::cursor_blink_interval(),
             cursor_style: CursorStyle::default(),

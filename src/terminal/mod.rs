@@ -1222,6 +1222,20 @@ impl TerminalManager {
         term.set_width_config(config);
     }
 
+    /// Set the Unicode normalization form for text processing
+    ///
+    /// Controls how Unicode text is normalized before being stored in terminal cells.
+    /// NFC (default) composes characters where possible.
+    /// NFD decomposes (macOS HFS+ style).
+    /// NFKC/NFKD also resolve compatibility characters.
+    /// None disables normalization entirely.
+    pub fn set_normalization_form(&self, form: par_term_emu_core_rust::NormalizationForm) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.set_normalization_form(form);
+    }
+
     /// Set a callback to receive raw PTY output data
     ///
     /// This is useful for session logging - the callback receives the raw bytes

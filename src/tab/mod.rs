@@ -45,6 +45,9 @@ fn configure_terminal_from_config(terminal: &mut TerminalManager, config: &Confi
         par_term_emu_core_rust::WidthConfig::new(config.unicode_version, config.ambiguous_width);
     terminal.set_width_config(width_config);
 
+    // Apply Unicode normalization form
+    terminal.set_normalization_form(config.normalization_form);
+
     // Initialize cursor style from config
     use crate::config::CursorStyle as ConfigCursorStyle;
     use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;

@@ -336,6 +336,52 @@ fn show_unicode_section(
                 );
         });
 
+        ui.horizontal(|ui| {
+            ui.label("Normalization:");
+            let norm_text = match settings.config.normalization_form {
+                par_term_emu_core_rust::NormalizationForm::None => "None",
+                par_term_emu_core_rust::NormalizationForm::NFC => "NFC (default)",
+                par_term_emu_core_rust::NormalizationForm::NFD => "NFD",
+                par_term_emu_core_rust::NormalizationForm::NFKC => "NFKC",
+                par_term_emu_core_rust::NormalizationForm::NFKD => "NFKD",
+            };
+            egui::ComboBox::from_id_salt("terminal_normalization_form")
+                .selected_text(norm_text)
+                .show_ui(ui, |ui| {
+                    let forms = [
+                        (
+                            par_term_emu_core_rust::NormalizationForm::NFC,
+                            "NFC (default)",
+                        ),
+                        (par_term_emu_core_rust::NormalizationForm::NFD, "NFD"),
+                        (par_term_emu_core_rust::NormalizationForm::NFKC, "NFKC"),
+                        (par_term_emu_core_rust::NormalizationForm::NFKD, "NFKD"),
+                        (
+                            par_term_emu_core_rust::NormalizationForm::None,
+                            "None (disabled)",
+                        ),
+                    ];
+                    for (value, label) in forms {
+                        if ui
+                            .selectable_value(&mut settings.config.normalization_form, value, label)
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                })
+                .response
+                .on_hover_text(
+                    "Unicode normalization form for text processing.\n\
+                     - NFC: Canonical composition (default, most compatible)\n\
+                     - NFD: Canonical decomposition (macOS HFS+ style)\n\
+                     - NFKC: Compatibility composition (resolves ligatures)\n\
+                     - NFKD: Compatibility decomposition\n\
+                     - None: No normalization (store text as-is)",
+                );
+        });
+
         ui.add_space(8.0);
 
         ui.horizontal(|ui| {

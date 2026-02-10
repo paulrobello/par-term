@@ -242,7 +242,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | TERM variable | ✅ `Terminal Type` | ✅ | ✅ | - | - | Set via environment |
 | Character encoding | ✅ Multiple | ✅ UTF-8 | ✅ | - | - | UTF-8 only |
 | Unicode version | ✅ | ✅ | ✅ | ⭐ | 🟢 | Unicode 9.0-16.0 or Auto; ambiguous width narrow/wide; Settings > Terminal |
-| Unicode normalization | ✅ NFC/NFD/HFS+ | ❌ | ❌ | ⭐ | 🟡 | Text normalization |
+| Unicode normalization | ✅ NFC/NFD/HFS+ | ✅ NFC/NFD/NFKC/NFKD/None | ✅ | ⭐ | 🟢 | Text normalization form; configurable in Settings > Terminal > Unicode (core v0.35.0+) |
 | Answerback string | ✅ | ✅ | ✅ | ⭐ | 🟢 | ENQ response; default empty for security; configurable in Settings > Shell (core v0.23.0+) |
 
 ---
@@ -744,7 +744,7 @@ iTerm2 has sophisticated window state management.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Unicode normalization | ✅ `Unicode Normalization` (NFC/NFD/HFS+) | ❌ | ❌ | ⭐ | 🟡 | Text normalization form |
+| Unicode normalization | ✅ `Unicode Normalization` (NFC/NFD/HFS+) | ✅ NFC/NFD/NFKC/NFKD/None | ✅ | - | - | Already implemented; Settings > Terminal > Unicode (core v0.35.0+) |
 | Unicode version selection | ✅ `Unicode Version` | ✅ | ✅ | - | - | Already implemented |
 | Ambiguous width characters | ✅ `Ambiguous Width Characters` | ✅ | ✅ | - | - | Already implemented |
 | Unicode box drawing | ✅ | ✅ | ✅ | - | - | Already implemented |
@@ -1074,8 +1074,7 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Import/export preferences
 - Preference validation and profiles
 
-**Unicode & Text Processing (3 features)**
-- Unicode normalization (NFC/NFD/HFS+)
+**Unicode & Text Processing (2 features)**
 - Emoji variation sequences
 - Right-to-left text support
 
