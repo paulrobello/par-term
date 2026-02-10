@@ -421,6 +421,73 @@ impl TerminalManager {
         Ok(())
     }
 
+    /// Paste text with a delay between lines.
+    /// Splits content on newlines and sends each line with a configurable delay,
+    /// useful for slow terminals or remote connections.
+    pub async fn paste_with_delay(&self, content: &str, delay_ms: u64) -> Result<()> {
+        if content.is_empty() {
+            return Ok(());
+        }
+
+        // Query bracketed paste state (release lock before async work)
+        let (start, end) = {
+            let pty = self.pty_session.lock();
+            let terminal = pty.terminal();
+            let term = terminal.lock();
+            (
+                term.bracketed_paste_start().to_vec(),
+                term.bracketed_paste_end().to_vec(),
+            )
+        };
+
+        // Send bracketed paste start
+        if !start.is_empty() {
+            let mut pty = self.pty_session.lock();
+            pty.write(&start)
+                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste start: {}", e))?;
+        }
+
+        // Split on newlines and send each line with delay
+        let lines: Vec<&str> = content.split('\n').collect();
+        let delay = tokio::time::Duration::from_millis(delay_ms);
+
+        for (i, line) in lines.iter().enumerate() {
+            // Convert newline to carriage return for terminal
+            let mut line_data = line.replace('\n', "\r");
+            // Add carriage return between lines (not after the last one if original didn't end with newline)
+            if i < lines.len() - 1 {
+                line_data.push('\r');
+            }
+
+            {
+                let mut pty = self.pty_session.lock();
+                pty.write(line_data.as_bytes())
+                    .map_err(|e| anyhow::anyhow!("Failed to write paste line: {}", e))?;
+            }
+
+            // Delay between lines (not after the last line)
+            if i < lines.len() - 1 {
+                tokio::time::sleep(delay).await;
+            }
+        }
+
+        // Send bracketed paste end
+        if !end.is_empty() {
+            let mut pty = self.pty_session.lock();
+            pty.write(&end)
+                .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste end: {}", e))?;
+        }
+
+        log::debug!(
+            "Pasted {} lines with {}ms delay ({} chars total)",
+            lines.len(),
+            delay_ms,
+            content.len()
+        );
+
+        Ok(())
+    }
+
     /// Get the terminal content as a string
     #[allow(dead_code)]
     pub fn content(&self) -> Result<String> {

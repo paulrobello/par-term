@@ -88,6 +88,10 @@ pub fn scrollbar_track_color() -> [f32; 4] {
     [0.15, 0.15, 0.15, 0.6] // Dark gray, semi-transparent
 }
 
+pub fn paste_delay_ms() -> u64 {
+    0 // No delay by default
+}
+
 pub fn clipboard_max_sync_events() -> usize {
     64 // Aligned with sister project
 }

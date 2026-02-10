@@ -27,6 +27,11 @@ pub enum PasteTransform {
     CaseScreamingSnake,
     CaseKebabCase,
 
+    // Newline category
+    NewlineSingleLine,
+    NewlineAddNewlines,
+    NewlineRemoveNewlines,
+
     // Whitespace category
     WhitespaceTrim,
     WhitespaceTrimLines,
@@ -66,6 +71,11 @@ impl PasteTransform {
             Self::CaseScreamingSnake => "Case: SCREAMING_SNAKE",
             Self::CaseKebabCase => "Case: kebab-case",
 
+            // Newline
+            Self::NewlineSingleLine => "Newline: Paste as Single Line",
+            Self::NewlineAddNewlines => "Newline: Add Newlines",
+            Self::NewlineRemoveNewlines => "Newline: Remove Newlines",
+
             // Whitespace
             Self::WhitespaceTrim => "Whitespace: Trim",
             Self::WhitespaceTrimLines => "Whitespace: Trim Lines",
@@ -103,6 +113,10 @@ impl PasteTransform {
             Self::CaseScreamingSnake => "Convert to SCREAMING_SNAKE_CASE",
             Self::CaseKebabCase => "Convert to kebab-case (lowercase-with-hyphens)",
 
+            Self::NewlineSingleLine => "Strip all newlines, join into a single line",
+            Self::NewlineAddNewlines => "Ensure text ends with a newline after each line",
+            Self::NewlineRemoveNewlines => "Remove all newline characters",
+
             Self::WhitespaceTrim => "Remove leading and trailing whitespace",
             Self::WhitespaceTrimLines => "Trim whitespace from each line",
             Self::WhitespaceCollapseSpaces => "Replace multiple spaces with single space",
@@ -138,6 +152,10 @@ impl PasteTransform {
             Self::CaseSnakeCase,
             Self::CaseScreamingSnake,
             Self::CaseKebabCase,
+            // Newline
+            Self::NewlineSingleLine,
+            Self::NewlineAddNewlines,
+            Self::NewlineRemoveNewlines,
             // Whitespace
             Self::WhitespaceTrim,
             Self::WhitespaceTrimLines,
@@ -196,6 +214,11 @@ pub fn transform(input: &str, transform: PasteTransform) -> Result<String, Strin
         PasteTransform::CaseSnakeCase => Ok(snake_case(input)),
         PasteTransform::CaseScreamingSnake => Ok(screaming_snake_case(input)),
         PasteTransform::CaseKebabCase => Ok(kebab_case(input)),
+
+        // Newline transformations
+        PasteTransform::NewlineSingleLine => Ok(paste_as_single_line(input)),
+        PasteTransform::NewlineAddNewlines => Ok(add_newlines(input)),
+        PasteTransform::NewlineRemoveNewlines => Ok(remove_newlines(input)),
 
         // Whitespace transformations
         PasteTransform::WhitespaceTrim => Ok(input.trim().to_string()),
@@ -390,6 +413,32 @@ fn kebab_case(input: &str) -> String {
         .map(|w| w.to_lowercase())
         .collect::<Vec<_>>()
         .join("-")
+}
+
+// ============================================================================
+// Newline transformations
+// ============================================================================
+
+/// Strip all newlines and join into a single line, replacing newlines with spaces.
+fn paste_as_single_line(input: &str) -> String {
+    input.lines().collect::<Vec<_>>().join(" ")
+}
+
+/// Ensure each line ends with a newline character.
+fn add_newlines(input: &str) -> String {
+    if input.is_empty() {
+        return String::new();
+    }
+    let mut result: String = input.lines().collect::<Vec<_>>().join("\n");
+    if !result.ends_with('\n') {
+        result.push('\n');
+    }
+    result
+}
+
+/// Remove all newline characters from the text.
+fn remove_newlines(input: &str) -> String {
+    input.replace(['\n', '\r'], "")
 }
 
 // ============================================================================
@@ -782,6 +831,44 @@ mod tests {
         assert_eq!(
             transform("Hello World", PasteTransform::CaseKebabCase).unwrap(),
             "hello-world"
+        );
+    }
+
+    // Newline transformations
+    #[test]
+    fn test_newline_single_line() {
+        assert_eq!(
+            transform("line1\nline2\nline3", PasteTransform::NewlineSingleLine).unwrap(),
+            "line1 line2 line3"
+        );
+        assert_eq!(
+            transform("single line", PasteTransform::NewlineSingleLine).unwrap(),
+            "single line"
+        );
+    }
+
+    #[test]
+    fn test_newline_add_newlines() {
+        assert_eq!(
+            transform("line1\nline2", PasteTransform::NewlineAddNewlines).unwrap(),
+            "line1\nline2\n"
+        );
+        // Already has trailing newline
+        assert_eq!(
+            transform("line1\nline2\n", PasteTransform::NewlineAddNewlines).unwrap(),
+            "line1\nline2\n"
+        );
+    }
+
+    #[test]
+    fn test_newline_remove_newlines() {
+        assert_eq!(
+            transform("line1\nline2\nline3", PasteTransform::NewlineRemoveNewlines).unwrap(),
+            "line1line2line3"
+        );
+        assert_eq!(
+            transform("line1\r\nline2", PasteTransform::NewlineRemoveNewlines).unwrap(),
+            "line1line2"
         );
     }
 

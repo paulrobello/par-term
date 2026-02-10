@@ -492,6 +492,11 @@ pub struct Config {
     #[serde(default = "defaults::bool_true")]
     pub middle_click_paste: bool,
 
+    /// Delay in milliseconds between pasted lines (0 = no delay)
+    /// Useful for slow terminals or remote connections that can't handle rapid paste
+    #[serde(default = "defaults::paste_delay_ms")]
+    pub paste_delay_ms: u64,
+
     /// Quote style for dropped file paths
     /// - single_quotes: Wrap in single quotes (safest for most shells)
     /// - double_quotes: Wrap in double quotes
@@ -1449,6 +1454,7 @@ impl Default for Config {
             auto_copy_selection: defaults::bool_true(),
             copy_trailing_newline: defaults::bool_false(),
             middle_click_paste: defaults::bool_true(),
+            paste_delay_ms: defaults::paste_delay_ms(),
             dropped_file_quote_style: DroppedFileQuoteStyle::default(),
             mouse_scroll_speed: defaults::scroll_speed(),
             mouse_double_click_threshold: defaults::double_click_threshold(),

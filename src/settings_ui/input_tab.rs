@@ -59,7 +59,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
     if section_matches(
         &query,
         "Selection & Clipboard",
-        &["copy", "paste", "middle-click", "auto-copy"],
+        &["copy", "paste", "middle-click", "auto-copy", "delay"],
     ) {
         show_selection_section(ui, settings, changes_this_frame);
     }
@@ -566,6 +566,24 @@ fn show_selection_section(
             settings.has_changes = true;
             *changes_this_frame = true;
         }
+
+        ui.horizontal(|ui| {
+            ui.label("Paste delay (ms):");
+            if ui
+                .add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(&mut settings.config.paste_delay_ms, 0..=500),
+                )
+                .on_hover_text(
+                    "Delay between pasted lines in milliseconds (0 = no delay). \
+                     Useful for slow terminals or remote connections.",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
 
         ui.separator();
         ui.label("Dropped Files");
