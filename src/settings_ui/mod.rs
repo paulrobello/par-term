@@ -19,6 +19,7 @@ pub mod input_tab;
 pub mod integrations_tab;
 pub mod notifications_tab;
 pub mod profiles_tab;
+pub mod progress_bar_tab;
 pub mod quick_settings;
 pub mod section;
 pub mod sidebar;
@@ -1166,6 +1167,9 @@ impl SettingsUI {
             }
             SettingsTab::Badge => {
                 badge_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::ProgressBar => {
+                progress_bar_tab::show(ui, self, changes_this_frame);
             }
             SettingsTab::Profiles => {
                 profiles_tab::show(ui, self, changes_this_frame);

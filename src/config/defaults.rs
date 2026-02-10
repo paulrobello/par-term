@@ -493,6 +493,31 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
     bindings
 }
 
+// Progress bar defaults
+pub fn progress_bar_height() -> f32 {
+    4.0 // Height in pixels
+}
+
+pub fn progress_bar_normal_color() -> [u8; 3] {
+    [80, 180, 255] // Blue for normal progress
+}
+
+pub fn progress_bar_warning_color() -> [u8; 3] {
+    [255, 200, 50] // Yellow for warning
+}
+
+pub fn progress_bar_error_color() -> [u8; 3] {
+    [255, 80, 80] // Red for error
+}
+
+pub fn progress_bar_indeterminate_color() -> [u8; 3] {
+    [150, 150, 150] // Gray for indeterminate
+}
+
+pub fn progress_bar_opacity() -> f32 {
+    0.8
+}
+
 // Cursor enhancement defaults
 pub fn cursor_guide_color() -> [u8; 4] {
     [255, 255, 255, 20] // Subtle white highlight

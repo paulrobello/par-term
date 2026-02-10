@@ -1151,6 +1151,40 @@ impl TerminalManager {
 impl TerminalManager {}
 
 // ========================================================================
+// Progress Bar Methods (OSC 9;4 and OSC 934)
+// ========================================================================
+
+impl TerminalManager {
+    /// Get the simple progress bar state (OSC 9;4)
+    pub fn progress_bar(&self) -> par_term_emu_core_rust::terminal::ProgressBar {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        *term.progress_bar()
+    }
+
+    /// Get all named progress bars (OSC 934)
+    ///
+    /// Returns an empty map until the core library publishes OSC 934 support.
+    /// Once `par-term-emu-core-rust` >= 0.34.0 adds `named_progress_bars()`,
+    /// this method should delegate to it.
+    pub fn named_progress_bars(
+        &self,
+    ) -> std::collections::HashMap<String, crate::progress_bar::NamedProgressBar> {
+        // TODO: delegate to term.named_progress_bars() once core library publishes OSC 934 support
+        std::collections::HashMap::new()
+    }
+
+    /// Check if any progress bar is currently active (either simple or named)
+    pub fn has_any_progress(&self) -> bool {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.has_progress()
+    }
+}
+
+// ========================================================================
 // Answerback String (ENQ Response)
 // ========================================================================
 

@@ -771,10 +771,10 @@ iTerm2 supports showing progress for long-running commands.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Progress bar protocol | ✅ `Progress Bar` (OSC 934) | ❌ | ❌ | ⭐⭐ | 🟡 | Show command progress |
-| Progress bar style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Different bar styles |
-| Progress bar position | ✅ | ❌ | ❌ | ⭐ | 🟡 | Top/bottom placement |
-| Multiple progress bars | ✅ | ❌ | ❌ | ⭐ | 🟡 | Concurrent progress display |
+| Progress bar protocol | ✅ `Progress Bar` (OSC 934) | ✅ | ✅ | ⭐⭐ | 🟡 | OSC 9;4 simple progress bar |
+| Progress bar style | ✅ | ✅ | ✅ | ⭐ | 🟢 | Bar and bar-with-text styles |
+| Progress bar position | ✅ | ✅ | ✅ | ⭐ | 🟡 | Top/bottom placement |
+| Multiple progress bars | ✅ | 🔶 | 🔶 | ⭐ | 🟡 | Frontend ready; OSC 934 pending core lib |
 
 ---
 
@@ -922,15 +922,15 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Advanced Configuration | 1 | 0 | 7 |
 | Unicode & Text Processing | 3 | 0 | 3 |
 | Browser Integration | 0 | 0 | 4 |
-| Progress Bars | 0 | 0 | 4 |
+| Progress Bars | 3 | 1 | 0 |
 | Advanced Paste & Input | 6 | 0 | 0 |
 | Advanced Shell Integration | 6 | 1 | 1 |
 | Network & Discovery | 0 | 0 | 4 |
 | Miscellaneous | 10 | 0 | 7 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~281** | **~5** | **~128** |
+| **TOTAL** | **~284** | **~6** | **~124** |
 
-**Overall Parity: ~67% of iTerm2 features implemented** (279 implemented out of ~414 total tracked features)
+**Overall Parity: ~69% of iTerm2 features implemented** (284 implemented out of ~414 total tracked features)
 
 **Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
@@ -991,7 +991,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Directory-based profile switching | ⭐⭐⭐ | 🟡 Medium | Auto-switch profile by directory |
 | Session undo timeout | ⭐⭐ | 🟡 Medium | Recover accidentally closed tabs |
 | Window arrangements | ⭐⭐ | 🟡 Medium | Save/restore window layouts |
-| Progress bars (OSC 934) | ⭐⭐ | 🟡 Medium | Show command progress |
+| ~~Progress bars (OSC 934)~~ | ⭐⭐ | 🟡 Medium | ✅ OSC 9;4 done; OSC 934 named bars pending core lib |
 | Composer (auto-complete) | ⭐⭐ | 🔵 Very High | AI-style command completion |
 | Toolbelt sidebar | ⭐⭐ | 🔴 High | Notes, paste history, jobs panel |
 | Shell integration auto-install | ⭐⭐ | 🟢 Low | Auto-download shell scripts |
@@ -1080,10 +1080,10 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Built-in browser for web-based workflows
 - Browser per tab, profile sync
 
-**Progress Bars (4 features)**
-- OSC 934 protocol support
-- Progress bar style and position
-- Multiple concurrent progress bars
+**Progress Bars (1 remaining feature)**
+- ~~OSC 9;4 protocol support~~ ✅
+- ~~Progress bar style and position~~ ✅
+- Multiple concurrent progress bars (OSC 934 pending core library publish)
 
 **Advanced Paste (3 features)**
 - ~~Paste delay between lines~~ ✅
