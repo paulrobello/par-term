@@ -416,6 +416,20 @@ On Linux (Ubuntu/Debian), you need GTK3 and X11/Wayland libraries:
 sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev
 ```
 
+### macOS Gatekeeper Notice
+
+If macOS reports that par-term "is damaged and can't be opened", this is caused by the Gatekeeper quarantine attribute applied to unsigned binaries. Remove it with:
+
+```bash
+# For the release binary
+xattr -cr target/release/par-term
+
+# For the .app bundle
+xattr -cr /Applications/par-term.app
+```
+
+> **Note:** The Homebrew cask install (`brew install --cask paulrobello/tap/par-term`) handles this automatically.
+
 ## Installing Shaders
 
 par-term includes 49+ custom GLSL shaders for background effects and cursor animations. These need to be installed to your config directory.
