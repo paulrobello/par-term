@@ -270,6 +270,8 @@ fn show_variables_section(
             ("\\(session.bell_count)", "Number of bells received"),
             ("\\(session.selection)", "Currently selected text"),
             ("\\(session.tmux_pane_title)", "tmux pane title"),
+            ("\\(session.exit_code)", "Last command exit code"),
+            ("\\(session.current_command)", "Currently running command"),
         ];
 
         // Collect clicked variable to avoid borrow issues

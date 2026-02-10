@@ -770,7 +770,6 @@ impl TerminalManager {
     }
 
     /// Get current command from shell integration
-    #[allow(dead_code)]
     pub fn shell_integration_command(&self) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();

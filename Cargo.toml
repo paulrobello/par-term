@@ -22,8 +22,8 @@ exclude = [
 ]
 
 [dependencies]
-# Terminal emulator core (with OSC 7 hostname/cwd events)
-par-term-emu-core-rust = { version = "0.32.0", default-features = false, features = ["rust-only"] }
+# Terminal emulator core (with OSC 7/1337 hostname/cwd events and RemoteHost support)
+par-term-emu-core-rust = { version = "0.33.0", default-features = false, features = ["rust-only"] }
 
 # Window management and rendering
 winit = "0.30"

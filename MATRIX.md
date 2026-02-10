@@ -800,10 +800,10 @@ iTerm2 supports showing progress for long-running commands.
 | Shell integration version check | ✅ | ✅ Version tracking | ✅ | - | - | Tracks installed/prompted versions, prompts on update |
 | Disable shell integration | ✅ | ✅ Uninstall in Settings | ✅ | - | - | Uninstall button cleanly removes from all RC files |
 | Shell integration features | ✅ `Features` | ✅ OSC 133/7/1337 | ✅ | - | - | Partial - marks/CWD/badges |
-| Current command in window title | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Show running command |
+| Current command in window title | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[cmd]` in title when running; `\(session.current_command)` badge var |
 | Command duration tracking | ✅ | ✅ Via tooltips | ✅ | - | - | Already implemented |
-| Command exit code in badge | ✅ | ❌ | ❌ | ⭐ | 🟢 | Show exit status |
-| Remote host integration | ✅ | ❌ | ❌ | ⭐⭐ | 🔴 | Remote shell integration |
+| Command exit code in badge | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[Exit: N]` in title on failure; `\(session.exit_code)` badge var |
+| Remote host integration | ✅ | ✅ OSC 7 + OSC 1337 RemoteHost | ✅ | - | - | Hostname/username from OSC 7 file:// URLs and OSC 1337 RemoteHost; auto profile switching |
 
 ---
 
@@ -924,13 +924,13 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Browser Integration | 0 | 0 | 4 |
 | Progress Bars | 0 | 0 | 4 |
 | Advanced Paste & Input | 3 | 0 | 3 |
-| Advanced Shell Integration | 3 | 1 | 4 |
+| Advanced Shell Integration | 6 | 1 | 1 |
 | Network & Discovery | 0 | 0 | 4 |
 | Miscellaneous | 10 | 0 | 7 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~275** | **~5** | **~134** |
+| **TOTAL** | **~278** | **~5** | **~131** |
 
-**Overall Parity: ~66% of iTerm2 features implemented** (273 implemented out of ~414 total tracked features)
+**Overall Parity: ~67% of iTerm2 features implemented** (276 implemented out of ~414 total tracked features)
 
 **Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
@@ -1090,23 +1090,23 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Paste as single line
 - Add/remove newlines on paste
 
-**Advanced Shell Integration (4 features)**
-- Shell integration auto-install
-- Version check and disable toggle
-- Current command in window title
-- Command exit code in badge
-- Remote host integration
+**Advanced Shell Integration (1 feature)**
+- ~~Current command in window title~~ ✅
+- ~~Command exit code in badge~~ ✅
+- ~~Remote host integration~~ ✅
 
 **Network & Discovery (4 features)**
 - Bonjour discovery
 - SSH hosts auto-discovery
 - Host profiles and quick connect
 
-**Total: 134 new features identified across 21 new categories**
+**Total: 131 new features remaining across 21 new categories**
 
 ---
 
 ### Recently Completed (v0.11.0)
+- ✅ Remote host integration: OSC 1337 RemoteHost support (core v0.33.0), hostname/username synced to badge variables
+- ✅ Shell integration title & badge: running command in window title, `\(session.exit_code)` and `\(session.current_command)` badge variables
 - ✅ Triggers & automation (regex triggers, 7 action types, coprocesses with restart policy & output viewer, Settings UI)
 - ✅ SetVariable → badge sync (trigger-captured variables displayed in badge overlay)
 - ✅ Trigger marks on scrollbar with deduplication and tooltips
@@ -1125,6 +1125,6 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 ---
 
-*Updated: 2026-02-06 (Feature audit - 134 new iTerm2 features identified)*
+*Updated: 2026-02-09 (Shell integration: title, badge, remote host)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.11.0+*
