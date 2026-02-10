@@ -59,6 +59,11 @@ impl WindowState {
                 title_parts.push(format!("({})", abbreviated_cwd));
             }
 
+            // Add running command indicator if a command is executing
+            if let Some(cmd_name) = term.get_running_command_name() {
+                title_parts.push(format!("[{}]", cmd_name));
+            }
+
             // Add exit code indicator if last command failed
             if let Some(exit_code) = term.shell_integration_exit_code()
                 && exit_code != 0
@@ -74,6 +79,59 @@ impl WindowState {
             // Build and set title
             let title = title_parts.join(" ");
             window.set_title(&title);
+        }
+    }
+
+    /// Sync shell integration data (exit code, command, cwd, hostname, username) to badge variables
+    pub(crate) fn sync_badge_shell_integration(&mut self) {
+        let tab = if let Some(t) = self.tab_manager.active_tab() {
+            t
+        } else {
+            return;
+        };
+
+        if let Ok(term) = tab.terminal.try_lock() {
+            let exit_code = term.shell_integration_exit_code();
+            let current_command = term.get_running_command_name();
+            let cwd = term.shell_integration_cwd();
+            let hostname = term.shell_integration_hostname();
+            let username = term.shell_integration_username();
+
+            let mut vars = self.badge_state.variables_mut();
+            let mut badge_changed = false;
+
+            if vars.exit_code != exit_code {
+                vars.set_exit_code(exit_code);
+                badge_changed = true;
+            }
+            if vars.current_command != current_command {
+                vars.set_current_command(current_command);
+                badge_changed = true;
+            }
+            if let Some(cwd) = cwd
+                && vars.path != cwd
+            {
+                vars.set_path(cwd);
+                badge_changed = true;
+            }
+            if let Some(ref host) = hostname
+                && vars.hostname != *host
+            {
+                vars.hostname = host.clone();
+                badge_changed = true;
+            } else if hostname.is_none() && !vars.hostname.is_empty() {
+                // Returned to localhost — keep the initial hostname from new()
+            }
+            if let Some(ref user) = username
+                && vars.username != *user
+            {
+                vars.username = user.clone();
+                badge_changed = true;
+            }
+            drop(vars);
+            if badge_changed {
+                self.badge_state.mark_dirty();
+            }
         }
     }
 
@@ -720,6 +778,9 @@ impl WindowState {
 
         // Update window title with shell integration info (CWD, exit code)
         self.update_window_title_with_shell_integration();
+
+        // Sync shell integration data to badge variables
+        self.sync_badge_shell_integration();
 
         // Check for automatic profile switching based on hostname detection (OSC 7)
         if self.check_auto_profile_switch() {

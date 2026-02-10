@@ -37,6 +37,10 @@ pub struct SessionVariables {
     pub selection: Option<String>,
     /// tmux pane title (when in tmux mode)
     pub tmux_pane_title: Option<String>,
+    /// Last command exit code (from shell integration)
+    pub exit_code: Option<i32>,
+    /// Currently running command name (from shell integration)
+    pub current_command: Option<String>,
     /// Custom variables set via escape sequences
     pub custom: HashMap<String, String>,
 }
@@ -83,6 +87,8 @@ impl SessionVariables {
             "session.bell_count" => Some(self.bell_count.to_string()),
             "session.selection" => self.selection.clone(),
             "session.tmux_pane_title" => self.tmux_pane_title.clone(),
+            "session.exit_code" => self.exit_code.map(|c| c.to_string()),
+            "session.current_command" => self.current_command.clone(),
             _ => {
                 // Check custom variables
                 if let Some(custom_name) = name.strip_prefix("session.") {
@@ -113,6 +119,16 @@ impl SessionVariables {
     /// Set a custom variable
     pub fn set_custom(&mut self, name: &str, value: String) {
         self.custom.insert(name.to_string(), value);
+    }
+
+    /// Set the last command exit code
+    pub fn set_exit_code(&mut self, code: Option<i32>) {
+        self.exit_code = code;
+    }
+
+    /// Set the currently running command name
+    pub fn set_current_command(&mut self, command: Option<String>) {
+        self.current_command = command;
     }
 }
 
@@ -304,6 +320,8 @@ impl BadgeState {
 /// - `\(session.bell_count)` - Bell count
 /// - `\(session.selection)` - Selected text
 /// - `\(session.tmux_pane_title)` - tmux pane title
+/// - `\(session.exit_code)` - Last command exit code
+/// - `\(session.current_command)` - Currently running command name
 pub fn interpolate_badge_format(format: &str, variables: &SessionVariables) -> String {
     let mut result = String::with_capacity(format.len());
     let mut chars = format.chars().peekable();
@@ -506,5 +524,38 @@ mod tests {
         vars.set_custom("myvar", "myvalue".to_string());
 
         assert_eq!(vars.get("session.myvar"), Some("myvalue".to_string()));
+    }
+
+    #[test]
+    fn test_interpolate_exit_code() {
+        let vars = SessionVariables {
+            exit_code: Some(1),
+            ..Default::default()
+        };
+
+        let result = interpolate_badge_format("Exit: \\(session.exit_code)", &vars);
+        assert_eq!(result, "Exit: 1");
+    }
+
+    #[test]
+    fn test_interpolate_current_command() {
+        let vars = SessionVariables {
+            current_command: Some("vim".to_string()),
+            ..Default::default()
+        };
+
+        let result = interpolate_badge_format("Running: \\(session.current_command)", &vars);
+        assert_eq!(result, "Running: vim");
+    }
+
+    #[test]
+    fn test_interpolate_exit_code_none() {
+        let vars = SessionVariables {
+            exit_code: None,
+            ..Default::default()
+        };
+
+        let result = interpolate_badge_format("Exit: \\(session.exit_code)", &vars);
+        assert_eq!(result, "Exit: ");
     }
 }

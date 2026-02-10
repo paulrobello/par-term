@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Current Command in Window Title** (#94): When a command is running (via OSC 133;C shell integration), the window title bar now shows `[command_name]`. Reverts automatically when the command finishes.
+
+- **Shell Integration Badge Variables** (#94): Two new badge variables for use in badge format strings:
+  - `\(session.exit_code)` — Last command's exit code (from OSC 133;D)
+  - `\(session.current_command)` — Currently running command name (from OSC 133;C)
+  - Badge variables are also listed in the Settings UI badge tab for easy discovery.
+
+- **Remote Host Integration** (#94): Added OSC 1337 RemoteHost sequence support (via core library v0.33.0). Remote hostname and username are now synced to `session.hostname` and `session.username` badge variables from both OSC 7 file:// URLs and OSC 1337 RemoteHost sequences. Automatic profile switching based on detected hostname continues to work with both sequence types.
+
+### Changed
+
+- **Core Library**: Updated `par-term-emu-core-rust` dependency from 0.32.0 to 0.33.0 (adds OSC 1337 RemoteHost parsing).
+
 ### Fixed
 
 - **Snippet/Action Row Overflow**: Fixed Edit/Delete buttons being pushed off-screen by long command text in Snippets and Actions settings tabs. Buttons are now anchored to the right with content preview auto-truncating to fill remaining space.

@@ -192,7 +192,7 @@ clean:
 # Install the binary
 install:
 	@echo "Installing par-term..."
-	cargo install --path .
+	cargo install --path . --bin par-term
 
 # Generate documentation
 doc:
