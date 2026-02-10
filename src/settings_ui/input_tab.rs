@@ -78,6 +78,15 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         show_word_selection_section(ui, settings, changes_this_frame);
     }
 
+    // Copy Mode section
+    if section_matches(
+        &query,
+        "Copy Mode",
+        &["copy mode", "vi", "vim", "yank", "visual", "selection mode"],
+    ) {
+        show_copy_mode_section(ui, settings, changes_this_frame);
+    }
+
     // Keybindings section (takes most space)
     if section_matches(
         &query,
@@ -874,6 +883,7 @@ const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle tmux Session Picker",
         Some("Cmd+Alt+T"),
     ),
+    ("toggle_copy_mode", "Toggle Copy Mode", Some("Cmd+Shift+C")),
 ];
 
 #[cfg(not(target_os = "macos"))]
@@ -1009,6 +1019,11 @@ const AVAILABLE_ACTIONS: &[(&str, &str, Option<&str>)] = &[
         "Toggle tmux Session Picker",
         Some("Ctrl+Alt+T"),
     ),
+    (
+        "toggle_copy_mode",
+        "Toggle Copy Mode",
+        Some("Ctrl+Shift+Space"),
+    ),
 ];
 
 pub(super) fn display_key_combo(combo: &str) -> String {
@@ -1021,6 +1036,83 @@ pub(super) fn display_key_combo(combo: &str) -> String {
     {
         combo.replace("CmdOrCtrl", "Ctrl")
     }
+}
+
+// ============================================================================
+// Copy Mode Section
+// ============================================================================
+
+fn show_copy_mode_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+) {
+    collapsing_section(ui, "Copy Mode", "input_copy_mode", true, |ui| {
+        ui.label(
+            egui::RichText::new(
+                "Vi-style keyboard-driven text selection and navigation. \
+                 Activate via the toggle_copy_mode keybinding action.",
+            )
+            .weak()
+            .size(11.0),
+        );
+        ui.add_space(4.0);
+
+        if ui
+            .checkbox(&mut settings.config.copy_mode_enabled, "Enable copy mode")
+            .on_hover_text(
+                "Allow entering copy mode via the toggle_copy_mode keybinding action. \
+                 When disabled, the keybinding action is ignored.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.copy_mode_auto_exit_on_yank,
+                "Auto-exit on yank",
+            )
+            .on_hover_text(
+                "Automatically exit copy mode after yanking (copying) selected text. \
+                 When disabled, copy mode stays active after pressing y so you can \
+                 continue selecting.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.copy_mode_show_status,
+                "Show status bar",
+            )
+            .on_hover_text(
+                "Display a status bar at the bottom of the terminal when copy mode is active. \
+                 Shows the current mode (COPY/VISUAL/V-LINE/V-BLOCK/SEARCH) and cursor position.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(
+                "Tip: Add a keybinding with action \"toggle_copy_mode\" to activate. \
+                 In copy mode: hjkl to move, v/V/Ctrl+V for visual select, y to yank, \
+                 /? to search, Esc/q to exit.",
+            )
+            .weak()
+            .italics()
+            .size(10.5),
+        );
+    });
 }
 
 fn show_keybindings_section(

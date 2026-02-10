@@ -197,18 +197,21 @@ impl WindowState {
 
     /// Switch to next tab
     pub fn next_tab(&mut self) {
+        self.copy_mode.exit();
         self.tab_manager.next_tab();
         self.clear_and_invalidate();
     }
 
     /// Switch to previous tab
     pub fn prev_tab(&mut self) {
+        self.copy_mode.exit();
         self.tab_manager.prev_tab();
         self.clear_and_invalidate();
     }
 
     /// Switch to tab by index (1-based)
     pub fn switch_to_tab_index(&mut self, index: usize) {
+        self.copy_mode.exit();
         self.tab_manager.switch_to_index(index);
         self.clear_and_invalidate();
     }

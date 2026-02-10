@@ -508,14 +508,14 @@ iTerm2's Copy Mode provides vi-style navigation for selection.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Copy Mode | ✅ `Copy Mode` | ❌ | ❌ | ⭐⭐ | 🟡 | Vi-style navigation for selection |
-| Vi key bindings in copy mode | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | hjkl navigation |
-| Copy mode activation | ✅ `Copy Mode Key Binding` | ❌ | ❌ | ⭐⭐ | 🟢 | Custom hotkey |
-| Copy mode indicator | ✅ | ❌ | ❌ | ⭐ | 🟢 | Visual indicator when active |
-| Character/word/line motion | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | w, b, e, 0, $, etc. |
-| Search in copy mode | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | / and ? search |
-| Mark positions | ✅ | ❌ | ❌ | ⭐ | 🟡 | m and ' marks |
-| Copy to clipboard | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | y operation |
+| Copy Mode | ✅ `Copy Mode` | ✅ `toggle_copy_mode` | ✅ | - | - | Vi-style navigation for selection |
+| Vi key bindings in copy mode | ✅ | ✅ | ✅ | - | - | hjkl, w/b/e, 0/$, Ctrl+U/D/B/F, gg/G |
+| Copy mode activation | ✅ `Copy Mode Key Binding` | ✅ `toggle_copy_mode` keybinding | ✅ | - | - | Custom hotkey via keybindings config |
+| Copy mode indicator | ✅ | ✅ egui status bar | ✅ | - | - | Shows mode (COPY/VISUAL/V-LINE/V-BLOCK/SEARCH) and position |
+| Character/word/line motion | ✅ | ✅ | ✅ | - | - | w/W/b/B/e/E, 0/$, ^, count prefix |
+| Search in copy mode | ✅ | ✅ | ✅ | - | - | / and ? search with n/N repeat, case-insensitive, wrapping |
+| Mark positions | ✅ | ✅ | ✅ | - | - | m{a-z} set, '{a-z} goto |
+| Copy to clipboard | ✅ | ✅ | ✅ | - | - | y in visual mode yanks and exits |
 
 ---
 
@@ -911,7 +911,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Status Bar | 0 | 0 | 10 |
 | Toolbelt | 0 | 0 | 8 |
 | Composer & Auto-Complete | 1 | 0 | 4 |
-| Copy Mode | 0 | 0 | 8 |
+| Copy Mode | 8 | 0 | 0 |
 | Snippets & Actions | 0 | 0 | 6 |
 | Window Arrangements & Placement | 1 | 0 | 9 |
 | Session Management & Quit Behavior | 2 | 1 | 5 |
@@ -988,7 +988,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Feature | Usefulness | Effort | Notes |
 |---------|------------|--------|-------|
 | Hotkey window (Quake-style) | ⭐⭐⭐ | 🔴 High | Dropdown terminal with global hotkey |
-| Copy Mode (vi-style navigation) | ⭐⭐⭐ | 🟡 Medium | Vi-style navigation for selection |
+| ~~Copy Mode (vi-style navigation)~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§26 - vi-style copy mode) |
 | Status Bar | ⭐⭐⭐ | 🔴 High | Customizable status bar with widgets |
 | Snippets system | ⭐⭐⭐ | 🟡 Medium | Saved text blocks for quick insertion |
 | Directory-based profile switching | ⭐⭐⭐ | 🟡 Medium | Auto-switch profile by directory |
@@ -1033,11 +1033,11 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Man page integration and command preview
 - ~~Shell integration auto-install~~ ✅ Complete
 
-**Copy Mode (8 features)**
-- Vi-style navigation for text selection
-- Vi key bindings (hjkl, w, b, e, 0, $, etc.)
-- Search (/ and ?) and marks (m and ')
-- y operation to copy to clipboard
+**~~Copy Mode (8 features)~~** ✅ Complete
+- ~~Vi-style navigation for text selection~~
+- ~~Vi key bindings (hjkl, w, b, e, 0, $, etc.)~~
+- ~~Search (/ and ?) and marks (m and ')~~
+- ~~y operation to copy to clipboard~~
 
 **Snippets & Actions (6 features)**
 - Saved text snippets with shortcuts

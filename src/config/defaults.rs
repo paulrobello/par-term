@@ -402,6 +402,11 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
             key: "CmdOrCtrl+Alt+T".to_string(),
             action: "toggle_tmux_session_picker".to_string(),
         },
+        // Copy mode (vi-style keyboard-driven selection) - matches iTerm2
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+C".to_string(),
+            action: "toggle_copy_mode".to_string(),
+        },
     ];
 
     #[cfg(not(target_os = "macos"))]
@@ -487,6 +492,12 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
         super::types::KeyBinding {
             key: "Ctrl+Alt+T".to_string(),
             action: "toggle_tmux_session_picker".to_string(),
+        },
+        // Copy mode (vi-style keyboard-driven selection)
+        // Ctrl+Shift+C is standard copy on Linux, so use Ctrl+Shift+Space
+        super::types::KeyBinding {
+            key: "Ctrl+Shift+Space".to_string(),
+            action: "toggle_copy_mode".to_string(),
         },
     ];
 

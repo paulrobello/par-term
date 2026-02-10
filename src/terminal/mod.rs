@@ -602,6 +602,60 @@ impl TerminalManager {
         pty.scrollback_len()
     }
 
+    /// Get text of a line at an absolute index (scrollback + screen).
+    ///
+    /// Line 0 = oldest scrollback line.
+    /// Line `scrollback_len` = first visible screen row.
+    pub fn line_text_at_absolute(&self, absolute_line: usize) -> Option<String> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        let grid = term.active_grid();
+        let scrollback_len = grid.scrollback_len();
+
+        if absolute_line < scrollback_len {
+            Some(Self::scrollback_line_text(grid, absolute_line))
+        } else {
+            let screen_row = absolute_line - scrollback_len;
+            if screen_row < grid.rows() {
+                Some(grid.row_text(screen_row))
+            } else {
+                None
+            }
+        }
+    }
+
+    /// Get all lines in a range as text (for search in copy mode).
+    ///
+    /// Returns `(line_text, absolute_line_index)` pairs.
+    pub fn lines_text_range(&self, start: usize, end: usize) -> Vec<(String, usize)> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        let grid = term.active_grid();
+        let scrollback_len = grid.scrollback_len();
+        let max_line = scrollback_len + grid.rows();
+
+        let start = start.min(max_line);
+        let end = end.min(max_line);
+
+        let mut result = Vec::with_capacity(end.saturating_sub(start));
+        for abs_line in start..end {
+            let text = if abs_line < scrollback_len {
+                Self::scrollback_line_text(grid, abs_line)
+            } else {
+                let screen_row = abs_line - scrollback_len;
+                if screen_row < grid.rows() {
+                    grid.row_text(screen_row)
+                } else {
+                    break;
+                }
+            };
+            result.push((text, abs_line));
+        }
+        result
+    }
+
     /// Get all scrollback lines as Cell arrays.
     ///
     /// This ensures consistent handling of wide characters when searching,

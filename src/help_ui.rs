@@ -198,6 +198,75 @@ impl HelpUI {
 
                     ui.add_space(12.0);
 
+                    // Copy Mode Section
+                    ui.heading("Copy Mode (Vi-Style)");
+                    ui.separator();
+
+                    ui.label("Copy Mode provides keyboard-driven text selection and navigation through the terminal buffer, including scrollback history.");
+
+                    ui.add_space(4.0);
+
+                    egui::Grid::new("copy_mode_grid")
+                        .num_columns(2)
+                        .spacing([20.0, 4.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            ui.label(RichText::new("Enter / Exit").strong().underline());
+                            ui.end_row();
+
+                            #[cfg(target_os = "macos")]
+                            shortcut_row(ui, "Cmd+Shift+C", "Toggle copy mode");
+                            #[cfg(not(target_os = "macos"))]
+                            shortcut_row(ui, "Ctrl+Shift+Space", "Toggle copy mode");
+                            shortcut_row(ui, "q / Escape", "Exit copy mode");
+
+                            ui.end_row();
+
+                            ui.label(RichText::new("Navigation").strong().underline());
+                            ui.end_row();
+
+                            shortcut_row(ui, "h j k l", "Left / Down / Up / Right");
+                            shortcut_row(ui, "w / b / e", "Word forward / back / end");
+                            shortcut_row(ui, "W / B / E", "WORD forward / back / end");
+                            shortcut_row(ui, "0", "Start of line");
+                            shortcut_row(ui, "$", "End of line");
+                            shortcut_row(ui, "^", "First non-blank character");
+                            shortcut_row(ui, "gg", "Top of scrollback");
+                            shortcut_row(ui, "G", "Bottom of buffer");
+                            shortcut_row(ui, "Ctrl+U / Ctrl+D", "Half page up / down");
+                            shortcut_row(ui, "Ctrl+B / Ctrl+F", "Full page up / down");
+
+                            ui.end_row();
+
+                            ui.label(RichText::new("Selection & Yank").strong().underline());
+                            ui.end_row();
+
+                            shortcut_row(ui, "v", "Character selection");
+                            shortcut_row(ui, "V", "Line selection");
+                            shortcut_row(ui, "y", "Yank (copy) selection to clipboard");
+                            shortcut_row(ui, "1-9", "Count prefix (e.g. 5j = down 5 lines)");
+
+                            ui.end_row();
+
+                            ui.label(RichText::new("Search").strong().underline());
+                            ui.end_row();
+
+                            shortcut_row(ui, "/", "Search forward");
+                            shortcut_row(ui, "?", "Search backward");
+                            shortcut_row(ui, "n", "Next match");
+                            shortcut_row(ui, "N", "Previous match");
+
+                            ui.end_row();
+
+                            ui.label(RichText::new("Marks").strong().underline());
+                            ui.end_row();
+
+                            shortcut_row(ui, "m + char", "Set mark at current position");
+                            shortcut_row(ui, "' + char", "Jump to mark");
+                        });
+
+                    ui.add_space(12.0);
+
                     // Mouse Actions Section
                     ui.heading("Mouse Actions");
                     ui.separator();
