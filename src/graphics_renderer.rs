@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use wgpu::*;
 
+use crate::config::ImageScalingMode;
 use crate::gpu_utils;
 
 /// Instance data for a single sixel graphic
@@ -49,6 +50,9 @@ pub struct GraphicsRenderer {
     /// Vertical offset for content (e.g., tab bar height)
     content_offset_y: f32,
 
+    /// Global config: whether to preserve aspect ratio when rendering images
+    preserve_aspect_ratio: bool,
+
     // Surface format for pipeline compatibility
     #[allow(dead_code)]
     surface_format: TextureFormat,
@@ -62,6 +66,8 @@ impl GraphicsRenderer {
         cell_width: f32,
         cell_height: f32,
         window_padding: f32,
+        scaling_mode: ImageScalingMode,
+        preserve_aspect_ratio: bool,
     ) -> Result<Self> {
         // Create bind group layout for sixel textures
         let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -88,8 +94,12 @@ impl GraphicsRenderer {
             ],
         });
 
-        // Create sampler
-        let sampler = gpu_utils::create_linear_sampler(device, Some("Sixel Sampler"));
+        // Create sampler with configured filter mode
+        let sampler = gpu_utils::create_sampler_with_filter(
+            device,
+            scaling_mode.to_filter_mode(),
+            Some("Sixel Sampler"),
+        );
 
         // Create rendering pipeline
         let pipeline = Self::create_pipeline(device, surface_format, &bind_group_layout)?;
@@ -114,6 +124,7 @@ impl GraphicsRenderer {
             cell_height,
             window_padding,
             content_offset_y: 0.0,
+            preserve_aspect_ratio,
             surface_format,
         })
     }
@@ -365,19 +376,30 @@ impl GraphicsRenderer {
                 };
                 let tex_v_height = 1.0 - tex_v_start;
 
-                // For graphics, use actual texture pixel dimensions for aspect ratio preservation
-                // Rather than converting pixels→cells→pixels (which distorts non-square cells)
-                let visible_height_pixels = if scroll_offset_rows > 0 {
-                    // Account for scrolled content by reducing visible height
-                    (tex_info.height as f32 * tex_v_height).max(1.0)
+                // Calculate display size based on aspect ratio preservation setting
+                let (width, height) = if self.preserve_aspect_ratio {
+                    // Use actual texture pixel dimensions to preserve aspect ratio
+                    // Rather than converting pixels→cells→pixels (which distorts non-square cells)
+                    let visible_height_pixels = if scroll_offset_rows > 0 {
+                        (tex_info.height as f32 * tex_v_height).max(1.0)
+                    } else {
+                        tex_info.height as f32
+                    };
+                    (
+                        tex_info.width as f32 / window_width,
+                        visible_height_pixels / window_height,
+                    )
                 } else {
-                    tex_info.height as f32
+                    // Stretch to fill cell grid (ignore image aspect ratio)
+                    let cell_w = _width_cells as f32 * self.cell_width / window_width;
+                    let visible_cell_rows = if scroll_offset_rows > 0 {
+                        (_height_cells as f32 * tex_v_height).max(0.0)
+                    } else {
+                        _height_cells as f32
+                    };
+                    let cell_h = visible_cell_rows * self.cell_height / window_height;
+                    (cell_w, cell_h)
                 };
-
-                // Calculate size in screen space (normalized 0-1) using actual pixel dimensions
-                // This preserves aspect ratio regardless of cell dimensions
-                let width = tex_info.width as f32 / window_width;
-                let height = visible_height_pixels / window_height;
 
                 instances.push(SixelInstance {
                     position: [x, y],
@@ -469,5 +491,24 @@ impl GraphicsRenderer {
     /// Set vertical content offset (e.g., tab bar height)
     pub fn set_content_offset_y(&mut self, offset: f32) {
         self.content_offset_y = offset;
+    }
+
+    /// Update the global aspect ratio preservation setting.
+    pub fn set_preserve_aspect_ratio(&mut self, preserve: bool) {
+        self.preserve_aspect_ratio = preserve;
+    }
+
+    /// Update the texture scaling mode (nearest vs linear filtering).
+    ///
+    /// This recreates the sampler and invalidates all cached textures
+    /// since their bind groups reference the old sampler.
+    pub fn update_scaling_mode(&mut self, device: &Device, scaling_mode: ImageScalingMode) {
+        self.sampler = gpu_utils::create_sampler_with_filter(
+            device,
+            scaling_mode.to_filter_mode(),
+            Some("Sixel Sampler"),
+        );
+        // Clear texture cache since bind groups reference the old sampler
+        self.texture_cache.clear();
     }
 }

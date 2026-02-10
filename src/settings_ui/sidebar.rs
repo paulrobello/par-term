@@ -438,6 +438,15 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "ichannel",
             "texture",
             "cubemap",
+            // Inline images
+            "inline image",
+            "sixel",
+            "iterm",
+            "kitty",
+            "scaling",
+            "aspect ratio",
+            "nearest",
+            "linear",
             // Cursor shader
             "cursor shader",
             "cursor effect",

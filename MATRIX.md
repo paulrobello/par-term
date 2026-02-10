@@ -691,11 +691,11 @@ iTerm2 has sophisticated window state management.
 | iTerm2 inline images | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Kitty graphics protocol | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Kitty animations | ✅ | ✅ | ✅ | - | - | Already implemented |
-| Image compression | ✅ | ❌ | ❌ | ⭐ | 🟡 | Reduce transmission size |
-| Image scaling quality | ✅ | ❌ | ❌ | ⭐ | 🟢 | Nearest/linear/bicubic |
-| Image placement modes | ✅ | ❌ | ❌ | ⭐ | 🟡 | Inline/cover/contain |
-| Preserve aspect ratio | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Maintain image proportions |
-| Image metadata in files | ✅ | ❌ | ❌ | ⭐ | 🟡 | Store image info with session |
+| Image compression | ✅ | ✅ | ✅ | - | - | Core handles zlib decompression for Kitty protocol transparently |
+| Image scaling quality | ✅ | ✅ `image_scaling_mode` | ✅ | - | - | Nearest (sharp/pixel art) and linear (smooth) filtering |
+| Image placement modes | ✅ | ✅ | ✅ | - | - | Core ImagePlacement with inline/download, requested dimensions (cells/pixels/percent), z-index, sub-cell offsets |
+| Preserve aspect ratio | ✅ | ✅ `image_preserve_aspect_ratio` | ✅ | - | - | Global config + per-image flag from core |
+| Image metadata in files | ✅ | ✅ | ✅ | - | - | Core SerializableGraphic/GraphicsSnapshot with export/import JSON, base64 or file-backed pixel data |
 
 ---
 
@@ -718,8 +718,8 @@ iTerm2 has sophisticated window state management.
 | GPU renderer selection | ✅ `Use GPU Renderer` | ✅ wgpu | ✅ | - | - | Always GPU in par-term |
 | Metal backend | ✅ | ✅ Metal on macOS | ✅ | - | - | Already implemented |
 | Reduce flicker | ✅ `Reduce Flicker` | ✅ `reduce_flicker` | ✅ | - | - | Already implemented |
-| Minimum frame time | ✅ | ❌ | ❌ | ⭐ | 🟢 | Limit max FPS even if vsync off |
-| Subpixel anti-aliasing | ✅ | ❌ | ❌ | ⭐ | 🔴 | LCD subpixel rendering |
+| Minimum frame time | ✅ | ✅ `max_fps` | ✅ | - | - | Config + Settings UI slider (1-240), separate `unfocused_fps` |
+| Subpixel anti-aliasing | ✅ | ❌ | 🚫 | - | - | Won't implement; industry moving away (macOS dropped in Mojave), thin strokes covers most benefit, incompatible with transparency/bg images/shaders |
 | Font smoothing | ✅ `ASCII/Non-ASCII Antialiased` | ✅ | ✅ | - | - | Already implemented |
 
 ---
@@ -728,14 +728,14 @@ iTerm2 has sophisticated window state management.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Save preferences mode | ✅ `Save Preferences` | ❌ | ❌ | ⭐ | 🟢 | Auto-save/ask on quit |
+| Save preferences mode | ✅ `Save Preferences` | ✅ Auto-saves on change | ✅ | - | - | Auto-saves when settings changed in UI |
 | Preference file location | ✅ | ✅ XDG-compliant | ✅ | - | - | Already implemented |
 | Import preferences | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Import from file/URL |
 | Export preferences | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Export config to file |
-| Preference validation | ✅ | ❌ | ❌ | ⭐ | 🟡 | Check config on load |
-| Preference profiles | ✅ | ❌ | ❌ | ⭐⭐ | 🔴 | Multiple config sets |
-| Shell integration download | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Auto-download shell scripts |
-| Shell integration version | ✅ | ❌ | ❌ | ⭐ | 🟡 | Check/update shell integration |
+| Preference validation | ✅ | ✅ Serde validation | ✅ | - | - | Serde deserialization with defaults and backward compat |
+| Preference profiles | ✅ | ✅ Full profile system | ✅ | - | - | Tags, inheritance, shortcuts, hostname/tmux auto-switching |
+| Shell integration download | ✅ | ✅ Embedded auto-install | ✅ | - | - | bash/zsh/fish scripts embedded and auto-installed to RC files |
+| Shell integration version | ✅ | ✅ Version tracking | ✅ | - | - | Tracks installed/prompted versions, prompts on update |
 
 ---
 
@@ -747,7 +747,7 @@ iTerm2 has sophisticated window state management.
 | Unicode version selection | ✅ `Unicode Version` | ✅ | ✅ | - | - | Already implemented |
 | Ambiguous width characters | ✅ `Ambiguous Width Characters` | ✅ | ✅ | - | - | Already implemented |
 | Unicode box drawing | ✅ | ✅ | ✅ | - | - | Already implemented |
-| Emoji variation sequences | ✅ | ❌ | ❌ | ⭐ | 🟡 | Text vs presentation selector |
+| Emoji variation sequences | ✅ | ✅ Grapheme + FE0F font selection | ✅ | - | - | VS15/VS16 preserved via grapheme strings, FE0F forces emoji font |
 | Right-to-left text | ✅ `Bidi` | ❌ | ❌ | ⭐⭐ | 🔴 | Bidirectional text support |
 
 ---
@@ -796,9 +796,9 @@ iTerm2 supports showing progress for long-running commands.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Shell integration auto-install | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Auto-download scripts |
-| Shell integration version check | ✅ | ❌ | ❌ | ⭐ | 🟡 | Check for updates |
-| Disable shell integration | ✅ | ❌ | ❌ | ⭐ | 🟢 | Toggle integration |
+| Shell integration auto-install | ✅ | ✅ Embedded auto-install | ✅ | - | - | bash/zsh/fish scripts embedded, auto-installed to RC files |
+| Shell integration version check | ✅ | ✅ Version tracking | ✅ | - | - | Tracks installed/prompted versions, prompts on update |
+| Disable shell integration | ✅ | ✅ Uninstall in Settings | ✅ | - | - | Uninstall button cleanly removes from all RC files |
 | Shell integration features | ✅ `Features` | ✅ OSC 133/7/1337 | ✅ | - | - | Partial - marks/CWD/badges |
 | Current command in window title | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Show running command |
 | Command duration tracking | ✅ | ✅ Via tooltips | ✅ | - | - | Already implemented |
@@ -916,7 +916,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Tab Styles & Appearance | 1 | 0 | 6 |
 | Pane & Split Customization | 9 | 0 | 0 |
 | Profile Switching & Dynamic Profiles | 2 | 0 | 5 |
-| Image Protocol Enhancements | 4 | 0 | 5 |
+| Image Protocol Enhancements | 9 | 0 | 0 |
 | Audio & Haptic Feedback | 2 | 0 | 3 |
 | Advanced GPU & Rendering Settings | 3 | 0 | 2 |
 | Advanced Configuration | 1 | 0 | 7 |
@@ -928,7 +928,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Network & Discovery | 0 | 0 | 4 |
 | Miscellaneous | 10 | 0 | 7 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~273** | **~7** | **~134** |
+| **TOTAL** | **~275** | **~5** | **~134** |
 
 **Overall Parity: ~66% of iTerm2 features implemented** (273 implemented out of ~414 total tracked features)
 
@@ -1065,10 +1065,6 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Command-based auto-switching
 - User-based auto-switching
 - Dynamic profiles from URL with auto-reload
-
-**Image Protocol Enhancements (5 features)**
-- Image compression, scaling quality
-- Image placement modes, aspect ratio preservation
 
 **Advanced Configuration (7 features)**
 - Save preferences mode (auto-save/ask on quit)

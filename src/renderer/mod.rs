@@ -193,6 +193,10 @@ impl Renderer {
         custom_shader_cubemap_path: Option<&std::path::Path>,
         // Use background image as iChannel0 for custom shaders
         use_background_as_channel0: bool,
+        // Inline image scaling mode (nearest vs linear)
+        image_scaling_mode: crate::config::ImageScalingMode,
+        // Preserve aspect ratio when scaling inline images
+        image_preserve_aspect_ratio: bool,
         // Cursor shader settings (separate from background shader)
         cursor_shader_path: Option<&str>,
         cursor_shader_enabled: bool,
@@ -320,6 +324,8 @@ impl Renderer {
             cell_renderer.cell_width(),
             cell_renderer.cell_height(),
             cell_renderer.window_padding(),
+            image_scaling_mode,
+            image_preserve_aspect_ratio,
         )?;
 
         // Create custom shader renderer if configured
@@ -723,6 +729,22 @@ impl Renderer {
     #[allow(dead_code)]
     pub fn update_background_image_opacity(&mut self, opacity: f32) {
         self.cell_renderer.update_background_image_opacity(opacity);
+        self.dirty = true;
+    }
+
+    /// Update inline image scaling mode (nearest vs linear filtering).
+    ///
+    /// Recreates the GPU sampler and clears the texture cache so images
+    /// are re-rendered with the new filter mode.
+    pub fn update_image_scaling_mode(&mut self, scaling_mode: crate::config::ImageScalingMode) {
+        self.graphics_renderer
+            .update_scaling_mode(self.cell_renderer.device(), scaling_mode);
+        self.dirty = true;
+    }
+
+    /// Update whether inline images preserve their aspect ratio.
+    pub fn update_image_preserve_aspect_ratio(&mut self, preserve: bool) {
+        self.graphics_renderer.set_preserve_aspect_ratio(preserve);
         self.dirty = true;
     }
 
@@ -1250,40 +1272,28 @@ impl Renderer {
                         if is_horizontal {
                             // Top line
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    divider.x / w * 2.0 - 1.0,
-                                    1.0 - (divider.y / h * 2.0),
-                                ],
+                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
                                 size: [divider.width / w * 2.0, 1.0 / h * 2.0],
                                 color: [color[0], color[1], color[2], 1.0],
                             });
                             // Bottom line (gap in between shows background)
                             let bottom_y = divider.y + divider.height - 1.0;
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    divider.x / w * 2.0 - 1.0,
-                                    1.0 - (bottom_y / h * 2.0),
-                                ],
+                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (bottom_y / h * 2.0)],
                                 size: [divider.width / w * 2.0, 1.0 / h * 2.0],
                                 color: [color[0], color[1], color[2], 1.0],
                             });
                         } else {
                             // Left line
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    divider.x / w * 2.0 - 1.0,
-                                    1.0 - (divider.y / h * 2.0),
-                                ],
+                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
                                 size: [1.0 / w * 2.0, divider.height / h * 2.0],
                                 color: [color[0], color[1], color[2], 1.0],
                             });
                             // Right line
                             let right_x = divider.x + divider.width - 1.0;
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    right_x / w * 2.0 - 1.0,
-                                    1.0 - (divider.y / h * 2.0),
-                                ],
+                                position: [right_x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
                                 size: [1.0 / w * 2.0, divider.height / h * 2.0],
                                 color: [color[0], color[1], color[2], 1.0],
                             });
@@ -1294,20 +1304,14 @@ impl Renderer {
                         if is_horizontal {
                             let center_y = divider.y + (divider.height - 1.0) / 2.0;
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    divider.x / w * 2.0 - 1.0,
-                                    1.0 - (center_y / h * 2.0),
-                                ],
+                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (center_y / h * 2.0)],
                                 size: [divider.width / w * 2.0, 1.0 / h * 2.0],
                                 color: [color[0], color[1], color[2], 1.0],
                             });
                         } else {
                             let center_x = divider.x + (divider.width - 1.0) / 2.0;
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    center_x / w * 2.0 - 1.0,
-                                    1.0 - (divider.y / h * 2.0),
-                                ],
+                                position: [center_x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
                                 size: [1.0 / w * 2.0, divider.height / h * 2.0],
                                 color: [color[0], color[1], color[2], 1.0],
                             });
@@ -1362,12 +1366,7 @@ impl Renderer {
                         1.0,
                     ];
                     // Darker shadow color
-                    let shadow = [
-                        (color[0] * 0.3),
-                        (color[1] * 0.3),
-                        (color[2] * 0.3),
-                        1.0,
-                    ];
+                    let shadow = [(color[0] * 0.3), (color[1] * 0.3), (color[2] * 0.3), 1.0];
 
                     if thickness >= 3.0 {
                         // 3+ px: highlight line / main body / shadow line
@@ -1375,10 +1374,7 @@ impl Renderer {
                         if is_horizontal {
                             // Top highlight
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    divider.x / w * 2.0 - 1.0,
-                                    1.0 - (divider.y / h * 2.0),
-                                ],
+                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
                                 size: [divider.width / w * 2.0, edge / h * 2.0],
                                 color: highlight,
                             });
@@ -1387,10 +1383,7 @@ impl Renderer {
                             let body_h = divider.height - edge * 2.0;
                             if body_h > 0.0 {
                                 instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                    position: [
-                                        divider.x / w * 2.0 - 1.0,
-                                        1.0 - (body_y / h * 2.0),
-                                    ],
+                                    position: [divider.x / w * 2.0 - 1.0, 1.0 - (body_y / h * 2.0)],
                                     size: [divider.width / w * 2.0, body_h / h * 2.0],
                                     color: [color[0], color[1], color[2], 1.0],
                                 });
@@ -1398,20 +1391,14 @@ impl Renderer {
                             // Bottom shadow
                             let shadow_y = divider.y + divider.height - edge;
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    divider.x / w * 2.0 - 1.0,
-                                    1.0 - (shadow_y / h * 2.0),
-                                ],
+                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (shadow_y / h * 2.0)],
                                 size: [divider.width / w * 2.0, edge / h * 2.0],
                                 color: shadow,
                             });
                         } else {
                             // Left highlight
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    divider.x / w * 2.0 - 1.0,
-                                    1.0 - (divider.y / h * 2.0),
-                                ],
+                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
                                 size: [edge / w * 2.0, divider.height / h * 2.0],
                                 color: highlight,
                             });
@@ -1420,10 +1407,7 @@ impl Renderer {
                             let body_w = divider.width - edge * 2.0;
                             if body_w > 0.0 {
                                 instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                    position: [
-                                        body_x / w * 2.0 - 1.0,
-                                        1.0 - (divider.y / h * 2.0),
-                                    ],
+                                    position: [body_x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
                                     size: [body_w / w * 2.0, divider.height / h * 2.0],
                                     color: [color[0], color[1], color[2], 1.0],
                                 });
@@ -1431,10 +1415,7 @@ impl Renderer {
                             // Right shadow
                             let shadow_x = divider.x + divider.width - edge;
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    shadow_x / w * 2.0 - 1.0,
-                                    1.0 - (divider.y / h * 2.0),
-                                ],
+                                position: [shadow_x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
                                 size: [edge / w * 2.0, divider.height / h * 2.0],
                                 color: shadow,
                             });
@@ -1444,10 +1425,7 @@ impl Renderer {
                         if is_horizontal {
                             let half = (divider.height / 2.0).max(1.0);
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    divider.x / w * 2.0 - 1.0,
-                                    1.0 - (divider.y / h * 2.0),
-                                ],
+                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
                                 size: [divider.width / w * 2.0, half / h * 2.0],
                                 color: highlight,
                             });
@@ -1466,10 +1444,7 @@ impl Renderer {
                         } else {
                             let half = (divider.width / 2.0).max(1.0);
                             instances.push(crate::cell_renderer::types::BackgroundInstance {
-                                position: [
-                                    divider.x / w * 2.0 - 1.0,
-                                    1.0 - (divider.y / h * 2.0),
-                                ],
+                                position: [divider.x / w * 2.0 - 1.0, 1.0 - (divider.y / h * 2.0)],
                                 size: [half / w * 2.0, divider.height / h * 2.0],
                                 color: highlight,
                             });

@@ -73,6 +73,10 @@ pub(crate) struct ConfigChanges {
     pub bg_image_mode: bool,
     pub bg_image_opacity: bool,
 
+    // Inline image settings
+    pub image_scaling_mode: bool,
+    pub image_preserve_aspect_ratio: bool,
+
     // Font/spacing (requires rebuild)
     pub font: bool,
     // Font rendering options that can be applied live without full rebuild
@@ -195,6 +199,10 @@ impl ConfigChanges {
             bg_image_mode: new.background_image_mode != old.background_image_mode,
             bg_image_opacity: (new.background_image_opacity - old.background_image_opacity).abs()
                 > f32::EPSILON,
+
+            image_scaling_mode: new.image_scaling_mode != old.image_scaling_mode,
+            image_preserve_aspect_ratio: new.image_preserve_aspect_ratio
+                != old.image_preserve_aspect_ratio,
 
             font: new.font_family != old.font_family
                 || new.font_family_bold != old.font_family_bold

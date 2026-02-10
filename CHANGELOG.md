@@ -48,6 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Image Scaling Quality** (#90): Configurable texture filtering for inline images (Sixel, iTerm2, Kitty). Choose between `nearest` (pixel-perfect) and `linear` (smooth) scaling via Settings > Effects > Inline Images or `image_scaling_mode` in config. Defaults to linear.
+
+- **Image Aspect Ratio Control** (#90): Toggle to preserve or ignore aspect ratio when rendering inline images. When disabled, images stretch to fill their cell grid. Configure via Settings > Effects > Inline Images or `image_preserve_aspect_ratio` in config. Defaults to true.
+
 - **Prompt on Quit**: Configurable confirmation dialog before closing the window when there are active terminal sessions. Enable via Settings > Terminal > Behavior > "Confirm before quitting with open sessions" or `prompt_on_quit: true` in config. Shows session count and requires explicit confirmation to quit.
 
 - **Pane Title Bars** (#88): GPU-rendered title bars for split panes showing OSC title, CWD path, or fallback pane name

@@ -23,9 +23,9 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
-    DividerStyle, DroppedFileQuoteStyle, FontRange, InstallPromptState, IntegrationVersions,
-    KeyBinding, LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode, PaneTitlePosition,
-    PowerPreference, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
+    DividerStyle, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
+    IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode,
+    PaneTitlePosition, PowerPreference, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
     ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType, SmartSelectionPrecision,
     SmartSelectionRule, StartupDirectoryMode, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle,
     UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
@@ -299,6 +299,17 @@ pub struct Config {
     /// Background image opacity (0.0 = fully transparent, 1.0 = fully opaque)
     #[serde(default = "defaults::background_image_opacity")]
     pub background_image_opacity: f32,
+
+    // ========================================================================
+    // Inline Image Settings (Sixel, iTerm2, Kitty)
+    // ========================================================================
+    /// Scaling quality for inline images (nearest = sharp/pixel art, linear = smooth)
+    #[serde(default)]
+    pub image_scaling_mode: ImageScalingMode,
+
+    /// Preserve aspect ratio when scaling inline images to fit terminal cells
+    #[serde(default = "defaults::bool_true")]
+    pub image_preserve_aspect_ratio: bool,
 
     /// Background mode selection (default, color, or image)
     #[serde(default)]
@@ -1472,6 +1483,8 @@ impl Default for Config {
             background_image_enabled: defaults::bool_true(),
             background_image_mode: BackgroundImageMode::default(),
             background_image_opacity: defaults::background_image_opacity(),
+            image_scaling_mode: ImageScalingMode::default(),
+            image_preserve_aspect_ratio: defaults::bool_true(),
             background_mode: BackgroundMode::default(),
             background_color: defaults::background_color(),
             custom_shader: None,
