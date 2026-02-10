@@ -22,8 +22,8 @@ exclude = [
 ]
 
 [dependencies]
-# Terminal emulator core (with OSC 7/1337 hostname/cwd events and RemoteHost support)
-par-term-emu-core-rust = { version = "0.33.0", default-features = false, features = ["rust-only"] }
+# Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
+par-term-emu-core-rust = { version = "0.35.0", default-features = false, features = ["rust-only"] }
 
 # Window management and rendering
 winit = "0.30"
@@ -88,10 +88,10 @@ naga = { version = "27", features = ["glsl-in", "wgsl-out"] }
 
 # Native window menus
 muda = "0.17.1"
-libc = "0.2.180"
+libc = "0.2.181"
 clap = { version = "4.5.57", features = ["derive"] }
 ureq = { version = "3.2.0", default-features = false, features = ["native-tls", "gzip"] }
-zip = "7.2.0"
+zip = "7.4.0"
 semver = "1.0.27"  # Semantic version parsing for update checks
 sha2 = "0.10.9"
 
@@ -115,16 +115,16 @@ raw-window-handle = "0.6.2"
 # File watching for shader hot reload - platform-specific backends
 # macOS: use kqueue for better performance
 [target.'cfg(target_os = "macos")'.dependencies.notify]
-version = "8.0"
+version = "8.2"
 default-features = false
 features = ["macos_kqueue"]
 
 # Windows/Linux: use default backends (ReadDirectoryChangesW on Windows, inotify on Linux)
 [target.'cfg(not(target_os = "macos"))'.dependencies.notify]
-version = "8.0"
+version = "8.2"
 
 [dev-dependencies]
-tempfile = "3.24"
+tempfile = "3.25"
 
 # Windows resources (icon embedding)
 [target.'cfg(target_os = "windows")'.build-dependencies]

@@ -9,6 +9,7 @@ use crate::app::bell::BellState;
 use crate::app::mouse::MouseState;
 use crate::app::render_cache::RenderCache;
 use crate::config::Config;
+use crate::tab::build_shell_env;
 use crate::scroll_state::ScrollState;
 use crate::session_logger::{SharedSessionLogger, create_shared_logger};
 use crate::terminal::TerminalManager;
@@ -243,8 +244,8 @@ impl Pane {
         }
 
         let shell_args_deref = shell_args.as_deref();
-        let shell_env = config.shell_env.as_ref();
-        terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env)?;
+        let shell_env = build_shell_env(config.shell_env.as_ref());
+        terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env.as_ref())?;
 
         // Create shared session logger
         let session_logger = create_shared_logger();
@@ -445,7 +446,7 @@ impl Pane {
             .or_else(|| config.working_directory.clone());
 
         let shell_args_deref = shell_args.as_deref();
-        let shell_env = config.shell_env.as_ref();
+        let shell_env = build_shell_env(config.shell_env.as_ref());
 
         // Respawn the shell
         if let Ok(mut term) = self.terminal.try_lock() {
@@ -458,7 +459,7 @@ impl Pane {
                 &shell_cmd,
                 shell_args_deref,
                 work_dir.as_deref(),
-                shell_env,
+                shell_env.as_ref(),
             )?;
 
             log::info!("Respawned shell in pane {}", self.id);

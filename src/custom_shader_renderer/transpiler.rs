@@ -134,7 +134,10 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     // Background color uniform
     vec4 iBackgroundColor;     // offset 272, size 16 - Solid background color [R, G, B, A]
                                // When A > 0, use this as background instead of shader output
-}};                            // total: 288 bytes
+
+    // Progress bar state
+    vec4 iProgress;            // offset 288, size 16 - x=state(0-4), y=percent(0-1), z=isActive(0/1), w=activeCount
+}};                            // total: 304 bytes
 
 // Shadertoy-compatible iChannelResolution array accessor
 // Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.
@@ -450,7 +453,10 @@ layout(set = 0, binding = 0) uniform Uniforms {{
     // Background color uniform
     vec4 iBackgroundColor;     // offset 272, size 16 - Solid background color [R, G, B, A]
                                // When A > 0, use this as background instead of shader output
-}};                            // total: 288 bytes
+
+    // Progress bar state
+    vec4 iProgress;            // offset 288, size 16 - x=state(0-4), y=percent(0-1), z=isActive(0/1), w=activeCount
+}};                            // total: 304 bytes
 
 // Shadertoy-compatible iChannelResolution array accessor
 // Usage: iChannelResolution[0].xyz, iChannelResolution[1].xy, etc.

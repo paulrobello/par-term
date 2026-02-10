@@ -150,6 +150,10 @@ pub struct CustomShaderRenderer {
     /// When A > 0, the shader uses this color as background instead of shader output.
     /// RGB values are NOT premultiplied.
     pub(crate) background_color: [f32; 4],
+
+    // ============ Progress bar state ============
+    /// Progress bar data [state, percent, isActive, activeCount]
+    pub(crate) progress_data: [f32; 4],
 }
 
 impl CustomShaderRenderer {
@@ -324,6 +328,7 @@ impl CustomShaderRenderer {
             use_background_as_channel0: false,
             background_channel_texture: None,
             background_color: [0.0, 0.0, 0.0, 0.0], // No solid background by default
+            progress_data: [0.0, 0.0, 0.0, 0.0],
         })
     }
 
@@ -609,6 +614,7 @@ impl CustomShaderRenderer {
             ],
             cubemap_resolution: self.cubemap.resolution(),
             background_color: self.background_color,
+            progress: self.progress_data,
         }
     }
 
@@ -917,6 +923,17 @@ impl CustomShaderRenderer {
     /// * `active` - Whether solid color mode is active (sets alpha to 1.0 or 0.0)
     pub fn set_background_color(&mut self, color: [f32; 3], active: bool) {
         self.background_color = [color[0], color[1], color[2], if active { 1.0 } else { 0.0 }];
+    }
+
+    /// Update progress bar state for shader effects.
+    ///
+    /// # Arguments
+    /// * `state` - Progress state (0=hidden, 1=normal, 2=error, 3=indeterminate, 4=warning)
+    /// * `percent` - Progress percentage as 0.0-1.0
+    /// * `is_active` - 1.0 if any progress bar is active, 0.0 otherwise
+    /// * `active_count` - Total count of active bars (simple + named)
+    pub fn update_progress(&mut self, state: f32, percent: f32, is_active: f32, active_count: f32) {
+        self.progress_data = [state, percent, is_active, active_count];
     }
 
     /// Check if channel0 has a real configured texture (not just a 1x1 placeholder).

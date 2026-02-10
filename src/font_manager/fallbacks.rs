@@ -36,16 +36,20 @@ pub const FALLBACK_FAMILIES: &[&str] = &[
     "MS Gothic",
     "SimHei",
     "Malgun Gothic",
-    // Symbol and emoji fonts (includes flag support)
+    // Monochrome symbol fonts (before emoji to prefer outline rendering for dingbats/symbols)
     "Symbols Nerd Font",
+    "Apple Symbols",
+    "Segoe UI Symbol",
+    "Noto Sans Symbols",
+    "Noto Sans Symbols 2",
+    "DejaVu Sans",
+    "Symbola",
+    "Arial Unicode MS",
+    // Color emoji fonts (flag support, pictographs)
     "Noto Color Emoji",
     "Apple Color Emoji",
     "Segoe UI Emoji",
-    "Segoe UI Symbol",
-    "Symbola",
-    "Arial Unicode MS",
     // General fallbacks
-    "DejaVu Sans",
     "Arial",
     "Liberation Sans",
 ];

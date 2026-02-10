@@ -20,6 +20,7 @@ use crate::paste_special_ui::{PasteSpecialAction, PasteSpecialUI};
 use crate::profile::{ProfileManager, storage as profile_storage};
 use crate::profile_drawer_ui::{ProfileDrawerAction, ProfileDrawerUI};
 use crate::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
+use crate::progress_bar::{ProgressBarSnapshot, render_progress_bars};
 use crate::quit_confirmation_ui::{QuitConfirmAction, QuitConfirmationUI};
 use crate::renderer::{
     DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
@@ -1669,6 +1670,21 @@ impl WindowState {
         // Capture window size before mutable borrow (for badge rendering in egui)
         let window_size_for_badge = self.renderer.as_ref().map(|r| r.size());
 
+        // Capture progress bar snapshot before mutable borrow
+        let progress_snapshot = if self.config.progress_bar_enabled {
+            self.tab_manager.active_tab().and_then(|tab| {
+                tab.terminal
+                    .try_lock()
+                    .ok()
+                    .map(|term| ProgressBarSnapshot {
+                        simple: term.progress_bar(),
+                        named: term.named_progress_bars(),
+                    })
+            })
+        } else {
+            None
+        };
+
         if let Some(renderer) = &mut self.renderer {
             // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
             let disable_cursor_shader =
@@ -1699,6 +1715,28 @@ impl WindowState {
                 renderer.update_shader_cursor(pos.0, pos.1, opacity, cursor_color, style);
             } else {
                 renderer.clear_cursor();
+            }
+
+            // Update progress bar state for shader uniforms
+            if let Some(ref snap) = progress_snapshot {
+                use par_term_emu_core_rust::terminal::ProgressState;
+                let state_val = match snap.simple.state {
+                    ProgressState::Hidden => 0.0,
+                    ProgressState::Normal => 1.0,
+                    ProgressState::Error => 2.0,
+                    ProgressState::Indeterminate => 3.0,
+                    ProgressState::Warning => 4.0,
+                };
+                let active_count = (if snap.simple.is_active() { 1 } else { 0 })
+                    + snap.named.values().filter(|b| b.state.is_active()).count();
+                renderer.update_shader_progress(
+                    state_val,
+                    snap.simple.progress as f32 / 100.0,
+                    if snap.has_active() { 1.0 } else { 0.0 },
+                    active_count as f32,
+                );
+            } else {
+                renderer.update_shader_progress(0.0, 0.0, 0.0, 0.0);
             }
 
             // Update scrollbar
@@ -2031,6 +2069,17 @@ impl WindowState {
 
                     // Render profile modal (management dialog)
                     pending_profile_modal_action = self.profile_modal_ui.show(ctx);
+
+                    // Render progress bar overlay
+                    if let (Some(snap), Some(size)) = (&progress_snapshot, window_size_for_badge) {
+                        render_progress_bars(
+                            ctx,
+                            snap,
+                            &self.config,
+                            size.width as f32,
+                            size.height as f32,
+                        );
+                    }
 
                     // Render badge overlay (top-right corner)
                     if let (Some(badge), Some(size)) = (&badge_state, window_size_for_badge) {

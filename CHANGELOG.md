@@ -27,11 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Remote Host Integration** (#94): Added OSC 1337 RemoteHost sequence support (via core library v0.33.0). Remote hostname and username are now synced to `session.hostname` and `session.username` badge variables from both OSC 7 file:// URLs and OSC 1337 RemoteHost sequences. Automatic profile switching based on detected hostname continues to work with both sequence types.
 
+- **Progress Bar Rendering** (#92): Thin overlay progress bars rendered via egui at the top or bottom of the terminal window. Supports OSC 9;4 protocol states (Normal, Warning, Error, Indeterminate) with configurable style (bar or bar-with-text), position, height, opacity, and per-state colors. Animated indeterminate bar oscillates smoothly. Multiple concurrent bars stack vertically. Full settings UI in new "Progress Bar" tab. Named concurrent progress bars (OSC 934) fully supported via core library v0.34.0.
+
+- **Progress Bar Shader Uniforms**: New `iProgress` vec4 uniform exposes progress bar state to custom GLSL shaders. Components: `x` = state (0=hidden, 1=normal, 2=error, 3=indeterminate, 4=warning), `y` = percent (0.0–1.0), `z` = isActive (0/1), `w` = active bar count. Enables shader effects that respond to progress — e.g., screen-edge glows, color shifts, particle effects during long-running tasks. Available in both background and cursor shaders.
+
 ### Changed
 
-- **Core Library**: Updated `par-term-emu-core-rust` dependency from 0.32.0 to 0.33.0 (adds OSC 1337 RemoteHost parsing).
+- **Core Library**: Updated `par-term-emu-core-rust` dependency from 0.33.0 to 0.35.0 (adds OSC 934 named progress bars, OSC 1337 SetUserVar). Now uses published crates.io version instead of local path.
+- **Dependencies**: Updated `libc` 0.2.180→0.2.181, `zip` 7.2.0→7.4.0, `notify` 8.0→8.2, `tempfile` 3.24→3.25.
+- **Terminfo**: Modernized `par-term.terminfo` entry — fixed `Su` from incorrect OSC 8 string to boolean direct-color flag; added `kbs=\177` (backspace sends DEL), `setrgbf`/`setrgbb` (direct RGB color), `BE`/`BD`/`PS`/`PE` (bracketed paste), `hs`/`tsl`/`fsl`/`dsl` (window title status line); removed redundant capabilities already inherited from xterm-256color (`Am`, `XT`, `ritm`/`sitm`, `smxx`/`rmxx`).
 
 ### Fixed
+
+- **Dingbat/Symbol Characters Rendering as Colored Emoji**: Characters in the Unicode Dingbats range (e.g., `✳` U+2733 Eight Spoked Asterisk) were rendered as colored emoji bitmaps with opaque backgrounds instead of monochrome glyphs using the terminal foreground color. Fixed by reordering the font fallback chain to prefer monochrome symbol fonts (Apple Symbols, Noto Sans Symbols, DejaVu Sans) before color emoji fonts, and by changing the glyph rasterizer to prefer outline sources over color sources. True emoji (😀, 🎉, 🇺🇸) are unaffected and continue to render in color.
 
 - **Snippet/Action Row Overflow**: Fixed Edit/Delete buttons being pushed off-screen by long command text in Snippets and Actions settings tabs. Buttons are now anchored to the right with content preview auto-truncating to fill remaining space.
 

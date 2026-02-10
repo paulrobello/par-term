@@ -984,6 +984,62 @@ impl Default for ResolvedCursorShaderConfig {
 }
 
 // ============================================================================
+// Progress Bar Types
+// ============================================================================
+
+/// Progress bar visual style
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ProgressBarStyle {
+    /// Thin bar line (default)
+    #[default]
+    Bar,
+    /// Bar with percentage text
+    BarWithText,
+}
+
+impl ProgressBarStyle {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            ProgressBarStyle::Bar => "Bar",
+            ProgressBarStyle::BarWithText => "Bar with Text",
+        }
+    }
+
+    /// All available styles for UI iteration
+    pub fn all() -> &'static [ProgressBarStyle] {
+        &[ProgressBarStyle::Bar, ProgressBarStyle::BarWithText]
+    }
+}
+
+/// Progress bar position on screen
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ProgressBarPosition {
+    /// Top of the terminal window (default)
+    #[default]
+    Top,
+    /// Bottom of the terminal window
+    Bottom,
+}
+
+impl ProgressBarPosition {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            ProgressBarPosition::Bottom => "Bottom",
+            ProgressBarPosition::Top => "Top",
+        }
+    }
+
+    /// All available positions for UI iteration
+    pub fn all() -> &'static [ProgressBarPosition] {
+        &[ProgressBarPosition::Top, ProgressBarPosition::Bottom]
+    }
+}
+
+// ============================================================================
 // Smart Selection Types
 // ============================================================================
 

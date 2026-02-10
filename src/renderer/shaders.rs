@@ -238,6 +238,28 @@ impl Renderer {
         }
     }
 
+    /// Update progress bar state for custom shaders (iProgress uniform)
+    ///
+    /// # Arguments
+    /// * `state` - Progress state (0=hidden, 1=normal, 2=error, 3=indeterminate, 4=warning)
+    /// * `percent` - Progress percentage as 0.0-1.0
+    /// * `is_active` - 1.0 if any progress bar is active, 0.0 otherwise
+    /// * `active_count` - Total count of active bars (simple + named)
+    pub fn update_shader_progress(
+        &mut self,
+        state: f32,
+        percent: f32,
+        is_active: f32,
+        active_count: f32,
+    ) {
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.update_progress(state, percent, is_active, active_count);
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.update_progress(state, percent, is_active, active_count);
+        }
+    }
+
     /// Update cursor shader configuration from config values
     ///
     /// # Arguments

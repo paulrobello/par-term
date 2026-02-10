@@ -25,10 +25,11 @@ pub use types::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
     DividerStyle, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
     IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode,
-    PaneTitlePosition, PowerPreference, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
-    ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType, SmartSelectionPrecision,
-    SmartSelectionRule, StartupDirectoryMode, TabBarMode, ThinStrokesMode, UnfocusedCursorStyle,
-    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
+    PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
+    SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata,
+    ShellExitAction, ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode,
+    TabBarMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
@@ -1381,6 +1382,50 @@ pub struct Config {
     pub badge_max_height: f32,
 
     // ========================================================================
+    // Progress Bar Settings (OSC 9;4 and OSC 934)
+    // ========================================================================
+    /// Enable progress bar overlay
+    /// When enabled, progress bars from OSC 9;4 and OSC 934 sequences are displayed
+    #[serde(default = "defaults::bool_true")]
+    pub progress_bar_enabled: bool,
+
+    /// Progress bar visual style
+    /// - bar: Simple thin bar (default)
+    /// - bar_with_text: Bar with percentage text and labels
+    #[serde(default)]
+    pub progress_bar_style: ProgressBarStyle,
+
+    /// Progress bar position
+    /// - bottom: Display at the bottom of the terminal (default)
+    /// - top: Display at the top of the terminal
+    #[serde(default)]
+    pub progress_bar_position: ProgressBarPosition,
+
+    /// Progress bar height in pixels
+    #[serde(default = "defaults::progress_bar_height")]
+    pub progress_bar_height: f32,
+
+    /// Progress bar opacity (0.0-1.0)
+    #[serde(default = "defaults::progress_bar_opacity")]
+    pub progress_bar_opacity: f32,
+
+    /// Color for normal progress state [R, G, B] (0-255)
+    #[serde(default = "defaults::progress_bar_normal_color")]
+    pub progress_bar_normal_color: [u8; 3],
+
+    /// Color for warning progress state [R, G, B] (0-255)
+    #[serde(default = "defaults::progress_bar_warning_color")]
+    pub progress_bar_warning_color: [u8; 3],
+
+    /// Color for error progress state [R, G, B] (0-255)
+    #[serde(default = "defaults::progress_bar_error_color")]
+    pub progress_bar_error_color: [u8; 3],
+
+    /// Color for indeterminate progress state [R, G, B] (0-255)
+    #[serde(default = "defaults::progress_bar_indeterminate_color")]
+    pub progress_bar_indeterminate_color: [u8; 3],
+
+    // ========================================================================
     // Triggers & Automation
     // ========================================================================
     /// Regex trigger definitions that match terminal output and fire actions
@@ -1654,6 +1699,16 @@ impl Default for Config {
             badge_right_margin: defaults::badge_right_margin(),
             badge_max_width: defaults::badge_max_width(),
             badge_max_height: defaults::badge_max_height(),
+            // Progress Bar
+            progress_bar_enabled: defaults::bool_true(),
+            progress_bar_style: ProgressBarStyle::default(),
+            progress_bar_position: ProgressBarPosition::default(),
+            progress_bar_height: defaults::progress_bar_height(),
+            progress_bar_opacity: defaults::progress_bar_opacity(),
+            progress_bar_normal_color: defaults::progress_bar_normal_color(),
+            progress_bar_warning_color: defaults::progress_bar_warning_color(),
+            progress_bar_error_color: defaults::progress_bar_error_color(),
+            progress_bar_indeterminate_color: defaults::progress_bar_indeterminate_color(),
             triggers: Vec::new(),
             coprocesses: Vec::new(),
             snippets: Vec::new(),
