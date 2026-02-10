@@ -9,9 +9,9 @@ use crate::app::bell::BellState;
 use crate::app::mouse::MouseState;
 use crate::app::render_cache::RenderCache;
 use crate::config::Config;
-use crate::tab::build_shell_env;
 use crate::scroll_state::ScrollState;
 use crate::session_logger::{SharedSessionLogger, create_shared_logger};
+use crate::tab::build_shell_env;
 use crate::terminal::TerminalManager;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -245,7 +245,12 @@ impl Pane {
 
         let shell_args_deref = shell_args.as_deref();
         let shell_env = build_shell_env(config.shell_env.as_ref());
-        terminal.spawn_custom_shell_with_dir(&shell_cmd, shell_args_deref, work_dir, shell_env.as_ref())?;
+        terminal.spawn_custom_shell_with_dir(
+            &shell_cmd,
+            shell_args_deref,
+            work_dir,
+            shell_env.as_ref(),
+        )?;
 
         // Create shared session logger
         let session_logger = create_shared_logger();

@@ -7,6 +7,10 @@ par-term provides extensive window management features including edge-anchored w
 - [Window Types](#window-types)
 - [Multi-Monitor Support](#multi-monitor-support)
 - [Window Behavior](#window-behavior)
+- [Window Title](#window-title)
+- [Prompt on Quit](#prompt-on-quit)
+- [Pane Title Bars](#pane-title-bars)
+- [Pane Divider Styles](#pane-divider-styles)
 - [Transparency](#transparency)
 - [Fullscreen](#fullscreen)
 - [Configuration](#configuration)
@@ -145,6 +149,71 @@ Example title: `par-term [2]`
 ### Maximize Vertically
 
 Use the View menu or keybinding to maximize height while keeping current width and X position.
+
+## Window Title
+
+The window title updates dynamically based on terminal state:
+
+- **Default**: Shows "par-term" or the OSC-set title from the shell
+- **Running Command**: When shell integration (OSC 133;C) detects a running command, the title shows `[command_name]` — e.g., `par-term [cargo build]`
+- **Window Number**: When `show_window_number` is enabled and multiple windows are open, the title includes `[N]` suffix
+
+The command name automatically reverts when the command finishes.
+
+```yaml
+allow_title_change: true    # Let apps change title via OSC sequences
+show_window_number: false   # Show [N] suffix with multiple windows
+```
+
+## Prompt on Quit
+
+A confirmation dialog can be shown before closing the window when active terminal sessions are running:
+
+```yaml
+prompt_on_quit: true  # Show confirmation before closing (default: false)
+```
+
+**Settings UI:** Settings > Terminal > Behavior > "Confirm before quitting with open sessions"
+
+The dialog shows the number of active sessions and requires explicit confirmation.
+
+## Pane Title Bars
+
+Split panes can display GPU-rendered title bars showing the pane's OSC title, current working directory path, or a fallback pane name.
+
+```yaml
+show_pane_titles: true                    # Enable pane title bars
+pane_title_position: top                  # top or bottom
+pane_title_color: [200, 200, 200]         # Title text color (RGB)
+pane_title_bg_color: [40, 40, 40]         # Title background color (RGB)
+pane_title_font: "JetBrains Mono"         # Title font family
+```
+
+**Features:**
+- Titles auto-truncate with ellipsis when the pane is too narrow
+- Focused pane title renders at full opacity; unfocused panes are slightly dimmed
+- Configurable height (14-30px) via Settings UI
+
+**Settings UI:** Settings > Window > Split Panes > "Show pane titles"
+
+## Pane Divider Styles
+
+Four visual styles for split pane dividers:
+
+| Style | Description |
+|-------|-------------|
+| **Solid** | Standard single-line divider (default) |
+| **Double** | Two thin parallel lines with a gap between them |
+| **Dashed** | Segmented dashed line effect |
+| **Shadow** | Beveled/embossed effect with highlight and shadow edges |
+
+```yaml
+pane_divider_style: solid  # solid, double, dashed, shadow
+```
+
+**Settings UI:** Settings > Window > Split Panes > "Divider Style"
+
+> **📝 Note:** The Double style renders proper double lines when divider width >= 4px. At smaller widths, it renders a centered thin line to visually differentiate from Solid.
 
 ## Transparency
 

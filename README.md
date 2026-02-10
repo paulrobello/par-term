@@ -12,50 +12,74 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.11.0
+## What's New in 0.12.0
 
-### ⚡ Triggers, Trigger Actions & Coprocesses
+### 📝 Snippets & Actions System
 
-Full automation system for terminal output processing.
+Text automation and custom actions (iTerm2 parity).
 
-- **Regex Triggers**: Define patterns that match terminal output and fire actions
-- **7 Action Types**: Highlight, Notify, MarkLine, SetVariable, RunCommand, PlaySound, SendText
-- **Coprocesses**: Background processes that receive terminal output with restart policies and output viewer
-- **Scrollbar Marks**: Trigger-created marks with color and labels visible in scrollbar tooltips
-- **Settings UI**: New "Automation" tab with inline editors for triggers and coprocesses
+- **Text Snippets**: Save text blocks with variable substitution (`\(variable)` syntax), 10 built-in + 12 session variables
+- **Custom Actions**: Shell commands, text insertion, and keyboard shortcuts triggered via keybindings
+- **Settings UI**: Two new tabs — Snippets (📝) and Actions (🚀) — with keybinding recording and conflict detection
+- **Auto-Execute**: Optional checkbox to run commands immediately when keybinding is pressed
 
-### ♿ Minimum Contrast Enforcement
+### 📊 Progress Bar Rendering
 
-WCAG-based accessibility feature for readable text.
+Overlay progress bars via OSC 9;4 and OSC 934 protocols.
 
-- Automatically adjusts text color when contrast ratio is too low
-- Set to 4.5 for WCAG AA, 7.0 for WCAG AAA compliance
-- **Config option**: `minimum_contrast` (range 1.0-21.0, default: 1.0 = disabled)
+- Configurable style (bar or bar-with-text), position, height, opacity, and per-state colors
+- Named concurrent progress bars stack vertically
+- New `iProgress` shader uniform for progress-reactive shader effects
+- Full settings UI in new "Progress Bar" tab
 
-### 📂 Semantic History
+### 📋 Paste Enhancements
 
-Click file paths in terminal output to open them in your editor (iTerm2 parity).
+- **Paste Delay**: Configurable delay between pasted lines (`paste_delay_ms`, 0-500ms)
+- **Newline Control**: Three new Paste Special transforms — Single Line, Add Newlines, Remove Newlines
 
-- Detects file paths with optional line:column numbers (`src/main.rs:42:5`)
-- Ctrl+click (Cmd+click on macOS) opens in configured editor
-- Directories open in system file manager
-- **Editor modes**: Custom command, `$EDITOR`/`$VISUAL`, or system default
+### 🖥️ Shell Integration Enhancements
 
-### 🔧 Configurable Log Level
+- **Command in Title**: Window title shows `[command_name]` during execution
+- **Badge Variables**: `\(session.exit_code)` and `\(session.current_command)`
+- **Remote Host**: OSC 1337 RemoteHost syncs hostname and username to badge variables
 
-Runtime log level control with unified logging.
+### 🖼️ Image & Pane Improvements
 
-- **Config option**: `log_level` (off/error/warn/info/debug/trace)
-- **CLI flag**: `--log-level <LEVEL>` overrides config
-- **Settings UI**: Advanced → Debug Logging with "Open Log File" button
-- All `log::*!()` calls routed to `/tmp/par_term_debug.log`
+- **Image Scaling**: Choose `nearest` or `linear` filtering for inline images
+- **Aspect Ratio Control**: Toggle aspect ratio preservation for inline images
+- **Pane Titles**: GPU-rendered title bars for split panes
+- **Divider Styles**: Four visual styles — Solid, Double, Dashed, Shadow
+
+### ⌨️ Cross-Platform Keybindings
+
+Redesigned Linux/Windows defaults to avoid conflicts with terminal control codes (Ctrl+C, Ctrl+V, etc.). macOS unchanged.
 
 ### 🔧 Fixed
 
-- **Trigger MarkLine deduplication**: Fixed duplicate scrollbar marks from PTY read batching
-- **Scrollbar command text**: Mark tooltips now correctly show command text
-- **Trigger marks cleared on scrollback clear**: Marks properly removed on buffer clear
-- **Settings Quick Search**: Expanded keywords for better discoverability
+- Dingbat/symbol rendering as colored emoji instead of monochrome glyphs
+- Pane focus indicator, background opacity, divider hover, and divider width settings (#88)
+- Platform-specific keybinding labels in snippet rows
+
+<details>
+<summary><strong>What's New in 0.11.0</strong></summary>
+
+#### ⚡ Triggers, Trigger Actions & Coprocesses
+
+Full automation system for terminal output processing with regex triggers, 7 action types, coprocesses, and scrollbar marks.
+
+#### ♿ Minimum Contrast Enforcement
+
+WCAG-based accessibility — auto-adjusts text color when contrast ratio is too low.
+
+#### 📂 Semantic History
+
+Ctrl+click file paths in terminal output to open them in your editor.
+
+#### 🔧 Configurable Log Level
+
+Runtime log level control via `log_level` config or `--log-level` CLI flag.
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.10.0</strong></summary>
@@ -334,6 +358,8 @@ Essential feature for emacs/vim users.
 - **[Session Logging](docs/SESSION_LOGGING.md)** - Recording sessions in Plain/HTML/Asciicast formats.
 - **[Search](docs/SEARCH.md)** - Terminal search with regex, case-sensitive, and whole-word modes.
 - **[Paste Special](docs/PASTE_SPECIAL.md)** - 28 clipboard transformations for pasting.
+- **[Snippets & Actions](docs/SNIPPETS.md)** - Text snippets with variables, custom actions, and keybinding management.
+- **[Progress Bars](docs/PROGRESS_BARS.md)** - OSC 9;4 and OSC 934 progress bar rendering and shader integration.
 - **[Accessibility](docs/ACCESSIBILITY.md)** - Minimum contrast enforcement and display options.
 - **[Integrations](docs/INTEGRATIONS.md)** - Shell integration and shader installation system.
 - **[Window Management](docs/WINDOW_MANAGEMENT.md)** - Window types, multi-monitor, and transparency.

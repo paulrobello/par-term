@@ -2,6 +2,8 @@
 
 Complete reference for all par-term keyboard shortcuts.
 
+> **📝 Note:** On macOS, keybindings use `Cmd` as the primary modifier. On Linux and Windows, keybindings use `Ctrl+Shift` combinations to avoid conflicts with standard terminal control codes (Ctrl+C for SIGINT, Ctrl+D for EOF, etc.). This follows conventions from WezTerm, Kitty, GNOME Terminal, and Windows Terminal.
+
 ## Table of Contents
 - [Window & Tab Management](#window--tab-management)
 - [Navigation & Scrolling](#navigation--scrolling)
@@ -17,19 +19,19 @@ Complete reference for all par-term keyboard shortcuts.
 
 ## Window & Tab Management
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl + N` | New window |
-| `Cmd/Ctrl + T` | New tab |
-| `Cmd/Ctrl + W` | Close tab (or window if single tab) |
-| `Cmd/Ctrl + Q` | Quit application (Windows/Linux) |
-| `Cmd/Ctrl + Shift + ]` | Next tab |
-| `Cmd/Ctrl + Shift + [` | Previous tab |
-| `Ctrl + Tab` | Next tab (alternative) |
-| `Ctrl + Shift + Tab` | Previous tab (alternative) |
-| `Cmd/Ctrl + 1-9` | Switch to tab 1-9 |
-| `Cmd/Ctrl + Shift + Left` | Move tab left |
-| `Cmd/Ctrl + Shift + Right` | Move tab right |
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| New window | `Cmd + N` | `Ctrl + Shift + N` |
+| New tab | `Cmd + T` | `Ctrl + Shift + T` |
+| Close tab/window | `Cmd + W` | `Ctrl + Shift + W` |
+| Quit application | `Cmd + Q` | `Ctrl + Q` |
+| Next tab | `Cmd + Shift + ]` | `Cmd + Shift + ]` |
+| Previous tab | `Cmd + Shift + [` | `Cmd + Shift + [` |
+| Next tab (alt) | `Ctrl + Tab` | `Ctrl + Tab` |
+| Previous tab (alt) | `Ctrl + Shift + Tab` | `Ctrl + Shift + Tab` |
+| Switch to tab 1-9 | `Cmd + 1-9` | `Alt + 1-9` |
+| Move tab left | `Cmd + Shift + Left` | `Cmd + Shift + Left` |
+| Move tab right | `Cmd + Shift + Right` | `Cmd + Shift + Right` |
 
 ## Navigation & Scrolling
 
@@ -43,15 +45,14 @@ Complete reference for all par-term keyboard shortcuts.
 
 ## Copy, Paste & Selection
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd + C` (macOS) | Copy selection |
-| `Ctrl + Shift + C` (Windows/Linux) | Copy selection |
-| `Cmd + V` (macOS) | Paste |
-| `Ctrl + V` (Windows/Linux) | Paste |
-| `Shift + Insert` | Paste (X11 fallback) |
-| `Cmd/Ctrl + Shift + V` | Paste Special (transform clipboard) |
-| `Cmd/Ctrl + Shift + H` | Clipboard history |
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| Copy selection | `Cmd + C` | `Ctrl + Shift + C` |
+| Paste | `Cmd + V` | `Ctrl + Shift + V` |
+| Paste (X11 fallback) | `Shift + Insert` | `Shift + Insert` |
+| Paste Special | `Cmd + Shift + V` | `Ctrl + Alt + V` |
+| Clipboard history | `Cmd + Shift + H` | `Ctrl + Shift + H` |
+| Select all | `Cmd + A` | `Ctrl + Shift + A` |
 
 **Mouse Selection:**
 
@@ -67,14 +68,14 @@ Complete reference for all par-term keyboard shortcuts.
 
 ## Search
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl + F` | Open search |
-| `Enter` | Find next match |
-| `Shift + Enter` | Find previous match |
-| `Escape` | Close search |
-| `Cmd/Ctrl + G` | Find next (global) |
-| `Cmd/Ctrl + Shift + G` | Find previous (global) |
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| Open search | `Cmd + F` | `Ctrl + Shift + F` |
+| Find next match | `Enter` | `Enter` |
+| Find previous match | `Shift + Enter` | `Shift + Enter` |
+| Close search | `Escape` | `Escape` |
+| Find next (global) | `Cmd + G` | `Ctrl + G` |
+| Find previous (global) | `Cmd + Shift + G` | `Ctrl + Shift + G` |
 
 ## Terminal Operations
 
@@ -84,7 +85,7 @@ Complete reference for all par-term keyboard shortcuts.
 | `Ctrl + Shift + K` | Clear scrollback buffer |
 | `Ctrl + Shift + S` | Take screenshot |
 | `Cmd/Ctrl + Shift + R` | Toggle session recording |
-| `Cmd/Ctrl + Shift + T` | Toggle maximize throughput mode |
+| `Cmd + Shift + T` (macOS) / `Ctrl + Shift + M` (Linux/Win) | Toggle maximize throughput mode |
 | `Ctrl + Shift + F5` | Fix rendering (after monitor change) |
 
 ## Font & Text Sizing
@@ -110,11 +111,13 @@ Complete reference for all par-term keyboard shortcuts.
 
 ## Pane Management
 
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| Split horizontally | `Cmd + D` | `Ctrl + Shift + D` |
+| Split vertically | `Cmd + Shift + D` | `Ctrl + Shift + E` |
+| Close focused pane | `Cmd + Shift + W` | `Ctrl + Shift + X` |
+
 | Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl + D` | Split horizontally |
-| `Cmd/Ctrl + Shift + D` | Split vertically |
-| `Cmd/Ctrl + Shift + W` | Close focused pane |
 | `Cmd/Ctrl + Alt + Left` | Navigate to pane left |
 | `Cmd/Ctrl + Alt + Right` | Navigate to pane right |
 | `Cmd/Ctrl + Alt + Up` | Navigate to pane above |

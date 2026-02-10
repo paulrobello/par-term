@@ -94,6 +94,10 @@ Insert dynamic values using the `\(session.*)` syntax:
 | `\(session.bell_count)` | Number of bells received | `3` |
 | `\(session.selection)` | Currently selected text | `hello world` |
 | `\(session.tmux_pane_title)` | tmux pane title (if connected) | `main:0` |
+| `\(session.exit_code)` | Exit code of last command (via shell integration) | `0` |
+| `\(session.current_command)` | Currently running command name (via shell integration) | `cargo build` |
+
+> **📝 Note:** `session.exit_code` and `session.current_command` require shell integration (OSC 133) to be installed. See [Integrations](INTEGRATIONS.md) for setup instructions.
 
 **Example Formats:**
 
@@ -168,7 +172,11 @@ badge_max_height: 0.15    # Max 15% of terminal height
 
 ## OSC 1337 Support
 
-par-term supports iTerm2's OSC 1337 escape sequence for programmatically setting the badge format:
+par-term supports iTerm2's OSC 1337 escape sequences for programmatic badge and session management:
+
+### SetBadgeFormat
+
+Set the badge format from the command line:
 
 ```bash
 # Set badge format from command line
@@ -176,6 +184,22 @@ printf "\033]1337;SetBadgeFormat=%s\007" "$(echo -n "My Badge" | base64)"
 ```
 
 **Security:** Badge format changes via OSC 1337 are validated to prevent injection attacks. Only safe variable references are allowed.
+
+### RemoteHost
+
+par-term supports the OSC 1337 RemoteHost sequence for syncing remote session information:
+
+```bash
+# Set remote host information (typically done by shell integration scripts)
+printf "\033]1337;RemoteHost=%s@%s\007" "$USER" "$HOSTNAME"
+```
+
+When received, the hostname and username are synced to the `session.hostname` and `session.username` badge variables. This works alongside OSC 7 `file://` URLs for CWD tracking — both sequence types update the same session variables.
+
+**Use Cases:**
+- SSH sessions that set RemoteHost on connect
+- Shell integration scripts that emit RemoteHost on prompt
+- Automatic profile switching based on detected hostname
 
 ## Configuration
 

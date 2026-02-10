@@ -9,180 +9,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+---
 
-- **Paste Delay** (#93): New `paste_delay_ms` config option (0-500ms) adds a configurable delay between pasted lines. Useful for slow terminals or remote connections that can't handle rapid paste. Exposed as a slider in Settings > Input > Selection & Clipboard.
-
-- **Paste Transforms: Newline Control** (#93): Three new paste transformations available via Paste Special (`Cmd/Ctrl+Shift+V`):
-  - `Newline: Paste as Single Line` — strips all newlines and joins text with spaces
-  - `Newline: Add Newlines` — ensures text ends with a newline after each line
-  - `Newline: Remove Newlines` — removes all newline characters
-
-- **Current Command in Window Title** (#94): When a command is running (via OSC 133;C shell integration), the window title bar now shows `[command_name]`. Reverts automatically when the command finishes.
-
-- **Shell Integration Badge Variables** (#94): Two new badge variables for use in badge format strings:
-  - `\(session.exit_code)` — Last command's exit code (from OSC 133;D)
-  - `\(session.current_command)` — Currently running command name (from OSC 133;C)
-  - Badge variables are also listed in the Settings UI badge tab for easy discovery.
-
-- **Remote Host Integration** (#94): Added OSC 1337 RemoteHost sequence support (via core library v0.33.0). Remote hostname and username are now synced to `session.hostname` and `session.username` badge variables from both OSC 7 file:// URLs and OSC 1337 RemoteHost sequences. Automatic profile switching based on detected hostname continues to work with both sequence types.
-
-- **Progress Bar Rendering** (#92): Thin overlay progress bars rendered via egui at the top or bottom of the terminal window. Supports OSC 9;4 protocol states (Normal, Warning, Error, Indeterminate) with configurable style (bar or bar-with-text), position, height, opacity, and per-state colors. Animated indeterminate bar oscillates smoothly. Multiple concurrent bars stack vertically. Full settings UI in new "Progress Bar" tab. Named concurrent progress bars (OSC 934) fully supported via core library v0.34.0.
-
-- **Progress Bar Shader Uniforms**: New `iProgress` vec4 uniform exposes progress bar state to custom GLSL shaders. Components: `x` = state (0=hidden, 1=normal, 2=error, 3=indeterminate, 4=warning), `y` = percent (0.0–1.0), `z` = isActive (0/1), `w` = active bar count. Enables shader effects that respond to progress — e.g., screen-edge glows, color shifts, particle effects during long-running tasks. Available in both background and cursor shaders.
-
-### Changed
-
-- **Core Library**: Updated `par-term-emu-core-rust` dependency from 0.33.0 to 0.35.0 (adds OSC 934 named progress bars, OSC 1337 SetUserVar). Now uses published crates.io version instead of local path.
-- **Dependencies**: Updated `libc` 0.2.180→0.2.181, `zip` 7.2.0→7.4.0, `notify` 8.0→8.2, `tempfile` 3.24→3.25.
-- **Terminfo**: Modernized `par-term.terminfo` entry — fixed `Su` from incorrect OSC 8 string to boolean direct-color flag; added `kbs=\177` (backspace sends DEL), `setrgbf`/`setrgbb` (direct RGB color), `BE`/`BD`/`PS`/`PE` (bracketed paste), `hs`/`tsl`/`fsl`/`dsl` (window title status line); removed redundant capabilities already inherited from xterm-256color (`Am`, `XT`, `ritm`/`sitm`, `smxx`/`rmxx`).
-
-### Fixed
-
-- **Dingbat/Symbol Characters Rendering as Colored Emoji**: Characters in the Unicode Dingbats range (e.g., `✳` U+2733 Eight Spoked Asterisk) were rendered as colored emoji bitmaps with opaque backgrounds instead of monochrome glyphs using the terminal foreground color. Fixed by reordering the font fallback chain to prefer monochrome symbol fonts (Apple Symbols, Noto Sans Symbols, DejaVu Sans) before color emoji fonts, and by changing the glyph rasterizer to prefer outline sources over color sources. True emoji (😀, 🎉, 🇺🇸) are unaffected and continue to render in color.
-
-- **Snippet/Action Row Overflow**: Fixed Edit/Delete buttons being pushed off-screen by long command text in Snippets and Actions settings tabs. Buttons are now anchored to the right with content preview auto-truncating to fill remaining space.
-
-- **Platform-Specific Keybinding Display**: Keybinding labels in snippet rows now show `Cmd` on macOS and `Ctrl` on Linux/Windows instead of the raw `CmdOrCtrl` config format.
-
-- **Ctrl+C Not Sending SIGINT on Linux/Windows**: On non-macOS platforms, `Ctrl+C` was intercepted for copy even when no text was selected, preventing SIGINT from reaching the terminal. Now uses `Ctrl+Shift+C` for copy, allowing bare `Ctrl+C` to pass through as SIGINT.
-
-- **Pane Focus Indicator Settings** (#88): `show_focus_indicator`, `focus_color`, and `focus_width` were hardcoded instead of reading from config. Toggling focus indicator and changing focus color now works correctly.
-
-- **Pane Background Opacity** (#88): The `pane_background_opacity` slider had no effect because it was never wired to the rendering pipeline. Now applies as the base opacity for all pane backgrounds, allowing background images/shaders to show through.
-
-- **Divider Hover Color** (#88): Hovering over a pane divider did not change its color because the hover state was never passed to the renderer. Now correctly highlights the hovered divider with `pane_divider_hover_color`.
-
-- **Divider Width/Hit Width Not Updating** (#88): Changing divider width or drag hit width in settings had no effect because the values were only read at pane creation, never propagated on config change. Now updates immediately.
-
-- **Background Solid Color in Split Panes** (#88): Setting background mode to "Color" with a custom color showed black in split pane mode. The split pane render path always used the theme background color, ignoring the solid color setting.
-
-- **Double Divider Style** (#88): Two-line divider style was indistinguishable from Solid because adjacent 1px lines had no visible gap. Now renders proper double lines with a gap when divider width >= 4px, and a centered thin line when < 4px to visually differentiate from Solid.
-
-- **Shadow Divider Style** (#88): Shadow/highlight extended outside divider bounds into pane content, causing visual artifacts. Now renders a beveled/embossed effect entirely within the divider area: highlight on top/left edge, shadow on bottom/right edge.
-
-### Changed
-
-- **Cross-Platform Keybindings Overhaul**: Redesigned default keybindings on Linux/Windows to avoid conflicts with standard terminal control codes (Ctrl+C, Ctrl+D, Ctrl+V, Ctrl+W, etc.). macOS keybindings are unchanged (Cmd+key is safe). Following conventions from WezTerm, Kitty, GNOME Terminal, and Windows Terminal:
-  - Copy/Paste/Select All: `Ctrl+Shift+C` / `Ctrl+Shift+V` / `Ctrl+Shift+A` (was `Ctrl+C/V/A`)
-  - Find: `Ctrl+Shift+F` (was `Ctrl+F`)
-  - New Tab: `Ctrl+Shift+T` (was `Ctrl+T`)
-  - Close Tab: `Ctrl+Shift+W` (was `Ctrl+W`)
-  - Split Horizontal: `Ctrl+Shift+D` (was `Ctrl+D`)
-  - Split Vertical: `Ctrl+Shift+E` (was `Ctrl+Shift+D`)
-  - Close Pane: `Ctrl+Shift+X` (was `Ctrl+Shift+W`)
-  - Tab Switching: `Alt+1-9` (was `Ctrl+1-9`)
-  - Paste Special: `Ctrl+Alt+V` (was `Ctrl+Shift+V`)
-  - Throughput Mode: `Ctrl+Shift+M` (was `Ctrl+Shift+T`)
-  - All UI labels, tooltips, and help text updated to show platform-correct shortcuts
+## [0.12.0] - 2026-02-10
 
 ### Added
-
-- **Image Scaling Quality** (#90): Configurable texture filtering for inline images (Sixel, iTerm2, Kitty). Choose between `nearest` (pixel-perfect) and `linear` (smooth) scaling via Settings > Effects > Inline Images or `image_scaling_mode` in config. Defaults to linear.
-
-- **Image Aspect Ratio Control** (#90): Toggle to preserve or ignore aspect ratio when rendering inline images. When disabled, images stretch to fill their cell grid. Configure via Settings > Effects > Inline Images or `image_preserve_aspect_ratio` in config. Defaults to true.
-
-- **Prompt on Quit**: Configurable confirmation dialog before closing the window when there are active terminal sessions. Enable via Settings > Terminal > Behavior > "Confirm before quitting with open sessions" or `prompt_on_quit: true` in config. Shows session count and requires explicit confirmation to quit.
-
-- **Pane Title Bars** (#88): GPU-rendered title bars for split panes showing OSC title, CWD path, or fallback pane name
-  - Configurable height (14-30px), position (top/bottom), text color, and background color
-  - Titles auto-truncate with ellipsis when pane is too narrow
-  - Focused pane title renders at full opacity; unfocused panes slightly dimmed
-  - Enable via Settings > Window > Split Panes > "Show pane titles" or `show_pane_titles: true` in config
-  - New config options: `pane_title_position`, `pane_title_color`, `pane_title_bg_color`, `pane_title_font`
-
-- **Divider Style Customization** (#88): Four visual styles for pane dividers
-  - **Solid**: Standard single-line divider (default)
-  - **Double**: Two thin parallel lines with a gap between
-  - **Dashed**: Segmented dashed line effect
-  - **Shadow**: Main line with a semi-transparent shadow offset
-  - Configure via Settings > Window > Split Panes > "Divider Style" or `pane_divider_style` in config
 
 - **Snippets & Actions System** (#86): Text automation and custom actions (iTerm2 parity)
   - **Text Snippets**: Save frequently-used text blocks for quick insertion
     - Variable substitution with `\(variable)` syntax
     - 10 built-in variables: `date`, `time`, `datetime`, `hostname`, `user`, `path`, `git_branch`, `git_commit`, `uuid`, `random`
-    - **Session variables**: Access live terminal state via `\(session.*)` syntax
-      - 12 session variables: hostname, username, path, job, last_command, profile_name, tty, columns, rows, bell_count, selection, tmux_pane_title
-      - Pulled from badge/automation system in real-time
-      - Reflect current terminal state (e.g., current job, working directory, selection)
-    - Custom variables per snippet via HashMap
-    - Variable priority: Custom > Session > Built-in
-    - Keyboard shortcut assignment via `keybinding` field
-    - Folder organization for grouping related snippets
-    - Config persistence in `config.yaml` via `snippets` array with `SnippetConfig` structs
+    - **Session variables**: Access live terminal state via `\(session.*)` syntax (12 session variables)
+    - Custom variables per snippet, keyboard shortcut assignment, folder organization
     - **Auto-execute**: Optional checkbox to send Enter after inserting snippet content
-      - Automatically runs commands when keybinding is pressed
-      - Equivalent to appending `\n` to snippet content
-      - Perfect for frequently-run commands (tests, builds, git operations)
-  - **Variable Substitution Engine**: Regex-based parser with real-time resolution
-    - `VariableSubstitutor` in `src/snippets/mod.rs`
-    - Built-in variable resolution using system APIs
-    - Session variable integration via `SessionVariables`
-    - Custom variable support for snippet-specific values
-    - Support for dotted variable names (e.g., `session.hostname`)
-    - 18 unit tests ensuring correctness (15 original + 3 new)
-  - **Snippet Execution**: Insert snippets into active terminal via keybindings
-    - Uses "snippet:<id>" action format for keybinding system
-    - Variable substitution performed at insertion time with session context
-    - Error handling with toast notifications
-    - Proper terminal locking (tokio::sync::Mutex try_lock)
-    - Auto-execute appends newline to run commands immediately
   - **Custom Actions**: User-defined macros triggered via keyboard shortcuts
-    - **ShellCommand**: Execute shell commands with std::process::Command
-      - Optional success notification with stdout display
-      - Error handling with stderr feedback
-      - Configurable command arguments
+    - **ShellCommand**: Execute shell commands with notifications and error handling
     - **InsertText**: Insert text with variable substitution
-      - Supports all built-in and custom variables
-      - Direct terminal write
     - **KeySequence**: Placeholder for future keyboard simulation
-    - Config persistence in `config.yaml` via `actions` array with `CustomActionConfig` enum
-  - **Settings UI**: Two new tabs in settings sidebar
-    - **Snippets tab** (📝): Full CRUD operations for text snippets
-      - Inline add/edit forms with title, content, keybinding, folder
-      - Folder grouping with alphabetical sorting
-      - Variables reference section with built-in variable documentation
-      - Enable/disable toggles, delete with confirmation
-      - **Auto-execute checkbox** (⚡): Automatically send Enter after inserting
-      - **Keybinding enable/disable toggle**: Temporarily disable keybindings without removing
-    - **Actions tab** (🚀): Full CRUD operations for custom actions
-      - Type selector (Shell Command, Insert Text, Key Sequence)
-      - Type-specific form fields (command/args, text, keys)
-  - **Keybinding Management**:
-    - **Record Button** (🎤): Capture keybindings by pressing keys
-    - **Conflict Detection**: Visual warnings (⚠️) for duplicate keybindings
-    - **Update on Save**: Keybindings regenerated when settings are saved
-    - **Smart Updates**: Existing keybindings are updated when keys change, not skipped
-    - **Stale Removal**: Keybindings removed when snippet keybindings are cleared
-  - **Debug Logging**: Comprehensive logging for keybinding execution troubleshooting
-      - Action ID and title configuration
-    - Searchable via sidebar keywords (snippet, text, insert, variable, keybinding, action, shell, command)
-  - **Keybinding Auto-Generation**: Snippets and actions with keybinding field auto-generate keybindings
-    - `generate_snippet_action_keybindings()` called during config load
-    - Creates keybindings using "snippet:<id>" and "action:<id>" formats
-    - Prevents duplicate keybindings on reload
-    - Only generates for enabled snippets/actions
-    - Stale action keybindings cleaned up when keybinding is cleared or disabled
-  - **Action Keybinding Support**: `CustomActionConfig` now has `keybinding` and `keybinding_enabled` fields
-    - Keybindings stored directly on action structs (same pattern as snippets)
-    - Auto-generated on config load via `generate_snippet_action_keybindings()`
-    - Settings UI pre-populates keybinding when editing existing actions
-    - Accessor methods: `keybinding()`, `keybinding_enabled()`, `set_keybinding()`, `set_keybinding_enabled()`
-  - **Comprehensive Test Suite**: 42 integration tests in `tests/snippets_actions_tests.rs`
-    - Snippet creation, storage, and serialization tests
-    - Variable substitution tests (builtin, custom, mixed, edge cases)
-    - Custom action type tests
-    - Keybinding generation tests (snippets and actions)
-    - Action keybinding lifecycle tests (create, update, disable, remove)
-    - Config persistence verification
-    - All 62 tests passing (42 integration + 20 unit)
-  - **Documentation**: Complete user guide in `docs/SNIPPETS.md`
-    - Creating and using snippets
-    - Variable reference table
-    - Action types and configuration
-    - Practical examples (Git, Docker, SSH, project templates)
-    - Tips and best practices
+  - **Settings UI**: Two new tabs — Snippets (📝) and Actions (🚀) — with full CRUD, keybinding recording, and conflict detection
+  - **Keybinding Auto-Generation**: Snippets and actions with keybinding field auto-generate keybindings on config load
+
+- **Progress Bar Rendering** (#92): Thin overlay progress bars rendered via egui at the top or bottom of the terminal window
+  - Supports OSC 9;4 protocol states (Normal, Warning, Error, Indeterminate)
+  - Configurable style (bar or bar-with-text), position, height, opacity, and per-state colors
+  - Animated indeterminate bar oscillates smoothly; multiple concurrent bars stack vertically
+  - Named concurrent progress bars (OSC 934) fully supported
+  - Full settings UI in new "Progress Bar" tab
+
+- **Progress Bar Shader Uniforms**: New `iProgress` vec4 uniform exposes progress bar state to custom GLSL shaders
+  - Components: `x` = state, `y` = percent, `z` = isActive, `w` = active bar count
+  - Enables shader effects that respond to progress (screen-edge glows, color shifts, particle effects)
+
+- **Paste Delay** (#93): New `paste_delay_ms` config option (0-500ms) adds a configurable delay between pasted lines. Useful for slow terminals or remote connections.
+
+- **Paste Transforms: Newline Control** (#93): Three new paste transformations via Paste Special:
+  - `Paste as Single Line`, `Add Newlines`, `Remove Newlines`
+
+- **Current Command in Window Title** (#94): Window title bar shows `[command_name]` when a command is running via shell integration. Reverts when command finishes.
+
+- **Shell Integration Badge Variables** (#94): New `\(session.exit_code)` and `\(session.current_command)` badge variables.
+
+- **Remote Host Integration** (#94): OSC 1337 RemoteHost sequence support. Remote hostname and username synced to badge variables from both OSC 7 and OSC 1337 sequences.
+
+- **Image Scaling Quality** (#90): Configurable texture filtering for inline images — `nearest` (pixel-perfect) or `linear` (smooth) via `image_scaling_mode` config.
+
+- **Image Aspect Ratio Control** (#90): Toggle to preserve or ignore aspect ratio for inline images via `image_preserve_aspect_ratio` config.
+
+- **Prompt on Quit**: Configurable confirmation dialog before closing with active sessions via `prompt_on_quit` config.
+
+- **Pane Title Bars** (#88): GPU-rendered title bars for split panes showing OSC title, CWD path, or fallback pane name
+  - Configurable height, position, text color, and background color
+  - Enable via `show_pane_titles: true` in config
+
+- **Divider Style Customization** (#88): Four visual styles for pane dividers — Solid, Double, Dashed, Shadow — via `pane_divider_style` config.
+
+### Changed
+
+- **Core Library**: Updated `par-term-emu-core-rust` from 0.33.0 to 0.35.0 (OSC 934 named progress bars, OSC 1337 SetUserVar)
+- **Cross-Platform Keybindings Overhaul**: Redesigned default keybindings on Linux/Windows to avoid conflicts with standard terminal control codes. macOS keybindings unchanged. Now follows WezTerm, Kitty, GNOME Terminal, and Windows Terminal conventions.
+- **Terminfo**: Modernized `par-term.terminfo` entry with direct-color, bracketed paste, and status line capabilities
+- **Dependencies**: Updated `libc`, `zip`, `notify`, `tempfile` to latest versions
+
+### Fixed
+
+- **Dingbat/Symbol Characters Rendering as Colored Emoji**: Fixed by reordering font fallback chain to prefer monochrome symbol fonts before color emoji fonts
+- **Snippet/Action Row Overflow**: Buttons anchored to right with auto-truncating content preview
+- **Platform-Specific Keybinding Display**: Shows `Cmd` on macOS and `Ctrl` on Linux/Windows
+- **Ctrl+C Not Sending SIGINT on Linux/Windows**: Now uses `Ctrl+Shift+C` for copy, allowing bare `Ctrl+C` to pass through
+- **Pane Focus Indicator Settings** (#88): Focus indicator and color now read from config correctly
+- **Pane Background Opacity** (#88): Slider now wired to rendering pipeline
+- **Divider Hover Color** (#88): Hover state now passed to renderer
+- **Divider Width/Hit Width Not Updating** (#88): Values now propagate on config change
+- **Background Solid Color in Split Panes** (#88): Custom color now used instead of theme color
+- **Double Divider Style** (#88): Proper double lines with gap when width >= 4px
+- **Shadow Divider Style** (#88): Beveled effect rendered within divider bounds
 
 ---
 
@@ -1360,7 +1260,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/paulrobello/par-term/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/paulrobello/par-term/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/paulrobello/par-term/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/paulrobello/par-term/compare/v0.8.0...v0.9.0

@@ -1107,27 +1107,27 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 ---
 
-### Recently Completed (v0.11.0)
-- ✅ Remote host integration: OSC 1337 RemoteHost support (core v0.33.0), hostname/username synced to badge variables
-- ✅ Shell integration title & badge: running command in window title, `\(session.exit_code)` and `\(session.current_command)` badge variables
-- ✅ Triggers & automation (regex triggers, 7 action types, coprocesses with restart policy & output viewer, Settings UI)
-- ✅ SetVariable → badge sync (trigger-captured variables displayed in badge overlay)
-- ✅ Trigger marks on scrollbar with deduplication and tooltips
-- ✅ Unified logging with configurable log level (config, CLI `--log-level`, Settings UI)
-- ✅ Full profile system with inheritance, tags, and keyboard shortcuts
-- ✅ Automatic profile switching (hostname patterns, tmux session patterns)
-- ✅ Shell integration (OSC 133/7/1337) with command marks
-- ✅ tmux control mode with native tabs/panes
+### Recently Completed (v0.12.0)
+- ✅ Snippets & actions system (text snippets, custom actions, keybinding recording, auto-execute)
+- ✅ Progress bar rendering (OSC 9;4 and OSC 934 named bars, iProgress shader uniform)
+- ✅ Paste delay and newline control transforms
+- ✅ Current command in window title, exit code and current command badge variables
+- ✅ Remote host integration: OSC 1337 RemoteHost support, hostname/username synced to badge variables
+- ✅ Image scaling quality and aspect ratio control
+- ✅ Pane title bars and divider style customization
+- ✅ Prompt on quit confirmation dialog
+- ✅ Cross-platform keybindings overhaul (Linux/Windows)
+
+### Previously Completed (v0.11.0)
+- ✅ Triggers & automation (regex triggers, 7 action types, coprocesses with restart policy & output viewer)
+- ✅ Unified logging with configurable log level
 - ✅ Semantic history (click file paths to open in editor)
 - ✅ Minimum contrast enforcement (WCAG compliance)
-- ✅ Shell exit action modes (5 options)
-- ✅ Close confirmation for running jobs
-- ✅ Modifier key remapping (per-side)
-- ✅ Physical key bindings (language-agnostic)
-- ✅ modifyOtherKeys protocol
+- ✅ Shell exit action modes, close confirmation for running jobs
+- ✅ Modifier key remapping, physical key bindings, modifyOtherKeys protocol
 
 ---
 
-*Updated: 2026-02-09 (Shell integration: title, badge, remote host)*
+*Updated: 2026-02-10 (Snippets, progress bars, paste enhancements, pane customization)*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.11.0+*
+*par-term Version: 0.12.0*
