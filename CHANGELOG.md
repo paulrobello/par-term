@@ -27,11 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Remote Host Integration** (#94): Added OSC 1337 RemoteHost sequence support (via core library v0.33.0). Remote hostname and username are now synced to `session.hostname` and `session.username` badge variables from both OSC 7 file:// URLs and OSC 1337 RemoteHost sequences. Automatic profile switching based on detected hostname continues to work with both sequence types.
 
-- **Progress Bar Rendering** (#92): Thin overlay progress bars rendered via egui at the top or bottom of the terminal window. Supports OSC 9;4 protocol states (Normal, Warning, Error, Indeterminate) with configurable style (bar or bar-with-text), position, height, opacity, and per-state colors. Animated indeterminate bar oscillates smoothly. Multiple concurrent bars stack vertically. Full settings UI in new "Progress Bar" tab. Named concurrent progress bars (OSC 934) frontend is ready, pending core library publish.
+- **Progress Bar Rendering** (#92): Thin overlay progress bars rendered via egui at the top or bottom of the terminal window. Supports OSC 9;4 protocol states (Normal, Warning, Error, Indeterminate) with configurable style (bar or bar-with-text), position, height, opacity, and per-state colors. Animated indeterminate bar oscillates smoothly. Multiple concurrent bars stack vertically. Full settings UI in new "Progress Bar" tab. Named concurrent progress bars (OSC 934) fully supported via core library v0.34.0.
 
 ### Changed
 
-- **Core Library**: Updated `par-term-emu-core-rust` dependency from 0.32.0 to 0.33.0 (adds OSC 1337 RemoteHost parsing).
+- **Core Library**: Updated `par-term-emu-core-rust` dependency from 0.33.0 to 0.34.0 (adds OSC 934 named progress bars, OSC 1337 SetUserVar).
 
 ### Fixed
 

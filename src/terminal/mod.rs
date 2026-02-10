@@ -1164,15 +1164,13 @@ impl TerminalManager {
     }
 
     /// Get all named progress bars (OSC 934)
-    ///
-    /// Returns an empty map until the core library publishes OSC 934 support.
-    /// Once `par-term-emu-core-rust` >= 0.34.0 adds `named_progress_bars()`,
-    /// this method should delegate to it.
     pub fn named_progress_bars(
         &self,
-    ) -> std::collections::HashMap<String, crate::progress_bar::NamedProgressBar> {
-        // TODO: delegate to term.named_progress_bars() once core library publishes OSC 934 support
-        std::collections::HashMap::new()
+    ) -> std::collections::HashMap<String, par_term_emu_core_rust::terminal::NamedProgressBar> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.named_progress_bars().clone()
     }
 
     /// Check if any progress bar is currently active (either simple or named)
@@ -1180,7 +1178,7 @@ impl TerminalManager {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let term = terminal.lock();
-        term.has_progress()
+        term.has_progress() || !term.named_progress_bars().is_empty()
     }
 }
 

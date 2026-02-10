@@ -4,25 +4,9 @@
 //! protocols as thin bar overlays at the top or bottom of the terminal window.
 
 use crate::config::{Config, ProgressBarPosition, ProgressBarStyle};
+pub use par_term_emu_core_rust::terminal::NamedProgressBar;
 use par_term_emu_core_rust::terminal::{ProgressBar, ProgressState};
 use std::collections::HashMap;
-
-/// A named progress bar (OSC 934).
-///
-/// This is a local definition that mirrors the core library's `NamedProgressBar`
-/// type. Once the core library publishes OSC 934 support, this can be replaced
-/// with a re-export.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NamedProgressBar {
-    /// Unique identifier for the progress bar
-    pub id: String,
-    /// Current progress state
-    pub state: ProgressState,
-    /// Progress percentage (0-100)
-    pub percent: u8,
-    /// Optional descriptive label
-    pub label: Option<String>,
-}
 
 /// Snapshot of all active progress bars for rendering.
 ///

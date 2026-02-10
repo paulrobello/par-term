@@ -1017,11 +1017,11 @@ impl ProgressBarStyle {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ProgressBarPosition {
-    /// Bottom of the terminal window (default)
+    /// Top of the terminal window (default)
     #[default]
-    Bottom,
-    /// Top of the terminal window
     Top,
+    /// Bottom of the terminal window
+    Bottom,
 }
 
 impl ProgressBarPosition {
@@ -1035,7 +1035,7 @@ impl ProgressBarPosition {
 
     /// All available positions for UI iteration
     pub fn all() -> &'static [ProgressBarPosition] {
-        &[ProgressBarPosition::Bottom, ProgressBarPosition::Top]
+        &[ProgressBarPosition::Top, ProgressBarPosition::Bottom]
     }
 }
 
