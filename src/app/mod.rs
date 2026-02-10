@@ -15,6 +15,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 pub mod anti_idle;
 pub mod bell;
 pub mod config_updates;
+pub mod copy_mode_handler;
 pub mod debug_state;
 pub mod handler;
 pub mod input_events;

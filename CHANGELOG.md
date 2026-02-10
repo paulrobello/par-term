@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Vi-Style Copy Mode** (#99): Keyboard-driven text selection and navigation (iTerm2 parity)
+  - Enter via configurable keybinding (`toggle_copy_mode` / `enter_copy_mode` action)
+  - Modal state machine: all keyboard input navigates an independent cursor through terminal buffer including scrollback
+  - **Navigation**: `h/j/k/l` directional, `0/$` line start/end, `^` first non-blank, arrow keys, Home/End
+  - **Word motions**: `w/b/e` word forward/backward/end, `W/B/E` WORD (whitespace-delimited) variants
+  - **Page motions**: `Ctrl+U/D` half page, `Ctrl+B/F` full page, `gg` top, `G` bottom, `{count}G` goto line
+  - **Count prefix**: `{count}` before any motion (e.g., `5j` moves down 5 lines)
+  - **Visual selection**: `v` character, `V` line, `Ctrl+V` block/rectangular modes
+  - **Yank**: `y` in visual mode copies selection to clipboard and exits copy mode
+  - **Search**: `/pattern` forward, `?pattern` backward, `n/N` repeat search (case-insensitive, wrapping)
+  - **Marks**: `m{a-z}` set mark, `'{a-z}` jump to mark
+  - **Cursor**: Steady block cursor in copy mode, real terminal cursor hidden
+  - **Status bar**: egui overlay at bottom showing mode (COPY/VISUAL/V-LINE/V-BLOCK/SEARCH) and position
+  - **Auto-scroll**: Viewport follows cursor when it moves offscreen
+  - **Tab switch**: Copy mode exits automatically when switching tabs
+  - **Escape**: Exits visual mode first, then copy mode on second press; `q` exits immediately
+  - **Settings UI**: Enable/disable copy mode, auto-exit on yank, show/hide status bar (Settings > Input > Copy Mode)
+  - **Default keybinding**: `Cmd+Shift+C` (macOS) / `Ctrl+Shift+Space` (Linux/Windows), configurable in Settings > Input > Keybindings
+  - **Help panel**: Full copy mode reference added to F1 help
+
 - **Unicode Normalization**: Configurable Unicode normalization form (NFC/NFD/NFKC/NFKD/None) for text processing. NFC is the default. Exposed in Settings > Terminal > Unicode section. Live-updates across all tabs when changed.
 
 ---

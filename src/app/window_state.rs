@@ -229,6 +229,10 @@ pub struct WindowState {
     // Badge overlay
     /// Badge state for session information display
     pub(crate) badge_state: BadgeState,
+
+    // Copy mode (vi-style keyboard text selection)
+    /// Copy mode state machine
+    pub(crate) copy_mode: crate::copy_mode::CopyModeState,
 }
 
 impl WindowState {
@@ -340,6 +344,8 @@ impl WindowState {
             broadcast_input: false,
 
             badge_state,
+
+            copy_mode: crate::copy_mode::CopyModeState::new(),
         }
     }
 
@@ -1373,8 +1379,11 @@ impl WindowState {
             // Get cursor position and opacity (only show if we're at the bottom with no scroll offset
             // and the cursor is visible - TUI apps hide cursor via DECTCEM escape sequence)
             // If lock_cursor_visibility is enabled, ignore the terminal's visibility state
+            // In copy mode, use the copy mode cursor position instead
             let cursor_visible = self.config.lock_cursor_visibility || term.is_cursor_visible();
-            let current_cursor_pos = if scroll_offset == 0 && cursor_visible {
+            let current_cursor_pos = if self.copy_mode.active {
+                self.copy_mode.screen_cursor_pos(scroll_offset)
+            } else if scroll_offset == 0 && cursor_visible {
                 Some(term.cursor_position())
             } else {
                 None
@@ -1383,9 +1392,12 @@ impl WindowState {
             let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_opacity));
 
             // Get cursor style for geometric rendering
+            // In copy mode, always use SteadyBlock for clear visibility
             // If lock_cursor_style is enabled, use the config's cursor style instead of terminal's
             // If lock_cursor_blink is enabled and cursor_blink is false, force steady cursor
-            let cursor_style = if current_cursor_pos.is_some() {
+            let cursor_style = if self.copy_mode.active && current_cursor_pos.is_some() {
+                Some(TermCursorStyle::SteadyBlock)
+            } else if current_cursor_pos.is_some() {
                 if self.config.lock_cursor_style {
                     // Convert config cursor style to terminal cursor style
                     let style = if self.config.cursor_blink {
@@ -1529,6 +1541,14 @@ impl WindowState {
             tab.cache.scrollback_len = scrollback_len;
             tab.scroll_state
                 .clamp_to_scrollback(tab.cache.scrollback_len);
+        }
+
+        // Keep copy mode dimensions in sync with terminal
+        if self.copy_mode.active
+            && let Ok(term) = terminal.try_lock()
+        {
+            let (cols, rows) = term.dimensions();
+            self.copy_mode.update_dimensions(cols, rows, scrollback_len);
         }
 
         let mut scrollback_marks = if self.config.scrollbar_command_marks {
@@ -1916,6 +1936,58 @@ impl WindowState {
                                             .monospace()
                                             .size(24.0),
                                         );
+                                    });
+                            });
+                    }
+
+                    // Show copy mode status bar overlay (when enabled in config)
+                    if self.copy_mode.active && self.config.copy_mode_show_status {
+                        let status = self.copy_mode.status_text();
+                        let (mode_text, color) = if self.copy_mode.is_searching {
+                            ("SEARCH", egui::Color32::from_rgb(255, 165, 0))
+                        } else {
+                            match self.copy_mode.visual_mode {
+                                crate::copy_mode::VisualMode::None => {
+                                    ("COPY", egui::Color32::from_rgb(100, 200, 100))
+                                }
+                                crate::copy_mode::VisualMode::Char => {
+                                    ("VISUAL", egui::Color32::from_rgb(100, 150, 255))
+                                }
+                                crate::copy_mode::VisualMode::Line => {
+                                    ("V-LINE", egui::Color32::from_rgb(100, 150, 255))
+                                }
+                                crate::copy_mode::VisualMode::Block => {
+                                    ("V-BLOCK", egui::Color32::from_rgb(100, 150, 255))
+                                }
+                            }
+                        };
+
+                        egui::Area::new(egui::Id::new("copy_mode_status_bar"))
+                            .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(0.0, 0.0))
+                            .order(egui::Order::Foreground)
+                            .show(ctx, |ui| {
+                                let available_width = ui.available_width();
+                                egui::Frame::NONE
+                                    .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 40, 230))
+                                    .inner_margin(egui::Margin::symmetric(12, 6))
+                                    .show(ui, |ui| {
+                                        ui.set_min_width(available_width);
+                                        ui.horizontal(|ui| {
+                                            ui.label(
+                                                egui::RichText::new(mode_text)
+                                                    .monospace()
+                                                    .size(13.0)
+                                                    .color(color)
+                                                    .strong(),
+                                            );
+                                            ui.separator();
+                                            ui.label(
+                                                egui::RichText::new(&status)
+                                                    .monospace()
+                                                    .size(12.0)
+                                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                                            );
+                                        });
                                     });
                             });
                     }

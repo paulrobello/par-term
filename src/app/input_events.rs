@@ -42,6 +42,14 @@ impl WindowState {
             return;
         }
 
+        // Copy mode intercepts all keyboard input
+        if self.is_copy_mode_active() {
+            if event.state == ElementState::Pressed {
+                self.handle_copy_mode_key(&event);
+            }
+            return;
+        }
+
         // Check if active tab's shell has exited
         let is_running = if let Some(tab) = self.tab_manager.active_tab() {
             if let Ok(term) = tab.terminal.try_lock() {
@@ -1277,6 +1285,14 @@ impl WindowState {
                         "hidden"
                     }
                 );
+                true
+            }
+            "toggle_copy_mode" | "enter_copy_mode" => {
+                if self.is_copy_mode_active() {
+                    self.exit_copy_mode();
+                } else {
+                    self.enter_copy_mode();
+                }
                 true
             }
             "toggle_broadcast_input" => {

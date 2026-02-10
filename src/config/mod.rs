@@ -559,6 +559,27 @@ pub struct Config {
     pub smart_selection_rules: Vec<SmartSelectionRule>,
 
     // ========================================================================
+    // Copy Mode (vi-style keyboard-driven selection)
+    // ========================================================================
+    /// Enable copy mode (vi-style keyboard-driven text selection and navigation).
+    /// When enabled, users can enter copy mode via the `toggle_copy_mode` keybinding
+    /// action to navigate the terminal buffer with vi keys and yank text.
+    #[serde(default = "defaults::bool_true")]
+    pub copy_mode_enabled: bool,
+
+    /// Automatically exit copy mode after yanking (copying) selected text.
+    /// When true (default), pressing `y` in visual mode copies text and exits copy mode.
+    /// When false, copy mode stays active after yanking so you can continue selecting.
+    #[serde(default = "defaults::bool_true")]
+    pub copy_mode_auto_exit_on_yank: bool,
+
+    /// Show a status bar at the bottom of the terminal when copy mode is active.
+    /// The status bar displays the current mode (COPY/VISUAL/V-LINE/V-BLOCK/SEARCH)
+    /// and cursor position information.
+    #[serde(default = "defaults::bool_true")]
+    pub copy_mode_show_status: bool,
+
+    // ========================================================================
     // Scrollback & Cursor
     // ========================================================================
     /// Maximum number of lines to keep in scrollback buffer
@@ -1478,6 +1499,9 @@ impl Default for Config {
             font_hinting: defaults::bool_true(),
             font_thin_strokes: ThinStrokesMode::default(),
             minimum_contrast: defaults::minimum_contrast(),
+            copy_mode_enabled: defaults::bool_true(),
+            copy_mode_auto_exit_on_yank: defaults::bool_true(),
+            copy_mode_show_status: defaults::bool_true(),
             scrollback_lines: defaults::scrollback(),
             unicode_version: defaults::unicode_version(),
             ambiguous_width: defaults::ambiguous_width(),
