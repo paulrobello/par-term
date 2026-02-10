@@ -469,6 +469,9 @@ impl WindowState {
                 // Update middle_click_paste
                 self.config.middle_click_paste = new_config.middle_click_paste;
 
+                // Update paste_delay_ms
+                self.config.paste_delay_ms = new_config.paste_delay_ms;
+
                 // Update window title (check both title and show_window_number)
                 if self.config.window_title != new_config.window_title
                     || self.config.show_window_number != new_config.show_window_number
@@ -665,9 +668,14 @@ impl WindowState {
         if let Some(tab) = self.tab_manager.active_tab() {
             let terminal_clone = Arc::clone(&tab.terminal);
             let text = text.to_string();
+            let delay_ms = self.config.paste_delay_ms;
             self.runtime.spawn(async move {
                 let term = terminal_clone.lock().await;
-                let _ = term.paste(&text);
+                if delay_ms > 0 && text.contains('\n') {
+                    let _ = term.paste_with_delay(&text, delay_ms).await;
+                } else {
+                    let _ = term.paste(&text);
+                }
                 log::debug!("Pasted text ({} chars)", text.len());
             });
         }
