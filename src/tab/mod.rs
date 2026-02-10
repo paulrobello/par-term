@@ -74,27 +74,41 @@ const PATH_SEPARATOR: char = ':';
 ///
 /// When launched from Finder on macOS (or similar on other platforms), the PATH may be minimal.
 /// This function augments the PATH with common directories where user tools are installed.
-fn build_shell_env(
+pub(crate) fn build_shell_env(
     config_env: Option<&std::collections::HashMap<String, String>>,
 ) -> Option<std::collections::HashMap<String, String>> {
-    // Get the current PATH
+    // Advertise as iTerm.app for maximum compatibility with tools that check
+    // TERM_PROGRAM for feature detection (progress bars, hyperlinks, clipboard, etc.)
+    // par-term supports all the relevant iTerm2 protocols (OSC 8, 9;4, 52, 1337).
+    let mut env = std::collections::HashMap::new();
+    env.insert("TERM_PROGRAM".to_string(), "iTerm.app".to_string());
+    env.insert("TERM_PROGRAM_VERSION".to_string(), "3.6.6".to_string());
+    env.insert("LC_TERMINAL".to_string(), "iTerm2".to_string());
+    env.insert("LC_TERMINAL_VERSION".to_string(), "3.6.6".to_string());
+
+    // ITERM_SESSION_ID: used by Claude Code and other tools for OSC 52 clipboard detection
+    // Format: w{window}t{tab}p{pane}:{UUID}
+    let session_uuid = uuid::Uuid::new_v4();
+    env.insert(
+        "ITERM_SESSION_ID".to_string(),
+        format!("w0t0p0:{session_uuid}"),
+    );
+
+    // Merge user-configured shell_env (user values take precedence)
+    if let Some(config) = config_env {
+        for (key, value) in config {
+            env.insert(key.clone(), value.clone());
+        }
+    }
+
+    // Build augmented PATH with platform-specific extra directories
     let current_path = std::env::var("PATH").unwrap_or_default();
-
-    // Build platform-specific extra paths
     let extra_paths = build_platform_extra_paths();
-
-    // Filter to paths that exist and aren't already in PATH
     let new_paths: Vec<String> = extra_paths
         .into_iter()
         .filter(|p| !p.is_empty() && !current_path.contains(p) && std::path::Path::new(p).exists())
         .collect();
 
-    // If nothing to add and no config env, return the config env as-is
-    if new_paths.is_empty() && config_env.is_none() {
-        return None;
-    }
-
-    // Build the augmented PATH using platform-specific separator
     let augmented_path = if new_paths.is_empty() {
         current_path
     } else {
@@ -105,9 +119,6 @@ fn build_shell_env(
             current_path
         )
     };
-
-    // Start with config env or empty map
-    let mut env = config_env.cloned().unwrap_or_default();
     env.insert("PATH".to_string(), augmented_path);
 
     Some(env)

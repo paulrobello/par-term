@@ -109,20 +109,32 @@ pub fn render_progress_bars(
                 );
 
                 if bar.state == ProgressState::Indeterminate {
-                    // Animated indeterminate bar: use time-based animation
+                    // Animated indeterminate bar: full-width cycling gradient
                     let time = ctx.input(|i| i.time) as f32;
-                    let cycle = (time * 1.5).sin() * 0.5 + 0.5; // 0..1 oscillation
-                    let bar_w = window_width * 0.3;
-                    let x = cycle * (window_width - bar_w);
-                    painter.rect_filled(
-                        egui::Rect::from_min_size(
-                            egui::pos2(x, bar_y),
-                            egui::vec2(bar_w, bar_height),
-                        ),
-                        0.0,
-                        color,
-                    );
-                    // Request repaint for animation
+                    let segments = (window_width / 2.0).max(64.0) as usize;
+                    let seg_width = window_width / segments as f32;
+
+                    for s in 0..segments {
+                        let t = s as f32 / segments as f32;
+                        // Scrolling sine wave: two bright bands cycling across
+                        let phase = (t * std::f32::consts::TAU * 2.0) - (time * 3.0);
+                        let brightness = phase.sin() * 0.5 + 0.5; // 0..1
+                        let seg_alpha = (alpha as f32 * (0.25 + 0.75 * brightness)) as u8;
+                        let seg_color = egui::Color32::from_rgba_unmultiplied(
+                            color.r(),
+                            color.g(),
+                            color.b(),
+                            seg_alpha,
+                        );
+                        painter.rect_filled(
+                            egui::Rect::from_min_size(
+                                egui::pos2(s as f32 * seg_width, bar_y),
+                                egui::vec2(seg_width + 1.0, bar_height),
+                            ),
+                            0.0,
+                            seg_color,
+                        );
+                    }
                     ctx.request_repaint();
                 } else {
                     // Determinate bar: fill based on percentage
