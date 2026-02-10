@@ -94,6 +94,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | **Per-shader configuration** | ❌ | ✅ `shader_configs` | ✅ | - | - | **par-term exclusive** |
 | **Shader texture channels** | ❌ | ✅ `custom_shader_channel0-3` | ✅ | - | - | **par-term exclusive** - Shadertoy compatible |
 | **Shader cubemap support** | ❌ | ✅ `custom_shader_cubemap` | ✅ | - | - | **par-term exclusive** |
+| **Shader progress uniforms** | ❌ | ✅ `iProgress` vec4 | ✅ | - | - | **par-term exclusive** - progress bar state in shaders |
 
 ---
 
@@ -775,6 +776,7 @@ iTerm2 supports showing progress for long-running commands.
 | Progress bar style | ✅ | ✅ | ✅ | ⭐ | 🟢 | Bar and bar-with-text styles |
 | Progress bar position | ✅ | ✅ | ✅ | ⭐ | 🟡 | Top/bottom placement |
 | Multiple progress bars | ✅ | ✅ | ✅ | ⭐ | 🟡 | OSC 934 named concurrent bars |
+| **Progress bar shader uniforms** | ❌ | ✅ `iProgress` | ✅ | - | - | **par-term exclusive** - expose state to custom shaders |
 
 ---
 
@@ -887,7 +889,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Window & Display | 14 | 0 | 2 |
 | Typography & Fonts | 16 | 1 | 0 |
 | Cursor | 12 | 0 | 0 |
-| Background & Effects | 10 | 0 | 1 |
+| Background & Effects | 11 | 0 | 1 |
 | Colors & Themes | 16 | 0 | 1 |
 | Tab Bar | 16 | 1 | 2 |
 | Scrollback & Scrollbar | 11 | 1 | 1 |
@@ -922,15 +924,15 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Advanced Configuration | 1 | 0 | 7 |
 | Unicode & Text Processing | 3 | 0 | 3 |
 | Browser Integration | 0 | 0 | 4 |
-| Progress Bars | 4 | 0 | 0 |
+| Progress Bars | 5 | 0 | 0 |
 | Advanced Paste & Input | 6 | 0 | 0 |
 | Advanced Shell Integration | 6 | 1 | 1 |
 | Network & Discovery | 0 | 0 | 4 |
 | Miscellaneous | 10 | 0 | 7 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~285** | **~5** | **~124** |
+| **TOTAL** | **~287** | **~5** | **~124** |
 
-**Overall Parity: ~69% of iTerm2 features implemented** (285 implemented out of ~414 total tracked features)
+**Overall Parity: ~69% of iTerm2 features implemented** (287 implemented out of ~416 total tracked features)
 
 **Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
@@ -939,6 +941,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 - 12+ cursor shader effects (GPU-powered cursor animations)
 - Per-shader configuration system with metadata
 - Shadertoy-compatible texture channels and cubemaps
+- Progress bar shader uniforms (`iProgress` — react to OSC 9;4 / OSC 934 state)
 - First-run shader install prompt (auto-detect missing shaders)
 - Scrollbar customization (position, colors, width, auto-hide)
 - Scrollbar mark tooltips (command, time, duration, exit code)
