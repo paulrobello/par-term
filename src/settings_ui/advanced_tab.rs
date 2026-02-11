@@ -12,9 +12,15 @@ use super::SettingsUI;
 use super::section::{INPUT_WIDTH, collapsing_section};
 use crate::config::{LogLevel, SessionLogFormat, UpdateCheckFrequency};
 use crate::update_checker::format_timestamp;
+use std::collections::HashSet;
 
 /// Show the advanced tab content.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
     let query = settings.search_query.trim().to_lowercase();
 
     // tmux Integration section
@@ -23,7 +29,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "tmux Integration",
         &["tmux", "control mode", "session", "attach"],
     ) {
-        show_tmux_section(ui, settings, changes_this_frame);
+        show_tmux_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Session Logging section
@@ -32,7 +38,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Session Logging",
         &["logging", "recording", "asciicast", "asciinema"],
     ) {
-        show_logging_section(ui, settings, changes_this_frame);
+        show_logging_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Screenshots section (collapsed by default)
@@ -41,7 +47,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Screenshots",
         &["screenshot", "format", "png", "jpeg"],
     ) {
-        show_screenshot_section(ui, settings, changes_this_frame);
+        show_screenshot_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Updates section
@@ -50,7 +56,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Updates",
         &["update", "version", "check", "release"],
     ) {
-        show_updates_section(ui, settings, changes_this_frame);
+        show_updates_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Debug Logging section
@@ -67,7 +73,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "diagnostics",
         ],
     ) {
-        show_debug_logging_section(ui, settings, changes_this_frame);
+        show_debug_logging_section(ui, settings, changes_this_frame, collapsed);
     }
 }
 
@@ -85,162 +91,177 @@ fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
 // tmux Integration Section
 // ============================================================================
 
-fn show_tmux_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
-    collapsing_section(ui, "tmux Integration", "advanced_tmux", true, |ui| {
-        ui.label("Configure tmux control mode integration");
-        ui.add_space(8.0);
+fn show_tmux_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(
+        ui,
+        "tmux Integration",
+        "advanced_tmux",
+        true,
+        collapsed,
+        |ui| {
+            ui.label("Configure tmux control mode integration");
+            ui.add_space(8.0);
 
-        if ui
-            .checkbox(&mut settings.config.tmux_enabled, "Enable tmux integration")
-            .on_hover_text("Use tmux control mode for session management and split panes")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        if !settings.config.tmux_enabled {
-            ui.label(egui::RichText::new("tmux integration is disabled").italics());
-            return;
-        }
-
-        ui.add_space(8.0);
-
-        // tmux Path
-        ui.label(egui::RichText::new("Executable").strong());
-        ui.horizontal(|ui| {
-            ui.label("tmux path:");
             if ui
-                .add(
-                    egui::TextEdit::singleline(&mut settings.config.tmux_path)
-                        .desired_width(INPUT_WIDTH),
-                )
-                .on_hover_text("Path to tmux executable (default: 'tmux' uses PATH)")
+                .checkbox(&mut settings.config.tmux_enabled, "Enable tmux integration")
+                .on_hover_text("Use tmux control mode for session management and split panes")
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        ui.add_space(8.0);
-
-        // Session Settings
-        ui.label(egui::RichText::new("Sessions").strong());
-        ui.horizontal(|ui| {
-            ui.label("Default session name:");
-            let mut session_name = settings
-                .config
-                .tmux_default_session
-                .clone()
-                .unwrap_or_default();
-            if ui
-                .add(egui::TextEdit::singleline(&mut session_name).desired_width(INPUT_WIDTH))
-                .on_hover_text("Name for new tmux sessions (leave empty for tmux default)")
-                .changed()
-            {
-                settings.config.tmux_default_session = if session_name.is_empty() {
-                    None
-                } else {
-                    Some(session_name)
-                };
-                settings.has_changes = true;
-                *changes_this_frame = true;
+            if !settings.config.tmux_enabled {
+                ui.label(egui::RichText::new("tmux integration is disabled").italics());
+                return;
             }
-        });
 
-        ui.add_space(8.0);
+            ui.add_space(8.0);
 
-        // Auto-attach
-        ui.label(egui::RichText::new("Auto-Attach").strong());
-        if ui
-            .checkbox(
-                &mut settings.config.tmux_auto_attach,
-                "Auto-attach on startup",
-            )
-            .on_hover_text("Automatically attach to a tmux session when par-term starts")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        if settings.config.tmux_auto_attach {
+            // tmux Path
+            ui.label(egui::RichText::new("Executable").strong());
             ui.horizontal(|ui| {
-                ui.label("Session to attach:");
-                let mut attach_session = settings
+                ui.label("tmux path:");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.config.tmux_path)
+                            .desired_width(INPUT_WIDTH),
+                    )
+                    .on_hover_text("Path to tmux executable (default: 'tmux' uses PATH)")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(8.0);
+
+            // Session Settings
+            ui.label(egui::RichText::new("Sessions").strong());
+            ui.horizontal(|ui| {
+                ui.label("Default session name:");
+                let mut session_name = settings
                     .config
-                    .tmux_auto_attach_session
+                    .tmux_default_session
                     .clone()
                     .unwrap_or_default();
                 if ui
-                    .add(egui::TextEdit::singleline(&mut attach_session).desired_width(INPUT_WIDTH))
-                    .on_hover_text("Session name to auto-attach (leave empty for most recent)")
+                    .add(egui::TextEdit::singleline(&mut session_name).desired_width(INPUT_WIDTH))
+                    .on_hover_text("Name for new tmux sessions (leave empty for tmux default)")
                     .changed()
                 {
-                    settings.config.tmux_auto_attach_session = if attach_session.is_empty() {
+                    settings.config.tmux_default_session = if session_name.is_empty() {
                         None
                     } else {
-                        Some(attach_session)
+                        Some(session_name)
                     };
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
             });
-        }
 
-        ui.add_space(8.0);
+            ui.add_space(8.0);
 
-        // Clipboard Sync
-        ui.label(egui::RichText::new("Clipboard").strong());
-        if ui
-            .checkbox(
-                &mut settings.config.tmux_clipboard_sync,
-                "Sync clipboard with tmux",
-            )
-            .on_hover_text("When copying, also update tmux's paste buffer via set-buffer")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+            // Auto-attach
+            ui.label(egui::RichText::new("Auto-Attach").strong());
+            if ui
+                .checkbox(
+                    &mut settings.config.tmux_auto_attach,
+                    "Auto-attach on startup",
+                )
+                .on_hover_text("Automatically attach to a tmux session when par-term starts")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-        ui.add_space(8.0);
+            if settings.config.tmux_auto_attach {
+                ui.horizontal(|ui| {
+                    ui.label("Session to attach:");
+                    let mut attach_session = settings
+                        .config
+                        .tmux_auto_attach_session
+                        .clone()
+                        .unwrap_or_default();
+                    if ui
+                        .add(
+                            egui::TextEdit::singleline(&mut attach_session)
+                                .desired_width(INPUT_WIDTH),
+                        )
+                        .on_hover_text("Session name to auto-attach (leave empty for most recent)")
+                        .changed()
+                    {
+                        settings.config.tmux_auto_attach_session = if attach_session.is_empty() {
+                            None
+                        } else {
+                            Some(attach_session)
+                        };
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+            }
 
-        // Status Bar
-        ui.label(egui::RichText::new("Status Bar").strong());
-        if ui
-            .checkbox(
-                &mut settings.config.tmux_show_status_bar,
-                "Show tmux status bar",
-            )
-            .on_hover_text("Display tmux status bar at bottom when connected")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+            ui.add_space(8.0);
 
-        // Status bar settings (only show if status bar is enabled)
-        if settings.config.tmux_show_status_bar {
-            ui.horizontal(|ui| {
-                ui.label("Refresh interval:");
-                let mut refresh_secs = settings.config.tmux_status_bar_refresh_ms as f32 / 1000.0;
-                if ui
-                    .add(egui::Slider::new(&mut refresh_secs, 0.5..=10.0).suffix("s"))
-                    .on_hover_text("How often to update the status bar content")
-                    .changed()
-                {
-                    settings.config.tmux_status_bar_refresh_ms = (refresh_secs * 1000.0) as u64;
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            });
+            // Clipboard Sync
+            ui.label(egui::RichText::new("Clipboard").strong());
+            if ui
+                .checkbox(
+                    &mut settings.config.tmux_clipboard_sync,
+                    "Sync clipboard with tmux",
+                )
+                .on_hover_text("When copying, also update tmux's paste buffer via set-buffer")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-            ui.add_space(4.0);
+            ui.add_space(8.0);
 
-            // Left format string
-            ui.horizontal(|ui| {
+            // Status Bar
+            ui.label(egui::RichText::new("Status Bar").strong());
+            if ui
+                .checkbox(
+                    &mut settings.config.tmux_show_status_bar,
+                    "Show tmux status bar",
+                )
+                .on_hover_text("Display tmux status bar at bottom when connected")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            // Status bar settings (only show if status bar is enabled)
+            if settings.config.tmux_show_status_bar {
+                ui.horizontal(|ui| {
+                    ui.label("Refresh interval:");
+                    let mut refresh_secs =
+                        settings.config.tmux_status_bar_refresh_ms as f32 / 1000.0;
+                    if ui
+                        .add(egui::Slider::new(&mut refresh_secs, 0.5..=10.0).suffix("s"))
+                        .on_hover_text("How often to update the status bar content")
+                        .changed()
+                    {
+                        settings.config.tmux_status_bar_refresh_ms = (refresh_secs * 1000.0) as u64;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+
+                ui.add_space(4.0);
+
+                // Left format string
+                ui.horizontal(|ui| {
                 ui.label("Left format:");
                 if ui
                     .add(
@@ -257,8 +278,8 @@ fn show_tmux_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_
                 }
             });
 
-            // Right format string
-            ui.horizontal(|ui| {
+                // Right format string
+                ui.horizontal(|ui| {
                 ui.label("Right format:");
                 if ui
                     .add(
@@ -275,36 +296,37 @@ fn show_tmux_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_
                 }
             });
 
-            // Help text for format variables
-            ui.add_space(2.0);
-            ui.label(
-                egui::RichText::new(
-                    "Variables: {session}, {windows}, {pane}, {time:%H:%M}, {hostname}, {user}",
-                )
-                .small()
-                .color(egui::Color32::GRAY),
-            );
-        }
-
-        ui.add_space(8.0);
-
-        // Prefix Key
-        ui.label(egui::RichText::new("Prefix Key").strong());
-        ui.horizontal(|ui| {
-            ui.label("Prefix key:");
-            if ui
-                .add(
-                    egui::TextEdit::singleline(&mut settings.config.tmux_prefix_key)
-                        .desired_width(INPUT_WIDTH),
-                )
-                .on_hover_text("Key combination for tmux commands (e.g., C-b, C-Space)")
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
+                // Help text for format variables
+                ui.add_space(2.0);
+                ui.label(
+                    egui::RichText::new(
+                        "Variables: {session}, {windows}, {pane}, {time:%H:%M}, {hostname}, {user}",
+                    )
+                    .small()
+                    .color(egui::Color32::GRAY),
+                );
             }
-        });
-    });
+
+            ui.add_space(8.0);
+
+            // Prefix Key
+            ui.label(egui::RichText::new("Prefix Key").strong());
+            ui.horizontal(|ui| {
+                ui.label("Prefix key:");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.config.tmux_prefix_key)
+                            .desired_width(INPUT_WIDTH),
+                    )
+                    .on_hover_text("Key combination for tmux commands (e.g., C-b, C-Space)")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        },
+    );
 }
 
 // ============================================================================
@@ -315,95 +337,107 @@ fn show_logging_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Session Logging", "advanced_logging", true, |ui| {
-        ui.label("Automatically record terminal sessions for later review, debugging, or sharing.");
-        ui.add_space(8.0);
-
-        let mut auto_log = settings.config.auto_log_sessions;
-        if ui
-            .checkbox(&mut auto_log, "Enable automatic session logging")
-            .on_hover_text("When enabled, all terminal output is logged to files")
-            .changed()
-        {
-            settings.config.auto_log_sessions = auto_log;
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.add_space(8.0);
-
-        ui.horizontal(|ui| {
-            ui.label("Log format:");
-
-            let current_format = settings.config.session_log_format;
-            let format_name = current_format.display_name();
-
-            egui::ComboBox::from_id_salt("advanced_session_log_format")
-                .width(180.0)
-                .selected_text(format_name)
-                .show_ui(ui, |ui| {
-                    for format in SessionLogFormat::all() {
-                        if ui
-                            .selectable_label(current_format == *format, format.display_name())
-                            .clicked()
-                            && current_format != *format
-                        {
-                            settings.config.session_log_format = *format;
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
-                    }
-                });
-        });
-
-        ui.add_space(4.0);
-        ui.label(
-            egui::RichText::new(match settings.config.session_log_format {
-                SessionLogFormat::Plain => "Plain text without escape sequences - smallest files",
-                SessionLogFormat::Html => "HTML with colors preserved - viewable in browser",
-                SessionLogFormat::Asciicast => "asciinema format - can be replayed or shared",
-            })
-            .weak(),
-        );
-
-        ui.add_space(8.0);
-
-        ui.horizontal(|ui| {
-            ui.label("Log directory:");
-            let mut dir = settings.config.session_log_directory.clone();
-            let response = ui.add(
-                egui::TextEdit::singleline(&mut dir)
-                    .desired_width(300.0)
-                    .hint_text("~/.local/share/par-term/logs/"),
+    collapsing_section(
+        ui,
+        "Session Logging",
+        "advanced_logging",
+        true,
+        collapsed,
+        |ui| {
+            ui.label(
+                "Automatically record terminal sessions for later review, debugging, or sharing.",
             );
-            if response.changed() {
-                settings.config.session_log_directory = dir;
+            ui.add_space(8.0);
+
+            let mut auto_log = settings.config.auto_log_sessions;
+            if ui
+                .checkbox(&mut auto_log, "Enable automatic session logging")
+                .on_hover_text("When enabled, all terminal output is logged to files")
+                .changed()
+            {
+                settings.config.auto_log_sessions = auto_log;
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        let resolved_path = settings.config.logs_dir();
-        ui.label(
-            egui::RichText::new(format!("Resolved: {}", resolved_path.display()))
-                .weak()
-                .small(),
-        );
+            ui.add_space(8.0);
 
-        ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.label("Log format:");
 
-        let mut archive = settings.config.archive_on_close;
-        if ui
-            .checkbox(&mut archive, "Archive session on tab close")
-            .on_hover_text("Ensures session is fully written when tab closes")
-            .changed()
-        {
-            settings.config.archive_on_close = archive;
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-    });
+                let current_format = settings.config.session_log_format;
+                let format_name = current_format.display_name();
+
+                egui::ComboBox::from_id_salt("advanced_session_log_format")
+                    .width(180.0)
+                    .selected_text(format_name)
+                    .show_ui(ui, |ui| {
+                        for format in SessionLogFormat::all() {
+                            if ui
+                                .selectable_label(current_format == *format, format.display_name())
+                                .clicked()
+                                && current_format != *format
+                            {
+                                settings.config.session_log_format = *format;
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(match settings.config.session_log_format {
+                    SessionLogFormat::Plain => {
+                        "Plain text without escape sequences - smallest files"
+                    }
+                    SessionLogFormat::Html => "HTML with colors preserved - viewable in browser",
+                    SessionLogFormat::Asciicast => "asciinema format - can be replayed or shared",
+                })
+                .weak(),
+            );
+
+            ui.add_space(8.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Log directory:");
+                let mut dir = settings.config.session_log_directory.clone();
+                let response = ui.add(
+                    egui::TextEdit::singleline(&mut dir)
+                        .desired_width(300.0)
+                        .hint_text("~/.local/share/par-term/logs/"),
+                );
+                if response.changed() {
+                    settings.config.session_log_directory = dir;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            let resolved_path = settings.config.logs_dir();
+            ui.label(
+                egui::RichText::new(format!("Resolved: {}", resolved_path.display()))
+                    .weak()
+                    .small(),
+            );
+
+            ui.add_space(8.0);
+
+            let mut archive = settings.config.archive_on_close;
+            if ui
+                .checkbox(&mut archive, "Archive session on tab close")
+                .on_hover_text("Ensures session is fully written when tab closes")
+                .changed()
+            {
+                settings.config.archive_on_close = archive;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        },
+    );
 }
 
 // ============================================================================
@@ -414,31 +448,39 @@ fn show_screenshot_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Screenshots", "advanced_screenshots", false, |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Format:");
+    collapsing_section(
+        ui,
+        "Screenshots",
+        "advanced_screenshots",
+        false,
+        collapsed,
+        |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Format:");
 
-            let options = ["png", "jpeg", "svg", "html"];
-            let mut selected = settings.config.screenshot_format.clone();
+                let options = ["png", "jpeg", "svg", "html"];
+                let mut selected = settings.config.screenshot_format.clone();
 
-            egui::ComboBox::from_id_salt("advanced_screenshot_format")
-                .width(140.0)
-                .selected_text(selected.as_str())
-                .show_ui(ui, |ui| {
-                    for opt in options {
-                        ui.selectable_value(&mut selected, opt.to_string(), opt);
-                    }
-                });
+                egui::ComboBox::from_id_salt("advanced_screenshot_format")
+                    .width(140.0)
+                    .selected_text(selected.as_str())
+                    .show_ui(ui, |ui| {
+                        for opt in options {
+                            ui.selectable_value(&mut selected, opt.to_string(), opt);
+                        }
+                    });
 
-            if selected != settings.config.screenshot_format {
-                settings.config.screenshot_format = selected;
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-        ui.label("Supported: png, jpeg, svg, html");
-    });
+                if selected != settings.config.screenshot_format {
+                    settings.config.screenshot_format = selected;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+            ui.label("Supported: png, jpeg, svg, html");
+        },
+    );
 }
 
 // ============================================================================
@@ -449,8 +491,9 @@ fn show_updates_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Updates", "advanced_updates", true, |ui| {
+    collapsing_section(ui, "Updates", "advanced_updates", true, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Current version:");
             ui.label(env!("CARGO_PKG_VERSION"));
@@ -535,57 +578,65 @@ fn show_debug_logging_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Debug Logging", "advanced_debug_logging", true, |ui| {
-        ui.label("Configure diagnostic logging to file for troubleshooting.");
-        ui.add_space(8.0);
+    collapsing_section(
+        ui,
+        "Debug Logging",
+        "advanced_debug_logging",
+        true,
+        collapsed,
+        |ui| {
+            ui.label("Configure diagnostic logging to file for troubleshooting.");
+            ui.add_space(8.0);
 
-        ui.horizontal(|ui| {
-            ui.label("Log level:");
+            ui.horizontal(|ui| {
+                ui.label("Log level:");
 
-            let current = settings.config.log_level;
-            egui::ComboBox::from_id_salt("advanced_log_level")
-                .width(120.0)
-                .selected_text(current.display_name())
-                .show_ui(ui, |ui| {
-                    for level in LogLevel::all() {
-                        if ui
-                            .selectable_label(current == *level, level.display_name())
-                            .clicked()
-                            && current != *level
-                        {
-                            settings.config.log_level = *level;
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
+                let current = settings.config.log_level;
+                egui::ComboBox::from_id_salt("advanced_log_level")
+                    .width(120.0)
+                    .selected_text(current.display_name())
+                    .show_ui(ui, |ui| {
+                        for level in LogLevel::all() {
+                            if ui
+                                .selectable_label(current == *level, level.display_name())
+                                .clicked()
+                                && current != *level
+                            {
+                                settings.config.log_level = *level;
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
                         }
-                    }
-                });
-        });
+                    });
+            });
 
-        ui.add_space(4.0);
-        let log_path = crate::debug::log_path();
-        ui.horizontal(|ui| {
-            ui.label("Log file:");
+            ui.add_space(4.0);
+            let log_path = crate::debug::log_path();
+            ui.horizontal(|ui| {
+                ui.label("Log file:");
+                ui.label(
+                    egui::RichText::new(log_path.display().to_string())
+                        .small()
+                        .color(egui::Color32::GRAY),
+                );
+            });
+
+            ui.add_space(4.0);
+            if ui.button("Open Log File").clicked() {
+                settings.open_log_requested = true;
+            }
+
+            ui.add_space(4.0);
             ui.label(
-                egui::RichText::new(log_path.display().to_string())
-                    .small()
-                    .color(egui::Color32::GRAY),
-            );
-        });
-
-        ui.add_space(4.0);
-        if ui.button("Open Log File").clicked() {
-            settings.open_log_requested = true;
-        }
-
-        ui.add_space(4.0);
-        ui.label(
-            egui::RichText::new(
-                "Set to Off to suppress log file creation. \
+                egui::RichText::new(
+                    "Set to Off to suppress log file creation. \
                      RUST_LOG env var and --log-level CLI flag override this setting.",
-            )
-            .small()
-            .color(egui::Color32::GRAY),
-        );
-    });
+                )
+                .small()
+                .color(egui::Color32::GRAY),
+            );
+        },
+    );
 }

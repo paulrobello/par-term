@@ -366,7 +366,7 @@ Key settings:
 ```yaml
 cols: 80                      # Terminal columns
 rows: 24                      # Terminal rows
-font_size: 10.0               # Font size in points
+font_size: 12.0               # Font size in points
 font_family: "JetBrains Mono" # Primary font
 scrollback_lines: 10000       # Lines of scrollback
 max_fps: 60                   # Target FPS

@@ -9,9 +9,15 @@ use super::section::collapsing_section;
 use crate::config::automation::{
     CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
 };
+use std::collections::HashSet;
 
 /// Show the automation tab content.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
     let query = settings.search_query.trim().to_lowercase();
 
     // Triggers section
@@ -28,7 +34,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "notify",
         ],
     ) {
-        show_triggers_section(ui, settings, changes_this_frame);
+        show_triggers_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Coprocesses section
@@ -46,7 +52,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "restart delay",
         ],
     ) {
-        show_coprocesses_section(ui, settings, changes_this_frame);
+        show_coprocesses_section(ui, settings, changes_this_frame, collapsed);
     }
 }
 
@@ -131,121 +137,129 @@ fn show_triggers_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Triggers", "automation_triggers", true, |ui| {
-        ui.label("Define regex patterns to match terminal output and trigger actions.");
-        ui.add_space(4.0);
+    collapsing_section(
+        ui,
+        "Triggers",
+        "automation_triggers",
+        true,
+        collapsed,
+        |ui| {
+            ui.label("Define regex patterns to match terminal output and trigger actions.");
+            ui.add_space(4.0);
 
-        // Collect mutations to apply after iteration
-        let mut delete_index: Option<usize> = None;
-        let mut toggle_index: Option<usize> = None;
-        let mut start_edit_index: Option<usize> = None;
+            // Collect mutations to apply after iteration
+            let mut delete_index: Option<usize> = None;
+            let mut toggle_index: Option<usize> = None;
+            let mut start_edit_index: Option<usize> = None;
 
-        // List existing triggers
-        let trigger_count = settings.config.triggers.len();
-        for i in 0..trigger_count {
-            let trigger = &settings.config.triggers[i];
-            let is_editing =
-                settings.editing_trigger_index == Some(i) && !settings.adding_new_trigger;
+            // List existing triggers
+            let trigger_count = settings.config.triggers.len();
+            for i in 0..trigger_count {
+                let trigger = &settings.config.triggers[i];
+                let is_editing =
+                    settings.editing_trigger_index == Some(i) && !settings.adding_new_trigger;
 
-            if is_editing {
-                // Show inline edit form for this trigger
-                show_trigger_edit_form(ui, settings, changes_this_frame, Some(i));
-            } else {
-                // Show trigger summary row
-                ui.horizontal(|ui| {
-                    // Enabled checkbox
-                    let mut enabled = trigger.enabled;
-                    if ui.checkbox(&mut enabled, "").changed() {
-                        toggle_index = Some(i);
-                    }
+                if is_editing {
+                    // Show inline edit form for this trigger
+                    show_trigger_edit_form(ui, settings, changes_this_frame, Some(i));
+                } else {
+                    // Show trigger summary row
+                    ui.horizontal(|ui| {
+                        // Enabled checkbox
+                        let mut enabled = trigger.enabled;
+                        if ui.checkbox(&mut enabled, "").changed() {
+                            toggle_index = Some(i);
+                        }
 
-                    // Name (bold)
-                    ui.label(egui::RichText::new(&trigger.name).strong());
+                        // Name (bold)
+                        ui.label(egui::RichText::new(&trigger.name).strong());
 
-                    // Pattern (monospace)
-                    ui.label(
-                        egui::RichText::new(format!("/{}/", &trigger.pattern))
-                            .monospace()
-                            .color(egui::Color32::from_rgb(150, 150, 200)),
-                    );
+                        // Pattern (monospace)
+                        ui.label(
+                            egui::RichText::new(format!("/{}/", &trigger.pattern))
+                                .monospace()
+                                .color(egui::Color32::from_rgb(150, 150, 200)),
+                        );
 
-                    // Action count
-                    let action_count = trigger.actions.len();
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "{} action{}",
-                            action_count,
-                            if action_count == 1 { "" } else { "s" }
-                        ))
-                        .color(egui::Color32::GRAY),
-                    );
+                        // Action count
+                        let action_count = trigger.actions.len();
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} action{}",
+                                action_count,
+                                if action_count == 1 { "" } else { "s" }
+                            ))
+                            .color(egui::Color32::GRAY),
+                        );
 
-                    // Edit button
-                    if ui.small_button("Edit").clicked() {
-                        start_edit_index = Some(i);
-                    }
+                        // Edit button
+                        if ui.small_button("Edit").clicked() {
+                            start_edit_index = Some(i);
+                        }
 
-                    // Delete button
-                    if ui
-                        .small_button(
-                            egui::RichText::new("Delete")
-                                .color(egui::Color32::from_rgb(200, 80, 80)),
-                        )
-                        .clicked()
-                    {
-                        delete_index = Some(i);
-                    }
-                });
+                        // Delete button
+                        if ui
+                            .small_button(
+                                egui::RichText::new("Delete")
+                                    .color(egui::Color32::from_rgb(200, 80, 80)),
+                            )
+                            .clicked()
+                        {
+                            delete_index = Some(i);
+                        }
+                    });
+                }
             }
-        }
 
-        // Apply mutations after iteration
-        if let Some(i) = toggle_index {
-            settings.config.triggers[i].enabled = !settings.config.triggers[i].enabled;
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-        if let Some(i) = delete_index {
-            settings.config.triggers.remove(i);
-            settings.has_changes = true;
-            *changes_this_frame = true;
-            // If we were editing this trigger, cancel the edit
-            if settings.editing_trigger_index == Some(i) {
+            // Apply mutations after iteration
+            if let Some(i) = toggle_index {
+                settings.config.triggers[i].enabled = !settings.config.triggers[i].enabled;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+            if let Some(i) = delete_index {
+                settings.config.triggers.remove(i);
+                settings.has_changes = true;
+                *changes_this_frame = true;
+                // If we were editing this trigger, cancel the edit
+                if settings.editing_trigger_index == Some(i) {
+                    settings.editing_trigger_index = None;
+                }
+            }
+            if let Some(i) = start_edit_index {
+                let trigger = &settings.config.triggers[i];
+                settings.editing_trigger_index = Some(i);
+                settings.adding_new_trigger = false;
+                settings.temp_trigger_name = trigger.name.clone();
+                settings.temp_trigger_pattern = trigger.pattern.clone();
+                settings.temp_trigger_actions = trigger.actions.clone();
+                settings.trigger_pattern_error = None;
+            }
+
+            ui.add_space(4.0);
+
+            // Add new trigger button / form
+            if settings.adding_new_trigger {
+                ui.separator();
+                ui.label(egui::RichText::new("New Trigger").strong());
+                show_trigger_edit_form(ui, settings, changes_this_frame, None);
+            } else if settings.editing_trigger_index.is_none()
+                && ui
+                    .button("+ Add Trigger")
+                    .on_hover_text("Add a new trigger definition")
+                    .clicked()
+            {
+                settings.adding_new_trigger = true;
                 settings.editing_trigger_index = None;
+                settings.temp_trigger_name = String::new();
+                settings.temp_trigger_pattern = String::new();
+                settings.temp_trigger_actions = Vec::new();
+                settings.trigger_pattern_error = None;
             }
-        }
-        if let Some(i) = start_edit_index {
-            let trigger = &settings.config.triggers[i];
-            settings.editing_trigger_index = Some(i);
-            settings.adding_new_trigger = false;
-            settings.temp_trigger_name = trigger.name.clone();
-            settings.temp_trigger_pattern = trigger.pattern.clone();
-            settings.temp_trigger_actions = trigger.actions.clone();
-            settings.trigger_pattern_error = None;
-        }
-
-        ui.add_space(4.0);
-
-        // Add new trigger button / form
-        if settings.adding_new_trigger {
-            ui.separator();
-            ui.label(egui::RichText::new("New Trigger").strong());
-            show_trigger_edit_form(ui, settings, changes_this_frame, None);
-        } else if settings.editing_trigger_index.is_none()
-            && ui
-                .button("+ Add Trigger")
-                .on_hover_text("Add a new trigger definition")
-                .clicked()
-        {
-            settings.adding_new_trigger = true;
-            settings.editing_trigger_index = None;
-            settings.temp_trigger_name = String::new();
-            settings.temp_trigger_pattern = String::new();
-            settings.temp_trigger_actions = Vec::new();
-            settings.trigger_pattern_error = None;
-        }
-    });
+        },
+    );
 }
 
 fn show_trigger_edit_form(
@@ -515,237 +529,247 @@ fn show_coprocesses_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Coprocesses", "automation_coprocesses", true, |ui| {
-        ui.label("Define external processes that can exchange data with the terminal.");
-        ui.add_space(4.0);
+    collapsing_section(
+        ui,
+        "Coprocesses",
+        "automation_coprocesses",
+        true,
+        collapsed,
+        |ui| {
+            ui.label("Define external processes that can exchange data with the terminal.");
+            ui.add_space(4.0);
 
-        // Collect mutations to apply after iteration
-        let mut delete_index: Option<usize> = None;
-        let mut start_edit_index: Option<usize> = None;
+            // Collect mutations to apply after iteration
+            let mut delete_index: Option<usize> = None;
+            let mut start_edit_index: Option<usize> = None;
 
-        // List existing coprocesses
-        let coproc_count = settings.config.coprocesses.len();
-        for i in 0..coproc_count {
-            let coproc = &settings.config.coprocesses[i];
-            let is_editing =
-                settings.editing_coprocess_index == Some(i) && !settings.adding_new_coprocess;
+            // List existing coprocesses
+            let coproc_count = settings.config.coprocesses.len();
+            for i in 0..coproc_count {
+                let coproc = &settings.config.coprocesses[i];
+                let is_editing =
+                    settings.editing_coprocess_index == Some(i) && !settings.adding_new_coprocess;
 
-            if is_editing {
-                show_coprocess_edit_form(ui, settings, changes_this_frame, Some(i));
-            } else {
-                let is_running = settings.coprocess_running.get(i).copied().unwrap_or(false);
+                if is_editing {
+                    show_coprocess_edit_form(ui, settings, changes_this_frame, Some(i));
+                } else {
+                    let is_running = settings.coprocess_running.get(i).copied().unwrap_or(false);
 
-                // First row: status + name + buttons (right-aligned)
-                ui.horizontal(|ui| {
-                    // Running/stopped status indicator
-                    if is_running {
-                        ui.label(
-                            egui::RichText::new("●").color(egui::Color32::from_rgb(100, 200, 100)),
-                        );
-                    } else if coproc.auto_start {
-                        ui.label(
-                            egui::RichText::new("[auto]")
-                                .color(egui::Color32::from_rgb(100, 200, 100))
-                                .small(),
-                        );
-                    } else {
-                        ui.label(egui::RichText::new("○").color(egui::Color32::GRAY));
-                    }
-
-                    // Name (bold)
-                    ui.label(egui::RichText::new(&coproc.name).strong());
-
-                    // Right-align buttons
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Delete button (rightmost)
-                        if ui
-                            .small_button(
-                                egui::RichText::new("Delete")
-                                    .color(egui::Color32::from_rgb(200, 80, 80)),
-                            )
-                            .clicked()
-                        {
-                            delete_index = Some(i);
-                        }
-
-                        // Edit button
-                        if ui.small_button("Edit").clicked() {
-                            start_edit_index = Some(i);
-                        }
-
-                        // Start/Stop button
+                    // First row: status + name + buttons (right-aligned)
+                    ui.horizontal(|ui| {
+                        // Running/stopped status indicator
                         if is_running {
+                            ui.label(
+                                egui::RichText::new("●")
+                                    .color(egui::Color32::from_rgb(100, 200, 100)),
+                            );
+                        } else if coproc.auto_start {
+                            ui.label(
+                                egui::RichText::new("[auto]")
+                                    .color(egui::Color32::from_rgb(100, 200, 100))
+                                    .small(),
+                            );
+                        } else {
+                            ui.label(egui::RichText::new("○").color(egui::Color32::GRAY));
+                        }
+
+                        // Name (bold)
+                        ui.label(egui::RichText::new(&coproc.name).strong());
+
+                        // Right-align buttons
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            // Delete button (rightmost)
                             if ui
                                 .small_button(
-                                    egui::RichText::new("Stop")
-                                        .color(egui::Color32::from_rgb(220, 160, 50)),
+                                    egui::RichText::new("Delete")
+                                        .color(egui::Color32::from_rgb(200, 80, 80)),
                                 )
                                 .clicked()
                             {
-                                settings.pending_coprocess_actions.push((i, false));
+                                delete_index = Some(i);
                             }
-                        } else if ui.small_button("Start").clicked() {
-                            log::debug!("Coprocess Start button clicked for index {}", i);
-                            // Clear any previous error message
-                            if let Some(err) = settings.coprocess_errors.get_mut(i) {
-                                err.clear();
-                            }
-                            settings.pending_coprocess_actions.push((i, true));
-                        }
-                    });
-                });
 
-                // Second row: command (indented, truncated if long)
-                let cmd_display = if coproc.args.is_empty() {
-                    coproc.command.clone()
-                } else {
-                    format!("{} {}", coproc.command, coproc.args.join(" "))
-                };
-                ui.indent(format!("coproc_cmd_{}", i), |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(&cmd_display)
-                                .monospace()
-                                .small()
-                                .color(egui::Color32::from_rgb(150, 150, 200)),
-                        );
-                        // Show restart policy info
-                        if coproc.restart_policy != RestartPolicy::Never {
-                            let restart_text = if coproc.restart_delay_ms > 0 {
-                                format!(
-                                    "[restart: {}, delay: {}ms]",
-                                    coproc.restart_policy.display_name(),
-                                    coproc.restart_delay_ms
-                                )
-                            } else {
-                                format!("[restart: {}]", coproc.restart_policy.display_name())
-                            };
+                            // Edit button
+                            if ui.small_button("Edit").clicked() {
+                                start_edit_index = Some(i);
+                            }
+
+                            // Start/Stop button
+                            if is_running {
+                                if ui
+                                    .small_button(
+                                        egui::RichText::new("Stop")
+                                            .color(egui::Color32::from_rgb(220, 160, 50)),
+                                    )
+                                    .clicked()
+                                {
+                                    settings.pending_coprocess_actions.push((i, false));
+                                }
+                            } else if ui.small_button("Start").clicked() {
+                                log::debug!("Coprocess Start button clicked for index {}", i);
+                                // Clear any previous error message
+                                if let Some(err) = settings.coprocess_errors.get_mut(i) {
+                                    err.clear();
+                                }
+                                settings.pending_coprocess_actions.push((i, true));
+                            }
+                        });
+                    });
+
+                    // Second row: command (indented, truncated if long)
+                    let cmd_display = if coproc.args.is_empty() {
+                        coproc.command.clone()
+                    } else {
+                        format!("{} {}", coproc.command, coproc.args.join(" "))
+                    };
+                    ui.indent(format!("coproc_cmd_{}", i), |ui| {
+                        ui.horizontal(|ui| {
                             ui.label(
-                                egui::RichText::new(restart_text)
+                                egui::RichText::new(&cmd_display)
+                                    .monospace()
                                     .small()
-                                    .color(egui::Color32::from_rgb(180, 180, 100)),
+                                    .color(egui::Color32::from_rgb(150, 150, 200)),
                             );
-                        }
-                    });
-                });
-
-                // Show error message if coprocess died with stderr output
-                let has_error = settings
-                    .coprocess_errors
-                    .get(i)
-                    .is_some_and(|e| !e.is_empty());
-                if has_error && !is_running {
-                    let err_text = &settings.coprocess_errors[i];
-                    ui.indent(format!("coproc_err_{}", i), |ui| {
-                        ui.label(
-                            egui::RichText::new(format!("Error: {}", err_text))
-                                .small()
-                                .color(egui::Color32::from_rgb(220, 80, 80)),
-                        );
-                    });
-                }
-
-                // Output viewer (collapsible)
-                let has_output = settings
-                    .coprocess_output
-                    .get(i)
-                    .is_some_and(|lines| !lines.is_empty());
-                if has_output {
-                    let is_expanded = settings
-                        .coprocess_output_expanded
-                        .get(i)
-                        .copied()
-                        .unwrap_or(false);
-                    let line_count = settings.coprocess_output[i].len();
-                    ui.indent(format!("coproc_out_{}", i), |ui| {
-                        let toggle_text = if is_expanded {
-                            format!("▼ Output ({} lines)", line_count)
-                        } else {
-                            format!("▶ Output ({} lines)", line_count)
-                        };
-                        if ui
-                            .small_button(
-                                egui::RichText::new(&toggle_text)
-                                    .small()
-                                    .color(egui::Color32::from_rgb(140, 180, 140)),
-                            )
-                            .clicked()
-                            && let Some(expanded) = settings.coprocess_output_expanded.get_mut(i)
-                        {
-                            *expanded = !*expanded;
-                        }
-                        if is_expanded {
-                            let output_text = settings.coprocess_output[i].join("\n");
-                            egui::ScrollArea::vertical()
-                                .id_salt(format!("coproc_output_scroll_{}", i))
-                                .max_height(150.0)
-                                .stick_to_bottom(true)
-                                .show(ui, |ui| {
-                                    ui.label(
-                                        egui::RichText::new(&output_text)
-                                            .monospace()
-                                            .small()
-                                            .color(egui::Color32::from_rgb(180, 180, 180)),
-                                    );
-                                });
-                            if ui.small_button("Clear").clicked() {
-                                settings.coprocess_output[i].clear();
+                            // Show restart policy info
+                            if coproc.restart_policy != RestartPolicy::Never {
+                                let restart_text = if coproc.restart_delay_ms > 0 {
+                                    format!(
+                                        "[restart: {}, delay: {}ms]",
+                                        coproc.restart_policy.display_name(),
+                                        coproc.restart_delay_ms
+                                    )
+                                } else {
+                                    format!("[restart: {}]", coproc.restart_policy.display_name())
+                                };
+                                ui.label(
+                                    egui::RichText::new(restart_text)
+                                        .small()
+                                        .color(egui::Color32::from_rgb(180, 180, 100)),
+                                );
                             }
-                        }
+                        });
                     });
+
+                    // Show error message if coprocess died with stderr output
+                    let has_error = settings
+                        .coprocess_errors
+                        .get(i)
+                        .is_some_and(|e| !e.is_empty());
+                    if has_error && !is_running {
+                        let err_text = &settings.coprocess_errors[i];
+                        ui.indent(format!("coproc_err_{}", i), |ui| {
+                            ui.label(
+                                egui::RichText::new(format!("Error: {}", err_text))
+                                    .small()
+                                    .color(egui::Color32::from_rgb(220, 80, 80)),
+                            );
+                        });
+                    }
+
+                    // Output viewer (collapsible)
+                    let has_output = settings
+                        .coprocess_output
+                        .get(i)
+                        .is_some_and(|lines| !lines.is_empty());
+                    if has_output {
+                        let is_expanded = settings
+                            .coprocess_output_expanded
+                            .get(i)
+                            .copied()
+                            .unwrap_or(false);
+                        let line_count = settings.coprocess_output[i].len();
+                        ui.indent(format!("coproc_out_{}", i), |ui| {
+                            let toggle_text = if is_expanded {
+                                format!("▼ Output ({} lines)", line_count)
+                            } else {
+                                format!("▶ Output ({} lines)", line_count)
+                            };
+                            if ui
+                                .small_button(
+                                    egui::RichText::new(&toggle_text)
+                                        .small()
+                                        .color(egui::Color32::from_rgb(140, 180, 140)),
+                                )
+                                .clicked()
+                                && let Some(expanded) =
+                                    settings.coprocess_output_expanded.get_mut(i)
+                            {
+                                *expanded = !*expanded;
+                            }
+                            if is_expanded {
+                                let output_text = settings.coprocess_output[i].join("\n");
+                                egui::ScrollArea::vertical()
+                                    .id_salt(format!("coproc_output_scroll_{}", i))
+                                    .max_height(150.0)
+                                    .stick_to_bottom(true)
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            egui::RichText::new(&output_text)
+                                                .monospace()
+                                                .small()
+                                                .color(egui::Color32::from_rgb(180, 180, 180)),
+                                        );
+                                    });
+                                if ui.small_button("Clear").clicked() {
+                                    settings.coprocess_output[i].clear();
+                                }
+                            }
+                        });
+                    }
+
+                    ui.add_space(2.0);
                 }
-
-                ui.add_space(2.0);
             }
-        }
 
-        // Apply mutations
-        if let Some(i) = delete_index {
-            settings.config.coprocesses.remove(i);
-            settings.has_changes = true;
-            *changes_this_frame = true;
-            if settings.editing_coprocess_index == Some(i) {
+            // Apply mutations
+            if let Some(i) = delete_index {
+                settings.config.coprocesses.remove(i);
+                settings.has_changes = true;
+                *changes_this_frame = true;
+                if settings.editing_coprocess_index == Some(i) {
+                    settings.editing_coprocess_index = None;
+                }
+            }
+            if let Some(i) = start_edit_index {
+                let coproc = &settings.config.coprocesses[i];
+                settings.editing_coprocess_index = Some(i);
+                settings.adding_new_coprocess = false;
+                settings.temp_coprocess_name = coproc.name.clone();
+                settings.temp_coprocess_command = coproc.command.clone();
+                settings.temp_coprocess_args = coproc.args.join(" ");
+                settings.temp_coprocess_auto_start = coproc.auto_start;
+                settings.temp_coprocess_copy_output = coproc.copy_terminal_output;
+                settings.temp_coprocess_restart_policy = coproc.restart_policy;
+                settings.temp_coprocess_restart_delay_ms = coproc.restart_delay_ms;
+            }
+
+            ui.add_space(4.0);
+
+            // Add new coprocess button / form
+            if settings.adding_new_coprocess {
+                ui.separator();
+                ui.label(egui::RichText::new("New Coprocess").strong());
+                show_coprocess_edit_form(ui, settings, changes_this_frame, None);
+            } else if settings.editing_coprocess_index.is_none()
+                && ui
+                    .button("+ Add Coprocess")
+                    .on_hover_text("Add a new coprocess definition")
+                    .clicked()
+            {
+                settings.adding_new_coprocess = true;
                 settings.editing_coprocess_index = None;
+                settings.temp_coprocess_name = String::new();
+                settings.temp_coprocess_command = String::new();
+                settings.temp_coprocess_args = String::new();
+                settings.temp_coprocess_auto_start = false;
+                settings.temp_coprocess_copy_output = true;
+                settings.temp_coprocess_restart_policy = RestartPolicy::Never;
+                settings.temp_coprocess_restart_delay_ms = 0;
             }
-        }
-        if let Some(i) = start_edit_index {
-            let coproc = &settings.config.coprocesses[i];
-            settings.editing_coprocess_index = Some(i);
-            settings.adding_new_coprocess = false;
-            settings.temp_coprocess_name = coproc.name.clone();
-            settings.temp_coprocess_command = coproc.command.clone();
-            settings.temp_coprocess_args = coproc.args.join(" ");
-            settings.temp_coprocess_auto_start = coproc.auto_start;
-            settings.temp_coprocess_copy_output = coproc.copy_terminal_output;
-            settings.temp_coprocess_restart_policy = coproc.restart_policy;
-            settings.temp_coprocess_restart_delay_ms = coproc.restart_delay_ms;
-        }
-
-        ui.add_space(4.0);
-
-        // Add new coprocess button / form
-        if settings.adding_new_coprocess {
-            ui.separator();
-            ui.label(egui::RichText::new("New Coprocess").strong());
-            show_coprocess_edit_form(ui, settings, changes_this_frame, None);
-        } else if settings.editing_coprocess_index.is_none()
-            && ui
-                .button("+ Add Coprocess")
-                .on_hover_text("Add a new coprocess definition")
-                .clicked()
-        {
-            settings.adding_new_coprocess = true;
-            settings.editing_coprocess_index = None;
-            settings.temp_coprocess_name = String::new();
-            settings.temp_coprocess_command = String::new();
-            settings.temp_coprocess_args = String::new();
-            settings.temp_coprocess_auto_start = false;
-            settings.temp_coprocess_copy_output = true;
-            settings.temp_coprocess_restart_policy = RestartPolicy::Never;
-            settings.temp_coprocess_restart_delay_ms = 0;
-        }
-    });
+        },
+    );
 }
 
 fn show_coprocess_edit_form(

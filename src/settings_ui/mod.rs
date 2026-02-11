@@ -181,7 +181,6 @@ pub struct SettingsUI {
     /// Currently selected settings tab (new sidebar navigation)
     pub(crate) selected_tab: SettingsTab,
     /// Set of collapsed section IDs (sections start open by default, collapsed when user collapses them)
-    #[allow(dead_code)]
     pub(crate) collapsed_sections: HashSet<String>,
 
     // Integrations tab action state
@@ -335,6 +334,8 @@ impl SettingsUI {
         // Extract values before moving config
         let initial_cols = config.cols;
         let initial_rows = config.rows;
+        let initial_collapsed: HashSet<String> =
+            config.collapsed_settings_sections.iter().cloned().collect();
 
         Self {
             visible: false,
@@ -408,7 +409,7 @@ impl SettingsUI {
             keybinding_recorded_combo: None,
             test_notification_requested: false,
             selected_tab: SettingsTab::default(),
-            collapsed_sections: HashSet::new(),
+            collapsed_sections: initial_collapsed,
             shell_integration_action: None,
             open_profile_manager_requested: false,
             shader_installing: false,
@@ -768,6 +769,16 @@ impl SettingsUI {
         &self.config
     }
 
+    /// Sync the current collapsed sections state into the config's persisted field.
+    fn sync_collapsed_sections_to_config(&mut self) {
+        self.config.collapsed_settings_sections = self.collapsed_sections.iter().cloned().collect();
+    }
+
+    /// Get a snapshot of the current collapsed section IDs for persistence on close.
+    pub fn collapsed_sections_snapshot(&self) -> Vec<String> {
+        self.collapsed_sections.iter().cloned().collect()
+    }
+
     /// Check if a test notification was requested and clear the flag
     pub fn take_test_notification_request(&mut self) -> bool {
         let requested = self.test_notification_requested;
@@ -942,6 +953,8 @@ impl SettingsUI {
                 self.apply_font_changes();
             }
             self.has_changes = false;
+            // Sync collapsed sections to config before saving
+            self.sync_collapsed_sections_to_config();
             // Generate keybindings for snippets and actions before saving
             let mut config = self.config.clone();
             config.generate_snippet_action_keybindings();
@@ -1094,6 +1107,8 @@ impl SettingsUI {
                 self.apply_font_changes();
             }
             self.has_changes = false;
+            // Sync collapsed sections to config before saving
+            self.sync_collapsed_sections_to_config();
             // Generate keybindings for snippets and actions before saving
             let mut config = self.config.clone();
             config.generate_snippet_action_keybindings();
@@ -1179,53 +1194,61 @@ impl SettingsUI {
 
     /// Show the content for the currently selected tab.
     fn show_tab_content(&mut self, ui: &mut egui::Ui, changes_this_frame: &mut bool) {
+        // Take collapsed_sections out temporarily to avoid borrow conflicts.
+        // Tab functions need &mut self for config changes AND &mut collapsed for tracking,
+        // which would conflict if collapsed_sections were still inside self.
+        let mut collapsed = std::mem::take(&mut self.collapsed_sections);
+
         match self.selected_tab {
             SettingsTab::Appearance => {
-                appearance_tab::show(ui, self, changes_this_frame);
+                appearance_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Window => {
-                window_tab::show(ui, self, changes_this_frame);
+                window_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Input => {
-                input_tab::show(ui, self, changes_this_frame);
+                input_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Terminal => {
-                terminal_tab::show(ui, self, changes_this_frame);
+                terminal_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Effects => {
-                effects_tab::show(ui, self, changes_this_frame);
+                effects_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Badge => {
-                badge_tab::show(ui, self, changes_this_frame);
+                badge_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::ProgressBar => {
-                progress_bar_tab::show(ui, self, changes_this_frame);
+                progress_bar_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Profiles => {
-                profiles_tab::show(ui, self, changes_this_frame);
+                profiles_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Notifications => {
-                notifications_tab::show(ui, self, changes_this_frame);
+                notifications_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Integrations => {
-                self.show_integrations_tab(ui, changes_this_frame);
+                self.show_integrations_tab(ui, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Automation => {
-                automation_tab::show(ui, self, changes_this_frame);
+                automation_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Snippets => {
-                snippets_tab::show(ui, self, changes_this_frame);
+                snippets_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Actions => {
-                actions_tab::show(ui, self, changes_this_frame);
+                actions_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Arrangements => {
-                arrangements_tab::show(ui, self, changes_this_frame);
+                arrangements_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Advanced => {
-                advanced_tab::show(ui, self, changes_this_frame);
+                advanced_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
         }
+
+        // Restore collapsed_sections
+        self.collapsed_sections = collapsed;
     }
 
     /// Check if a keybinding conflicts with existing keybindings.

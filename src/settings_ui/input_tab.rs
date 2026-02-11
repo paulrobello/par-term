@@ -11,6 +11,7 @@
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
 use crate::config::{DroppedFileQuoteStyle, KeyBinding, ModifierTarget, OptionKeyMode};
+use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
@@ -25,7 +26,12 @@ type BindingInfo<'a> = (
 );
 
 /// Show the input tab content.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
     let query = settings.search_query.trim().to_lowercase();
 
     // Keyboard section
@@ -34,7 +40,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Keyboard",
         &["option", "alt", "meta", "esc", "physical"],
     ) {
-        show_keyboard_section(ui, settings, changes_this_frame);
+        show_keyboard_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Modifier Remapping section
@@ -43,7 +49,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Modifier Remapping",
         &["remap", "swap", "ctrl", "super", "cmd", "modifier"],
     ) {
-        show_modifier_remapping_section(ui, settings, changes_this_frame);
+        show_modifier_remapping_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Mouse section
@@ -52,7 +58,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Mouse",
         &["scroll", "double-click", "triple-click", "focus follows"],
     ) {
-        show_mouse_section(ui, settings, changes_this_frame);
+        show_mouse_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Selection & Clipboard section
@@ -61,12 +67,12 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Selection & Clipboard",
         &["copy", "paste", "middle-click", "auto-copy", "delay"],
     ) {
-        show_selection_section(ui, settings, changes_this_frame);
+        show_selection_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Clipboard Limits section (collapsed by default)
     if section_matches(&query, "Clipboard Limits", &["max", "sync", "bytes"]) {
-        show_clipboard_limits_section(ui, settings, changes_this_frame);
+        show_clipboard_limits_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Word Selection section (collapsed by default)
@@ -75,7 +81,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Word Selection",
         &["word characters", "smart selection"],
     ) {
-        show_word_selection_section(ui, settings, changes_this_frame);
+        show_word_selection_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Copy Mode section
@@ -84,7 +90,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Copy Mode",
         &["copy mode", "vi", "vim", "yank", "visual", "selection mode"],
     ) {
-        show_copy_mode_section(ui, settings, changes_this_frame);
+        show_copy_mode_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Keybindings section (takes most space)
@@ -93,7 +99,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Keybindings",
         &["shortcut", "hotkey", "binding", "key"],
     ) {
-        show_keybindings_section(ui, settings, changes_this_frame);
+        show_keybindings_section(ui, settings, changes_this_frame, collapsed);
     }
 }
 
@@ -115,8 +121,9 @@ fn show_keyboard_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Keyboard", "input_keyboard", true, |ui| {
+    collapsing_section(ui, "Keyboard", "input_keyboard", true, collapsed, |ui| {
         ui.label("Option/Alt key behavior for emacs, vim, and other terminal applications.");
         ui.add_space(4.0);
 
@@ -234,12 +241,14 @@ fn show_modifier_remapping_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(
         ui,
         "Modifier Remapping",
         "input_modifier_remapping",
         false,
+        collapsed,
         |ui| {
             ui.label("Remap modifier keys to different functions.");
             ui.label(
@@ -435,8 +444,13 @@ fn option_key_mode_description(mode: OptionKeyMode) -> &'static str {
 // Mouse Section
 // ============================================================================
 
-fn show_mouse_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
-    collapsing_section(ui, "Mouse", "input_mouse", true, |ui| {
+fn show_mouse_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(ui, "Mouse", "input_mouse", true, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Scroll speed:");
             if ui
@@ -541,85 +555,93 @@ fn show_selection_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Selection & Clipboard", "input_selection", true, |ui| {
-        if ui
-            .checkbox(
-                &mut settings.config.auto_copy_selection,
-                "Auto-copy selection",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        if ui
-            .checkbox(
-                &mut settings.config.copy_trailing_newline,
-                "Include trailing newline when copying",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        if ui
-            .checkbox(
-                &mut settings.config.middle_click_paste,
-                "Middle-click paste",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.horizontal(|ui| {
-            ui.label("Paste delay (ms):");
+    collapsing_section(
+        ui,
+        "Selection & Clipboard",
+        "input_selection",
+        true,
+        collapsed,
+        |ui| {
             if ui
-                .add_sized(
-                    [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.paste_delay_ms, 0..=500),
-                )
-                .on_hover_text(
-                    "Delay between pasted lines in milliseconds (0 = no delay). \
-                     Useful for slow terminals or remote connections.",
+                .checkbox(
+                    &mut settings.config.auto_copy_selection,
+                    "Auto-copy selection",
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        ui.separator();
-        ui.label("Dropped Files");
+            if ui
+                .checkbox(
+                    &mut settings.config.copy_trailing_newline,
+                    "Include trailing newline when copying",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-        ui.horizontal(|ui| {
-            ui.label("Quote style:");
-            egui::ComboBox::from_id_salt("input_dropped_file_quote_style")
-                .selected_text(settings.config.dropped_file_quote_style.display_name())
-                .show_ui(ui, |ui| {
-                    for style in DroppedFileQuoteStyle::all() {
-                        if ui
-                            .selectable_value(
-                                &mut settings.config.dropped_file_quote_style,
-                                *style,
-                                style.display_name(),
-                            )
-                            .changed()
-                        {
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
+            if ui
+                .checkbox(
+                    &mut settings.config.middle_click_paste,
+                    "Middle-click paste",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.horizontal(|ui| {
+                ui.label("Paste delay (ms):");
+                if ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(&mut settings.config.paste_delay_ms, 0..=500),
+                    )
+                    .on_hover_text(
+                        "Delay between pasted lines in milliseconds (0 = no delay). \
+                     Useful for slow terminals or remote connections.",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.separator();
+            ui.label("Dropped Files");
+
+            ui.horizontal(|ui| {
+                ui.label("Quote style:");
+                egui::ComboBox::from_id_salt("input_dropped_file_quote_style")
+                    .selected_text(settings.config.dropped_file_quote_style.display_name())
+                    .show_ui(ui, |ui| {
+                        for style in DroppedFileQuoteStyle::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.dropped_file_quote_style,
+                                    *style,
+                                    style.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
                         }
-                    }
-                });
-        })
-        .response
-        .on_hover_text("How to quote file paths when dropped into the terminal");
-    });
+                    });
+            })
+            .response
+            .on_hover_text("How to quote file paths when dropped into the terminal");
+        },
+    );
 }
 
 // ============================================================================
@@ -630,12 +652,14 @@ fn show_clipboard_limits_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(
         ui,
         "Clipboard Limits",
         "input_clipboard_limits",
         false,
+        collapsed,
         |ui| {
             ui.horizontal(|ui| {
                 ui.label("Max clipboard sync events:");
@@ -679,80 +703,90 @@ fn show_word_selection_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Word Selection", "input_word_selection", false, |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Word characters:");
+    collapsing_section(
+        ui,
+        "Word Selection",
+        "input_word_selection",
+        false,
+        collapsed,
+        |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Word characters:");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.config.word_characters)
+                            .hint_text("/-+\\~_.")
+                            .desired_width(150.0),
+                    )
+                    .on_hover_text(
+                        "Characters considered part of a word (in addition to alphanumeric)",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
             if ui
-                .add(
-                    egui::TextEdit::singleline(&mut settings.config.word_characters)
-                        .hint_text("/-+\\~_.")
-                        .desired_width(150.0),
+                .checkbox(
+                    &mut settings.config.smart_selection_enabled,
+                    "Enable smart selection",
                 )
-                .on_hover_text("Characters considered part of a word (in addition to alphanumeric)")
+                .on_hover_text("Double-click will try to match patterns like URLs, emails, paths")
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        if ui
-            .checkbox(
-                &mut settings.config.smart_selection_enabled,
-                "Enable smart selection",
-            )
-            .on_hover_text("Double-click will try to match patterns like URLs, emails, paths")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+            if settings.config.smart_selection_enabled {
+                ui.separator();
+                ui.label("Smart Selection Rules");
+                ui.label(
+                    egui::RichText::new("Higher precision rules are checked first")
+                        .small()
+                        .weak(),
+                );
 
-        if settings.config.smart_selection_enabled {
-            ui.separator();
-            ui.label("Smart Selection Rules");
-            ui.label(
-                egui::RichText::new("Higher precision rules are checked first")
-                    .small()
-                    .weak(),
-            );
-
-            egui::ScrollArea::vertical()
-                .max_height(150.0)
-                .show(ui, |ui| {
-                    for rule in &mut settings.config.smart_selection_rules {
-                        ui.horizontal(|ui| {
-                            if ui.checkbox(&mut rule.enabled, "").changed() {
-                                settings.has_changes = true;
-                                *changes_this_frame = true;
-                            }
-                            let label = egui::RichText::new(&rule.name);
-                            let label = if rule.enabled {
-                                label
-                            } else {
-                                label.strikethrough().weak()
-                            };
-                            ui.label(label).on_hover_ui(|ui| {
-                                ui.label(format!("Pattern: {}", rule.regex));
-                                ui.label(format!("Precision: {:?}", rule.precision));
+                egui::ScrollArea::vertical()
+                    .max_height(150.0)
+                    .show(ui, |ui| {
+                        for rule in &mut settings.config.smart_selection_rules {
+                            ui.horizontal(|ui| {
+                                if ui.checkbox(&mut rule.enabled, "").changed() {
+                                    settings.has_changes = true;
+                                    *changes_this_frame = true;
+                                }
+                                let label = egui::RichText::new(&rule.name);
+                                let label = if rule.enabled {
+                                    label
+                                } else {
+                                    label.strikethrough().weak()
+                                };
+                                ui.label(label).on_hover_ui(|ui| {
+                                    ui.label(format!("Pattern: {}", rule.regex));
+                                    ui.label(format!("Precision: {:?}", rule.precision));
+                                });
                             });
-                        });
-                    }
-                });
+                        }
+                    });
 
-            if ui
-                .button("Reset rules to defaults")
-                .on_hover_text("Replace all rules with the default set")
-                .clicked()
-            {
-                settings.config.smart_selection_rules =
-                    crate::config::default_smart_selection_rules();
-                settings.has_changes = true;
-                *changes_this_frame = true;
+                if ui
+                    .button("Reset rules to defaults")
+                    .on_hover_text("Replace all rules with the default set")
+                    .clicked()
+                {
+                    settings.config.smart_selection_rules =
+                        crate::config::default_smart_selection_rules();
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
             }
-        }
-    });
+        },
+    );
 }
 
 // ============================================================================
@@ -1046,8 +1080,9 @@ fn show_copy_mode_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Copy Mode", "input_copy_mode", true, |ui| {
+    collapsing_section(ui, "Copy Mode", "input_copy_mode", true, collapsed, |ui| {
         ui.label(
             egui::RichText::new(
                 "Vi-style keyboard-driven text selection and navigation. \
@@ -1119,183 +1154,193 @@ fn show_keybindings_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Keybindings", "input_keybindings", true, |ui| {
-        ui.label(
+    collapsing_section(
+        ui,
+        "Keybindings",
+        "input_keybindings",
+        true,
+        collapsed,
+        |ui| {
+            ui.label(
             "Configure custom keyboard shortcuts. Click 'Record' to capture a new key combination.",
         );
-        ui.colored_label(
-            egui::Color32::from_rgb(128, 128, 128),
-            "Gray bindings are defaults. Custom bindings appear in white.",
-        );
-        ui.add_space(4.0);
+            ui.colored_label(
+                egui::Color32::from_rgb(128, 128, 128),
+                "Gray bindings are defaults. Custom bindings appear in white.",
+            );
+            ui.add_space(4.0);
 
-        // Check for key events if recording
-        if let Some(recording_idx) = settings.keybinding_recording_index {
-            let recorded = capture_key_combo(ui);
-            if let Some(combo) = recorded {
-                settings.keybinding_recorded_combo = Some(combo.clone());
+            // Check for key events if recording
+            if let Some(recording_idx) = settings.keybinding_recording_index {
+                let recorded = capture_key_combo(ui);
+                if let Some(combo) = recorded {
+                    settings.keybinding_recorded_combo = Some(combo.clone());
 
-                if recording_idx < AVAILABLE_ACTIONS.len() {
-                    let (action_name, _, _) = AVAILABLE_ACTIONS[recording_idx];
+                    if recording_idx < AVAILABLE_ACTIONS.len() {
+                        let (action_name, _, _) = AVAILABLE_ACTIONS[recording_idx];
 
-                    let binding_idx = settings
+                        let binding_idx = settings
+                            .config
+                            .keybindings
+                            .iter()
+                            .position(|b| b.action == action_name);
+
+                        if let Some(idx) = binding_idx {
+                            settings.config.keybindings[idx].key = combo;
+                        } else {
+                            settings.config.keybindings.push(KeyBinding {
+                                key: combo,
+                                action: action_name.to_string(),
+                            });
+                        }
+
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+
+                    settings.keybinding_recording_index = None;
+                }
+
+                if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                    settings.keybinding_recording_index = None;
+                    settings.keybinding_recorded_combo = None;
+                }
+            }
+
+            // Collect binding info
+            let binding_info: Vec<BindingInfo<'_>> = AVAILABLE_ACTIONS
+                .iter()
+                .enumerate()
+                .map(|(idx, (action_name, display_name, default_key))| {
+                    let custom_binding = settings
                         .config
                         .keybindings
                         .iter()
-                        .position(|b| b.action == action_name);
+                        .find(|b| b.action == *action_name)
+                        .map(|b| b.key.clone());
+                    let is_custom = custom_binding.is_some();
+                    (
+                        idx,
+                        *action_name,
+                        *display_name,
+                        custom_binding,
+                        *default_key,
+                        is_custom,
+                    )
+                })
+                .collect();
 
-                    if let Some(idx) = binding_idx {
-                        settings.config.keybindings[idx].key = combo;
-                    } else {
-                        settings.config.keybindings.push(KeyBinding {
-                            key: combo,
-                            action: action_name.to_string(),
+            let mut action_to_clear: Option<&str> = None;
+            let mut start_recording: Option<usize> = None;
+            let mut cancel_recording = false;
+
+            egui::ScrollArea::vertical()
+                .min_scrolled_height(600.0)
+                .show(ui, |ui| {
+                    egui::Grid::new("input_keybindings_grid")
+                        .num_columns(3)
+                        .spacing([20.0, 8.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            ui.strong("Action");
+                            ui.strong("Key Combo");
+                            ui.strong("");
+                            ui.end_row();
+
+                            for (
+                                idx,
+                                action_name,
+                                display_name,
+                                custom_binding,
+                                default_binding,
+                                is_custom,
+                            ) in &binding_info
+                            {
+                                let (binding_display, show_as_default) =
+                                    if let Some(custom) = custom_binding {
+                                        (display_key_combo(custom), false)
+                                    } else if let Some(default) = default_binding {
+                                        (display_key_combo(default), true)
+                                    } else {
+                                        ("(not set)".to_string(), false)
+                                    };
+
+                                ui.label(*display_name);
+
+                                let is_recording =
+                                    settings.keybinding_recording_index == Some(*idx);
+                                if is_recording {
+                                    ui.colored_label(
+                                        egui::Color32::YELLOW,
+                                        "Press key combo... (Esc to cancel)",
+                                    );
+                                } else if show_as_default {
+                                    ui.colored_label(
+                                        egui::Color32::from_rgb(128, 128, 128),
+                                        egui::RichText::new(&binding_display).monospace(),
+                                    );
+                                } else {
+                                    ui.monospace(&binding_display);
+                                }
+
+                                ui.horizontal(|ui| {
+                                    let button_text =
+                                        if is_recording { "Cancel" } else { "Record" };
+                                    if ui.button(button_text).clicked() {
+                                        if is_recording {
+                                            cancel_recording = true;
+                                        } else {
+                                            start_recording = Some(*idx);
+                                        }
+                                    }
+
+                                    if *is_custom && !is_recording && ui.button("Clear").clicked() {
+                                        action_to_clear = Some(*action_name);
+                                    }
+                                });
+
+                                ui.end_row();
+                            }
                         });
-                    }
+                });
 
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-
-                settings.keybinding_recording_index = None;
-            }
-
-            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if cancel_recording {
                 settings.keybinding_recording_index = None;
                 settings.keybinding_recorded_combo = None;
             }
-        }
 
-        // Collect binding info
-        let binding_info: Vec<BindingInfo<'_>> = AVAILABLE_ACTIONS
-            .iter()
-            .enumerate()
-            .map(|(idx, (action_name, display_name, default_key))| {
-                let custom_binding = settings
+            if let Some(idx) = start_recording {
+                settings.keybinding_recording_index = Some(idx);
+                settings.keybinding_recorded_combo = None;
+            }
+
+            if let Some(action_name) = action_to_clear {
+                settings
                     .config
                     .keybindings
-                    .iter()
-                    .find(|b| b.action == *action_name)
-                    .map(|b| b.key.clone());
-                let is_custom = custom_binding.is_some();
-                (
-                    idx,
-                    *action_name,
-                    *display_name,
-                    custom_binding,
-                    *default_key,
-                    is_custom,
-                )
-            })
-            .collect();
+                    .retain(|b| b.action != action_name);
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-        let mut action_to_clear: Option<&str> = None;
-        let mut start_recording: Option<usize> = None;
-        let mut cancel_recording = false;
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(4.0);
 
-        egui::ScrollArea::vertical()
-            .min_scrolled_height(600.0)
-            .show(ui, |ui| {
-                egui::Grid::new("input_keybindings_grid")
-                    .num_columns(3)
-                    .spacing([20.0, 8.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        ui.strong("Action");
-                        ui.strong("Key Combo");
-                        ui.strong("");
-                        ui.end_row();
-
-                        for (
-                            idx,
-                            action_name,
-                            display_name,
-                            custom_binding,
-                            default_binding,
-                            is_custom,
-                        ) in &binding_info
-                        {
-                            let (binding_display, show_as_default) =
-                                if let Some(custom) = custom_binding {
-                                    (display_key_combo(custom), false)
-                                } else if let Some(default) = default_binding {
-                                    (display_key_combo(default), true)
-                                } else {
-                                    ("(not set)".to_string(), false)
-                                };
-
-                            ui.label(*display_name);
-
-                            let is_recording = settings.keybinding_recording_index == Some(*idx);
-                            if is_recording {
-                                ui.colored_label(
-                                    egui::Color32::YELLOW,
-                                    "Press key combo... (Esc to cancel)",
-                                );
-                            } else if show_as_default {
-                                ui.colored_label(
-                                    egui::Color32::from_rgb(128, 128, 128),
-                                    egui::RichText::new(&binding_display).monospace(),
-                                );
-                            } else {
-                                ui.monospace(&binding_display);
-                            }
-
-                            ui.horizontal(|ui| {
-                                let button_text = if is_recording { "Cancel" } else { "Record" };
-                                if ui.button(button_text).clicked() {
-                                    if is_recording {
-                                        cancel_recording = true;
-                                    } else {
-                                        start_recording = Some(*idx);
-                                    }
-                                }
-
-                                if *is_custom && !is_recording && ui.button("Clear").clicked() {
-                                    action_to_clear = Some(*action_name);
-                                }
-                            });
-
-                            ui.end_row();
-                        }
-                    });
-            });
-
-        if cancel_recording {
-            settings.keybinding_recording_index = None;
-            settings.keybinding_recorded_combo = None;
-        }
-
-        if let Some(idx) = start_recording {
-            settings.keybinding_recording_index = Some(idx);
-            settings.keybinding_recorded_combo = None;
-        }
-
-        if let Some(action_name) = action_to_clear {
-            settings
-                .config
-                .keybindings
-                .retain(|b| b.action != action_name);
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.add_space(8.0);
-        ui.separator();
-        ui.add_space(4.0);
-
-        #[cfg(target_os = "macos")]
-        {
-            ui.label("Key combo format: Modifiers+Key (e.g., 'Cmd+Shift+B', 'Ctrl+T')");
-            ui.label("Available modifiers: Cmd, Ctrl, Alt, Shift");
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            ui.label("Key combo format: Modifiers+Key (e.g., 'Ctrl+Shift+B', 'Alt+T')");
-            ui.label("Available modifiers: Ctrl, Alt, Shift, Super");
-        }
-    });
+            #[cfg(target_os = "macos")]
+            {
+                ui.label("Key combo format: Modifiers+Key (e.g., 'Cmd+Shift+B', 'Ctrl+T')");
+                ui.label("Available modifiers: Cmd, Ctrl, Alt, Shift");
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                ui.label("Key combo format: Modifiers+Key (e.g., 'Ctrl+Shift+B', 'Alt+T')");
+                ui.label("Available modifiers: Ctrl, Alt, Shift, Super");
+            }
+        },
+    );
 }
 
 /// Capture a keyboard combination from user input.

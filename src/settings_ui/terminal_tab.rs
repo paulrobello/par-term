@@ -12,11 +12,17 @@
 
 use super::SettingsUI;
 use super::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section};
+use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
 /// Show the terminal tab content.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
     let query = settings.search_query.trim().to_lowercase();
 
     // Behavior section
@@ -32,7 +38,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "close",
         ],
     ) {
-        show_behavior_section(ui, settings, changes_this_frame);
+        show_behavior_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Unicode section (collapsed by default)
@@ -41,7 +47,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Unicode",
         &["unicode", "width", "answerback", "ambiguous"],
     ) {
-        show_unicode_section(ui, settings, changes_this_frame);
+        show_unicode_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Shell section
@@ -58,7 +64,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "home",
         ],
     ) {
-        show_shell_section(ui, settings, changes_this_frame);
+        show_shell_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Startup section (collapsed by default)
@@ -67,7 +73,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Startup",
         &["initial text", "startup", "delay", "newline"],
     ) {
-        show_startup_section(ui, settings, changes_this_frame);
+        show_startup_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Search section
@@ -76,7 +82,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Search",
         &["search", "highlight", "case sensitive", "regex", "wrap"],
     ) {
-        show_search_section(ui, settings, changes_this_frame);
+        show_search_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Semantic History section
@@ -85,7 +91,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Semantic History",
         &["semantic", "history", "file", "editor", "path", "click"],
     ) {
-        show_semantic_history_section(ui, settings, changes_this_frame);
+        show_semantic_history_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Scrollbar section
@@ -94,7 +100,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Scrollbar",
         &["scrollbar", "thumb", "track", "autohide", "marker"],
     ) {
-        show_scrollbar_section(ui, settings, changes_this_frame);
+        show_scrollbar_section(ui, settings, changes_this_frame, collapsed);
     }
 }
 
@@ -116,8 +122,9 @@ fn show_behavior_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Behavior", "terminal_behavior", true, |ui| {
+    collapsing_section(ui, "Behavior", "terminal_behavior", true, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Scrollback lines:");
             if ui
@@ -244,8 +251,9 @@ fn show_unicode_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Unicode", "terminal_unicode", false, |ui| {
+    collapsing_section(ui, "Unicode", "terminal_unicode", false, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Unicode version:");
             let version_text = match settings.config.unicode_version {
@@ -415,8 +423,13 @@ fn show_unicode_section(
 // Shell Section
 // ============================================================================
 
-fn show_shell_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
-    collapsing_section(ui, "Shell", "terminal_shell", true, |ui| {
+fn show_shell_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(ui, "Shell", "terminal_shell", true, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Custom shell (optional):");
             if ui
@@ -574,8 +587,9 @@ fn show_startup_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Startup", "terminal_startup", false, |ui| {
+    collapsing_section(ui, "Startup", "terminal_startup", false, collapsed, |ui| {
         ui.label("Initial text to send when a session starts:");
         if ui
             .text_edit_multiline(&mut settings.temp_initial_text)
@@ -627,8 +641,9 @@ fn show_search_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Search", "terminal_search", true, |ui| {
+    collapsing_section(ui, "Search", "terminal_search", true, collapsed, |ui| {
         ui.label(egui::RichText::new("Highlight Colors").strong());
 
         // Match highlight color
@@ -724,27 +739,49 @@ fn show_scrollbar_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Scrollbar", "terminal_scrollbar", true, |ui| {
-        if ui
-            .checkbox(
-                &mut settings.config.scrollbar_command_marks,
-                "Show command markers (requires shell integration)",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+    collapsing_section(
+        ui,
+        "Scrollbar",
+        "terminal_scrollbar",
+        true,
+        collapsed,
+        |ui| {
+            if ui
+                .checkbox(
+                    &mut settings.config.scrollbar_command_marks,
+                    "Show command markers (requires shell integration)",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
 
-        // Indent the tooltip option under command markers
-        ui.horizontal(|ui| {
-            ui.add_space(20.0);
-            ui.add_enabled_ui(settings.config.scrollbar_command_marks, |ui| {
+            // Indent the tooltip option under command markers
+            ui.horizontal(|ui| {
+                ui.add_space(20.0);
+                ui.add_enabled_ui(settings.config.scrollbar_command_marks, |ui| {
+                    if ui
+                        .checkbox(
+                            &mut settings.config.scrollbar_mark_tooltips,
+                            "Show tooltips on hover",
+                        )
+                        .changed()
+                    {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Width:");
                 if ui
-                    .checkbox(
-                        &mut settings.config.scrollbar_mark_tooltips,
-                        "Show tooltips on hover",
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(&mut settings.config.scrollbar_width, 4.0..=50.0),
                     )
                     .changed()
                 {
@@ -752,91 +789,77 @@ fn show_scrollbar_section(
                     *changes_this_frame = true;
                 }
             });
-        });
 
-        ui.horizontal(|ui| {
-            ui.label("Width:");
-            if ui
-                .add_sized(
-                    [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.scrollbar_width, 4.0..=50.0),
+            ui.horizontal(|ui| {
+                ui.label("Autohide delay (ms, 0=never):");
+                if ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(&mut settings.config.scrollbar_autohide_delay, 0..=5000),
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new("Colors").strong());
+
+            ui.horizontal(|ui| {
+                ui.label("Thumb color:");
+                let mut thumb = egui::Color32::from_rgba_unmultiplied(
+                    (settings.config.scrollbar_thumb_color[0] * 255.0) as u8,
+                    (settings.config.scrollbar_thumb_color[1] * 255.0) as u8,
+                    (settings.config.scrollbar_thumb_color[2] * 255.0) as u8,
+                    (settings.config.scrollbar_thumb_color[3] * 255.0) as u8,
+                );
+                if egui::color_picker::color_edit_button_srgba(
+                    ui,
+                    &mut thumb,
+                    egui::color_picker::Alpha::Opaque,
                 )
                 .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
+                {
+                    settings.config.scrollbar_thumb_color = [
+                        thumb.r() as f32 / 255.0,
+                        thumb.g() as f32 / 255.0,
+                        thumb.b() as f32 / 255.0,
+                        thumb.a() as f32 / 255.0,
+                    ];
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
 
-        ui.horizontal(|ui| {
-            ui.label("Autohide delay (ms, 0=never):");
-            if ui
-                .add_sized(
-                    [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.scrollbar_autohide_delay, 0..=5000),
+            ui.horizontal(|ui| {
+                ui.label("Track color:");
+                let mut track = egui::Color32::from_rgba_unmultiplied(
+                    (settings.config.scrollbar_track_color[0] * 255.0) as u8,
+                    (settings.config.scrollbar_track_color[1] * 255.0) as u8,
+                    (settings.config.scrollbar_track_color[2] * 255.0) as u8,
+                    (settings.config.scrollbar_track_color[3] * 255.0) as u8,
+                );
+                if egui::color_picker::color_edit_button_srgba(
+                    ui,
+                    &mut track,
+                    egui::color_picker::Alpha::Opaque,
                 )
                 .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-
-        ui.add_space(8.0);
-        ui.label(egui::RichText::new("Colors").strong());
-
-        ui.horizontal(|ui| {
-            ui.label("Thumb color:");
-            let mut thumb = egui::Color32::from_rgba_unmultiplied(
-                (settings.config.scrollbar_thumb_color[0] * 255.0) as u8,
-                (settings.config.scrollbar_thumb_color[1] * 255.0) as u8,
-                (settings.config.scrollbar_thumb_color[2] * 255.0) as u8,
-                (settings.config.scrollbar_thumb_color[3] * 255.0) as u8,
-            );
-            if egui::color_picker::color_edit_button_srgba(
-                ui,
-                &mut thumb,
-                egui::color_picker::Alpha::Opaque,
-            )
-            .changed()
-            {
-                settings.config.scrollbar_thumb_color = [
-                    thumb.r() as f32 / 255.0,
-                    thumb.g() as f32 / 255.0,
-                    thumb.b() as f32 / 255.0,
-                    thumb.a() as f32 / 255.0,
-                ];
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-
-        ui.horizontal(|ui| {
-            ui.label("Track color:");
-            let mut track = egui::Color32::from_rgba_unmultiplied(
-                (settings.config.scrollbar_track_color[0] * 255.0) as u8,
-                (settings.config.scrollbar_track_color[1] * 255.0) as u8,
-                (settings.config.scrollbar_track_color[2] * 255.0) as u8,
-                (settings.config.scrollbar_track_color[3] * 255.0) as u8,
-            );
-            if egui::color_picker::color_edit_button_srgba(
-                ui,
-                &mut track,
-                egui::color_picker::Alpha::Opaque,
-            )
-            .changed()
-            {
-                settings.config.scrollbar_track_color = [
-                    track.r() as f32 / 255.0,
-                    track.g() as f32 / 255.0,
-                    track.b() as f32 / 255.0,
-                    track.a() as f32 / 255.0,
-                ];
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-    });
+                {
+                    settings.config.scrollbar_track_color = [
+                        track.r() as f32 / 255.0,
+                        track.g() as f32 / 255.0,
+                        track.b() as f32 / 255.0,
+                        track.a() as f32 / 255.0,
+                    ];
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        },
+    );
 }
 
 // ============================================================================
@@ -847,12 +870,14 @@ fn show_semantic_history_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(
         ui,
         "Semantic History",
         "terminal_semantic_history",
         true,
+        collapsed,
         |ui| {
             ui.label(
                 egui::RichText::new(
