@@ -1312,6 +1312,13 @@ pub struct Config {
     pub last_notified_version: Option<String>,
 
     // ========================================================================
+    // Window Arrangements
+    // ========================================================================
+    /// Name of arrangement to auto-restore on startup (None = disabled)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_restore_arrangement: Option<String>,
+
+    // ========================================================================
     // Search Settings
     // ========================================================================
     /// Highlight color for search matches [R, G, B, A] (0-255)
@@ -1711,6 +1718,7 @@ impl Default for Config {
             last_update_check: None,
             skipped_version: None,
             last_notified_version: None,
+            auto_restore_arrangement: None,
             search_highlight_color: defaults::search_highlight_color(),
             search_current_highlight_color: defaults::search_current_highlight_color(),
             search_case_sensitive: defaults::bool_false(),

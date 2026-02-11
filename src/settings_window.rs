@@ -38,6 +38,14 @@ pub enum SettingsWindowAction {
     StopCoprocess(usize),
     /// Open the debug log file in the system's default editor/viewer
     OpenLogFile,
+    /// Save the current window layout as an arrangement
+    SaveArrangement(String),
+    /// Restore a saved window arrangement
+    RestoreArrangement(crate::arrangements::ArrangementId),
+    /// Delete a saved window arrangement
+    DeleteArrangement(crate::arrangements::ArrangementId),
+    /// Rename a saved window arrangement
+    RenameArrangement(crate::arrangements::ArrangementId, String),
 }
 
 /// Manages a separate settings window with its own egui context and wgpu renderer
@@ -499,6 +507,12 @@ impl SettingsWindow {
             } else {
                 SettingsWindowAction::StopCoprocess(index)
             };
+        }
+
+        // Check for arrangement actions
+        if let Some(action) = self.settings_ui.pending_arrangement_actions.pop() {
+            self.window.request_redraw();
+            return action;
         }
 
         // Determine action based on settings UI results

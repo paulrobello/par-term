@@ -11,6 +11,7 @@ use std::collections::HashSet;
 // Reorganized settings tabs (12 consolidated tabs)
 pub mod actions_tab;
 pub mod advanced_tab;
+pub mod arrangements_tab;
 pub mod appearance_tab;
 pub mod automation_tab;
 pub mod badge_tab;
@@ -308,6 +309,22 @@ pub struct SettingsUI {
     // Reset to defaults dialog state
     /// Whether to show the reset to defaults confirmation dialog
     pub(crate) show_reset_defaults_dialog: bool,
+
+    // Arrangements tab state
+    /// Name for saving a new arrangement
+    pub(crate) arrangement_save_name: String,
+/// Arrangement ID pending restore confirmation
+    pub(crate) arrangement_confirm_restore: Option<crate::arrangements::ArrangementId>,
+    /// Arrangement ID pending delete confirmation
+    pub(crate) arrangement_confirm_delete: Option<crate::arrangements::ArrangementId>,
+    /// Arrangement ID being renamed
+    pub(crate) arrangement_rename_id: Option<crate::arrangements::ArrangementId>,
+    /// Text buffer for rename operation
+    pub(crate) arrangement_rename_text: String,
+    /// Pending arrangement actions to send to the main window
+    pub(crate) pending_arrangement_actions: Vec<crate::settings_window::SettingsWindowAction>,
+    /// Cached arrangement manager data (synced from WindowManager)
+    pub(crate) arrangement_manager: crate::arrangements::ArrangementManager,
 }
 
 impl SettingsUI {
@@ -446,6 +463,13 @@ impl SettingsUI {
             recording_action_keybinding: false,
             action_recorded_combo: None,
             show_reset_defaults_dialog: false,
+            arrangement_save_name: String::new(),
+            arrangement_confirm_restore: None,
+            arrangement_confirm_delete: None,
+            arrangement_rename_id: None,
+            arrangement_rename_text: String::new(),
+            pending_arrangement_actions: Vec::new(),
+            arrangement_manager: crate::arrangements::ArrangementManager::new(),
         }
     }
 
@@ -1191,6 +1215,9 @@ impl SettingsUI {
             }
             SettingsTab::Actions => {
                 actions_tab::show(ui, self, changes_this_frame);
+            }
+            SettingsTab::Arrangements => {
+                arrangements_tab::show(ui, self, changes_this_frame);
             }
             SettingsTab::Advanced => {
                 advanced_tab::show(ui, self, changes_this_frame);

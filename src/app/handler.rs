@@ -1098,6 +1098,18 @@ impl ApplicationHandler for WindowManager {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Create the first window on app resume (or if all windows were closed on some platforms)
         if self.windows.is_empty() {
+            // Try auto-restore if configured and not yet attempted
+            if !self.auto_restore_done {
+                self.auto_restore_done = true;
+                if let Some(ref name) = self.config.auto_restore_arrangement.clone()
+                    && !name.is_empty()
+                    && self.arrangement_manager.find_by_name(name).is_some()
+                {
+                    log::info!("Auto-restoring arrangement: {}", name);
+                    self.restore_arrangement_by_name(name, event_loop);
+                    return;
+                }
+            }
             self.create_window(event_loop);
         }
     }
@@ -1172,6 +1184,25 @@ impl ApplicationHandler for WindowManager {
                             log::error!("Failed to open log file: {}", e);
                         }
                     }
+                    SettingsWindowAction::SaveArrangement(name) => {
+                        self.save_arrangement(name, event_loop);
+                    }
+                    SettingsWindowAction::RestoreArrangement(id) => {
+                        self.restore_arrangement(id, event_loop);
+                    }
+                    SettingsWindowAction::DeleteArrangement(id) => {
+                        self.delete_arrangement(id);
+                    }
+                    SettingsWindowAction::RenameArrangement(id, new_name) => {
+                        // Special sentinel values for reorder operations
+                        if new_name == "__move_up__" {
+                            self.move_arrangement_up(id);
+                        } else if new_name == "__move_down__" {
+                            self.move_arrangement_down(id);
+                        } else {
+                            self.rename_arrangement(id, new_name);
+                        }
+                    }
                     SettingsWindowAction::None => {}
                 }
             }
@@ -1243,11 +1274,17 @@ impl ApplicationHandler for WindowManager {
         let mut background_shader_result: Option<Option<String>> = None;
         let mut cursor_shader_result: Option<Option<String>> = None;
         let mut profiles_to_update: Option<Vec<crate::profile::Profile>> = None;
+        let mut arrangement_restore_name: Option<String> = None;
 
         for window_state in self.windows.values_mut() {
             if window_state.open_settings_window_requested {
                 window_state.open_settings_window_requested = false;
                 open_settings = true;
+            }
+
+            // Check for arrangement restore request from keybinding
+            if let Some(name) = window_state.pending_arrangement_restore.take() {
+                arrangement_restore_name = Some(name);
             }
 
             // Check if profiles menu needs updating (from profile modal save)
@@ -1279,6 +1316,11 @@ impl ApplicationHandler for WindowManager {
         // Open settings window if requested (F12 or Cmd+,)
         if open_settings {
             self.open_settings_window(event_loop);
+        }
+
+        // Restore arrangement if requested via keybinding
+        if let Some(name) = arrangement_restore_name {
+            self.restore_arrangement_by_name(&name, event_loop);
         }
 
         // Propagate shader reload results to standalone settings window
