@@ -87,7 +87,11 @@ impl TabManager {
         // Always switch to the new tab
         self.active_tab_id = Some(id);
 
-        log::info!("Created new tab {} with cwd (total: {})", id, self.tabs.len());
+        log::info!(
+            "Created new tab {} with cwd (total: {})",
+            id,
+            self.tabs.len()
+        );
 
         Ok(id)
     }
@@ -261,6 +265,31 @@ impl TabManager {
         }
     }
 
+    /// Move a tab to a specific index (used by drag-and-drop reordering)
+    /// Returns true if the tab was actually moved, false if not found or already at target
+    pub fn move_tab_to_index(&mut self, id: TabId, target_index: usize) -> bool {
+        let current_idx = match self.tabs.iter().position(|t| t.id == id) {
+            Some(idx) => idx,
+            None => return false,
+        };
+
+        let clamped_target = target_index.min(self.tabs.len().saturating_sub(1));
+        if clamped_target == current_idx {
+            return false;
+        }
+
+        let tab = self.tabs.remove(current_idx);
+        self.tabs.insert(clamped_target, tab);
+        log::debug!(
+            "Moved tab {} from index {} to {}",
+            id,
+            current_idx,
+            clamped_target
+        );
+        self.renumber_default_tabs();
+        true
+    }
+
     /// Move active tab left
     pub fn move_active_tab_left(&mut self) {
         if let Some(id) = self.active_tab_id {
@@ -396,5 +425,88 @@ impl TabManager {
 impl Default for TabManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Create a TabManager with mock tabs for testing (no PTY, no runtime)
+    fn manager_with_ids(ids: &[TabId]) -> TabManager {
+        let mut mgr = TabManager::new();
+        for &id in ids {
+            let tab_number = mgr.tabs.len() + 1;
+            // Create a minimal tab struct directly for testing
+            mgr.tabs.push(Tab::new_stub(id, tab_number));
+            mgr.next_tab_id = mgr.next_tab_id.max(id + 1);
+        }
+        if let Some(last) = ids.last() {
+            mgr.active_tab_id = Some(*last);
+        }
+        mgr
+    }
+
+    #[test]
+    fn move_tab_to_index_forward() {
+        let mut mgr = manager_with_ids(&[1, 2, 3, 4]);
+        // Move tab 1 from index 0 to index 2
+        assert!(mgr.move_tab_to_index(1, 2));
+        let ids: Vec<TabId> = mgr.tabs.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![2, 3, 1, 4]);
+    }
+
+    #[test]
+    fn move_tab_to_index_backward() {
+        let mut mgr = manager_with_ids(&[1, 2, 3, 4]);
+        // Move tab 3 from index 2 to index 0
+        assert!(mgr.move_tab_to_index(3, 0));
+        let ids: Vec<TabId> = mgr.tabs.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![3, 1, 2, 4]);
+    }
+
+    #[test]
+    fn move_tab_to_index_same_position() {
+        let mut mgr = manager_with_ids(&[1, 2, 3]);
+        // Moving to same position is a no-op
+        assert!(!mgr.move_tab_to_index(2, 1));
+        let ids: Vec<TabId> = mgr.tabs.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn move_tab_to_index_out_of_bounds_clamped() {
+        let mut mgr = manager_with_ids(&[1, 2, 3]);
+        // Target index 100 should clamp to last position (2)
+        assert!(mgr.move_tab_to_index(1, 100));
+        let ids: Vec<TabId> = mgr.tabs.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![2, 3, 1]);
+    }
+
+    #[test]
+    fn move_tab_to_index_invalid_id() {
+        let mut mgr = manager_with_ids(&[1, 2, 3]);
+        // Non-existent tab ID returns false
+        assert!(!mgr.move_tab_to_index(99, 0));
+        let ids: Vec<TabId> = mgr.tabs.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn move_tab_to_index_to_end() {
+        let mut mgr = manager_with_ids(&[1, 2, 3]);
+        // Move first tab to last position
+        assert!(mgr.move_tab_to_index(1, 2));
+        let ids: Vec<TabId> = mgr.tabs.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![2, 3, 1]);
+    }
+
+    #[test]
+    fn move_tab_to_index_to_start() {
+        let mut mgr = manager_with_ids(&[1, 2, 3]);
+        // Move last tab to first position
+        assert!(mgr.move_tab_to_index(3, 0));
+        let ids: Vec<TabId> = mgr.tabs.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![3, 1, 2]);
     }
 }

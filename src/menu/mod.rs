@@ -327,16 +327,9 @@ impl MenuManager {
 
         view_menu.append(&PredefinedMenuItem::separator())?;
 
-        let save_arrangement = MenuItem::with_id(
-            "save_arrangement",
-            "Save Window Arrangement...",
-            true,
-            None,
-        );
-        action_map.insert(
-            save_arrangement.id().clone(),
-            MenuAction::SaveArrangement,
-        );
+        let save_arrangement =
+            MenuItem::with_id("save_arrangement", "Save Window Arrangement...", true, None);
+        action_map.insert(save_arrangement.id().clone(), MenuAction::SaveArrangement);
         view_menu.append(&save_arrangement)?;
 
         menu.append(&view_menu)?;

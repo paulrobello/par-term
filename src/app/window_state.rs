@@ -2600,7 +2600,15 @@ impl WindowState {
                     window.request_redraw();
                 }
             }
-            TabBarAction::None | TabBarAction::Reorder(_, _) => {}
+            TabBarAction::Reorder(id, target_index) => {
+                if self.tab_manager.move_tab_to_index(id, target_index) {
+                    self.needs_redraw = true;
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                }
+            }
+            TabBarAction::None => {}
         }
 
         // Handle clipboard actions collected during egui rendering

@@ -11,8 +11,8 @@ use std::collections::HashSet;
 // Reorganized settings tabs (12 consolidated tabs)
 pub mod actions_tab;
 pub mod advanced_tab;
-pub mod arrangements_tab;
 pub mod appearance_tab;
+pub mod arrangements_tab;
 pub mod automation_tab;
 pub mod badge_tab;
 pub mod effects_tab;
@@ -313,7 +313,7 @@ pub struct SettingsUI {
     // Arrangements tab state
     /// Name for saving a new arrangement
     pub(crate) arrangement_save_name: String,
-/// Arrangement ID pending restore confirmation
+    /// Arrangement ID pending restore confirmation
     pub(crate) arrangement_confirm_restore: Option<crate::arrangements::ArrangementId>,
     /// Arrangement ID pending delete confirmation
     pub(crate) arrangement_confirm_delete: Option<crate::arrangements::ArrangementId>,

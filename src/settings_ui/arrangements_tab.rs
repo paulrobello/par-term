@@ -61,33 +61,27 @@ fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
 // ============================================================================
 
 fn show_save_section(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    collapsing_section(
-        ui,
-        "Save Current Layout",
-        "arrangements_save",
-        true,
-        |ui| {
-            ui.label("Save the current window arrangement (positions, sizes, and tab working directories) for later restoration.");
-            ui.add_space(8.0);
+    collapsing_section(ui, "Save Current Layout", "arrangements_save", true, |ui| {
+        ui.label("Save the current window arrangement (positions, sizes, and tab working directories) for later restoration.");
+        ui.add_space(8.0);
 
-            ui.horizontal(|ui| {
-                ui.label("Name:");
-                ui.text_edit_singleline(&mut settings.arrangement_save_name);
+        ui.horizontal(|ui| {
+            ui.label("Name:");
+            ui.text_edit_singleline(&mut settings.arrangement_save_name);
 
-                let name_valid = !settings.arrangement_save_name.trim().is_empty();
-                if ui
-                    .add_enabled(name_valid, egui::Button::new("Save"))
-                    .clicked()
-                {
-                    let name = settings.arrangement_save_name.trim().to_string();
-                    settings.pending_arrangement_actions.push(
-                        SettingsWindowAction::SaveArrangement(name),
-                    );
-                    settings.arrangement_save_name.clear();
-                }
-            });
-        },
-    );
+            let name_valid = !settings.arrangement_save_name.trim().is_empty();
+            if ui
+                .add_enabled(name_valid, egui::Button::new("Save"))
+                .clicked()
+            {
+                let name = settings.arrangement_save_name.trim().to_string();
+                settings
+                    .pending_arrangement_actions
+                    .push(SettingsWindowAction::SaveArrangement(name));
+                settings.arrangement_save_name.clear();
+            }
+        });
+    });
 }
 
 // ============================================================================
@@ -95,23 +89,17 @@ fn show_save_section(ui: &mut egui::Ui, settings: &mut SettingsUI) {
 // ============================================================================
 
 fn show_arrangements_list(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    collapsing_section(
-        ui,
-        "Saved Arrangements",
-        "arrangements_list",
-        true,
-        |ui| {
-            let manager = settings.arrangement_manager.clone();
-            show_arrangements_with_manager(ui, settings, &manager);
+    collapsing_section(ui, "Saved Arrangements", "arrangements_list", true, |ui| {
+        let manager = settings.arrangement_manager.clone();
+        show_arrangements_with_manager(ui, settings, &manager);
 
-            ui.add_space(4.0);
+        ui.add_space(4.0);
 
-            // Show confirmation dialogs
-            show_confirm_restore_dialog(ui, settings);
-            show_confirm_delete_dialog(ui, settings);
-            show_rename_dialog(ui, settings);
-        },
-    );
+        // Show confirmation dialogs
+        show_confirm_restore_dialog(ui, settings);
+        show_confirm_delete_dialog(ui, settings);
+        show_rename_dialog(ui, settings);
+    });
 }
 
 /// Render the arrangements list with data from the ArrangementManager.

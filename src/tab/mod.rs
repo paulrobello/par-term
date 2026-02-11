@@ -1311,6 +1311,45 @@ impl Drop for Tab {
     }
 }
 
+impl Tab {
+    /// Create a minimal stub tab for unit testing (no PTY, no runtime)
+    #[cfg(test)]
+    pub(crate) fn new_stub(id: TabId, tab_number: usize) -> Self {
+        // Create a dummy TerminalManager without spawning a shell
+        let terminal =
+            TerminalManager::new_with_scrollback(80, 24, 100).expect("stub terminal creation");
+        Self {
+            id,
+            terminal: Arc::new(Mutex::new(terminal)),
+            pane_manager: None,
+            title: format!("Tab {}", tab_number),
+            has_activity: false,
+            scroll_state: ScrollState::new(),
+            mouse: MouseState::new(),
+            bell: BellState::new(),
+            cache: RenderCache::new(),
+            refresh_task: None,
+            working_directory: None,
+            custom_color: None,
+            has_default_title: true,
+            last_activity_time: std::time::Instant::now(),
+            last_seen_generation: 0,
+            anti_idle_last_activity: std::time::Instant::now(),
+            anti_idle_last_generation: 0,
+            silence_notified: false,
+            exit_notified: false,
+            session_logger: create_shared_logger(),
+            tmux_gateway_active: false,
+            tmux_pane_id: None,
+            detected_hostname: None,
+            auto_applied_profile_id: None,
+            badge_override: None,
+            coprocess_ids: Vec::new(),
+            trigger_marks: Vec::new(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

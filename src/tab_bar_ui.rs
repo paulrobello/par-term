@@ -35,7 +35,6 @@ pub enum TabBarAction {
     /// Create a new tab
     NewTab,
     /// Reorder a tab to a new position
-    #[allow(dead_code)]
     Reorder(TabId, usize),
     /// Set custom color for a tab
     SetColor(TabId, [u8; 3]),
@@ -50,11 +49,19 @@ pub struct TabBarUI {
     /// Tab where close button is hovered
     pub close_hovered: Option<TabId>,
     /// Whether a drag is in progress
-    #[allow(dead_code)]
     drag_in_progress: bool,
     /// Tab being dragged
-    #[allow(dead_code)]
     dragging_tab: Option<TabId>,
+    /// Cached title of the tab being dragged (for ghost rendering)
+    dragging_title: String,
+    /// Cached color of the tab being dragged
+    dragging_color: Option<[u8; 3]>,
+    /// Width of the tab being dragged (for ghost rendering)
+    dragging_tab_width: f32,
+    /// Visual indicator for where the dragged tab would be inserted
+    drop_target_index: Option<usize>,
+    /// Per-frame cache of tab rects for drop target calculation
+    tab_rects: Vec<(TabId, egui::Rect)>,
     /// Tab ID for which context menu is open
     context_menu_tab: Option<TabId>,
     /// Position where context menu was opened
@@ -75,6 +82,11 @@ impl TabBarUI {
             close_hovered: None,
             drag_in_progress: false,
             dragging_tab: None,
+            dragging_title: String::new(),
+            dragging_color: None,
+            dragging_tab_width: 0.0,
+            drop_target_index: None,
+            tab_rects: Vec::new(),
             context_menu_tab: None,
             context_menu_pos: egui::Pos2::ZERO,
             context_menu_opened_frame: 0,
@@ -92,6 +104,11 @@ impl TabBarUI {
         }
     }
 
+    /// Check if a drag operation is in progress
+    pub fn is_dragging(&self) -> bool {
+        self.drag_in_progress
+    }
+
     /// Render the tab bar and return any action triggered
     pub fn render(
         &mut self,
@@ -105,6 +122,9 @@ impl TabBarUI {
         if !self.should_show(tab_count, config.tab_bar_mode) {
             return TabBarAction::None;
         }
+
+        // Clear per-frame tab rect cache
+        self.tab_rects.clear();
 
         let mut action = TabBarAction::None;
         let active_tab_id = tabs.active_tab_id();
@@ -195,7 +215,7 @@ impl TabBarUI {
                                     for (index, tab) in tabs.tabs().iter().enumerate() {
                                         let is_active = Some(tab.id) == active_tab_id;
                                         let is_bell_active = tab.is_bell_active();
-                                        let tab_action = self.render_tab_with_width(
+                                        let (tab_action, tab_rect) = self.render_tab_with_width(
                                             ui,
                                             tab.id,
                                             index,
@@ -206,7 +226,9 @@ impl TabBarUI {
                                             tab.custom_color,
                                             config,
                                             tab_width,
+                                            tab_count,
                                         );
+                                        self.tab_rects.push((tab.id, tab_rect));
 
                                         if tab_action != TabBarAction::None {
                                             action = tab_action;
@@ -235,7 +257,7 @@ impl TabBarUI {
                         for (index, tab) in tabs.tabs().iter().enumerate() {
                             let is_active = Some(tab.id) == active_tab_id;
                             let is_bell_active = tab.is_bell_active();
-                            let tab_action = self.render_tab_with_width(
+                            let (tab_action, tab_rect) = self.render_tab_with_width(
                                 ui,
                                 tab.id,
                                 index,
@@ -246,7 +268,9 @@ impl TabBarUI {
                                 tab.custom_color,
                                 config,
                                 tab_width,
+                                tab_count,
                             );
+                            self.tab_rects.push((tab.id, tab_rect));
 
                             if tab_action != TabBarAction::None {
                                 action = tab_action;
@@ -274,7 +298,21 @@ impl TabBarUI {
                         new_tab_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
                     }
                 });
+
+                // Handle drag feedback and drop detection (outside horizontal layout
+                // so we can paint over the tab bar)
+                if self.drag_in_progress {
+                    let drag_action = self.render_drag_feedback(ui, config);
+                    if drag_action != TabBarAction::None {
+                        action = drag_action;
+                    }
+                }
             });
+
+        // Render floating ghost tab during drag (must be outside the panel)
+        if self.drag_in_progress && self.dragging_tab.is_some() {
+            self.render_ghost_tab(ctx, config);
+        }
 
         // Handle context menu (color picker popup)
         if let Some(context_tab_id) = self.context_menu_tab {
@@ -287,7 +325,7 @@ impl TabBarUI {
         action
     }
 
-    /// Render a single tab with specified width and return any action triggered
+    /// Render a single tab with specified width and return any action triggered plus the tab rect
     #[allow(clippy::too_many_arguments)]
     fn render_tab_with_width(
         &mut self,
@@ -301,14 +339,20 @@ impl TabBarUI {
         custom_color: Option<[u8; 3]>,
         config: &Config,
         tab_width: f32,
-    ) -> TabBarAction {
+        tab_count: usize,
+    ) -> (TabBarAction, egui::Rect) {
         let mut action = TabBarAction::None;
 
         // Determine if this tab should be dimmed
         // Active tabs and hovered inactive tabs are NOT dimmed
+        // Also dim the tab being dragged
         let is_hovered = self.hovered_tab == Some(id);
-        let should_dim = config.dim_inactive_tabs && !is_active && !is_hovered;
-        let opacity = if should_dim {
+        let is_being_dragged = self.dragging_tab == Some(id) && self.drag_in_progress;
+        let should_dim =
+            is_being_dragged || (config.dim_inactive_tabs && !is_active && !is_hovered);
+        let opacity = if is_being_dragged {
+            100
+        } else if should_dim {
             (config.inactive_tab_opacity * 255.0) as u8
         } else {
             255
@@ -536,22 +580,43 @@ impl TabBarUI {
             );
         }
 
-        // Handle tab click (switch to tab)
-        // Use egui's built-in interact() for proper hit testing
+        // Handle tab click and drag (switch to tab / initiate drag)
+        // Use click_and_drag sense to enable both click and drag detection
         let tab_response = ui.interact(
             tab_rect,
             egui::Id::new(("tab_click", id)),
-            egui::Sense::click(),
+            egui::Sense::click_and_drag(),
         );
 
         // Use egui's response for click detection
         let pointer_in_tab = tab_response.hovered();
         let clicked = tab_response.clicked_by(egui::PointerButton::Primary);
 
+        // Drag initiation: only start drag if multiple tabs exist,
+        // not hovering close button, and not already dragging
+        if tab_count > 1
+            && !self.drag_in_progress
+            && self.close_hovered != Some(id)
+            && tab_response.drag_started_by(egui::PointerButton::Primary)
+        {
+            self.drag_in_progress = true;
+            self.dragging_tab = Some(id);
+            self.dragging_title = title.to_string();
+            self.dragging_color = custom_color;
+            self.dragging_tab_width = tab_width;
+        }
+
+        // Suppress SwitchTo while this tab is being dragged
+        let is_dragging_this = self.dragging_tab == Some(id) && self.drag_in_progress;
+
         // Detect click using clicked_by() to only respond to mouse clicks, not keyboard
         // This prevents Enter key from triggering tab switches when a tab has keyboard focus
         // IMPORTANT: Skip if close button is hovered - let the close button handle the click
-        if clicked && action == TabBarAction::None && self.close_hovered != Some(id) {
+        if clicked
+            && !is_dragging_this
+            && action == TabBarAction::None
+            && self.close_hovered != Some(id)
+        {
             action = TabBarAction::SwitchTo(id);
         }
 
@@ -580,7 +645,192 @@ impl TabBarUI {
             self.hovered_tab = None;
         }
 
+        (action, tab_rect)
+    }
+
+    /// Render drag feedback indicator and handle drop/cancel
+    fn render_drag_feedback(&mut self, ui: &mut egui::Ui, config: &Config) -> TabBarAction {
+        let mut action = TabBarAction::None;
+
+        let dragging_id = match self.dragging_tab {
+            Some(id) => id,
+            None => {
+                self.drag_in_progress = false;
+                return action;
+            }
+        };
+
+        // Cancel on Escape
+        if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.drag_in_progress = false;
+            self.dragging_tab = None;
+            self.drop_target_index = None;
+            return action;
+        }
+
+        // Set grabbing cursor
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+
+        // Find the current index of the dragged tab
+        let drag_source_index = self.tab_rects.iter().position(|(id, _)| *id == dragging_id);
+
+        // Calculate insertion index from pointer position
+        if let Some(pointer_pos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
+            let mut insert_index = self.tab_rects.len(); // default: after last tab
+            for (i, (_id, rect)) in self.tab_rects.iter().enumerate() {
+                if pointer_pos.x < rect.center().x {
+                    insert_index = i;
+                    break;
+                }
+            }
+
+            // Determine if this would be a no-op (dropping in same position)
+            let is_noop =
+                drag_source_index.is_some_and(|src| insert_index == src || insert_index == src + 1);
+
+            if is_noop {
+                self.drop_target_index = None;
+            } else {
+                self.drop_target_index = Some(insert_index);
+
+                // Draw vertical indicator line with glow at insertion point
+                let indicator_x = if insert_index < self.tab_rects.len() {
+                    self.tab_rects[insert_index].1.left() - 2.0
+                } else if let Some(last) = self.tab_rects.last() {
+                    last.1.right() + 2.0
+                } else {
+                    0.0
+                };
+
+                let indicator_color = egui::Color32::from_rgb(80, 160, 255);
+                let glow_color = egui::Color32::from_rgba_unmultiplied(80, 160, 255, 50);
+                let top = config.tab_bar_height * 0.1;
+                let bottom = config.tab_bar_height * 0.9;
+
+                // Glow behind the indicator (wider, semi-transparent)
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_max(
+                        egui::pos2(indicator_x - 4.0, top),
+                        egui::pos2(indicator_x + 4.0, bottom),
+                    ),
+                    2.0,
+                    glow_color,
+                );
+
+                // Main indicator line
+                ui.painter().line_segment(
+                    [
+                        egui::pos2(indicator_x, top),
+                        egui::pos2(indicator_x, bottom),
+                    ],
+                    egui::Stroke::new(3.0, indicator_color),
+                );
+
+                // Small diamond/arrow at top and bottom of indicator
+                let diamond_size = 4.0;
+                for y in [top, bottom] {
+                    ui.painter().circle_filled(
+                        egui::pos2(indicator_x, y),
+                        diamond_size,
+                        indicator_color,
+                    );
+                }
+            }
+        }
+
+        // Handle drop (pointer released)
+        if ui.ctx().input(|i| i.pointer.any_released()) {
+            if let Some(insert_idx) = self.drop_target_index {
+                // Convert insertion index to target index accounting for removal
+                let effective_target = if let Some(src) = drag_source_index {
+                    if insert_idx > src {
+                        insert_idx - 1
+                    } else {
+                        insert_idx
+                    }
+                } else {
+                    insert_idx
+                };
+                action = TabBarAction::Reorder(dragging_id, effective_target);
+            }
+            self.drag_in_progress = false;
+            self.dragging_tab = None;
+            self.drop_target_index = None;
+        }
+
         action
+    }
+
+    /// Render a floating ghost tab that follows the cursor during drag
+    fn render_ghost_tab(&self, ctx: &egui::Context, config: &Config) {
+        let Some(pointer_pos) = ctx.input(|i| i.pointer.hover_pos()) else {
+            return;
+        };
+
+        let ghost_width = self.dragging_tab_width;
+        let ghost_height = config.tab_bar_height - 4.0;
+
+        // Center ghost on pointer horizontally, offset slightly below vertically
+        let ghost_pos = egui::pos2(
+            pointer_pos.x - ghost_width / 2.0,
+            pointer_pos.y - ghost_height / 2.0,
+        );
+
+        // Determine ghost background color
+        let bg_color = if let Some(custom) = self.dragging_color {
+            egui::Color32::from_rgba_unmultiplied(custom[0], custom[1], custom[2], 200)
+        } else {
+            let c = config.tab_active_background;
+            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 200)
+        };
+
+        let border_color = egui::Color32::from_rgba_unmultiplied(120, 180, 255, 200);
+
+        egui::Area::new(egui::Id::new("tab_drag_ghost"))
+            .fixed_pos(ghost_pos)
+            .order(egui::Order::Tooltip)
+            .interactable(false)
+            .show(ctx, |ui| {
+                let (rect, _) = ui.allocate_exact_size(
+                    egui::vec2(ghost_width, ghost_height),
+                    egui::Sense::hover(),
+                );
+
+                let rounding = ghost_height / 2.0;
+
+                // Shadow
+                let shadow_rect = rect.translate(egui::vec2(2.0, 2.0));
+                ui.painter().rect_filled(
+                    shadow_rect,
+                    rounding,
+                    egui::Color32::from_rgba_unmultiplied(0, 0, 0, 80),
+                );
+
+                // Background
+                ui.painter().rect_filled(rect, rounding, bg_color);
+
+                // Border
+                ui.painter().rect_stroke(
+                    rect,
+                    rounding,
+                    egui::Stroke::new(1.5, border_color),
+                    egui::StrokeKind::Middle,
+                );
+
+                // Title text (truncated to fit)
+                let text_color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 220);
+                let font_id = egui::FontId::proportional(13.0);
+                let max_text_width = ghost_width - 16.0;
+                let galley = ui.painter().layout(
+                    self.dragging_title.clone(),
+                    font_id,
+                    text_color,
+                    max_text_width,
+                );
+                let text_pos =
+                    egui::pos2(rect.left() + 8.0, rect.center().y - galley.size().y / 2.0);
+                ui.painter().galley(text_pos, galley, text_color);
+            });
     }
 
     /// Render the context menu for tab options

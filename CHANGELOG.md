@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Drag-and-Drop Tab Reordering** (#106): Reorder tabs by dragging them in the tab bar
+  - Click and drag any tab to move it to a new position
+  - Floating ghost tab follows the cursor during drag with semi-transparent preview
+  - Blue insertion indicator line with glow effect shows the drop target
+  - Dragged tab dims in place to indicate it is being moved
+  - Escape key cancels the drag operation
+  - Single-tab windows correctly suppress drag initiation
+  - Existing keyboard reorder shortcuts (Cmd/Ctrl+Shift+Arrow) continue to work
+
 - **Window Arrangements** (#103): Save and restore window layouts (iTerm2 parity)
   - **Save**: Capture current window positions, sizes, tab CWDs, and active tab indices as named arrangements
   - **Restore**: Recreate saved layouts, replacing all current windows

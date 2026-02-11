@@ -1509,12 +1509,9 @@ impl WindowState {
                     self.execute_snippet(snippet_id)
                 } else if let Some(action_id) = action.strip_prefix("action:") {
                     self.execute_custom_action(action_id)
-                } else if let Some(arrangement_name) =
-                    action.strip_prefix("restore_arrangement:")
-                {
+                } else if let Some(arrangement_name) = action.strip_prefix("restore_arrangement:") {
                     // Restore arrangement by name - handled by WindowManager
-                    self.pending_arrangement_restore =
-                        Some(arrangement_name.to_string());
+                    self.pending_arrangement_restore = Some(arrangement_name.to_string());
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
