@@ -4,6 +4,7 @@
 pub mod debug;
 
 pub mod app;
+pub mod arrangements;
 pub mod audio_bell;
 pub mod badge;
 pub mod cell_renderer;

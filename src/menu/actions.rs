@@ -87,6 +87,10 @@ pub enum MenuAction {
     /// Show about dialog
     About,
 
+    // Window Arrangements
+    /// Save the current window layout as an arrangement
+    SaveArrangement,
+
     // Keybinding actions (triggered by user-defined keybindings or menu)
     /// Toggle background/custom shader on/off
     #[allow(dead_code)]

@@ -4,6 +4,7 @@
 //! handles the native menu system, and manages shared resources.
 
 use crate::app::window_state::WindowState;
+use crate::arrangements::{self, ArrangementId, ArrangementManager};
 use crate::cli::RuntimeOptions;
 use crate::config::{Config, resolve_shader_config};
 use crate::menu::{MenuAction, MenuManager};
@@ -48,11 +49,24 @@ pub struct WindowManager {
     pub(crate) next_update_check: Option<Instant>,
     /// Last update check result (for display in settings)
     pub(crate) last_update_result: Option<UpdateCheckResult>,
+    /// Saved window arrangement manager
+    pub(crate) arrangement_manager: ArrangementManager,
+    /// Whether auto-restore has been attempted this session
+    pub(crate) auto_restore_done: bool,
 }
 
 impl WindowManager {
     /// Create a new window manager
     pub fn new(config: Config, runtime: Arc<Runtime>, runtime_options: RuntimeOptions) -> Self {
+        // Load saved arrangements
+        let arrangement_manager = match arrangements::storage::load_arrangements() {
+            Ok(manager) => manager,
+            Err(e) => {
+                log::warn!("Failed to load arrangements: {}", e);
+                ArrangementManager::new()
+            }
+        };
+
         Self {
             windows: HashMap::new(),
             menu: None,
@@ -68,6 +82,8 @@ impl WindowManager {
             update_checker: UpdateChecker::new(),
             next_update_check: None,
             last_update_result: None,
+            arrangement_manager,
+            auto_restore_done: false,
         }
     }
 
@@ -205,32 +221,34 @@ impl WindowManager {
 
     /// Show desktop notification when update is available
     fn notify_update_available(&self, info: &crate::update_checker::UpdateInfo) {
-        use notify_rust::Notification;
-
         let version_str = info.version.strip_prefix('v').unwrap_or(&info.version);
-
-        #[cfg(target_os = "macos")]
-        let body = format!(
-            "Version {} is available (you have {})\n\
-            If installed via Homebrew: brew upgrade --cask par-term\n\
-            Otherwise, download from GitHub releases.",
-            version_str,
-            env!("CARGO_PKG_VERSION")
-        );
+        let current = env!("CARGO_PKG_VERSION");
+        let summary = format!("par-term v{} Available", version_str);
+        let body = format!("You have v{}. Check Settings > Advanced > Updates.", current);
 
         #[cfg(not(target_os = "macos"))]
-        let body = format!(
-            "Version {} is available (you have {})\n\
-            Download from GitHub releases or your package manager.",
-            version_str,
-            env!("CARGO_PKG_VERSION")
-        );
+        {
+            use notify_rust::Notification;
+            let _ = Notification::new()
+                .summary(&summary)
+                .body(&body)
+                .appname("par-term")
+                .timeout(notify_rust::Timeout::Milliseconds(8000))
+                .show();
+        }
 
-        let _ = Notification::new()
-            .summary("par-term Update Available")
-            .body(&body)
-            .appname("par-term")
-            .show();
+        #[cfg(target_os = "macos")]
+        {
+            let script = format!(
+                r#"display notification "{}" with title "{}""#,
+                body.replace('"', r#"\""#),
+                summary.replace('"', r#"\""#),
+            );
+            let _ = std::process::Command::new("osascript")
+                .arg("-e")
+                .arg(&script)
+                .spawn();
+        }
     }
 
     /// Force an immediate update check (triggered from UI)
@@ -1016,6 +1034,15 @@ impl WindowManager {
                     window_state.open_profile(profile_id);
                 }
             }
+            MenuAction::SaveArrangement => {
+                // Open settings window to the Arrangements tab
+                self.open_settings_window(event_loop);
+                if let Some(sw) = &mut self.settings_window {
+                    sw.settings_ui.set_selected_tab(
+                        crate::settings_ui::sidebar::SettingsTab::Arrangements,
+                    );
+                }
+            }
         }
     }
 
@@ -1072,6 +1099,8 @@ impl WindowManager {
             Ok(settings_window) => {
                 log::info!("Opened settings window {:?}", settings_window.window_id());
                 self.settings_window = Some(settings_window);
+                // Sync arrangement data to settings UI
+                self.sync_arrangements_to_settings();
             }
             Err(e) => {
                 log::error!("Failed to create settings window: {}", e);
@@ -1751,6 +1780,322 @@ impl WindowManager {
                 sw.settings_ui.coprocess_errors = error_state;
                 sw.request_redraw();
             }
+        }
+    }
+
+    // ========================================================================
+    // Window Arrangement Methods
+    // ========================================================================
+
+    /// Create a new window with specific position and size overrides.
+    ///
+    /// Unlike `create_window()`, this skips `apply_window_positioning()` and
+    /// places the window at the exact specified position and size.
+    /// Additional tabs (beyond the first) are created with the given CWDs.
+    pub fn create_window_with_overrides(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        position: (i32, i32),
+        size: (u32, u32),
+        tab_cwds: &[Option<String>],
+        active_tab_index: usize,
+    ) {
+        use winit::window::Window;
+
+        // Reload config from disk to pick up any changes
+        if let Ok(fresh_config) = Config::load() {
+            self.config = fresh_config;
+        }
+
+        // Build window title
+        let window_number = self.windows.len() + 1;
+        let title = if self.config.show_window_number {
+            format!("{} [{}]", self.config.window_title, window_number)
+        } else {
+            self.config.window_title.clone()
+        };
+
+        let mut window_attrs = Window::default_attributes()
+            .with_title(&title)
+            .with_inner_size(winit::dpi::PhysicalSize::new(size.0, size.1))
+            .with_position(winit::dpi::PhysicalPosition::new(position.0, position.1))
+            .with_decorations(self.config.window_decorations);
+
+        if self.config.lock_window_size {
+            window_attrs = window_attrs.with_resizable(false);
+        }
+
+        // Load and set the application icon
+        let icon_bytes = include_bytes!("../../assets/icon.png");
+        if let Ok(icon_image) = image::load_from_memory(icon_bytes) {
+            let rgba = icon_image.to_rgba8();
+            let (w, h) = rgba.dimensions();
+            if let Ok(icon) = winit::window::Icon::from_rgba(rgba.into_raw(), w, h) {
+                window_attrs = window_attrs.with_window_icon(Some(icon));
+            }
+        }
+
+        if self.config.window_always_on_top {
+            window_attrs = window_attrs.with_window_level(winit::window::WindowLevel::AlwaysOnTop);
+        }
+
+        window_attrs = window_attrs.with_transparent(true);
+
+        match event_loop.create_window(window_attrs) {
+            Ok(window) => {
+                let window_id = window.id();
+                let mut window_state =
+                    WindowState::new(self.config.clone(), Arc::clone(&self.runtime));
+                window_state.window_index = window_number;
+
+                let runtime = Arc::clone(&self.runtime);
+                if let Err(e) = runtime.block_on(window_state.initialize_async(window)) {
+                    log::error!("Failed to initialize arranged window: {}", e);
+                    return;
+                }
+
+                // Initialize menu for first window or attach to additional
+                if self.menu.is_none() {
+                    match MenuManager::new() {
+                        Ok(menu) => {
+                            if let Some(win) = &window_state.window
+                                && let Err(e) = menu.init_for_window(win)
+                            {
+                                log::warn!("Failed to initialize menu: {}", e);
+                            }
+                            self.menu = Some(menu);
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to create menu: {}", e);
+                        }
+                    }
+                } else if let Some(menu) = &self.menu
+                    && let Some(win) = &window_state.window
+                    && let Err(e) = menu.init_for_window(win)
+                {
+                    log::warn!("Failed to initialize menu for window: {}", e);
+                }
+
+                // Set the position explicitly (in case the WM overrode it)
+                if let Some(win) = &window_state.window {
+                    win.set_outer_position(winit::dpi::PhysicalPosition::new(
+                        position.0, position.1,
+                    ));
+                }
+
+                // Create additional tabs with specific CWDs
+                // First tab is already created by WindowState::new, so set its CWD
+                if let Some(first_cwd) = tab_cwds.first().and_then(|c| c.as_ref())
+                    && let Some(tab) = window_state.tab_manager.active_tab_mut()
+                {
+                    tab.working_directory = Some(first_cwd.clone());
+                }
+
+                // Create remaining tabs
+                let grid_size = window_state
+                    .renderer
+                    .as_ref()
+                    .map(|r| r.grid_size());
+                for cwd in tab_cwds.iter().skip(1) {
+                    if let Err(e) = window_state.tab_manager.new_tab_with_cwd(
+                        &self.config,
+                        Arc::clone(&self.runtime),
+                        cwd.clone(),
+                        grid_size,
+                    ) {
+                        log::warn!("Failed to create tab in arranged window: {}", e);
+                    }
+                }
+
+                // Switch to the saved active tab (switch_to_index is 1-based)
+                window_state
+                    .tab_manager
+                    .switch_to_index(active_tab_index + 1);
+
+                // Start refresh tasks for all tabs
+                if let Some(win) = &window_state.window {
+                    for tab in window_state.tab_manager.tabs_mut() {
+                        tab.start_refresh_task(
+                            Arc::clone(&self.runtime),
+                            Arc::clone(win),
+                            self.config.max_fps,
+                        );
+                    }
+                }
+
+                self.windows.insert(window_id, window_state);
+                self.pending_window_count += 1;
+
+                if self.start_time.is_none() {
+                    self.start_time = Some(Instant::now());
+                }
+
+                log::info!(
+                    "Created arranged window {:?} at ({}, {}) size {}x{} with {} tabs",
+                    window_id,
+                    position.0,
+                    position.1,
+                    size.0,
+                    size.1,
+                    tab_cwds.len().max(1),
+                );
+            }
+            Err(e) => {
+                log::error!("Failed to create arranged window: {}", e);
+            }
+        }
+    }
+
+    /// Save the current window layout as an arrangement
+    pub fn save_arrangement(
+        &mut self,
+        name: String,
+        event_loop: &ActiveEventLoop,
+    ) {
+        let arrangement =
+            arrangements::capture::capture_arrangement(name.clone(), &self.windows, event_loop);
+        log::info!(
+            "Saved arrangement '{}' with {} windows",
+            name,
+            arrangement.windows.len()
+        );
+        self.arrangement_manager.add(arrangement);
+        if let Err(e) = arrangements::storage::save_arrangements(&self.arrangement_manager) {
+            log::error!("Failed to save arrangements: {}", e);
+        }
+        self.sync_arrangements_to_settings();
+    }
+
+    /// Restore a saved arrangement by ID.
+    ///
+    /// Closes all existing windows and creates new ones according to the arrangement.
+    pub fn restore_arrangement(
+        &mut self,
+        id: ArrangementId,
+        event_loop: &ActiveEventLoop,
+    ) {
+        let arrangement = match self.arrangement_manager.get(&id) {
+            Some(a) => a.clone(),
+            None => {
+                log::error!("Arrangement not found: {}", id);
+                return;
+            }
+        };
+
+        log::info!(
+            "Restoring arrangement '{}' ({} windows)",
+            arrangement.name,
+            arrangement.windows.len()
+        );
+
+        // Close all existing windows
+        let window_ids: Vec<WindowId> = self.windows.keys().copied().collect();
+        for window_id in window_ids {
+            if let Some(window_state) = self.windows.remove(&window_id) {
+                drop(window_state);
+            }
+        }
+
+        // Build monitor mapping
+        let available_monitors: Vec<_> = event_loop.available_monitors().collect();
+        let monitor_mapping = arrangements::restore::build_monitor_mapping(
+            &arrangement.monitor_layout,
+            &available_monitors,
+        );
+
+        // Create windows from arrangement
+        for (i, window_snapshot) in arrangement.windows.iter().enumerate() {
+            let Some((x, y, w, h)) = arrangements::restore::compute_restore_position(
+                window_snapshot,
+                &monitor_mapping,
+                &available_monitors,
+            ) else {
+                log::warn!("Could not compute position for window {} in arrangement", i);
+                continue;
+            };
+
+            let tab_cwds = arrangements::restore::tab_cwds(&arrangement, i);
+            self.create_window_with_overrides(
+                event_loop,
+                (x, y),
+                (w, h),
+                &tab_cwds,
+                window_snapshot.active_tab_index,
+            );
+        }
+
+        // If no windows were created (e.g., empty arrangement), create one default window
+        if self.windows.is_empty() {
+            log::warn!("Arrangement had no restorable windows, creating default window");
+            self.create_window(event_loop);
+        }
+    }
+
+    /// Restore an arrangement by name (for auto-restore and keybinding actions)
+    pub fn restore_arrangement_by_name(
+        &mut self,
+        name: &str,
+        event_loop: &ActiveEventLoop,
+    ) -> bool {
+        if let Some(arrangement) = self.arrangement_manager.find_by_name(name) {
+            let id = arrangement.id;
+            self.restore_arrangement(id, event_loop);
+            true
+        } else {
+            log::warn!("Arrangement not found by name: {}", name);
+            false
+        }
+    }
+
+    /// Delete an arrangement by ID
+    pub fn delete_arrangement(&mut self, id: ArrangementId) {
+        if let Some(removed) = self.arrangement_manager.remove(&id) {
+            log::info!("Deleted arrangement '{}'", removed.name);
+            if let Err(e) = arrangements::storage::save_arrangements(&self.arrangement_manager) {
+                log::error!("Failed to save arrangements after delete: {}", e);
+            }
+            self.sync_arrangements_to_settings();
+        }
+    }
+
+    /// Rename an arrangement by ID
+    pub fn rename_arrangement(&mut self, id: ArrangementId, new_name: String) {
+        if let Some(arrangement) = self.arrangement_manager.get_mut(&id) {
+            log::info!(
+                "Renamed arrangement '{}' -> '{}'",
+                arrangement.name,
+                new_name
+            );
+            arrangement.name = new_name;
+            if let Err(e) = arrangements::storage::save_arrangements(&self.arrangement_manager) {
+                log::error!("Failed to save arrangements after rename: {}", e);
+            }
+            self.sync_arrangements_to_settings();
+        }
+    }
+
+    /// Move an arrangement up in the order
+    pub fn move_arrangement_up(&mut self, id: ArrangementId) {
+        self.arrangement_manager.move_up(&id);
+        if let Err(e) = arrangements::storage::save_arrangements(&self.arrangement_manager) {
+            log::error!("Failed to save arrangements after reorder: {}", e);
+        }
+        self.sync_arrangements_to_settings();
+    }
+
+    /// Move an arrangement down in the order
+    pub fn move_arrangement_down(&mut self, id: ArrangementId) {
+        self.arrangement_manager.move_down(&id);
+        if let Err(e) = arrangements::storage::save_arrangements(&self.arrangement_manager) {
+            log::error!("Failed to save arrangements after reorder: {}", e);
+        }
+        self.sync_arrangements_to_settings();
+    }
+
+    /// Sync arrangement manager data to the settings window (for UI display)
+    pub fn sync_arrangements_to_settings(&mut self) {
+        if let Some(sw) = &mut self.settings_window {
+            sw.settings_ui.arrangement_manager = self.arrangement_manager.clone();
         }
     }
 

@@ -1494,12 +1494,35 @@ impl WindowState {
                 );
                 true
             }
+            "save_arrangement" => {
+                // Open settings to Arrangements tab
+                self.open_settings_window_requested = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                log::info!("Save arrangement requested via keybinding");
+                true
+            }
             _ => {
                 // Check for snippet or action keybindings
                 if let Some(snippet_id) = action.strip_prefix("snippet:") {
                     self.execute_snippet(snippet_id)
                 } else if let Some(action_id) = action.strip_prefix("action:") {
                     self.execute_custom_action(action_id)
+                } else if let Some(arrangement_name) =
+                    action.strip_prefix("restore_arrangement:")
+                {
+                    // Restore arrangement by name - handled by WindowManager
+                    self.pending_arrangement_restore =
+                        Some(arrangement_name.to_string());
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                    log::info!(
+                        "Arrangement restore requested via keybinding: {}",
+                        arrangement_name
+                    );
+                    true
                 } else {
                     log::warn!("Unknown keybinding action: {}", action);
                     false

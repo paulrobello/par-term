@@ -67,6 +67,31 @@ impl TabManager {
         Ok(id)
     }
 
+    /// Create a new tab with a specific working directory
+    ///
+    /// Used by arrangement restore to create tabs with saved CWDs.
+    pub fn new_tab_with_cwd(
+        &mut self,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        working_dir: Option<String>,
+        grid_size: Option<(usize, usize)>,
+    ) -> Result<TabId> {
+        let id = self.next_tab_id;
+        self.next_tab_id += 1;
+
+        let tab_number = self.tabs.len() + 1;
+        let tab = Tab::new(id, tab_number, config, runtime, working_dir, grid_size)?;
+        self.tabs.push(tab);
+
+        // Always switch to the new tab
+        self.active_tab_id = Some(id);
+
+        log::info!("Created new tab {} with cwd (total: {})", id, self.tabs.len());
+
+        Ok(id)
+    }
+
     /// Create a new tab from a profile configuration
     ///
     /// The profile specifies the working directory, command, and tab name.

@@ -22,6 +22,7 @@ pub enum SettingsTab {
     Automation,
     Snippets,
     Actions,
+    Arrangements,
     Advanced,
 }
 
@@ -42,6 +43,7 @@ impl SettingsTab {
             Self::Automation => "Automation",
             Self::Snippets => "Snippets",
             Self::Actions => "Actions",
+            Self::Arrangements => "Arrangements",
             Self::Advanced => "Advanced",
         }
     }
@@ -62,6 +64,7 @@ impl SettingsTab {
             Self::Automation => "⚡",
             Self::Snippets => "📝",
             Self::Actions => "🚀",
+            Self::Arrangements => "📐",
             Self::Advanced => "⚙",
         }
     }
@@ -82,6 +85,7 @@ impl SettingsTab {
             Self::Automation,
             Self::Snippets,
             Self::Actions,
+            Self::Arrangements,
             Self::Advanced,
         ]
     }
@@ -616,6 +620,17 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "automation",
             "shortcut",
         ],
+        SettingsTab::Arrangements => &[
+            "arrangement",
+            "arrangements",
+            "layout",
+            "workspace",
+            "save",
+            "restore",
+            "monitor",
+            "window layout",
+            "auto-restore",
+        ],
         SettingsTab::Advanced => &[
             // tmux
             "tmux",
@@ -687,6 +702,7 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         SettingsTab::Automation => "Regex triggers, trigger actions, coprocesses",
         SettingsTab::Snippets => "Text snippets with variable substitution",
         SettingsTab::Actions => "Custom actions (shell, text, keys)",
+        SettingsTab::Arrangements => "Save and restore window layouts",
         SettingsTab::Advanced => "tmux integration, logging, updates, debug logging",
     }
 }

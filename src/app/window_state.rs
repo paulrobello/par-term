@@ -170,6 +170,9 @@ pub struct WindowState {
     /// This is set by keyboard handlers and consumed by the window manager
     pub(crate) open_settings_window_requested: bool,
 
+    /// Pending arrangement restore request (name of arrangement to restore)
+    pub(crate) pending_arrangement_restore: Option<String>,
+
     // Profile management
     /// Profile manager for storing and managing terminal profiles
     pub(crate) profile_manager: ProfileManager,
@@ -314,6 +317,7 @@ impl WindowState {
             cursor_shader_reload_result: None,
 
             open_settings_window_requested: false,
+            pending_arrangement_restore: None,
 
             profile_manager,
             profile_drawer_ui: ProfileDrawerUI::new(),

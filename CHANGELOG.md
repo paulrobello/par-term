@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Window Arrangements** (#103): Save and restore window layouts (iTerm2 parity)
+  - **Save**: Capture current window positions, sizes, tab CWDs, and active tab indices as named arrangements
+  - **Restore**: Recreate saved layouts, replacing all current windows
+  - **Monitor-aware**: Positions stored relative to monitor origin for portability across display configurations
+  - **Monitor matching**: Restores windows to correct monitors by name, then index fallback, then primary monitor
+  - **Position clamping**: Ensures restored windows are visible even if monitor layout has changed
+  - **Auto-restore on startup**: Configure an arrangement to restore automatically when the app launches
+  - **Settings UI**: New "Arrangements" tab (📐) with save, restore, rename, delete, and reorder controls
+  - **Menu integration**: "Save Window Arrangement..." item in View menu
+  - **Keybinding support**: `save_arrangement` and `restore_arrangement:<name>` keybinding actions
+  - **YAML persistence**: Arrangements stored in `~/.config/par-term/arrangements.yaml`
+
+### Fixed
+
+- **Update notification clipped on some systems**: Shortened the new version notification body text and added a timeout to prevent content being cut off in small system notification windows
+
 ---
 
 ## [0.13.0] - 2026-02-10
