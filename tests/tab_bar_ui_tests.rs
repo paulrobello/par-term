@@ -348,6 +348,28 @@ fn test_clear_color_action_components() {
 }
 
 // ============================================================================
+// Drag State Tests
+// ============================================================================
+
+#[test]
+fn test_tab_bar_is_dragging_default_false() {
+    let tab_bar = TabBarUI::new();
+    assert!(
+        !tab_bar.is_dragging(),
+        "Drag should not be in progress on init"
+    );
+}
+
+#[test]
+fn test_tab_bar_default_is_not_dragging() {
+    let tab_bar = TabBarUI::default();
+    assert!(
+        !tab_bar.is_dragging(),
+        "Default tab bar should not be dragging"
+    );
+}
+
+// ============================================================================
 // Negative Tests
 // ============================================================================
 

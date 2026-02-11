@@ -224,7 +224,10 @@ impl WindowManager {
         let version_str = info.version.strip_prefix('v').unwrap_or(&info.version);
         let current = env!("CARGO_PKG_VERSION");
         let summary = format!("par-term v{} Available", version_str);
-        let body = format!("You have v{}. Check Settings > Advanced > Updates.", current);
+        let body = format!(
+            "You have v{}. Check Settings > Advanced > Updates.",
+            current
+        );
 
         #[cfg(not(target_os = "macos"))]
         {
@@ -1038,9 +1041,8 @@ impl WindowManager {
                 // Open settings window to the Arrangements tab
                 self.open_settings_window(event_loop);
                 if let Some(sw) = &mut self.settings_window {
-                    sw.settings_ui.set_selected_tab(
-                        crate::settings_ui::sidebar::SettingsTab::Arrangements,
-                    );
+                    sw.settings_ui
+                        .set_selected_tab(crate::settings_ui::sidebar::SettingsTab::Arrangements);
                 }
             }
         }
@@ -1892,10 +1894,7 @@ impl WindowManager {
                 }
 
                 // Create remaining tabs
-                let grid_size = window_state
-                    .renderer
-                    .as_ref()
-                    .map(|r| r.grid_size());
+                let grid_size = window_state.renderer.as_ref().map(|r| r.grid_size());
                 for cwd in tab_cwds.iter().skip(1) {
                     if let Err(e) = window_state.tab_manager.new_tab_with_cwd(
                         &self.config,
@@ -1947,11 +1946,7 @@ impl WindowManager {
     }
 
     /// Save the current window layout as an arrangement
-    pub fn save_arrangement(
-        &mut self,
-        name: String,
-        event_loop: &ActiveEventLoop,
-    ) {
+    pub fn save_arrangement(&mut self, name: String, event_loop: &ActiveEventLoop) {
         let arrangement =
             arrangements::capture::capture_arrangement(name.clone(), &self.windows, event_loop);
         log::info!(
@@ -1969,11 +1964,7 @@ impl WindowManager {
     /// Restore a saved arrangement by ID.
     ///
     /// Closes all existing windows and creates new ones according to the arrangement.
-    pub fn restore_arrangement(
-        &mut self,
-        id: ArrangementId,
-        event_loop: &ActiveEventLoop,
-    ) {
+    pub fn restore_arrangement(&mut self, id: ArrangementId, event_loop: &ActiveEventLoop) {
         let arrangement = match self.arrangement_manager.get(&id) {
             Some(a) => a.clone(),
             None => {

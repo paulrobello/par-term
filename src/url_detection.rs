@@ -693,7 +693,7 @@ mod tests {
         // Simulate a terminal line: "★ ~/docs" where ★ is a 3-byte UTF-8 char
         // Cell layout: [★][ ][~][/][d][o][c][s]
         // Columns:      0   1  2  3  4  5  6  7
-        let graphemes = vec!["★", " ", "~", "/", "d", "o", "c", "s"];
+        let graphemes = ["★", " ", "~", "/", "d", "o", "c", "s"];
         let cols = graphemes.len();
 
         // Build line and byte-to-col mapping (same logic as url_hover.rs)

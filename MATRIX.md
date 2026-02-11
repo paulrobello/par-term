@@ -146,6 +146,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | New tabs at end | ✅ `New Tabs Open at End` | ✅ | ✅ | - | - | Default behavior |
 | Inherit working directory | ✅ | ✅ `tab_inherit_cwd` | ✅ | - | - | - |
 | Max tabs limit | ❌ | ✅ `max_tabs` | ✅ | - | - | par-term exclusive |
+| Drag-and-drop tab reorder | ✅ | ✅ Drag tabs to reorder | ✅ | - | - | Visual ghost tab + insertion indicator |
 | Tab style (visual theme) | ✅ Light/Dark/Minimal/Compact | ❌ | ❌ | ⭐ | 🟡 | Different visual styles |
 | HTML tab titles | ✅ `HTML Tab Titles` | ✅ `tab_html_titles` | ✅ | ⭐ | 🟡 | Limited tags: <b>, <i>, <u>, <span style=\"color\"> |
 
@@ -892,7 +893,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Cursor | 12 | 0 | 0 |
 | Background & Effects | 11 | 0 | 1 |
 | Colors & Themes | 16 | 0 | 1 |
-| Tab Bar | 16 | 1 | 2 |
+| Tab Bar | 17 | 1 | 2 |
 | Scrollback & Scrollbar | 11 | 1 | 1 |
 | Selection & Clipboard | 12 | 0 | 0 |
 | Mouse & Pointer | 9 | 0 | 1 |
