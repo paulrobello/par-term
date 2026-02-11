@@ -1113,11 +1113,23 @@ impl WindowManager {
     /// Close the settings window
     pub fn close_settings_window(&mut self) {
         if let Some(settings_window) = self.settings_window.take() {
-            // Persist collapsed section states to the main config before dropping
+            // Persist collapsed section states without saving any unsaved preference changes.
+            // Read the on-disk config and update only the collapsed sections field.
             let collapsed = settings_window.settings_ui.collapsed_sections_snapshot();
-            self.config.collapsed_settings_sections = collapsed;
-            if let Err(e) = self.config.save() {
-                log::error!("Failed to persist settings section states: {}", e);
+            if !collapsed.is_empty() || !self.config.collapsed_settings_sections.is_empty() {
+                match Config::load() {
+                    Ok(mut disk_config) => {
+                        disk_config.collapsed_settings_sections = collapsed.clone();
+                        if let Err(e) = disk_config.save() {
+                            log::error!("Failed to persist settings section states: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to load config for section state save: {}", e);
+                    }
+                }
+                // Keep the in-memory config in sync too
+                self.config.collapsed_settings_sections = collapsed;
             }
             log::info!("Closed settings window");
         }
