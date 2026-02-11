@@ -12,9 +12,15 @@ use super::section::collapsing_section;
 use crate::config::snippets::{SnippetConfig, SnippetLibrary};
 use crate::settings_ui::input_tab::{capture_key_combo, display_key_combo};
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 /// Show the snippets tab content.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
     let query = settings.search_query.trim().to_lowercase();
 
     // Snippets section
@@ -31,7 +37,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "folder",
         ],
     ) {
-        show_snippets_section(ui, settings, changes_this_frame);
+        show_snippets_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Variables reference section (collapsed by default)
@@ -48,7 +54,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "hostname",
         ],
     ) {
-        show_variables_reference_section(ui, settings);
+        show_variables_reference_section(ui, settings, collapsed);
     }
 }
 
@@ -70,8 +76,9 @@ fn show_snippets_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Snippets", "snippets_list", true, |ui| {
+    collapsing_section(ui, "Snippets", "snippets_list", true, collapsed, |ui| {
         ui.label("Saved text blocks for quick insertion. Supports variable substitution.");
         ui.add_space(4.0);
 
@@ -645,12 +652,17 @@ fn import_snippets(settings: &mut SettingsUI, changes_this_frame: &mut bool) {
 // Variables Reference Section
 // ============================================================================
 
-fn show_variables_reference_section(ui: &mut egui::Ui, _settings: &mut SettingsUI) {
+fn show_variables_reference_section(
+    ui: &mut egui::Ui,
+    _settings: &mut SettingsUI,
+    collapsed: &mut HashSet<String>,
+) {
     collapsing_section(
         ui,
         "Variables Reference",
         "snippets_variables",
         false,
+        collapsed,
         |ui| {
             ui.label("Built-in variables available for use in snippets:");
             ui.add_space(4.0);

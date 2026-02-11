@@ -118,18 +118,40 @@ impl<'a> CollapsibleSection<'a> {
     }
 }
 
-/// Helper to show a simple collapsible section without search filtering.
+/// Helper to show a collapsible section with persistent state tracking.
+///
+/// The `collapsed_sections` set stores section IDs that have been toggled from
+/// their default state. This allows the collapse state to be persisted across
+/// settings window open/close cycles and app restarts.
 pub fn collapsing_section<R>(
     ui: &mut egui::Ui,
     title: &str,
     id: &str,
     default_open: bool,
+    collapsed_sections: &mut HashSet<String>,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::CollapsingResponse<R> {
-    egui::CollapsingHeader::new(title)
+    // The set stores IDs that have been toggled from their default.
+    // XOR logic: toggled + default_open => closed, toggled + !default_open => open
+    let is_toggled = collapsed_sections.contains(id);
+    let should_be_open = is_toggled != default_open;
+
+    let response = egui::CollapsingHeader::new(title)
         .id_salt(id)
-        .default_open(default_open)
-        .show(ui, add_contents)
+        .default_open(should_be_open)
+        .show(ui, add_contents);
+
+    // Track click toggles
+    if response.header_response.clicked() {
+        let section_id = id.to_string();
+        if collapsed_sections.contains(&section_id) {
+            collapsed_sections.remove(&section_id);
+        } else {
+            collapsed_sections.insert(section_id);
+        }
+    }
+
+    response
 }
 
 /// Helper to show a section heading with consistent styling.

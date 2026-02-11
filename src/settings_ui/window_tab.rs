@@ -15,11 +15,17 @@ use super::section::{SLIDER_WIDTH, collapsing_section};
 use crate::config::{
     DividerStyle, PaneTitlePosition, PowerPreference, TabBarMode, VsyncMode, WindowType,
 };
+use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
 /// Show the window tab content.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
     let query = settings.search_query.trim().to_lowercase();
 
     // Display section
@@ -28,7 +34,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Display",
         &["title", "columns", "rows", "padding", "size"],
     ) {
-        show_display_section(ui, settings, changes_this_frame);
+        show_display_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Transparency section
@@ -37,7 +43,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Transparency",
         &["opacity", "blur", "transparent", "background"],
     ) {
-        show_transparency_section(ui, settings, changes_this_frame);
+        show_transparency_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Performance section (collapsed by default)
@@ -55,7 +61,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "reduce",
         ],
     ) {
-        show_performance_section(ui, settings, changes_this_frame);
+        show_performance_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Window Behavior section (collapsed by default)
@@ -70,7 +76,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "lock",
         ],
     ) {
-        show_behavior_section(ui, settings, changes_this_frame);
+        show_behavior_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Tab Bar section
@@ -86,7 +92,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "profile drawer",
         ],
     ) {
-        show_tab_bar_section(ui, settings, changes_this_frame);
+        show_tab_bar_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Tab Bar Appearance section (collapsed by default)
@@ -95,7 +101,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Tab Bar Appearance",
         &["tab color", "tab border", "inactive tab", "dimming"],
     ) {
-        show_tab_bar_appearance_section(ui, settings, changes_this_frame);
+        show_tab_bar_appearance_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Split Panes section
@@ -104,7 +110,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Split Panes",
         &["pane", "split", "divider", "focus indicator"],
     ) {
-        show_panes_section(ui, settings, changes_this_frame);
+        show_panes_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Pane Appearance section (collapsed by default)
@@ -113,7 +119,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Pane Appearance",
         &["pane color", "pane title", "inactive pane", "pane opacity"],
     ) {
-        show_pane_appearance_section(ui, settings, changes_this_frame);
+        show_pane_appearance_section(ui, settings, changes_this_frame, collapsed);
     }
 }
 
@@ -135,8 +141,9 @@ fn show_display_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Display", "window_display", true, |ui| {
+    collapsing_section(ui, "Display", "window_display", true, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Title:");
             if ui
@@ -247,25 +254,32 @@ fn show_transparency_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Transparency", "window_transparency", true, |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Opacity:");
-            let response = ui.add_sized(
-                [SLIDER_WIDTH, SLIDER_HEIGHT],
-                egui::Slider::new(&mut settings.config.window_opacity, 0.1..=1.0),
-            );
-            if response.changed() {
-                log::info!(
-                    "Opacity slider changed to: {}",
-                    settings.config.window_opacity
+    collapsing_section(
+        ui,
+        "Transparency",
+        "window_transparency",
+        true,
+        collapsed,
+        |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Opacity:");
+                let response = ui.add_sized(
+                    [SLIDER_WIDTH, SLIDER_HEIGHT],
+                    egui::Slider::new(&mut settings.config.window_opacity, 0.1..=1.0),
                 );
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
+                if response.changed() {
+                    log::info!(
+                        "Opacity slider changed to: {}",
+                        settings.config.window_opacity
+                    );
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
 
-        if ui
+            if ui
             .checkbox(
                 &mut settings.config.transparency_affects_only_default_background,
                 "Transparency affects only default background",
@@ -279,7 +293,7 @@ fn show_transparency_section(
             *changes_this_frame = true;
         }
 
-        if ui
+            if ui
             .checkbox(&mut settings.config.keep_text_opaque, "Keep text opaque")
             .on_hover_text(
                 "When enabled, text is always rendered at full opacity regardless of window transparency",
@@ -290,12 +304,12 @@ fn show_transparency_section(
             *changes_this_frame = true;
         }
 
-        // Blur settings (macOS only)
-        #[cfg(target_os = "macos")]
-        {
-            ui.add_space(8.0);
+            // Blur settings (macOS only)
+            #[cfg(target_os = "macos")]
+            {
+                ui.add_space(8.0);
 
-            if ui
+                if ui
                 .checkbox(&mut settings.config.blur_enabled, "Enable window blur")
                 .on_hover_text(
                     "Blur content behind the transparent window for better readability (requires transparency)",
@@ -306,24 +320,25 @@ fn show_transparency_section(
                 *changes_this_frame = true;
             }
 
-            if settings.config.blur_enabled {
-                ui.horizontal(|ui| {
-                    ui.label("Blur radius:");
-                    // Convert u32 to i32 for slider, clamp to valid range
-                    let mut radius_i32 = settings.config.blur_radius.min(64) as i32;
-                    if ui
-                        .add(egui::Slider::new(&mut radius_i32, 1..=64))
-                        .on_hover_text("Blur intensity (higher = more blur)")
-                        .changed()
-                    {
-                        settings.config.blur_radius = radius_i32 as u32;
-                        settings.has_changes = true;
-                        *changes_this_frame = true;
-                    }
-                });
+                if settings.config.blur_enabled {
+                    ui.horizontal(|ui| {
+                        ui.label("Blur radius:");
+                        // Convert u32 to i32 for slider, clamp to valid range
+                        let mut radius_i32 = settings.config.blur_radius.min(64) as i32;
+                        if ui
+                            .add(egui::Slider::new(&mut radius_i32, 1..=64))
+                            .on_hover_text("Blur intensity (higher = more blur)")
+                            .changed()
+                        {
+                            settings.config.blur_radius = radius_i32 as u32;
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
+                }
             }
-        }
-    });
+        },
+    );
 }
 
 // ============================================================================
@@ -334,140 +349,147 @@ fn show_performance_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Performance", "window_performance", false, |ui| {
-        ui.horizontal(|ui| {
-            ui.label("Max FPS:");
+    collapsing_section(
+        ui,
+        "Performance",
+        "window_performance",
+        false,
+        collapsed,
+        |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Max FPS:");
+                if ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(&mut settings.config.max_fps, 1..=240),
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("VSync Mode:");
+                let current = match settings.config.vsync_mode {
+                    VsyncMode::Immediate => 0,
+                    VsyncMode::Mailbox => 1,
+                    VsyncMode::Fifo => 2,
+                };
+                let mut selected = current;
+
+                // Helper to format mode name with support indicator
+                let format_mode = |mode: VsyncMode, name: &str| -> String {
+                    if settings.is_vsync_mode_supported(mode) {
+                        name.to_string()
+                    } else {
+                        format!("{} (not supported)", name)
+                    }
+                };
+
+                egui::ComboBox::from_id_salt("window_vsync_mode")
+                    .selected_text(match current {
+                        0 => format_mode(VsyncMode::Immediate, "Immediate (No VSync)"),
+                        1 => format_mode(VsyncMode::Mailbox, "Mailbox (Balanced)"),
+                        2 => format_mode(VsyncMode::Fifo, "FIFO (VSync)"),
+                        _ => "Unknown".to_string(),
+                    })
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut selected,
+                            0,
+                            format_mode(VsyncMode::Immediate, "Immediate (No VSync)"),
+                        );
+                        ui.selectable_value(
+                            &mut selected,
+                            1,
+                            format_mode(VsyncMode::Mailbox, "Mailbox (Balanced)"),
+                        );
+                        ui.selectable_value(
+                            &mut selected,
+                            2,
+                            format_mode(VsyncMode::Fifo, "FIFO (VSync)"),
+                        );
+                    });
+                if selected != current {
+                    let new_mode = match selected {
+                        0 => VsyncMode::Immediate,
+                        1 => VsyncMode::Mailbox,
+                        2 => VsyncMode::Fifo,
+                        _ => VsyncMode::Immediate,
+                    };
+
+                    // Check if the mode is supported
+                    if settings.is_vsync_mode_supported(new_mode) {
+                        settings.config.vsync_mode = new_mode;
+                        settings.vsync_warning = None;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    } else {
+                        // Set warning and revert to Fifo (always supported)
+                        settings.vsync_warning = Some(format!(
+                            "{:?} is not supported on this display. Using FIFO instead.",
+                            new_mode
+                        ));
+                        settings.config.vsync_mode = VsyncMode::Fifo;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                }
+            });
+
+            // Show vsync warning if present
+            if let Some(ref warning) = settings.vsync_warning {
+                ui.colored_label(egui::Color32::YELLOW, warning);
+            }
+
+            ui.horizontal(|ui| {
+                ui.label("GPU Power Preference:");
+                let current_pref = settings.config.power_preference;
+                egui::ComboBox::from_id_salt("gpu_power_preference")
+                    .selected_text(current_pref.display_name())
+                    .show_ui(ui, |ui| {
+                        for pref in PowerPreference::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.power_preference,
+                                    *pref,
+                                    pref.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+            ui.colored_label(
+                egui::Color32::GRAY,
+                "Note: Requires app restart to take effect",
+            );
+
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new("Power Saving").strong());
+
             if ui
-                .add_sized(
-                    [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.max_fps, 1..=240),
+                .checkbox(
+                    &mut settings.config.pause_shaders_on_blur,
+                    "Pause shader animations when unfocused",
+                )
+                .on_hover_text(
+                    "Reduces GPU usage by pausing animated shaders when the window is not in focus",
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        ui.horizontal(|ui| {
-            ui.label("VSync Mode:");
-            let current = match settings.config.vsync_mode {
-                VsyncMode::Immediate => 0,
-                VsyncMode::Mailbox => 1,
-                VsyncMode::Fifo => 2,
-            };
-            let mut selected = current;
-
-            // Helper to format mode name with support indicator
-            let format_mode = |mode: VsyncMode, name: &str| -> String {
-                if settings.is_vsync_mode_supported(mode) {
-                    name.to_string()
-                } else {
-                    format!("{} (not supported)", name)
-                }
-            };
-
-            egui::ComboBox::from_id_salt("window_vsync_mode")
-                .selected_text(match current {
-                    0 => format_mode(VsyncMode::Immediate, "Immediate (No VSync)"),
-                    1 => format_mode(VsyncMode::Mailbox, "Mailbox (Balanced)"),
-                    2 => format_mode(VsyncMode::Fifo, "FIFO (VSync)"),
-                    _ => "Unknown".to_string(),
-                })
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut selected,
-                        0,
-                        format_mode(VsyncMode::Immediate, "Immediate (No VSync)"),
-                    );
-                    ui.selectable_value(
-                        &mut selected,
-                        1,
-                        format_mode(VsyncMode::Mailbox, "Mailbox (Balanced)"),
-                    );
-                    ui.selectable_value(
-                        &mut selected,
-                        2,
-                        format_mode(VsyncMode::Fifo, "FIFO (VSync)"),
-                    );
-                });
-            if selected != current {
-                let new_mode = match selected {
-                    0 => VsyncMode::Immediate,
-                    1 => VsyncMode::Mailbox,
-                    2 => VsyncMode::Fifo,
-                    _ => VsyncMode::Immediate,
-                };
-
-                // Check if the mode is supported
-                if settings.is_vsync_mode_supported(new_mode) {
-                    settings.config.vsync_mode = new_mode;
-                    settings.vsync_warning = None;
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                } else {
-                    // Set warning and revert to Fifo (always supported)
-                    settings.vsync_warning = Some(format!(
-                        "{:?} is not supported on this display. Using FIFO instead.",
-                        new_mode
-                    ));
-                    settings.config.vsync_mode = VsyncMode::Fifo;
-                    settings.has_changes = true;
-                    *changes_this_frame = true;
-                }
-            }
-        });
-
-        // Show vsync warning if present
-        if let Some(ref warning) = settings.vsync_warning {
-            ui.colored_label(egui::Color32::YELLOW, warning);
-        }
-
-        ui.horizontal(|ui| {
-            ui.label("GPU Power Preference:");
-            let current_pref = settings.config.power_preference;
-            egui::ComboBox::from_id_salt("gpu_power_preference")
-                .selected_text(current_pref.display_name())
-                .show_ui(ui, |ui| {
-                    for pref in PowerPreference::all() {
-                        if ui
-                            .selectable_value(
-                                &mut settings.config.power_preference,
-                                *pref,
-                                pref.display_name(),
-                            )
-                            .changed()
-                        {
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
-                    }
-                });
-        });
-        ui.colored_label(
-            egui::Color32::GRAY,
-            "Note: Requires app restart to take effect",
-        );
-
-        ui.add_space(8.0);
-        ui.label(egui::RichText::new("Power Saving").strong());
-
-        if ui
-            .checkbox(
-                &mut settings.config.pause_shaders_on_blur,
-                "Pause shader animations when unfocused",
-            )
-            .on_hover_text(
-                "Reduces GPU usage by pausing animated shaders when the window is not in focus",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        if ui
+            if ui
             .checkbox(
                 &mut settings.config.pause_refresh_on_blur,
                 "Reduce refresh rate when unfocused",
@@ -481,107 +503,111 @@ fn show_performance_section(
             *changes_this_frame = true;
         }
 
-        ui.horizontal(|ui| {
-            ui.label("Unfocused FPS:");
+            ui.horizontal(|ui| {
+                ui.label("Unfocused FPS:");
+                if ui
+                    .add_enabled(
+                        settings.config.pause_refresh_on_blur,
+                        egui::Slider::new(&mut settings.config.unfocused_fps, 1..=30),
+                    )
+                    .on_hover_text(
+                        "Target frame rate when window is unfocused (lower = more power savings)",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new("Flicker Reduction").strong());
+
             if ui
-                .add_enabled(
-                    settings.config.pause_refresh_on_blur,
-                    egui::Slider::new(&mut settings.config.unfocused_fps, 1..=30),
+                .checkbox(
+                    &mut settings.config.reduce_flicker,
+                    "Reduce flicker during fast updates",
                 )
                 .on_hover_text(
-                    "Target frame rate when window is unfocused (lower = more power savings)",
-                )
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-
-        ui.add_space(8.0);
-        ui.label(egui::RichText::new("Flicker Reduction").strong());
-
-        if ui
-            .checkbox(
-                &mut settings.config.reduce_flicker,
-                "Reduce flicker during fast updates",
-            )
-            .on_hover_text(
-                "Delays screen redraws while the cursor is hidden (DECTCEM off).\n\
+                    "Delays screen redraws while the cursor is hidden (DECTCEM off).\n\
                  Many terminal programs hide the cursor during bulk updates.\n\
                  This batches updates to reduce visual flicker.",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.horizontal(|ui| {
-            ui.label("Maximum delay:");
-            if ui
-                .add_enabled(
-                    settings.config.reduce_flicker,
-                    egui::Slider::new(&mut settings.config.reduce_flicker_delay_ms, 1..=100)
-                        .suffix("ms"),
                 )
-                .on_hover_text(
-                    "Maximum time to wait for cursor to become visible.\n\
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.horizontal(|ui| {
+                ui.label("Maximum delay:");
+                if ui
+                    .add_enabled(
+                        settings.config.reduce_flicker,
+                        egui::Slider::new(&mut settings.config.reduce_flicker_delay_ms, 1..=100)
+                            .suffix("ms"),
+                    )
+                    .on_hover_text(
+                        "Maximum time to wait for cursor to become visible.\n\
                      Lower = more responsive, Higher = smoother for slow programs.\n\
                      Default: 16ms (~1 frame at 60fps)",
-                )
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-
-        ui.add_space(10.0);
-        ui.label(egui::RichText::new("Throughput Mode").strong());
-
-        if ui
-            .checkbox(&mut settings.config.maximize_throughput, {
-                #[cfg(target_os = "macos")]
+                    )
+                    .changed()
                 {
-                    "Maximize throughput (Cmd+Shift+T)"
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
                 }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    "Maximize throughput (Ctrl+Shift+M)"
-                }
-            })
-            .on_hover_text(
-                "Batches screen updates during bulk terminal output.\n\
+            });
+
+            ui.add_space(10.0);
+            ui.label(egui::RichText::new("Throughput Mode").strong());
+
+            if ui
+                .checkbox(&mut settings.config.maximize_throughput, {
+                    #[cfg(target_os = "macos")]
+                    {
+                        "Maximize throughput (Cmd+Shift+T)"
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        "Maximize throughput (Ctrl+Shift+M)"
+                    }
+                })
+                .on_hover_text(
+                    "Batches screen updates during bulk terminal output.\n\
                  Reduces CPU overhead when processing large outputs.\n\
                  Trade-off: display updates are delayed by the interval below.",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.horizontal(|ui| {
-            ui.label("Render interval:");
-            if ui
-                .add_enabled(
-                    settings.config.maximize_throughput,
-                    egui::Slider::new(&mut settings.config.throughput_render_interval_ms, 50..=500)
-                        .suffix("ms"),
-                )
-                .on_hover_text(
-                    "How often to update the display in throughput mode.\n\
-                     Lower = more responsive, Higher = better throughput.\n\
-                     Default: 100ms (~10 updates/sec)",
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
-    });
+
+            ui.horizontal(|ui| {
+                ui.label("Render interval:");
+                if ui
+                    .add_enabled(
+                        settings.config.maximize_throughput,
+                        egui::Slider::new(
+                            &mut settings.config.throughput_render_interval_ms,
+                            50..=500,
+                        )
+                        .suffix("ms"),
+                    )
+                    .on_hover_text(
+                        "How often to update the display in throughput mode.\n\
+                     Lower = more responsive, Higher = better throughput.\n\
+                     Default: 100ms (~10 updates/sec)",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        },
+    );
 }
 
 // ============================================================================
@@ -592,114 +618,122 @@ fn show_behavior_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Window Behavior", "window_behavior", false, |ui| {
-        if ui
-            .checkbox(
-                &mut settings.config.window_decorations,
-                "Window decorations",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        if ui
-            .checkbox(&mut settings.config.window_always_on_top, "Always on top")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        if ui
-            .checkbox(&mut settings.config.lock_window_size, "Lock window size")
-            .on_hover_text("Prevent window from being resized by the user")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        if ui
-            .checkbox(
-                &mut settings.config.show_window_number,
-                "Show window number in title",
-            )
-            .on_hover_text(
-                "Display window index number in the title bar (useful for multiple windows)",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.add_space(8.0);
-
-        // Window type dropdown
-        ui.horizontal(|ui| {
-            ui.label("Window type:");
-            let current_type = settings.config.window_type;
-            egui::ComboBox::from_id_salt("window_window_type")
-                .selected_text(current_type.display_name())
-                .show_ui(ui, |ui| {
-                    for window_type in WindowType::all() {
-                        if ui
-                            .selectable_value(
-                                &mut settings.config.window_type,
-                                *window_type,
-                                window_type.display_name(),
-                            )
-                            .changed()
-                        {
-                            settings.has_changes = true;
-                            *changes_this_frame = true;
-                        }
-                    }
-                });
-        });
-
-        // Target monitor setting
-        ui.horizontal(|ui| {
-            ui.label("Target monitor:");
-            let mut monitor_index = settings.config.target_monitor.unwrap_or(0) as i32;
-            let mut use_default = settings.config.target_monitor.is_none();
-
+    collapsing_section(
+        ui,
+        "Window Behavior",
+        "window_behavior",
+        false,
+        collapsed,
+        |ui| {
             if ui
-                .checkbox(&mut use_default, "Auto")
-                .on_hover_text("Let the OS decide which monitor to open on")
+                .checkbox(
+                    &mut settings.config.window_decorations,
+                    "Window decorations",
+                )
                 .changed()
             {
-                if use_default {
-                    settings.config.target_monitor = None;
-                } else {
-                    settings.config.target_monitor = Some(0);
-                }
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
 
-            if !use_default
-                && ui
-                    .add(egui::Slider::new(&mut monitor_index, 0..=7))
-                    .on_hover_text("Monitor index (0 = primary)")
-                    .changed()
+            if ui
+                .checkbox(&mut settings.config.window_always_on_top, "Always on top")
+                .changed()
             {
-                settings.config.target_monitor = Some(monitor_index as usize);
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        if settings.config.window_type.is_edge() {
-            ui.colored_label(
-                egui::Color32::YELLOW,
-                "Note: Edge-anchored windows take effect on next window creation",
-            );
-        }
-    });
+            if ui
+                .checkbox(&mut settings.config.lock_window_size, "Lock window size")
+                .on_hover_text("Prevent window from being resized by the user")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if ui
+                .checkbox(
+                    &mut settings.config.show_window_number,
+                    "Show window number in title",
+                )
+                .on_hover_text(
+                    "Display window index number in the title bar (useful for multiple windows)",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.add_space(8.0);
+
+            // Window type dropdown
+            ui.horizontal(|ui| {
+                ui.label("Window type:");
+                let current_type = settings.config.window_type;
+                egui::ComboBox::from_id_salt("window_window_type")
+                    .selected_text(current_type.display_name())
+                    .show_ui(ui, |ui| {
+                        for window_type in WindowType::all() {
+                            if ui
+                                .selectable_value(
+                                    &mut settings.config.window_type,
+                                    *window_type,
+                                    window_type.display_name(),
+                                )
+                                .changed()
+                            {
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                    });
+            });
+
+            // Target monitor setting
+            ui.horizontal(|ui| {
+                ui.label("Target monitor:");
+                let mut monitor_index = settings.config.target_monitor.unwrap_or(0) as i32;
+                let mut use_default = settings.config.target_monitor.is_none();
+
+                if ui
+                    .checkbox(&mut use_default, "Auto")
+                    .on_hover_text("Let the OS decide which monitor to open on")
+                    .changed()
+                {
+                    if use_default {
+                        settings.config.target_monitor = None;
+                    } else {
+                        settings.config.target_monitor = Some(0);
+                    }
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+
+                if !use_default
+                    && ui
+                        .add(egui::Slider::new(&mut monitor_index, 0..=7))
+                        .on_hover_text("Monitor index (0 = primary)")
+                        .changed()
+                {
+                    settings.config.target_monitor = Some(monitor_index as usize);
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            if settings.config.window_type.is_edge() {
+                ui.colored_label(
+                    egui::Color32::YELLOW,
+                    "Note: Edge-anchored windows take effect on next window creation",
+                );
+            }
+        },
+    );
 }
 
 // ============================================================================
@@ -710,8 +744,9 @@ fn show_tab_bar_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Tab Bar", "window_tab_bar", true, |ui| {
+    collapsing_section(ui, "Tab Bar", "window_tab_bar", true, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Show tab bar:");
             let current = match settings.config.tab_bar_mode {
@@ -862,12 +897,14 @@ fn show_tab_bar_appearance_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(
         ui,
         "Tab Bar Appearance",
         "window_tab_bar_appearance",
         false,
+        collapsed,
         |ui| {
             ui.horizontal(|ui| {
                 ui.label("Minimum tab width:");
@@ -1070,8 +1107,13 @@ fn show_tab_bar_appearance_section(
 // Split Panes Section
 // ============================================================================
 
-fn show_panes_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
-    collapsing_section(ui, "Split Panes", "window_panes", true, |ui| {
+fn show_panes_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(ui, "Split Panes", "window_panes", true, collapsed, |ui| {
         ui.label("Configure split pane behavior and appearance");
         ui.add_space(8.0);
 
@@ -1253,12 +1295,14 @@ fn show_pane_appearance_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(
         ui,
         "Pane Appearance",
         "window_pane_appearance",
         false,
+        collapsed,
         |ui| {
             ui.label(egui::RichText::new("Divider Colors").strong());
 

@@ -12,31 +12,37 @@
 
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
+use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
 
 /// Show the notifications tab content.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
     let query = settings.search_query.trim().to_lowercase();
 
     // Bell section
     if section_matches(&query, "Bell", &["visual", "audio", "sound", "beep"]) {
-        show_bell_section(ui, settings, changes_this_frame);
+        show_bell_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Activity section
     if section_matches(&query, "Activity", &["activity", "notify", "idle"]) {
-        show_activity_section(ui, settings, changes_this_frame);
+        show_activity_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Behavior section (collapsed by default)
     if section_matches(&query, "Behavior", &["suppress", "focused", "buffer"]) {
-        show_behavior_section(ui, settings, changes_this_frame);
+        show_behavior_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Anti-Idle section (collapsed by default)
     if section_matches(&query, "Anti-Idle", &["anti-idle", "keep-alive", "timeout"]) {
-        show_anti_idle_section(ui, settings, changes_this_frame);
+        show_anti_idle_section(ui, settings, changes_this_frame, collapsed);
     }
 }
 
@@ -54,8 +60,13 @@ fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
 // Bell Section
 // ============================================================================
 
-fn show_bell_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
-    collapsing_section(ui, "Bell", "notifications_bell", true, |ui| {
+fn show_bell_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(ui, "Bell", "notifications_bell", true, collapsed, |ui| {
         if ui
             .checkbox(&mut settings.config.notification_bell_visual, "Visual bell")
             .changed()
@@ -99,78 +110,89 @@ fn show_activity_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Activity", "notifications_activity", true, |ui| {
-        ui.label("Activity Notifications:");
-        if ui
-            .checkbox(
-                &mut settings.config.notification_activity_enabled,
-                "Notify on activity after inactivity",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.horizontal(|ui| {
-            ui.label("Activity threshold (seconds):");
+    collapsing_section(
+        ui,
+        "Activity",
+        "notifications_activity",
+        true,
+        collapsed,
+        |ui| {
+            ui.label("Activity Notifications:");
             if ui
-                .add_sized(
-                    [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(
-                        &mut settings.config.notification_activity_threshold,
-                        1..=300,
-                    ),
+                .checkbox(
+                    &mut settings.config.notification_activity_enabled,
+                    "Notify on activity after inactivity",
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        ui.separator();
-        ui.label("Silence Notifications:");
-        if ui
-            .checkbox(
-                &mut settings.config.notification_silence_enabled,
-                "Notify after prolonged silence",
-            )
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
+            ui.horizontal(|ui| {
+                ui.label("Activity threshold (seconds):");
+                if ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(
+                            &mut settings.config.notification_activity_threshold,
+                            1..=300,
+                        ),
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
 
-        ui.horizontal(|ui| {
-            ui.label("Silence threshold (seconds):");
+            ui.separator();
+            ui.label("Silence Notifications:");
             if ui
-                .add_sized(
-                    [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.notification_silence_threshold, 1..=600),
+                .checkbox(
+                    &mut settings.config.notification_silence_enabled,
+                    "Notify after prolonged silence",
                 )
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        ui.separator();
-        ui.label("Session Notifications:");
-        if ui
-            .checkbox(
-                &mut settings.config.notification_session_ended,
-                "Notify when session/shell exits",
-            )
-            .on_hover_text("Send a desktop notification when the shell process exits")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-    });
+            ui.horizontal(|ui| {
+                ui.label("Silence threshold (seconds):");
+                if ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(
+                            &mut settings.config.notification_silence_threshold,
+                            1..=600,
+                        ),
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.separator();
+            ui.label("Session Notifications:");
+            if ui
+                .checkbox(
+                    &mut settings.config.notification_session_ended,
+                    "Notify when session/shell exits",
+                )
+                .on_hover_text("Send a desktop notification when the shell process exits")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        },
+    );
 }
 
 // ============================================================================
@@ -181,57 +203,65 @@ fn show_behavior_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Behavior", "notifications_behavior", false, |ui| {
-        if ui
-            .checkbox(
-                &mut settings.config.suppress_notifications_when_focused,
-                "Suppress notifications when focused",
-            )
-            .on_hover_text("Skip desktop notifications when the terminal window is focused")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.horizontal(|ui| {
-            ui.label("Max notification buffer:");
+    collapsing_section(
+        ui,
+        "Behavior",
+        "notifications_behavior",
+        false,
+        collapsed,
+        |ui| {
             if ui
-                .add_sized(
-                    [SLIDER_WIDTH, SLIDER_HEIGHT],
-                    egui::Slider::new(&mut settings.config.notification_max_buffer, 10..=1000),
+                .checkbox(
+                    &mut settings.config.suppress_notifications_when_focused,
+                    "Suppress notifications when focused",
                 )
+                .on_hover_text("Skip desktop notifications when the terminal window is focused")
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
 
-        ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            if ui
-                .button("Test Notification")
-                .on_hover_text("Send a test notification to verify permissions are granted")
-                .clicked()
-            {
-                settings.test_notification_requested = true;
-            }
-            #[cfg(target_os = "macos")]
-            {
+            ui.horizontal(|ui| {
+                ui.label("Max notification buffer:");
                 if ui
-                    .button("Open System Preferences")
-                    .on_hover_text("Open macOS notification settings")
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(&mut settings.config.notification_max_buffer, 10..=1000),
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui
+                    .button("Test Notification")
+                    .on_hover_text("Send a test notification to verify permissions are granted")
                     .clicked()
                 {
-                    let _ = std::process::Command::new("open")
-                        .arg("x-apple.systempreferences:com.apple.preference.notifications")
-                        .spawn();
+                    settings.test_notification_requested = true;
                 }
-            }
-        });
-    });
+                #[cfg(target_os = "macos")]
+                {
+                    if ui
+                        .button("Open System Preferences")
+                        .on_hover_text("Open macOS notification settings")
+                        .clicked()
+                    {
+                        let _ = std::process::Command::new("open")
+                            .arg("x-apple.systempreferences:com.apple.preference.notifications")
+                            .spawn();
+                    }
+                }
+            });
+        },
+    );
 }
 
 // ============================================================================
@@ -242,12 +272,14 @@ fn show_anti_idle_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(
         ui,
         "Anti-Idle Keep-Alive",
         "notifications_anti_idle",
         false,
+        collapsed,
         |ui| {
             ui.label(
             "Prevents SSH and connection timeouts by periodically sending invisible characters.",

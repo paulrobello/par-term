@@ -13,14 +13,20 @@ use super::SettingsUI;
 use super::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section, subsection_label};
 use crate::config::{CursorStyle, ThinStrokesMode, UnfocusedCursorStyle};
 use crate::themes::Theme;
+use std::collections::HashSet;
 
 /// Show the appearance tab content.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
     let query = settings.search_query.trim().to_lowercase();
 
     // Theme section
     if section_matches(&query, "Theme", &["color", "scheme", "dark", "light"]) {
-        show_theme_section(ui, settings, changes_this_frame);
+        show_theme_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Fonts section
@@ -37,17 +43,17 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "char spacing",
         ],
     ) {
-        show_fonts_section(ui, settings, changes_this_frame);
+        show_fonts_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Font Variants section (collapsed by default)
     if section_matches(&query, "Font Variants", &["bold", "italic", "bold-italic"]) {
-        show_font_variants_section(ui, settings, changes_this_frame);
+        show_font_variants_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Text Shaping section (collapsed by default)
     if section_matches(&query, "Text Shaping", &["shaping", "ligatures", "kerning"]) {
-        show_text_shaping_section(ui, settings, changes_this_frame);
+        show_text_shaping_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Font Rendering section (collapsed by default)
@@ -56,7 +62,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Font Rendering",
         &["antialias", "hinting", "thin strokes", "smoothing"],
     ) {
-        show_font_rendering_section(ui, settings, changes_this_frame);
+        show_font_rendering_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Cursor section
@@ -65,7 +71,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Cursor",
         &["style", "block", "beam", "underline", "blink", "color"],
     ) {
-        show_cursor_section(ui, settings, changes_this_frame);
+        show_cursor_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Cursor Locks section (collapsed by default)
@@ -74,7 +80,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Cursor Locks",
         &["lock", "visibility", "style", "blink"],
     ) {
-        show_cursor_locks_section(ui, settings, changes_this_frame);
+        show_cursor_locks_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Cursor Effects section (collapsed by default)
@@ -83,7 +89,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Cursor Effects",
         &["guide", "shadow", "boost", "glow"],
     ) {
-        show_cursor_effects_section(ui, settings, changes_this_frame);
+        show_cursor_effects_section(ui, settings, changes_this_frame, collapsed);
     }
 }
 
@@ -101,8 +107,13 @@ fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
 // Theme Section
 // ============================================================================
 
-fn show_theme_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
-    collapsing_section(ui, "Theme", "appearance_theme", true, |ui| {
+fn show_theme_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(ui, "Theme", "appearance_theme", true, collapsed, |ui| {
         let available = Theme::available_themes();
         let mut selected = settings.config.theme.clone();
 
@@ -130,8 +141,13 @@ fn show_theme_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this
 // Fonts Section
 // ============================================================================
 
-fn show_fonts_section(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
-    collapsing_section(ui, "Fonts", "appearance_fonts", true, |ui| {
+fn show_fonts_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(ui, "Fonts", "appearance_fonts", true, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Family (regular):");
             if ui
@@ -205,12 +221,14 @@ fn show_font_variants_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     _changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(
         ui,
         "Font Variants",
         "appearance_font_variants",
         false,
+        collapsed,
         |ui| {
             ui.horizontal(|ui| {
                 ui.label("Bold font (optional):");
@@ -262,32 +280,40 @@ fn show_text_shaping_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     _changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Text Shaping", "appearance_text_shaping", false, |ui| {
-        if ui
-            .checkbox(
-                &mut settings.temp_enable_text_shaping,
-                "Enable text shaping",
-            )
-            .changed()
-        {
-            settings.font_pending_changes = true;
-        }
+    collapsing_section(
+        ui,
+        "Text Shaping",
+        "appearance_text_shaping",
+        false,
+        collapsed,
+        |ui| {
+            if ui
+                .checkbox(
+                    &mut settings.temp_enable_text_shaping,
+                    "Enable text shaping",
+                )
+                .changed()
+            {
+                settings.font_pending_changes = true;
+            }
 
-        if ui
-            .checkbox(&mut settings.temp_enable_ligatures, "Enable ligatures")
-            .changed()
-        {
-            settings.font_pending_changes = true;
-        }
+            if ui
+                .checkbox(&mut settings.temp_enable_ligatures, "Enable ligatures")
+                .changed()
+            {
+                settings.font_pending_changes = true;
+            }
 
-        if ui
-            .checkbox(&mut settings.temp_enable_kerning, "Enable kerning")
-            .changed()
-        {
-            settings.font_pending_changes = true;
-        }
-    });
+            if ui
+                .checkbox(&mut settings.temp_enable_kerning, "Enable kerning")
+                .changed()
+            {
+                settings.font_pending_changes = true;
+            }
+        },
+    );
 }
 
 // ============================================================================
@@ -298,12 +324,14 @@ fn show_font_rendering_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(
         ui,
         "Font Rendering",
         "appearance_font_rendering",
         false,
+        collapsed,
         |ui| {
             if ui
                 .checkbox(&mut settings.config.font_antialias, "Anti-aliasing")
@@ -402,8 +430,9 @@ fn show_cursor_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Cursor", "appearance_cursor", true, |ui| {
+    collapsing_section(ui, "Cursor", "appearance_cursor", true, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Style:");
             let current = match settings.config.cursor_style {
@@ -540,47 +569,55 @@ fn show_cursor_locks_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Cursor Locks", "appearance_cursor_locks", false, |ui| {
-        ui.label("Prevent applications from changing cursor settings:");
-        ui.add_space(4.0);
+    collapsing_section(
+        ui,
+        "Cursor Locks",
+        "appearance_cursor_locks",
+        false,
+        collapsed,
+        |ui| {
+            ui.label("Prevent applications from changing cursor settings:");
+            ui.add_space(4.0);
 
-        if ui
-            .checkbox(
-                &mut settings.config.lock_cursor_visibility,
-                "Lock cursor visibility",
-            )
-            .on_hover_text("Prevent applications from hiding the cursor")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        if ui
-            .checkbox(&mut settings.config.lock_cursor_style, "Lock cursor style")
-            .on_hover_text("Prevent applications from changing cursor style")
-            .changed()
-        {
-            settings.has_changes = true;
-            *changes_this_frame = true;
-        }
-
-        ui.add_enabled_ui(!settings.config.lock_cursor_style, |ui| {
             if ui
-                .checkbox(&mut settings.config.lock_cursor_blink, "Lock cursor blink")
-                .on_hover_text(if settings.config.lock_cursor_style {
-                    "Disabled: Lock cursor style already controls blink"
-                } else {
-                    "Prevent applications from enabling cursor blink"
-                })
+                .checkbox(
+                    &mut settings.config.lock_cursor_visibility,
+                    "Lock cursor visibility",
+                )
+                .on_hover_text("Prevent applications from hiding the cursor")
                 .changed()
             {
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
-    });
+
+            if ui
+                .checkbox(&mut settings.config.lock_cursor_style, "Lock cursor style")
+                .on_hover_text("Prevent applications from changing cursor style")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.add_enabled_ui(!settings.config.lock_cursor_style, |ui| {
+                if ui
+                    .checkbox(&mut settings.config.lock_cursor_blink, "Lock cursor blink")
+                    .on_hover_text(if settings.config.lock_cursor_style {
+                        "Disabled: Lock cursor style already controls blink"
+                    } else {
+                        "Prevent applications from enabling cursor blink"
+                    })
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        },
+    );
 }
 
 // ============================================================================
@@ -591,12 +628,14 @@ fn show_cursor_effects_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(
         ui,
         "Cursor Effects",
         "appearance_cursor_effects",
         false,
+        collapsed,
         |ui| {
             // Cursor Guide
             if ui

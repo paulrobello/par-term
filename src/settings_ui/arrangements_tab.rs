@@ -9,9 +9,15 @@ use super::SettingsUI;
 use super::section::collapsing_section;
 use crate::arrangements::ArrangementManager;
 use crate::settings_window::SettingsWindowAction;
+use std::collections::HashSet;
 
 /// Show the arrangements tab content.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
     let query = settings.search_query.trim().to_lowercase();
 
     if section_matches(
@@ -19,7 +25,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Save Current Layout",
         &["save", "capture", "current"],
     ) {
-        show_save_section(ui, settings);
+        show_save_section(ui, settings, collapsed);
     }
 
     if section_matches(
@@ -34,7 +40,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             "workspace",
         ],
     ) {
-        show_arrangements_list(ui, settings);
+        show_arrangements_list(ui, settings, collapsed);
     }
 
     if section_matches(
@@ -42,7 +48,7 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
         "Auto-Restore",
         &["auto", "startup", "restore", "default"],
     ) {
-        show_auto_restore_section(ui, settings, changes_this_frame);
+        show_auto_restore_section(ui, settings, changes_this_frame, collapsed);
     }
 }
 
@@ -60,52 +66,74 @@ fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
 // Save Current Layout Section
 // ============================================================================
 
-fn show_save_section(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    collapsing_section(ui, "Save Current Layout", "arrangements_save", true, |ui| {
-        ui.label("Save the current window arrangement (positions, sizes, and tab working directories) for later restoration.");
-        ui.add_space(8.0);
+fn show_save_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(
+        ui,
+        "Save Current Layout",
+        "arrangements_save",
+        true,
+        collapsed,
+        |ui| {
+            ui.label("Save the current window arrangement (positions, sizes, and tab working directories) for later restoration.");
+            ui.add_space(8.0);
 
-        ui.horizontal(|ui| {
-            ui.label("Name:");
-            ui.text_edit_singleline(&mut settings.arrangement_save_name);
+            ui.horizontal(|ui| {
+                ui.label("Name:");
+                ui.text_edit_singleline(&mut settings.arrangement_save_name);
 
-            let name_valid = !settings.arrangement_save_name.trim().is_empty();
-            if ui
-                .add_enabled(name_valid, egui::Button::new("Save"))
-                .clicked()
-            {
-                let name = settings.arrangement_save_name.trim().to_string();
-                if settings.arrangement_manager.find_by_name(&name).is_some() {
-                    settings.arrangement_confirm_overwrite = Some(name);
-                } else {
-                    settings
-                        .pending_arrangement_actions
-                        .push(SettingsWindowAction::SaveArrangement(name));
-                    settings.arrangement_save_name.clear();
+                let name_valid = !settings.arrangement_save_name.trim().is_empty();
+                if ui
+                    .add_enabled(name_valid, egui::Button::new("Save"))
+                    .clicked()
+                {
+                    let name = settings.arrangement_save_name.trim().to_string();
+                    if settings.arrangement_manager.find_by_name(&name).is_some() {
+                        settings.arrangement_confirm_overwrite = Some(name);
+                    } else {
+                        settings
+                            .pending_arrangement_actions
+                            .push(SettingsWindowAction::SaveArrangement(name));
+                        settings.arrangement_save_name.clear();
+                    }
                 }
-            }
-        });
+            });
 
-        show_confirm_overwrite_dialog(ui, settings);
-    });
+            show_confirm_overwrite_dialog(ui, settings);
+        },
+    );
 }
 
 // ============================================================================
 // Saved Arrangements List
 // ============================================================================
 
-fn show_arrangements_list(ui: &mut egui::Ui, settings: &mut SettingsUI) {
-    collapsing_section(ui, "Saved Arrangements", "arrangements_list", true, |ui| {
-        let manager = settings.arrangement_manager.clone();
-        show_arrangements_with_manager(ui, settings, &manager);
+fn show_arrangements_list(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(
+        ui,
+        "Saved Arrangements",
+        "arrangements_list",
+        true,
+        collapsed,
+        |ui| {
+            let manager = settings.arrangement_manager.clone();
+            show_arrangements_with_manager(ui, settings, &manager);
 
-        ui.add_space(4.0);
+            ui.add_space(4.0);
 
-        // Show confirmation dialogs
-        show_confirm_restore_dialog(ui, settings);
-        show_confirm_delete_dialog(ui, settings);
-        show_rename_dialog(ui, settings);
-    });
+            // Show confirmation dialogs
+            show_confirm_restore_dialog(ui, settings);
+            show_confirm_delete_dialog(ui, settings);
+            show_rename_dialog(ui, settings);
+        },
+    );
 }
 
 /// Render the arrangements list with data from the ArrangementManager.
@@ -207,9 +235,12 @@ fn show_confirm_overwrite_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
         ui.add_space(8.0);
         ui.group(|ui| {
             ui.label(
-                egui::RichText::new(format!("⚠ An arrangement named \"{}\" already exists.", name))
-                    .strong()
-                    .color(egui::Color32::from_rgb(255, 193, 7)),
+                egui::RichText::new(format!(
+                    "⚠ An arrangement named \"{}\" already exists.",
+                    name
+                ))
+                .strong()
+                .color(egui::Color32::from_rgb(255, 193, 7)),
             );
             ui.label("Do you want to overwrite it?");
             ui.horizontal(|ui| {
@@ -313,12 +344,14 @@ fn show_auto_restore_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(
         ui,
         "Auto-Restore on Startup",
         "arrangements_auto_restore",
         true,
+        collapsed,
         |ui| {
             ui.label("Automatically restore a saved arrangement when par-term starts.");
             ui.add_space(8.0);

@@ -1484,6 +1484,14 @@ pub struct Config {
     /// Custom actions (shell commands, text insertion, key sequences)
     #[serde(default)]
     pub actions: Vec<CustomActionConfig>,
+
+    // ========================================================================
+    // UI State (persisted across sessions)
+    // ========================================================================
+    /// Settings window section IDs that have been toggled from their default collapse state.
+    /// Sections default to open unless specified otherwise; IDs in this set invert the default.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub collapsed_settings_sections: Vec<String>,
 }
 
 impl Default for Config {
@@ -1756,6 +1764,7 @@ impl Default for Config {
             coprocesses: Vec::new(),
             snippets: Vec::new(),
             actions: Vec::new(),
+            collapsed_settings_sections: Vec::new(),
         }
     }
 }

@@ -11,11 +11,17 @@
 //! - Cursor shader settings
 
 use crate::config::ImageScalingMode;
+use std::collections::HashSet;
 
 use super::SettingsUI;
 
 /// Show the effects tab content.
-pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+pub fn show(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    _collapsed: &mut HashSet<String>,
+) {
     let query = settings.search_query.trim().to_lowercase();
 
     // Background section

@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Keybinding support**: `save_arrangement` and `restore_arrangement:<name>` keybinding actions
   - **YAML persistence**: Arrangements stored in `~/.config/par-term/arrangements.yaml`
 
+- **Remember Settings Section States** (#105): Settings window section expand/collapse states now persist across sessions
+  - Collapsible section states (expanded/collapsed) are tracked and saved to `collapsed_settings_sections` in config
+  - States persist when the settings window is closed and reopened within the same session
+  - States persist across app restarts via automatic save on settings window close
+  - States are also saved when explicitly clicking "Save" in settings
+
 ### Fixed
 
 - **Duplicate arrangement names allowed**: Saving a window arrangement with the same name as an existing one now prompts to overwrite instead of creating a duplicate entry

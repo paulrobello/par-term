@@ -1112,7 +1112,13 @@ impl WindowManager {
 
     /// Close the settings window
     pub fn close_settings_window(&mut self) {
-        if self.settings_window.take().is_some() {
+        if let Some(settings_window) = self.settings_window.take() {
+            // Persist collapsed section states to the main config before dropping
+            let collapsed = settings_window.settings_ui.collapsed_sections_snapshot();
+            self.config.collapsed_settings_sections = collapsed;
+            if let Err(e) = self.config.save() {
+                log::error!("Failed to persist settings section states: {}", e);
+            }
             log::info!("Closed settings window");
         }
     }

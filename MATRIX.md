@@ -828,6 +828,7 @@ iTerm2 supports showing progress for long-running commands.
 |---------|--------|----------|--------|--------|--------|-------|
 | Config file location (XDG) | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Settings UI | ✅ Full GUI | ✅ Full GUI (F12) | ✅ | - | - | Already implemented |
+| Remember settings section states | ✅ | ✅ `collapsed_settings_sections` | ✅ | - | - | Persists section expand/collapse state across sessions |
 | Reload config (F5) | ❌ | ✅ | ✅ | - | - | par-term exclusive |
 | Window arrangements | ✅ Save/restore layouts | ❌ | ❌ | ⭐⭐ | 🟡 | Save window positions |
 | Bonjour host discovery | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-discover SSH hosts |
