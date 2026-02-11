@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Emoji rendering**: Fixed color emoji not rendering. Swash render sources were ordered to try `Outline` first, but Apple Color Emoji on macOS has outline data that produced tiny monochrome glyphs instead of color bitmaps. Reversed source order to try `ColorBitmap` > `ColorOutline` > `Outline` so emoji fonts render as colored bitmaps while regular text fonts fall through to outlines. Also fixed TTC face index being discarded when loading fonts from fontdb.
+
 - **Tmux pane resize via mouse drag**: Fixed mouse drag events not being forwarded to the PTY when terminal mouse tracking is enabled (e.g., tmux). The `button_pressed` state was not being set when the click was consumed by mouse tracking, so subsequent motion events were silently dropped in ButtonEvent mode. Clicking to change tmux pane focus worked, but dragging to resize did not.
 
 - **Text baseline alignment**: Fixed subtle per-glyph rounding artifacts that could cause characters on the same line to appear at slightly different vertical positions. The baseline position is now rounded once per row and bearing offsets are applied as exact integers, eliminating scale_y-induced rounding inconsistencies.

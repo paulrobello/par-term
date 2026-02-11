@@ -59,9 +59,11 @@ pub fn load_font_from_db_with_style(
 
     // Load font data from the database
     // SAFETY: make_shared_face_data is safe when called with a valid ID from query()
-    let (data, _) = unsafe { db.make_shared_face_data(id)? };
+    let (data, face_index) = unsafe { db.make_shared_face_data(id)? };
 
     // Convert the shared data to Vec<u8>
+    // Pass face_index for TTC (TrueType Collection) files where multiple fonts
+    // share the same data but have different face indices.
     let bytes = data.as_ref().as_ref();
-    FontData::new(bytes.to_vec())
+    FontData::new_with_index(bytes.to_vec(), face_index as usize)
 }

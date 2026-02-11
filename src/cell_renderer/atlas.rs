@@ -89,14 +89,13 @@ impl CellRenderer {
             Format::Alpha
         };
 
+        // Try color sources first so emoji fonts (Apple Color Emoji,
+        // Noto Color Emoji) render as colored bitmaps. Regular text fonts
+        // have no color data so will fall through to Outline automatically.
         let image = Render::new(&[
-            // Prefer outline so symbols/dingbats render monochromatically with
-            // the terminal foreground color.  Pure emoji fonts (Apple Color Emoji,
-            // Noto Color Emoji) only carry bitmaps, so Outline will fail and we
-            // fall through to the color sources for actual emoji.
-            swash::scale::Source::Outline,
-            swash::scale::Source::ColorOutline(0),
             swash::scale::Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
+            swash::scale::Source::ColorOutline(0),
+            swash::scale::Source::Outline,
         ])
         .format(render_format)
         .render(&mut scaler, glyph_id)?;
