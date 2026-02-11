@@ -41,12 +41,48 @@ pub use types::KeyModifier;
 pub use types::{ResolvedCursorShaderConfig, ResolvedShaderConfig};
 
 use anyhow::Result;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
 use crate::themes::Theme;
+
+/// Substitute `${VAR_NAME}` patterns in a string with environment variable values.
+///
+/// - `${VAR}` is replaced with the value of the environment variable `VAR`.
+/// - If the variable is not set, the `${VAR}` placeholder is left unchanged.
+/// - `$${VAR}` (doubled dollar sign) is an escape and produces the literal `${VAR}`.
+/// - Supports `${VAR:-default}` syntax for providing a default value when the variable is unset.
+///
+/// This is applied to the raw YAML config string before deserialization, so all
+/// string-typed config values benefit from substitution.
+pub fn substitute_variables(input: &str) -> String {
+    // First, replace escaped `$${` with a placeholder that won't match the regex
+    let escaped_placeholder = "\x00ESC_DOLLAR\x00";
+    let working = input.replace("$${", escaped_placeholder);
+
+    // Match ${VAR_NAME} or ${VAR_NAME:-default_value}
+    let re = Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-((?:[^}\\]|\\.)*))?}")
+        .expect("invalid regex");
+
+    let result = re.replace_all(&working, |caps: &regex::Captures| {
+        let var_name = &caps[1];
+        match std::env::var(var_name) {
+            Ok(val) => val,
+            Err(_) => {
+                // Use default value if provided, otherwise leave the placeholder as-is
+                caps.get(2)
+                    .map(|m| m.as_str().replace("\\}", "}"))
+                    .unwrap_or_else(|| caps[0].to_string())
+            }
+        }
+    });
+
+    // Restore escaped dollar signs
+    result.replace(escaped_placeholder, "${")
+}
 
 /// Custom deserializer for `ShellExitAction` that supports backward compatibility.
 ///
@@ -1784,6 +1820,7 @@ impl Config {
         if config_path.exists() {
             log::info!("Loading existing config from {:?}", config_path);
             let contents = fs::read_to_string(&config_path)?;
+            let contents = substitute_variables(&contents);
             let mut config: Config = serde_yaml::from_str(&contents)?;
 
             // Merge in any new default keybindings that don't exist in user's config
