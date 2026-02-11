@@ -135,6 +135,7 @@ par-term supports terminal-embedded hyperlinks (OSC 8 protocol) for more reliabl
 Hold `Cmd` (macOS) or `Ctrl` (Windows/Linux) and click a detected file path to open it in your editor.
 
 **Detected Paths:**
+- Absolute paths: `/Users/name/projects/main.rs`, `/etc/config.yaml`
 - Relative paths: `./src/main.rs`, `../lib/utils.py`
 - Home-relative paths: `~/projects/app.js`
 - Paths with line numbers: `./src/main.rs:42` or `./src/main.rs:42:10`

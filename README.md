@@ -12,9 +12,41 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.12.0
+## What's New in 0.13.0
 
-### 📝 Snippets & Actions System
+### 📋 Vi-Style Copy Mode
+
+Keyboard-driven text selection and navigation (iTerm2 parity).
+
+- **Full vi motions**: `h/j/k/l`, `w/b/e`, `0/$`, `gg/G`, count prefixes, half/full page scrolling
+- **Visual selection**: Character (`v`), Line (`V`), and Block (`Ctrl+V`) modes with yank to clipboard
+- **Search**: `/pattern` forward, `?pattern` backward, `n/N` repeat (case-insensitive, wrapping)
+- **Marks**: `m{a-z}` set, `'{a-z}` jump — persistent per-tab bookmarks through scrollback
+- **Status bar**: Mode indicator (COPY/VISUAL/V-LINE/V-BLOCK/SEARCH) and cursor position
+- **Settings**: Enable/disable, auto-exit on yank, status bar visibility (Settings > Input > Copy Mode)
+
+### 📝 Snippets & Actions Completion
+
+- **Custom Variables UI**: Collapsible per-snippet variable editor (name/value grid)
+- **Key Sequence Simulation**: `KeySequence` actions send terminal byte sequences (Ctrl combos, arrow keys, F-keys)
+- **Import/Export**: Export/import snippets as YAML with duplicate detection and keybinding conflict resolution
+
+### 🔤 Unicode Normalization
+
+Configurable normalization form (NFC/NFD/NFKC/NFKD/None) in Settings > Terminal > Unicode. Live-updates across all tabs.
+
+### 🔧 Fixed
+
+- Color emoji rendering (Apple Color Emoji now renders as colored bitmaps instead of monochrome outlines)
+- Tmux pane resize via mouse drag (drag events now forwarded when mouse tracking enabled)
+- Text baseline alignment (eliminated per-glyph rounding artifacts)
+- File/URL link highlighting offset with multi-byte UTF-8 characters
+- Absolute file path detection in link highlighting regex
+
+<details>
+<summary><strong>What's New in 0.12.0</strong></summary>
+
+#### 📝 Snippets & Actions System
 
 Text automation and custom actions (iTerm2 parity).
 
@@ -23,42 +55,43 @@ Text automation and custom actions (iTerm2 parity).
 - **Settings UI**: Two new tabs — Snippets (📝) and Actions (🚀) — with keybinding recording and conflict detection
 - **Auto-Execute**: Optional checkbox to run commands immediately when keybinding is pressed
 
-### 📊 Progress Bar Rendering
+#### 📊 Progress Bar Rendering
 
 Overlay progress bars via OSC 9;4 and OSC 934 protocols.
 
 - Configurable style (bar or bar-with-text), position, height, opacity, and per-state colors
 - Named concurrent progress bars stack vertically
 - New `iProgress` shader uniform for progress-reactive shader effects
-- Full settings UI in new "Progress Bar" tab
 
-### 📋 Paste Enhancements
+#### 📋 Paste Enhancements
 
 - **Paste Delay**: Configurable delay between pasted lines (`paste_delay_ms`, 0-500ms)
 - **Newline Control**: Three new Paste Special transforms — Single Line, Add Newlines, Remove Newlines
 
-### 🖥️ Shell Integration Enhancements
+#### 🖥️ Shell Integration Enhancements
 
 - **Command in Title**: Window title shows `[command_name]` during execution
 - **Badge Variables**: `\(session.exit_code)` and `\(session.current_command)`
 - **Remote Host**: OSC 1337 RemoteHost syncs hostname and username to badge variables
 
-### 🖼️ Image & Pane Improvements
+#### 🖼️ Image & Pane Improvements
 
 - **Image Scaling**: Choose `nearest` or `linear` filtering for inline images
 - **Aspect Ratio Control**: Toggle aspect ratio preservation for inline images
 - **Pane Titles**: GPU-rendered title bars for split panes
 - **Divider Styles**: Four visual styles — Solid, Double, Dashed, Shadow
 
-### ⌨️ Cross-Platform Keybindings
+#### ⌨️ Cross-Platform Keybindings
 
 Redesigned Linux/Windows defaults to avoid conflicts with terminal control codes (Ctrl+C, Ctrl+V, etc.). macOS unchanged.
 
-### 🔧 Fixed
+#### 🔧 Fixed
 
 - Dingbat/symbol rendering as colored emoji instead of monochrome glyphs
 - Pane focus indicator, background opacity, divider hover, and divider width settings (#88)
 - Platform-specific keybinding labels in snippet rows
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.11.0</strong></summary>
@@ -358,6 +391,7 @@ Essential feature for emacs/vim users.
 - **[Session Logging](docs/SESSION_LOGGING.md)** - Recording sessions in Plain/HTML/Asciicast formats.
 - **[Search](docs/SEARCH.md)** - Terminal search with regex, case-sensitive, and whole-word modes.
 - **[Paste Special](docs/PASTE_SPECIAL.md)** - 28 clipboard transformations for pasting.
+- **[Copy Mode](docs/COPY_MODE.md)** - Vi-style keyboard-driven text selection and navigation.
 - **[Snippets & Actions](docs/SNIPPETS.md)** - Text snippets with variables, custom actions, and keybinding management.
 - **[Progress Bars](docs/PROGRESS_BARS.md)** - OSC 9;4 and OSC 934 progress bar rendering and shader integration.
 - **[Accessibility](docs/ACCESSIBILITY.md)** - Minimum contrast enforcement and display options.

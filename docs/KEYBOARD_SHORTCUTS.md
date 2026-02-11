@@ -8,6 +8,7 @@ Complete reference for all par-term keyboard shortcuts.
 - [Window & Tab Management](#window--tab-management)
 - [Navigation & Scrolling](#navigation--scrolling)
 - [Copy, Paste & Selection](#copy-paste--selection)
+- [Copy Mode](#copy-mode)
 - [Search](#search)
 - [Terminal Operations](#terminal-operations)
 - [Font & Text Sizing](#font--text-sizing)
@@ -65,6 +66,31 @@ Complete reference for all par-term keyboard shortcuts.
 | Alt/Option + Click | Move cursor to position |
 | Alt + Cmd/Ctrl + Drag | Rectangular selection |
 | Middle-Click | Paste primary selection |
+
+## Copy Mode
+
+Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for complete reference.
+
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| Toggle copy mode | `Cmd + Shift + C` | `Ctrl + Shift + Space` |
+
+**In copy mode:**
+
+| Key | Action |
+|-----|--------|
+| `h/j/k/l` | Navigate left/down/up/right |
+| `w/b/e` | Word forward/backward/end |
+| `0/$` | Line start/end |
+| `gg/G` | Top/bottom of buffer |
+| `Ctrl+U/D` | Half page up/down |
+| `v/V/Ctrl+V` | Character/Line/Block selection |
+| `y` | Yank (copy) selection |
+| `/` / `?` | Search forward/backward |
+| `n/N` | Next/previous match |
+| `m{a-z}` | Set mark |
+| `'{a-z}` | Jump to mark |
+| `q` / `Escape` | Exit copy mode |
 
 ## Search
 
@@ -183,7 +209,7 @@ keybindings:
 
 **Features:**
 - `paste_special`, `toggle_clipboard_history`
-- `toggle_session_logging`, `toggle_maximize_throughput`
+- `toggle_copy_mode`, `toggle_session_logging`, `toggle_maximize_throughput`
 - `toggle_background_shader`, `toggle_cursor_shader`
 - `toggle_broadcast_input`, `toggle_profile_drawer`
 - `toggle_tmux_session_picker`

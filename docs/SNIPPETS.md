@@ -183,8 +183,26 @@ Title: SSH to Server
 Text: ssh user@\(hostname).example.com
 ```
 
-#### 3. Key Sequence (Coming Soon)
-Simulate keyboard input. This feature is planned for a future release.
+#### 3. Key Sequence
+Simulate keyboard input by sending terminal byte sequences to the PTY.
+
+**Supported sequences:**
+- Ctrl combos (e.g., `Ctrl+C`, `Ctrl+D`)
+- Arrow keys, Home, End, PageUp, PageDown
+- Function keys (F1-F12)
+- Enter, Tab, Escape, Backspace
+
+**Use cases:**
+- Navigate TUI applications
+- Send control characters
+- Automate keyboard-driven workflows
+
+**Example:**
+```yaml
+Title: Exit Vim
+Type: Key Sequence
+Sequence: Escape :wq Enter
+```
 
 ### Creating Actions
 
@@ -377,17 +395,43 @@ Folder: SSH
     - To run commands in a specific directory, include `cd /path/to/dir &&` in the snippet content
     - Example: `cd ~/projects/myapp && npm test`
 
-## Limitations
+## Import and Export
 
-- **Key Sequence Actions**: Not yet implemented (planned for future release)
-- **Custom Variables UI**: Custom variables must be configured in YAML (UI planned)
-- **Import/Export**: Snippet libraries cannot be imported/exported yet (planned)
+Snippets can be exported to and imported from YAML files for backup or sharing.
+
+### Exporting
+
+1. Open Settings > Snippets tab
+2. Click **Export** to save all snippets to a YAML file
+3. Choose a save location
+
+### Importing
+
+1. Open Settings > Snippets tab
+2. Click **Import** and select a YAML file
+3. par-term detects duplicates (by ID) and keybinding conflicts
+4. Choose how to handle conflicts (skip, overwrite, or rename)
+
+## Custom Variables
+
+Each snippet can define custom variables that override built-in and session variables.
+
+### Using the Variables Editor
+
+1. Edit a snippet in Settings > Snippets tab
+2. Expand the **Custom Variables** section (collapsible)
+3. Add variable name/value pairs in the grid
+4. Use the `+` button to add rows and the delete button to remove them
+5. Reference variables in snippet content with `\(variable_name)` syntax
+
+### Variable Priority
+
+1. Custom snippet variables (highest)
+2. Session variables (`session.*`)
+3. Built-in variables (lowest)
 
 ## Future Enhancements
 
-- [ ] Key sequence simulation
-- [ ] Import/export snippet libraries
 - [ ] Snippet sharing between users
 - [ ] Search/filter snippets in UI
-- [ ] Custom variables editor in UI
 - [ ] Snippet templates

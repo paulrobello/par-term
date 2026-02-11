@@ -1108,7 +1108,16 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 ---
 
-### Recently Completed (v0.12.0)
+### Recently Completed (v0.13.0)
+- ✅ Vi-style copy mode (full vi motions, visual selection, search, marks, status bar)
+- ✅ Unicode normalization (NFC/NFD/NFKC/NFKD/None, live-update across tabs)
+- ✅ Snippets & actions completion (custom variables UI, key sequence simulation, import/export)
+- ✅ Color emoji rendering fix (Apple Color Emoji as colored bitmaps)
+- ✅ Mouse drag forwarding fix (tmux pane resize)
+- ✅ Text baseline alignment fix
+- ✅ Link highlighting fixes (multi-byte offset, absolute file paths)
+
+### Previously Completed (v0.12.0)
 - ✅ Snippets & actions system (text snippets, custom actions, keybinding recording, auto-execute)
 - ✅ Progress bar rendering (OSC 9;4 and OSC 934 named bars, iProgress shader uniform)
 - ✅ Paste delay and newline control transforms
@@ -1119,16 +1128,8 @@ The following iTerm2 features were identified and added to the matrix in this up
 - ✅ Prompt on quit confirmation dialog
 - ✅ Cross-platform keybindings overhaul (Linux/Windows)
 
-### Previously Completed (v0.11.0)
-- ✅ Triggers & automation (regex triggers, 7 action types, coprocesses with restart policy & output viewer)
-- ✅ Unified logging with configurable log level
-- ✅ Semantic history (click file paths to open in editor)
-- ✅ Minimum contrast enforcement (WCAG compliance)
-- ✅ Shell exit action modes, close confirmation for running jobs
-- ✅ Modifier key remapping, physical key bindings, modifyOtherKeys protocol
-
 ---
 
-*Updated: 2026-02-10 (Snippets, progress bars, paste enhancements, pane customization)*
+*Updated: 2026-02-10 (Copy mode, snippets completion, emoji fix, link fixes)*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.12.0*
+*par-term Version: 0.13.0*

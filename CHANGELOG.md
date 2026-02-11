@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.13.0] - 2026-02-10
+
 ### Added
 
 - **Vi-Style Copy Mode** (#99): Keyboard-driven text selection and navigation (iTerm2 parity)
@@ -47,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Text baseline alignment**: Fixed subtle per-glyph rounding artifacts that could cause characters on the same line to appear at slightly different vertical positions. The baseline position is now rounded once per row and bearing offsets are applied as exact integers, eliminating scale_y-induced rounding inconsistencies.
 
 - **File/URL link highlighting offset**: Fixed link highlighting and click targets being shifted to the right when multi-byte UTF-8 characters (prompt icons, Unicode text, etc.) appeared earlier in the line. Regex byte offsets are now correctly mapped to terminal column indices.
+
+- **Absolute file path link detection**: Added detection of absolute file paths (e.g., `/Users/name/.config`) in link highlighting regex. Previously only relative (`./`, `../`) and home-relative (`~/`) paths were matched.
 
 ---
 
@@ -1299,7 +1305,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/paulrobello/par-term/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/paulrobello/par-term/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/paulrobello/par-term/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/paulrobello/par-term/compare/v0.9.0...v0.10.0
