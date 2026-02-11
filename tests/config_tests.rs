@@ -1,6 +1,6 @@
 #![allow(clippy::field_reassign_with_default)]
 
-use par_term::config::{Config, UnfocusedCursorStyle, WindowType};
+use par_term::config::{Config, UnfocusedCursorStyle, WindowType, substitute_variables};
 
 #[test]
 fn test_config_defaults() {
@@ -949,4 +949,126 @@ fn test_startup_directory_yaml_serialization() {
     let yaml = serde_yaml::to_string(&config).unwrap();
     assert!(yaml.contains("startup_directory_mode: custom"));
     assert!(yaml.contains("startup_directory: ~/Projects"));
+}
+
+// ============================================================================
+// Variable Substitution Tests
+// ============================================================================
+
+/// Helper to safely set an env var in tests (unsafe in Rust 2024 edition).
+unsafe fn set_test_var(key: &str, val: &str) {
+    unsafe { std::env::set_var(key, val) };
+}
+
+/// Helper to safely remove an env var in tests.
+unsafe fn remove_test_var(key: &str) {
+    unsafe { std::env::remove_var(key) };
+}
+
+#[test]
+fn test_substitute_variables_basic_env_var() {
+    unsafe { set_test_var("PAR_TEST_VAR", "hello_world") };
+    let result = substitute_variables("value: ${PAR_TEST_VAR}");
+    assert_eq!(result, "value: hello_world");
+    unsafe { remove_test_var("PAR_TEST_VAR") };
+}
+
+#[test]
+fn test_substitute_variables_home_and_user() {
+    // HOME should be set on all Unix-like systems
+    let home = std::env::var("HOME").unwrap_or_default();
+    let result = substitute_variables("path: ${HOME}/Pictures/bg.png");
+    assert_eq!(result, format!("path: {home}/Pictures/bg.png"));
+}
+
+#[test]
+fn test_substitute_variables_multiple_vars() {
+    unsafe { set_test_var("PAR_TEST_A", "alpha") };
+    unsafe { set_test_var("PAR_TEST_B", "beta") };
+    let result = substitute_variables("${PAR_TEST_A} and ${PAR_TEST_B}");
+    assert_eq!(result, "alpha and beta");
+    unsafe { remove_test_var("PAR_TEST_A") };
+    unsafe { remove_test_var("PAR_TEST_B") };
+}
+
+#[test]
+fn test_substitute_variables_missing_var_unchanged() {
+    // Unset vars should remain as-is
+    unsafe { remove_test_var("PAR_NONEXISTENT_VAR_12345") };
+    let result = substitute_variables("value: ${PAR_NONEXISTENT_VAR_12345}");
+    assert_eq!(result, "value: ${PAR_NONEXISTENT_VAR_12345}");
+}
+
+#[test]
+fn test_substitute_variables_default_value() {
+    unsafe { remove_test_var("PAR_MISSING_WITH_DEFAULT") };
+    let result = substitute_variables("shell: ${PAR_MISSING_WITH_DEFAULT:-/bin/bash}");
+    assert_eq!(result, "shell: /bin/bash");
+}
+
+#[test]
+fn test_substitute_variables_default_value_not_used_when_set() {
+    unsafe { set_test_var("PAR_SET_WITH_DEFAULT", "/bin/zsh") };
+    let result = substitute_variables("shell: ${PAR_SET_WITH_DEFAULT:-/bin/bash}");
+    assert_eq!(result, "shell: /bin/zsh");
+    unsafe { remove_test_var("PAR_SET_WITH_DEFAULT") };
+}
+
+#[test]
+fn test_substitute_variables_escaped_dollar() {
+    // $${VAR} should produce the literal ${VAR}
+    unsafe { set_test_var("PAR_TEST_ESC", "should_not_appear") };
+    let result = substitute_variables("literal: $${PAR_TEST_ESC}");
+    assert_eq!(result, "literal: ${PAR_TEST_ESC}");
+    unsafe { remove_test_var("PAR_TEST_ESC") };
+}
+
+#[test]
+fn test_substitute_variables_no_vars() {
+    let input = "cols: 80\nrows: 24\nfont_size: 12.0";
+    let result = substitute_variables(input);
+    assert_eq!(result, input);
+}
+
+#[test]
+fn test_substitute_variables_adjacent_vars() {
+    unsafe { set_test_var("PAR_TEST_X", "foo") };
+    unsafe { set_test_var("PAR_TEST_Y", "bar") };
+    let result = substitute_variables("${PAR_TEST_X}${PAR_TEST_Y}");
+    assert_eq!(result, "foobar");
+    unsafe { remove_test_var("PAR_TEST_X") };
+    unsafe { remove_test_var("PAR_TEST_Y") };
+}
+
+#[test]
+fn test_substitute_variables_in_yaml_config() {
+    unsafe { set_test_var("PAR_TEST_FONT", "Fira Code") };
+    unsafe { set_test_var("PAR_TEST_TITLE", "My Terminal") };
+    let yaml = r#"
+font_family: "${PAR_TEST_FONT}"
+window_title: "${PAR_TEST_TITLE}"
+cols: 120
+"#;
+    let substituted = substitute_variables(yaml);
+    let config: Config = serde_yaml::from_str(&substituted).unwrap();
+    assert_eq!(config.font_family, "Fira Code");
+    assert_eq!(config.window_title, "My Terminal");
+    assert_eq!(config.cols, 120);
+    unsafe { remove_test_var("PAR_TEST_FONT") };
+    unsafe { remove_test_var("PAR_TEST_TITLE") };
+}
+
+#[test]
+fn test_substitute_variables_partial_string() {
+    unsafe { set_test_var("PAR_TEST_USER", "testuser") };
+    let result = substitute_variables("badge: ${PAR_TEST_USER}@myhost");
+    assert_eq!(result, "badge: testuser@myhost");
+    unsafe { remove_test_var("PAR_TEST_USER") };
+}
+
+#[test]
+fn test_substitute_variables_empty_default() {
+    unsafe { remove_test_var("PAR_EMPTY_DEFAULT") };
+    let result = substitute_variables("val: ${PAR_EMPTY_DEFAULT:-}");
+    assert_eq!(result, "val: ");
 }
