@@ -32,11 +32,13 @@ fn url_regex() -> &'static Regex {
 fn file_path_regex() -> &'static Regex {
     FILE_PATH_REGEX.get_or_init(|| {
         // Matches file paths at the START of a logical token:
+        // - Absolute paths starting with / (must follow whitespace or start of line)
         // - Relative paths starting with ./ or ../
         // - Home-relative paths starting with ~/
-        // We intentionally do NOT match bare absolute paths like /foo/bar
-        // because they cause false positives in paths like ./a/b/c/d
-        // where /b/c/d would also match.
+        //
+        // Absolute paths use a lookbehind to require whitespace or start-of-string
+        // before the leading /, preventing false matches inside relative paths
+        // like ./a/b/c where /b/c would otherwise also match.
         //
         // Optionally followed by :line_number or :line_number:col_number
         // Also supports other line number formats from iTerm2:
@@ -45,14 +47,16 @@ fn file_path_regex() -> &'static Regex {
         // - (line)
         Regex::new(
             r#"(?x)
-            # Must start with ./ or ../ or ~/
-            # This avoids matching /foo inside ./bar/foo
             (?:
                 # Home-relative paths (~/...)
                 ~/[^\s:,;'"<>|)\]}\[\(\x00-\x1f]+
                 |
                 # Relative paths starting with ./ or ../
                 \.\.?/[^\s:,;'"<>|)\]}\[\(\x00-\x1f]+
+                |
+                # Absolute paths: must be at start of string or after whitespace
+                # Require at least two path components to reduce false positives
+                (?:^|\s)/[^\s:,;'"<>|)\]}\[\(\x00-\x1f]+/[^\s:,;'"<>|)\]}\[\(\x00-\x1f]+
             )
             # Optional line/column number in various formats
             (?:
@@ -129,11 +133,21 @@ pub fn detect_file_paths_in_line(text: &str, row: usize) -> Vec<DetectedUrl> {
 
     for mat in regex.find_iter(text) {
         let full_match = mat.as_str();
-        let start_col = mat.start();
+        let mut start_col = mat.start();
         let end_col = mat.end();
 
+        // The absolute path branch uses (?:^|\s) which may include a leading
+        // whitespace character in the match. Strip it to get the actual path.
+        let trimmed_match = if full_match.starts_with(char::is_whitespace) {
+            let trimmed = full_match.trim_start();
+            start_col += full_match.len() - trimmed.len();
+            trimmed
+        } else {
+            full_match
+        };
+
         // Parse line and column numbers from the path
-        let (path, line, column) = parse_path_with_line_number(full_match);
+        let (path, line, column) = parse_path_with_line_number(trimmed_match);
 
         paths.push(DetectedUrl {
             url: path,
@@ -621,11 +635,38 @@ mod tests {
     }
 
     #[test]
-    fn test_no_match_for_bare_absolute_path() {
-        // We intentionally don't match bare /path/to/file to avoid false positives
-        let text = "/etc/passwd";
+    fn test_absolute_path_with_multiple_components() {
+        let text = "/Users/probello/.claude";
         let paths = detect_file_paths_in_line(text, 0);
-        assert_eq!(paths.len(), 0, "Should not match bare absolute paths");
+        assert_eq!(paths.len(), 1, "Should match absolute path at start of string");
+        assert_eq!(paths[0].url, "/Users/probello/.claude");
+        assert_eq!(paths[0].start_col, 0);
+    }
+
+    #[test]
+    fn test_absolute_path_after_whitespace() {
+        let text = "ls /Users/probello/.claude";
+        let paths = detect_file_paths_in_line(text, 0);
+        assert_eq!(paths.len(), 1, "Should match absolute path after whitespace");
+        assert_eq!(paths[0].url, "/Users/probello/.claude");
+        assert_eq!(paths[0].start_col, 3);
+    }
+
+    #[test]
+    fn test_no_match_single_component_absolute_path() {
+        // Single-component paths like /etc are too likely to be false positives
+        let text = "/etc";
+        let paths = detect_file_paths_in_line(text, 0);
+        assert_eq!(paths.len(), 0, "Should not match single-component absolute paths");
+    }
+
+    #[test]
+    fn test_no_false_absolute_match_inside_relative() {
+        // Absolute path branch should NOT match /bar/baz inside ./foo/bar/baz
+        let text = "./foo/bar/baz";
+        let paths = detect_file_paths_in_line(text, 0);
+        assert_eq!(paths.len(), 1, "Should only match the relative path, not internal absolute");
+        assert_eq!(paths[0].url, "./foo/bar/baz");
     }
 
     /// Verify that regex byte offsets can be correctly mapped to column indices
