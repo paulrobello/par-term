@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - States persist across app restarts via automatic save on settings window close
   - States are also saved when explicitly clicking "Save" in settings
 
+### Changed
+
+- **Default Font Size**: Increased default `font_size` from 10.0 to 12.0 for better readability out of the box
+
 ### Fixed
 
 - **Duplicate arrangement names allowed**: Saving a window arrangement with the same name as an existing one now prompts to overwrite instead of creating a duplicate entry
