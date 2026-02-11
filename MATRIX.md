@@ -528,8 +528,8 @@ iTerm2 has a system for saved text snippets and custom actions.
 | Text snippets | ✅ Snippets | ✅ | ✅ | ⭐⭐ | 🟡 | Saved text blocks for quick insertion |
 | Snippet shortcuts | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Keyboard shortcuts for snippets |
 | Snippet variables | ✅ | ✅ | ✅ | ⭐ | 🟡 | Dynamic values in snippets (10 built-in variables) |
-| Snippet library | ✅ | ✅ Partial | ✅ | ⭐⭐ | 🟡 | Organize snippets into folders (no import/export yet) |
-| Custom actions | ✅ | ✅ Partial | ✅ | ⭐ | 🔴 | Shell commands and text insertion (key sequences TODO) |
+| Snippet library | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Organize snippets into folders, import/export YAML libraries |
+| Custom actions | ✅ | ✅ | ✅ | ⭐ | 🟡 | Shell commands, text insertion, and key sequence simulation |
 | Action key bindings | ✅ | ✅ | ✅ | ⭐ | 🟡 | Assign keys to actions via UI or config (auto-generated on load) |
 
 ### Implementation Details (v0.11.0+)
@@ -564,9 +564,10 @@ iTerm2 has a system for saved text snippets and custom actions.
 - YAML persistence via serde
 
 **Testing** (`tests/snippets_actions_tests.rs`):
-- 26 integration tests covering all major functionality
+- 50 integration tests covering all major functionality
 - Config persistence, serialization, keybinding generation
-- All 41 tests passing (26 integration + 15 unit)
+- Key sequence parsing, snippet library import/export, custom variables
+- All 67+ tests passing (50 integration + 17 parser unit)
 
 **Documentation** (`docs/SNIPPETS.md`):
 - Comprehensive user guide with examples
@@ -599,9 +600,9 @@ actions:
 
 ### Future Enhancements
 
-- [ ] Key sequence simulation (parsing and keyboard event injection)
-- [ ] Import/export snippet libraries
-- [ ] Custom variables UI editor
+- [x] Key sequence simulation (parsing and keyboard event injection)
+- [x] Import/export snippet libraries
+- [x] Custom variables UI editor
 
 ---
 
@@ -835,7 +836,7 @@ iTerm2 supports showing progress for long-running commands.
 | First-run shader install prompt | ❌ | ✅ Auto-detect & install | ✅ | - | - | par-term exclusive |
 | Shader gallery | ❌ | ✅ Online gallery | ✅ | - | - | par-term exclusive |
 | Automatic update checking | ✅ Built-in updater | ✅ `update_check_frequency` | ✅ | - | - | Notify-only (no auto-install) |
-| Quit when last session closes | ✅ | ❌ | ❌ | ⭐ | 🟢 | Auto-exit when last tab closes |
+| Quit when last session closes | ✅ | ✅ | ✅ | - | - | Already implemented - window closes when last tab closes |
 | Open files in editor | ✅ `Semantic History` | ✅ `semantic_history_*` | ✅ | - | - | Already implemented |
 | Report terminal type | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Character encoding | ✅ Multiple | ✅ UTF-8 | ✅ | - | - | UTF-8 only is fine |

@@ -638,7 +638,11 @@ mod tests {
     fn test_absolute_path_with_multiple_components() {
         let text = "/Users/probello/.claude";
         let paths = detect_file_paths_in_line(text, 0);
-        assert_eq!(paths.len(), 1, "Should match absolute path at start of string");
+        assert_eq!(
+            paths.len(),
+            1,
+            "Should match absolute path at start of string"
+        );
         assert_eq!(paths[0].url, "/Users/probello/.claude");
         assert_eq!(paths[0].start_col, 0);
     }
@@ -647,7 +651,11 @@ mod tests {
     fn test_absolute_path_after_whitespace() {
         let text = "ls /Users/probello/.claude";
         let paths = detect_file_paths_in_line(text, 0);
-        assert_eq!(paths.len(), 1, "Should match absolute path after whitespace");
+        assert_eq!(
+            paths.len(),
+            1,
+            "Should match absolute path after whitespace"
+        );
         assert_eq!(paths[0].url, "/Users/probello/.claude");
         assert_eq!(paths[0].start_col, 3);
     }
@@ -657,7 +665,11 @@ mod tests {
         // Single-component paths like /etc are too likely to be false positives
         let text = "/etc";
         let paths = detect_file_paths_in_line(text, 0);
-        assert_eq!(paths.len(), 0, "Should not match single-component absolute paths");
+        assert_eq!(
+            paths.len(),
+            0,
+            "Should not match single-component absolute paths"
+        );
     }
 
     #[test]
@@ -665,7 +677,11 @@ mod tests {
         // Absolute path branch should NOT match /bar/baz inside ./foo/bar/baz
         let text = "./foo/bar/baz";
         let paths = detect_file_paths_in_line(text, 0);
-        assert_eq!(paths.len(), 1, "Should only match the relative path, not internal absolute");
+        assert_eq!(
+            paths.len(),
+            1,
+            "Should only match the relative path, not internal absolute"
+        );
         assert_eq!(paths[0].url, "./foo/bar/baz");
     }
 

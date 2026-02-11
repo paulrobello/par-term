@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Unicode Normalization**: Configurable Unicode normalization form (NFC/NFD/NFKC/NFKD/None) for text processing. NFC is the default. Exposed in Settings > Terminal > Unicode section. Live-updates across all tabs when changed.
 
+- **Snippets & Actions Completion** (#101): Complete remaining snippets and actions features
+  - **Custom Variables UI**: Collapsible editor in snippet edit form for managing per-snippet variables (name/value grid with add/delete)
+  - **Key Sequence Simulation**: `KeySequence` actions now parse and send terminal byte sequences (Ctrl combos, arrow keys, F-keys, Enter, etc.)
+  - **Snippet Import/Export**: Export all snippets to YAML file and import from YAML with duplicate detection and keybinding conflict resolution
+
 ### Fixed
 
 - **Emoji rendering**: Fixed color emoji not rendering. Swash render sources were ordered to try `Outline` first, but Apple Color Emoji on macOS has outline data that produced tiny monochrome glyphs instead of color bitmaps. Reversed source order to try `ColorBitmap` > `ColorOutline` > `Outline` so emoji fonts render as colored bitmaps while regular text fonts fall through to outlines. Also fixed TTC face index being discarded when loading fonts from fontdb.

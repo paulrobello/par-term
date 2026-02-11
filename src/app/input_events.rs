@@ -1666,11 +1666,49 @@ impl WindowState {
 
                 false
             }
-            CustomActionConfig::KeySequence { keys, .. } => {
-                // TODO: Implement key sequence simulation
-                log::warn!("Key sequence actions are not yet implemented: {}", keys);
-                self.show_toast("Key sequence actions coming soon!");
-                false
+            CustomActionConfig::KeySequence { keys, title, .. } => {
+                use crate::keybindings::parse_key_sequence;
+
+                let byte_sequences = match parse_key_sequence(keys) {
+                    Ok(seqs) => seqs,
+                    Err(e) => {
+                        log::error!("Invalid key sequence '{}': {}", keys, e);
+                        self.show_toast(format!("Invalid key sequence: {}", e));
+                        return false;
+                    }
+                };
+
+                // Write all key sequences to the terminal
+                let write_error = if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    if let Ok(terminal) = tab.terminal.try_lock() {
+                        let mut err: Option<String> = None;
+                        for bytes in &byte_sequences {
+                            if let Err(e) = terminal.write(bytes) {
+                                err = Some(format!("{}", e));
+                                break;
+                            }
+                        }
+                        err
+                    } else {
+                        log::error!("Failed to lock terminal for key sequence execution");
+                        return false;
+                    }
+                } else {
+                    return false;
+                };
+
+                if let Some(e) = write_error {
+                    log::error!("Failed to write key sequence: {}", e);
+                    self.show_toast(format!("Key sequence error: {}", e));
+                    return false;
+                }
+
+                log::info!(
+                    "Executed key sequence action '{}' ({} keys)",
+                    title,
+                    byte_sequences.len()
+                );
+                true
             }
         }
     }

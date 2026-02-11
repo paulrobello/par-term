@@ -9,7 +9,7 @@
 
 use super::SettingsUI;
 use super::section::collapsing_section;
-use crate::config::snippets::SnippetConfig;
+use crate::config::snippets::{SnippetConfig, SnippetLibrary};
 use crate::settings_ui::input_tab::{capture_key_combo, display_key_combo};
 use std::collections::HashMap;
 
@@ -202,6 +202,11 @@ fn show_snippets_section(
             settings.temp_snippet_description = snippet.description.clone().unwrap_or_default();
             settings.temp_snippet_keybinding_enabled = snippet.keybinding_enabled;
             settings.temp_snippet_auto_execute = snippet.auto_execute;
+            settings.temp_snippet_variables = snippet
+                .variables
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
         }
 
         ui.separator();
@@ -209,18 +214,41 @@ fn show_snippets_section(
         // Add new snippet button or form
         if settings.adding_new_snippet {
             show_snippet_edit_form(ui, settings, changes_this_frame, None);
-        } else if ui.button("+ Add Snippet").clicked() {
-            settings.adding_new_snippet = true;
-            settings.editing_snippet_index = None;
-            // Clear temp fields
-            settings.temp_snippet_id = format!("snippet_{}", uuid::Uuid::new_v4());
-            settings.temp_snippet_title = String::new();
-            settings.temp_snippet_content = String::new();
-            settings.temp_snippet_keybinding = String::new();
-            settings.temp_snippet_folder = String::new();
-            settings.temp_snippet_description = String::new();
-            settings.temp_snippet_keybinding_enabled = true;
-            settings.temp_snippet_auto_execute = false;
+        } else {
+            ui.horizontal(|ui| {
+                if ui.button("+ Add Snippet").clicked() {
+                    settings.adding_new_snippet = true;
+                    settings.editing_snippet_index = None;
+                    // Clear temp fields
+                    settings.temp_snippet_id = format!("snippet_{}", uuid::Uuid::new_v4());
+                    settings.temp_snippet_title = String::new();
+                    settings.temp_snippet_content = String::new();
+                    settings.temp_snippet_keybinding = String::new();
+                    settings.temp_snippet_folder = String::new();
+                    settings.temp_snippet_description = String::new();
+                    settings.temp_snippet_keybinding_enabled = true;
+                    settings.temp_snippet_auto_execute = false;
+                    settings.temp_snippet_variables = Vec::new();
+                }
+
+                ui.separator();
+
+                if ui
+                    .button("Export")
+                    .on_hover_text("Export all snippets to a YAML file")
+                    .clicked()
+                {
+                    export_snippets(settings);
+                }
+
+                if ui
+                    .button("Import")
+                    .on_hover_text("Import snippets from a YAML file")
+                    .clicked()
+                {
+                    import_snippets(settings, changes_this_frame);
+                }
+            });
         }
     });
 }
@@ -259,7 +287,7 @@ fn show_snippet_edit_form(
                     Some(settings.temp_snippet_description.clone())
                 },
                 auto_execute: settings.temp_snippet_auto_execute,
-                variables: HashMap::new(), // TODO: Add custom variables UI
+                variables: settings.temp_snippet_variables.iter().cloned().collect(),
             };
 
             if let Some(i) = edit_index {
@@ -411,6 +439,99 @@ fn show_snippet_edit_form(
                 *changes_this_frame = true;
             }
 
+            // Custom Variables section
+            let var_count = settings.temp_snippet_variables.len();
+            let header_text = if var_count > 0 {
+                format!("Custom Variables ({})", var_count)
+            } else {
+                "Custom Variables".to_string()
+            };
+            ui.add_space(4.0);
+            egui::CollapsingHeader::new(egui::RichText::new(&header_text).strong())
+                .id_salt("snippet_custom_variables")
+                .show(ui, |ui| {
+                    let mut delete_var_index: Option<usize> = None;
+
+                    if !settings.temp_snippet_variables.is_empty() {
+                        egui::Grid::new("snippet_variables_edit_grid")
+                            .num_columns(3)
+                            .spacing([8.0, 4.0])
+                            .show(ui, |ui| {
+                                ui.label(egui::RichText::new("Name").small().strong());
+                                ui.label(egui::RichText::new("Value").small().strong());
+                                ui.label(""); // Delete column header
+                                ui.end_row();
+
+                                for i in 0..settings.temp_snippet_variables.len() {
+                                    let (ref mut name, ref mut value) =
+                                        settings.temp_snippet_variables[i];
+
+                                    let name_response = ui.add(
+                                        egui::TextEdit::singleline(name)
+                                            .desired_width(120.0)
+                                            .hint_text("name"),
+                                    );
+                                    if name_response.changed() {
+                                        *changes_this_frame = true;
+                                    }
+
+                                    let value_response = ui.add(
+                                        egui::TextEdit::singleline(value)
+                                            .desired_width(160.0)
+                                            .hint_text("value"),
+                                    );
+                                    if value_response.changed() {
+                                        *changes_this_frame = true;
+                                    }
+
+                                    if ui
+                                        .small_button(
+                                            egui::RichText::new("✕")
+                                                .color(egui::Color32::from_rgb(200, 80, 80)),
+                                        )
+                                        .on_hover_text("Remove variable")
+                                        .clicked()
+                                    {
+                                        delete_var_index = Some(i);
+                                    }
+                                    ui.end_row();
+
+                                    // Warn on empty name
+                                    if name.is_empty() {
+                                        ui.label(
+                                            egui::RichText::new("⚠ Name required")
+                                                .small()
+                                                .color(egui::Color32::from_rgb(255, 180, 0)),
+                                        );
+                                        ui.label("");
+                                        ui.label("");
+                                        ui.end_row();
+                                    }
+                                }
+                            });
+                    }
+
+                    if let Some(idx) = delete_var_index {
+                        settings.temp_snippet_variables.remove(idx);
+                        *changes_this_frame = true;
+                    }
+
+                    if ui.small_button("+ Add Variable").clicked() {
+                        settings
+                            .temp_snippet_variables
+                            .push((String::new(), String::new()));
+                        *changes_this_frame = true;
+                    }
+
+                    ui.label(
+                        egui::RichText::new(
+                            "Use \\(name) in content to reference custom variables",
+                        )
+                        .small()
+                        .color(egui::Color32::GRAY),
+                    );
+                });
+
             // Show variable hint
             ui.label(
                 egui::RichText::new("💡 Variables: \\(date), \\(time), \\(session.path), etc.")
@@ -420,6 +541,104 @@ fn show_snippet_edit_form(
         });
 
     ui.separator();
+}
+
+// ============================================================================
+// Import / Export
+// ============================================================================
+
+/// Export all snippets to a YAML file via a save dialog.
+fn export_snippets(settings: &mut SettingsUI) {
+    let path = rfd::FileDialog::new()
+        .set_title("Export Snippets")
+        .add_filter("YAML", &["yaml", "yml"])
+        .set_file_name("snippets.yaml")
+        .save_file();
+
+    if let Some(path) = path {
+        let library = SnippetLibrary {
+            snippets: settings.config.snippets.clone(),
+        };
+        match serde_yaml::to_string(&library) {
+            Ok(yaml) => {
+                if let Err(e) = std::fs::write(&path, yaml) {
+                    log::error!("Failed to write snippet library: {}", e);
+                } else {
+                    log::info!(
+                        "Exported {} snippets to {}",
+                        library.snippets.len(),
+                        path.display()
+                    );
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to serialize snippet library: {}", e);
+            }
+        }
+    }
+}
+
+/// Import snippets from a YAML file via an open dialog.
+///
+/// Merges imported snippets with existing ones, skipping duplicates by ID.
+fn import_snippets(settings: &mut SettingsUI, changes_this_frame: &mut bool) {
+    let path = rfd::FileDialog::new()
+        .set_title("Import Snippets")
+        .add_filter("YAML", &["yaml", "yml"])
+        .pick_file();
+
+    if let Some(path) = path {
+        match std::fs::read_to_string(&path) {
+            Ok(content) => match serde_yaml::from_str::<SnippetLibrary>(&content) {
+                Ok(library) => {
+                    let existing_ids: std::collections::HashSet<String> = settings
+                        .config
+                        .snippets
+                        .iter()
+                        .map(|s| s.id.clone())
+                        .collect();
+
+                    let mut imported = 0usize;
+                    let mut skipped = 0usize;
+
+                    for mut snippet in library.snippets {
+                        if existing_ids.contains(&snippet.id) {
+                            skipped += 1;
+                            continue;
+                        }
+
+                        // Clear keybinding if it conflicts with an existing one
+                        if let Some(ref kb) = snippet.keybinding
+                            && settings.check_keybinding_conflict(kb, None).is_some()
+                        {
+                            snippet.keybinding = None;
+                        }
+
+                        settings.config.snippets.push(snippet);
+                        imported += 1;
+                    }
+
+                    if imported > 0 {
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+
+                    log::info!(
+                        "Imported {} snippets ({} skipped as duplicates) from {}",
+                        imported,
+                        skipped,
+                        path.display()
+                    );
+                }
+                Err(e) => {
+                    log::error!("Failed to parse snippet library: {}", e);
+                }
+            },
+            Err(e) => {
+                log::error!("Failed to read snippet file: {}", e);
+            }
+        }
+    }
 }
 
 // ============================================================================
