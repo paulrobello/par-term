@@ -34,7 +34,7 @@ pub use types::{
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
 // Snippets and custom actions
-pub use snippets::{BuiltInVariable, CustomActionConfig, SnippetConfig};
+pub use snippets::{BuiltInVariable, CustomActionConfig, SnippetConfig, SnippetLibrary};
 #[allow(unused_imports)]
 pub use types::KeyModifier;
 #[allow(unused_imports)]

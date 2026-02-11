@@ -8,7 +8,8 @@
 //! - Config persistence
 
 use par_term::badge::SessionVariables;
-use par_term::config::{Config, CustomActionConfig, SnippetConfig};
+use par_term::config::{Config, CustomActionConfig, SnippetConfig, SnippetLibrary};
+use par_term::keybindings::parser::parse_key_sequence;
 use par_term::snippets::VariableSubstitutor;
 use std::collections::HashMap;
 use std::fs;
@@ -954,4 +955,165 @@ fn test_action_keybinding_serialization_roundtrip() {
     let deserialized: CustomActionConfig = serde_yaml::from_str(&yaml).unwrap();
     assert_eq!(deserialized.keybinding(), Some("Ctrl+Shift+T"));
     assert!(deserialized.keybinding_enabled());
+}
+
+// ============================================================================
+// Key Sequence Parsing Tests
+// ============================================================================
+
+#[test]
+fn test_key_sequence_parsing_single_key() {
+    let seqs = parse_key_sequence("Enter").unwrap();
+    assert_eq!(seqs.len(), 1);
+    assert_eq!(seqs[0], b"\r");
+}
+
+#[test]
+fn test_key_sequence_parsing_ctrl_combo() {
+    let seqs = parse_key_sequence("Ctrl+C").unwrap();
+    assert_eq!(seqs.len(), 1);
+    assert_eq!(seqs[0], vec![0x03]); // ETX
+}
+
+#[test]
+fn test_key_sequence_parsing_multi_keys() {
+    let seqs = parse_key_sequence("Up Up Down Down").unwrap();
+    assert_eq!(seqs.len(), 4);
+    assert_eq!(seqs[0], b"\x1b[A");
+    assert_eq!(seqs[1], b"\x1b[A");
+    assert_eq!(seqs[2], b"\x1b[B");
+    assert_eq!(seqs[3], b"\x1b[B");
+}
+
+#[test]
+fn test_key_sequence_parsing_invalid() {
+    assert!(parse_key_sequence("NotAKey").is_err());
+    assert!(parse_key_sequence("").is_err());
+}
+
+// ============================================================================
+// Snippet Library Export/Import Tests
+// ============================================================================
+
+#[test]
+fn test_snippet_library_export_import() {
+    let snippets = vec![
+        SnippetConfig::new(
+            "s1".to_string(),
+            "Snippet 1".to_string(),
+            "echo hello".to_string(),
+        )
+        .with_folder("Git".to_string()),
+        SnippetConfig::new(
+            "s2".to_string(),
+            "Snippet 2".to_string(),
+            "echo world".to_string(),
+        )
+        .with_keybinding("Ctrl+Shift+S".to_string()),
+    ];
+
+    let library = SnippetLibrary {
+        snippets: snippets.clone(),
+    };
+
+    // Serialize
+    let yaml = serde_yaml::to_string(&library).unwrap();
+
+    // Deserialize
+    let deserialized: SnippetLibrary = serde_yaml::from_str(&yaml).unwrap();
+
+    assert_eq!(deserialized.snippets.len(), 2);
+    assert_eq!(deserialized.snippets[0].id, "s1");
+    assert_eq!(deserialized.snippets[0].title, "Snippet 1");
+    assert_eq!(deserialized.snippets[0].folder, Some("Git".to_string()));
+    assert_eq!(deserialized.snippets[1].id, "s2");
+    assert_eq!(
+        deserialized.snippets[1].keybinding,
+        Some("Ctrl+Shift+S".to_string())
+    );
+}
+
+#[test]
+fn test_snippet_custom_variables_roundtrip() {
+    let snippet = SnippetConfig::new(
+        "vars_test".to_string(),
+        "Variables Test".to_string(),
+        "echo \\(greeting) \\(name)".to_string(),
+    )
+    .with_variable("greeting".to_string(), "Hello".to_string())
+    .with_variable("name".to_string(), "World".to_string());
+
+    // Serialize
+    let yaml = serde_yaml::to_string(&snippet).unwrap();
+
+    // Deserialize
+    let deserialized: SnippetConfig = serde_yaml::from_str(&yaml).unwrap();
+
+    assert_eq!(deserialized.variables.len(), 2);
+    assert_eq!(
+        deserialized.variables.get("greeting"),
+        Some(&"Hello".to_string())
+    );
+    assert_eq!(
+        deserialized.variables.get("name"),
+        Some(&"World".to_string())
+    );
+}
+
+#[test]
+fn test_snippet_import_duplicate_handling() {
+    // Simulate import: existing snippets + imported library
+    let existing = vec![SnippetConfig::new(
+        "existing".to_string(),
+        "Existing".to_string(),
+        "content".to_string(),
+    )];
+
+    let import_library = SnippetLibrary {
+        snippets: vec![
+            SnippetConfig::new(
+                "existing".to_string(), // Duplicate ID
+                "Duplicate".to_string(),
+                "other content".to_string(),
+            ),
+            SnippetConfig::new(
+                "new_one".to_string(), // New ID
+                "New".to_string(),
+                "new content".to_string(),
+            ),
+        ],
+    };
+
+    let existing_ids: std::collections::HashSet<String> =
+        existing.iter().map(|s| s.id.clone()).collect();
+
+    let mut result = existing.clone();
+    let mut imported = 0usize;
+    let mut skipped = 0usize;
+
+    for snippet in import_library.snippets {
+        if existing_ids.contains(&snippet.id) {
+            skipped += 1;
+            continue;
+        }
+        result.push(snippet);
+        imported += 1;
+    }
+
+    assert_eq!(imported, 1);
+    assert_eq!(skipped, 1);
+    assert_eq!(result.len(), 2);
+    assert_eq!(result[1].id, "new_one");
+}
+
+#[test]
+fn test_snippet_library_empty() {
+    let library = SnippetLibrary {
+        snippets: Vec::new(),
+    };
+
+    let yaml = serde_yaml::to_string(&library).unwrap();
+    let deserialized: SnippetLibrary = serde_yaml::from_str(&yaml).unwrap();
+
+    assert!(deserialized.snippets.is_empty());
 }

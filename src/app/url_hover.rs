@@ -80,19 +80,22 @@ impl WindowState {
                 // Sentinel for end-of-string byte positions (exclusive end)
                 byte_to_col.push(cols);
 
-                let map_byte_to_col =
-                    |byte_offset: usize| -> usize { byte_to_col.get(byte_offset).copied().unwrap_or(cols) };
+                let map_byte_to_col = |byte_offset: usize| -> usize {
+                    byte_to_col.get(byte_offset).copied().unwrap_or(cols)
+                };
 
                 // Adjust row to account for scroll offset
                 let absolute_row = row + scroll_offset;
 
                 // Detect regex-based URLs in this line and convert byte offsets to columns
                 let regex_urls = url_detection::detect_urls_in_line(&line, absolute_row);
-                tab.mouse.detected_urls.extend(regex_urls.into_iter().map(|mut url| {
-                    url.start_col = map_byte_to_col(url.start_col);
-                    url.end_col = map_byte_to_col(url.end_col);
-                    url
-                }));
+                tab.mouse
+                    .detected_urls
+                    .extend(regex_urls.into_iter().map(|mut url| {
+                        url.start_col = map_byte_to_col(url.start_col);
+                        url.end_col = map_byte_to_col(url.end_col);
+                        url
+                    }));
 
                 // Detect OSC 8 hyperlinks in this row (already use column indices)
                 let osc8_urls =
@@ -102,19 +105,21 @@ impl WindowState {
                 // Detect file paths for semantic history (if enabled)
                 if self.config.semantic_history_enabled {
                     let file_paths = url_detection::detect_file_paths_in_line(&line, absolute_row);
-                    tab.mouse.detected_urls.extend(file_paths.into_iter().map(|mut fp| {
-                        crate::debug_trace!(
-                            "SEMANTIC",
-                            "Detected path: {:?} at cols {}..{} row {}",
-                            fp.url,
-                            map_byte_to_col(fp.start_col),
-                            map_byte_to_col(fp.end_col),
-                            fp.row
-                        );
-                        fp.start_col = map_byte_to_col(fp.start_col);
-                        fp.end_col = map_byte_to_col(fp.end_col);
-                        fp
-                    }));
+                    tab.mouse
+                        .detected_urls
+                        .extend(file_paths.into_iter().map(|mut fp| {
+                            crate::debug_trace!(
+                                "SEMANTIC",
+                                "Detected path: {:?} at cols {}..{} row {}",
+                                fp.url,
+                                map_byte_to_col(fp.start_col),
+                                map_byte_to_col(fp.end_col),
+                                fp.row
+                            );
+                            fp.start_col = map_byte_to_col(fp.start_col);
+                            fp.end_col = map_byte_to_col(fp.end_col);
+                            fp
+                        }));
                 }
             }
         }

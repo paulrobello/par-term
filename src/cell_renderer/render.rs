@@ -867,8 +867,7 @@ impl CellRenderer {
                                     + self.content_offset_y
                                     + row as f32 * self.cell_height);
                             let glyph_left = x0 + (info.bearing_x * scale_x).round();
-                            let baseline_in_cell =
-                                (baseline_offset * scale_y).round();
+                            let baseline_in_cell = (baseline_offset * scale_y).round();
                             let glyph_top = y0 + baseline_in_cell - info.bearing_y;
 
                             let render_w = info.width as f32 * scale_x;

@@ -315,6 +315,121 @@ fn parse_named_key(s: &str) -> Option<NamedKey> {
     }
 }
 
+/// Convert a parsed `KeyCombo` into terminal byte sequence(s).
+///
+/// Maps key combinations to their terminal escape sequences:
+/// - Ctrl+Character: control code (char - 'a' + 1)
+/// - Named keys (Enter, Tab, arrows, F-keys): standard escape sequences
+/// - Plain characters: UTF-8 bytes
+/// - Alt+key: ESC prefix + key bytes
+pub fn key_combo_to_bytes(combo: &KeyCombo) -> Result<Vec<u8>, String> {
+    let has_ctrl = combo.modifiers.ctrl || combo.modifiers.cmd_or_ctrl;
+    let has_alt = combo.modifiers.alt;
+
+    match &combo.key {
+        ParsedKey::Character(c) => {
+            if has_ctrl {
+                // Control codes: Ctrl+A = 0x01, Ctrl+C = 0x03, etc.
+                let upper = c.to_ascii_uppercase();
+                if upper.is_ascii_uppercase() {
+                    let code = upper as u8 - b'A' + 1;
+                    let bytes = vec![code];
+                    if has_alt {
+                        // Alt+Ctrl+Key = ESC + control code
+                        let mut result = vec![0x1b];
+                        result.extend_from_slice(&bytes);
+                        Ok(result)
+                    } else {
+                        Ok(bytes)
+                    }
+                } else {
+                    Err(format!("Cannot compute Ctrl code for '{}'", c))
+                }
+            } else if has_alt {
+                // Alt+Key = ESC + key
+                let mut bytes = vec![0x1b];
+                let mut buf = [0u8; 4];
+                let encoded = c.encode_utf8(&mut buf);
+                bytes.extend_from_slice(encoded.as_bytes());
+                Ok(bytes)
+            } else {
+                // Plain character
+                let mut buf = [0u8; 4];
+                let encoded = c.encode_utf8(&mut buf);
+                Ok(encoded.as_bytes().to_vec())
+            }
+        }
+        ParsedKey::Named(named) => {
+            let seq: &[u8] = match named {
+                NamedKey::Enter => b"\r",
+                NamedKey::Tab => b"\t",
+                NamedKey::Space => b" ",
+                NamedKey::Backspace => b"\x7f",
+                NamedKey::Escape => b"\x1b",
+                NamedKey::Insert => b"\x1b[2~",
+                NamedKey::Delete => b"\x1b[3~",
+                NamedKey::ArrowUp => b"\x1b[A",
+                NamedKey::ArrowDown => b"\x1b[B",
+                NamedKey::ArrowRight => b"\x1b[C",
+                NamedKey::ArrowLeft => b"\x1b[D",
+                NamedKey::Home => b"\x1b[H",
+                NamedKey::End => b"\x1b[F",
+                NamedKey::PageUp => b"\x1b[5~",
+                NamedKey::PageDown => b"\x1b[6~",
+                NamedKey::F1 => b"\x1bOP",
+                NamedKey::F2 => b"\x1bOQ",
+                NamedKey::F3 => b"\x1bOR",
+                NamedKey::F4 => b"\x1bOS",
+                NamedKey::F5 => b"\x1b[15~",
+                NamedKey::F6 => b"\x1b[17~",
+                NamedKey::F7 => b"\x1b[18~",
+                NamedKey::F8 => b"\x1b[19~",
+                NamedKey::F9 => b"\x1b[20~",
+                NamedKey::F10 => b"\x1b[21~",
+                NamedKey::F11 => b"\x1b[23~",
+                NamedKey::F12 => b"\x1b[24~",
+                _ => return Err(format!("Unsupported named key: {:?}", named)),
+            };
+            let bytes = seq.to_vec();
+            if has_alt {
+                let mut result = vec![0x1b];
+                result.extend_from_slice(&bytes);
+                Ok(result)
+            } else {
+                Ok(bytes)
+            }
+        }
+        ParsedKey::Physical(_code) => {
+            Err("Physical key codes cannot be converted to bytes without a keyboard layout".into())
+        }
+    }
+}
+
+/// Parse a key sequence string into a list of byte sequences.
+///
+/// The input string contains whitespace-separated key combos.
+/// Each key combo is parsed with `parse_key_combo()` and converted to bytes.
+///
+/// Example: "Up Up Down Down" → four arrow key escape sequences
+/// Example: "Ctrl+C" → single \x03 byte
+pub fn parse_key_sequence(keys: &str) -> Result<Vec<Vec<u8>>, String> {
+    let trimmed = keys.trim();
+    if trimmed.is_empty() {
+        return Err("Empty key sequence".to_string());
+    }
+
+    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+    let mut result = Vec::with_capacity(parts.len());
+
+    for part in parts {
+        let combo = parse_key_combo(part).map_err(|e| format!("'{}': {}", part, e))?;
+        let bytes = key_combo_to_bytes(&combo)?;
+        result.push(bytes);
+    }
+
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -460,5 +575,125 @@ mod tests {
     #[test]
     fn test_invalid_physical_key() {
         assert!(parse_key_combo("Ctrl+[Unknown]").is_err());
+    }
+
+    // Tests for key_combo_to_bytes and parse_key_sequence
+
+    #[test]
+    fn test_key_combo_to_bytes_enter() {
+        let combo = parse_key_combo("Enter").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, b"\r");
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_tab() {
+        let combo = parse_key_combo("Tab").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, b"\t");
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_ctrl_c() {
+        let combo = parse_key_combo("Ctrl+C").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, vec![0x03]); // Ctrl+C = ETX
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_ctrl_a() {
+        let combo = parse_key_combo("Ctrl+A").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, vec![0x01]); // Ctrl+A = SOH
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_ctrl_z() {
+        let combo = parse_key_combo("Ctrl+Z").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, vec![0x1a]); // Ctrl+Z = SUB
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_arrow_up() {
+        let combo = parse_key_combo("Up").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, b"\x1b[A");
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_arrow_down() {
+        let combo = parse_key_combo("Down").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, b"\x1b[B");
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_f5() {
+        let combo = parse_key_combo("F5").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, b"\x1b[15~");
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_escape() {
+        let combo = parse_key_combo("Escape").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, b"\x1b");
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_plain_char() {
+        let combo = parse_key_combo("A").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, b"A");
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_alt_key() {
+        let combo = parse_key_combo("Alt+A").unwrap();
+        let bytes = key_combo_to_bytes(&combo).unwrap();
+        assert_eq!(bytes, vec![0x1b, b'A']);
+    }
+
+    #[test]
+    fn test_parse_key_sequence_single() {
+        let seqs = parse_key_sequence("Enter").unwrap();
+        assert_eq!(seqs.len(), 1);
+        assert_eq!(seqs[0], b"\r");
+    }
+
+    #[test]
+    fn test_parse_key_sequence_ctrl_c() {
+        let seqs = parse_key_sequence("Ctrl+C").unwrap();
+        assert_eq!(seqs.len(), 1);
+        assert_eq!(seqs[0], vec![0x03]);
+    }
+
+    #[test]
+    fn test_parse_key_sequence_multi_keys() {
+        let seqs = parse_key_sequence("Up Up Down Down").unwrap();
+        assert_eq!(seqs.len(), 4);
+        assert_eq!(seqs[0], b"\x1b[A");
+        assert_eq!(seqs[1], b"\x1b[A");
+        assert_eq!(seqs[2], b"\x1b[B");
+        assert_eq!(seqs[3], b"\x1b[B");
+    }
+
+    #[test]
+    fn test_parse_key_sequence_empty() {
+        assert!(parse_key_sequence("").is_err());
+        assert!(parse_key_sequence("   ").is_err());
+    }
+
+    #[test]
+    fn test_parse_key_sequence_invalid_key() {
+        assert!(parse_key_sequence("InvalidKey").is_err());
+    }
+
+    #[test]
+    fn test_key_combo_to_bytes_physical_key_error() {
+        let combo = parse_key_combo("Ctrl+[KeyZ]").unwrap();
+        assert!(key_combo_to_bytes(&combo).is_err());
     }
 }

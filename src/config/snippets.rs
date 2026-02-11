@@ -102,6 +102,15 @@ impl SnippetConfig {
     }
 }
 
+/// A portable snippet library for import/export.
+///
+/// Wraps a list of snippets for serialization to/from YAML files.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnippetLibrary {
+    /// The snippets in this library
+    pub snippets: Vec<SnippetConfig>,
+}
+
 /// A custom action that can be triggered via keybinding.
 ///
 /// Actions can execute shell commands, insert text, or simulate key sequences.

@@ -9,13 +9,14 @@
 //! - Physical key support for language-agnostic bindings
 
 mod matcher;
-mod parser;
+pub mod parser;
 
 pub use matcher::KeybindingMatcher;
 pub use parser::KeyCombo;
 // ParseError exported for consumers who might want to handle parsing errors
 #[allow(unused_imports)]
 pub use parser::ParseError;
+pub use parser::{key_combo_to_bytes, parse_key_sequence};
 
 use crate::config::{KeyBinding, ModifierRemapping};
 use std::collections::HashMap;
