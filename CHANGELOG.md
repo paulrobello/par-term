@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Duplicate arrangement names allowed**: Saving a window arrangement with the same name as an existing one now prompts to overwrite instead of creating a duplicate entry
 - **Update notification clipped on some systems**: Shortened the new version notification body text and added a timeout to prevent content being cut off in small system notification windows
 
 ---

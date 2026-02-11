@@ -317,6 +317,8 @@ pub struct SettingsUI {
     pub(crate) arrangement_confirm_restore: Option<crate::arrangements::ArrangementId>,
     /// Arrangement ID pending delete confirmation
     pub(crate) arrangement_confirm_delete: Option<crate::arrangements::ArrangementId>,
+    /// Name pending overwrite confirmation (when saving with duplicate name)
+    pub(crate) arrangement_confirm_overwrite: Option<String>,
     /// Arrangement ID being renamed
     pub(crate) arrangement_rename_id: Option<crate::arrangements::ArrangementId>,
     /// Text buffer for rename operation
@@ -466,6 +468,7 @@ impl SettingsUI {
             arrangement_save_name: String::new(),
             arrangement_confirm_restore: None,
             arrangement_confirm_delete: None,
+            arrangement_confirm_overwrite: None,
             arrangement_rename_id: None,
             arrangement_rename_text: String::new(),
             pending_arrangement_actions: Vec::new(),

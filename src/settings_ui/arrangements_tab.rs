@@ -75,12 +75,18 @@ fn show_save_section(ui: &mut egui::Ui, settings: &mut SettingsUI) {
                 .clicked()
             {
                 let name = settings.arrangement_save_name.trim().to_string();
-                settings
-                    .pending_arrangement_actions
-                    .push(SettingsWindowAction::SaveArrangement(name));
-                settings.arrangement_save_name.clear();
+                if settings.arrangement_manager.find_by_name(&name).is_some() {
+                    settings.arrangement_confirm_overwrite = Some(name);
+                } else {
+                    settings
+                        .pending_arrangement_actions
+                        .push(SettingsWindowAction::SaveArrangement(name));
+                    settings.arrangement_save_name.clear();
+                }
             }
         });
+
+        show_confirm_overwrite_dialog(ui, settings);
     });
 }
 
@@ -195,6 +201,32 @@ fn format_date(iso: &str) -> String {
 // ============================================================================
 // Confirmation Dialogs
 // ============================================================================
+
+fn show_confirm_overwrite_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
+    if let Some(name) = settings.arrangement_confirm_overwrite.clone() {
+        ui.add_space(8.0);
+        ui.group(|ui| {
+            ui.label(
+                egui::RichText::new(format!("⚠ An arrangement named \"{}\" already exists.", name))
+                    .strong()
+                    .color(egui::Color32::from_rgb(255, 193, 7)),
+            );
+            ui.label("Do you want to overwrite it?");
+            ui.horizontal(|ui| {
+                if ui.button("Overwrite").clicked() {
+                    settings
+                        .pending_arrangement_actions
+                        .push(SettingsWindowAction::SaveArrangement(name));
+                    settings.arrangement_confirm_overwrite = None;
+                    settings.arrangement_save_name.clear();
+                }
+                if ui.button("Cancel").clicked() {
+                    settings.arrangement_confirm_overwrite = None;
+                }
+            });
+        });
+    }
+}
 
 fn show_confirm_restore_dialog(ui: &mut egui::Ui, settings: &mut SettingsUI) {
     if let Some(id) = settings.arrangement_confirm_restore {

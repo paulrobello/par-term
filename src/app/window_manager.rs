@@ -1947,6 +1947,13 @@ impl WindowManager {
 
     /// Save the current window layout as an arrangement
     pub fn save_arrangement(&mut self, name: String, event_loop: &ActiveEventLoop) {
+        // Remove existing arrangement with the same name (case-insensitive) to allow overwrite
+        if let Some(existing) = self.arrangement_manager.find_by_name(&name) {
+            let existing_id = existing.id;
+            self.arrangement_manager.remove(&existing_id);
+            log::info!("Overwriting existing arrangement '{}'", name);
+        }
+
         let arrangement =
             arrangements::capture::capture_arrangement(name.clone(), &self.windows, event_loop);
         log::info!(
