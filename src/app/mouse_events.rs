@@ -231,6 +231,12 @@ impl WindowState {
                 // --- 4. Mouse Tracking Forwarding ---
                 // Forward events to the PTY if terminal application requested tracking
                 if self.try_send_mouse_event(0, state == ElementState::Pressed) {
+                    // Still track button state so mouse motion reporting works correctly.
+                    // ButtonEvent mode only reports motion when button_pressed is true,
+                    // so we must set this even though the click was consumed by tracking.
+                    if let Some(tab) = self.tab_manager.active_tab_mut() {
+                        tab.mouse.button_pressed = state == ElementState::Pressed;
+                    }
                     return; // Exit early: terminal app handled the input
                 }
 

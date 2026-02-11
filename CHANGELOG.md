@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tmux pane resize via mouse drag**: Fixed mouse drag events not being forwarded to the PTY when terminal mouse tracking is enabled (e.g., tmux). The `button_pressed` state was not being set when the click was consumed by mouse tracking, so subsequent motion events were silently dropped in ButtonEvent mode. Clicking to change tmux pane focus worked, but dragging to resize did not.
+
 - **Text baseline alignment**: Fixed subtle per-glyph rounding artifacts that could cause characters on the same line to appear at slightly different vertical positions. The baseline position is now rounded once per row and bearing offsets are applied as exact integers, eliminating scale_y-induced rounding inconsistencies.
 
 - **File/URL link highlighting offset**: Fixed link highlighting and click targets being shifted to the right when multi-byte UTF-8 characters (prompt icons, Unicode text, etc.) appeared earlier in the line. Regex byte offsets are now correctly mapped to terminal column indices.
