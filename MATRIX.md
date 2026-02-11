@@ -844,7 +844,7 @@ iTerm2 supports showing progress for long-running commands.
 | Character encoding | ✅ Multiple | ✅ UTF-8 | ✅ | - | - | UTF-8 only is fine |
 | Check for updates automatically | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Open new viewer window | ✅ | ❌ | ❌ | ⭐ | 🟡 | Clone session in new window |
-| Variable substitution | ✅ | ❌ | ❌ | ⭐ | 🟡 | Environment vars in config |
+| Variable substitution | ✅ | ✅ | ✅ | ⭐ | 🟡 | Environment vars in config (`${VAR}`, `${VAR:-default}`) |
 
 ---
 

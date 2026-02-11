@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Variable Substitution in Config** (#102): Use `${VAR}` environment variable references in `config.yaml` values
+  - All string config fields support substitution (e.g., `background_image: "${HOME}/Pictures/bg.png"`)
+  - Default values via `${VAR:-default}` syntax for unset variables
+  - Escape with `$${VAR}` to produce the literal `${VAR}`
+  - Unset variables without defaults are left unchanged
+
 - **Drag-and-Drop Tab Reordering** (#106): Reorder tabs by dragging them in the tab bar
   - Click and drag any tab to move it to a new position
   - Floating ghost tab follows the cursor during drag with semi-transparent preview
