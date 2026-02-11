@@ -627,4 +627,43 @@ mod tests {
         let paths = detect_file_paths_in_line(text, 0);
         assert_eq!(paths.len(), 0, "Should not match bare absolute paths");
     }
+
+    /// Verify that regex byte offsets can be correctly mapped to column indices
+    /// when multi-byte UTF-8 characters precede the matched text.
+    /// This is the mapping that url_hover.rs applies after detection.
+    #[test]
+    fn test_byte_offset_to_column_mapping_with_multibyte() {
+        // Simulate a terminal line: "★ ~/docs" where ★ is a 3-byte UTF-8 char
+        // Cell layout: [★][ ][~][/][d][o][c][s]
+        // Columns:      0   1  2  3  4  5  6  7
+        let graphemes = vec!["★", " ", "~", "/", "d", "o", "c", "s"];
+        let cols = graphemes.len();
+
+        // Build line and byte-to-col mapping (same logic as url_hover.rs)
+        let mut line = String::new();
+        let mut byte_to_col: Vec<usize> = Vec::new();
+        for (col_idx, g) in graphemes.iter().enumerate() {
+            for _ in 0..g.len() {
+                byte_to_col.push(col_idx);
+            }
+            line.push_str(g);
+        }
+        byte_to_col.push(cols); // sentinel
+
+        let map = |b: usize| -> usize { byte_to_col.get(b).copied().unwrap_or(cols) };
+
+        // Detect file path in the concatenated string
+        let paths = detect_file_paths_in_line(&line, 0);
+        assert_eq!(paths.len(), 1, "Should detect ~/docs");
+
+        // The regex returns byte offsets: "★" is 3 bytes, " " is 1 byte
+        // so ~/docs starts at byte 4 (not column 2)
+        assert_eq!(paths[0].start_col, 4, "Byte offset should be 4");
+
+        // After mapping, column index should be 2
+        let start_col = map(paths[0].start_col);
+        let end_col = map(paths[0].end_col);
+        assert_eq!(start_col, 2, "Column should be 2 (after ★ and space)");
+        assert_eq!(end_col, cols, "End column should be 8 (end of line)");
+    }
 }

@@ -64,19 +64,37 @@ impl WindowState {
 
                 let row_cells = &visible_cells[start_idx..end_idx];
 
+                // Build line text and byte-to-column mapping.
+                // Regex returns byte offsets into the string, but we need column
+                // indices for cell highlighting. When graphemes contain multi-byte
+                // UTF-8 (prompt icons, Unicode chars, etc.), byte offsets diverge
+                // from column positions.
                 let mut line = String::with_capacity(cols);
-                for cell in row_cells {
+                let mut byte_to_col: Vec<usize> = Vec::with_capacity(cols * 4);
+                for (col_idx, cell) in row_cells.iter().enumerate() {
+                    for _ in 0..cell.grapheme.len() {
+                        byte_to_col.push(col_idx);
+                    }
                     line.push_str(&cell.grapheme);
                 }
+                // Sentinel for end-of-string byte positions (exclusive end)
+                byte_to_col.push(cols);
+
+                let map_byte_to_col =
+                    |byte_offset: usize| -> usize { byte_to_col.get(byte_offset).copied().unwrap_or(cols) };
 
                 // Adjust row to account for scroll offset
                 let absolute_row = row + scroll_offset;
 
-                // Detect regex-based URLs in this line
+                // Detect regex-based URLs in this line and convert byte offsets to columns
                 let regex_urls = url_detection::detect_urls_in_line(&line, absolute_row);
-                tab.mouse.detected_urls.extend(regex_urls);
+                tab.mouse.detected_urls.extend(regex_urls.into_iter().map(|mut url| {
+                    url.start_col = map_byte_to_col(url.start_col);
+                    url.end_col = map_byte_to_col(url.end_col);
+                    url
+                }));
 
-                // Detect OSC 8 hyperlinks in this row
+                // Detect OSC 8 hyperlinks in this row (already use column indices)
                 let osc8_urls =
                     url_detection::detect_osc8_hyperlinks(row_cells, absolute_row, &hyperlink_urls);
                 tab.mouse.detected_urls.extend(osc8_urls);
@@ -84,17 +102,19 @@ impl WindowState {
                 // Detect file paths for semantic history (if enabled)
                 if self.config.semantic_history_enabled {
                     let file_paths = url_detection::detect_file_paths_in_line(&line, absolute_row);
-                    for fp in &file_paths {
+                    tab.mouse.detected_urls.extend(file_paths.into_iter().map(|mut fp| {
                         crate::debug_trace!(
                             "SEMANTIC",
                             "Detected path: {:?} at cols {}..{} row {}",
                             fp.url,
-                            fp.start_col,
-                            fp.end_col,
+                            map_byte_to_col(fp.start_col),
+                            map_byte_to_col(fp.end_col),
                             fp.row
                         );
-                    }
-                    tab.mouse.detected_urls.extend(file_paths);
+                        fp.start_col = map_byte_to_col(fp.start_col);
+                        fp.end_col = map_byte_to_col(fp.end_col);
+                        fp
+                    }));
                 }
             }
         }
