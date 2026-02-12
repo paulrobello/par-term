@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tab Style Variants** (#112): Cosmetic tab bar presets with 5 built-in styles
+  - Dark (default), Light, Compact, Minimal, and High Contrast presets
+  - Each preset applies coordinated color/size/spacing adjustments
+  - Exposed as dropdown in Settings > Window > Tab Bar
+  - Config: `tab_style: dark|light|compact|minimal|high_contrast`
+
+- **Alert Sounds** (#112): Configurable sound effects for terminal events
+  - Per-event sound configuration: Bell, Command Complete, New Tab, Tab Close
+  - Each event supports: enable/disable, volume, frequency, duration, custom sound file
+  - Custom sound files: WAV/OGG/FLAC format with `~` home directory expansion
+  - Falls back to legacy `notification_bell_sound` for backward compatibility
+  - Config: `alert_sounds` map with per-event `AlertSoundConfig` entries
+  - UI in Settings > Notifications > Alert Sounds
+
 - **Import/Export Preferences** (#91): Import and export terminal configuration
   - Export current config to a YAML file via native file dialog
   - Import preferences from a local YAML file (replace or merge modes)

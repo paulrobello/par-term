@@ -13,7 +13,7 @@
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
 use crate::config::{
-    DividerStyle, PaneTitlePosition, PowerPreference, TabBarMode, VsyncMode, WindowType,
+    DividerStyle, PaneTitlePosition, PowerPreference, TabBarMode, TabStyle, VsyncMode, WindowType,
 };
 use std::collections::HashSet;
 
@@ -747,6 +747,30 @@ fn show_tab_bar_section(
     collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(ui, "Tab Bar", "window_tab_bar", true, collapsed, |ui| {
+        // Tab style preset dropdown
+        ui.horizontal(|ui| {
+            ui.label("Tab style:");
+            let current_style = settings.config.tab_style;
+            egui::ComboBox::from_id_salt("window_tab_style")
+                .selected_text(current_style.display_name())
+                .show_ui(ui, |ui| {
+                    for style in TabStyle::all() {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.tab_style,
+                                *style,
+                                style.display_name(),
+                            )
+                            .changed()
+                        {
+                            settings.config.apply_tab_style();
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+        });
+
         ui.horizontal(|ui| {
             ui.label("Show tab bar:");
             let current = match settings.config.tab_bar_mode {
