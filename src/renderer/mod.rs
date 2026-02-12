@@ -471,9 +471,9 @@ impl Renderer {
 
         // Rescale content_offset_y from old physical pixels to new physical pixels
         if old_scale > 0.0 && (old_scale - new_scale).abs() > f32::EPSILON {
-            let logical_offset = self.cell_renderer.content_offset_y / old_scale;
+            let logical_offset = self.cell_renderer.content_offset_y() / old_scale;
             let new_physical = logical_offset * new_scale;
-            self.cell_renderer.content_offset_y = new_physical;
+            self.cell_renderer.set_content_offset_y(new_physical);
             self.graphics_renderer.set_content_offset_y(new_physical);
             if let Some(ref mut cs) = self.custom_shader_renderer {
                 cs.set_content_offset_y(new_physical);
