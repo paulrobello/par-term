@@ -131,7 +131,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
 | Tab bar visibility modes | ✅ Show/Hide | ✅ always/when_multiple/never | ✅ | - | - | - |
-| Tab bar position | ✅ Top/Bottom/Left | ❌ Top only | 🔶 | ⭐⭐ | 🟡 | Left tabs are useful |
+| Tab bar position | ✅ Top/Bottom/Left | ✅ `tab_bar_position` (top/bottom/left) | ✅ | - | - | Vertical sidebar for Left with configurable width |
 | Tab bar height | ✅ | ✅ `tab_bar_height` | ✅ | - | - | - |
 | Tab close button | ✅ `Tabs Have Close Button` | ✅ `tab_show_close_button` | ✅ | - | - | - |
 | Smart close (Cmd+W) | ✅ | ✅ `Cmd/Ctrl+W` | ✅ | - | - | Closes tab if multiple, window if single |
@@ -896,7 +896,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Cursor | 12 | 0 | 0 |
 | Background & Effects | 11 | 0 | 1 |
 | Colors & Themes | 16 | 0 | 1 |
-| Tab Bar | 17 | 1 | 2 |
+| Tab Bar | 18 | 0 | 2 |
 | Scrollback & Scrollbar | 11 | 1 | 1 |
 | Selection & Clipboard | 12 | 0 | 0 |
 | Mouse & Pointer | 9 | 0 | 1 |
@@ -935,9 +935,9 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Network & Discovery | 0 | 0 | 4 |
 | Miscellaneous | 11 | 0 | 6 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~293** | **~5** | **~118** |
+| **TOTAL** | **~294** | **~4** | **~118** |
 
-**Overall Parity: ~70% of iTerm2 features implemented** (293 implemented out of ~416 total tracked features)
+**Overall Parity: ~71% of iTerm2 features implemented** (294 implemented out of ~416 total tracked features)
 
 **Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
