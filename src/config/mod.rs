@@ -22,13 +22,14 @@ pub use shader_metadata::{
 };
 // Re-export config types
 pub use types::{
-    BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, CursorStyle,
-    DividerStyle, DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState,
-    IntegrationVersions, KeyBinding, LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode,
-    PaneTitlePosition, PowerPreference, ProgressBarPosition, ProgressBarStyle,
-    SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata,
-    ShellExitAction, ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode,
-    TabBarMode, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
+    CursorShaderMetadata, CursorStyle, DividerStyle, DroppedFileQuoteStyle, FontRange,
+    ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
+    ModifierRemapping, ModifierTarget, OptionKeyMode, PaneTitlePosition, PowerPreference,
+    ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat,
+    ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType,
+    SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, TabBarMode, TabStyle,
+    ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
     default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
@@ -996,9 +997,19 @@ pub struct Config {
     )]
     pub notification_max_buffer: usize,
 
+    /// Alert sound configuration per event type
+    /// Maps AlertEvent variants to their sound settings
+    #[serde(default)]
+    pub alert_sounds: HashMap<AlertEvent, AlertSoundConfig>,
+
     // ========================================================================
     // Tab Settings
     // ========================================================================
+    /// Tab visual style preset (dark, light, compact, minimal, high_contrast)
+    /// Applies cosmetic color/size/spacing presets to the tab bar
+    #[serde(default)]
+    pub tab_style: TabStyle,
+
     /// Tab bar visibility mode (always, when_multiple, never)
     #[serde(default)]
     pub tab_bar_mode: TabBarMode,
@@ -1716,6 +1727,8 @@ impl Default for Config {
             notification_session_ended: defaults::bool_false(),
             suppress_notifications_when_focused: defaults::bool_true(),
             notification_max_buffer: defaults::notification_max_buffer(),
+            alert_sounds: HashMap::new(),
+            tab_style: TabStyle::default(),
             tab_bar_mode: TabBarMode::default(),
             tab_bar_height: defaults::tab_bar_height(),
             tab_show_close_button: defaults::bool_true(),
@@ -1834,6 +1847,79 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Apply tab style preset, overwriting the tab bar color/size fields.
+    ///
+    /// This is called when the user changes `tab_style` in settings.
+    /// The `Dark` style corresponds to the existing defaults and does nothing.
+    pub fn apply_tab_style(&mut self) {
+        match self.tab_style {
+            TabStyle::Dark => {
+                // Default dark theme - restore original defaults
+                self.tab_bar_background = defaults::tab_bar_background();
+                self.tab_active_background = defaults::tab_active_background();
+                self.tab_inactive_background = defaults::tab_inactive_background();
+                self.tab_hover_background = defaults::tab_hover_background();
+                self.tab_active_text = defaults::tab_active_text();
+                self.tab_inactive_text = defaults::tab_inactive_text();
+                self.tab_active_indicator = defaults::tab_active_indicator();
+                self.tab_border_color = defaults::tab_border_color();
+                self.tab_border_width = defaults::tab_border_width();
+                self.tab_bar_height = defaults::tab_bar_height();
+            }
+            TabStyle::Light => {
+                self.tab_bar_background = [235, 235, 235];
+                self.tab_active_background = [255, 255, 255];
+                self.tab_inactive_background = [225, 225, 225];
+                self.tab_hover_background = [240, 240, 240];
+                self.tab_active_text = [30, 30, 30];
+                self.tab_inactive_text = [100, 100, 100];
+                self.tab_active_indicator = [50, 120, 220];
+                self.tab_border_color = [200, 200, 200];
+                self.tab_border_width = 1.0;
+                self.tab_bar_height = defaults::tab_bar_height();
+            }
+            TabStyle::Compact => {
+                // Smaller tabs, tighter spacing
+                self.tab_bar_background = [35, 35, 35];
+                self.tab_active_background = [55, 55, 55];
+                self.tab_inactive_background = [35, 35, 35];
+                self.tab_hover_background = [45, 45, 45];
+                self.tab_active_text = [240, 240, 240];
+                self.tab_inactive_text = [160, 160, 160];
+                self.tab_active_indicator = [80, 140, 240];
+                self.tab_border_color = [60, 60, 60];
+                self.tab_border_width = 0.5;
+                self.tab_bar_height = 22.0;
+            }
+            TabStyle::Minimal => {
+                // Very clean, flat look with minimal decoration
+                self.tab_bar_background = [30, 30, 30];
+                self.tab_active_background = [30, 30, 30];
+                self.tab_inactive_background = [30, 30, 30];
+                self.tab_hover_background = [40, 40, 40];
+                self.tab_active_text = [255, 255, 255];
+                self.tab_inactive_text = [120, 120, 120];
+                self.tab_active_indicator = [100, 150, 255];
+                self.tab_border_color = [30, 30, 30]; // No visible border
+                self.tab_border_width = 0.0;
+                self.tab_bar_height = 26.0;
+            }
+            TabStyle::HighContrast => {
+                // Maximum contrast for accessibility
+                self.tab_bar_background = [0, 0, 0];
+                self.tab_active_background = [255, 255, 255];
+                self.tab_inactive_background = [30, 30, 30];
+                self.tab_hover_background = [60, 60, 60];
+                self.tab_active_text = [0, 0, 0];
+                self.tab_inactive_text = [255, 255, 255];
+                self.tab_active_indicator = [255, 255, 0];
+                self.tab_border_color = [255, 255, 255];
+                self.tab_border_width = 2.0;
+                self.tab_bar_height = 30.0;
+            }
+        }
+    }
+
     /// Load configuration from file or create default
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path();

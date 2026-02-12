@@ -66,17 +66,34 @@ impl WindowState {
             );
 
             // Play audio bell if enabled (volume > 0)
-            if self.config.notification_bell_sound > 0 {
-                if let Some(tab) = self.tab_manager.active_tab() {
-                    if let Some(ref audio_bell) = tab.bell.audio {
-                        log::info!(
-                            "  Playing audio bell at {}% volume",
-                            self.config.notification_bell_sound
-                        );
-                        audio_bell.play(self.config.notification_bell_sound);
-                    } else {
-                        log::warn!("  Audio bell requested but not initialized");
-                    }
+            // Check alert_sounds config first, fall back to legacy bell_sound setting
+            if let Some(alert_cfg) = self
+                .config
+                .alert_sounds
+                .get(&crate::config::AlertEvent::Bell)
+            {
+                if alert_cfg.enabled
+                    && alert_cfg.volume > 0
+                    && let Some(tab) = self.tab_manager.active_tab()
+                    && let Some(ref audio_bell) = tab.bell.audio
+                {
+                    log::info!(
+                        "  Playing alert sound for bell at {}% volume",
+                        alert_cfg.volume
+                    );
+                    audio_bell.play_alert(alert_cfg);
+                }
+            } else if self.config.notification_bell_sound > 0 {
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Some(ref audio_bell) = tab.bell.audio
+                {
+                    log::info!(
+                        "  Playing audio bell at {}% volume",
+                        self.config.notification_bell_sound
+                    );
+                    audio_bell.play(self.config.notification_bell_sound);
+                } else {
+                    log::warn!("  Audio bell requested but not initialized");
                 }
             } else {
                 log::debug!("  Audio bell disabled (volume=0)");
@@ -113,6 +130,23 @@ impl WindowState {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 tab.bell.last_count = current_bell_count;
             }
+        }
+    }
+
+    /// Play an alert sound for the given event, if configured.
+    pub(crate) fn play_alert_sound(&self, event: crate::config::AlertEvent) {
+        if let Some(alert_cfg) = self.config.alert_sounds.get(&event)
+            && alert_cfg.enabled
+            && alert_cfg.volume > 0
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Some(ref audio_bell) = tab.bell.audio
+        {
+            log::info!(
+                "Playing alert sound for {:?} at {}% volume",
+                event,
+                alert_cfg.volume
+            );
+            audio_bell.play_alert(alert_cfg);
         }
     }
 

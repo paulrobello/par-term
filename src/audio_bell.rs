@@ -58,6 +58,16 @@ impl AudioBell {
     /// # Arguments
     /// * `volume` - Volume level from 0 to 100. A value of 0 disables the bell sound.
     pub fn play(&self, volume: u8) {
+        self.play_tone(volume, 800.0, 100);
+    }
+
+    /// Play a tone with configurable frequency and duration
+    ///
+    /// # Arguments
+    /// * `volume` - Volume level from 0 to 100. A value of 0 disables the sound.
+    /// * `frequency` - Frequency in Hz (e.g. 800.0 for standard bell)
+    /// * `duration_ms` - Duration in milliseconds
+    pub fn play_tone(&self, volume: u8, frequency: f32, duration_ms: u64) {
         if volume == 0 {
             return;
         }
@@ -70,13 +80,75 @@ impl AudioBell {
         // Clamp volume to 0-100 range and convert to 0.0-1.0
         let volume_f32 = (volume.min(100) as f32) / 100.0;
 
-        // Generate a simple beep: 800 Hz sine wave for 100ms
-        let source = rodio::source::SineWave::new(800.0)
-            .take_duration(Duration::from_millis(100))
+        let source = rodio::source::SineWave::new(frequency)
+            .take_duration(Duration::from_millis(duration_ms))
             .amplify(volume_f32 * 0.3); // Scale down to avoid being too loud
 
         let sink = sink_arc.lock();
         sink.append(source);
+    }
+
+    /// Play a sound file (WAV/OGG/FLAC) at the specified volume
+    ///
+    /// # Arguments
+    /// * `volume` - Volume level from 0 to 100
+    /// * `path` - Path to the sound file
+    pub fn play_file(&self, volume: u8, path: &std::path::Path) {
+        if volume == 0 {
+            return;
+        }
+
+        let sink_arc = match &self.sink {
+            Some(s) => s,
+            None => return,
+        };
+
+        let file = match std::fs::File::open(path) {
+            Ok(f) => f,
+            Err(e) => {
+                log::warn!("Failed to open alert sound file {:?}: {}", path, e);
+                return;
+            }
+        };
+
+        let reader = std::io::BufReader::new(file);
+        let source = match rodio::Decoder::new(reader) {
+            Ok(s) => s,
+            Err(e) => {
+                log::warn!("Failed to decode alert sound file {:?}: {}", path, e);
+                return;
+            }
+        };
+
+        let volume_f32 = (volume.min(100) as f32) / 100.0;
+        let source = source.amplify(volume_f32 * 0.5);
+
+        let sink = sink_arc.lock();
+        sink.append(source);
+    }
+
+    /// Play an alert sound using the given configuration
+    pub fn play_alert(&self, config: &crate::config::AlertSoundConfig) {
+        if !config.enabled || config.volume == 0 {
+            return;
+        }
+
+        if let Some(ref sound_file) = config.sound_file {
+            let path = std::path::Path::new(sound_file);
+            // Expand ~ to home directory
+            let expanded = if sound_file.starts_with('~') {
+                if let Some(home) = dirs::home_dir() {
+                    home.join(&sound_file[2..])
+                } else {
+                    path.to_path_buf()
+                }
+            } else {
+                path.to_path_buf()
+            };
+            self.play_file(config.volume, &expanded);
+        } else {
+            self.play_tone(config.volume, config.frequency, config.duration_ms);
+        }
     }
 }
 

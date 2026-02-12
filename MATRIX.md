@@ -147,7 +147,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Inherit working directory | ✅ | ✅ `tab_inherit_cwd` | ✅ | - | - | - |
 | Max tabs limit | ❌ | ✅ `max_tabs` | ✅ | - | - | par-term exclusive |
 | Drag-and-drop tab reorder | ✅ | ✅ Drag tabs to reorder | ✅ | - | - | Visual ghost tab + insertion indicator |
-| Tab style (visual theme) | ✅ Light/Dark/Minimal/Compact | ❌ | ❌ | ⭐ | 🟡 | Different visual styles |
+| Tab style (visual theme) | ✅ Light/Dark/Minimal/Compact | ✅ `tab_style` | ✅ | - | - | 5 presets: Dark/Light/Compact/Minimal/High Contrast |
 | HTML tab titles | ✅ `HTML Tab Titles` | ✅ `tab_html_titles` | ✅ | ⭐ | 🟡 | Limited tags: <b>, <i>, <u>, <span style=\"color\"> |
 
 ---
@@ -645,13 +645,13 @@ iTerm2 has sophisticated window state management.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Tab style variants | ✅ `Tab Style` (Automatic/Compact/High Contrast/Light/Minimal) | ❌ | ❌ | ⭐ | 🟡 | Different visual styles for tabs |
+| Tab style variants | ✅ `Tab Style` (Automatic/Compact/High Contrast/Light/Minimal) | ✅ `tab_style` | ✅ | - | - | 5 presets: Dark/Light/Compact/Minimal/High Contrast |
 | Automatic tab style | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-switch based on theme |
-| Compact tab style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Smaller tabs, more visible content |
-| Minimal tab style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Clean, minimal tab appearance |
-| High contrast tab style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Enhanced contrast for accessibility |
-| Light tab style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Light theme tabs |
-| Dark tab style | ✅ | ❌ | ❌ | ⭐ | 🟢 | Dark theme tabs |
+| Compact tab style | ✅ | ✅ `tab_style: compact` | ✅ | - | - | Smaller tabs (22px), tighter spacing |
+| Minimal tab style | ✅ | ✅ `tab_style: minimal` | ✅ | - | - | Clean, flat look with no visible borders |
+| High contrast tab style | ✅ | ✅ `tab_style: high_contrast` | ✅ | - | - | Black/white for accessibility |
+| Light tab style | ✅ | ✅ `tab_style: light` | ✅ | - | - | Light theme tabs |
+| Dark tab style | ✅ | ✅ `tab_style: dark` | ✅ | - | - | Default dark theme tabs |
 | Tab color overrides | ✅ `Tab Color` | ✅ | ✅ | - | - | Already implemented |
 
 ---
@@ -711,7 +711,7 @@ iTerm2 has sophisticated window state management.
 | Haptic feedback for ESC | ✅ `Haptic Feedback For Esc` | ❌ | ❌ | ➖ | ➖ | Touch Bar feature - won't implement |
 | Bell sound selection | ✅ `Bell Sound` | ✅ `notification_bell_sound_file` | ✅ | - | - | Already implemented |
 | Custom bell sounds | ✅ | ✅ | ✅ | - | - | Already implemented |
-| Alert sounds | ✅ | ❌ | ❌ | ⭐ | 🟢 | Sound effects for events |
+| Alert sounds | ✅ | ✅ `alert_sounds` | ✅ | - | - | Configurable per-event sounds (bell, command complete, new tab, tab close) |
 
 ---
 
@@ -920,11 +920,11 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Snippets & Actions | 0 | 0 | 6 |
 | Window Arrangements & Placement | 1 | 0 | 9 |
 | Session Management & Quit Behavior | 2 | 1 | 5 |
-| Tab Styles & Appearance | 1 | 0 | 6 |
+| Tab Styles & Appearance | 7 | 0 | 1 |
 | Pane & Split Customization | 9 | 0 | 0 |
 | Profile Switching & Dynamic Profiles | 2 | 0 | 5 |
 | Image Protocol Enhancements | 9 | 0 | 0 |
-| Audio & Haptic Feedback | 2 | 0 | 3 |
+| Audio & Haptic Feedback | 3 | 0 | 2 |
 | Advanced GPU & Rendering Settings | 3 | 0 | 2 |
 | Advanced Configuration | 0 | 0 | 8 |
 | Unicode & Text Processing | 3 | 0 | 3 |
@@ -1005,7 +1005,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | ~~Shell integration auto-install~~ | ⭐⭐ | 🟢 Low | ✅ Complete (§41 - embedded auto-install) |
 | Light/Dark mode switching | ⭐⭐ | 🟡 Medium | Auto-switch with system theme |
 | Tab bar position (left/bottom) | ⭐⭐ | 🟡 Medium | Top/Bottom/Left options |
-| Tab style variants | ⭐ | 🟢 Low | Different visual styles for tabs |
+| ~~Tab style variants~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented (5 presets) |
 | Paste delay options | ⭐ | 🟢 Low | Delay between pasted lines |
 | Command in window title | ⭐⭐ | 🟡 Medium | Show running command |
 | Dynamic profiles from URL | ⭐⭐ | 🔴 High | Load profiles from remote URL |
@@ -1060,8 +1060,8 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Session undo timeout (recover closed tabs)
 - Session restore on launch
 
-**Tab Styles (6 features)**
-- Multiple tab style variants (Automatic/Compact/High Contrast/Light/Minimal/Dark)
+**Tab Styles (1 remaining feature)**
+- ~~Multiple tab style variants (Compact/High Contrast/Light/Minimal/Dark)~~ ✅ Implemented
 - Auto-switch tab style based on theme
 
 **Pane Customization (1 remaining feature)**

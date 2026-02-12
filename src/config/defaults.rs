@@ -567,7 +567,7 @@ pub fn cursor_boost_color() -> [u8; 3] {
 }
 
 pub fn update_check_frequency() -> super::types::UpdateCheckFrequency {
-    super::types::UpdateCheckFrequency::Weekly
+    super::types::UpdateCheckFrequency::Daily
 }
 
 // Search defaults

@@ -106,6 +106,9 @@ impl WindowState {
                     }
                 }
 
+                // Play new tab alert sound if configured
+                self.play_alert_sound(crate::config::AlertEvent::NewTab);
+
                 self.needs_redraw = true;
                 self.request_redraw();
             }
@@ -148,6 +151,9 @@ impl WindowState {
             let old_tab_bar_height = self.tab_bar_ui.get_height(old_tab_count, &self.config);
 
             let is_last = self.tab_manager.close_tab(tab_id);
+
+            // Play tab close alert sound if configured
+            self.play_alert_sound(crate::config::AlertEvent::TabClose);
 
             // Check if tab bar visibility changed (e.g., from 2 to 1 tabs with WhenMultiple mode)
             if !is_last {
