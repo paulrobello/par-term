@@ -24,7 +24,9 @@ pub fn show(
     if section_matches(
         &query,
         "General",
-        &["enable", "progress", "bar", "style", "position"],
+        &[
+            "enable", "progress", "bar", "style", "position", "osc", "934", "osc 934", "osc 9;4",
+        ],
     ) {
         show_general_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -32,7 +34,14 @@ pub fn show(
     if section_matches(
         &query,
         "Colors",
-        &["color", "normal", "warning", "error", "indeterminate"],
+        &[
+            "color",
+            "normal",
+            "warning",
+            "error",
+            "indeterminate",
+            "progress",
+        ],
     ) {
         show_colors_section(ui, settings, changes_this_frame, collapsed);
     }

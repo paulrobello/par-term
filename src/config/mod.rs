@@ -1395,6 +1395,10 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_restore_arrangement: Option<String>,
 
+    /// Whether to restore the previous session (tabs, panes, CWDs) on startup
+    #[serde(default = "defaults::bool_false")]
+    pub restore_session: bool,
+
     // ========================================================================
     // Search Settings
     // ========================================================================
@@ -1812,6 +1816,7 @@ impl Default for Config {
             skipped_version: None,
             last_notified_version: None,
             auto_restore_arrangement: None,
+            restore_session: defaults::bool_false(),
             search_highlight_color: defaults::search_highlight_color(),
             search_current_highlight_color: defaults::search_current_highlight_color(),
             search_case_sensitive: defaults::bool_false(),

@@ -32,6 +32,9 @@ pub fn show(
             "action",
             "highlight",
             "notify",
+            "badge",
+            "set variable",
+            "automatic",
         ],
     ) {
         show_triggers_section(ui, settings, changes_this_frame, collapsed);
@@ -50,6 +53,8 @@ pub fn show(
             "restart",
             "restart policy",
             "restart delay",
+            "output",
+            "filter",
         ],
     ) {
         show_coprocesses_section(ui, settings, changes_this_frame, collapsed);

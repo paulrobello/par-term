@@ -25,7 +25,11 @@ pub fn show(
     let query = settings.search_query.trim().to_lowercase();
 
     // Theme section
-    if section_matches(&query, "Theme", &["color", "scheme", "dark", "light"]) {
+    if section_matches(
+        &query,
+        "Theme",
+        &["color", "scheme", "dark", "light", "color scheme", "preset"],
+    ) {
         show_theme_section(ui, settings, changes_this_frame, collapsed);
     }
 
@@ -47,12 +51,27 @@ pub fn show(
     }
 
     // Font Variants section (collapsed by default)
-    if section_matches(&query, "Font Variants", &["bold", "italic", "bold-italic"]) {
+    if section_matches(
+        &query,
+        "Font Variants",
+        &["bold", "italic", "bold-italic", "font fallback", "variant"],
+    ) {
         show_font_variants_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Text Shaping section (collapsed by default)
-    if section_matches(&query, "Text Shaping", &["shaping", "ligatures", "kerning"]) {
+    if section_matches(
+        &query,
+        "Text Shaping",
+        &[
+            "shaping",
+            "ligatures",
+            "kerning",
+            "harfbuzz",
+            "complex scripts",
+            "opentype",
+        ],
+    ) {
         show_text_shaping_section(ui, settings, changes_this_frame, collapsed);
     }
 
@@ -60,7 +79,17 @@ pub fn show(
     if section_matches(
         &query,
         "Font Rendering",
-        &["antialias", "hinting", "thin strokes", "smoothing"],
+        &[
+            "antialias",
+            "hinting",
+            "thin strokes",
+            "smoothing",
+            "minimum contrast",
+            "wcag",
+            "readability",
+            "hidpi",
+            "retina",
+        ],
     ) {
         show_font_rendering_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -69,7 +98,18 @@ pub fn show(
     if section_matches(
         &query,
         "Cursor",
-        &["style", "block", "beam", "underline", "blink", "color"],
+        &[
+            "style",
+            "block",
+            "beam",
+            "underline",
+            "blink",
+            "color",
+            "text color",
+            "cursor text color",
+            "unfocused cursor",
+            "hollow",
+        ],
     ) {
         show_cursor_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -78,7 +118,13 @@ pub fn show(
     if section_matches(
         &query,
         "Cursor Locks",
-        &["lock", "visibility", "style", "blink"],
+        &[
+            "lock",
+            "visibility",
+            "style",
+            "blink",
+            "prevent applications",
+        ],
     ) {
         show_cursor_locks_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -87,7 +133,16 @@ pub fn show(
     if section_matches(
         &query,
         "Cursor Effects",
-        &["guide", "shadow", "boost", "glow"],
+        &[
+            "guide",
+            "shadow",
+            "boost",
+            "glow",
+            "horizontal line",
+            "drop shadow",
+            "shadow blur",
+            "cursor row",
+        ],
     ) {
         show_cursor_effects_section(ui, settings, changes_this_frame, collapsed);
     }

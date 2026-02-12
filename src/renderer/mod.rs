@@ -488,7 +488,8 @@ impl Renderer {
             let logical_offset = self.cell_renderer.content_offset_y() / old_scale;
             let new_physical_offset = logical_offset * new_scale;
             self.cell_renderer.set_content_offset_y(new_physical_offset);
-            self.graphics_renderer.set_content_offset_y(new_physical_offset);
+            self.graphics_renderer
+                .set_content_offset_y(new_physical_offset);
             if let Some(ref mut cs) = self.custom_shader_renderer {
                 cs.set_content_offset_y(new_physical_offset);
             }
@@ -499,7 +500,8 @@ impl Renderer {
             // Rescale window_padding
             let logical_padding = self.cell_renderer.window_padding() / old_scale;
             let new_physical_padding = logical_padding * new_scale;
-            self.cell_renderer.update_window_padding(new_physical_padding);
+            self.cell_renderer
+                .update_window_padding(new_physical_padding);
 
             // Sync new scale factor to shader renderers for cursor sizing
             if let Some(ref mut cs) = self.custom_shader_renderer {
@@ -660,8 +662,13 @@ impl Renderer {
         color: [u8; 3],
     ) {
         let physical_thickness = logical_thickness * self.cell_renderer.scale_factor;
-        self.cell_renderer
-            .update_command_separator(enabled, physical_thickness, opacity, exit_color, color);
+        self.cell_renderer.update_command_separator(
+            enabled,
+            physical_thickness,
+            opacity,
+            exit_color,
+            color,
+        );
         self.dirty = true;
     }
 

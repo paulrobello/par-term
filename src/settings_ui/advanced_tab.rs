@@ -35,6 +35,9 @@ pub fn show(
             "backup",
             "restore",
             "config",
+            "yaml",
+            "url import",
+            "merge",
         ],
     ) {
         show_import_export_section(ui, settings, changes_this_frame, collapsed);
@@ -44,7 +47,16 @@ pub fn show(
     if section_matches(
         &query,
         "tmux Integration",
-        &["tmux", "control mode", "session", "attach"],
+        &[
+            "tmux",
+            "control mode",
+            "session",
+            "attach",
+            "prefix key",
+            "status bar",
+            "clipboard sync",
+            "auto-attach",
+        ],
     ) {
         show_tmux_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -53,7 +65,16 @@ pub fn show(
     if section_matches(
         &query,
         "Session Logging",
-        &["logging", "recording", "asciicast", "asciinema"],
+        &[
+            "logging",
+            "recording",
+            "asciicast",
+            "asciinema",
+            "plain text",
+            "html",
+            "auto-log",
+            "log directory",
+        ],
     ) {
         show_logging_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -62,7 +83,7 @@ pub fn show(
     if section_matches(
         &query,
         "Screenshots",
-        &["screenshot", "format", "png", "jpeg"],
+        &["screenshot", "format", "png", "jpeg", "svg", "capture"],
     ) {
         show_screenshot_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -71,7 +92,19 @@ pub fn show(
     if section_matches(
         &query,
         "Updates",
-        &["update", "version", "check", "release"],
+        &[
+            "update",
+            "version",
+            "check",
+            "release",
+            "frequency",
+            "homebrew",
+            "cargo",
+            "self-update",
+            "daily",
+            "weekly",
+            "monthly",
+        ],
     ) {
         show_updates_section(ui, settings, changes_this_frame, collapsed);
     }

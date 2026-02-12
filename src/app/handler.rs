@@ -1100,9 +1100,15 @@ impl ApplicationHandler for WindowManager {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Create the first window on app resume (or if all windows were closed on some platforms)
         if self.windows.is_empty() {
-            // Try auto-restore if configured and not yet attempted
             if !self.auto_restore_done {
                 self.auto_restore_done = true;
+
+                // Session restore takes precedence when enabled
+                if self.config.restore_session && self.restore_session(event_loop) {
+                    return;
+                }
+
+                // Try auto-restore arrangement if configured
                 if let Some(ref name) = self.config.auto_restore_arrangement.clone()
                     && !name.is_empty()
                     && self.arrangement_manager.find_by_name(name).is_some()
@@ -1357,6 +1363,15 @@ impl ApplicationHandler for WindowManager {
             .filter(|(_, ws)| ws.is_shutting_down)
             .map(|(id, _)| *id)
             .collect();
+
+        // Save session state before closing if all windows are about to close
+        if self.config.restore_session
+            && !shutting_down.is_empty()
+            && shutting_down.len() == self.windows.len()
+        {
+            self.save_session_state();
+        }
+
         for window_id in shutting_down {
             self.close_window(window_id);
         }

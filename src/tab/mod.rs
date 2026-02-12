@@ -799,6 +799,40 @@ impl Tab {
         }
     }
 
+    /// Restore a pane layout from a saved session
+    ///
+    /// Replaces the current single-pane layout with a saved pane tree.
+    /// Each leaf in the tree gets a new terminal session with the saved CWD.
+    /// If the build fails, the tab keeps its existing single pane.
+    pub fn restore_pane_layout(
+        &mut self,
+        layout: &crate::session::SessionPaneNode,
+        config: &Config,
+        runtime: Arc<Runtime>,
+    ) {
+        let mut pm = PaneManager::new();
+        pm.set_divider_width(config.pane_divider_width.unwrap_or(1.0));
+        pm.set_divider_hit_width(config.pane_divider_hit_width);
+
+        match pm.build_from_layout(layout, config, runtime) {
+            Ok(()) => {
+                log::info!(
+                    "Restored pane layout for tab {} ({} panes)",
+                    self.id,
+                    pm.pane_count()
+                );
+                self.pane_manager = Some(pm);
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to restore pane layout for tab {}: {}, keeping single pane",
+                    self.id,
+                    e
+                );
+            }
+        }
+    }
+
     /// Parse hostname from an OSC 7 file:// URL
     ///
     /// OSC 7 format: `file://hostname/path` or `file:///path` (localhost)

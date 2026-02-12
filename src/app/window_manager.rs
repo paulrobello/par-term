@@ -664,6 +664,14 @@ impl WindowManager {
 
     /// Close a specific window
     pub fn close_window(&mut self, window_id: WindowId) {
+        // Save session state before removing the last window (while data is still available)
+        if self.config.restore_session
+            && self.windows.len() == 1
+            && self.windows.contains_key(&window_id)
+        {
+            self.save_session_state();
+        }
+
         if let Some(window_state) = self.windows.remove(&window_id) {
             log::info!(
                 "Closing window {:?} (remaining: {})",
@@ -685,6 +693,88 @@ impl WindowManager {
             }
             self.should_exit = true;
         }
+    }
+
+    /// Save the current session state to disk for later restore
+    pub(crate) fn save_session_state(&self) {
+        let state = crate::session::capture::capture_session(&self.windows);
+        if let Err(e) = crate::session::storage::save_session(&state) {
+            log::error!("Failed to save session state: {}", e);
+        }
+    }
+
+    /// Restore windows from the last saved session
+    ///
+    /// Returns true if session was successfully restored, false otherwise.
+    pub fn restore_session(&mut self, event_loop: &ActiveEventLoop) -> bool {
+        let session = match crate::session::storage::load_session() {
+            Ok(Some(session)) => session,
+            Ok(None) => {
+                log::info!("No saved session found, creating default window");
+                return false;
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to load session state: {}, creating default window",
+                    e
+                );
+                return false;
+            }
+        };
+
+        if session.windows.is_empty() {
+            log::info!("Saved session has no windows, creating default window");
+            return false;
+        }
+
+        log::info!(
+            "Restoring session ({} windows) saved at {}",
+            session.windows.len(),
+            session.saved_at
+        );
+
+        for session_window in &session.windows {
+            // Validate CWDs for tabs
+            let tab_cwds: Vec<Option<String>> = session_window
+                .tabs
+                .iter()
+                .map(|tab| crate::session::restore::validate_cwd(&tab.cwd))
+                .collect();
+
+            self.create_window_with_overrides(
+                event_loop,
+                session_window.position,
+                session_window.size,
+                &tab_cwds,
+                session_window.active_tab_index,
+            );
+
+            // Restore pane layouts for tabs that had splits
+            // Find the window we just created (it's the most recently added one)
+            if let Some((_window_id, window_state)) = self.windows.iter_mut().last() {
+                let tabs = window_state.tab_manager.tabs_mut();
+                for (tab_idx, session_tab) in session_window.tabs.iter().enumerate() {
+                    if let Some(ref layout) = session_tab.pane_layout
+                        && let Some(tab) = tabs.get_mut(tab_idx)
+                    {
+                        tab.restore_pane_layout(layout, &self.config, Arc::clone(&self.runtime));
+                    }
+                }
+            }
+        }
+
+        // Clear the saved session file after successful restore
+        if let Err(e) = crate::session::storage::clear_session() {
+            log::warn!("Failed to clear session file after restore: {}", e);
+        }
+
+        // If no windows were created (shouldn't happen), fall back
+        if self.windows.is_empty() {
+            log::warn!("Session restore created no windows, creating default");
+            return false;
+        }
+
+        true
     }
 
     /// Get mutable reference to a window's state

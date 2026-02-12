@@ -27,12 +27,30 @@ pub fn show(
     let query = settings.search_query.trim().to_lowercase();
 
     // Bell section
-    if section_matches(&query, "Bell", &["visual", "audio", "sound", "beep"]) {
+    if section_matches(
+        &query,
+        "Bell",
+        &["visual", "audio", "sound", "beep", "volume", "flash"],
+    ) {
         show_bell_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Activity section
-    if section_matches(&query, "Activity", &["activity", "notify", "idle"]) {
+    if section_matches(
+        &query,
+        "Activity",
+        &[
+            "activity",
+            "notify",
+            "idle",
+            "inactivity",
+            "silence",
+            "threshold",
+            "session",
+            "session ended",
+            "shell exits",
+        ],
+    ) {
         show_activity_section(ui, settings, changes_this_frame, collapsed);
     }
 
@@ -40,18 +58,49 @@ pub fn show(
     if section_matches(
         &query,
         "Alert Sounds",
-        &["alert", "sound", "event", "command", "tab"],
+        &[
+            "alert",
+            "sound",
+            "event",
+            "command",
+            "tab",
+            "frequency",
+            "duration",
+            "wav",
+            "ogg",
+        ],
     ) {
         show_alert_sounds_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Behavior section (collapsed by default)
-    if section_matches(&query, "Behavior", &["suppress", "focused", "buffer"]) {
+    if section_matches(
+        &query,
+        "Behavior",
+        &[
+            "suppress",
+            "focused",
+            "buffer",
+            "notification queue",
+            "suppress when focused",
+        ],
+    ) {
         show_behavior_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Anti-Idle section (collapsed by default)
-    if section_matches(&query, "Anti-Idle", &["anti-idle", "keep-alive", "timeout"]) {
+    if section_matches(
+        &query,
+        "Anti-Idle",
+        &[
+            "anti-idle",
+            "keep-alive",
+            "timeout",
+            "ssh",
+            "connection",
+            "keep alive",
+        ],
+    ) {
         show_anti_idle_section(ui, settings, changes_this_frame, collapsed);
     }
 }

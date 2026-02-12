@@ -28,7 +28,20 @@ pub fn show(
     if section_matches(
         &query,
         "Background",
-        &["background", "image", "color", "mode"],
+        &[
+            "background",
+            "image",
+            "color",
+            "mode",
+            "wallpaper",
+            "shader",
+            "glsl",
+            "fit",
+            "fill",
+            "stretch",
+            "tile",
+            "center",
+        ],
     ) {
         // Delegate to the existing background_tab implementation
         super::background_tab::show_background(ui, settings, changes_this_frame);
@@ -39,7 +52,16 @@ pub fn show(
         &query,
         "Inline Images",
         &[
-            "inline", "image", "sixel", "iterm", "kitty", "scaling", "aspect",
+            "inline",
+            "image",
+            "sixel",
+            "iterm",
+            "kitty",
+            "scaling",
+            "aspect",
+            "graphics protocol",
+            "nearest neighbor",
+            "linear",
         ],
     ) {
         show_inline_images(ui, settings, changes_this_frame);
@@ -49,7 +71,14 @@ pub fn show(
     if section_matches(
         &query,
         "Cursor Shader",
-        &["cursor shader", "trail", "glow", "cursor effect"],
+        &[
+            "cursor shader",
+            "trail",
+            "glow",
+            "cursor effect",
+            "glsl",
+            "animation",
+        ],
     ) {
         // Delegate to the existing cursor shader implementation
         super::background_tab::show_cursor_shader(ui, settings, changes_this_frame);

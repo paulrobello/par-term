@@ -10,6 +10,7 @@ use super::types::{
     DividerRect, NavigationDirection, Pane, PaneBounds, PaneId, PaneNode, SplitDirection,
 };
 use crate::config::Config;
+use crate::session::SessionPaneNode;
 use crate::tmux::{LayoutNode, TmuxLayout, TmuxPaneId};
 use anyhow::Result;
 use std::collections::HashMap;
@@ -835,6 +836,58 @@ impl PaneManager {
                     second_bounds,
                     divider_width,
                 )
+            }
+        }
+    }
+
+    // =========================================================================
+    // Session Restore
+    // =========================================================================
+
+    /// Build a pane tree from a saved session layout
+    ///
+    /// Recursively constructs live `PaneNode` tree from a `SessionPaneNode`,
+    /// creating new terminal panes for each leaf. If a leaf's CWD no longer
+    /// exists, falls back to `$HOME`.
+    pub fn build_from_layout(
+        &mut self,
+        layout: &SessionPaneNode,
+        config: &Config,
+        runtime: Arc<Runtime>,
+    ) -> Result<()> {
+        let root = self.build_node_from_layout(layout, config, runtime)?;
+        let first_id = root.all_pane_ids().first().copied();
+        self.root = Some(root);
+        self.focused_pane_id = first_id;
+        self.recalculate_bounds();
+        Ok(())
+    }
+
+    /// Recursively build a PaneNode from a SessionPaneNode
+    fn build_node_from_layout(
+        &mut self,
+        layout: &SessionPaneNode,
+        config: &Config,
+        runtime: Arc<Runtime>,
+    ) -> Result<PaneNode> {
+        match layout {
+            SessionPaneNode::Leaf { cwd } => {
+                let id = self.next_pane_id;
+                self.next_pane_id += 1;
+
+                let validated_cwd = crate::session::restore::validate_cwd(cwd);
+                let pane = Pane::new(id, config, runtime, validated_cwd)?;
+                Ok(PaneNode::leaf(pane))
+            }
+            SessionPaneNode::Split {
+                direction,
+                ratio,
+                first,
+                second,
+            } => {
+                let first_node = self.build_node_from_layout(first, config, runtime.clone())?;
+                let second_node = self.build_node_from_layout(second, config, runtime)?;
+                Ok(PaneNode::split(*direction, *ratio, first_node, second_node))
             }
         }
     }

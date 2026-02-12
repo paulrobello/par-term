@@ -23,7 +23,7 @@ pub fn show(
     if section_matches(
         &query,
         "Save Current Layout",
-        &["save", "capture", "current"],
+        &["save", "capture", "current", "window", "layout", "snapshot"],
     ) {
         show_save_section(ui, settings, collapsed);
     }
@@ -46,7 +46,7 @@ pub fn show(
     if section_matches(
         &query,
         "Auto-Restore",
-        &["auto", "startup", "restore", "default"],
+        &["auto", "startup", "restore", "default", "launch", "open"],
     ) {
         show_auto_restore_section(ui, settings, changes_this_frame, collapsed);
     }

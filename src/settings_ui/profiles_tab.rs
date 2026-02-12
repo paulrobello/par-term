@@ -22,7 +22,15 @@ pub fn show(
     if section_matches(
         &query,
         "Overview",
-        &["profile", "manage", "create", "edit", "delete"],
+        &[
+            "profile",
+            "manage",
+            "create",
+            "edit",
+            "delete",
+            "duplicate",
+            "default",
+        ],
     ) {
         show_overview_section(ui, settings, collapsed);
     }
@@ -50,7 +58,14 @@ pub fn show(
     if section_matches(
         &query,
         "Display Options",
-        &["drawer", "button", "toggle", "show", "hide"],
+        &[
+            "drawer",
+            "button",
+            "toggle",
+            "show",
+            "hide",
+            "profile indicator",
+        ],
     ) {
         show_display_options_section(ui, settings, changes_this_frame, collapsed);
     }

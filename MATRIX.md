@@ -614,8 +614,8 @@ iTerm2 has sophisticated window state management.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Save window arrangements | ✅ `Save Window Arrangements` | ❌ | ❌ | ⭐⭐ | 🟡 | Save window positions and layouts |
-| Restore arrangements | ✅ `Restore Window Arrangements` | ❌ | ❌ | ⭐⭐ | 🟡 | Restore saved layouts |
+| Save window arrangements | ✅ `Save Window Arrangements` | ✅ `arrangements` | ✅ | - | - | Save window positions, tabs, and layouts |
+| Restore arrangements | ✅ `Restore Window Arrangements` | ✅ `auto_restore_arrangement` | ✅ | - | - | Restore saved layouts with monitor-aware positioning |
 | Arrange windows by app | ✅ | ❌ | ❌ | ⭐ | 🔴 | Auto-arrange windows |
 | Hotkey window type | ✅ | ❌ | ❌ | ⭐⭐⭐ | 🔴 | Quake-style dropdown terminal |
 | Hotkey window profile | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Different profile for hotkey window |
@@ -635,9 +635,9 @@ iTerm2 has sophisticated window state management.
 | Confirm closing multiple sessions | ✅ `Confirm Closing Multiple Sessions` | ✅ Partial | ✅ | ⭐⭐ | 🟢 | Partial - jobs confirmation exists |
 | Only confirm when there are jobs | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Session undo timeout | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Reopen closed tabs within timeout |
-| Session restore on launch | ✅ `Restore Arrangement on Launch` | ❌ | ❌ | ⭐⭐ | 🔴 | Reopen previous sessions |
-| Session restore at startup | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Auto-restore last sessions |
-| Open saved arrangement | ✅ `Open Arrangement` | ❌ | ❌ | ⭐⭐ | 🟡 | Load saved window arrangement |
+| Session restore on launch | ✅ `Restore Arrangement on Launch` | ✅ `restore_session` | ✅ | - | - | Saves windows/tabs/panes on exit, restores on launch |
+| Session restore at startup | ✅ | ✅ `restore_session` | ✅ | - | - | Auto-restore last session with pane layouts |
+| Open saved arrangement | ✅ `Open Arrangement` | ✅ `arrangements` | ✅ | - | - | Load saved window arrangement from settings UI |
 
 ---
 
@@ -831,7 +831,7 @@ iTerm2 supports showing progress for long-running commands.
 | Settings UI | ✅ Full GUI | ✅ Full GUI (F12) | ✅ | - | - | Already implemented |
 | Remember settings section states | ✅ | ✅ `collapsed_settings_sections` | ✅ | - | - | Persists section expand/collapse state across sessions |
 | Reload config (F5) | ❌ | ✅ | ✅ | - | - | par-term exclusive |
-| Window arrangements | ✅ Save/restore layouts | ❌ | ❌ | ⭐⭐ | 🟡 | Save window positions |
+| Window arrangements | ✅ Save/restore layouts | ✅ `arrangements` + `restore_session` | ✅ | - | - | Save/restore window positions, tabs, panes; session restore on startup |
 | Bonjour host discovery | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-discover SSH hosts |
 | Password manager | ✅ | ❌ | ❌ | ⭐ | 🔴 | Secure credential storage |
 | Search in terminal | ✅ Cmd+F | ✅ Cmd/Ctrl+F | ✅ | - | - | Already implemented |
@@ -918,8 +918,8 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Composer & Auto-Complete | 2 | 0 | 3 |
 | Copy Mode | 8 | 0 | 0 |
 | Snippets & Actions | 0 | 0 | 6 |
-| Window Arrangements & Placement | 1 | 0 | 9 |
-| Session Management & Quit Behavior | 2 | 1 | 5 |
+| Window Arrangements & Placement | 2 | 0 | 8 |
+| Session Management & Quit Behavior | 5 | 1 | 1 |
 | Tab Styles & Appearance | 7 | 0 | 1 |
 | Pane & Split Customization | 9 | 0 | 0 |
 | Profile Switching & Dynamic Profiles | 2 | 0 | 5 |
@@ -933,11 +933,11 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Advanced Paste & Input | 6 | 0 | 0 |
 | Advanced Shell Integration | 6 | 1 | 1 |
 | Network & Discovery | 0 | 0 | 4 |
-| Miscellaneous | 10 | 0 | 7 |
+| Miscellaneous | 11 | 0 | 6 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~288** | **~5** | **~123** |
+| **TOTAL** | **~293** | **~5** | **~118** |
 
-**Overall Parity: ~69% of iTerm2 features implemented** (288 implemented out of ~416 total tracked features)
+**Overall Parity: ~70% of iTerm2 features implemented** (293 implemented out of ~416 total tracked features)
 
 **Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
@@ -998,7 +998,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Snippets system | ⭐⭐⭐ | 🟡 Medium | Saved text blocks for quick insertion |
 | Directory-based profile switching | ⭐⭐⭐ | 🟡 Medium | Auto-switch profile by directory |
 | Session undo timeout | ⭐⭐ | 🟡 Medium | Recover accidentally closed tabs |
-| Window arrangements | ⭐⭐ | 🟡 Medium | Save/restore window layouts |
+| ~~Window arrangements~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Complete (§28 arrangements + §29 session restore) |
 | ~~Progress bars (OSC 934)~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (OSC 9;4 + OSC 934) |
 | Composer (auto-complete) | ⭐⭐ | 🔵 Very High | AI-style command completion |
 | Toolbelt sidebar | ⭐⭐ | 🔴 High | Notes, paste history, jobs panel |
@@ -1107,11 +1107,12 @@ The following iTerm2 features were identified and added to the matrix in this up
 - SSH hosts auto-discovery
 - Host profiles and quick connect
 
-**Total: 131 new features remaining across 21 new categories**
+**Total: ~126 new features remaining across 21 new categories**
 
 ---
 
 ### Recently Completed (v0.14.0)
+- ✅ Session restore on startup (save/restore windows, tabs, pane layouts, and CWDs on exit/launch)
 - ✅ Self-update capability (CLI and Settings UI, platform-aware installation detection)
 - ✅ Command separator lines (exit-code coloring, configurable thickness/opacity/color)
 - ✅ Drag-and-drop tab reordering (ghost tab preview, insertion indicator)
@@ -1144,6 +1145,6 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 ---
 
-*Updated: 2026-02-11 (Self-update feature, copy mode, snippets completion, emoji fix, link fixes)*
+*Updated: 2026-02-12 (Session restore on startup, self-update feature, copy mode, snippets completion)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.14.0*

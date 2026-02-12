@@ -35,7 +35,12 @@ pub fn show(
             "shell exit",
             "jobs",
             "confirm",
+            "confirm close",
             "close",
+            "running jobs",
+            "process names",
+            "ignore",
+            "close tab",
         ],
     ) {
         show_behavior_section(ui, settings, changes_this_frame, collapsed);
@@ -45,7 +50,18 @@ pub fn show(
     if section_matches(
         &query,
         "Unicode",
-        &["unicode", "width", "answerback", "ambiguous"],
+        &[
+            "unicode",
+            "width",
+            "answerback",
+            "ambiguous",
+            "normalization",
+            "nfc",
+            "nfd",
+            "emoji",
+            "east asian",
+            "cjk",
+        ],
     ) {
         show_unicode_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -57,11 +73,15 @@ pub fn show(
         &[
             "shell",
             "custom shell",
+            "shell args",
             "working directory",
             "login",
             "startup",
             "previous",
             "home",
+            "directory mode",
+            "last working directory",
+            "custom directory",
         ],
     ) {
         show_shell_section(ui, settings, changes_this_frame, collapsed);
@@ -71,7 +91,18 @@ pub fn show(
     if section_matches(
         &query,
         "Startup",
-        &["initial text", "startup", "delay", "newline"],
+        &[
+            "initial text",
+            "startup",
+            "delay",
+            "newline",
+            "restore",
+            "session",
+            "restore tabs",
+            "restore panes",
+            "session state",
+            "escape sequences",
+        ],
     ) {
         show_startup_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -80,7 +111,15 @@ pub fn show(
     if section_matches(
         &query,
         "Search",
-        &["search", "highlight", "case sensitive", "regex", "wrap"],
+        &[
+            "search",
+            "highlight",
+            "case sensitive",
+            "regex",
+            "wrap",
+            "wrap around",
+            "current match",
+        ],
     ) {
         show_search_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -89,7 +128,19 @@ pub fn show(
     if section_matches(
         &query,
         "Semantic History",
-        &["semantic", "history", "file", "editor", "path", "click"],
+        &[
+            "semantic",
+            "history",
+            "file",
+            "editor",
+            "path",
+            "click",
+            "vs code",
+            "sublime",
+            "vim",
+            "editor mode",
+            "system default",
+        ],
     ) {
         show_semantic_history_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -98,7 +149,16 @@ pub fn show(
     if section_matches(
         &query,
         "Scrollbar",
-        &["scrollbar", "thumb", "track", "autohide", "marker"],
+        &[
+            "scrollbar",
+            "thumb",
+            "track",
+            "autohide",
+            "marker",
+            "command markers",
+            "shell integration",
+            "tooltips",
+        ],
     ) {
         show_scrollbar_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -107,7 +167,14 @@ pub fn show(
     if section_matches(
         &query,
         "Command History",
-        &["command", "history", "fuzzy", "search", "entries"],
+        &[
+            "command",
+            "history",
+            "fuzzy",
+            "search",
+            "entries",
+            "max entries",
+        ],
     ) {
         show_command_history_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -116,7 +183,16 @@ pub fn show(
     if section_matches(
         &query,
         "Command Separators",
-        &["separator", "command", "line", "divider", "prompt"],
+        &[
+            "separator",
+            "command",
+            "line",
+            "divider",
+            "prompt",
+            "exit code",
+            "success",
+            "failure",
+        ],
     ) {
         show_command_separator_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -608,6 +684,22 @@ fn show_startup_section(
     collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(ui, "Startup", "terminal_startup", false, collapsed, |ui| {
+        if ui
+            .checkbox(
+                &mut settings.config.restore_session,
+                "Restore previous session on startup",
+            )
+            .on_hover_text(
+                "When enabled, par-term will save your open tabs, pane layouts, and working\n\
+                 directories when closing and restore them on next launch.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.add_space(8.0);
         ui.label("Initial text to send when a session starts:");
         if ui
             .text_edit_multiline(&mut settings.temp_initial_text)

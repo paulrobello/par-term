@@ -32,7 +32,15 @@ pub fn show(
     if section_matches(
         &query,
         "Display",
-        &["title", "columns", "rows", "padding", "size"],
+        &[
+            "title",
+            "columns",
+            "rows",
+            "padding",
+            "size",
+            "window title",
+            "allow title change",
+        ],
     ) {
         show_display_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -41,7 +49,14 @@ pub fn show(
     if section_matches(
         &query,
         "Transparency",
-        &["opacity", "blur", "transparent", "background"],
+        &[
+            "opacity",
+            "blur",
+            "transparent",
+            "background",
+            "default background",
+            "text opaque",
+        ],
     ) {
         show_transparency_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -59,6 +74,13 @@ pub fn show(
             "gpu",
             "flicker",
             "reduce",
+            "throughput",
+            "render interval",
+            "batch",
+            "mailbox",
+            "fifo",
+            "gpu preference",
+            "power saving",
         ],
     ) {
         show_performance_section(ui, settings, changes_this_frame, collapsed);
@@ -74,6 +96,9 @@ pub fn show(
             "window type",
             "monitor",
             "lock",
+            "edge-anchored",
+            "primary monitor",
+            "window number",
         ],
     ) {
         show_behavior_section(ui, settings, changes_this_frame, collapsed);
@@ -90,6 +115,10 @@ pub fn show(
             "index",
             "close button",
             "profile drawer",
+            "stretch",
+            "html titles",
+            "inherit directory",
+            "max tabs",
         ],
     ) {
         show_tab_bar_section(ui, settings, changes_this_frame, collapsed);
@@ -99,7 +128,17 @@ pub fn show(
     if section_matches(
         &query,
         "Tab Bar Appearance",
-        &["tab color", "tab border", "inactive tab", "dimming"],
+        &[
+            "tab color",
+            "tab border",
+            "inactive tab",
+            "dimming",
+            "tab style",
+            "minimum tab width",
+            "active indicator",
+            "activity indicator",
+            "bell indicator",
+        ],
     ) {
         show_tab_bar_appearance_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -108,7 +147,17 @@ pub fn show(
     if section_matches(
         &query,
         "Split Panes",
-        &["pane", "split", "divider", "focus indicator"],
+        &[
+            "pane",
+            "split",
+            "divider",
+            "focus indicator",
+            "hit width",
+            "drag area",
+            "max panes",
+            "min pane size",
+            "pane padding",
+        ],
     ) {
         show_panes_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -117,7 +166,17 @@ pub fn show(
     if section_matches(
         &query,
         "Pane Appearance",
-        &["pane color", "pane title", "inactive pane", "pane opacity"],
+        &[
+            "pane color",
+            "pane title",
+            "inactive pane",
+            "pane opacity",
+            "hover color",
+            "dim inactive",
+            "title height",
+            "title position",
+            "pane background",
+        ],
     ) {
         show_pane_appearance_section(ui, settings, changes_this_frame, collapsed);
     }

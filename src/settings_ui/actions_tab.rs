@@ -25,7 +25,18 @@ pub fn show(
         &query,
         "Actions",
         &[
-            "action", "custom", "shell", "command", "text", "insert", "key", "sequence", "macro",
+            "action",
+            "custom",
+            "shell",
+            "command",
+            "text",
+            "insert",
+            "key",
+            "sequence",
+            "macro",
+            "keybinding",
+            "execute",
+            "run",
         ],
     ) {
         show_actions_section(ui, settings, changes_this_frame, collapsed);

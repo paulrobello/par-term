@@ -1,0 +1,76 @@
+//! Capture current session state from live windows
+
+use super::{SessionPaneNode, SessionState, SessionTab, SessionWindow};
+use crate::app::window_state::WindowState;
+use crate::pane::PaneNode;
+use std::collections::HashMap;
+use winit::window::WindowId;
+
+/// Capture the current session state from all open windows
+pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState {
+    let mut session_windows = Vec::new();
+
+    for window_state in windows.values() {
+        let Some(window) = &window_state.window else {
+            continue;
+        };
+
+        // Get window position and size
+        let window_pos = window.outer_position().unwrap_or_default();
+        let outer_size = window.outer_size();
+
+        // Capture tabs
+        let tabs: Vec<SessionTab> = window_state
+            .tab_manager
+            .tabs()
+            .iter()
+            .map(|tab| {
+                let pane_layout = tab
+                    .pane_manager
+                    .as_ref()
+                    .and_then(|pm| pm.root())
+                    .map(capture_pane_node);
+
+                SessionTab {
+                    cwd: tab.get_cwd(),
+                    title: tab.title.clone(),
+                    pane_layout,
+                }
+            })
+            .collect();
+
+        let active_tab_index = window_state.tab_manager.active_tab_index().unwrap_or(0);
+
+        session_windows.push(SessionWindow {
+            position: (window_pos.x, window_pos.y),
+            size: (outer_size.width, outer_size.height),
+            tabs,
+            active_tab_index,
+        });
+    }
+
+    SessionState {
+        saved_at: chrono::Utc::now().to_rfc3339(),
+        windows: session_windows,
+    }
+}
+
+/// Recursively capture a pane tree node into a session-serializable form
+fn capture_pane_node(node: &PaneNode) -> SessionPaneNode {
+    match node {
+        PaneNode::Leaf(pane) => SessionPaneNode::Leaf {
+            cwd: pane.get_cwd(),
+        },
+        PaneNode::Split {
+            direction,
+            ratio,
+            first,
+            second,
+        } => SessionPaneNode::Split {
+            direction: *direction,
+            ratio: *ratio,
+            first: Box::new(capture_pane_node(first)),
+            second: Box::new(capture_pane_node(second)),
+        },
+    }
+}

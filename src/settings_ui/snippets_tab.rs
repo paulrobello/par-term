@@ -35,6 +35,9 @@ pub fn show(
             "variable",
             "keybinding",
             "folder",
+            "shortcut",
+            "quick insert",
+            "auto-execute",
         ],
     ) {
         show_snippets_section(ui, settings, changes_this_frame, collapsed);

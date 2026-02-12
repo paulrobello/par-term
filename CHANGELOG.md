@@ -44,6 +44,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Validation ensures imported config is well-formed before applying
   - UI in Settings > Advanced > Import/Export Preferences
 
+- **Session Restore on Startup** (#117): Automatically save and restore session state
+  - Saves open windows, tabs, pane layouts, and working directories on clean exit
+  - Restores full session on next launch including split pane trees with ratios
+  - Working directories validated on restore; missing directories fall back to `$HOME`
+  - Takes precedence over `auto_restore_arrangement` when both are enabled
+  - Graceful degradation: corrupt/missing session file creates default window
+  - Session file cleared after successful restore to prevent stale state
+  - Config: `restore_session: true` (default: false)
+  - UI checkbox in Settings > Terminal > Startup
+
+### Improved
+
+- **Settings quick search**: Added missing search keywords across all settings tabs for better discoverability of settings via the search box
+
 ### Fixed
 
 - **Comprehensive HiDPI/DPI scaling fix**: All pixel-dimension config values are now correctly scaled from logical pixels to physical pixels on HiDPI displays (e.g., Retina at scale_factor=2). Previously, many values rendered at half their intended size. Fixed values include:

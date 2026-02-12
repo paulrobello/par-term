@@ -38,7 +38,15 @@ pub fn show(
     if section_matches(
         &query,
         "Keyboard",
-        &["option", "alt", "meta", "esc", "physical"],
+        &[
+            "option",
+            "alt",
+            "meta",
+            "esc",
+            "physical",
+            "keyboard layout",
+            "terminal applications",
+        ],
     ) {
         show_keyboard_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -47,7 +55,18 @@ pub fn show(
     if section_matches(
         &query,
         "Modifier Remapping",
-        &["remap", "swap", "ctrl", "super", "cmd", "modifier"],
+        &[
+            "remap",
+            "swap",
+            "ctrl",
+            "super",
+            "cmd",
+            "modifier",
+            "left ctrl",
+            "right ctrl",
+            "left alt",
+            "right alt",
+        ],
     ) {
         show_modifier_remapping_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -56,7 +75,16 @@ pub fn show(
     if section_matches(
         &query,
         "Mouse",
-        &["scroll", "double-click", "triple-click", "focus follows"],
+        &[
+            "scroll",
+            "scroll speed",
+            "double-click",
+            "triple-click",
+            "focus follows",
+            "option+click",
+            "alt+click",
+            "horizontal scroll",
+        ],
     ) {
         show_mouse_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -65,13 +93,27 @@ pub fn show(
     if section_matches(
         &query,
         "Selection & Clipboard",
-        &["copy", "paste", "middle-click", "auto-copy", "delay"],
+        &[
+            "copy",
+            "paste",
+            "middle-click",
+            "auto-copy",
+            "delay",
+            "trailing newline",
+            "quote style",
+            "drop files",
+            "dropped file",
+        ],
     ) {
         show_selection_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Clipboard Limits section (collapsed by default)
-    if section_matches(&query, "Clipboard Limits", &["max", "sync", "bytes"]) {
+    if section_matches(
+        &query,
+        "Clipboard Limits",
+        &["max", "sync", "bytes", "clipboard events", "limit"],
+    ) {
         show_clipboard_limits_section(ui, settings, changes_this_frame, collapsed);
     }
 
@@ -79,7 +121,14 @@ pub fn show(
     if section_matches(
         &query,
         "Word Selection",
-        &["word characters", "smart selection"],
+        &[
+            "word characters",
+            "smart selection",
+            "patterns",
+            "urls",
+            "emails",
+            "paths",
+        ],
     ) {
         show_word_selection_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -88,7 +137,16 @@ pub fn show(
     if section_matches(
         &query,
         "Copy Mode",
-        &["copy mode", "vi", "vim", "yank", "visual", "selection mode"],
+        &[
+            "copy mode",
+            "vi",
+            "vim",
+            "yank",
+            "visual",
+            "selection mode",
+            "keyboard-driven",
+            "hjkl",
+        ],
     ) {
         show_copy_mode_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -97,7 +155,14 @@ pub fn show(
     if section_matches(
         &query,
         "Keybindings",
-        &["shortcut", "hotkey", "binding", "key"],
+        &[
+            "shortcut",
+            "hotkey",
+            "binding",
+            "key",
+            "keyboard shortcut",
+            "custom",
+        ],
     ) {
         show_keybindings_section(ui, settings, changes_this_frame, collapsed);
     }

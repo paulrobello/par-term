@@ -22,17 +22,29 @@ pub fn show(
     let query = settings.search_query.trim().to_lowercase();
 
     // General section
-    if section_matches(&query, "General", &["enable", "badge", "format"]) {
+    if section_matches(
+        &query,
+        "General",
+        &["enable", "badge", "format", "overlay", "text"],
+    ) {
         show_general_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Appearance section
-    if section_matches(&query, "Appearance", &["color", "opacity", "font", "bold"]) {
+    if section_matches(
+        &query,
+        "Appearance",
+        &["color", "opacity", "font", "bold", "badge"],
+    ) {
         show_appearance_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Position section
-    if section_matches(&query, "Position", &["margin", "size", "width", "height"]) {
+    if section_matches(
+        &query,
+        "Position",
+        &["margin", "size", "width", "height", "badge", "placement"],
+    ) {
         show_position_section(ui, settings, changes_this_frame, collapsed);
     }
 
@@ -40,7 +52,16 @@ pub fn show(
     if section_matches(
         &query,
         "Variables",
-        &["variable", "session", "hostname", "username", "path"],
+        &[
+            "variable",
+            "session",
+            "hostname",
+            "username",
+            "path",
+            "badge",
+            "exit code",
+            "command",
+        ],
     ) {
         show_variables_section(ui, settings, changes_this_frame, collapsed);
     }

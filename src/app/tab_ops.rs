@@ -308,7 +308,14 @@ impl WindowState {
             let cell_width = r.cell_width();
             let cell_height = r.cell_height();
             let scale = r.scale_factor();
-            (size, padding, content_offset_y, cell_width, cell_height, scale)
+            (
+                size,
+                padding,
+                content_offset_y,
+                cell_width,
+                cell_height,
+                scale,
+            )
         });
 
         let dpi_scale = bounds_info.map(|b| b.5).unwrap_or(1.0);
@@ -378,7 +385,14 @@ impl WindowState {
             let cell_width = r.cell_width();
             let cell_height = r.cell_height();
             let scale = r.scale_factor();
-            (size, padding, content_offset_y, cell_width, cell_height, scale)
+            (
+                size,
+                padding,
+                content_offset_y,
+                cell_width,
+                cell_height,
+                scale,
+            )
         });
 
         let dpi_scale = bounds_info.map(|b| b.5).unwrap_or(1.0);

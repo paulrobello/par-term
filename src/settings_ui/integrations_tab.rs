@@ -47,7 +47,16 @@ impl SettingsUI {
         if section_matches(
             &query,
             "Shell Integration",
-            &["shell", "bash", "zsh", "fish", "prompt", "integration"],
+            &[
+                "shell",
+                "bash",
+                "zsh",
+                "fish",
+                "prompt",
+                "integration",
+                "install",
+                "auto-install",
+            ],
         ) {
             self.show_shell_integration_section(ui, _changes_this_frame, collapsed);
         }
@@ -56,7 +65,16 @@ impl SettingsUI {
         if section_matches(
             &query,
             "Custom Shaders",
-            &["shader", "glsl", "effect", "background", "cursor"],
+            &[
+                "shader",
+                "glsl",
+                "effect",
+                "background",
+                "cursor",
+                "custom shader",
+                "animation",
+                "post-processing",
+            ],
         ) {
             self.show_shaders_section(ui, _changes_this_frame, collapsed);
         }
