@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Import/Export Preferences** (#91): Import and export terminal configuration
+  - Export current config to a YAML file via native file dialog
+  - Import preferences from a local YAML file (replace or merge modes)
+  - Import preferences from a URL (replace or merge modes)
+  - Merge mode only overrides values that differ from defaults, preserving user customizations
+  - Validation ensures imported config is well-formed before applying
+  - UI in Settings > Advanced > Import/Export Preferences
+
 ---
 
 ## [0.14.0] - 2026-02-11

@@ -322,6 +322,14 @@ pub struct SettingsUI {
     /// Recorded keybinding combo for action (displayed during recording)
     pub(crate) action_recorded_combo: Option<String>,
 
+    // Import/export preferences state
+    /// Temporary URL for import-from-URL feature
+    pub(crate) temp_import_url: String,
+    /// Status message for import/export operations
+    pub(crate) import_export_status: Option<String>,
+    /// Whether the import/export status is an error (true) or success (false)
+    pub(crate) import_export_is_error: bool,
+
     // Reset to defaults dialog state
     /// Whether to show the reset to defaults confirmation dialog
     pub(crate) show_reset_defaults_dialog: bool,
@@ -489,6 +497,9 @@ impl SettingsUI {
             snippet_recorded_combo: None,
             recording_action_keybinding: false,
             action_recorded_combo: None,
+            temp_import_url: String::new(),
+            import_export_status: None,
+            import_export_is_error: false,
             show_reset_defaults_dialog: false,
             arrangement_save_name: String::new(),
             arrangement_confirm_restore: None,
@@ -570,8 +581,8 @@ impl SettingsUI {
         self.font_pending_changes = false;
     }
 
-    /// Sync ALL temp fields from config (used when resetting to defaults)
-    fn sync_all_temps_from_config(&mut self) {
+    /// Sync ALL temp fields from config (used when resetting to defaults or importing)
+    pub(crate) fn sync_all_temps_from_config(&mut self) {
         // Font temps
         self.sync_font_temps_from_config();
 

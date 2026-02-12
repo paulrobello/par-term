@@ -734,8 +734,8 @@ iTerm2 has sophisticated window state management.
 |---------|--------|----------|--------|--------|--------|-------|
 | Save preferences mode | ✅ `Save Preferences` | ✅ Auto-saves on change | ✅ | - | - | Auto-saves when settings changed in UI |
 | Preference file location | ✅ | ✅ XDG-compliant | ✅ | - | - | Already implemented |
-| Import preferences | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Import from file/URL |
-| Export preferences | ✅ | ❌ | ❌ | ⭐⭐ | 🟢 | Export config to file |
+| Import preferences | ✅ | ✅ File & URL import | ✅ | - | - | Import from local file or URL with replace/merge modes |
+| Export preferences | ✅ | ✅ Export to YAML | ✅ | - | - | Export current config to YAML file via native dialog |
 | Preference validation | ✅ | ✅ Serde validation | ✅ | - | - | Serde deserialization with defaults and backward compat |
 | Preference profiles | ✅ | ✅ Full profile system | ✅ | - | - | Tags, inheritance, shortcuts, hostname/tmux auto-switching |
 | Shell integration download | ✅ | ✅ Embedded auto-install | ✅ | - | - | bash/zsh/fish scripts embedded and auto-installed to RC files |
@@ -926,7 +926,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Image Protocol Enhancements | 9 | 0 | 0 |
 | Audio & Haptic Feedback | 2 | 0 | 3 |
 | Advanced GPU & Rendering Settings | 3 | 0 | 2 |
-| Advanced Configuration | 1 | 0 | 7 |
+| Advanced Configuration | 0 | 0 | 8 |
 | Unicode & Text Processing | 3 | 0 | 3 |
 | Browser Integration | 0 | 0 | 4 |
 | Progress Bars | 5 | 0 | 0 |
@@ -1075,9 +1075,8 @@ The following iTerm2 features were identified and added to the matrix in this up
 - User-based auto-switching
 - Dynamic profiles from URL with auto-reload
 
-**Advanced Configuration (7 features)**
+**Advanced Configuration (8 features)**
 - Save preferences mode (auto-save/ask on quit)
-- Import/export preferences
 - Preference validation and profiles
 
 **Unicode & Text Processing (2 features)**
@@ -1121,6 +1120,7 @@ The following iTerm2 features were identified and added to the matrix in this up
 - ✅ Shell integration event queuing (accurate OSC 133 marker positions)
 - ✅ Remember settings section expand/collapse states
 - ✅ Duplicate arrangement name overwrite prompt fix
+- ✅ Import/export preferences (file & URL import with replace/merge, YAML export)
 
 ### Previously Completed (v0.13.0)
 - ✅ Vi-style copy mode (full vi motions, visual selection, search, marks, status bar)
