@@ -33,6 +33,7 @@ Complete reference for all par-term keyboard shortcuts.
 | Switch to tab 1-9 | `Cmd + 1-9` | `Alt + 1-9` |
 | Move tab left | `Cmd + Shift + Left` | `Cmd + Shift + Left` |
 | Move tab right | `Cmd + Shift + Right` | `Cmd + Shift + Right` |
+| Save window arrangement | View menu: "Save Window Arrangement..." | View menu: "Save Window Arrangement..." |
 
 ## Navigation & Scrolling
 
@@ -195,6 +196,10 @@ keybindings:
 - `move_tab_left`, `move_tab_right`
 - `switch_to_tab_1` through `switch_to_tab_9`
 
+**Window Arrangements:**
+- `save_arrangement` - Save current window layout as a named arrangement
+- `restore_arrangement:<name>` - Restore a previously saved arrangement by name
+
 **Pane Management:**
 - `split_horizontal`, `split_vertical`, `close_pane`
 - `navigate_pane_left`, `navigate_pane_right`
@@ -225,3 +230,4 @@ keybindings:
 - [Mouse Features](MOUSE_FEATURES.md) - Mouse interactions and semantic history
 - [Profiles](PROFILES.md) - Profile keyboard shortcuts
 - [Search](SEARCH.md) - Search keyboard shortcuts
+- [Window Management](WINDOW_MANAGEMENT.md) - Window arrangements and layout management

@@ -12,9 +12,60 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.13.0
+## What's New in 0.14.0
 
-### 📋 Vi-Style Copy Mode
+### 🔄 Self-Update
+
+par-term can now update itself in-place — no package manager needed.
+
+- **CLI**: `par-term self-update` with `--yes` flag for non-interactive use
+- **Settings UI**: "Check Now" and "Install Update" buttons in Advanced > Updates
+- Detects installation method (Homebrew, cargo, .app bundle, standalone binary) and shows appropriate instructions
+- macOS .app bundle: extracts and replaces bundle contents from zip
+- Linux/Windows standalone: atomic binary replacement
+
+### ─── Command Separator Lines
+
+Horizontal separator lines between shell commands in the terminal grid.
+
+- Renders thin lines at prompt boundaries using shell integration (OSC 133) marks
+- Exit-code coloring: green for success, red for failure, gray for unknown
+- Configurable thickness (0.5-5.0 px), opacity (0.0-1.0), and custom fixed color
+- Works with any prompt height and in both single-pane and split-pane modes
+- Disabled by default (opt-in via Settings > Terminal > Command Separators)
+
+### 🔀 Drag-and-Drop Tab Reordering
+
+Reorder tabs by dragging them in the tab bar.
+
+- Floating ghost tab follows cursor with semi-transparent preview
+- Blue insertion indicator line with glow effect shows drop target
+- Escape key cancels the drag operation
+
+### 📐 Window Arrangements
+
+Save and restore window layouts (iTerm2 parity).
+
+- **Save**: Capture current window positions, sizes, tab CWDs, and active tab indices as named arrangements
+- **Restore**: Recreate saved layouts, replacing all current windows
+- **Monitor-aware**: Positions stored relative to monitor origin with name/index matching and position clamping
+- **Auto-restore**: Configure an arrangement to restore automatically on app launch
+- **Settings UI**: New "Arrangements" tab (📐) with full CRUD, reorder, and auto-restore controls
+- **Keybinding support**: `save_arrangement` and `restore_arrangement:<name>` actions
+
+### 🔧 Other Changes
+
+- **Variable Substitution in Config** (#102): Use `${VAR}` and `${VAR:-default}` in config.yaml values
+- **Shell Integration Event Queuing**: OSC 133 markers now queue with cursor positions for accurate separator placement
+- **Remember Settings Section States** (#105): Collapsible section expand/collapse states persist across sessions
+- **Default Font Size**: Increased from 10.0 to 12.0 for better readability out of the box
+- **Fix**: Duplicate arrangement names now prompt to overwrite instead of creating duplicates
+- **Fix**: Update notification text shortened to prevent clipping on some systems
+
+<details>
+<summary><strong>What's New in 0.13.0</strong></summary>
+
+#### 📋 Vi-Style Copy Mode
 
 Keyboard-driven text selection and navigation (iTerm2 parity).
 
@@ -25,23 +76,25 @@ Keyboard-driven text selection and navigation (iTerm2 parity).
 - **Status bar**: Mode indicator (COPY/VISUAL/V-LINE/V-BLOCK/SEARCH) and cursor position
 - **Settings**: Enable/disable, auto-exit on yank, status bar visibility (Settings > Input > Copy Mode)
 
-### 📝 Snippets & Actions Completion
+#### 📝 Snippets & Actions Completion
 
 - **Custom Variables UI**: Collapsible per-snippet variable editor (name/value grid)
 - **Key Sequence Simulation**: `KeySequence` actions send terminal byte sequences (Ctrl combos, arrow keys, F-keys)
 - **Import/Export**: Export/import snippets as YAML with duplicate detection and keybinding conflict resolution
 
-### 🔤 Unicode Normalization
+#### 🔤 Unicode Normalization
 
 Configurable normalization form (NFC/NFD/NFKC/NFKD/None) in Settings > Terminal > Unicode. Live-updates across all tabs.
 
-### 🔧 Fixed
+#### 🔧 Fixed
 
 - Color emoji rendering (Apple Color Emoji now renders as colored bitmaps instead of monochrome outlines)
 - Tmux pane resize via mouse drag (drag events now forwarded when mouse tracking enabled)
 - Text baseline alignment (eliminated per-glyph rounding artifacts)
 - File/URL link highlighting offset with multi-byte UTF-8 characters
 - Absolute file path detection in link highlighting regex
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.12.0</strong></summary>
@@ -397,6 +450,9 @@ Essential feature for emacs/vim users.
 - **[Accessibility](docs/ACCESSIBILITY.md)** - Minimum contrast enforcement and display options.
 - **[Integrations](docs/INTEGRATIONS.md)** - Shell integration and shader installation system.
 - **[Window Management](docs/WINDOW_MANAGEMENT.md)** - Window types, multi-monitor, and transparency.
+- **[Window Arrangements](docs/ARRANGEMENTS.md)** - Save and restore window layouts with auto-restore.
+- **[Command Separators](docs/COMMAND_SEPARATORS.md)** - Horizontal lines between shell commands with exit-code coloring.
+- **[Self-Update](docs/SELF_UPDATE.md)** - In-place update capability via CLI and Settings UI.
 - **[Debug Logging](docs/LOGGING.md)** - Configurable log levels and troubleshooting.
 
 ### Shaders

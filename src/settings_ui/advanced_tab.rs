@@ -576,10 +576,7 @@ fn show_updates_section(
                     );
                 }
                 crate::update_checker::UpdateCheckResult::UpdateAvailable(info) => {
-                    let version_str = info
-                        .version
-                        .strip_prefix('v')
-                        .unwrap_or(&info.version);
+                    let version_str = info.version.strip_prefix('v').unwrap_or(&info.version);
                     ui.label(
                         egui::RichText::new(format!("Version {} is available!", version_str))
                             .color(egui::Color32::YELLOW)
@@ -604,10 +601,8 @@ fn show_updates_section(
                         }
                         crate::self_updater::InstallationType::CargoInstall => {
                             ui.label(
-                                egui::RichText::new(
-                                    "Update via cargo: cargo install par-term",
-                                )
-                                .color(egui::Color32::GRAY),
+                                egui::RichText::new("Update via cargo: cargo install par-term")
+                                    .color(egui::Color32::GRAY),
                             );
                         }
                         _ => {
@@ -619,16 +614,12 @@ fn show_updates_section(
                                 "Install Update"
                             };
 
-                            let button = egui::Button::new(
-                                egui::RichText::new(button_text).strong(),
-                            );
+                            let button =
+                                egui::Button::new(egui::RichText::new(button_text).strong());
 
                             if ui
                                 .add_enabled(!installing, button)
-                                .on_hover_text(format!(
-                                    "Download and install v{}",
-                                    version_str
-                                ))
+                                .on_hover_text(format!("Download and install v{}", version_str))
                                 .clicked()
                             {
                                 settings.update_install_requested = true;

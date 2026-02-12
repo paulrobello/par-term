@@ -13,6 +13,7 @@ par-term provides extensive window management features including edge-anchored w
 - [Pane Divider Styles](#pane-divider-styles)
 - [Transparency](#transparency)
 - [Fullscreen](#fullscreen)
+- [Window Arrangements](#window-arrangements)
 - [Configuration](#configuration)
 - [Related Documentation](#related-documentation)
 
@@ -256,6 +257,52 @@ window_type: fullscreen
 
 Fullscreen mode uses borderless fullscreen on the current monitor.
 
+## Window Arrangements
+
+Save and restore complete window layouts as named arrangements. This provides iTerm2-style layout persistence for managing complex multi-window setups.
+
+### Features
+
+- **Save**: Capture all current window positions, sizes, tab working directories, and active tab indices as a named arrangement
+- **Restore**: Recreate a saved layout, replacing all current windows with the saved configuration
+- **Monitor-aware**: Window positions are stored relative to monitor origin for portability across display configurations
+- **Monitor matching**: Restores windows to the correct monitor by name, with fallback to index and then primary monitor
+- **Position clamping**: Ensures restored windows remain visible even if the monitor layout has changed
+- **Auto-restore on startup**: Configure an arrangement to restore automatically when the app launches
+
+### Settings UI
+
+The Arrangements tab in Settings provides controls to save, restore, rename, delete, and reorder arrangements. Set any arrangement as the default to auto-restore on startup.
+
+### Keybinding Support
+
+Two keybinding actions are available for arrangements:
+
+| Action | Description |
+|--------|-------------|
+| `save_arrangement` | Open the save arrangement dialog |
+| `restore_arrangement:<name>` | Restore a specific arrangement by name |
+
+Example keybinding configuration:
+
+```yaml
+keybindings:
+  - key: "Ctrl+Shift+S"
+    action: "save_arrangement"
+  - key: "Ctrl+Shift+L"
+    action: "restore_arrangement:my_layout"
+```
+
+### Menu Integration
+
+The View menu includes a "Save Window Arrangement..." item for saving the current layout.
+
+### Persistence
+
+Arrangements are stored in `~/.config/par-term/arrangements.yaml`.
+
+For full details, see [ARRANGEMENTS.md](ARRANGEMENTS.md).
+
 ## Configuration
 
 ### Complete Window Settings
@@ -319,3 +366,4 @@ The Window tab in Settings provides sections for:
 
 - [README.md](../README.md) - Project overview
 - [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) - Window keyboard shortcuts
+- [ARRANGEMENTS.md](ARRANGEMENTS.md) - Full window arrangements documentation

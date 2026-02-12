@@ -516,12 +516,18 @@ fn self_update_cli(skip_prompt: bool) -> anyhow::Result<()> {
 
     if latest <= current {
         println!();
-        println!("You are already running the latest version ({}).", current_version);
+        println!(
+            "You are already running the latest version ({}).",
+            current_version
+        );
         return Ok(());
     }
 
     println!();
-    println!("New version available: {} -> {}", current_version, latest_version);
+    println!(
+        "New version available: {} -> {}",
+        current_version, latest_version
+    );
     if let Some(ref notes) = release_info.release_notes {
         println!();
         println!("Release notes:");

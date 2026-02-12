@@ -6,6 +6,9 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
 - [Overview](#overview)
 - [Creating and Closing Tabs](#creating-and-closing-tabs)
 - [Switching Tabs](#switching-tabs)
+- [Reordering Tabs](#reordering-tabs)
+  - [Drag-and-Drop Reordering](#drag-and-drop-reordering)
+  - [Keyboard Reordering](#keyboard-reordering)
 - [Tab Bar](#tab-bar)
   - [Visibility Modes](#visibility-modes)
   - [Tab Stretch](#tab-stretch)
@@ -62,6 +65,35 @@ New tabs inherit the working directory from the current tab (if shell integratio
 | Previous tab | `Cmd+Shift+[` or `Ctrl+Shift+Tab` |
 | Go to tab 1-9 | `Cmd+1` through `Cmd+9` (macOS) / `Ctrl+1` through `Ctrl+9` |
 | Go to last tab | `Cmd+9` (macOS) / `Ctrl+9` |
+
+## Reordering Tabs
+
+Tabs can be reordered using drag-and-drop or keyboard shortcuts. Tab numbers update automatically after reordering to reflect the new positions.
+
+### Drag-and-Drop Reordering
+
+Click and drag any tab in the tab bar to move it to a new position:
+
+1. **Press and hold** the mouse button on a tab to begin dragging
+2. **Drag the tab** left or right to the desired position
+3. **Release the mouse button** to drop the tab into place
+
+**Visual Feedback:**
+- A floating ghost tab follows the cursor during the drag with a semi-transparent preview of the tab being moved
+- A blue insertion indicator line with a glow effect marks the drop target between tabs
+- The dragged tab dims in its original position to indicate it is being moved
+
+**Behavior Notes:**
+- Press `Escape` to cancel a drag operation and return the tab to its original position
+- Drag initiation is suppressed when only one tab exists in the window
+- Dropping a tab on its original position has no effect
+
+### Keyboard Reordering
+
+| Action | Shortcut |
+|--------|----------|
+| Move tab left | `Cmd+Shift+Left` (macOS) / `Ctrl+Shift+Left` |
+| Move tab right | `Cmd+Shift+Right` (macOS) / `Ctrl+Shift+Right` |
 
 ## Tab Bar
 

@@ -1110,8 +1110,7 @@ impl WindowManager {
             Ok(mut settings_window) => {
                 log::info!("Opened settings window {:?}", settings_window.window_id());
                 // Sync last update check result to settings UI
-                settings_window.settings_ui.last_update_result =
-                    self.last_update_result.clone();
+                settings_window.settings_ui.last_update_result = self.last_update_result.clone();
                 self.settings_window = Some(settings_window);
                 // Sync arrangement data to settings UI
                 self.sync_arrangements_to_settings();

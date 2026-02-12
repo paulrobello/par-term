@@ -170,11 +170,9 @@ pub fn perform_update(new_version: &str) -> Result<UpdateResult, String> {
             );
         }
         InstallationType::CargoInstall => {
-            return Err(
-                "par-term is installed via cargo. Please update with:\n  \
+            return Err("par-term is installed via cargo. Please update with:\n  \
                  cargo install par-term"
-                    .to_string(),
-            );
+                .to_string());
         }
         InstallationType::MacOSBundle | InstallationType::StandaloneBinary => {
             // These can be updated in-place
@@ -191,8 +189,7 @@ pub fn perform_update(new_version: &str) -> Result<UpdateResult, String> {
     let download_url = get_binary_download_url(api_url)?;
 
     // Download the binary/archive
-    let data =
-        crate::shader_installer::download_file(&download_url).map_err(|e| e.to_string())?;
+    let data = crate::shader_installer::download_file(&download_url).map_err(|e| e.to_string())?;
 
     // Perform platform-specific installation
     let install_path = match installation {
@@ -304,8 +301,7 @@ fn install_standalone(current_exe: &std::path::Path, data: &[u8]) -> Result<Path
     let new_path = current_exe.with_extension("new");
 
     // Write the new binary to a temp file
-    std::fs::write(&new_path, data)
-        .map_err(|e| format!("Failed to write new binary: {}", e))?;
+    std::fs::write(&new_path, data).map_err(|e| format!("Failed to write new binary: {}", e))?;
 
     // Set executable permission on Unix
     #[cfg(unix)]
@@ -347,9 +343,15 @@ mod tests {
     fn test_get_asset_name() {
         // Should return a valid asset name for the current platform
         let result = get_asset_name();
-        assert!(result.is_ok(), "get_asset_name() should succeed on supported platforms");
+        assert!(
+            result.is_ok(),
+            "get_asset_name() should succeed on supported platforms"
+        );
         let name = result.unwrap();
-        assert!(name.starts_with("par-term-"), "Asset name should start with 'par-term-'");
+        assert!(
+            name.starts_with("par-term-"),
+            "Asset name should start with 'par-term-'"
+        );
     }
 
     #[test]
@@ -387,9 +389,7 @@ mod tests {
     #[test]
     fn test_detect_installation_macos_bundle() {
         assert_eq!(
-            detect_installation_from_path(
-                "/Applications/par-term.app/Contents/MacOS/par-term"
-            ),
+            detect_installation_from_path("/Applications/par-term.app/Contents/MacOS/par-term"),
             InstallationType::MacOSBundle
         );
     }
@@ -397,8 +397,14 @@ mod tests {
     #[test]
     fn test_installation_type_description() {
         assert_eq!(InstallationType::Homebrew.description(), "Homebrew");
-        assert_eq!(InstallationType::CargoInstall.description(), "cargo install");
-        assert_eq!(InstallationType::MacOSBundle.description(), "macOS app bundle");
+        assert_eq!(
+            InstallationType::CargoInstall.description(),
+            "cargo install"
+        );
+        assert_eq!(
+            InstallationType::MacOSBundle.description(),
+            "macOS app bundle"
+        );
         assert_eq!(
             InstallationType::StandaloneBinary.description(),
             "standalone binary"

@@ -1112,7 +1112,17 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 ---
 
-### Recently Completed (v0.13.0)
+### Recently Completed (v0.14.0)
+- ✅ Self-update capability (CLI and Settings UI, platform-aware installation detection)
+- ✅ Command separator lines (exit-code coloring, configurable thickness/opacity/color)
+- ✅ Drag-and-drop tab reordering (ghost tab preview, insertion indicator)
+- ✅ Window arrangements (save/restore layouts, monitor-aware, auto-restore on startup)
+- ✅ Variable substitution in config (`${VAR}` and `${VAR:-default}` syntax)
+- ✅ Shell integration event queuing (accurate OSC 133 marker positions)
+- ✅ Remember settings section expand/collapse states
+- ✅ Duplicate arrangement name overwrite prompt fix
+
+### Previously Completed (v0.13.0)
 - ✅ Vi-style copy mode (full vi motions, visual selection, search, marks, status bar)
 - ✅ Unicode normalization (NFC/NFD/NFKC/NFKD/None, live-update across tabs)
 - ✅ Snippets & actions completion (custom variables UI, key sequence simulation, import/export)
@@ -1136,4 +1146,4 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 *Updated: 2026-02-11 (Self-update feature, copy mode, snippets completion, emoji fix, link fixes)*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.13.0*
+*par-term Version: 0.14.0*
