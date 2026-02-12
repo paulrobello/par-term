@@ -320,6 +320,19 @@ impl TerminalManager {
         self.scrollback_metadata.next_mark(line)
     }
 
+    /// Get command history from the core library (commands tracked via shell integration).
+    ///
+    /// Returns commands as `(command_text, exit_code, duration_ms)` tuples.
+    pub fn core_command_history(&self) -> Vec<(String, Option<i32>, Option<u64>)> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.get_command_history()
+            .iter()
+            .map(|cmd| (cmd.command.clone(), cmd.exit_code, cmd.duration_ms))
+            .collect()
+    }
+
     /// Set cell dimensions in pixels for sixel graphics scroll calculations
     ///
     /// This should be called when the renderer is initialized or cell size changes.

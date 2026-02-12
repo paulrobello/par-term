@@ -112,8 +112,8 @@ pub struct WindowState {
     pub(crate) command_history_ui: CommandHistoryUI,
     /// Persistent command history
     pub(crate) command_history: CommandHistory,
-    /// Number of scrollback marks already synced to persistent history
-    last_synced_mark_count: usize,
+    /// Commands already synced from marks to persistent history (avoids repeated adds)
+    synced_commands: std::collections::HashSet<String>,
     /// Paste special UI manager (text transformations)
     pub(crate) paste_special_ui: PasteSpecialUI,
     /// tmux session picker UI
@@ -303,7 +303,7 @@ impl WindowState {
                 ch.load();
                 ch
             },
-            last_synced_mark_count: 0,
+            synced_commands: std::collections::HashSet::new(),
             paste_special_ui: PasteSpecialUI::new(),
             tmux_session_picker_ui: TmuxSessionPickerUI::new(),
             search_ui: SearchUI::new(),
@@ -1555,17 +1555,25 @@ impl WindowState {
             let sb_len = term.scrollback_len();
             term.update_scrollback_metadata(sb_len, cursor_row);
 
-            // Feed newly completed commands into persistent history
-            let marks = term.scrollback_marks();
-            let mark_count = marks.len();
-            if mark_count > self.last_synced_mark_count {
-                for mark in &marks[self.last_synced_mark_count..] {
-                    if let Some(ref cmd) = mark.command {
-                        self.command_history
-                            .add(cmd.clone(), mark.exit_code, mark.duration_ms);
-                    }
+            // Feed newly completed commands into persistent history from two sources:
+            // 1. Scrollback marks (populated via set_mark_command_at from grid text extraction)
+            // 2. Core library command history (populated by the terminal emulator core)
+            // Both sources are checked because command text may come from either path
+            // depending on shell integration quality. The synced_commands set prevents
+            // duplicate adds across frames and sources.
+            for mark in term.scrollback_marks() {
+                if let Some(ref cmd) = mark.command
+                    && !cmd.is_empty()
+                    && self.synced_commands.insert(cmd.clone())
+                {
+                    self.command_history
+                        .add(cmd.clone(), mark.exit_code, mark.duration_ms);
                 }
-                self.last_synced_mark_count = mark_count;
+            }
+            for (cmd, exit_code, duration_ms) in term.core_command_history() {
+                if !cmd.is_empty() && self.synced_commands.insert(cmd.clone()) {
+                    self.command_history.add(cmd, exit_code, duration_ms);
+                }
             }
 
             (sb_len, term.get_title())
