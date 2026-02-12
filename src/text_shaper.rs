@@ -27,8 +27,9 @@
 ///     ShapingOptions::default()
 /// );
 /// ```
+use lru::LruCache;
 use rustybuzz::{Face, Feature, GlyphBuffer, Language, Script, UnicodeBuffer};
-use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
@@ -129,11 +130,8 @@ struct ShapeCacheKey {
 
 /// Text shaper using HarfBuzz via rustybuzz
 pub struct TextShaper {
-    /// Cache of shaped text runs
-    shape_cache: HashMap<ShapeCacheKey, Arc<ShapedRun>>,
-
-    /// Maximum cache size (number of entries)
-    max_cache_size: usize,
+    /// LRU cache of shaped text runs
+    shape_cache: LruCache<ShapeCacheKey, Arc<ShapedRun>>,
 }
 
 impl TextShaper {
@@ -145,8 +143,9 @@ impl TextShaper {
     /// Create a new text shaper with a specific cache size
     pub fn with_cache_size(max_cache_size: usize) -> Self {
         Self {
-            shape_cache: HashMap::new(),
-            max_cache_size,
+            shape_cache: LruCache::new(
+                NonZeroUsize::new(max_cache_size).unwrap_or(NonZeroUsize::new(1000).unwrap()),
+            ),
         }
     }
 
@@ -328,16 +327,8 @@ impl TextShaper {
             cluster_boundaries,
         });
 
-        // Cache the result (with LRU eviction if needed)
-        if self.shape_cache.len() >= self.max_cache_size {
-            // Simple eviction: remove first entry
-            // TODO: Implement proper LRU eviction
-            if let Some(key) = self.shape_cache.keys().next().cloned() {
-                self.shape_cache.remove(&key);
-            }
-        }
-
-        self.shape_cache.insert(cache_key, Arc::clone(&shaped_run));
+        // Cache the result (LRU eviction is automatic)
+        self.shape_cache.put(cache_key, Arc::clone(&shaped_run));
 
         shaped_run
     }

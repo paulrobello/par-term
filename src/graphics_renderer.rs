@@ -52,10 +52,6 @@ pub struct GraphicsRenderer {
 
     /// Global config: whether to preserve aspect ratio when rendering images
     preserve_aspect_ratio: bool,
-
-    // Surface format for pipeline compatibility
-    #[allow(dead_code)]
-    surface_format: TextureFormat,
 }
 
 impl GraphicsRenderer {
@@ -125,7 +121,6 @@ impl GraphicsRenderer {
             window_padding,
             content_offset_y: 0.0,
             preserve_aspect_ratio,
-            surface_format,
         })
     }
 

@@ -1774,7 +1774,6 @@ impl WindowState {
                 self.config.custom_shader_enabled,
                 self.config.custom_shader.as_deref(),
                 self.config.window_opacity,
-                resolved.text_opacity,
                 self.config.custom_shader_animation,
                 resolved.animation_speed,
                 resolved.full_content,

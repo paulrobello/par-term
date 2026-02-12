@@ -8,7 +8,7 @@
 
 use super::session::TmuxNotification;
 use super::types::{TmuxPaneId, TmuxWindowId};
-use crate::pane::{PaneId, SplitDirection};
+use crate::pane::PaneId;
 use crate::tab::TabId;
 use std::collections::HashMap;
 
@@ -253,29 +253,4 @@ pub enum SyncAction {
     Pause,
     /// Continue updates
     Continue,
-}
-
-/// Convert a tmux layout string to par-term split operations
-#[allow(dead_code)]
-pub fn parse_layout_to_splits(_layout: &str) -> Vec<LayoutSplit> {
-    // TODO: Implement layout parsing
-    // The tmux layout format is complex:
-    // "89x24,0,0{44x24,0,0,1,44x24,45,0,2}" means:
-    // - Total size 89x24 at position 0,0
-    // - {} = vertical split
-    // - [] = horizontal split
-    // - Numbers at end are pane IDs
-    Vec::new()
-}
-
-/// A split operation from parsed layout
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct LayoutSplit {
-    /// Direction of the split
-    pub direction: SplitDirection,
-    /// Ratio for the split (0.0-1.0)
-    pub ratio: f32,
-    /// Pane ID for the new pane (if leaf)
-    pub pane_id: Option<TmuxPaneId>,
 }

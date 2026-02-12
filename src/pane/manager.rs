@@ -737,6 +737,7 @@ impl PaneManager {
                     new_x,
                     new_y,
                     self.total_bounds,
+                    self.divider_width,
                 );
                 self.recalculate_bounds();
             }
@@ -744,7 +745,7 @@ impl PaneManager {
     }
 
     /// Recursively find and update the split ratio for a divider
-    #[allow(clippy::only_used_in_recursion)]
+    #[allow(clippy::only_used_in_recursion, clippy::too_many_arguments)]
     fn update_divider_ratio(
         node: &mut PaneNode,
         target_index: usize,
@@ -753,6 +754,7 @@ impl PaneManager {
         new_x: f32,
         new_y: f32,
         bounds: PaneBounds,
+        divider_width: f32,
     ) -> bool {
         match node {
             PaneNode::Leaf(_) => false,
@@ -781,7 +783,6 @@ impl PaneManager {
                 *current_index += 1;
 
                 // Calculate child bounds to recurse
-                let divider_width = 1.0; // TODO: Pass this through
                 let (first_bounds, second_bounds) = match direction {
                     SplitDirection::Horizontal => {
                         let first_height = (bounds.height - divider_width) * *ratio;
@@ -820,6 +821,7 @@ impl PaneManager {
                     new_x,
                     new_y,
                     first_bounds,
+                    divider_width,
                 ) {
                     return true;
                 }
@@ -831,6 +833,7 @@ impl PaneManager {
                     new_x,
                     new_y,
                     second_bounds,
+                    divider_width,
                 )
             }
         }

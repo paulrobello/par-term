@@ -220,7 +220,6 @@ impl Renderer {
         custom_shader_enabled: bool,
         custom_shader_animation: bool,
         custom_shader_animation_speed: f32,
-        custom_shader_text_opacity: f32,
         custom_shader_full_content: bool,
         custom_shader_brightness: f32,
         // Custom shader channel textures (iChannel0-3)
@@ -375,7 +374,6 @@ impl Renderer {
             custom_shader_animation,
             custom_shader_animation_speed,
             window_opacity,
-            custom_shader_text_opacity,
             custom_shader_full_content,
             custom_shader_brightness,
             custom_shader_channel_paths,

@@ -14,7 +14,6 @@
 //! - `iPreviousCursorColor`: Previous cursor RGBA color
 //! - `iTimeCursorChange`: Time when cursor last moved (same timebase as iTime)
 
-use crate::config::ResolvedShaderConfig;
 use anyhow::{Context, Result};
 use par_term_emu_core_rust::cursor::CursorStyle;
 use std::path::Path;
@@ -63,8 +62,6 @@ pub struct CustomShaderRenderer {
     pub(crate) sampler: Sampler,
     /// Window opacity for transparency
     pub(crate) window_opacity: f32,
-    /// Text opacity (separate from window opacity)
-    pub(crate) text_opacity: f32,
     /// When true, text is always rendered at full opacity (overrides text_opacity)
     pub(crate) keep_text_opaque: bool,
     /// Full content mode - shader receives and can manipulate full terminal content
@@ -169,7 +166,6 @@ impl CustomShaderRenderer {
         animation_enabled: bool,
         animation_speed: f32,
         window_opacity: f32,
-        text_opacity: f32,
         full_content_mode: bool,
         channel_paths: &[Option<std::path::PathBuf>; 4],
         cubemap_path: Option<&Path>,
@@ -293,7 +289,6 @@ impl CustomShaderRenderer {
             bind_group_layout,
             sampler,
             window_opacity,
-            text_opacity,
             keep_text_opaque: false,
             full_content_mode,
             brightness: 1.0,
@@ -796,78 +791,6 @@ impl CustomShaderRenderer {
                 .unwrap_or_else(|| "placeholder".to_string())
         );
 
-        Ok(())
-    }
-
-    /// Update shader configuration from a resolved config.
-    ///
-    /// This updates runtime parameters without reloading the shader itself.
-    /// Call this when per-shader settings change in the UI.
-    #[allow(dead_code)]
-    pub fn update_from_resolved_config(&mut self, config: &ResolvedShaderConfig) {
-        self.animation_speed = config.animation_speed;
-        self.brightness = config.brightness;
-        self.text_opacity = config.text_opacity;
-        self.full_content_mode = config.full_content;
-        log::debug!(
-            "Updated shader from resolved config: speed={}, brightness={}, text_opacity={}, full_content={}",
-            config.animation_speed,
-            config.brightness,
-            config.text_opacity,
-            config.full_content
-        );
-    }
-
-    /// Update channel textures from a resolved config.
-    ///
-    /// Call this when channel texture paths change. This reloads textures and
-    /// recreates the bind group.
-    #[allow(dead_code)]
-    pub fn update_channels_from_resolved_config(
-        &mut self,
-        device: &Device,
-        queue: &Queue,
-        config: &ResolvedShaderConfig,
-    ) -> Result<()> {
-        let channel_paths = config.channel_paths();
-
-        // Reload each channel texture
-        for (i, path) in channel_paths.iter().enumerate() {
-            let new_texture = match path {
-                Some(p) => match ChannelTexture::from_file(device, queue, p) {
-                    Ok(tex) => tex,
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to load channel{} texture '{}': {}",
-                            i,
-                            p.display(),
-                            e
-                        );
-                        ChannelTexture::placeholder(device, queue)
-                    }
-                },
-                None => ChannelTexture::placeholder(device, queue),
-            };
-            self.channel_textures[i] = new_texture;
-        }
-
-        // Update cubemap if configured
-        if let Some(cubemap_path) = config.cubemap_path() {
-            match CubemapTexture::from_prefix(device, queue, cubemap_path) {
-                Ok(cm) => self.cubemap = cm,
-                Err(e) => {
-                    log::warn!("Failed to load cubemap '{}': {}", cubemap_path.display(), e);
-                    self.cubemap = CubemapTexture::placeholder(device, queue);
-                }
-            }
-        } else {
-            self.cubemap = CubemapTexture::placeholder(device, queue);
-        }
-
-        // Use recreate_bind_group to properly handle use_background_as_channel0 logic
-        self.recreate_bind_group(device);
-
-        log::info!("Updated shader channel textures from resolved config");
         Ok(())
     }
 

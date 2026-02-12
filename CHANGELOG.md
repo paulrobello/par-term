@@ -19,6 +19,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Validation ensures imported config is well-formed before applying
   - UI in Settings > Advanced > Import/Export Preferences
 
+### Fixed
+
+- **Pane divider drag resize** now uses the configured divider width instead of a hardcoded 1.0px value, fixing inaccurate resize calculations when divider width differs from 1.0
+- **Profile parent selector** now prevents creating inheritance cycles (e.g., A→B→A) by checking ancestor chains before listing valid parents
+
+### Changed
+
+- **Text shaper cache** upgraded from arbitrary FIFO eviction to proper LRU eviction via the `lru` crate, improving cache hit rates for frequently-shaped text runs
+
+### Removed
+
+- Removed unused `Config::new()` constructor and builder methods (`with_dimensions`, `with_font_size`, `with_font_family`, `with_scrollback`); use `Config::default()` instead
+- Removed unused `CustomShaderRenderer` methods: `update_from_resolved_config()`, `update_channels_from_resolved_config()`
+- Removed unused `SettingsWindow::instance` field, `GraphicsRenderer::surface_format` field, `CustomShaderRenderer::text_opacity` field
+- Removed dead `ansi_to_rgb()` utility function and tmux layout parsing stub (`parse_layout_to_splits`, `LayoutSplit`)
+- Removed stale TODO comment about cursor geometric rendering (already implemented via `CellRenderer::cursor_overlay`)
+
 ---
 
 ## [0.14.0] - 2026-02-11

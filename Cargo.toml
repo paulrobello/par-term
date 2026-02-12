@@ -98,6 +98,7 @@ sha2 = "0.10.9"
 # Badge system
 hostname = "0.4.2"  # Cross-platform hostname detection
 base64 = "0.22.1"   # Base64 decoding for OSC 1337 SetBadgeFormat
+lru = "0.16.3"
 
 # Linux-specific: GTK for native menus (muda requires gtk feature on Linux)
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]

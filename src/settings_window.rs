@@ -58,9 +58,6 @@ pub struct SettingsWindow {
     window: Arc<Window>,
     /// Window ID for event routing
     window_id: WindowId,
-    /// wgpu instance
-    #[allow(dead_code)]
-    instance: wgpu::Instance,
     /// wgpu surface
     surface: wgpu::Surface<'static>,
     /// wgpu device
@@ -217,7 +214,6 @@ impl SettingsWindow {
         Ok(Self {
             window,
             window_id,
-            instance,
             surface,
             device,
             queue,

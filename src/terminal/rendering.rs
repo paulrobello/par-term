@@ -324,9 +324,8 @@ impl TerminalManager {
                 (normal as f32 * (1.0 - opacity) + inverted as f32 * opacity) as u8
             };
 
-            // Different cursor styles - for now, all use inversion
-            // TODO: Implement proper geometric rendering for beam/underline cursors
-            // This requires adding cursor geometry to the cell renderer
+            // Color blending per cursor style (geometric beam/underline rendering
+            // is handled by CellRenderer::cursor_overlay in cell_renderer/mod.rs)
             match style {
                 // Block cursor: full inversion (default behavior)
                 TermCursorStyle::SteadyBlock | TermCursorStyle::BlinkingBlock => (

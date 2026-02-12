@@ -1002,9 +1002,31 @@ impl ProfileModalUI {
         });
     }
 
+    /// Check if `ancestor_id` appears in the parent chain of `profile_id`
+    fn has_ancestor(&self, profile_id: ProfileId, ancestor_id: ProfileId) -> bool {
+        let mut current_id = profile_id;
+        let mut visited = vec![current_id];
+        while let Some(parent_id) = self
+            .working_profiles
+            .iter()
+            .find(|p| p.id == current_id)
+            .and_then(|p| p.parent_id)
+        {
+            if parent_id == ancestor_id {
+                return true;
+            }
+            if visited.contains(&parent_id) {
+                return false;
+            }
+            visited.push(parent_id);
+            current_id = parent_id;
+        }
+        false
+    }
+
     /// Render the parent profile selector dropdown
     fn render_parent_selector(&mut self, ui: &mut egui::Ui) {
-        // Get valid parents (excludes self and ancestors to prevent cycles)
+        // Get valid parents (excludes self and profiles that would create cycles)
         let current_id = self.editing_id;
         let valid_parents: Vec<_> = self
             .working_profiles
@@ -1014,8 +1036,12 @@ impl ProfileModalUI {
                 if Some(p.id) == current_id {
                     return false;
                 }
-                // TODO: Full cycle detection would require checking if selecting this
-                // profile as parent would create a cycle. For now, allow any non-self.
+                // Prevent cycles: reject if this candidate has current profile as ancestor
+                if let Some(cid) = current_id
+                    && self.has_ancestor(p.id, cid)
+                {
+                    return false;
+                }
                 true
             })
             .map(|p| (p.id, p.display_label()))

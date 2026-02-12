@@ -21,40 +21,8 @@ fn test_config_defaults() {
 }
 
 #[test]
-fn test_config_new() {
-    let config = Config::new();
-    assert_eq!(config.cols, 80);
-    assert_eq!(config.rows, 24);
-}
-
-#[test]
-fn test_config_with_dimensions() {
-    let config = Config::new().with_dimensions(100, 30);
-    assert_eq!(config.cols, 100);
-    assert_eq!(config.rows, 30);
-}
-
-#[test]
-fn test_config_with_font_size() {
-    let config = Config::new().with_font_size(16.0);
-    assert_eq!(config.font_size, 16.0);
-}
-
-#[test]
-fn test_config_with_font_family() {
-    let config = Config::new().with_font_family("Consolas");
-    assert_eq!(config.font_family, "Consolas");
-}
-
-#[test]
-fn test_config_with_scrollback() {
-    let config = Config::new().with_scrollback(5000);
-    assert_eq!(config.scrollback_lines, 5000);
-}
-
-#[test]
 fn test_config_with_title() {
-    let config = Config::new().with_title("My Terminal");
+    let config = Config::default().with_title("My Terminal");
     assert_eq!(config.window_title, "My Terminal");
 }
 
@@ -110,19 +78,11 @@ font_size: 16.0
 
 #[test]
 fn test_config_builder_chain() {
-    let config = Config::new()
-        .with_dimensions(120, 40)
-        .with_font_size(18.0)
-        .with_font_family("Fira Code")
-        .with_scrollback(20000)
-        .with_title("Custom Terminal");
-
-    assert_eq!(config.cols, 120);
-    assert_eq!(config.rows, 40);
-    assert_eq!(config.font_size, 18.0);
-    assert_eq!(config.font_family, "Fira Code");
-    assert_eq!(config.scrollback_lines, 20000);
+    let config = Config::default().with_title("Custom Terminal");
     assert_eq!(config.window_title, "Custom Terminal");
+    // Defaults should still be intact
+    assert_eq!(config.cols, 80);
+    assert_eq!(config.rows, 24);
 }
 
 #[test]

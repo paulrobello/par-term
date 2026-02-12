@@ -1408,7 +1408,6 @@ impl WindowManager {
                                     config.custom_shader_enabled,
                                     config.custom_shader.as_deref(),
                                     config.window_opacity,
-                                    resolved.text_opacity,
                                     config.custom_shader_animation,
                                     resolved.animation_speed,
                                     resolved.full_content,

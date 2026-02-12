@@ -1834,12 +1834,6 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Create a new configuration with default values
-    #[allow(dead_code)]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Load configuration from file or create default
     pub fn load() -> Result<Self> {
         let config_path = Self::config_path();
@@ -2256,39 +2250,10 @@ impl Config {
             .map(|p| Self::resolve_texture_path(p))
     }
 
-    /// Set window dimensions
-    #[allow(dead_code)]
-    pub fn with_dimensions(mut self, cols: usize, rows: usize) -> Self {
-        self.cols = cols;
-        self.rows = rows;
-        self
-    }
-
-    /// Set font size
-    #[allow(dead_code)]
-    pub fn with_font_size(mut self, size: f32) -> Self {
-        self.font_size = size;
-        self
-    }
-
-    /// Set font family
-    #[allow(dead_code)]
-    pub fn with_font_family(mut self, family: impl Into<String>) -> Self {
-        self.font_family = family.into();
-        self
-    }
-
     /// Set the window title
     #[allow(dead_code)]
     pub fn with_title(mut self, title: impl Into<String>) -> Self {
         self.window_title = title.into();
-        self
-    }
-
-    /// Set the scrollback buffer size
-    #[allow(dead_code)]
-    pub fn with_scrollback(mut self, size: usize) -> Self {
-        self.scrollback_lines = size;
         self
     }
 
@@ -2298,13 +2263,11 @@ impl Config {
     }
 
     /// Get the user override config for a specific shader (if any)
-    #[allow(dead_code)]
     pub fn get_shader_override(&self, shader_name: &str) -> Option<&ShaderConfig> {
         self.shader_configs.get(shader_name)
     }
 
     /// Get the user override config for a specific cursor shader (if any)
-    #[allow(dead_code)]
     pub fn get_cursor_shader_override(&self, shader_name: &str) -> Option<&CursorShaderConfig> {
         self.cursor_shader_configs.get(shader_name)
     }
@@ -2317,7 +2280,6 @@ impl Config {
     }
 
     /// Get or create a mutable reference to a cursor shader's config override
-    #[allow(dead_code)]
     pub fn get_or_create_cursor_shader_override(
         &mut self,
         shader_name: &str,
@@ -2333,7 +2295,6 @@ impl Config {
     }
 
     /// Remove a cursor shader config override (revert to defaults)
-    #[allow(dead_code)]
     pub fn remove_cursor_shader_override(&mut self, shader_name: &str) {
         self.cursor_shader_configs.remove(shader_name);
     }

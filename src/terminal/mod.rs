@@ -11,43 +11,6 @@ use std::sync::Arc;
 // Re-export clipboard types for use in other modules
 pub use par_term_emu_core_rust::terminal::{ClipboardEntry, ClipboardSlot};
 
-/// Convert ANSI color index to RGB
-#[allow(dead_code)]
-fn ansi_to_rgb(color_idx: u8) -> [u8; 3] {
-    match color_idx {
-        // Standard 16 colors
-        0 => [0, 0, 0],        // Black
-        1 => [205, 0, 0],      // Red
-        2 => [0, 205, 0],      // Green
-        3 => [205, 205, 0],    // Yellow
-        4 => [0, 0, 238],      // Blue
-        5 => [205, 0, 205],    // Magenta
-        6 => [0, 205, 205],    // Cyan
-        7 => [229, 229, 229],  // White
-        8 => [127, 127, 127],  // Bright Black (Gray)
-        9 => [255, 0, 0],      // Bright Red
-        10 => [0, 255, 0],     // Bright Green
-        11 => [255, 255, 0],   // Bright Yellow
-        12 => [92, 92, 255],   // Bright Blue
-        13 => [255, 0, 255],   // Bright Magenta
-        14 => [0, 255, 255],   // Bright Cyan
-        15 => [255, 255, 255], // Bright White
-        // 216 color cube (16-231)
-        16..=231 => {
-            let idx = color_idx - 16;
-            let r = (idx / 36) * 51;
-            let g = ((idx % 36) / 6) * 51;
-            let b = (idx % 6) * 51;
-            [r, g, b]
-        }
-        // Grayscale (232-255)
-        232..=255 => {
-            let gray = 8 + (color_idx - 232) * 10;
-            [gray, gray, gray]
-        }
-    }
-}
-
 pub mod clipboard;
 pub mod graphics;
 pub mod hyperlinks;

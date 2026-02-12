@@ -17,7 +17,6 @@ pub(super) fn init_custom_shader(
     custom_shader_animation: bool,
     custom_shader_animation_speed: f32,
     window_opacity: f32,
-    custom_shader_text_opacity: f32,
     custom_shader_full_content: bool,
     custom_shader_brightness: f32,
     custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
@@ -43,7 +42,6 @@ pub(super) fn init_custom_shader(
         custom_shader_animation,
         custom_shader_animation_speed,
         window_opacity,
-        custom_shader_text_opacity,
         custom_shader_full_content,
         custom_shader_channel_paths,
         custom_shader_cubemap_path,
@@ -134,7 +132,6 @@ pub(super) fn init_cursor_shader(
         cursor_shader_animation,
         cursor_shader_animation_speed,
         window_opacity,
-        1.0,  // Text opacity (cursor shader always uses 1.0)
         true, // Full content mode (cursor shader always uses full content)
         &empty_channels,
         None, // Cursor shaders don't use cubemaps
@@ -354,7 +351,6 @@ impl Renderer {
                     animation_enabled,
                     animation_speed,
                     window_opacity,
-                    1.0,  // Text opacity (cursor shader always uses 1.0)
                     true, // Full content mode (cursor shader always uses full content)
                     &empty_channels,
                     None, // Cursor shaders don't use cubemaps
@@ -491,7 +487,6 @@ impl Renderer {
         enabled: bool,
         shader_path: Option<&str>,
         window_opacity: f32,
-        text_opacity: f32,
         animation_enabled: bool,
         animation_speed: f32,
         full_content: bool,
@@ -551,7 +546,6 @@ impl Renderer {
                     animation_enabled,
                     animation_speed,
                     window_opacity,
-                    text_opacity,
                     full_content,
                     channel_paths,
                     cubemap_path,
