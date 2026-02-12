@@ -88,16 +88,32 @@ impl WindowState {
 
         // Check if click is in the tab bar area - if so, let egui handle it
         // IMPORTANT: Do this BEFORE setting button_pressed to avoid selection state issues
-        // Tab bar height is in logical pixels (egui); mouse_position is physical pixels (winit)
-        let tab_bar_height = self
-            .tab_bar_ui
-            .get_height(self.tab_manager.tab_count(), &self.config);
+        // Tab bar dimensions are in logical pixels (egui); mouse_position is physical pixels (winit)
+        let tab_count = self.tab_manager.tab_count();
+        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
+        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
         let scale_factor = self
             .window
             .as_ref()
             .map(|w| w.scale_factor())
             .unwrap_or(1.0);
-        if mouse_position.1 < tab_bar_height as f64 * scale_factor {
+        let in_tab_bar = match self.config.tab_bar_position {
+            crate::config::TabBarPosition::Top => {
+                mouse_position.1 < tab_bar_height as f64 * scale_factor
+            }
+            crate::config::TabBarPosition::Bottom => {
+                let window_height = self
+                    .window
+                    .as_ref()
+                    .map(|w| w.inner_size().height as f64)
+                    .unwrap_or(0.0);
+                mouse_position.1 > window_height - tab_bar_height as f64 * scale_factor
+            }
+            crate::config::TabBarPosition::Left => {
+                mouse_position.0 < tab_bar_width as f64 * scale_factor
+            }
+        };
+        if in_tab_bar {
             // Request redraw so egui can process the click event
             if let Some(window) = &self.window {
                 window.request_redraw();
@@ -957,9 +973,10 @@ impl WindowState {
             let cell_height = renderer.cell_height() as f64;
             let padding = renderer.window_padding() as f64;
             let content_offset_y = renderer.content_offset_y() as f64;
+            let content_offset_x = renderer.content_offset_x() as f64;
 
-            // Account for window padding (all sides) and content offset (tab bar height)
-            let adjusted_x = (x - padding).max(0.0);
+            // Account for window padding (all sides) and content offsets (tab bar)
+            let adjusted_x = (x - padding - content_offset_x).max(0.0);
             let adjusted_y = (y - padding - content_offset_y).max(0.0);
 
             let col = (adjusted_x / cell_width) as usize;

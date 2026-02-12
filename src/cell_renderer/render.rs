@@ -495,8 +495,12 @@ impl CellRenderer {
                             _ => {}
                         }
                         // Cursor cell can't be merged, render it alone
-                        let x0 = self.window_padding + col as f32 * self.cell_width;
-                        let x1 = self.window_padding + (col + 1) as f32 * self.cell_width;
+                        let x0 = self.window_padding
+                            + self.content_offset_x
+                            + col as f32 * self.cell_width;
+                        let x1 = self.window_padding
+                            + self.content_offset_x
+                            + (col + 1) as f32 * self.cell_width;
                         let y0 = self.window_padding
                             + self.content_offset_y
                             + row as f32 * self.cell_height;
@@ -535,9 +539,12 @@ impl CellRenderer {
                     let run_length = col - start_col;
 
                     // Create single quad spanning entire run (no per-cell rounding)
-                    let x0 = self.window_padding + start_col as f32 * self.cell_width;
-                    let x1 =
-                        self.window_padding + (start_col + run_length) as f32 * self.cell_width;
+                    let x0 = self.window_padding
+                        + self.content_offset_x
+                        + start_col as f32 * self.cell_width;
+                    let x1 = self.window_padding
+                        + self.content_offset_x
+                        + (start_col + run_length) as f32 * self.cell_width;
                     let y0 =
                         self.window_padding + self.content_offset_y + row as f32 * self.cell_height;
                     let y1 = y0 + self.cell_height;
@@ -698,7 +705,8 @@ impl CellRenderer {
                             } else {
                                 self.cell_width
                             };
-                            let x0 = (self.window_padding + x_offset).round();
+                            let x0 =
+                                (self.window_padding + self.content_offset_x + x_offset).round();
                             let y0 = (self.window_padding
                                 + self.content_offset_y
                                 + row as f32 * self.cell_height)
@@ -840,8 +848,11 @@ impl CellRenderer {
                             } else {
                                 self.cell_width
                             };
-                            let x0 = (self.window_padding + x_offset).round();
-                            let x1 = (self.window_padding + x_offset + char_w).round();
+                            let x0 =
+                                (self.window_padding + self.content_offset_x + x_offset).round();
+                            let x1 =
+                                (self.window_padding + self.content_offset_x + x_offset + char_w)
+                                    .round();
                             let y0 = (self.window_padding
                                 + self.content_offset_y
                                 + row as f32 * self.cell_height)
@@ -963,7 +974,8 @@ impl CellRenderer {
         // Calculate cursor pixel positions
         let cursor_col = self.cursor_pos.0;
         let cursor_row = self.cursor_pos.1;
-        let cursor_x0 = self.window_padding + cursor_col as f32 * self.cell_width;
+        let cursor_x0 =
+            self.window_padding + self.content_offset_x + cursor_col as f32 * self.cell_width;
         let cursor_x1 = cursor_x0 + self.cell_width;
         let cursor_y0 =
             self.window_padding + self.content_offset_y + cursor_row as f32 * self.cell_height;
@@ -978,7 +990,7 @@ impl CellRenderer {
 
         // Slot 1: Cursor guide (horizontal line spanning full width at cursor row)
         if cursor_visible && self.cursor_guide_enabled {
-            let guide_x0 = self.window_padding;
+            let guide_x0 = self.window_padding + self.content_offset_x;
             let guide_x1 = self.config.width as f32 - self.window_padding;
             overlay_instances[1] = BackgroundInstance {
                 position: [
@@ -1137,7 +1149,7 @@ impl CellRenderer {
             let height_f = self.config.height as f32;
             for &(screen_row, exit_code, custom_color) in &self.visible_separator_marks {
                 if screen_row < self.rows {
-                    let x0 = self.window_padding;
+                    let x0 = self.window_padding + self.content_offset_x;
                     let x1 = width_f - self.window_padding;
                     let y0 = self.window_padding
                         + self.content_offset_y

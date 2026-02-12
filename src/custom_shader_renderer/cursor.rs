@@ -79,6 +79,11 @@ impl CustomShaderRenderer {
         self.cursor_content_offset_y = offset;
     }
 
+    /// Set horizontal content offset (e.g., tab bar on left)
+    pub fn set_content_offset_x(&mut self, offset: f32) {
+        self.cursor_content_offset_x = offset;
+    }
+
     /// Set display scale factor for DPI-aware cursor sizing
     pub fn set_scale_factor(&mut self, scale_factor: f32) {
         self.scale_factor = scale_factor;
@@ -88,7 +93,9 @@ impl CustomShaderRenderer {
     ///
     /// Returns (x, y) in pixels from top-left corner of the window.
     pub(super) fn cursor_to_pixels(&self, col: usize, row: usize) -> (f32, f32) {
-        let x = self.cursor_window_padding + (col as f32 * self.cursor_cell_width);
+        let x = self.cursor_window_padding
+            + self.cursor_content_offset_x
+            + (col as f32 * self.cursor_cell_width);
         let y = self.cursor_window_padding
             + self.cursor_content_offset_y
             + (row as f32 * self.cursor_cell_height);

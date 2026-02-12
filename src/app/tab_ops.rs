@@ -38,12 +38,19 @@ impl WindowState {
                 let new_tab_count = self.tab_manager.tab_count();
                 let old_tab_bar_height = self.tab_bar_ui.get_height(old_tab_count, &self.config);
                 let new_tab_bar_height = self.tab_bar_ui.get_height(new_tab_count, &self.config);
+                let old_tab_bar_width = self.tab_bar_ui.get_width(old_tab_count, &self.config);
+                let new_tab_bar_width = self.tab_bar_ui.get_width(new_tab_count, &self.config);
 
-                // If tab bar height changed, update content offset and resize ALL existing tabs
-                if (new_tab_bar_height - old_tab_bar_height).abs() > 0.1
+                // If tab bar dimensions changed, update content offsets and resize ALL existing tabs
+                if ((new_tab_bar_height - old_tab_bar_height).abs() > 0.1
+                    || (new_tab_bar_width - old_tab_bar_width).abs() > 0.1)
                     && let Some(renderer) = &mut self.renderer
-                    && let Some((new_cols, new_rows)) =
-                        renderer.set_content_offset_y(new_tab_bar_height)
+                    && let Some((new_cols, new_rows)) = Self::apply_tab_bar_offsets_for_position(
+                        self.config.tab_bar_position,
+                        renderer,
+                        new_tab_bar_height,
+                        new_tab_bar_width,
+                    )
                 {
                     let cell_width = renderer.cell_width();
                     let cell_height = renderer.cell_height();
@@ -62,8 +69,8 @@ impl WindowState {
                         }
                     }
                     log::info!(
-                        "Tab bar appeared (height={:.0}), resized existing tabs to {}x{}",
-                        new_tab_bar_height,
+                        "Tab bar appeared (position={:?}), resized existing tabs to {}x{}",
+                        self.config.tab_bar_position,
                         new_cols,
                         new_rows
                     );
@@ -149,6 +156,7 @@ impl WindowState {
             // Remember tab count before closing to detect tab bar visibility change
             let old_tab_count = self.tab_manager.tab_count();
             let old_tab_bar_height = self.tab_bar_ui.get_height(old_tab_count, &self.config);
+            let old_tab_bar_width = self.tab_bar_ui.get_width(old_tab_count, &self.config);
 
             let is_last = self.tab_manager.close_tab(tab_id);
 
@@ -159,11 +167,17 @@ impl WindowState {
             if !is_last {
                 let new_tab_count = self.tab_manager.tab_count();
                 let new_tab_bar_height = self.tab_bar_ui.get_height(new_tab_count, &self.config);
+                let new_tab_bar_width = self.tab_bar_ui.get_width(new_tab_count, &self.config);
 
-                if (new_tab_bar_height - old_tab_bar_height).abs() > 0.1
+                if ((new_tab_bar_height - old_tab_bar_height).abs() > 0.1
+                    || (new_tab_bar_width - old_tab_bar_width).abs() > 0.1)
                     && let Some(renderer) = &mut self.renderer
-                    && let Some((new_cols, new_rows)) =
-                        renderer.set_content_offset_y(new_tab_bar_height)
+                    && let Some((new_cols, new_rows)) = Self::apply_tab_bar_offsets_for_position(
+                        self.config.tab_bar_position,
+                        renderer,
+                        new_tab_bar_height,
+                        new_tab_bar_width,
+                    )
                 {
                     let cell_width = renderer.cell_width();
                     let cell_height = renderer.cell_height();
@@ -180,13 +194,8 @@ impl WindowState {
                         tab.cache.cells = None;
                     }
                     log::info!(
-                        "Tab bar {} (height={:.0}), resized remaining tabs to {}x{}",
-                        if new_tab_bar_height > 0.0 {
-                            "appeared"
-                        } else {
-                            "disappeared"
-                        },
-                        new_tab_bar_height,
+                        "Tab bar visibility changed (position={:?}), resized remaining tabs to {}x{}",
+                        self.config.tab_bar_position,
                         new_cols,
                         new_rows
                     );

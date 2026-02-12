@@ -485,17 +485,38 @@ impl Renderer {
         // Rescale physical pixel values when DPI changes
         if old_scale > 0.0 && (old_scale - new_scale).abs() > f32::EPSILON {
             // Rescale content_offset_y
-            let logical_offset = self.cell_renderer.content_offset_y() / old_scale;
-            let new_physical_offset = logical_offset * new_scale;
-            self.cell_renderer.set_content_offset_y(new_physical_offset);
+            let logical_offset_y = self.cell_renderer.content_offset_y() / old_scale;
+            let new_physical_offset_y = logical_offset_y * new_scale;
+            self.cell_renderer
+                .set_content_offset_y(new_physical_offset_y);
             self.graphics_renderer
-                .set_content_offset_y(new_physical_offset);
+                .set_content_offset_y(new_physical_offset_y);
             if let Some(ref mut cs) = self.custom_shader_renderer {
-                cs.set_content_offset_y(new_physical_offset);
+                cs.set_content_offset_y(new_physical_offset_y);
             }
             if let Some(ref mut cs) = self.cursor_shader_renderer {
-                cs.set_content_offset_y(new_physical_offset);
+                cs.set_content_offset_y(new_physical_offset_y);
             }
+
+            // Rescale content_offset_x
+            let logical_offset_x = self.cell_renderer.content_offset_x() / old_scale;
+            let new_physical_offset_x = logical_offset_x * new_scale;
+            self.cell_renderer
+                .set_content_offset_x(new_physical_offset_x);
+            self.graphics_renderer
+                .set_content_offset_x(new_physical_offset_x);
+            if let Some(ref mut cs) = self.custom_shader_renderer {
+                cs.set_content_offset_x(new_physical_offset_x);
+            }
+            if let Some(ref mut cs) = self.cursor_shader_renderer {
+                cs.set_content_offset_x(new_physical_offset_x);
+            }
+
+            // Rescale content_inset_bottom
+            let logical_inset_bottom = self.cell_renderer.content_inset_bottom() / old_scale;
+            let new_physical_inset_bottom = logical_inset_bottom * new_scale;
+            self.cell_renderer
+                .set_content_inset_bottom(new_physical_inset_bottom);
 
             // Rescale window_padding
             let logical_padding = self.cell_renderer.window_padding() / old_scale;
@@ -2161,6 +2182,45 @@ impl Renderer {
         if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
             cursor_shader.set_content_offset_y(physical_offset);
         }
+        if result.is_some() {
+            self.dirty = true;
+        }
+        result
+    }
+
+    /// Get the horizontal content offset in physical pixels
+    pub fn content_offset_x(&self) -> f32 {
+        self.cell_renderer.content_offset_x()
+    }
+
+    /// Set the horizontal content offset (e.g., tab bar on left) in logical pixels.
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_offset_x(&mut self, logical_offset: f32) -> Option<(usize, usize)> {
+        let physical_offset = logical_offset * self.cell_renderer.scale_factor;
+        let result = self.cell_renderer.set_content_offset_x(physical_offset);
+        self.graphics_renderer.set_content_offset_x(physical_offset);
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_content_offset_x(physical_offset);
+        }
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_content_offset_x(physical_offset);
+        }
+        if result.is_some() {
+            self.dirty = true;
+        }
+        result
+    }
+
+    /// Get the bottom content inset in physical pixels
+    pub fn content_inset_bottom(&self) -> f32 {
+        self.cell_renderer.content_inset_bottom()
+    }
+
+    /// Set the bottom content inset (e.g., tab bar at bottom) in logical pixels.
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_inset_bottom(&mut self, logical_inset: f32) -> Option<(usize, usize)> {
+        let physical_inset = logical_inset * self.cell_renderer.scale_factor;
+        let result = self.cell_renderer.set_content_inset_bottom(physical_inset);
         if result.is_some() {
             self.dirty = true;
         }

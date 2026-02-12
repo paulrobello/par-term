@@ -50,6 +50,8 @@ use winit::window::Window;
 struct RendererSizing {
     size: PhysicalSize<u32>,
     content_offset_y: f32,
+    content_offset_x: f32,
+    content_inset_bottom: f32,
     cell_width: f32,
     cell_height: f32,
     padding: f32,
@@ -643,41 +645,23 @@ impl WindowState {
         // Apply cursor shader configuration
         self.apply_cursor_shader_config(&mut renderer, &params);
 
-        // Set tab bar height BEFORE creating the first tab
+        // Set tab bar offsets BEFORE creating the first tab
         // This ensures the terminal is sized correctly from the start
         // Use 1 as tab count since we're about to create the first tab
         let initial_tab_bar_height = self.tab_bar_ui.get_height(1, &self.config);
+        let initial_tab_bar_width = self.tab_bar_ui.get_width(1, &self.config);
         let (initial_cols, initial_rows) = renderer.grid_size();
         log::info!(
-            "Tab bar init: mode={:?}, height={:.1}, initial_grid={}x{}, content_offset_before={:.1}",
+            "Tab bar init: mode={:?}, position={:?}, height={:.1}, width={:.1}, initial_grid={}x{}, content_offset_y_before={:.1}",
             self.config.tab_bar_mode,
+            self.config.tab_bar_position,
             initial_tab_bar_height,
+            initial_tab_bar_width,
             initial_cols,
             initial_rows,
             renderer.content_offset_y()
         );
-        if initial_tab_bar_height > 0.0 {
-            if let Some((new_cols, new_rows)) =
-                renderer.set_content_offset_y(initial_tab_bar_height)
-            {
-                log::info!(
-                    "Tab bar height {:.0}px applied, grid resized: {}x{} -> {}x{}",
-                    initial_tab_bar_height,
-                    initial_cols,
-                    initial_rows,
-                    new_cols,
-                    new_rows
-                );
-            } else {
-                log::info!(
-                    "Tab bar height {:.0}px applied, grid unchanged: {}x{}, content_offset_after={:.1}",
-                    initial_tab_bar_height,
-                    initial_cols,
-                    initial_rows,
-                    renderer.content_offset_y()
-                );
-            }
-        }
+        self.apply_tab_bar_offsets(&mut renderer, initial_tab_bar_height, initial_tab_bar_width);
 
         // Get the renderer's grid size BEFORE storing it (and before creating tabs)
         // This ensures the shell starts with correct dimensions that account for tab bar
@@ -777,6 +761,53 @@ impl WindowState {
     }
 
     // ========================================================================
+    // Tab Bar Offsets
+    // ========================================================================
+
+    /// Apply tab bar offsets based on the current position configuration.
+    /// Sets content_offset_y (top), content_offset_x (left), and content_inset_bottom (bottom).
+    /// Returns Some((cols, rows)) if any offset changed and caused a grid resize.
+    pub(crate) fn apply_tab_bar_offsets(
+        &self,
+        renderer: &mut crate::renderer::Renderer,
+        tab_bar_height: f32,
+        tab_bar_width: f32,
+    ) -> Option<(usize, usize)> {
+        Self::apply_tab_bar_offsets_for_position(
+            self.config.tab_bar_position,
+            renderer,
+            tab_bar_height,
+            tab_bar_width,
+        )
+    }
+
+    /// Static helper to apply tab bar offsets (avoids borrowing self).
+    pub(crate) fn apply_tab_bar_offsets_for_position(
+        position: crate::config::TabBarPosition,
+        renderer: &mut crate::renderer::Renderer,
+        tab_bar_height: f32,
+        tab_bar_width: f32,
+    ) -> Option<(usize, usize)> {
+        use crate::config::TabBarPosition;
+        let (offset_y, offset_x, inset_bottom) = match position {
+            TabBarPosition::Top => (tab_bar_height, 0.0, 0.0),
+            TabBarPosition::Bottom => (0.0, 0.0, tab_bar_height),
+            TabBarPosition::Left => (0.0, tab_bar_width, 0.0),
+        };
+
+        let mut result = None;
+        if let Some(grid) = renderer.set_content_offset_y(offset_y) {
+            result = Some(grid);
+        }
+        if let Some(grid) = renderer.set_content_offset_x(offset_x) {
+            result = Some(grid);
+        }
+        if let Some(grid) = renderer.set_content_inset_bottom(inset_bottom) {
+            result = Some(grid);
+        }
+        result
+    }
+
     // Shader Hot Reload
     // ========================================================================
 
@@ -1283,37 +1314,30 @@ impl WindowState {
             self.pending_font_rebuild = false;
         }
 
-        // Sync tab bar height with renderer's content offset
-        // This ensures the terminal grid correctly accounts for the tab bar
+        // Sync tab bar offsets with renderer's content offsets
+        // This ensures the terminal grid correctly accounts for the tab bar position
         let tab_count = self.tab_manager.tab_count();
         let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
+        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
         crate::debug_trace!(
             "TAB_SYNC",
-            "Tab count={}, tab_bar_height={:.0}, mode={:?}",
+            "Tab count={}, tab_bar_height={:.0}, tab_bar_width={:.0}, position={:?}, mode={:?}",
             tab_count,
             tab_bar_height,
+            tab_bar_width,
+            self.config.tab_bar_position,
             self.config.tab_bar_mode
         );
         if let Some(renderer) = &mut self.renderer {
-            let current_offset = renderer.content_offset_y();
-            // Compare in physical pixels (content_offset_y is physical, tab_bar_height is logical)
-            let expected_offset = tab_bar_height * renderer.scale_factor();
-            if (current_offset - expected_offset).abs() > 0.1 {
-                crate::debug_info!(
-                    "TAB_SYNC",
-                    "Content offset changing: {:.0} -> {:.0} (logical {:.0} * scale {:.1})",
-                    current_offset,
-                    expected_offset,
-                    tab_bar_height,
-                    renderer.scale_factor()
-                );
-            }
-            if let Some((new_cols, new_rows)) = renderer.set_content_offset_y(tab_bar_height) {
-                // Grid size changed - resize all tab terminals
+            let grid_changed = Self::apply_tab_bar_offsets_for_position(
+                self.config.tab_bar_position,
+                renderer,
+                tab_bar_height,
+                tab_bar_width,
+            );
+            if let Some((new_cols, new_rows)) = grid_changed {
                 let cell_width = renderer.cell_width();
                 let cell_height = renderer.cell_height();
-                // Calculate pixel dimensions from grid size (not window size)
-                // This ensures TIOCGWINSZ reports the correct terminal content dimensions
                 let width_px = (new_cols as f32 * cell_width) as usize;
                 let height_px = (new_rows as f32 * cell_height) as usize;
 
@@ -1322,13 +1346,12 @@ impl WindowState {
                         term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                         let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                     }
-                    // Invalidate cache since grid size changed
                     tab.cache.cells = None;
                 }
                 crate::debug_info!(
                     "TAB_SYNC",
-                    "Tab bar height changed to {:.0}, resized terminals to {}x{}",
-                    tab_bar_height,
+                    "Tab bar offsets changed (position={:?}), resized terminals to {}x{}",
+                    self.config.tab_bar_position,
                     new_cols,
                     new_rows
                 );
@@ -2304,6 +2327,8 @@ impl WindowState {
             let sizing = RendererSizing {
                 size: renderer.size(),
                 content_offset_y: renderer.content_offset_y(),
+                content_offset_x: renderer.content_offset_x(),
+                content_inset_bottom: renderer.content_inset_bottom(),
                 cell_width: renderer.cell_width(),
                 cell_height: renderer.cell_height(),
                 padding: renderer.window_padding(),
@@ -2332,9 +2357,11 @@ impl WindowState {
 
             let render_result = if has_pane_manager {
                 // Render panes from pane manager - inline data gathering to avoid borrow conflicts
-                let content_width = sizing.size.width as f32 - sizing.padding * 2.0;
+                let content_width =
+                    sizing.size.width as f32 - sizing.padding * 2.0 - sizing.content_offset_x;
                 let content_height = sizing.size.height as f32
                     - sizing.content_offset_y
+                    - sizing.content_inset_bottom
                     - sizing.padding
                     - sizing.status_bar_height;
 
@@ -2351,7 +2378,7 @@ impl WindowState {
                         if let Some(pm) = &mut tab.pane_manager {
                             // Update bounds
                             let bounds = crate::pane::PaneBounds::new(
-                                sizing.padding,
+                                sizing.padding + sizing.content_offset_x,
                                 sizing.content_offset_y,
                                 content_width,
                                 content_height,

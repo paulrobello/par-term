@@ -54,6 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Config: `restore_session: true` (default: false)
   - UI checkbox in Settings > Terminal > Startup
 
+- **Tab Bar Position** (#116): Configurable tab bar placement with three positions
+  - **Top** (default): Current horizontal tab bar at the top of the window
+  - **Bottom**: Horizontal tab bar below terminal content
+  - **Left**: Vertical sidebar with scrollable tab list, active indicator, and drag-and-drop reordering
+  - Configurable sidebar width for Left position (default 160px, range 100–300)
+  - All positions support tab bar visibility modes (always/when_multiple/never)
+  - Live switching via Settings UI dropdown without restart
+  - Config: `tab_bar_position: top|bottom|left`, `tab_bar_width: 160.0`
+  - UI in Settings > Window > Tab Bar
+
 ### Improved
 
 - **Settings quick search**: Added missing search keywords across all settings tabs for better discoverability of settings via the search box

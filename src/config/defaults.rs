@@ -216,6 +216,10 @@ pub fn tab_bar_height() -> f32 {
     28.0 // Default tab bar height in pixels
 }
 
+pub fn tab_bar_width() -> f32 {
+    160.0 // Default tab bar width in pixels (for left position)
+}
+
 pub fn zero() -> usize {
     0
 }

@@ -49,6 +49,8 @@ pub struct GraphicsRenderer {
     window_padding: f32,
     /// Vertical offset for content (e.g., tab bar height)
     content_offset_y: f32,
+    /// Horizontal offset for content (e.g., tab bar on left)
+    content_offset_x: f32,
 
     /// Global config: whether to preserve aspect ratio when rendering images
     preserve_aspect_ratio: bool,
@@ -120,6 +122,7 @@ impl GraphicsRenderer {
             cell_height,
             window_padding,
             content_offset_y: 0.0,
+            content_offset_x: 0.0,
             preserve_aspect_ratio,
         })
     }
@@ -355,7 +358,9 @@ impl GraphicsRenderer {
             // Check if texture exists
             if let Some(tex_info) = self.texture_cache.get(&id) {
                 // Calculate screen position (normalized 0-1, origin top-left)
-                let x = (self.window_padding + col as f32 * self.cell_width) / window_width;
+                let x =
+                    (self.window_padding + self.content_offset_x + col as f32 * self.cell_width)
+                        / window_width;
                 let y =
                     (self.window_padding + self.content_offset_y + row as f32 * self.cell_height)
                         / window_height;
@@ -486,6 +491,11 @@ impl GraphicsRenderer {
     /// Set vertical content offset (e.g., tab bar height)
     pub fn set_content_offset_y(&mut self, offset: f32) {
         self.content_offset_y = offset;
+    }
+
+    /// Set horizontal content offset (e.g., tab bar on left)
+    pub fn set_content_offset_x(&mut self, offset: f32) {
+        self.content_offset_x = offset;
     }
 
     /// Update the global aspect ratio preservation setting.

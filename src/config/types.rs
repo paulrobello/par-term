@@ -240,6 +240,44 @@ impl TabStyle {
     }
 }
 
+/// Tab bar position
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TabBarPosition {
+    /// Tab bar at the top of the window (default)
+    #[default]
+    Top,
+    /// Tab bar at the bottom of the window
+    Bottom,
+    /// Tab bar on the left side of the window (vertical layout)
+    Left,
+}
+
+impl TabBarPosition {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            TabBarPosition::Top => "Top",
+            TabBarPosition::Bottom => "Bottom",
+            TabBarPosition::Left => "Left",
+        }
+    }
+
+    /// All available positions for UI iteration
+    pub fn all() -> &'static [TabBarPosition] {
+        &[
+            TabBarPosition::Top,
+            TabBarPosition::Bottom,
+            TabBarPosition::Left,
+        ]
+    }
+
+    /// Returns true if the tab bar is horizontal (top or bottom)
+    pub fn is_horizontal(&self) -> bool {
+        matches!(self, TabBarPosition::Top | TabBarPosition::Bottom)
+    }
+}
+
 /// Tab bar visibility mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]

@@ -38,7 +38,7 @@
 //! 3. Set `close_hovered` state based on containment
 //! 4. On click, check if `close_hovered` is set before deciding action
 
-use par_term::config::{Config, TabBarMode};
+use par_term::config::{Config, TabBarMode, TabBarPosition};
 use par_term::tab_bar_ui::{TabBarAction, TabBarUI};
 
 #[test]
@@ -411,4 +411,114 @@ fn test_tab_bar_height_with_edge_case_heights() {
     };
     let zero = tab_bar.get_height(2, &config_zero);
     assert_eq!(zero, 0.0);
+}
+
+// ============================================================================
+// Tab Bar Position Tests
+// ============================================================================
+
+#[test]
+fn test_tab_bar_position_default_is_top() {
+    let config = Config::default();
+    assert_eq!(config.tab_bar_position, TabBarPosition::Top);
+}
+
+#[test]
+fn test_tab_bar_height_zero_for_left_position() {
+    let tab_bar = TabBarUI::new();
+    let config = Config {
+        tab_bar_position: TabBarPosition::Left,
+        ..Config::default()
+    };
+    // Left position should return 0 height since the bar is vertical
+    assert_eq!(tab_bar.get_height(2, &config), 0.0);
+    // Even with many tabs
+    assert_eq!(tab_bar.get_height(10, &config), 0.0);
+}
+
+#[test]
+fn test_tab_bar_width_zero_for_top_bottom() {
+    let tab_bar = TabBarUI::new();
+
+    let config_top = Config {
+        tab_bar_position: TabBarPosition::Top,
+        ..Config::default()
+    };
+    assert_eq!(tab_bar.get_width(2, &config_top), 0.0);
+
+    let config_bottom = Config {
+        tab_bar_position: TabBarPosition::Bottom,
+        ..Config::default()
+    };
+    assert_eq!(tab_bar.get_width(2, &config_bottom), 0.0);
+}
+
+#[test]
+fn test_tab_bar_width_for_left_position() {
+    let tab_bar = TabBarUI::new();
+    let config = Config {
+        tab_bar_position: TabBarPosition::Left,
+        tab_bar_width: 200.0,
+        ..Config::default()
+    };
+    assert_eq!(tab_bar.get_width(2, &config), 200.0);
+}
+
+#[test]
+fn test_tab_bar_width_respects_tab_bar_mode() {
+    let tab_bar = TabBarUI::new();
+
+    // With "when_multiple" mode and only 1 tab, width should be 0
+    let config = Config {
+        tab_bar_position: TabBarPosition::Left,
+        tab_bar_width: 200.0,
+        tab_bar_mode: TabBarMode::WhenMultiple,
+        ..Config::default()
+    };
+    assert_eq!(tab_bar.get_width(1, &config), 0.0);
+
+    // With 2+ tabs, width should be the configured value
+    assert_eq!(tab_bar.get_width(2, &config), 200.0);
+}
+
+#[test]
+fn test_tab_bar_height_for_top_and_bottom() {
+    let tab_bar = TabBarUI::new();
+
+    let config_top = Config {
+        tab_bar_position: TabBarPosition::Top,
+        tab_bar_height: 30.0,
+        ..Config::default()
+    };
+    assert_eq!(tab_bar.get_height(2, &config_top), 30.0);
+
+    let config_bottom = Config {
+        tab_bar_position: TabBarPosition::Bottom,
+        tab_bar_height: 30.0,
+        ..Config::default()
+    };
+    assert_eq!(tab_bar.get_height(2, &config_bottom), 30.0);
+}
+
+#[test]
+fn test_tab_bar_position_is_horizontal() {
+    assert!(TabBarPosition::Top.is_horizontal());
+    assert!(TabBarPosition::Bottom.is_horizontal());
+    assert!(!TabBarPosition::Left.is_horizontal());
+}
+
+#[test]
+fn test_tab_bar_position_display_names() {
+    assert_eq!(TabBarPosition::Top.display_name(), "Top");
+    assert_eq!(TabBarPosition::Bottom.display_name(), "Bottom");
+    assert_eq!(TabBarPosition::Left.display_name(), "Left");
+}
+
+#[test]
+fn test_tab_bar_position_all() {
+    let all_positions = TabBarPosition::all();
+    assert_eq!(all_positions.len(), 3);
+    assert!(all_positions.contains(&TabBarPosition::Top));
+    assert!(all_positions.contains(&TabBarPosition::Bottom));
+    assert!(all_positions.contains(&TabBarPosition::Left));
 }

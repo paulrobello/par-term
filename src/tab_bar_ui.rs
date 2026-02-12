@@ -2,7 +2,7 @@
 //!
 //! Provides a visual tab bar for switching between terminal tabs.
 
-use crate::config::{Config, TabBarMode};
+use crate::config::{Config, TabBarMode, TabBarPosition};
 use crate::tab::{TabId, TabManager};
 
 /// Styled text segment for rich tab titles
@@ -123,6 +123,21 @@ impl TabBarUI {
             return TabBarAction::None;
         }
 
+        match config.tab_bar_position {
+            TabBarPosition::Left => self.render_vertical(ctx, tabs, config),
+            _ => self.render_horizontal(ctx, tabs, config),
+        }
+    }
+
+    /// Render the tab bar in horizontal layout (top or bottom)
+    fn render_horizontal(
+        &mut self,
+        ctx: &egui::Context,
+        tabs: &TabManager,
+        config: &Config,
+    ) -> TabBarAction {
+        let tab_count = tabs.tab_count();
+
         // Clear per-frame tab rect cache
         self.tab_rects.clear();
 
@@ -134,180 +149,182 @@ impl TabBarUI {
         let new_tab_btn_width = 28.0;
         let scroll_btn_width = 24.0;
 
-        // Tab bar area at the top
         let bar_bg = config.tab_bar_background;
+        let frame =
+            egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2]));
 
-        egui::TopBottomPanel::top("tab_bar")
-            .exact_height(config.tab_bar_height)
-            .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2])))
-            .show(ctx, |ui| {
-                let total_bar_width = ui.available_width();
+        let panel = if config.tab_bar_position == TabBarPosition::Bottom {
+            egui::TopBottomPanel::bottom("tab_bar").exact_height(config.tab_bar_height)
+        } else {
+            egui::TopBottomPanel::top("tab_bar").exact_height(config.tab_bar_height)
+        };
 
-                // Calculate minimum total width needed for all tabs at min_width
-                let min_total_tabs_width = if tab_count > 0 {
-                    tab_count as f32 * config.tab_min_width + (tab_count - 1) as f32 * tab_spacing
-                } else {
-                    0.0
-                };
+        panel.frame(frame).show(ctx, |ui| {
+            let total_bar_width = ui.available_width();
 
-                // Available width for tabs (without scroll buttons initially)
-                let base_tabs_area_width = total_bar_width - new_tab_btn_width - tab_spacing;
+            // Calculate minimum total width needed for all tabs at min_width
+            let min_total_tabs_width = if tab_count > 0 {
+                tab_count as f32 * config.tab_min_width + (tab_count - 1) as f32 * tab_spacing
+            } else {
+                0.0
+            };
 
-                // Determine if scrolling is needed
-                let needs_scroll = tab_count > 0 && min_total_tabs_width > base_tabs_area_width;
+            // Available width for tabs (without scroll buttons initially)
+            let base_tabs_area_width = total_bar_width - new_tab_btn_width - tab_spacing;
 
-                // Actual tabs area width (accounting for scroll buttons if needed)
-                let tabs_area_width = if needs_scroll {
-                    base_tabs_area_width - 2.0 * scroll_btn_width - 2.0 * tab_spacing
-                } else {
-                    base_tabs_area_width
-                };
+            // Determine if scrolling is needed
+            let needs_scroll = tab_count > 0 && min_total_tabs_width > base_tabs_area_width;
 
-                // Calculate tab width
-                let tab_width = if tab_count == 0 || needs_scroll {
-                    config.tab_min_width
-                } else if config.tab_stretch_to_fill {
-                    let total_spacing = (tab_count - 1) as f32 * tab_spacing;
-                    let stretched = (tabs_area_width - total_spacing) / tab_count as f32;
-                    stretched.max(config.tab_min_width)
-                } else {
-                    config.tab_min_width
-                };
+            // Actual tabs area width (accounting for scroll buttons if needed)
+            let tabs_area_width = if needs_scroll {
+                base_tabs_area_width - 2.0 * scroll_btn_width - 2.0 * tab_spacing
+            } else {
+                base_tabs_area_width
+            };
 
-                // Calculate max scroll offset
-                let max_scroll = if needs_scroll {
-                    (min_total_tabs_width - tabs_area_width).max(0.0)
-                } else {
-                    0.0
-                };
+            // Calculate tab width
+            let tab_width = if tab_count == 0 || needs_scroll {
+                config.tab_min_width
+            } else if config.tab_stretch_to_fill {
+                let total_spacing = (tab_count - 1) as f32 * tab_spacing;
+                let stretched = (tabs_area_width - total_spacing) / tab_count as f32;
+                stretched.max(config.tab_min_width)
+            } else {
+                config.tab_min_width
+            };
 
-                // Clamp scroll offset
-                self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
+            // Calculate max scroll offset
+            let max_scroll = if needs_scroll {
+                (min_total_tabs_width - tabs_area_width).max(0.0)
+            } else {
+                0.0
+            };
 
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
+            // Clamp scroll offset
+            self.scroll_offset = self.scroll_offset.clamp(0.0, max_scroll);
 
-                    if needs_scroll {
-                        // Left scroll button
-                        let can_scroll_left = self.scroll_offset > 0.0;
-                        let left_btn = ui.add_enabled(
-                            can_scroll_left,
-                            egui::Button::new("◀")
-                                .min_size(egui::vec2(scroll_btn_width, config.tab_bar_height - 4.0))
-                                .fill(egui::Color32::TRANSPARENT),
-                        );
-                        if left_btn.clicked() {
-                            self.scroll_offset =
-                                (self.scroll_offset - tab_width - tab_spacing).max(0.0);
-                        }
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
 
-                        // Scrollable tab area
-                        let scroll_area_response = egui::ScrollArea::horizontal()
-                            .scroll_bar_visibility(
-                                egui::scroll_area::ScrollBarVisibility::AlwaysHidden,
-                            )
-                            .max_width(tabs_area_width)
-                            .horizontal_scroll_offset(self.scroll_offset)
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
-
-                                    for (index, tab) in tabs.tabs().iter().enumerate() {
-                                        let is_active = Some(tab.id) == active_tab_id;
-                                        let is_bell_active = tab.is_bell_active();
-                                        let (tab_action, tab_rect) = self.render_tab_with_width(
-                                            ui,
-                                            tab.id,
-                                            index,
-                                            &tab.title,
-                                            is_active,
-                                            tab.has_activity,
-                                            is_bell_active,
-                                            tab.custom_color,
-                                            config,
-                                            tab_width,
-                                            tab_count,
-                                        );
-                                        self.tab_rects.push((tab.id, tab_rect));
-
-                                        if tab_action != TabBarAction::None {
-                                            action = tab_action;
-                                        }
-                                    }
-                                });
-                            });
-
-                        // Update scroll offset from scroll area
-                        self.scroll_offset = scroll_area_response.state.offset.x;
-
-                        // Right scroll button
-                        let can_scroll_right = self.scroll_offset < max_scroll;
-                        let right_btn = ui.add_enabled(
-                            can_scroll_right,
-                            egui::Button::new("▶")
-                                .min_size(egui::vec2(scroll_btn_width, config.tab_bar_height - 4.0))
-                                .fill(egui::Color32::TRANSPARENT),
-                        );
-                        if right_btn.clicked() {
-                            self.scroll_offset =
-                                (self.scroll_offset + tab_width + tab_spacing).min(max_scroll);
-                        }
-                    } else {
-                        // No scrolling needed - render all tabs with equal width
-                        for (index, tab) in tabs.tabs().iter().enumerate() {
-                            let is_active = Some(tab.id) == active_tab_id;
-                            let is_bell_active = tab.is_bell_active();
-                            let (tab_action, tab_rect) = self.render_tab_with_width(
-                                ui,
-                                tab.id,
-                                index,
-                                &tab.title,
-                                is_active,
-                                tab.has_activity,
-                                is_bell_active,
-                                tab.custom_color,
-                                config,
-                                tab_width,
-                                tab_count,
-                            );
-                            self.tab_rects.push((tab.id, tab_rect));
-
-                            if tab_action != TabBarAction::None {
-                                action = tab_action;
-                            }
-                        }
-                    }
-
-                    // New tab button
-                    ui.add_space(tab_spacing);
-                    let new_tab_btn = ui.add(
-                        egui::Button::new("+")
-                            .min_size(egui::vec2(new_tab_btn_width, config.tab_bar_height - 4.0))
+                if needs_scroll {
+                    // Left scroll button
+                    let can_scroll_left = self.scroll_offset > 0.0;
+                    let left_btn = ui.add_enabled(
+                        can_scroll_left,
+                        egui::Button::new("◀")
+                            .min_size(egui::vec2(scroll_btn_width, config.tab_bar_height - 4.0))
                             .fill(egui::Color32::TRANSPARENT),
                     );
-
-                    // Use clicked_by() to only respond to mouse clicks, not keyboard
-                    if new_tab_btn.clicked_by(egui::PointerButton::Primary) {
-                        action = TabBarAction::NewTab;
+                    if left_btn.clicked() {
+                        self.scroll_offset =
+                            (self.scroll_offset - tab_width - tab_spacing).max(0.0);
                     }
 
-                    if new_tab_btn.hovered() {
-                        #[cfg(target_os = "macos")]
-                        new_tab_btn.on_hover_text("New Tab (Cmd+T)");
-                        #[cfg(not(target_os = "macos"))]
-                        new_tab_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
-                    }
-                });
+                    // Scrollable tab area
+                    let scroll_area_response = egui::ScrollArea::horizontal()
+                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                        .max_width(tabs_area_width)
+                        .horizontal_scroll_offset(self.scroll_offset)
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
 
-                // Handle drag feedback and drop detection (outside horizontal layout
-                // so we can paint over the tab bar)
-                if self.drag_in_progress {
-                    let drag_action = self.render_drag_feedback(ui, config);
-                    if drag_action != TabBarAction::None {
-                        action = drag_action;
+                                for (index, tab) in tabs.tabs().iter().enumerate() {
+                                    let is_active = Some(tab.id) == active_tab_id;
+                                    let is_bell_active = tab.is_bell_active();
+                                    let (tab_action, tab_rect) = self.render_tab_with_width(
+                                        ui,
+                                        tab.id,
+                                        index,
+                                        &tab.title,
+                                        is_active,
+                                        tab.has_activity,
+                                        is_bell_active,
+                                        tab.custom_color,
+                                        config,
+                                        tab_width,
+                                        tab_count,
+                                    );
+                                    self.tab_rects.push((tab.id, tab_rect));
+
+                                    if tab_action != TabBarAction::None {
+                                        action = tab_action;
+                                    }
+                                }
+                            });
+                        });
+
+                    // Update scroll offset from scroll area
+                    self.scroll_offset = scroll_area_response.state.offset.x;
+
+                    // Right scroll button
+                    let can_scroll_right = self.scroll_offset < max_scroll;
+                    let right_btn = ui.add_enabled(
+                        can_scroll_right,
+                        egui::Button::new("▶")
+                            .min_size(egui::vec2(scroll_btn_width, config.tab_bar_height - 4.0))
+                            .fill(egui::Color32::TRANSPARENT),
+                    );
+                    if right_btn.clicked() {
+                        self.scroll_offset =
+                            (self.scroll_offset + tab_width + tab_spacing).min(max_scroll);
+                    }
+                } else {
+                    // No scrolling needed - render all tabs with equal width
+                    for (index, tab) in tabs.tabs().iter().enumerate() {
+                        let is_active = Some(tab.id) == active_tab_id;
+                        let is_bell_active = tab.is_bell_active();
+                        let (tab_action, tab_rect) = self.render_tab_with_width(
+                            ui,
+                            tab.id,
+                            index,
+                            &tab.title,
+                            is_active,
+                            tab.has_activity,
+                            is_bell_active,
+                            tab.custom_color,
+                            config,
+                            tab_width,
+                            tab_count,
+                        );
+                        self.tab_rects.push((tab.id, tab_rect));
+
+                        if tab_action != TabBarAction::None {
+                            action = tab_action;
+                        }
                     }
                 }
+
+                // New tab button
+                ui.add_space(tab_spacing);
+                let new_tab_btn = ui.add(
+                    egui::Button::new("+")
+                        .min_size(egui::vec2(new_tab_btn_width, config.tab_bar_height - 4.0))
+                        .fill(egui::Color32::TRANSPARENT),
+                );
+
+                // Use clicked_by() to only respond to mouse clicks, not keyboard
+                if new_tab_btn.clicked_by(egui::PointerButton::Primary) {
+                    action = TabBarAction::NewTab;
+                }
+
+                if new_tab_btn.hovered() {
+                    #[cfg(target_os = "macos")]
+                    new_tab_btn.on_hover_text("New Tab (Cmd+T)");
+                    #[cfg(not(target_os = "macos"))]
+                    new_tab_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
+                }
             });
+
+            // Handle drag feedback and drop detection (outside horizontal layout
+            // so we can paint over the tab bar)
+            if self.drag_in_progress {
+                let drag_action = self.render_drag_feedback(ui, config);
+                if drag_action != TabBarAction::None {
+                    action = drag_action;
+                }
+            }
+        });
 
         // Render floating ghost tab during drag (must be outside the panel)
         if self.drag_in_progress && self.dragging_tab.is_some() {
@@ -320,6 +337,417 @@ impl TabBarUI {
             if menu_action != TabBarAction::None {
                 action = menu_action;
             }
+        }
+
+        action
+    }
+
+    /// Render the tab bar in vertical layout (left side panel)
+    fn render_vertical(
+        &mut self,
+        ctx: &egui::Context,
+        tabs: &TabManager,
+        config: &Config,
+    ) -> TabBarAction {
+        let tab_count = tabs.tab_count();
+
+        self.tab_rects.clear();
+
+        let mut action = TabBarAction::None;
+        let active_tab_id = tabs.active_tab_id();
+
+        let bar_bg = config.tab_bar_background;
+        let tab_spacing = 4.0;
+        let tab_height = config.tab_bar_height; // Reuse height config for per-tab row height
+
+        egui::SidePanel::left("tab_bar")
+            .exact_width(config.tab_bar_width)
+            .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(bar_bg[0], bar_bg[1], bar_bg[2])))
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical()
+                    .scroll_bar_visibility(
+                        egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
+                    )
+                    .show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().item_spacing = egui::vec2(0.0, tab_spacing);
+
+                            for (index, tab) in tabs.tabs().iter().enumerate() {
+                                let is_active = Some(tab.id) == active_tab_id;
+                                let is_bell_active = tab.is_bell_active();
+                                let (tab_action, tab_rect) = self.render_vertical_tab(
+                                    ui,
+                                    tab.id,
+                                    index,
+                                    &tab.title,
+                                    is_active,
+                                    tab.has_activity,
+                                    is_bell_active,
+                                    tab.custom_color,
+                                    config,
+                                    tab_height,
+                                    tab_count,
+                                );
+                                self.tab_rects.push((tab.id, tab_rect));
+
+                                if tab_action != TabBarAction::None {
+                                    action = tab_action;
+                                }
+                            }
+
+                            // New tab button at bottom
+                            ui.add_space(tab_spacing);
+                            let new_tab_btn = ui.add(
+                                egui::Button::new("+")
+                                    .min_size(egui::vec2(ui.available_width(), tab_height - 4.0))
+                                    .fill(egui::Color32::TRANSPARENT),
+                            );
+                            if new_tab_btn.clicked_by(egui::PointerButton::Primary) {
+                                action = TabBarAction::NewTab;
+                            }
+                            if new_tab_btn.hovered() {
+                                #[cfg(target_os = "macos")]
+                                new_tab_btn.on_hover_text("New Tab (Cmd+T)");
+                                #[cfg(not(target_os = "macos"))]
+                                new_tab_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
+                            }
+                        });
+                    });
+
+                // Handle drag feedback for vertical mode
+                if self.drag_in_progress {
+                    let drag_action = self.render_vertical_drag_feedback(ui, config);
+                    if drag_action != TabBarAction::None {
+                        action = drag_action;
+                    }
+                }
+            });
+
+        // Render floating ghost tab during drag
+        if self.drag_in_progress && self.dragging_tab.is_some() {
+            self.render_ghost_tab(ctx, config);
+        }
+
+        // Handle context menu
+        if let Some(context_tab_id) = self.context_menu_tab {
+            let menu_action = self.render_context_menu(ctx, context_tab_id);
+            if menu_action != TabBarAction::None {
+                action = menu_action;
+            }
+        }
+
+        action
+    }
+
+    /// Render a single tab as a full-width row in the vertical tab bar
+    #[allow(clippy::too_many_arguments)]
+    fn render_vertical_tab(
+        &mut self,
+        ui: &mut egui::Ui,
+        id: TabId,
+        _index: usize,
+        title: &str,
+        is_active: bool,
+        has_activity: bool,
+        is_bell_active: bool,
+        custom_color: Option<[u8; 3]>,
+        config: &Config,
+        tab_height: f32,
+        tab_count: usize,
+    ) -> (TabBarAction, egui::Rect) {
+        let mut action = TabBarAction::None;
+
+        let is_hovered = self.hovered_tab == Some(id);
+        let is_being_dragged = self.dragging_tab == Some(id) && self.drag_in_progress;
+        let should_dim =
+            is_being_dragged || (config.dim_inactive_tabs && !is_active && !is_hovered);
+        let opacity = if is_being_dragged {
+            100
+        } else if should_dim {
+            (config.inactive_tab_opacity * 255.0) as u8
+        } else {
+            255
+        };
+
+        let bg_color = if let Some(custom) = custom_color {
+            if is_active {
+                egui::Color32::from_rgba_unmultiplied(custom[0], custom[1], custom[2], 255)
+            } else if is_hovered {
+                let lighten = |c: u8| c.saturating_add(20);
+                egui::Color32::from_rgba_unmultiplied(
+                    lighten(custom[0]),
+                    lighten(custom[1]),
+                    lighten(custom[2]),
+                    255,
+                )
+            } else {
+                let darken = |c: u8| c.saturating_sub(30);
+                egui::Color32::from_rgba_unmultiplied(
+                    darken(custom[0]),
+                    darken(custom[1]),
+                    darken(custom[2]),
+                    opacity,
+                )
+            }
+        } else if is_active {
+            let c = config.tab_active_background;
+            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
+        } else if is_hovered {
+            let c = config.tab_hover_background;
+            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
+        } else {
+            let c = config.tab_inactive_background;
+            egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
+        };
+
+        let full_width = ui.available_width();
+        let (tab_rect, _) =
+            ui.allocate_exact_size(egui::vec2(full_width, tab_height), egui::Sense::hover());
+
+        let tab_draw_rect = tab_rect.shrink2(egui::vec2(2.0, 1.0));
+        let tab_rounding = 4.0;
+        if ui.is_rect_visible(tab_rect) {
+            ui.painter()
+                .rect_filled(tab_draw_rect, tab_rounding, bg_color);
+
+            // Active indicator: left edge bar instead of bottom underline
+            if is_active {
+                let c = if let Some(custom) = custom_color {
+                    let lighten = |v: u8| v.saturating_add(50);
+                    [lighten(custom[0]), lighten(custom[1]), lighten(custom[2])]
+                } else {
+                    config.tab_active_indicator
+                };
+                let indicator_rect = egui::Rect::from_min_size(
+                    tab_draw_rect.left_top(),
+                    egui::vec2(3.0, tab_draw_rect.height()),
+                );
+                ui.painter().rect_filled(
+                    indicator_rect,
+                    egui::CornerRadius {
+                        nw: tab_rounding as u8,
+                        sw: tab_rounding as u8,
+                        ne: 0,
+                        se: 0,
+                    },
+                    egui::Color32::from_rgb(c[0], c[1], c[2]),
+                );
+            }
+
+            // Content
+            let content_rect = tab_rect.shrink2(egui::vec2(8.0, 2.0));
+            let mut content_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(content_rect)
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            );
+
+            content_ui.horizontal(|ui| {
+                if is_bell_active {
+                    let c = config.tab_bell_indicator;
+                    ui.colored_label(egui::Color32::from_rgb(c[0], c[1], c[2]), "🔔");
+                    ui.add_space(2.0);
+                } else if has_activity && !is_active {
+                    let c = config.tab_activity_indicator;
+                    ui.colored_label(egui::Color32::from_rgb(c[0], c[1], c[2]), "•");
+                    ui.add_space(2.0);
+                }
+
+                let text_color = if is_active {
+                    let c = config.tab_active_text;
+                    egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
+                } else {
+                    let c = config.tab_inactive_text;
+                    egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
+                };
+
+                // Truncate title to fit available width
+                let close_width = if config.tab_show_close_button {
+                    20.0
+                } else {
+                    0.0
+                };
+                let available = (full_width - 16.0 - close_width).max(20.0);
+                let base_font_id = ui.style().text_styles[&egui::TextStyle::Button].clone();
+                let max_chars = estimate_max_chars(ui, &base_font_id, available);
+                let display_title = truncate_plain(title, max_chars);
+                ui.label(egui::RichText::new(display_title).color(text_color));
+            });
+
+            // Close button at right edge
+            if config.tab_show_close_button {
+                let close_size = 16.0;
+                let close_rect = egui::Rect::from_min_size(
+                    egui::pos2(
+                        tab_rect.right() - close_size - 4.0,
+                        tab_rect.center().y - close_size / 2.0,
+                    ),
+                    egui::vec2(close_size, close_size),
+                );
+                let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
+                let close_hovered = pointer_pos.is_some_and(|pos| close_rect.contains(pos));
+
+                if close_hovered {
+                    self.close_hovered = Some(id);
+                } else if self.close_hovered == Some(id) {
+                    self.close_hovered = None;
+                }
+
+                let close_color = if self.close_hovered == Some(id) {
+                    let c = config.tab_close_button_hover;
+                    egui::Color32::from_rgb(c[0], c[1], c[2])
+                } else {
+                    let c = config.tab_close_button;
+                    egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], opacity)
+                };
+
+                ui.painter().text(
+                    close_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    "×",
+                    egui::FontId::proportional(12.0),
+                    close_color,
+                );
+            }
+        }
+
+        // Handle click and drag
+        let tab_response = ui.interact(
+            tab_rect,
+            egui::Id::new(("tab_click", id)),
+            egui::Sense::click_and_drag(),
+        );
+
+        let pointer_in_tab = tab_response.hovered();
+        let clicked = tab_response.clicked_by(egui::PointerButton::Primary);
+
+        if tab_count > 1
+            && !self.drag_in_progress
+            && self.close_hovered != Some(id)
+            && tab_response.drag_started_by(egui::PointerButton::Primary)
+        {
+            self.drag_in_progress = true;
+            self.dragging_tab = Some(id);
+            self.dragging_title = title.to_string();
+            self.dragging_color = custom_color;
+            self.dragging_tab_width = full_width;
+        }
+
+        let is_dragging_this = self.dragging_tab == Some(id) && self.drag_in_progress;
+
+        if clicked
+            && !is_dragging_this
+            && action == TabBarAction::None
+            && self.close_hovered != Some(id)
+        {
+            action = TabBarAction::SwitchTo(id);
+        }
+
+        if clicked && self.close_hovered == Some(id) {
+            action = TabBarAction::Close(id);
+        }
+
+        if tab_response.secondary_clicked() {
+            self.editing_color = custom_color.unwrap_or([100, 100, 100]);
+            self.context_menu_tab = Some(id);
+            if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
+                self.context_menu_pos = pos;
+            }
+            self.context_menu_opened_frame = ui.ctx().cumulative_frame_nr();
+        }
+
+        if pointer_in_tab {
+            self.hovered_tab = Some(id);
+        } else if self.hovered_tab == Some(id) {
+            self.hovered_tab = None;
+        }
+
+        (action, tab_rect)
+    }
+
+    /// Render drag feedback for vertical tab bar layout
+    fn render_vertical_drag_feedback(
+        &mut self,
+        ui: &mut egui::Ui,
+        config: &Config,
+    ) -> TabBarAction {
+        let mut action = TabBarAction::None;
+
+        let dragging_id = match self.dragging_tab {
+            Some(id) => id,
+            None => {
+                self.drag_in_progress = false;
+                return action;
+            }
+        };
+
+        if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.drag_in_progress = false;
+            self.dragging_tab = None;
+            self.drop_target_index = None;
+            return action;
+        }
+
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+
+        let drag_source_index = self.tab_rects.iter().position(|(id, _)| *id == dragging_id);
+
+        if let Some(pointer_pos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
+            let mut insert_index = self.tab_rects.len();
+            for (i, (_id, rect)) in self.tab_rects.iter().enumerate() {
+                if pointer_pos.y < rect.center().y {
+                    insert_index = i;
+                    break;
+                }
+            }
+
+            let is_noop =
+                drag_source_index.is_some_and(|src| insert_index == src || insert_index == src + 1);
+
+            if is_noop {
+                self.drop_target_index = None;
+            } else {
+                self.drop_target_index = Some(insert_index);
+
+                // Horizontal indicator line for vertical layout
+                let indicator_y = if insert_index < self.tab_rects.len() {
+                    self.tab_rects[insert_index].1.top() - 2.0
+                } else if let Some(last) = self.tab_rects.last() {
+                    last.1.bottom() + 2.0
+                } else {
+                    0.0
+                };
+
+                let indicator_color = egui::Color32::from_rgb(80, 160, 255);
+                let left = config.tab_bar_width * 0.05;
+                let right = config.tab_bar_width * 0.95;
+
+                ui.painter().line_segment(
+                    [
+                        egui::pos2(left, indicator_y),
+                        egui::pos2(right, indicator_y),
+                    ],
+                    egui::Stroke::new(3.0, indicator_color),
+                );
+            }
+        }
+
+        if ui.ctx().input(|i| i.pointer.any_released()) {
+            if let Some(insert_idx) = self.drop_target_index {
+                let effective_target = if let Some(src) = drag_source_index {
+                    if insert_idx > src {
+                        insert_idx - 1
+                    } else {
+                        insert_idx
+                    }
+                } else {
+                    insert_idx
+                };
+                action = TabBarAction::Reorder(dragging_id, effective_target);
+            }
+            self.drag_in_progress = false;
+            self.dragging_tab = None;
+            self.drop_target_index = None;
         }
 
         action
@@ -951,10 +1379,23 @@ impl TabBarUI {
         action
     }
 
-    /// Get the tab bar height (0 if hidden)
+    /// Get the tab bar height (0 if hidden or if position is Left)
     pub fn get_height(&self, tab_count: usize, config: &Config) -> f32 {
-        if self.should_show(tab_count, config.tab_bar_mode) {
+        if self.should_show(tab_count, config.tab_bar_mode)
+            && config.tab_bar_position.is_horizontal()
+        {
             config.tab_bar_height
+        } else {
+            0.0
+        }
+    }
+
+    /// Get the tab bar width (non-zero only for Left position, 0 if hidden)
+    pub fn get_width(&self, tab_count: usize, config: &Config) -> f32 {
+        if self.should_show(tab_count, config.tab_bar_mode)
+            && config.tab_bar_position == TabBarPosition::Left
+        {
+            config.tab_bar_width
         } else {
             0.0
         }
