@@ -9,6 +9,39 @@ use winit::window::Window;
 pub mod graphics;
 pub mod shaders;
 
+/// A visible separator mark: (screen_row, exit_code, custom_color_override)
+pub type SeparatorMark = (usize, Option<i32>, Option<(u8, u8, u8)>);
+
+/// Compute which separator marks are visible in the current viewport.
+///
+/// Maps absolute scrollback line numbers to screen rows for the current view.
+/// Deduplicates marks that are close together (e.g., multi-line prompts generate
+/// both a PromptStart and CommandStart mark within a few lines). When marks are
+/// within `MERGE_THRESHOLD` lines of each other, they are merged — keeping the
+/// earliest screen row (from PromptStart) while inheriting exit code and color
+/// from whichever mark carries them.
+pub fn compute_visible_separator_marks(
+    marks: &[crate::scrollback_metadata::ScrollbackMark],
+    scrollback_len: usize,
+    scroll_offset: usize,
+    visible_lines: usize,
+) -> Vec<SeparatorMark> {
+    let viewport_start = scrollback_len.saturating_sub(scroll_offset);
+    let viewport_end = viewport_start + visible_lines;
+
+    marks
+        .iter()
+        .filter_map(|mark| {
+            if mark.line >= viewport_start && mark.line < viewport_end {
+                let screen_row = mark.line - viewport_start;
+                Some((screen_row, mark.exit_code, mark.color))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 /// Information needed to render a single pane
 pub struct PaneRenderInfo<'a> {
     /// Viewport bounds and state for this pane
@@ -24,8 +57,11 @@ pub struct PaneRenderInfo<'a> {
     /// Whether this pane has a scrollbar visible
     pub show_scrollbar: bool,
     /// Scrollback marks for this pane
-    #[allow(dead_code)]
     pub marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    /// Scrollback length for this pane (needed for separator mark mapping)
+    pub scrollback_len: usize,
+    /// Current scroll offset for this pane (needed for separator mark mapping)
+    pub scroll_offset: usize,
 }
 
 /// Information needed to render a pane divider
@@ -567,6 +603,26 @@ impl Renderer {
         self.dirty = true;
     }
 
+    /// Update command separator settings from config
+    pub fn update_command_separator(
+        &mut self,
+        enabled: bool,
+        thickness: f32,
+        opacity: f32,
+        exit_color: bool,
+        color: [u8; 3],
+    ) {
+        self.cell_renderer
+            .update_command_separator(enabled, thickness, opacity, exit_color, color);
+        self.dirty = true;
+    }
+
+    /// Set the visible separator marks for the current frame (single-pane path)
+    pub fn set_separator_marks(&mut self, marks: Vec<SeparatorMark>) {
+        self.cell_renderer.set_separator_marks(marks);
+        self.dirty = true;
+    }
+
     /// Set whether transparency affects only default background cells.
     /// When true, non-default (colored) backgrounds remain opaque for readability.
     pub fn set_transparency_affects_only_default_background(&mut self, value: bool) {
@@ -1017,6 +1073,12 @@ impl Renderer {
 
         // Render each pane (skip background image since we rendered it full-screen)
         for pane in panes {
+            let separator_marks = compute_visible_separator_marks(
+                &pane.marks,
+                pane.scrollback_len,
+                pane.scroll_offset,
+                pane.grid_size.1,
+            );
             self.cell_renderer.render_pane_to_view(
                 &surface_view,
                 &pane.viewport,
@@ -1028,6 +1090,7 @@ impl Renderer {
                 pane.show_scrollbar,
                 false,                // Don't clear - we already cleared the surface
                 has_background_image, // Skip background image if already rendered full-screen
+                &separator_marks,
             )?;
         }
 
@@ -1168,6 +1231,12 @@ impl Renderer {
 
         // Render each pane's content (skip background image since we rendered it full-screen)
         for pane in panes {
+            let separator_marks = compute_visible_separator_marks(
+                &pane.marks,
+                pane.scrollback_len,
+                pane.scroll_offset,
+                pane.grid_size.1,
+            );
             self.cell_renderer.render_pane_to_view(
                 &surface_view,
                 &pane.viewport,
@@ -1179,6 +1248,7 @@ impl Renderer {
                 pane.show_scrollbar,
                 false, // Don't clear - we already cleared the surface
                 has_background_image || has_custom_shader, // Skip background if already rendered
+                &separator_marks,
             )?;
         }
 

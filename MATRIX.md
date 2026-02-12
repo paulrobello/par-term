@@ -168,6 +168,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Mark indicators | ✅ `Show Mark Indicators` | ✅ `scrollbar_command_marks` | ✅ | - | - | Color-coded marks on scrollbar (green=success, red=fail) |
 | Mark tooltips | ❌ | ✅ `scrollbar_mark_tooltips` | ✅ | - | - | **par-term exclusive** - command, time, duration, exit code |
 | Mark navigation | ✅ | ✅ Cmd+Up/Down | ✅ | - | - | Jump between command marks |
+| Command separator lines | ❌ | ✅ `command_separator_enabled` | ✅ | - | - | Horizontal lines between commands, color-coded by exit code; works with any prompt height |
 
 ---
 

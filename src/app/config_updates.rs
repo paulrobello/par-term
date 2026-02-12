@@ -102,6 +102,9 @@ pub(crate) struct ConfigChanges {
 
     // Badge
     pub badge: bool,
+
+    // Command separator lines
+    pub command_separator: bool,
 }
 
 impl ConfigChanges {
@@ -243,6 +246,14 @@ impl ConfigChanges {
                 || (new.badge_right_margin - old.badge_right_margin).abs() > f32::EPSILON
                 || (new.badge_max_width - old.badge_max_width).abs() > f32::EPSILON
                 || (new.badge_max_height - old.badge_max_height).abs() > f32::EPSILON,
+
+            command_separator: new.command_separator_enabled != old.command_separator_enabled
+                || (new.command_separator_thickness - old.command_separator_thickness).abs()
+                    > f32::EPSILON
+                || (new.command_separator_opacity - old.command_separator_opacity).abs()
+                    > f32::EPSILON
+                || new.command_separator_exit_color != old.command_separator_exit_color
+                || new.command_separator_color != old.command_separator_color,
         }
     }
 

@@ -4,6 +4,7 @@ use std::sync::Arc;
 use winit::window::Window;
 
 use crate::font_manager::FontManager;
+use crate::renderer::SeparatorMark;
 use crate::scrollbar::Scrollbar;
 
 pub mod atlas;
@@ -179,6 +180,20 @@ pub struct CellRenderer {
 
     /// When true, text is always rendered at full opacity regardless of window transparency.
     pub(crate) keep_text_opaque: bool,
+
+    // Command separator line settings
+    /// Whether to render separator lines between commands
+    pub(crate) command_separator_enabled: bool,
+    /// Thickness of separator lines in pixels
+    pub(crate) command_separator_thickness: f32,
+    /// Opacity of separator lines (0.0-1.0)
+    pub(crate) command_separator_opacity: f32,
+    /// Whether to color separator lines by exit code
+    pub(crate) command_separator_exit_color: bool,
+    /// Custom separator color [R, G, B] as floats (0.0-1.0)
+    pub(crate) command_separator_color: [f32; 3],
+    /// Visible separator marks for current frame: (screen_row, exit_code, custom_color)
+    pub(crate) visible_separator_marks: Vec<SeparatorMark>,
 }
 
 impl CellRenderer {
@@ -401,7 +416,7 @@ impl CellRenderer {
         let vertex_buffer = pipeline::create_vertex_buffer(&device);
 
         // Instance buffers
-        let max_bg_instances = cols * rows + 10; // Extra slots for cursor overlays (guide, shadow, boost, hollow)
+        let max_bg_instances = cols * rows + 10 + rows; // Extra slots for cursor overlays + separator lines
         let max_text_instances = cols * rows * 2;
         let (bg_instance_buffer, text_instance_buffer) =
             pipeline::create_instance_buffers(&device, max_bg_instances, max_text_instances);
@@ -517,6 +532,12 @@ impl CellRenderer {
             solid_pixel_offset: (0, 0),
             transparency_affects_only_default_background: false,
             keep_text_opaque: true,
+            command_separator_enabled: false,
+            command_separator_thickness: 1.0,
+            command_separator_opacity: 0.4,
+            command_separator_exit_color: true,
+            command_separator_color: [0.5, 0.5, 0.5],
+            visible_separator_marks: Vec::new(),
         };
 
         // Upload a solid white 2x2 pixel block to the atlas for geometric block rendering
@@ -642,7 +663,7 @@ impl CellRenderer {
     }
 
     fn recreate_instance_buffers(&mut self) {
-        self.max_bg_instances = self.cols * self.rows + 10; // Extra slots for cursor overlays
+        self.max_bg_instances = self.cols * self.rows + 10 + self.rows; // Extra slots for cursor overlays + separator lines
         self.max_text_instances = self.cols * self.rows * 2;
         let (bg_buf, text_buf) = pipeline::create_instance_buffers(
             &self.device,
@@ -926,6 +947,59 @@ impl CellRenderer {
             self.keep_text_opaque = value;
             // Mark all rows dirty to re-render with new text opacity behavior
             self.dirty_rows.fill(true);
+        }
+    }
+
+    /// Update command separator settings from config
+    pub fn update_command_separator(
+        &mut self,
+        enabled: bool,
+        thickness: f32,
+        opacity: f32,
+        exit_color: bool,
+        color: [u8; 3],
+    ) {
+        self.command_separator_enabled = enabled;
+        self.command_separator_thickness = thickness;
+        self.command_separator_opacity = opacity;
+        self.command_separator_exit_color = exit_color;
+        self.command_separator_color = [
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0,
+        ];
+    }
+
+    /// Set the visible separator marks for the current frame
+    pub fn set_separator_marks(&mut self, marks: Vec<SeparatorMark>) {
+        self.visible_separator_marks = marks;
+    }
+
+    /// Compute separator color based on exit code and settings
+    fn separator_color(
+        &self,
+        exit_code: Option<i32>,
+        custom_color: Option<(u8, u8, u8)>,
+        opacity_mult: f32,
+    ) -> [f32; 4] {
+        let alpha = self.command_separator_opacity * opacity_mult;
+        // Custom color from trigger marks takes priority
+        if let Some((r, g, b)) = custom_color {
+            return [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, alpha];
+        }
+        if self.command_separator_exit_color {
+            match exit_code {
+                Some(0) => [0.3, 0.75, 0.3, alpha],   // Green for success
+                Some(_) => [0.85, 0.25, 0.25, alpha], // Red for failure
+                None => [0.5, 0.5, 0.5, alpha],       // Gray for unknown
+            }
+        } else {
+            [
+                self.command_separator_color[0],
+                self.command_separator_color[1],
+                self.command_separator_color[2],
+                alpha,
+            ]
         }
     }
 

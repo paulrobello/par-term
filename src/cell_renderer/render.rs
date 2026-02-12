@@ -1,5 +1,6 @@
 use super::block_chars;
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, RowCacheEntry, TextInstance};
+use crate::renderer::SeparatorMark;
 use crate::text_shaper::ShapingOptions;
 use anyhow::Result;
 
@@ -1120,6 +1121,58 @@ impl CellRenderer {
             bytemuck::cast_slice(&overlay_instances),
         );
 
+        // Write command separator line instances after cursor overlay slots
+        let separator_base = self.cols * self.rows + 10;
+        let mut separator_instances = vec![
+            BackgroundInstance {
+                position: [0.0, 0.0],
+                size: [0.0, 0.0],
+                color: [0.0, 0.0, 0.0, 0.0],
+            };
+            self.rows
+        ];
+
+        if self.command_separator_enabled {
+            let width_f = self.config.width as f32;
+            let height_f = self.config.height as f32;
+            for &(screen_row, exit_code, custom_color) in &self.visible_separator_marks {
+                if screen_row < self.rows {
+                    let x0 = self.window_padding;
+                    let x1 = width_f - self.window_padding;
+                    let y0 = self.window_padding
+                        + self.content_offset_y
+                        + screen_row as f32 * self.cell_height;
+                    let color = self.separator_color(exit_code, custom_color, 1.0);
+                    separator_instances[screen_row] = BackgroundInstance {
+                        position: [x0 / width_f * 2.0 - 1.0, 1.0 - (y0 / height_f * 2.0)],
+                        size: [
+                            (x1 - x0) / width_f * 2.0,
+                            self.command_separator_thickness / height_f * 2.0,
+                        ],
+                        color,
+                    };
+                }
+            }
+        }
+
+        for (i, instance) in separator_instances.iter().enumerate() {
+            if separator_base + i < self.max_bg_instances {
+                self.bg_instances[separator_base + i] = *instance;
+            }
+        }
+        let separator_byte_offset = separator_base * std::mem::size_of::<BackgroundInstance>();
+        let separator_byte_count =
+            separator_instances.len() * std::mem::size_of::<BackgroundInstance>();
+        if separator_byte_offset + separator_byte_count
+            <= self.max_bg_instances * std::mem::size_of::<BackgroundInstance>()
+        {
+            self.queue.write_buffer(
+                &self.bg_instance_buffer,
+                separator_byte_offset as u64,
+                bytemuck::cast_slice(&separator_instances),
+            );
+        }
+
         Ok(())
     }
 
@@ -1153,6 +1206,7 @@ impl CellRenderer {
         show_scrollbar: bool,
         clear_first: bool,
         skip_background_image: bool,
+        separator_marks: &[SeparatorMark],
     ) -> Result<()> {
         // Build instance buffers for this pane's cells
         // Skip solid background fill if background (shader/image) was already rendered full-screen
@@ -1164,6 +1218,7 @@ impl CellRenderer {
             cursor_pos,
             cursor_opacity,
             skip_background_image,
+            separator_marks,
         )?;
 
         let mut encoder = self
@@ -1282,6 +1337,7 @@ impl CellRenderer {
         cursor_pos: Option<(usize, usize)>,
         cursor_opacity: f32,
         skip_solid_background: bool,
+        separator_marks: &[SeparatorMark],
     ) -> Result<()> {
         let _shaping_options = ShapingOptions {
             enable_ligatures: self.enable_ligatures,
@@ -1669,6 +1725,31 @@ impl CellRenderer {
                 }
             }
         }
+
+        // Inject command separator line instances for split panes
+        if self.command_separator_enabled && !separator_marks.is_empty() {
+            let width_f = self.config.width as f32;
+            let height_f = self.config.height as f32;
+            let opacity_multiplier = viewport.opacity;
+            for &(screen_row, exit_code, custom_color) in separator_marks {
+                if screen_row < rows && bg_index < self.max_bg_instances {
+                    let x0 = content_x;
+                    let x1 = content_x + cols as f32 * self.cell_width;
+                    let y0 = content_y + screen_row as f32 * self.cell_height;
+                    let color = self.separator_color(exit_code, custom_color, opacity_multiplier);
+                    self.bg_instances[bg_index] = BackgroundInstance {
+                        position: [x0 / width_f * 2.0 - 1.0, 1.0 - (y0 / height_f * 2.0)],
+                        size: [
+                            (x1 - x0) / width_f * 2.0,
+                            self.command_separator_thickness / height_f * 2.0,
+                        ],
+                        color,
+                    };
+                    bg_index += 1;
+                }
+            }
+        }
+        let _ = bg_index; // suppress unused warning
 
         // Upload instance buffers to GPU
         self.queue.write_buffer(

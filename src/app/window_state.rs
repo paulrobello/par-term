@@ -62,6 +62,8 @@ type PaneRenderData = (
     Option<(usize, usize)>,
     f32,
     Vec<ScrollbackMark>,
+    usize, // scrollback_len
+    usize, // scroll_offset
 );
 
 /// Per-window state that manages a single terminal window with multiple tabs
@@ -1555,7 +1557,9 @@ impl WindowState {
             self.copy_mode.update_dimensions(cols, rows, scrollback_len);
         }
 
-        let mut scrollback_marks = if self.config.scrollbar_command_marks {
+        let need_marks =
+            self.config.scrollbar_command_marks || self.config.command_separator_enabled;
+        let mut scrollback_marks = if need_marks {
             if let Ok(term) = terminal.try_lock() {
                 term.scrollback_marks()
             } else {
@@ -1770,6 +1774,19 @@ impl WindowState {
                 .map(|t| t.scroll_state.offset)
                 .unwrap_or(0);
             renderer.update_scrollbar(scroll_offset, visible_lines, total_lines, &scrollback_marks);
+
+            // Compute and set command separator marks for single-pane rendering
+            if self.config.command_separator_enabled {
+                let separator_marks = crate::renderer::compute_visible_separator_marks(
+                    &scrollback_marks,
+                    scrollback_len,
+                    scroll_offset,
+                    visible_lines,
+                );
+                renderer.set_separator_marks(separator_marks);
+            } else {
+                renderer.set_separator_marks(Vec::new());
+            }
 
             // Update animations and request redraw if frames changed
             let anim_start = std::time::Instant::now();
@@ -2416,18 +2433,21 @@ impl WindowState {
                                         Vec::new()
                                     };
 
-                                    let marks = if self.config.scrollbar_command_marks {
+                                    let need_marks = self.config.scrollbar_command_marks
+                                        || self.config.command_separator_enabled;
+                                    let (marks, pane_scrollback_len) = if need_marks {
                                         if let Ok(mut term) = pane.terminal.try_lock() {
                                             // Use cursor row 0 when unknown in split panes
                                             let sb_len = term.scrollback_len();
                                             term.update_scrollback_metadata(sb_len, 0);
-                                            term.scrollback_marks()
+                                            (term.scrollback_marks(), sb_len)
                                         } else {
-                                            Vec::new()
+                                            (Vec::new(), 0)
                                         }
                                     } else {
-                                        Vec::new()
+                                        (Vec::new(), 0)
                                     };
+                                    let pane_scroll_offset = pane.scroll_state.offset;
 
                                     let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
                                         if term.is_cursor_visible() {
@@ -2460,6 +2480,8 @@ impl WindowState {
                                         cursor_pos,
                                         if is_focused { cursor_opacity } else { 0.0 },
                                         marks,
+                                        pane_scrollback_len,
+                                        pane_scroll_offset,
                                     ));
                                 }
                             }
@@ -2866,7 +2888,17 @@ impl WindowState {
         let mut pane_render_infos: Vec<PaneRenderInfo> = Vec::new();
         let mut leaked_cells: Vec<*mut [crate::cell_renderer::Cell]> = Vec::new();
 
-        for (viewport, cells, grid_size, cursor_pos, cursor_opacity, marks) in pane_data {
+        for (
+            viewport,
+            cells,
+            grid_size,
+            cursor_pos,
+            cursor_opacity,
+            marks,
+            scrollback_len,
+            scroll_offset,
+        ) in pane_data
+        {
             let cells_boxed = cells.into_boxed_slice();
             let cells_ptr = Box::into_raw(cells_boxed);
             leaked_cells.push(cells_ptr);
@@ -2880,6 +2912,8 @@ impl WindowState {
                 cursor_opacity,
                 show_scrollbar: false,
                 marks,
+                scrollback_len,
+                scroll_offset,
             });
         }
 

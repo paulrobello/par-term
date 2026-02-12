@@ -899,6 +899,29 @@ pub struct Config {
     pub scrollbar_mark_tooltips: bool,
 
     // ========================================================================
+    // Command Separator Lines
+    // ========================================================================
+    /// Show horizontal separator lines between commands (requires shell integration)
+    #[serde(default = "defaults::bool_false")]
+    pub command_separator_enabled: bool,
+
+    /// Thickness of command separator lines in pixels
+    #[serde(default = "defaults::command_separator_thickness")]
+    pub command_separator_thickness: f32,
+
+    /// Opacity of command separator lines (0.0-1.0)
+    #[serde(default = "defaults::command_separator_opacity")]
+    pub command_separator_opacity: f32,
+
+    /// Color separator lines by exit code (green=success, red=failure, gray=unknown)
+    #[serde(default = "defaults::bool_true")]
+    pub command_separator_exit_color: bool,
+
+    /// Custom color for separator lines when exit_color is disabled [R, G, B]
+    #[serde(default = "defaults::command_separator_color")]
+    pub command_separator_color: [u8; 3],
+
+    // ========================================================================
     // Clipboard Sync Limits
     // ========================================================================
     /// Maximum clipboard sync events retained for diagnostics
@@ -1673,6 +1696,11 @@ impl Default for Config {
             scrollbar_track_color: defaults::scrollbar_track_color(),
             scrollbar_command_marks: defaults::bool_true(),
             scrollbar_mark_tooltips: defaults::bool_false(),
+            command_separator_enabled: defaults::bool_false(),
+            command_separator_thickness: defaults::command_separator_thickness(),
+            command_separator_opacity: defaults::command_separator_opacity(),
+            command_separator_exit_color: defaults::bool_true(),
+            command_separator_color: defaults::command_separator_color(),
             clipboard_max_sync_events: defaults::clipboard_max_sync_events(),
             clipboard_max_event_bytes: defaults::clipboard_max_event_bytes(),
             notification_bell_desktop: defaults::bool_false(),

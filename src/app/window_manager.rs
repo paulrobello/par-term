@@ -843,9 +843,12 @@ impl WindowManager {
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
                     // Clear scrollback in active tab
-                    let cleared = if let Some(tab) = window_state.tab_manager.active_tab() {
-                        if let Ok(term) = tab.terminal.try_lock() {
+                    let cleared = if let Some(tab) = window_state.tab_manager.active_tab_mut() {
+                        if let Ok(mut term) = tab.terminal.try_lock() {
                             term.clear_scrollback();
+                            term.clear_scrollback_metadata();
+                            tab.cache.scrollback_len = 0;
+                            tab.trigger_marks.clear();
                             true
                         } else {
                             false
@@ -855,10 +858,6 @@ impl WindowManager {
                     };
 
                     if cleared {
-                        if let Some(tab) = window_state.tab_manager.active_tab_mut() {
-                            tab.cache.scrollback_len = 0;
-                            tab.trigger_marks.clear();
-                        }
                         window_state.set_scroll_target(0);
                         log::info!("Cleared scrollback buffer");
                     }
@@ -1283,6 +1282,18 @@ impl WindowManager {
                     );
                     renderer.update_cursor_boost(config.cursor_boost, config.cursor_boost_color);
                     renderer.update_unfocused_cursor_style(config.unfocused_cursor_style);
+                    window_state.needs_redraw = true;
+                }
+
+                // Apply command separator changes
+                if changes.command_separator {
+                    renderer.update_command_separator(
+                        config.command_separator_enabled,
+                        config.command_separator_thickness,
+                        config.command_separator_opacity,
+                        config.command_separator_exit_color,
+                        config.command_separator_color,
+                    );
                     window_state.needs_redraw = true;
                 }
 

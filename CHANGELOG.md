@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Command Separator Lines**: Horizontal separator lines between shell commands in the terminal grid
+  - Renders thin lines at prompt boundaries using existing shell integration (OSC 133) marks
+  - Exit-code coloring: green for success, red for failure, gray for unknown
+  - Configurable thickness (0.5-5.0 px), opacity (0.0-1.0), and custom fixed color
+  - Works with any prompt height (single-line, multi-line, tall starship/powerline prompts)
+  - Separator placed at the top of the prompt (PromptStart marker), not the cursor line
+  - Works in both single-pane and split-pane modes
+  - Respects trigger mark custom colors
+  - Settings UI in Terminal > Command Separators section
+  - Config: `command_separator_enabled`, `command_separator_thickness`, `command_separator_opacity`, `command_separator_exit_color`, `command_separator_color`
+  - Disabled by default (opt-in)
+
+- **Shell Integration Event Queuing** (core library): OSC 133 markers now queue with cursor positions
+  - Each shell integration marker records the absolute cursor line at parse time
+  - Eliminates marker batching where multiple markers between frames collapsed to one
+  - Ensures accurate separator/mark placement for multi-line prompts
+  - `__PAR_TERM` environment variable set for shell integration script detection
+
 - **Variable Substitution in Config** (#102): Use `${VAR}` environment variable references in `config.yaml` values
   - All string config fields support substitution (e.g., `background_image: "${HOME}/Pictures/bg.png"`)
   - Default values via `${VAR:-default}` syntax for unset variables

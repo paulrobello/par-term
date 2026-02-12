@@ -96,6 +96,12 @@ pub(crate) struct RendererInitParams {
     pub cursor_boost: f32,
     pub cursor_boost_color: [u8; 3],
     pub unfocused_cursor_style: UnfocusedCursorStyle,
+    // Command separator settings
+    pub command_separator_enabled: bool,
+    pub command_separator_thickness: f32,
+    pub command_separator_opacity: f32,
+    pub command_separator_exit_color: bool,
+    pub command_separator_color: [u8; 3],
 }
 
 impl RendererInitParams {
@@ -215,6 +221,11 @@ impl RendererInitParams {
             cursor_boost: config.cursor_boost,
             cursor_boost_color: config.cursor_boost_color,
             unfocused_cursor_style: config.unfocused_cursor_style,
+            command_separator_enabled: config.command_separator_enabled,
+            command_separator_thickness: config.command_separator_thickness,
+            command_separator_opacity: config.command_separator_opacity,
+            command_separator_exit_color: config.command_separator_exit_color,
+            command_separator_color: config.command_separator_color,
         }
     }
 
@@ -306,6 +317,15 @@ impl RendererInitParams {
         );
         renderer.update_cursor_boost(self.cursor_boost, self.cursor_boost_color);
         renderer.update_unfocused_cursor_style(self.unfocused_cursor_style);
+
+        // Apply command separator settings
+        renderer.update_command_separator(
+            self.command_separator_enabled,
+            self.command_separator_thickness,
+            self.command_separator_opacity,
+            self.command_separator_exit_color,
+            self.command_separator_color,
+        );
 
         Ok(renderer)
     }

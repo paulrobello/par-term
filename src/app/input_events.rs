@@ -755,8 +755,9 @@ impl WindowState {
         {
             // Clear scrollback if terminal is available
             let cleared = if let Some(tab) = self.tab_manager.active_tab_mut() {
-                if let Ok(term) = tab.terminal.try_lock() {
+                if let Ok(mut term) = tab.terminal.try_lock() {
                     term.clear_scrollback();
+                    term.clear_scrollback_metadata();
                     tab.cache.scrollback_len = 0;
                     tab.trigger_marks.clear();
                     true
@@ -1339,8 +1340,9 @@ impl WindowState {
             }
             "clear_scrollback" => {
                 let cleared = if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    if let Ok(term) = tab.terminal.try_lock() {
+                    if let Ok(mut term) = tab.terminal.try_lock() {
                         term.clear_scrollback();
+                        term.clear_scrollback_metadata();
                         tab.cache.scrollback_len = 0;
                         tab.trigger_marks.clear();
                         true

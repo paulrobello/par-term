@@ -88,6 +88,8 @@ pub(crate) fn build_shell_env(
     env.insert("TERM_PROGRAM_VERSION".to_string(), "3.6.6".to_string());
     env.insert("LC_TERMINAL".to_string(), "iTerm2".to_string());
     env.insert("LC_TERMINAL_VERSION".to_string(), "3.6.6".to_string());
+    // par-term identity marker for shell integration scripts to detect
+    env.insert("__PAR_TERM".to_string(), "1".to_string());
 
     // ITERM_SESSION_ID: used by Claude Code and other tools for OSC 52 clipboard detection
     // Format: w{window}t{tab}p{pane}:{UUID}

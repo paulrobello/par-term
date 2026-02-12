@@ -4,6 +4,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
 use par_term_emu_core_rust::terminal::CommandExecution;
 
+/// Maximum distance (in lines) between the A (PromptStart) and B (CommandStart)
+/// markers of the same prompt. Used both to suppress duplicate prompt_lines
+/// entries (B won't create one if A already recorded one nearby) and to snap
+/// `finish_command` back to the A marker line for multi-line prompts.
+///
+/// Must be large enough to cover the tallest realistic prompt.
+const MAX_PROMPT_HEIGHT: usize = 6;
+
 /// Lightweight snapshot of a completed command taken from the core library.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommandSnapshot {
@@ -78,6 +86,10 @@ pub struct ScrollbackMetadata {
     last_recorded_history_len: usize,
     /// Wall-clock start time for the current command (ms since epoch)
     current_command_start_time_ms: Option<u64>,
+    /// True when a PromptStart (A) marker has been recorded and we're waiting
+    /// for the corresponding CommandStart (B). While set, B/C markers suppress
+    /// prompt_line creation since A already created the entry.
+    prompt_start_pending: bool,
 }
 
 impl ScrollbackMetadata {
@@ -85,23 +97,40 @@ impl ScrollbackMetadata {
         Self::default()
     }
 
+    /// Reset all metadata, clearing prompt lines, commands, and timestamps.
+    ///
+    /// Called when the scrollback buffer is cleared so stale marks don't persist.
+    pub fn clear(&mut self) {
+        self.line_to_command.clear();
+        self.commands.clear();
+        self.prompt_lines.clear();
+        self.line_timestamps.clear();
+        self.current_command_start = None;
+        self.last_marker = None;
+        self.last_marker_line = None;
+        self.last_exit_code = None;
+        self.last_exit_code_line = None;
+        self.last_recorded_history_len = 0;
+        self.current_command_start_time_ms = None;
+        self.prompt_start_pending = false;
+    }
+
     /// Apply the latest shell integration marker and update internal metadata.
     ///
-    /// `scrollback_len` is the current scrollback length (lines off-screen).
-    /// `cursor_row` is the zero-based cursor row on the visible screen.
+    /// `absolute_line` is the cursor position (scrollback_len + cursor_row) at the
+    /// time the marker was emitted by the core library. This captures the exact
+    /// position before subsequent output moves the cursor.
     /// `history_len` is the current command history length from the core library.
     /// `last_command` should contain the most recent command when `history_len` > 0.
     pub fn apply_event(
         &mut self,
         marker: Option<ShellIntegrationMarker>,
-        scrollback_len: usize,
-        cursor_row: usize,
+        absolute_line: usize,
         history_len: usize,
         last_command: Option<CommandSnapshot>,
         last_exit_code: Option<i32>,
     ) {
         let last_command_clone = last_command.clone();
-        let absolute_line = scrollback_len.saturating_add(cursor_row);
         let repeat_marker =
             marker == self.last_marker && Some(absolute_line) == self.last_marker_line;
         let mut finished_command = false;
@@ -113,13 +142,21 @@ impl ScrollbackMetadata {
                         absolute_line,
                         last_command.as_ref().map(|c| c.start_time),
                     );
+                    self.prompt_start_pending = true;
                 }
             }
             Some(ShellIntegrationMarker::CommandStart)
             | Some(ShellIntegrationMarker::CommandExecuted) => {
                 if !repeat_marker {
-                    // Record a mark even if the prompt (A) never arrived.
-                    self.record_prompt_line(absolute_line, Some(now_ms()));
+                    // Only record a prompt line if no PromptStart (A) marker has
+                    // already created one for this prompt cycle. Multi-line prompts
+                    // emit A at the top and B at the cursor line — recording both
+                    // creates duplicate marks.  When no A marker was seen (degraded
+                    // shell integration), B is the primary marker and creates the entry.
+                    if !self.prompt_start_pending {
+                        self.record_prompt_line(absolute_line, Some(now_ms()));
+                    }
+                    self.prompt_start_pending = false;
                 }
                 self.current_command_start = Some(absolute_line);
                 self.current_command_start_time_ms = Some(now_ms());
@@ -198,9 +235,9 @@ impl ScrollbackMetadata {
                     exit_code: Some(code),
                     duration_ms: Some(duration_ms),
                 };
-                self.finish_command(candidate_line, synthetic);
+                let start_line = self.finish_command(candidate_line, synthetic);
                 self.last_recorded_history_len = self.last_recorded_history_len.saturating_add(1);
-                self.last_exit_code_line = Some(candidate_line);
+                self.last_exit_code_line = Some(start_line);
             }
         }
 
@@ -292,16 +329,7 @@ impl ScrollbackMetadata {
     }
 
     /// Set the command text on the mark at or nearest to `target_line`.
-    ///
-    /// Called after `apply_event()` when the frontend has extracted command text
-    /// from the terminal grid. `target_line` is the absolute line where the
-    /// command was entered (recorded at CommandStart/B marker time).
-    ///
-    /// We search for the mark at `target_line` first, then fall back to the
-    /// nearest mark before it. This handles the case where the exact line may
-    /// differ slightly from what was recorded in `prompt_lines`.
     pub fn set_mark_command_at(&mut self, target_line: usize, command: String) {
-        // Find the mark at or just before the target line
         let line = match self.prompt_lines.binary_search(&target_line) {
             Ok(_) => Some(target_line),
             Err(idx) => idx
@@ -332,6 +360,23 @@ impl ScrollbackMetadata {
             .take()
             .or_else(|| self.prompt_lines.last().copied())
             .unwrap_or(end_line);
+
+        // For multi-line prompts: PromptStart (A) fires at the top of the prompt
+        // while CommandStart (B) fires at the cursor line below. Prefer the earlier
+        // PromptStart line so the separator/mark appears at the top of the prompt.
+        let start_line = match self.prompt_lines.binary_search(&start_line) {
+            Ok(_) => start_line, // exact match already in prompt_lines, keep it
+            Err(pos) if pos > 0 => {
+                let prev = self.prompt_lines[pos - 1];
+                if start_line - prev <= MAX_PROMPT_HEIGHT {
+                    prev
+                } else {
+                    start_line
+                }
+            }
+            _ => start_line,
+        };
+
         self.current_command_start_time_ms = None;
 
         // Ensure a mark exists even if no prompt marker was recorded.
@@ -371,27 +416,18 @@ mod tests {
     fn records_prompt_and_command() {
         let mut meta = ScrollbackMetadata::new();
 
-        meta.apply_event(
-            Some(ShellIntegrationMarker::PromptStart),
-            10,
-            5,
-            0,
-            None,
-            None,
-        );
+        // absolute_line = 15 (scrollback 10 + cursor 5)
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 15, 0, None, None);
         meta.apply_event(
             Some(ShellIntegrationMarker::CommandExecuted),
-            10,
-            5,
+            15,
             0,
             None,
             None,
         );
-
         meta.apply_event(
             Some(ShellIntegrationMarker::CommandFinished),
-            12,
-            3,
+            15,
             1,
             Some(snapshot(0, 0, 1_000, 500)),
             None,
@@ -400,7 +436,7 @@ mod tests {
         let marks = meta.marks();
         assert_eq!(marks.len(), 1);
         let mark = &marks[0];
-        assert_eq!(mark.line, 15); // scrollback_len 10 + cursor_row 5
+        assert_eq!(mark.line, 15);
         assert_eq!(mark.exit_code, Some(0));
         assert_eq!(mark.start_time, Some(1_000));
     }
@@ -409,22 +445,8 @@ mod tests {
     fn navigation_prev_next() {
         let mut meta = ScrollbackMetadata::new();
 
-        meta.apply_event(
-            Some(ShellIntegrationMarker::PromptStart),
-            5,
-            0,
-            0,
-            None,
-            None,
-        );
-        meta.apply_event(
-            Some(ShellIntegrationMarker::PromptStart),
-            8,
-            2,
-            0,
-            None,
-            None,
-        );
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 5, 0, None, None);
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 10, 0, None, None);
 
         assert_eq!(meta.previous_mark(7), Some(5));
         assert_eq!(meta.next_mark(5), Some(10));
@@ -435,8 +457,8 @@ mod tests {
         let mut meta = ScrollbackMetadata::new();
         let cmd = snapshot(0, 1, 2_000, 300);
 
-        // No marker but history length increased
-        meta.apply_event(None, 12, 3, 1, Some(cmd), Some(1));
+        // No marker but history length increased, absolute_line = 15
+        meta.apply_event(None, 15, 1, Some(cmd), Some(1));
 
         let marks = meta.marks();
         assert_eq!(marks.len(), 1);
@@ -448,19 +470,11 @@ mod tests {
     fn records_when_exit_code_arrives_without_history() {
         let mut meta = ScrollbackMetadata::new();
 
-        // Simulate prompt and command start
-        meta.apply_event(
-            Some(ShellIntegrationMarker::PromptStart),
-            20,
-            0,
-            0,
-            None,
-            None,
-        );
+        // Simulate prompt and command start at line 20
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 20, 0, None, None);
         meta.apply_event(
             Some(ShellIntegrationMarker::CommandStart),
             20,
-            0,
             0,
             None,
             None,
@@ -469,8 +483,7 @@ mod tests {
         // Command finishes, shell sends exit code but core history does not advance
         meta.apply_event(
             Some(ShellIntegrationMarker::CommandFinished),
-            22,
-            1,
+            23,
             0,
             None,
             Some(42),
@@ -478,7 +491,6 @@ mod tests {
 
         let marks = meta.marks();
         assert_eq!(marks.len(), 1);
-        // start line = prompt at 20 + cursor 0 = 20
         assert_eq!(marks[0].line, 20);
         assert_eq!(marks[0].exit_code, Some(42));
         assert!(marks[0].start_time.is_some());
@@ -489,16 +501,9 @@ mod tests {
     fn synthesizes_exit_code_without_finished_marker() {
         let mut meta = ScrollbackMetadata::new();
 
-        meta.apply_event(
-            Some(ShellIntegrationMarker::CommandStart),
-            0,
-            0,
-            0,
-            None,
-            None,
-        );
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 0, 0, None, None);
 
-        meta.apply_event(None, 0, 1, 0, None, Some(7));
+        meta.apply_event(None, 1, 0, None, Some(7));
 
         let marks = meta.marks();
         assert_eq!(marks.len(), 1);
@@ -510,32 +515,218 @@ mod tests {
     fn records_multiple_commands_when_history_missing() {
         let mut meta = ScrollbackMetadata::new();
 
-        // First command (exit 0)
-        meta.apply_event(
-            Some(ShellIntegrationMarker::CommandStart),
-            0,
-            0,
-            0,
-            None,
-            None,
-        );
-        meta.apply_event(None, 0, 0, 0, None, Some(0));
+        // First command (exit 0) at line 0
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 0, 0, None, None);
+        meta.apply_event(None, 0, 0, None, Some(0));
 
-        // Second command, same exit code but new prompt line
+        // Second command, same exit code but new prompt line at line 10
         meta.apply_event(
             Some(ShellIntegrationMarker::CommandStart),
             10,
             0,
-            0,
             None,
             None,
         );
-        meta.apply_event(None, 10, 0, 0, None, Some(0));
+        meta.apply_event(None, 10, 0, None, Some(0));
 
         let marks = meta.marks();
         assert_eq!(marks.len(), 2);
         assert_eq!(marks[0].exit_code, Some(0));
         assert_eq!(marks[1].exit_code, Some(0));
         assert_eq!(marks[1].line, 10);
+    }
+
+    #[test]
+    fn multiline_prompt_mark_at_prompt_start() {
+        let mut meta = ScrollbackMetadata::new();
+
+        // PromptStart (A) at line 10 (top of 2-line prompt)
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 10, 0, None, None);
+        // CommandStart (B) at line 11 (cursor line, bottom of prompt)
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandStart),
+            11,
+            0,
+            None,
+            None,
+        );
+        // CommandFinished with exit code at line 14
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandFinished),
+            14,
+            1,
+            Some(snapshot(0, 0, 1_000, 500)),
+            None,
+        );
+
+        let marks = meta.marks();
+        // Should have one mark at line 10 (PromptStart), NOT line 11 (CommandStart)
+        assert_eq!(marks.len(), 1);
+        assert_eq!(marks[0].line, 10);
+        assert_eq!(marks[0].exit_code, Some(0));
+    }
+
+    #[test]
+    fn clear_resets_all_state() {
+        let mut meta = ScrollbackMetadata::new();
+
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 15, 0, None, None);
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandFinished),
+            15,
+            1,
+            Some(snapshot(0, 0, 1_000, 500)),
+            None,
+        );
+
+        assert_eq!(meta.marks().len(), 1);
+
+        meta.clear();
+
+        assert!(meta.marks().is_empty());
+        assert_eq!(meta.previous_mark(100), None);
+        assert_eq!(meta.next_mark(0), None);
+    }
+
+    /// Single-line prompt: A and B on the same line (e.g. `$ `)
+    #[test]
+    fn single_line_prompt() {
+        let mut meta = ScrollbackMetadata::new();
+
+        // Prompt 1: A and B both at line 0
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 0, 0, None, None);
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 0, 0, None, None);
+
+        // Command finishes, prompt 2 at line 2 (line 0 = prompt, line 1 = output)
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 2, 0, None, None);
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandFinished),
+            2,
+            1,
+            Some(snapshot(0, 0, 1_000, 100)),
+            None,
+        );
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 2, 0, None, None);
+
+        let marks = meta.marks();
+        assert_eq!(marks.len(), 2);
+        assert_eq!(marks[0].line, 0);
+        assert_eq!(marks[0].exit_code, Some(0));
+        assert_eq!(marks[1].line, 2);
+    }
+
+    /// 3-line prompt (e.g. git info + path + cursor): A at top, B 2 lines below
+    #[test]
+    fn three_line_prompt() {
+        let mut meta = ScrollbackMetadata::new();
+
+        // Prompt 1: A at line 0, B at line 2 (3-line prompt)
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 0, 0, None, None);
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 2, 0, None, None);
+
+        // Command output on lines 3-5, then prompt 2 at line 6
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 6, 0, None, None);
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandFinished),
+            6,
+            1,
+            Some(snapshot(0, 42, 1_000, 200)),
+            None,
+        );
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 8, 0, None, None);
+
+        let marks = meta.marks();
+        assert_eq!(marks.len(), 2);
+        // Command should be associated with line 0 (A marker), not line 2 (B marker)
+        assert_eq!(marks[0].line, 0);
+        assert_eq!(marks[0].exit_code, Some(42));
+        assert_eq!(marks[1].line, 6);
+    }
+
+    /// Tall prompt (6 lines, e.g. starship with many segments): A at top, B far below
+    #[test]
+    fn tall_prompt_mark_at_top() {
+        let mut meta = ScrollbackMetadata::new();
+
+        // Prompt 1: A at line 0, B at line 5 (6-line prompt)
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 0, 0, None, None);
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 5, 0, None, None);
+
+        // Command output on lines 6-8, then prompt 2 at line 9
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 9, 0, None, None);
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandFinished),
+            9,
+            1,
+            Some(snapshot(0, 1, 2_000, 300)),
+            None,
+        );
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandStart),
+            14,
+            0,
+            None,
+            None,
+        );
+
+        let marks = meta.marks();
+        assert_eq!(marks.len(), 2);
+        // Even with a 6-line prompt, the mark should be at line 0 (A), not line 5 (B)
+        assert_eq!(marks[0].line, 0);
+        assert_eq!(marks[0].exit_code, Some(1));
+        assert_eq!(marks[1].line, 9);
+    }
+
+    /// Multiple consecutive commands with single-line prompts produce separate marks
+    #[test]
+    fn consecutive_single_line_prompts() {
+        let mut meta = ScrollbackMetadata::new();
+
+        // Prompt 1 at line 0
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 0, 0, None, None);
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 0, 0, None, None);
+
+        // Prompt 2 at line 2 (1 line of output)
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 2, 0, None, None);
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandFinished),
+            2,
+            1,
+            Some(snapshot(0, 0, 1_000, 100)),
+            None,
+        );
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 2, 0, None, None);
+
+        // Prompt 3 at line 4 (1 line of output)
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 4, 0, None, None);
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandFinished),
+            4,
+            2,
+            Some(snapshot(1, 0, 2_000, 100)),
+            None,
+        );
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 4, 0, None, None);
+
+        // Prompt 4 at line 6 (1 line of output)
+        meta.apply_event(Some(ShellIntegrationMarker::PromptStart), 6, 0, None, None);
+        meta.apply_event(
+            Some(ShellIntegrationMarker::CommandFinished),
+            6,
+            3,
+            Some(snapshot(2, 127, 3_000, 100)),
+            None,
+        );
+        meta.apply_event(Some(ShellIntegrationMarker::CommandStart), 6, 0, None, None);
+
+        let marks = meta.marks();
+        assert_eq!(marks.len(), 4, "each prompt should have its own mark");
+        assert_eq!(marks[0].line, 0);
+        assert_eq!(marks[1].line, 2);
+        assert_eq!(marks[2].line, 4);
+        assert_eq!(marks[3].line, 6);
+        assert_eq!(marks[0].exit_code, Some(0));
+        assert_eq!(marks[1].exit_code, Some(0));
+        assert_eq!(marks[2].exit_code, Some(127));
     }
 }

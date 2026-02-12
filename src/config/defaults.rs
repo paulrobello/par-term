@@ -88,6 +88,18 @@ pub fn scrollbar_track_color() -> [f32; 4] {
     [0.15, 0.15, 0.15, 0.6] // Dark gray, semi-transparent
 }
 
+pub fn command_separator_thickness() -> f32 {
+    1.0 // 1 pixel line
+}
+
+pub fn command_separator_opacity() -> f32 {
+    0.4 // Subtle by default
+}
+
+pub fn command_separator_color() -> [u8; 3] {
+    [128, 128, 128] // Medium gray
+}
+
 pub fn paste_delay_ms() -> u64 {
     0 // No delay by default
 }
