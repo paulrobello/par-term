@@ -678,10 +678,10 @@ impl ShellType {
 pub enum UpdateCheckFrequency {
     /// Never check for updates
     Never,
-    /// Check once per day
-    Daily,
-    /// Check once per week (default)
+    /// Check once per day (default)
     #[default]
+    Daily,
+    /// Check once per week
     Weekly,
     /// Check once per month
     Monthly,
