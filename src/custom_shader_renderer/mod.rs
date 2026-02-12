@@ -114,6 +114,8 @@ pub struct CustomShaderRenderer {
     pub(crate) cursor_window_padding: f32,
     /// Vertical content offset in pixels (e.g., tab bar height)
     pub(crate) cursor_content_offset_y: f32,
+    /// Horizontal content offset in pixels (e.g., tab bar on left)
+    pub(crate) cursor_content_offset_x: f32,
 
     // ============ Cursor shader configuration ============
     /// User-configured cursor color for shader effects [R, G, B, A]
@@ -316,6 +318,7 @@ impl CustomShaderRenderer {
             cursor_cell_height: 20.0,
             cursor_window_padding: 0.0,
             cursor_content_offset_y: 0.0,
+            cursor_content_offset_x: 0.0,
             cursor_shader_color: [1.0, 1.0, 1.0, 1.0],
             cursor_trail_duration: 0.5,
             cursor_glow_radius: 80.0,

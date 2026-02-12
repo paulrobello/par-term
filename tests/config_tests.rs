@@ -1,6 +1,8 @@
 #![allow(clippy::field_reassign_with_default)]
 
-use par_term::config::{Config, UnfocusedCursorStyle, WindowType, substitute_variables};
+use par_term::config::{
+    Config, TabBarPosition, UnfocusedCursorStyle, WindowType, substitute_variables,
+};
 
 #[test]
 fn test_config_defaults() {
@@ -1031,4 +1033,80 @@ fn test_substitute_variables_empty_default() {
     unsafe { remove_test_var("PAR_EMPTY_DEFAULT") };
     let result = substitute_variables("val: ${PAR_EMPTY_DEFAULT:-}");
     assert_eq!(result, "val: ");
+}
+
+// ============================================================================
+// Tab Bar Position Configuration Tests
+// ============================================================================
+
+#[test]
+fn test_tab_bar_position_default() {
+    let config = Config::default();
+    assert_eq!(config.tab_bar_position, TabBarPosition::Top);
+    assert_eq!(config.tab_bar_width, 160.0);
+}
+
+#[test]
+fn test_tab_bar_position_serialization() {
+    // Round-trip serialization for all variants
+    for &position in TabBarPosition::all() {
+        let mut config = Config::default();
+        config.tab_bar_position = position;
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        let deserialized: Config = serde_yaml::from_str(&yaml).unwrap();
+        assert_eq!(
+            deserialized.tab_bar_position, position,
+            "Round-trip failed for {:?}",
+            position
+        );
+    }
+}
+
+#[test]
+fn test_tab_bar_position_yaml_variants() {
+    let yaml = r#"tab_bar_position: top"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.tab_bar_position, TabBarPosition::Top);
+
+    let yaml = r#"tab_bar_position: bottom"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.tab_bar_position, TabBarPosition::Bottom);
+
+    let yaml = r#"tab_bar_position: left"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.tab_bar_position, TabBarPosition::Left);
+}
+
+#[test]
+fn test_tab_bar_position_partial_yaml() {
+    // Missing tab_bar_position should default to Top
+    let yaml = r#"
+cols: 100
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.tab_bar_position, TabBarPosition::Top);
+    assert_eq!(config.tab_bar_width, 160.0);
+}
+
+#[test]
+fn test_tab_bar_width_yaml_deserialization() {
+    let yaml = r#"
+tab_bar_position: left
+tab_bar_width: 250.0
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.tab_bar_position, TabBarPosition::Left);
+    assert!((config.tab_bar_width - 250.0).abs() < f32::EPSILON);
+}
+
+#[test]
+fn test_tab_bar_width_yaml_serialization() {
+    let mut config = Config::default();
+    config.tab_bar_position = TabBarPosition::Left;
+    config.tab_bar_width = 200.0;
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("tab_bar_position: left"));
+    assert!(yaml.contains("tab_bar_width: 200.0"));
 }

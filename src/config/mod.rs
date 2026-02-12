@@ -28,8 +28,8 @@ pub use types::{
     ModifierRemapping, ModifierTarget, OptionKeyMode, PaneTitlePosition, PowerPreference,
     ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat,
     ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType,
-    SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, TabBarMode, TabStyle,
-    ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, TabBarMode, TabBarPosition,
+    TabStyle, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
     default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
@@ -1025,6 +1025,14 @@ pub struct Config {
     #[serde(default = "defaults::tab_bar_height")]
     pub tab_bar_height: f32,
 
+    /// Tab bar position (top, bottom, left)
+    #[serde(default)]
+    pub tab_bar_position: TabBarPosition,
+
+    /// Tab bar width in pixels (used when tab_bar_position is Left)
+    #[serde(default = "defaults::tab_bar_width")]
+    pub tab_bar_width: f32,
+
     /// Show close button on tabs
     #[serde(default = "defaults::bool_true")]
     pub tab_show_close_button: bool,
@@ -1743,6 +1751,8 @@ impl Default for Config {
             tab_style: TabStyle::default(),
             tab_bar_mode: TabBarMode::default(),
             tab_bar_height: defaults::tab_bar_height(),
+            tab_bar_position: TabBarPosition::default(),
+            tab_bar_width: defaults::tab_bar_width(),
             tab_show_close_button: defaults::bool_true(),
             tab_show_index: defaults::bool_false(),
             tab_inherit_cwd: defaults::bool_true(),

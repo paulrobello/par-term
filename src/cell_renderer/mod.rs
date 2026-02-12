@@ -67,9 +67,15 @@ pub struct CellRenderer {
     pub(crate) cell_width: f32,
     pub(crate) cell_height: f32,
     pub(crate) window_padding: f32,
-    /// Vertical offset for terminal content (e.g., tab bar height).
+    /// Vertical offset for terminal content (e.g., tab bar at top).
     /// Content is rendered starting at y = window_padding + content_offset_y.
     pub(crate) content_offset_y: f32,
+    /// Horizontal offset for terminal content (e.g., tab bar on left).
+    /// Content is rendered starting at x = window_padding + content_offset_x.
+    pub(crate) content_offset_x: f32,
+    /// Bottom inset for terminal content (e.g., tab bar at bottom).
+    /// Reduces available height without shifting content vertically.
+    pub(crate) content_inset_bottom: f32,
     #[allow(dead_code)]
     pub(crate) scale_factor: f32,
 
@@ -455,6 +461,8 @@ impl CellRenderer {
             cell_height,
             window_padding,
             content_offset_y: 0.0,
+            content_offset_x: 0.0,
+            content_inset_bottom: 0.0,
             scale_factor,
             font_manager,
             scrollbar,
@@ -616,12 +624,37 @@ impl CellRenderer {
     pub fn content_offset_y(&self) -> f32 {
         self.content_offset_y
     }
-    /// Set the vertical content offset (e.g., tab bar height).
+    /// Set the vertical content offset (e.g., tab bar height at top).
     /// Returns Some((cols, rows)) if grid size changed, None otherwise.
     pub fn set_content_offset_y(&mut self, offset: f32) -> Option<(usize, usize)> {
         if (self.content_offset_y - offset).abs() > f32::EPSILON {
             self.content_offset_y = offset;
-            // Recalculate grid size with new offset
+            let size = (self.config.width, self.config.height);
+            return Some(self.resize(size.0, size.1));
+        }
+        None
+    }
+    pub fn content_offset_x(&self) -> f32 {
+        self.content_offset_x
+    }
+    /// Set the horizontal content offset (e.g., tab bar on left).
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_offset_x(&mut self, offset: f32) -> Option<(usize, usize)> {
+        if (self.content_offset_x - offset).abs() > f32::EPSILON {
+            self.content_offset_x = offset;
+            let size = (self.config.width, self.config.height);
+            return Some(self.resize(size.0, size.1));
+        }
+        None
+    }
+    pub fn content_inset_bottom(&self) -> f32 {
+        self.content_inset_bottom
+    }
+    /// Set the bottom content inset (e.g., tab bar at bottom).
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_inset_bottom(&mut self, inset: f32) -> Option<(usize, usize)> {
+        if (self.content_inset_bottom - inset).abs() > f32::EPSILON {
+            self.content_inset_bottom = inset;
             let size = (self.config.width, self.config.height);
             return Some(self.resize(size.0, size.1));
         }
@@ -642,10 +675,13 @@ impl CellRenderer {
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
 
-        let available_width = (width as f32 - self.window_padding * 2.0).max(0.0);
-        // Subtract content_offset_y (tab bar height) from available height
-        let available_height =
-            (height as f32 - self.window_padding * 2.0 - self.content_offset_y).max(0.0);
+        let available_width =
+            (width as f32 - self.window_padding * 2.0 - self.content_offset_x).max(0.0);
+        let available_height = (height as f32
+            - self.window_padding * 2.0
+            - self.content_offset_y
+            - self.content_inset_bottom)
+            .max(0.0);
         let new_cols = (available_width / self.cell_width).max(1.0) as usize;
         let new_rows = (available_height / self.cell_height).max(1.0) as usize;
 
@@ -736,8 +772,13 @@ impl CellRenderer {
             self.cursor_overlay = if opacity > 0.0 {
                 let col = pos.0;
                 let row = pos.1;
-                let x0 = (self.window_padding + col as f32 * self.cell_width).round();
-                let x1 = (self.window_padding + (col + 1) as f32 * self.cell_width).round();
+                let x0 =
+                    (self.window_padding + self.content_offset_x + col as f32 * self.cell_width)
+                        .round();
+                let x1 = (self.window_padding
+                    + self.content_offset_x
+                    + (col + 1) as f32 * self.cell_width)
+                    .round();
                 let y0 =
                     (self.window_padding + self.content_offset_y + row as f32 * self.cell_height)
                         .round();

@@ -13,7 +13,8 @@
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
 use crate::config::{
-    DividerStyle, PaneTitlePosition, PowerPreference, TabBarMode, TabStyle, VsyncMode, WindowType,
+    DividerStyle, PaneTitlePosition, PowerPreference, TabBarMode, TabBarPosition, TabStyle,
+    VsyncMode, WindowType,
 };
 use std::collections::HashSet;
 
@@ -861,6 +862,47 @@ fn show_tab_bar_section(
                 *changes_this_frame = true;
             }
         });
+
+        ui.horizontal(|ui| {
+            ui.label("Position:");
+            let current_position = settings.config.tab_bar_position;
+            egui::ComboBox::from_id_salt("window_tab_bar_position")
+                .selected_text(current_position.display_name())
+                .show_ui(ui, |ui| {
+                    for &pos in TabBarPosition::all() {
+                        if ui
+                            .selectable_value(
+                                &mut settings.config.tab_bar_position,
+                                pos,
+                                pos.display_name(),
+                            )
+                            .changed()
+                        {
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+        });
+
+        // Show tab bar width slider only for Left position
+        if settings.config.tab_bar_position == TabBarPosition::Left {
+            ui.horizontal(|ui| {
+                ui.label("Tab bar width:");
+                if ui
+                    .add(
+                        egui::Slider::new(&mut settings.config.tab_bar_width, 100.0..=300.0)
+                            .step_by(1.0)
+                            .suffix("px"),
+                    )
+                    .on_hover_text("Width of the left tab bar panel")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        }
 
         ui.horizontal(|ui| {
             ui.label("Tab bar height:");
