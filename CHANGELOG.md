@@ -25,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Config: `alert_sounds` map with per-event `AlertSoundConfig` entries
   - UI in Settings > Notifications > Alert Sounds
 
+- **Fuzzy Command History Search** (#118): Searchable overlay for browsing and selecting from command history
+  - Fuzzy matching with ranked results via Skim algorithm (`fuzzy-matcher` crate)
+  - Match highlighting with yellow underline on matching characters
+  - Exit code indicators (green/red/gray) and relative timestamps per entry
+  - Keyboard navigation: Arrow Up/Down, Enter to insert, Esc to close
+  - Commands captured from OSC 133 shell integration markers and core library history
+  - Deduplicated entries (re-executing moves command to top)
+  - History persisted across sessions to `~/.config/par-term/command_history.yaml`
+  - Config: `command_history_max_entries` (default: 1000), exposed in Settings > Terminal > Command History
+  - Keybinding: Cmd+R (macOS), Ctrl+Alt+R (Linux/Windows)
+
 - **Import/Export Preferences** (#91): Import and export terminal configuration
   - Export current config to a YAML file via native file dialog
   - Import preferences from a local YAML file (replace or merge modes)

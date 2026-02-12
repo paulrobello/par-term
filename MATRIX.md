@@ -496,7 +496,7 @@ iTerm2's Composer provides intelligent command completion suggestions.
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
 | Composer UI | ✅ `Enable Composer` | ❌ | ❌ | ⭐⭐ | 🔵 | AI-style command completion |
-| Command history search | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Fuzzy search history |
+| Command history search | ✅ | ✅ Fuzzy search overlay | ✅ | ⭐⭐ | 🟡 | Cmd+R / Ctrl+Alt+R, fuzzy matching, ranked results, persistent history |
 | Suggestion ranking | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Smart relevance scoring |
 | Man page integration | ✅ | ❌ | ❌ | ⭐⭐ | 🔴 | Show man info inline |
 | Command preview | ✅ | ❌ | ❌ | ⭐ | 🟡 | Preview command output |
@@ -915,7 +915,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | AI Integration | 0 | 0 | 4 |
 | Status Bar | 0 | 0 | 10 |
 | Toolbelt | 0 | 0 | 8 |
-| Composer & Auto-Complete | 1 | 0 | 4 |
+| Composer & Auto-Complete | 2 | 0 | 3 |
 | Copy Mode | 8 | 0 | 0 |
 | Snippets & Actions | 0 | 0 | 6 |
 | Window Arrangements & Placement | 1 | 0 | 9 |
@@ -935,9 +935,9 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Network & Discovery | 0 | 0 | 4 |
 | Miscellaneous | 10 | 0 | 7 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~287** | **~5** | **~124** |
+| **TOTAL** | **~288** | **~5** | **~123** |
 
-**Overall Parity: ~69% of iTerm2 features implemented** (287 implemented out of ~416 total tracked features)
+**Overall Parity: ~69% of iTerm2 features implemented** (288 implemented out of ~416 total tracked features)
 
 **Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
@@ -1032,9 +1032,9 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Profile switcher and directory history
 - Command history search/autocomplete
 
-**Composer & Auto-Complete (4 remaining features)**
+**Composer & Auto-Complete (3 remaining features)**
 - AI-style command completion UI
-- Command history search with fuzzy matching
+- ~~Command history search with fuzzy matching~~ ✅ Complete (#118)
 - Man page integration and command preview
 - ~~Shell integration auto-install~~ ✅ Complete
 

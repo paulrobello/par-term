@@ -940,6 +940,13 @@ pub struct Config {
     pub clipboard_max_event_bytes: usize,
 
     // ========================================================================
+    // Command History
+    // ========================================================================
+    /// Maximum number of commands to persist in fuzzy search history
+    #[serde(default = "defaults::command_history_max_entries")]
+    pub command_history_max_entries: usize,
+
+    // ========================================================================
     // Notifications
     // ========================================================================
     /// Forward BEL events to desktop notification centers
@@ -1714,6 +1721,7 @@ impl Default for Config {
             command_separator_color: defaults::command_separator_color(),
             clipboard_max_sync_events: defaults::clipboard_max_sync_events(),
             clipboard_max_event_bytes: defaults::clipboard_max_event_bytes(),
+            command_history_max_entries: defaults::command_history_max_entries(),
             notification_bell_desktop: defaults::bool_false(),
             notification_bell_sound: defaults::bell_sound(),
             notification_bell_visual: defaults::bool_true(),

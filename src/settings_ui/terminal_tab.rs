@@ -103,6 +103,15 @@ pub fn show(
         show_scrollbar_section(ui, settings, changes_this_frame, collapsed);
     }
 
+    // Command History section
+    if section_matches(
+        &query,
+        "Command History",
+        &["command", "history", "fuzzy", "search", "entries"],
+    ) {
+        show_command_history_section(ui, settings, changes_this_frame, collapsed);
+    }
+
     // Command Separators section
     if section_matches(
         &query,
@@ -863,6 +872,46 @@ fn show_scrollbar_section(
                         track.b() as f32 / 255.0,
                         track.a() as f32 / 255.0,
                     ];
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+        },
+    );
+}
+
+// ============================================================================
+// Command History Section
+// ============================================================================
+
+fn show_command_history_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(
+        ui,
+        "Command History",
+        "terminal_command_history",
+        true,
+        collapsed,
+        |ui| {
+            ui.label("Fuzzy search through previously executed commands (Cmd+R / Ctrl+R).");
+            ui.add_space(4.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Max history entries:");
+                if ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(
+                            &mut settings.config.command_history_max_entries,
+                            100..=10000,
+                        ),
+                    )
+                    .changed()
+                {
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

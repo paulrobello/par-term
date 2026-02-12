@@ -9,6 +9,8 @@ use crate::badge::{BadgeState, render_badge};
 use crate::cell_renderer::PaneViewport;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::close_confirmation_ui::{CloseConfirmAction, CloseConfirmationUI};
+use crate::command_history::CommandHistory;
+use crate::command_history_ui::{CommandHistoryAction, CommandHistoryUI};
 use crate::config::{
     Config, CursorShaderMetadataCache, CursorStyle, ShaderInstallPrompt, ShaderMetadataCache,
 };
@@ -106,6 +108,12 @@ pub struct WindowState {
     pub(crate) help_ui: HelpUI,
     /// Clipboard history UI manager
     pub(crate) clipboard_history_ui: ClipboardHistoryUI,
+    /// Command history UI manager (fuzzy search)
+    pub(crate) command_history_ui: CommandHistoryUI,
+    /// Persistent command history
+    pub(crate) command_history: CommandHistory,
+    /// Commands already synced from marks to persistent history (avoids repeated adds)
+    synced_commands: std::collections::HashSet<String>,
     /// Paste special UI manager (text transformations)
     pub(crate) paste_special_ui: PasteSpecialUI,
     /// tmux session picker UI
@@ -263,6 +271,7 @@ impl WindowState {
 
         // Create badge state before moving config
         let badge_state = BadgeState::new(&config);
+        let command_history_max = config.command_history_max_entries;
 
         Self {
             config,
@@ -288,6 +297,13 @@ impl WindowState {
             cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
             help_ui: HelpUI::new(),
             clipboard_history_ui: ClipboardHistoryUI::new(),
+            command_history_ui: CommandHistoryUI::new(),
+            command_history: {
+                let mut ch = CommandHistory::new(command_history_max);
+                ch.load();
+                ch
+            },
+            synced_commands: std::collections::HashSet::new(),
             paste_special_ui: PasteSpecialUI::new(),
             tmux_session_picker_ui: TmuxSessionPickerUI::new(),
             search_ui: SearchUI::new(),
@@ -1050,6 +1066,7 @@ impl WindowState {
         // Note: Profile drawer does NOT block input - only modal dialogs do
         let any_ui_visible = self.help_ui.visible
             || self.clipboard_history_ui.visible
+            || self.command_history_ui.visible
             || self.shader_install_ui.visible
             || self.integrations_ui.visible
             || self.profile_modal_ui.visible;
@@ -1537,6 +1554,28 @@ impl WindowState {
             let cursor_row = current_cursor_pos.map(|(_, row)| row).unwrap_or(0);
             let sb_len = term.scrollback_len();
             term.update_scrollback_metadata(sb_len, cursor_row);
+
+            // Feed newly completed commands into persistent history from two sources:
+            // 1. Scrollback marks (populated via set_mark_command_at from grid text extraction)
+            // 2. Core library command history (populated by the terminal emulator core)
+            // Both sources are checked because command text may come from either path
+            // depending on shell integration quality. The synced_commands set prevents
+            // duplicate adds across frames and sources.
+            for mark in term.scrollback_marks() {
+                if let Some(ref cmd) = mark.command
+                    && !cmd.is_empty()
+                    && self.synced_commands.insert(cmd.clone())
+                {
+                    self.command_history
+                        .add(cmd.clone(), mark.exit_code, mark.duration_ms);
+                }
+            }
+            for (cmd, exit_code, duration_ms) in term.core_command_history() {
+                if !cmd.is_empty() && self.synced_commands.insert(cmd.clone()) {
+                    self.command_history.add(cmd, exit_code, duration_ms);
+                }
+            }
+
             (sb_len, term.get_title())
         } else {
             (cached_scrollback_len, cached_terminal_title.clone())
@@ -1660,6 +1699,8 @@ impl WindowState {
         let _ = &debug_actual_render_time;
         // Clipboard action to handle after rendering (declared here to survive renderer borrow)
         let mut pending_clipboard_action = ClipboardHistoryAction::None;
+        // Command history action to handle after rendering
+        let mut pending_command_history_action = CommandHistoryAction::None;
         // Paste special action to handle after rendering
         let mut pending_paste_special_action = PasteSpecialAction::None;
         // tmux session picker action to handle after rendering
@@ -2128,6 +2169,9 @@ impl WindowState {
 
                     // Show clipboard history UI and collect action
                     pending_clipboard_action = self.clipboard_history_ui.show(ctx);
+
+                    // Show command history UI and collect action
+                    pending_command_history_action = self.command_history_ui.show(ctx);
 
                     // Show paste special UI and collect action
                     pending_paste_special_action = self.paste_special_ui.show(ctx);
@@ -2657,6 +2701,18 @@ impl WindowState {
                 }
             }
             ClipboardHistoryAction::None => {}
+        }
+
+        // Handle command history actions collected during egui rendering
+        match pending_command_history_action {
+            CommandHistoryAction::Insert(command) => {
+                self.paste_text(&command);
+                log::info!(
+                    "Inserted command from history: {}",
+                    &command[..command.len().min(60)]
+                );
+            }
+            CommandHistoryAction::None => {}
         }
 
         // Handle close confirmation dialog actions
@@ -3220,6 +3276,9 @@ impl WindowState {
 impl Drop for WindowState {
     fn drop(&mut self) {
         log::info!("Shutting down window");
+
+        // Save command history before shutdown
+        self.command_history.save();
 
         // Set shutdown flag
         self.is_shutting_down = true;
