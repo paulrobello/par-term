@@ -225,7 +225,7 @@ impl UpdateChecker {
 }
 
 /// Fetch the latest release information from GitHub API
-fn fetch_latest_release() -> Result<UpdateInfo, String> {
+pub fn fetch_latest_release() -> Result<UpdateInfo, String> {
     let mut body = crate::http::agent()
         .get(RELEASE_API_URL)
         .header("User-Agent", "par-term")

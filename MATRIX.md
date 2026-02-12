@@ -838,7 +838,8 @@ iTerm2 supports showing progress for long-running commands.
 | CLI command (`par-term`) | ❌ | ✅ Full CLI | ✅ | - | - | par-term exclusive |
 | First-run shader install prompt | ❌ | ✅ Auto-detect & install | ✅ | - | - | par-term exclusive |
 | Shader gallery | ❌ | ✅ Online gallery | ✅ | - | - | par-term exclusive |
-| Automatic update checking | ✅ Built-in updater | ✅ `update_check_frequency` | ✅ | - | - | Notify-only (no auto-install) |
+| Automatic update checking | ✅ Built-in updater | ✅ `update_check_frequency` | ✅ | - | - | Check + notify + in-place self-update |
+| Self-update (download & install) | ✅ Built-in updater | ✅ `self-update` CLI + Settings UI | ✅ | - | - | CLI and Settings UI; detects Homebrew/cargo |
 | Quit when last session closes | ✅ | ✅ | ✅ | - | - | Already implemented - window closes when last tab closes |
 | Open files in editor | ✅ `Semantic History` | ✅ `semantic_history_*` | ✅ | - | - | Already implemented |
 | Report terminal type | ✅ | ✅ | ✅ | - | - | Already implemented |
@@ -1133,6 +1134,6 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 ---
 
-*Updated: 2026-02-10 (Copy mode, snippets completion, emoji fix, link fixes)*
+*Updated: 2026-02-11 (Self-update feature, copy mode, snippets completion, emoji fix, link fixes)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.13.0*

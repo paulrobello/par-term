@@ -251,6 +251,23 @@ pub struct SettingsUI {
     /// Flag to request opening the debug log file
     pub(crate) open_log_requested: bool,
 
+    // Self-update state
+    /// User requested to install the available update
+    pub(crate) update_install_requested: bool,
+    /// User requested an immediate update check
+    pub(crate) check_now_requested: bool,
+    /// Status text for update UI display
+    pub(crate) update_status: Option<String>,
+    /// Result of self-update operation
+    pub(crate) update_result: Option<Result<crate::self_updater::UpdateResult, String>>,
+    /// Last update check result (synced from WindowManager)
+    pub(crate) last_update_result: Option<crate::update_checker::UpdateCheckResult>,
+    /// Whether an update install is in progress
+    pub(crate) update_installing: bool,
+    /// Channel receiver for async update installs
+    update_install_receiver:
+        Option<std::sync::mpsc::Receiver<Result<crate::self_updater::UpdateResult, String>>>,
+
     // Snippets tab state
     /// Index of snippet currently being edited (None = not editing)
     pub(crate) editing_snippet_index: Option<usize>,
@@ -440,6 +457,13 @@ impl SettingsUI {
             coprocess_output: Vec::new(),
             coprocess_output_expanded: Vec::new(),
             open_log_requested: false,
+            update_install_requested: false,
+            check_now_requested: false,
+            update_status: None,
+            update_result: None,
+            last_update_result: None,
+            update_installing: false,
+            update_install_receiver: None,
             editing_snippet_index: None,
             temp_snippet_id: String::new(),
             temp_snippet_title: String::new(),
@@ -725,6 +749,49 @@ impl SettingsUI {
                     self.shader_status = None;
                 }
             }
+        }
+    }
+
+    /// Begin self-update asynchronously.
+    pub(crate) fn start_self_update(&mut self, version: String) {
+        use std::sync::mpsc;
+
+        if self.update_installing {
+            return;
+        }
+
+        self.update_status = Some("Downloading and installing update...".to_string());
+        self.update_result = None;
+        self.update_installing = true;
+
+        let (tx, rx) = mpsc::channel();
+        self.update_install_receiver = Some(rx);
+
+        std::thread::spawn(move || {
+            let result = crate::self_updater::perform_update(&version);
+            let _ = tx.send(result);
+        });
+    }
+
+    /// Poll for completion of async self-update.
+    pub(crate) fn poll_update_install_status(&mut self) {
+        if let Some(receiver) = &self.update_install_receiver
+            && let Ok(result) = receiver.try_recv()
+        {
+            self.update_installing = false;
+            self.update_install_receiver = None;
+            match &result {
+                Ok(res) => {
+                    self.update_status = Some(format!(
+                        "Update installed! Restart par-term to use v{}",
+                        res.new_version
+                    ));
+                }
+                Err(e) => {
+                    self.update_status = Some(format!("Update failed: {}", e));
+                }
+            }
+            self.update_result = Some(result);
         }
     }
 

@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Self-Update** (#82): par-term can now download and install updates in-place
+  - CLI: `par-term self-update` with `--yes` flag for non-interactive use
+  - Settings UI: "Check Now" and "Install Update" buttons in Advanced > Updates
+  - Detects installation method (Homebrew, cargo, .app bundle, standalone binary)
+  - Homebrew/cargo installs show appropriate upgrade instructions instead
+  - macOS .app bundle: extracts and replaces bundle contents from zip
+  - Linux/Windows standalone: atomic binary replacement
+  - Async update with progress indication in Settings UI
+
 - **Command Separator Lines**: Horizontal separator lines between shell commands in the terminal grid
   - Renders thin lines at prompt boundaries using existing shell integration (OSC 133) marks
   - Exit-code coloring: green for success, red for failure, gray for unknown

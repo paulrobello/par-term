@@ -1203,6 +1203,14 @@ impl ApplicationHandler for WindowManager {
                             self.rename_arrangement(id, new_name);
                         }
                     }
+                    SettingsWindowAction::ForceUpdateCheck => {
+                        self.force_update_check_for_settings();
+                    }
+                    SettingsWindowAction::InstallUpdate(_version) => {
+                        // The update is handled asynchronously inside SettingsUI.
+                        // The InstallUpdate action is emitted for logging purposes.
+                        log::info!("Self-update initiated from settings UI");
+                    }
                     SettingsWindowAction::None => {}
                 }
             }

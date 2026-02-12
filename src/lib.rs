@@ -41,6 +41,7 @@ pub mod scrollback_metadata;
 pub mod scrollbar;
 pub mod search;
 pub mod selection;
+pub mod self_updater;
 pub mod session_logger;
 pub mod settings_ui;
 pub mod settings_window;

@@ -552,20 +552,120 @@ fn show_updates_section(
             });
         }
 
+        ui.add_space(8.0);
+
+        // Check Now button
+        ui.horizontal(|ui| {
+            if ui
+                .button("Check Now")
+                .on_hover_text("Check for updates immediately")
+                .clicked()
+            {
+                settings.check_now_requested = true;
+            }
+        });
+
+        // Show update check result
+        if let Some(ref result) = settings.last_update_result {
+            ui.add_space(4.0);
+            match result {
+                crate::update_checker::UpdateCheckResult::UpToDate => {
+                    ui.label(
+                        egui::RichText::new("You are running the latest version.")
+                            .color(egui::Color32::from_rgb(100, 200, 100)),
+                    );
+                }
+                crate::update_checker::UpdateCheckResult::UpdateAvailable(info) => {
+                    let version_str = info
+                        .version
+                        .strip_prefix('v')
+                        .unwrap_or(&info.version);
+                    ui.label(
+                        egui::RichText::new(format!("Version {} is available!", version_str))
+                            .color(egui::Color32::YELLOW)
+                            .strong(),
+                    );
+
+                    // Show release URL as clickable link
+                    ui.hyperlink_to("View release on GitHub", &info.release_url);
+
+                    ui.add_space(4.0);
+
+                    // Detect installation type to decide what button to show
+                    let installation = crate::self_updater::detect_installation();
+                    match installation {
+                        crate::self_updater::InstallationType::Homebrew => {
+                            ui.label(
+                                egui::RichText::new(
+                                    "Update via Homebrew: brew upgrade --cask par-term",
+                                )
+                                .color(egui::Color32::GRAY),
+                            );
+                        }
+                        crate::self_updater::InstallationType::CargoInstall => {
+                            ui.label(
+                                egui::RichText::new(
+                                    "Update via cargo: cargo install par-term",
+                                )
+                                .color(egui::Color32::GRAY),
+                            );
+                        }
+                        _ => {
+                            // Show Install Update button
+                            let installing = settings.update_installing;
+                            let button_text = if installing {
+                                "Installing..."
+                            } else {
+                                "Install Update"
+                            };
+
+                            let button = egui::Button::new(
+                                egui::RichText::new(button_text).strong(),
+                            );
+
+                            if ui
+                                .add_enabled(!installing, button)
+                                .on_hover_text(format!(
+                                    "Download and install v{}",
+                                    version_str
+                                ))
+                                .clicked()
+                            {
+                                settings.update_install_requested = true;
+                            }
+                        }
+                    }
+                }
+                crate::update_checker::UpdateCheckResult::Error(e) => {
+                    ui.label(
+                        egui::RichText::new(format!("Check failed: {}", e))
+                            .color(egui::Color32::from_rgb(255, 100, 100)),
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        // Show update status/result
+        if let Some(ref status) = settings.update_status {
+            ui.add_space(4.0);
+            let color = if settings.update_result.as_ref().is_some_and(|r| r.is_err()) {
+                egui::Color32::from_rgb(255, 100, 100)
+            } else if settings.update_result.as_ref().is_some_and(|r| r.is_ok()) {
+                egui::Color32::from_rgb(100, 200, 100)
+            } else {
+                egui::Color32::YELLOW
+            };
+            ui.label(egui::RichText::new(status.as_str()).color(color));
+        }
+
         ui.add_space(4.0);
-        #[cfg(target_os = "macos")]
-        let help_text = "par-term only checks for updates and notifies you. \
-            If installed via Homebrew: brew upgrade --cask par-term. \
-            Otherwise, download from GitHub releases.";
-
-        #[cfg(not(target_os = "macos"))]
-        let help_text = "par-term only checks for updates and notifies you. \
-            Download from GitHub releases or your package manager.";
-
         ui.label(
-            egui::RichText::new(help_text)
-                .small()
-                .color(egui::Color32::GRAY),
+            egui::RichText::new(
+                "par-term checks for updates periodically based on the frequency above.",
+            )
+            .small()
+            .color(egui::Color32::GRAY),
         );
     });
 }

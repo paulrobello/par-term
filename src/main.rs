@@ -22,6 +22,9 @@ fn main() -> Result<()> {
 
     log::info!("Starting par-term terminal emulator");
 
+    // Clean up leftover .old binary from a previous self-update (Windows)
+    par_term::self_updater::cleanup_old_binary();
+
     // Create Tokio runtime for async operations (PTY, etc.)
     let runtime = Arc::new(Runtime::new()?);
 

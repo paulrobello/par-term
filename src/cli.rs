@@ -121,6 +121,13 @@ pub enum Commands {
         #[arg(short = 'y', long)]
         yes: bool,
     },
+
+    /// Update par-term to the latest version
+    SelfUpdate {
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
 }
 
 /// Runtime options passed from CLI to the application
@@ -171,6 +178,10 @@ pub fn process_cli() -> CliResult {
         }
         Some(Commands::InstallIntegrations { yes }) => {
             let result = install_integrations_cli(yes);
+            CliResult::Exit(if result.is_ok() { 0 } else { 1 })
+        }
+        Some(Commands::SelfUpdate { yes }) => {
+            let result = self_update_cli(yes);
             CliResult::Exit(if result.is_ok() { 0 } else { 1 })
         }
         None => {
@@ -451,6 +462,114 @@ fn uninstall_shaders_cli(force: bool) -> anyhow::Result<()> {
         }
         Err(e) => {
             eprintln!("Error: {}", e);
+            Err(anyhow::anyhow!(e))
+        }
+    }
+}
+
+/// Self-update par-term to the latest version (CLI version)
+fn self_update_cli(skip_prompt: bool) -> anyhow::Result<()> {
+    use crate::self_updater;
+    use crate::update_checker;
+
+    println!("=============================================");
+    println!("  par-term Self-Updater");
+    println!("=============================================");
+    println!();
+
+    let current_version = env!("CARGO_PKG_VERSION");
+    println!("Current version: {}", current_version);
+
+    // Detect installation type
+    let installation = self_updater::detect_installation();
+    println!("Installation type: {}", installation.description());
+    println!();
+
+    // Check for managed installations early
+    match &installation {
+        self_updater::InstallationType::Homebrew => {
+            println!("par-term is installed via Homebrew.");
+            println!("Please update with:");
+            println!("  brew upgrade --cask par-term");
+            return Err(anyhow::anyhow!("Cannot self-update Homebrew installation"));
+        }
+        self_updater::InstallationType::CargoInstall => {
+            println!("par-term is installed via cargo.");
+            println!("Please update with:");
+            println!("  cargo install par-term");
+            return Err(anyhow::anyhow!("Cannot self-update cargo installation"));
+        }
+        _ => {}
+    }
+
+    // Check for updates
+    println!("Checking for updates...");
+    let release_info = update_checker::fetch_latest_release().map_err(|e| anyhow::anyhow!(e))?;
+
+    let latest_version = release_info
+        .version
+        .strip_prefix('v')
+        .unwrap_or(&release_info.version);
+
+    let current = semver::Version::parse(current_version)?;
+    let latest = semver::Version::parse(latest_version)?;
+
+    if latest <= current {
+        println!();
+        println!("You are already running the latest version ({}).", current_version);
+        return Ok(());
+    }
+
+    println!();
+    println!("New version available: {} -> {}", current_version, latest_version);
+    if let Some(ref notes) = release_info.release_notes {
+        println!();
+        println!("Release notes:");
+        // Show first few lines of release notes
+        for line in notes.lines().take(10) {
+            println!("  {}", line);
+        }
+        if notes.lines().count() > 10 {
+            println!("  ...");
+        }
+    }
+    println!();
+
+    // Confirm unless --yes
+    if !skip_prompt {
+        print!("Do you want to update? [y/N] ");
+        io::stdout().flush()?;
+
+        let mut response = String::new();
+        io::stdin().read_line(&mut response)?;
+        let response = response.trim().to_lowercase();
+
+        if response != "y" && response != "yes" {
+            println!("Update cancelled.");
+            return Ok(());
+        }
+        println!();
+    }
+
+    println!("Downloading and installing update...");
+
+    match self_updater::perform_update(latest_version) {
+        Ok(result) => {
+            println!();
+            println!("=============================================");
+            println!("  Update complete!");
+            println!("=============================================");
+            println!();
+            println!("Updated: {} -> {}", result.old_version, result.new_version);
+            println!("Location: {}", result.install_path.display());
+            if result.needs_restart {
+                println!();
+                println!("Please restart par-term to use the new version.");
+            }
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("Update failed: {}", e);
             Err(anyhow::anyhow!(e))
         }
     }

@@ -46,6 +46,10 @@ pub enum SettingsWindowAction {
     DeleteArrangement(crate::arrangements::ArrangementId),
     /// Rename a saved window arrangement
     RenameArrangement(crate::arrangements::ArrangementId, String),
+    /// User requested an immediate update check
+    ForceUpdateCheck,
+    /// User requested to install the available update
+    InstallUpdate(String),
 }
 
 /// Manages a separate settings window with its own egui context and wgpu renderer
@@ -492,6 +496,34 @@ impl SettingsWindow {
             self.settings_ui.open_log_requested = false;
             return SettingsWindowAction::OpenLogFile;
         }
+
+        // Check for update check request
+        if self.settings_ui.check_now_requested {
+            self.settings_ui.check_now_requested = false;
+            self.window.request_redraw();
+            return SettingsWindowAction::ForceUpdateCheck;
+        }
+
+        // Check for update install request
+        if self.settings_ui.update_install_requested {
+            self.settings_ui.update_install_requested = false;
+            // Extract the version from the last_update_result
+            if let Some(crate::update_checker::UpdateCheckResult::UpdateAvailable(ref info)) =
+                self.settings_ui.last_update_result
+            {
+                let version = info
+                    .version
+                    .strip_prefix('v')
+                    .unwrap_or(&info.version)
+                    .to_string();
+                self.settings_ui.start_self_update(version.clone());
+                self.window.request_redraw();
+                return SettingsWindowAction::InstallUpdate(version);
+            }
+        }
+
+        // Poll for update install completion
+        self.settings_ui.poll_update_install_status();
 
         // Check for coprocess start/stop actions
         if let Some((index, start)) = self.settings_ui.pending_coprocess_actions.pop() {
