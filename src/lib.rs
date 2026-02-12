@@ -11,6 +11,8 @@ pub mod cell_renderer;
 pub mod cli;
 pub mod clipboard_history_ui;
 pub mod close_confirmation_ui;
+pub mod command_history;
+pub mod command_history_ui;
 pub mod config;
 pub mod copy_mode;
 pub mod custom_shader_renderer;

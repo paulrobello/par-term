@@ -419,6 +419,11 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
             key: "CmdOrCtrl+Shift+C".to_string(),
             action: "toggle_copy_mode".to_string(),
         },
+        // Command history fuzzy search
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+R".to_string(),
+            action: "toggle_command_history".to_string(),
+        },
     ];
 
     #[cfg(not(target_os = "macos"))]
@@ -510,6 +515,13 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
         super::types::KeyBinding {
             key: "Ctrl+Shift+Space".to_string(),
             action: "toggle_copy_mode".to_string(),
+        },
+        // Command history fuzzy search
+        // Ctrl+R conflicts with terminal reverse search, so use Ctrl+Shift+R
+        // Note: Ctrl+Shift+R is session logging on Linux; users can reassign
+        super::types::KeyBinding {
+            key: "Ctrl+Alt+R".to_string(),
+            action: "toggle_command_history".to_string(),
         },
     ];
 
@@ -798,6 +810,10 @@ pub fn badge_max_height() -> f32 {
 }
 
 // Session logging defaults
+pub fn command_history_max_entries() -> usize {
+    1000 // Maximum number of commands to persist across sessions
+}
+
 pub fn session_log_directory() -> String {
     // XDG-compliant default: ~/.local/share/par-term/logs/
     if let Some(home) = dirs::home_dir() {

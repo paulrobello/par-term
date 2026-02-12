@@ -17,6 +17,7 @@ impl WindowState {
         // Note: Profile drawer does NOT block input - only modal dialogs do
         let any_ui_visible = self.help_ui.visible
             || self.clipboard_history_ui.visible
+            || self.command_history_ui.visible
             || self.search_ui.visible
             || self.profile_modal_ui.visible
             || self.tmux_session_picker_ui.visible;
@@ -128,6 +129,11 @@ impl WindowState {
         // Check if this is a clipboard history key (Ctrl+Shift+H)
         if self.handle_clipboard_history_keys(&event) {
             return; // Key was handled for clipboard history, don't send to terminal
+        }
+
+        // Check if this is a command history key (Ctrl+R / Cmd+R)
+        if self.handle_command_history_keys(&event) {
+            return; // Key was handled for command history, don't send to terminal
         }
 
         // Check if paste special UI is handling keys
@@ -624,6 +630,75 @@ impl WindowState {
         log::debug!(
             "Clipboard history UI toggled: {}",
             self.clipboard_history_ui.visible
+        );
+    }
+
+    fn handle_command_history_keys(&mut self, event: &KeyEvent) -> bool {
+        // Handle keys when command history UI is visible
+        if self.command_history_ui.visible {
+            if event.state == ElementState::Pressed {
+                match &event.logical_key {
+                    Key::Named(NamedKey::Escape) => {
+                        self.command_history_ui.close();
+                        self.needs_redraw = true;
+                        return true;
+                    }
+                    Key::Named(NamedKey::ArrowUp) => {
+                        self.command_history_ui.select_previous();
+                        self.needs_redraw = true;
+                        return true;
+                    }
+                    Key::Named(NamedKey::ArrowDown) => {
+                        self.command_history_ui
+                            .select_next(self.command_history.len());
+                        self.needs_redraw = true;
+                        return true;
+                    }
+                    Key::Named(NamedKey::Enter) => {
+                        // Insert the selected command into the terminal
+                        if let Some(command) = self.command_history_ui.selected_command() {
+                            self.command_history_ui.close();
+                            self.paste_text(&command);
+                        }
+                        self.needs_redraw = true;
+                        return true;
+                    }
+                    _ => {}
+                }
+            }
+            // While command history is visible, consume all key events
+            return true;
+        }
+
+        // Cmd+R (macOS) or Ctrl+R (Linux/Windows): Toggle command history UI
+        if event.state == ElementState::Pressed {
+            #[cfg(target_os = "macos")]
+            let modifier = self.input_handler.modifiers.state().super_key();
+            #[cfg(not(target_os = "macos"))]
+            let modifier = self.input_handler.modifiers.state().control_key();
+
+            if modifier
+                && !self.input_handler.modifiers.state().shift_key()
+                && !self.input_handler.modifiers.state().alt_key()
+                && matches!(event.logical_key, Key::Character(ref c) if c.as_str() == "r" || c.as_str() == "R")
+            {
+                self.toggle_command_history();
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn toggle_command_history(&mut self) {
+        // Refresh entries from persistent history before showing
+        self.command_history_ui
+            .update_entries(self.command_history.entries());
+        self.command_history_ui.toggle();
+        self.needs_redraw = true;
+        log::debug!(
+            "Command history UI toggled: {}",
+            self.command_history_ui.visible
         );
     }
 
@@ -1331,6 +1406,18 @@ impl WindowState {
                 log::info!(
                     "Clipboard history toggled via keybinding: {}",
                     if self.clipboard_history_ui.visible {
+                        "visible"
+                    } else {
+                        "hidden"
+                    }
+                );
+                true
+            }
+            "toggle_command_history" => {
+                self.toggle_command_history();
+                log::info!(
+                    "Command history toggled via keybinding: {}",
+                    if self.command_history_ui.visible {
                         "visible"
                     } else {
                         "hidden"

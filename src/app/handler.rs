@@ -192,6 +192,7 @@ impl WindowState {
         // Note: Profile drawer does NOT block input - only modal dialogs do
         let any_ui_visible = self.help_ui.visible
             || self.clipboard_history_ui.visible
+            || self.command_history_ui.visible
             || self.shader_install_ui.visible
             || self.integrations_ui.visible
             || self.profile_modal_ui.visible;
@@ -847,6 +848,7 @@ impl WindowState {
                 // Bypass for UI interactions
                 let any_ui_visible = self.help_ui.visible
                     || self.clipboard_history_ui.visible
+                    || self.command_history_ui.visible
                     || self.search_ui.visible
                     || self.shader_install_ui.visible
                     || self.integrations_ui.visible

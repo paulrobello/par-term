@@ -163,6 +163,7 @@ impl HelpUI {
                             shortcut_row(ui, "Ctrl+Shift+C", "Copy selection");
                             shortcut_row(ui, "Ctrl+Shift+V", "Paste from clipboard");
                             shortcut_row(ui, "Ctrl+Shift+H", "Toggle clipboard history");
+                            shortcut_row(ui, "Cmd/Ctrl+R", "Fuzzy command history search");
                             shortcut_row(ui, "Middle-click", "Paste (if enabled)");
 
                             ui.end_row();
