@@ -189,10 +189,11 @@ clean:
 	@echo "Cleaning build artifacts..."
 	cargo clean
 
-# Install the binary
-install:
-	@echo "Installing par-term..."
-	cargo install --path . --bin par-term
+# Install the binary (reuses release build)
+install: release
+	@echo "Installing par-term to ~/.cargo/bin/..."
+	@cp target/release/par-term "$${HOME}/.cargo/bin/par-term"
+	@echo "Installed to ~/.cargo/bin/par-term"
 
 # Generate documentation
 doc:
