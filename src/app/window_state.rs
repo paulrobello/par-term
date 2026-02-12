@@ -1295,12 +1295,16 @@ impl WindowState {
         );
         if let Some(renderer) = &mut self.renderer {
             let current_offset = renderer.content_offset_y();
-            if (current_offset - tab_bar_height).abs() > 0.1 {
+            // Compare in physical pixels (content_offset_y is physical, tab_bar_height is logical)
+            let expected_offset = tab_bar_height * renderer.scale_factor();
+            if (current_offset - expected_offset).abs() > 0.1 {
                 crate::debug_info!(
                     "TAB_SYNC",
-                    "Content offset changing: {:.0} -> {:.0}",
+                    "Content offset changing: {:.0} -> {:.0} (logical {:.0} * scale {:.1})",
                     current_offset,
-                    tab_bar_height
+                    expected_offset,
+                    tab_bar_height,
+                    renderer.scale_factor()
                 );
             }
             if let Some((new_cols, new_rows)) = renderer.set_content_offset_y(tab_bar_height) {

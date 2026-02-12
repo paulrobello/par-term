@@ -465,7 +465,24 @@ impl Renderer {
         scale_factor: f64,
         new_size: PhysicalSize<u32>,
     ) -> (usize, usize) {
+        let old_scale = self.cell_renderer.scale_factor;
         self.cell_renderer.update_scale_factor(scale_factor);
+        let new_scale = self.cell_renderer.scale_factor;
+
+        // Rescale content_offset_y from old physical pixels to new physical pixels
+        if old_scale > 0.0 && (old_scale - new_scale).abs() > f32::EPSILON {
+            let logical_offset = self.cell_renderer.content_offset_y() / old_scale;
+            let new_physical = logical_offset * new_scale;
+            self.cell_renderer.set_content_offset_y(new_physical);
+            self.graphics_renderer.set_content_offset_y(new_physical);
+            if let Some(ref mut cs) = self.custom_shader_renderer {
+                cs.set_content_offset_y(new_physical);
+            }
+            if let Some(ref mut cs) = self.cursor_shader_renderer {
+                cs.set_content_offset_y(new_physical);
+            }
+        }
+
         self.resize(new_size)
     }
 
@@ -2049,25 +2066,34 @@ impl Renderer {
         self.cell_renderer.window_padding()
     }
 
-    /// Get the vertical content offset (e.g., tab bar height)
+    /// Get the vertical content offset in physical pixels (e.g., tab bar height scaled by DPI)
     pub fn content_offset_y(&self) -> f32 {
         self.cell_renderer.content_offset_y()
     }
 
-    /// Set the vertical content offset (e.g., tab bar height).
-    /// This affects both grid size calculation and cell positioning.
+    /// Get the display scale factor (e.g., 2.0 on Retina displays)
+    pub fn scale_factor(&self) -> f32 {
+        self.cell_renderer.scale_factor
+    }
+
+    /// Set the vertical content offset (e.g., tab bar height) in logical pixels.
+    /// The offset is scaled by the display scale factor to physical pixels internally,
+    /// since the cell renderer works in physical pixel coordinates while egui (tab bar)
+    /// uses logical pixels.
     /// Returns Some((cols, rows)) if grid size changed, None otherwise.
-    pub fn set_content_offset_y(&mut self, offset: f32) -> Option<(usize, usize)> {
-        let result = self.cell_renderer.set_content_offset_y(offset);
+    pub fn set_content_offset_y(&mut self, logical_offset: f32) -> Option<(usize, usize)> {
+        // Scale from logical pixels (egui/config) to physical pixels (wgpu surface)
+        let physical_offset = logical_offset * self.cell_renderer.scale_factor;
+        let result = self.cell_renderer.set_content_offset_y(physical_offset);
         // Always update graphics renderer offset, even if grid size didn't change
-        self.graphics_renderer.set_content_offset_y(offset);
+        self.graphics_renderer.set_content_offset_y(physical_offset);
         // Update custom shader renderer content offset
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            custom_shader.set_content_offset_y(offset);
+            custom_shader.set_content_offset_y(physical_offset);
         }
         // Update cursor shader renderer content offset
         if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
-            cursor_shader.set_content_offset_y(offset);
+            cursor_shader.set_content_offset_y(physical_offset);
         }
         if result.is_some() {
             self.dirty = true;
