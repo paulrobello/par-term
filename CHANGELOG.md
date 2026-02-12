@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **HiDPI tab bar overlap** (#121): Terminal content no longer renders behind the tab bar on Retina/HiDPI displays; the tab bar height (egui logical pixels) is now correctly scaled to physical pixels for the cell renderer
+- **HiDPI window padding**: Window padding from config is now scaled by the display scale factor, so padding is visually correct on Retina/HiDPI displays (previously half the intended size at scale_factor=2)
+- **DPI change handling**: Both content offset and window padding are correctly rescaled when moving windows between displays with different DPIs
 - **Pane divider drag resize** now uses the configured divider width instead of a hardcoded 1.0px value, fixing inaccurate resize calculations when divider width differs from 1.0
 - **Profile parent selector** now prevents creating inheritance cycles (e.g., A→B→A) by checking ancestor chains before listing valid parents
 
