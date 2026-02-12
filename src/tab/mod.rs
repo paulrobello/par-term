@@ -1018,32 +1018,38 @@ impl Tab {
 
     /// Split the current pane horizontally (panes stacked vertically)
     ///
-    /// Returns the new pane ID if successful
+    /// Returns the new pane ID if successful.
+    /// `dpi_scale` converts logical pixel config values to physical pixels.
     pub fn split_horizontal(
         &mut self,
         config: &Config,
         runtime: Arc<Runtime>,
+        dpi_scale: f32,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
-        self.split(SplitDirection::Horizontal, config, runtime)
+        self.split(SplitDirection::Horizontal, config, runtime, dpi_scale)
     }
 
     /// Split the current pane vertically (panes side by side)
     ///
-    /// Returns the new pane ID if successful
+    /// Returns the new pane ID if successful.
+    /// `dpi_scale` converts logical pixel config values to physical pixels.
     pub fn split_vertical(
         &mut self,
         config: &Config,
         runtime: Arc<Runtime>,
+        dpi_scale: f32,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
-        self.split(SplitDirection::Vertical, config, runtime)
+        self.split(SplitDirection::Vertical, config, runtime, dpi_scale)
     }
 
-    /// Split the focused pane in the given direction
+    /// Split the focused pane in the given direction.
+    /// `dpi_scale` is used to convert logical pixel config values to physical pixels.
     fn split(
         &mut self,
         direction: SplitDirection,
         config: &Config,
         runtime: Arc<Runtime>,
+        dpi_scale: f32,
     ) -> anyhow::Result<Option<crate::pane::PaneId>> {
         // Check max panes limit
         if config.max_panes > 0 && self.pane_count() >= config.max_panes {
@@ -1065,8 +1071,9 @@ impl Tab {
             // Create pane manager if it doesn't exist
             if self.pane_manager.is_none() {
                 let mut pm = PaneManager::new();
-                pm.set_divider_width(config.pane_divider_width.unwrap_or(2.0));
-                pm.set_divider_hit_width(config.pane_divider_hit_width);
+                // Scale from logical pixels (config) to physical pixels for layout
+                pm.set_divider_width(config.pane_divider_width.unwrap_or(2.0) * dpi_scale);
+                pm.set_divider_hit_width(config.pane_divider_hit_width * dpi_scale);
                 self.pane_manager = Some(pm);
             }
 

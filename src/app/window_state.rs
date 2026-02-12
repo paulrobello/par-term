@@ -54,6 +54,7 @@ struct RendererSizing {
     cell_height: f32,
     padding: f32,
     status_bar_height: f32,
+    scale_factor: f32,
 }
 
 /// Pane render data tuple for split pane rendering
@@ -1728,6 +1729,8 @@ impl WindowState {
 
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts
         // When tmux controls the layout, we don't use pane padding
+        // Note: pane_padding is in logical pixels (config); we defer DPI scaling to
+        // where it's used with physical pixel coordinates (via sizing.scale_factor).
         let is_tmux_gateway = self.is_gateway_active();
         let effective_pane_padding = if is_tmux_gateway {
             0.0
@@ -1736,6 +1739,7 @@ impl WindowState {
         };
 
         // Calculate status bar height before mutable renderer borrow
+        // Note: This is in logical pixels; it gets scaled to physical in RendererSizing.
         let is_tmux_connected = self.is_tmux_connected();
         let status_bar_height =
             crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
@@ -2303,7 +2307,8 @@ impl WindowState {
                 cell_width: renderer.cell_width(),
                 cell_height: renderer.cell_height(),
                 padding: renderer.window_padding(),
-                status_bar_height,
+                status_bar_height: status_bar_height * renderer.scale_factor(),
+                scale_factor: renderer.scale_factor(),
             };
 
             // Check if we have a pane manager with panes - this just checks without modifying
@@ -2354,17 +2359,19 @@ impl WindowState {
                             pm.set_bounds(bounds);
 
                             // Calculate title bar height offset for terminal sizing
+                            // Scale from logical pixels (config) to physical pixels
                             let title_height_offset = if self.config.show_pane_titles {
-                                self.config.pane_title_height
+                                self.config.pane_title_height * sizing.scale_factor
                             } else {
                                 0.0
                             };
 
                             // Resize all pane terminals to match their new bounds
+                            // Scale pane_padding from logical to physical pixels
                             pm.resize_all_terminals_with_padding(
                                 sizing.cell_width,
                                 sizing.cell_height,
-                                effective_pane_padding,
+                                effective_pane_padding * sizing.scale_factor,
                                 title_height_offset,
                             );
 
@@ -2383,8 +2390,9 @@ impl WindowState {
                             let cursor_opacity = self.cursor_opacity;
 
                             // Pane title settings
+                            // Scale from logical pixels (config) to physical pixels
                             let show_titles = self.config.show_pane_titles;
-                            let title_height = self.config.pane_title_height;
+                            let title_height = self.config.pane_title_height * sizing.scale_factor;
                             let title_position = self.config.pane_title_position;
                             let title_text_color = [
                                 self.config.pane_title_color[0] as f32 / 255.0,
@@ -2423,6 +2431,9 @@ impl WindowState {
                                     };
 
                                     // Create viewport with padding for content inset
+                                    // Scale pane_padding from logical to physical pixels
+                                    let physical_pane_padding =
+                                        effective_pane_padding * sizing.scale_factor;
                                     let viewport = PaneViewport::with_padding(
                                         bounds.x,
                                         viewport_y,
@@ -2434,7 +2445,7 @@ impl WindowState {
                                         } else {
                                             pane_bg_opacity * inactive_opacity
                                         },
-                                        effective_pane_padding,
+                                        physical_pane_padding,
                                     );
 
                                     if is_focused {
@@ -2510,10 +2521,10 @@ impl WindowState {
                                     // Grid size must match the terminal's actual size
                                     // (accounting for padding and title bar, same as resize_all_terminals_with_padding)
                                     let content_width = (bounds.width
-                                        - effective_pane_padding * 2.0)
+                                        - physical_pane_padding * 2.0)
                                         .max(sizing.cell_width);
                                     let content_height = (viewport_height
-                                        - effective_pane_padding * 2.0)
+                                        - physical_pane_padding * 2.0)
                                         .max(sizing.cell_height);
                                     let cols = (content_width / sizing.cell_width).floor() as usize;
                                     let rows =
@@ -3002,7 +3013,7 @@ impl WindowState {
                 config.pane_focus_color[1] as f32 / 255.0,
                 config.pane_focus_color[2] as f32 / 255.0,
             ],
-            focus_width: config.pane_focus_width,
+            focus_width: config.pane_focus_width * renderer.scale_factor(),
             divider_style: config.pane_divider_style,
         };
 

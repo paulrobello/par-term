@@ -88,10 +88,16 @@ impl WindowState {
 
         // Check if click is in the tab bar area - if so, let egui handle it
         // IMPORTANT: Do this BEFORE setting button_pressed to avoid selection state issues
+        // Tab bar height is in logical pixels (egui); mouse_position is physical pixels (winit)
         let tab_bar_height = self
             .tab_bar_ui
             .get_height(self.tab_manager.tab_count(), &self.config);
-        if mouse_position.1 < tab_bar_height as f64 {
+        let scale_factor = self
+            .window
+            .as_ref()
+            .map(|w| w.scale_factor())
+            .unwrap_or(1.0);
+        if mouse_position.1 < tab_bar_height as f64 * scale_factor {
             // Request redraw so egui can process the click event
             if let Some(window) = &self.window {
                 window.request_redraw();
@@ -523,10 +529,16 @@ impl WindowState {
 
         // Check if mouse is in the tab bar area - if so, skip terminal-specific processing
         // Position update above is still needed for proper event handling
+        // Tab bar height is in logical pixels (egui); position is physical pixels (winit)
         let tab_bar_height = self
             .tab_bar_ui
             .get_height(self.tab_manager.tab_count(), &self.config);
-        if position.1 < tab_bar_height as f64 {
+        let scale_factor = self
+            .window
+            .as_ref()
+            .map(|w| w.scale_factor())
+            .unwrap_or(1.0);
+        if position.1 < tab_bar_height as f64 * scale_factor {
             // Request redraw so egui can update hover states
             if let Some(window) = &self.window {
                 window.request_redraw();

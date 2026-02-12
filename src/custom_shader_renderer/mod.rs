@@ -60,6 +60,8 @@ pub struct CustomShaderRenderer {
     pub(crate) bind_group_layout: BindGroupLayout,
     /// Sampler for the intermediate texture
     pub(crate) sampler: Sampler,
+    /// Display scale factor for DPI scaling (e.g., 2.0 on Retina)
+    pub(crate) scale_factor: f32,
     /// Window opacity for transparency
     pub(crate) window_opacity: f32,
     /// When true, text is always rendered at full opacity (overrides text_opacity)
@@ -290,6 +292,7 @@ impl CustomShaderRenderer {
             sampler,
             window_opacity,
             keep_text_opaque: false,
+            scale_factor: 1.0,
             full_content_mode,
             brightness: 1.0,
             frame_count: 0,
@@ -571,14 +574,14 @@ impl CustomShaderRenderer {
             current_cursor: [
                 curr_x,
                 curr_y,
-                self.cursor_width_for_style(self.current_cursor_style),
-                self.cursor_height_for_style(self.current_cursor_style),
+                self.cursor_width_for_style(self.current_cursor_style, self.scale_factor),
+                self.cursor_height_for_style(self.current_cursor_style, self.scale_factor),
             ],
             previous_cursor: [
                 prev_x,
                 prev_y,
-                self.cursor_width_for_style(self.previous_cursor_style),
-                self.cursor_height_for_style(self.previous_cursor_style),
+                self.cursor_width_for_style(self.previous_cursor_style, self.scale_factor),
+                self.cursor_height_for_style(self.previous_cursor_style, self.scale_factor),
             ],
             current_cursor_color: [
                 self.current_cursor_color[0],

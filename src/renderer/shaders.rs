@@ -52,6 +52,7 @@ pub(super) fn init_custom_shader(
                 cell_renderer.cell_height(),
                 window_padding,
             );
+            renderer.set_scale_factor(cell_renderer.scale_factor);
             renderer.set_brightness(custom_shader_brightness);
 
             // Apply use_background_as_channel0 setting
@@ -140,6 +141,7 @@ pub(super) fn init_cursor_shader(
             let cell_w = cell_renderer.cell_width();
             let cell_h = cell_renderer.cell_height();
             renderer.update_cell_dimensions(cell_w, cell_h, window_padding);
+            renderer.set_scale_factor(cell_renderer.scale_factor);
             crate::debug_info!(
                 "SHADER",
                 "Cursor shader renderer initialized from: {} (cell={}x{}, padding={})",
@@ -257,12 +259,13 @@ impl Renderer {
         }
     }
 
-    /// Update cursor shader configuration from config values
+    /// Update cursor shader configuration from config values.
+    /// Glow radius is in logical pixels and will be scaled to physical pixels internally.
     ///
     /// # Arguments
     /// * `color` - Cursor color for shader effects [R, G, B] (0-255)
     /// * `trail_duration` - Duration of cursor trail effect in seconds
-    /// * `glow_radius` - Radius of cursor glow effect in pixels
+    /// * `glow_radius` - Radius of cursor glow effect in logical pixels
     /// * `glow_intensity` - Intensity of cursor glow effect (0.0-1.0)
     pub fn update_cursor_shader_config(
         &mut self,
@@ -271,12 +274,13 @@ impl Renderer {
         glow_radius: f32,
         glow_intensity: f32,
     ) {
+        let physical_glow_radius = glow_radius * self.cell_renderer.scale_factor;
         // Update both shaders with cursor config
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
             custom_shader.update_cursor_shader_config(
                 color,
                 trail_duration,
-                glow_radius,
+                physical_glow_radius,
                 glow_intensity,
             );
         }
@@ -284,7 +288,7 @@ impl Renderer {
             cursor_shader.update_cursor_shader_config(
                 color,
                 trail_duration,
-                glow_radius,
+                physical_glow_radius,
                 glow_intensity,
             );
         }
@@ -362,6 +366,8 @@ impl Renderer {
                             self.cell_renderer.cell_height(),
                             self.cell_renderer.window_padding(),
                         );
+                        // Sync DPI scale factor for cursor sizing
+                        renderer.set_scale_factor(self.cell_renderer.scale_factor);
                         // Sync keep_text_opaque from cell renderer
                         renderer.set_keep_text_opaque(self.cell_renderer.keep_text_opaque());
                         // When background shader is enabled and chained into cursor shader,
@@ -557,6 +563,8 @@ impl Renderer {
                             self.cell_renderer.cell_height(),
                             self.cell_renderer.window_padding(),
                         );
+                        // Sync DPI scale factor for cursor sizing
+                        renderer.set_scale_factor(self.cell_renderer.scale_factor);
                         // Apply brightness setting
                         renderer.set_brightness(brightness);
                         // Sync keep_text_opaque from cell renderer

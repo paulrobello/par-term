@@ -307,15 +307,22 @@ impl WindowState {
             let content_offset_y = r.content_offset_y();
             let cell_width = r.cell_width();
             let cell_height = r.cell_height();
-            (size, padding, content_offset_y, cell_width, cell_height)
+            let scale = r.scale_factor();
+            (size, padding, content_offset_y, cell_width, cell_height, scale)
         });
+
+        let dpi_scale = bounds_info.map(|b| b.5).unwrap_or(1.0);
 
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             // Set pane bounds before split if we have renderer info
-            if let Some((size, padding, content_offset_y, cell_width, cell_height)) = bounds_info {
+            if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) =
+                bounds_info
+            {
+                // Scale status_bar_height from logical to physical pixels
+                let physical_status_bar_height = status_bar_height * scale;
                 let content_width = size.width as f32 - padding * 2.0;
                 let content_height =
-                    size.height as f32 - content_offset_y - padding - status_bar_height;
+                    size.height as f32 - content_offset_y - padding - physical_status_bar_height;
                 let bounds = crate::pane::PaneBounds::new(
                     padding,
                     content_offset_y,
@@ -325,7 +332,7 @@ impl WindowState {
                 tab.set_pane_bounds(bounds, cell_width, cell_height);
             }
 
-            match tab.split_horizontal(&self.config, Arc::clone(&self.runtime)) {
+            match tab.split_horizontal(&self.config, Arc::clone(&self.runtime), dpi_scale) {
                 Ok(Some(pane_id)) => {
                     log::info!("Split pane horizontally, new pane {}", pane_id);
                     // Clear renderer cells to remove stale single-pane data
@@ -370,15 +377,22 @@ impl WindowState {
             let content_offset_y = r.content_offset_y();
             let cell_width = r.cell_width();
             let cell_height = r.cell_height();
-            (size, padding, content_offset_y, cell_width, cell_height)
+            let scale = r.scale_factor();
+            (size, padding, content_offset_y, cell_width, cell_height, scale)
         });
+
+        let dpi_scale = bounds_info.map(|b| b.5).unwrap_or(1.0);
 
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             // Set pane bounds before split if we have renderer info
-            if let Some((size, padding, content_offset_y, cell_width, cell_height)) = bounds_info {
+            if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) =
+                bounds_info
+            {
+                // Scale status_bar_height from logical to physical pixels
+                let physical_status_bar_height = status_bar_height * scale;
                 let content_width = size.width as f32 - padding * 2.0;
                 let content_height =
-                    size.height as f32 - content_offset_y - padding - status_bar_height;
+                    size.height as f32 - content_offset_y - padding - physical_status_bar_height;
                 let bounds = crate::pane::PaneBounds::new(
                     padding,
                     content_offset_y,
@@ -388,7 +402,7 @@ impl WindowState {
                 tab.set_pane_bounds(bounds, cell_width, cell_height);
             }
 
-            match tab.split_vertical(&self.config, Arc::clone(&self.runtime)) {
+            match tab.split_vertical(&self.config, Arc::clone(&self.runtime), dpi_scale) {
                 Ok(Some(pane_id)) => {
                     log::info!("Split pane vertically, new pane {}", pane_id);
                     // Clear renderer cells to remove stale single-pane data

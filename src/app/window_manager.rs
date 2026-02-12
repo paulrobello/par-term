@@ -1552,11 +1552,17 @@ impl WindowManager {
             }
 
             // Update pane divider settings on all tabs with pane managers
-            let divider_width = config.pane_divider_width.unwrap_or(2.0);
+            // Scale from logical pixels (config) to physical pixels for layout calculations
+            let dpi_scale = window_state
+                .renderer
+                .as_ref()
+                .map(|r| r.scale_factor())
+                .unwrap_or(1.0);
+            let divider_width = config.pane_divider_width.unwrap_or(2.0) * dpi_scale;
             for tab in window_state.tab_manager.tabs_mut() {
                 if let Some(pm) = tab.pane_manager_mut() {
                     pm.set_divider_width(divider_width);
-                    pm.set_divider_hit_width(config.pane_divider_hit_width);
+                    pm.set_divider_hit_width(config.pane_divider_hit_width * dpi_scale);
                 }
             }
 

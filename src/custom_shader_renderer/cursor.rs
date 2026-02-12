@@ -79,6 +79,11 @@ impl CustomShaderRenderer {
         self.cursor_content_offset_y = offset;
     }
 
+    /// Set display scale factor for DPI-aware cursor sizing
+    pub fn set_scale_factor(&mut self, scale_factor: f32) {
+        self.scale_factor = scale_factor;
+    }
+
     /// Convert cursor cell coordinates to pixel coordinates
     ///
     /// Returns (x, y) in pixels from top-left corner of the window.
@@ -90,27 +95,29 @@ impl CustomShaderRenderer {
         (x, y)
     }
 
-    /// Get cursor width in pixels based on cursor style
-    pub(super) fn cursor_width_for_style(&self, style: CursorStyle) -> f32 {
+    /// Get cursor width in pixels based on cursor style.
+    /// Returns physical pixels (cell dimensions are already in physical pixels).
+    pub(super) fn cursor_width_for_style(&self, style: CursorStyle, scale_factor: f32) -> f32 {
         match style {
             // Block cursor: full cell width
             CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => self.cursor_cell_width,
-            // Beam/Bar cursor: thin vertical line (2 pixels)
-            CursorStyle::SteadyBar | CursorStyle::BlinkingBar => 2.0,
+            // Beam/Bar cursor: thin vertical line (2 logical pixels, scaled)
+            CursorStyle::SteadyBar | CursorStyle::BlinkingBar => 2.0 * scale_factor,
             // Underline cursor: full cell width
             CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => self.cursor_cell_width,
         }
     }
 
-    /// Get cursor height in pixels based on cursor style
-    pub(super) fn cursor_height_for_style(&self, style: CursorStyle) -> f32 {
+    /// Get cursor height in pixels based on cursor style.
+    /// Returns physical pixels (cell dimensions are already in physical pixels).
+    pub(super) fn cursor_height_for_style(&self, style: CursorStyle, scale_factor: f32) -> f32 {
         match style {
             // Block cursor: full cell height
             CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => self.cursor_cell_height,
             // Beam/Bar cursor: full cell height
             CursorStyle::SteadyBar | CursorStyle::BlinkingBar => self.cursor_cell_height,
-            // Underline cursor: thin horizontal line (2 pixels)
-            CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => 2.0,
+            // Underline cursor: thin horizontal line (2 logical pixels, scaled)
+            CursorStyle::SteadyUnderline | CursorStyle::BlinkingUnderline => 2.0 * scale_factor,
         }
     }
 

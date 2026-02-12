@@ -284,8 +284,10 @@ impl Renderer {
         let natural_line_height = font_ascent + font_descent + font_leading;
         let char_height = (natural_line_height * line_spacing).max(1.0);
 
-        // Scale window padding from logical pixels (config) to physical pixels (wgpu surface)
-        let window_padding = window_padding * scale_factor as f32;
+        // Scale logical pixel values (config) to physical pixels (wgpu surface)
+        let scale = scale_factor as f32;
+        let window_padding = window_padding * scale;
+        let scrollbar_width = scrollbar_width * scale;
 
         // Calculate available space after padding (padding on all sides)
         let available_width = (size.width as f32 - window_padding * 2.0).max(0.0);
@@ -367,7 +369,7 @@ impl Renderer {
         )?;
 
         // Create custom shader renderer if configured
-        let (custom_shader_renderer, initial_shader_path) = shaders::init_custom_shader(
+        let (mut custom_shader_renderer, initial_shader_path) = shaders::init_custom_shader(
             &cell_renderer,
             size.width,
             size.height,
@@ -385,7 +387,7 @@ impl Renderer {
         );
 
         // Create cursor shader renderer if configured (separate from background shader)
-        let (cursor_shader_renderer, initial_cursor_shader_path) = shaders::init_cursor_shader(
+        let (mut cursor_shader_renderer, initial_cursor_shader_path) = shaders::init_cursor_shader(
             &cell_renderer,
             size.width,
             size.height,
@@ -396,6 +398,14 @@ impl Renderer {
             cursor_shader_animation_speed,
             window_opacity,
         );
+
+        // Sync DPI scale factor to shader renderers for cursor sizing
+        if let Some(ref mut cs) = custom_shader_renderer {
+            cs.set_scale_factor(scale);
+        }
+        if let Some(ref mut cs) = cursor_shader_renderer {
+            cs.set_scale_factor(scale);
+        }
 
         debug_info!(
             "renderer",
@@ -472,8 +482,9 @@ impl Renderer {
         self.cell_renderer.update_scale_factor(scale_factor);
         let new_scale = self.cell_renderer.scale_factor;
 
-        // Rescale content_offset_y and window_padding from old physical pixels to new physical pixels
+        // Rescale physical pixel values when DPI changes
         if old_scale > 0.0 && (old_scale - new_scale).abs() > f32::EPSILON {
+            // Rescale content_offset_y
             let logical_offset = self.cell_renderer.content_offset_y() / old_scale;
             let new_physical_offset = logical_offset * new_scale;
             self.cell_renderer.set_content_offset_y(new_physical_offset);
@@ -489,6 +500,14 @@ impl Renderer {
             let logical_padding = self.cell_renderer.window_padding() / old_scale;
             let new_physical_padding = logical_padding * new_scale;
             self.cell_renderer.update_window_padding(new_physical_padding);
+
+            // Sync new scale factor to shader renderers for cursor sizing
+            if let Some(ref mut cs) = self.custom_shader_renderer {
+                cs.set_scale_factor(new_scale);
+            }
+            if let Some(ref mut cs) = self.cursor_shader_renderer {
+                cs.set_scale_factor(new_scale);
+            }
         }
 
         self.resize(new_size)
@@ -601,7 +620,8 @@ impl Renderer {
         self.dirty = true;
     }
 
-    /// Update cursor shadow settings
+    /// Update cursor shadow settings.
+    /// Offset and blur are in logical pixels and will be scaled to physical pixels internally.
     pub fn update_cursor_shadow(
         &mut self,
         enabled: bool,
@@ -609,8 +629,11 @@ impl Renderer {
         offset: [f32; 2],
         blur: f32,
     ) {
+        let scale = self.cell_renderer.scale_factor;
+        let physical_offset = [offset[0] * scale, offset[1] * scale];
+        let physical_blur = blur * scale;
         self.cell_renderer
-            .update_cursor_shadow(enabled, color, offset, blur);
+            .update_cursor_shadow(enabled, color, physical_offset, physical_blur);
         self.dirty = true;
     }
 
@@ -626,17 +649,19 @@ impl Renderer {
         self.dirty = true;
     }
 
-    /// Update command separator settings from config
+    /// Update command separator settings from config.
+    /// Thickness is in logical pixels and will be scaled to physical pixels internally.
     pub fn update_command_separator(
         &mut self,
         enabled: bool,
-        thickness: f32,
+        logical_thickness: f32,
         opacity: f32,
         exit_color: bool,
         color: [u8; 3],
     ) {
+        let physical_thickness = logical_thickness * self.cell_renderer.scale_factor;
         self.cell_renderer
-            .update_command_separator(enabled, thickness, opacity, exit_color, color);
+            .update_command_separator(enabled, physical_thickness, opacity, exit_color, color);
         self.dirty = true;
     }
 
@@ -809,15 +834,17 @@ impl Renderer {
         self.dirty = true;
     }
 
-    /// Update scrollbar appearance in real-time
+    /// Update scrollbar appearance in real-time.
+    /// Width is in logical pixels and will be scaled to physical pixels internally.
     pub fn update_scrollbar_appearance(
         &mut self,
-        width: f32,
+        logical_width: f32,
         thumb_color: [f32; 4],
         track_color: [f32; 4],
     ) {
+        let physical_width = logical_width * self.cell_renderer.scale_factor;
         self.cell_renderer
-            .update_scrollbar_appearance(width, thumb_color, track_color);
+            .update_scrollbar_appearance(physical_width, thumb_color, track_color);
         self.dirty = true;
     }
 

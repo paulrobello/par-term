@@ -597,13 +597,15 @@ impl WindowState {
             let content_offset_y = r.content_offset_y();
             let cell_width = r.cell_width();
             let cell_height = r.cell_height();
+            // Scale status_bar_height from logical to physical pixels
+            let physical_status_bar_height = status_bar_height * r.scale_factor();
             (
                 size,
                 padding,
                 content_offset_y,
                 cell_width,
                 cell_height,
-                status_bar_height,
+                physical_status_bar_height,
             )
         });
 

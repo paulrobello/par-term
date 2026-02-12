@@ -1012,7 +1012,7 @@ impl CellRenderer {
 
         // Slot 3: Cursor boost glow (larger rectangle around cursor with low opacity)
         if cursor_visible && self.cursor_boost > 0.0 {
-            let glow_expand = 4.0 * self.cursor_boost; // Expand by up to 4 pixels
+            let glow_expand = 4.0 * self.scale_factor * self.cursor_boost; // Expand by up to 4 logical pixels
             let glow_x0 = cursor_x0 - glow_expand;
             let glow_y0 = cursor_y0 - glow_expand;
             let glow_w = self.cell_width + glow_expand * 2.0;
