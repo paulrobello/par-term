@@ -284,6 +284,9 @@ impl Renderer {
         let natural_line_height = font_ascent + font_descent + font_leading;
         let char_height = (natural_line_height * line_spacing).max(1.0);
 
+        // Scale window padding from logical pixels (config) to physical pixels (wgpu surface)
+        let window_padding = window_padding * scale_factor as f32;
+
         // Calculate available space after padding (padding on all sides)
         let available_width = (size.width as f32 - window_padding * 2.0).max(0.0);
         let available_height = (size.height as f32 - window_padding * 2.0).max(0.0);
@@ -469,18 +472,23 @@ impl Renderer {
         self.cell_renderer.update_scale_factor(scale_factor);
         let new_scale = self.cell_renderer.scale_factor;
 
-        // Rescale content_offset_y from old physical pixels to new physical pixels
+        // Rescale content_offset_y and window_padding from old physical pixels to new physical pixels
         if old_scale > 0.0 && (old_scale - new_scale).abs() > f32::EPSILON {
             let logical_offset = self.cell_renderer.content_offset_y() / old_scale;
-            let new_physical = logical_offset * new_scale;
-            self.cell_renderer.set_content_offset_y(new_physical);
-            self.graphics_renderer.set_content_offset_y(new_physical);
+            let new_physical_offset = logical_offset * new_scale;
+            self.cell_renderer.set_content_offset_y(new_physical_offset);
+            self.graphics_renderer.set_content_offset_y(new_physical_offset);
             if let Some(ref mut cs) = self.custom_shader_renderer {
-                cs.set_content_offset_y(new_physical);
+                cs.set_content_offset_y(new_physical_offset);
             }
             if let Some(ref mut cs) = self.cursor_shader_renderer {
-                cs.set_content_offset_y(new_physical);
+                cs.set_content_offset_y(new_physical_offset);
             }
+
+            // Rescale window_padding
+            let logical_padding = self.cell_renderer.window_padding() / old_scale;
+            let new_physical_padding = logical_padding * new_scale;
+            self.cell_renderer.update_window_padding(new_physical_padding);
         }
 
         self.resize(new_size)
@@ -677,11 +685,35 @@ impl Renderer {
         }
     }
 
-    /// Update window padding in real-time without full renderer rebuild
-    /// Returns Some((cols, rows)) if grid size changed and terminal needs resize
+    /// Update window padding in real-time without full renderer rebuild.
+    /// Accepts logical pixels (from config); scales to physical pixels internally.
+    /// Returns Some((cols, rows)) if grid size changed and terminal needs resize.
     #[allow(dead_code)]
-    pub fn update_window_padding(&mut self, padding: f32) -> Option<(usize, usize)> {
-        let result = self.cell_renderer.update_window_padding(padding);
+    pub fn update_window_padding(&mut self, logical_padding: f32) -> Option<(usize, usize)> {
+        let physical_padding = logical_padding * self.cell_renderer.scale_factor;
+        let result = self.cell_renderer.update_window_padding(physical_padding);
+        // Update graphics renderer padding
+        self.graphics_renderer.update_cell_dimensions(
+            self.cell_renderer.cell_width(),
+            self.cell_renderer.cell_height(),
+            physical_padding,
+        );
+        // Update custom shader renderer padding
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.update_cell_dimensions(
+                self.cell_renderer.cell_width(),
+                self.cell_renderer.cell_height(),
+                physical_padding,
+            );
+        }
+        // Update cursor shader renderer padding
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.update_cell_dimensions(
+                self.cell_renderer.cell_width(),
+                self.cell_renderer.cell_height(),
+                physical_padding,
+            );
+        }
         self.dirty = true;
         result
     }
@@ -2061,7 +2093,7 @@ impl Renderer {
         self.cell_renderer.cell_height()
     }
 
-    /// Get window padding in pixels
+    /// Get window padding in physical pixels (scaled by DPI)
     pub fn window_padding(&self) -> f32 {
         self.cell_renderer.window_padding()
     }
