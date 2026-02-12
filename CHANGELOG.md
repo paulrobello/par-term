@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Default update check frequency** changed from weekly to daily for faster update discovery
 - **Text shaper cache** upgraded from arbitrary FIFO eviction to proper LRU eviction via the `lru` crate, improving cache hit rates for frequently-shaped text runs
 
 ### Removed
