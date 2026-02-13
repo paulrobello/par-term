@@ -37,6 +37,7 @@ use crate::tab::{TabId, TabManager};
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
 use crate::tmux::{TmuxSession, TmuxSync};
 use crate::tmux_session_picker_ui::{SessionPickerAction, TmuxSessionPickerUI};
+use crate::status_bar::StatusBarUI;
 use crate::tmux_status_bar_ui::TmuxStatusBarUI;
 use anyhow::Result;
 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
@@ -85,6 +86,8 @@ pub struct WindowState {
     pub(crate) tab_bar_ui: TabBarUI,
     /// tmux status bar UI
     pub(crate) tmux_status_bar_ui: TmuxStatusBarUI,
+    /// Custom status bar UI
+    pub(crate) status_bar_ui: StatusBarUI,
 
     pub(crate) debug: DebugState,
 
@@ -295,6 +298,7 @@ impl WindowState {
             tab_manager: TabManager::new(),
             tab_bar_ui: TabBarUI::new(),
             tmux_status_bar_ui: TmuxStatusBarUI::new(),
+            status_bar_ui: StatusBarUI::new(),
 
             debug: DebugState::new(),
 
@@ -686,6 +690,9 @@ impl WindowState {
 
         // Initialize shader watcher if hot reload is enabled
         self.init_shader_watcher();
+
+        // Sync status bar monitor state based on config
+        self.status_bar_ui.sync_monitor_state(&self.config);
 
         // Create the first tab with the correct grid size from the renderer
         // This ensures the shell is spawned with dimensions that account for tab bar
@@ -1788,6 +1795,10 @@ impl WindowState {
         let status_bar_height =
             crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
 
+        // Calculate custom status bar height
+        let custom_status_bar_height =
+            self.status_bar_ui.height(&self.config, self.is_fullscreen);
+
         // Capture window size before mutable borrow (for badge rendering in egui)
         let window_size_for_badge = self.renderer.as_ref().map(|r| r.size());
 
@@ -1978,6 +1989,13 @@ impl WindowState {
                     self.badge_state.interpolate();
                 }
                 Some(self.badge_state.clone())
+            } else {
+                None
+            };
+
+            // Capture session variables for status bar rendering
+            let status_bar_session_vars = if self.config.status_bar_enabled {
+                Some(self.badge_state.variables.read().clone())
             } else {
                 None
             };
@@ -2221,6 +2239,16 @@ impl WindowState {
                         self.tmux_session_name.as_deref(),
                     );
 
+                    // Render custom status bar
+                    if let Some(ref session_vars) = status_bar_session_vars {
+                        self.status_bar_ui.render(
+                            ctx,
+                            &self.config,
+                            session_vars,
+                            self.is_fullscreen,
+                        );
+                    }
+
                     // Settings are now handled by standalone SettingsWindow only
                     // No overlay settings UI rendering needed
 
@@ -2361,7 +2389,7 @@ impl WindowState {
                 cell_width: renderer.cell_width(),
                 cell_height: renderer.cell_height(),
                 padding: renderer.window_padding(),
-                status_bar_height: status_bar_height * renderer.scale_factor(),
+                status_bar_height: (status_bar_height + custom_status_bar_height) * renderer.scale_factor(),
                 scale_factor: renderer.scale_factor(),
             };
 
