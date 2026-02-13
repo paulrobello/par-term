@@ -120,10 +120,10 @@ fn resolve_variable(name: &str, ctx: &WidgetContext) -> String {
 }
 
 /// Return widgets for a given section, filtered by enabled, sorted by order.
-pub fn sorted_widgets_for_section<'a>(
-    widgets: &'a [StatusBarWidgetConfig],
+pub fn sorted_widgets_for_section(
+    widgets: &[StatusBarWidgetConfig],
     section: StatusBarSection,
-) -> Vec<&'a StatusBarWidgetConfig> {
+) -> Vec<&StatusBarWidgetConfig> {
     let mut result: Vec<&StatusBarWidgetConfig> = widgets
         .iter()
         .filter(|w| w.enabled && w.section == section)
