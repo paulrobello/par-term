@@ -36,8 +36,6 @@ pub enum TabBarAction {
     NewTab,
     /// Create a new tab from a specific profile
     NewTabWithProfile(crate::profile::ProfileId),
-    /// Show the new-tab profile selection menu (triggered by keyboard shortcut)
-    ShowNewTabProfileMenu,
     /// Reorder a tab to a new position
     Reorder(TabId, usize),
     /// Set custom color for a tab
@@ -1358,6 +1356,11 @@ impl TabBarUI {
         let mut action = TabBarAction::None;
 
         if !self.show_new_tab_profile_menu {
+            return action;
+        }
+
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.show_new_tab_profile_menu = false;
             return action;
         }
 

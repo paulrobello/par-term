@@ -2746,12 +2746,6 @@ impl WindowState {
                     window.request_redraw();
                 }
             }
-            TabBarAction::ShowNewTabProfileMenu => {
-                self.tab_bar_ui.show_new_tab_profile_menu = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
             TabBarAction::None => {}
         }
 
