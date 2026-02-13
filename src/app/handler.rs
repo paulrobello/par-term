@@ -194,8 +194,7 @@ impl WindowState {
             || self.clipboard_history_ui.visible
             || self.command_history_ui.visible
             || self.shader_install_ui.visible
-            || self.integrations_ui.visible
-            || self.profile_modal_ui.visible;
+            || self.integrations_ui.visible;
         if egui_consumed
             && !any_ui_visible
             && let WindowEvent::KeyboardInput {
@@ -852,7 +851,6 @@ impl WindowState {
                     || self.search_ui.visible
                     || self.shader_install_ui.visible
                     || self.integrations_ui.visible
-                    || self.profile_modal_ui.visible
                     || self.resize_overlay_visible;
 
                 // Delay unless bypass conditions met
@@ -1171,18 +1169,24 @@ impl ApplicationHandler for WindowManager {
                         // Send a test notification to verify permissions
                         self.send_test_notification();
                     }
-                    SettingsWindowAction::OpenProfileManager => {
-                        // Open the profile modal in the focused terminal window
+                    SettingsWindowAction::SaveProfiles(profiles) => {
+                        // Apply saved profiles to all terminal windows
+                        for window_state in self.windows.values_mut() {
+                            window_state.apply_profile_changes(profiles.clone());
+                        }
+                        // Update the profiles menu
+                        if let Some(menu) = &mut self.menu {
+                            let profile_refs: Vec<&crate::profile::Profile> =
+                                profiles.iter().collect();
+                            menu.update_profiles(&profile_refs);
+                        }
+                    }
+                    SettingsWindowAction::OpenProfile(id) => {
+                        // Open profile in the focused terminal window
                         if let Some(window_id) = self.get_focused_window_id()
                             && let Some(window_state) = self.windows.get_mut(&window_id)
                         {
-                            window_state
-                                .profile_modal_ui
-                                .open(&window_state.profile_manager);
-                            window_state.needs_redraw = true;
-                            if let Some(window) = &window_state.window {
-                                window.request_redraw();
-                            }
+                            window_state.open_profile(id);
                         }
                     }
                     SettingsWindowAction::StartCoprocess(index) => {
@@ -1295,6 +1299,7 @@ impl ApplicationHandler for WindowManager {
         // Check if any window requested opening the settings window
         // Also collect shader reload results for propagation to standalone settings window
         let mut open_settings = false;
+        let mut open_settings_profiles_tab = false;
         let mut background_shader_result: Option<Option<String>> = None;
         let mut cursor_shader_result: Option<Option<String>> = None;
         let mut profiles_to_update: Option<Vec<crate::profile::Profile>> = None;
@@ -1304,6 +1309,10 @@ impl ApplicationHandler for WindowManager {
             if window_state.open_settings_window_requested {
                 window_state.open_settings_window_requested = false;
                 open_settings = true;
+            }
+            if window_state.open_settings_profiles_tab {
+                window_state.open_settings_profiles_tab = false;
+                open_settings_profiles_tab = true;
             }
 
             // Check for arrangement restore request from keybinding
@@ -1340,6 +1349,12 @@ impl ApplicationHandler for WindowManager {
         // Open settings window if requested (F12 or Cmd+,)
         if open_settings {
             self.open_settings_window(event_loop);
+        }
+
+        // Navigate to Profiles tab if requested (from drawer "Manage" button)
+        if open_settings_profiles_tab && let Some(sw) = &mut self.settings_window {
+            sw.settings_ui
+                .set_selected_tab(crate::settings_ui::sidebar::SettingsTab::Profiles);
         }
 
         // Restore arrangement if requested via keybinding

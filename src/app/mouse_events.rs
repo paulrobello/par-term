@@ -63,8 +63,8 @@ impl WindowState {
             .map(|t| t.mouse.position)
             .unwrap_or((0.0, 0.0));
 
-        // Check if profile modal or drawer is open - let egui handle all mouse events
-        if self.profile_modal_ui.visible || self.profile_drawer_ui.expanded {
+        // Check if profile drawer is open - let egui handle all mouse events
+        if self.profile_drawer_ui.expanded {
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
@@ -535,8 +535,8 @@ impl WindowState {
             tab.mouse.position = position;
         }
 
-        // Check if profile modal or drawer is open - let egui handle mouse events
-        if self.profile_modal_ui.visible || self.profile_drawer_ui.expanded {
+        // Check if profile drawer is open - let egui handle mouse events
+        if self.profile_drawer_ui.expanded {
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
@@ -803,8 +803,8 @@ impl WindowState {
     }
 
     pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        // Check if profile modal or drawer is open - let egui handle scroll events
-        if self.profile_modal_ui.visible || self.profile_drawer_ui.expanded {
+        // Check if profile drawer is open - let egui handle scroll events
+        if self.profile_drawer_ui.expanded {
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
