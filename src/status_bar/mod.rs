@@ -74,9 +74,7 @@ impl GitBranchPoller {
             .spawn(move || {
                 while running.load(Ordering::SeqCst) {
                     let dir = cwd.lock().clone();
-                    let result = dir
-                        .map(|d| poll_git_status(&d))
-                        .unwrap_or_default();
+                    let result = dir.map(|d| poll_git_status(&d)).unwrap_or_default();
                     *status.lock() = result;
                     std::thread::sleep(interval);
                 }

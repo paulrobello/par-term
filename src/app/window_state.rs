@@ -1817,6 +1817,9 @@ impl WindowState {
         };
 
         if let Some(renderer) = &mut self.renderer {
+            // Update egui panel inset so the scrollbar avoids overlapping status bars
+            renderer.set_egui_bottom_inset(status_bar_height + custom_status_bar_height);
+
             // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
             let disable_cursor_shader =
                 self.config.cursor_shader_disable_in_alt_screen && is_alt_screen;

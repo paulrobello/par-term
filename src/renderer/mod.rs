@@ -2227,6 +2227,16 @@ impl Renderer {
         result
     }
 
+    /// Set the additional bottom inset from egui panels (status bar, tmux bar).
+    ///
+    /// This inset is added to `content_inset_bottom` for scrollbar bounds only.
+    /// egui panels already claim space before wgpu rendering, so this doesn't
+    /// affect the terminal grid sizing.
+    pub fn set_egui_bottom_inset(&mut self, logical_inset: f32) {
+        let physical_inset = logical_inset * self.cell_renderer.scale_factor;
+        self.cell_renderer.egui_bottom_inset = physical_inset;
+    }
+
     /// Check if a point (in pixel coordinates) is within the scrollbar bounds
     ///
     /// # Arguments

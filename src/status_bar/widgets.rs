@@ -39,7 +39,16 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
     }
 
     match id {
-        WidgetId::Clock => chrono::Local::now().format(&ctx.time_format).to_string(),
+        WidgetId::Clock => {
+            // Validate the format string before using it — a partial/invalid
+            // format (e.g. a lone "%") can panic in chrono and freeze the app.
+            use chrono::format::strftime::StrftimeItems;
+            let valid = !ctx.time_format.is_empty()
+                && StrftimeItems::new(&ctx.time_format)
+                    .all(|item| !matches!(item, chrono::format::Item::Error));
+            let fmt = if valid { &ctx.time_format } else { "%H:%M:%S" };
+            chrono::Local::now().format(fmt).to_string()
+        }
         WidgetId::UsernameHostname => {
             format!(
                 "{}@{}",
@@ -215,6 +224,18 @@ mod tests {
         // Should be HH:MM format
         assert_eq!(text.len(), 5);
         assert_eq!(text.as_bytes()[2], b':');
+
+        // Invalid format string falls back to default HH:MM:SS
+        let mut ctx3 = make_ctx();
+        ctx3.time_format = "%".to_string();
+        let text = widget_text(&WidgetId::Clock, &ctx3, None);
+        assert_eq!(text.len(), 8); // Falls back to %H:%M:%S
+
+        // Empty format string falls back to default
+        let mut ctx4 = make_ctx();
+        ctx4.time_format = String::new();
+        let text = widget_text(&WidgetId::Clock, &ctx4, None);
+        assert_eq!(text.len(), 8);
     }
 
     #[test]

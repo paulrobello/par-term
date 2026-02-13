@@ -348,7 +348,13 @@ impl Scrollbar {
         );
 
         // Prepare and upload mark uniforms (draw later)
-        self.prepare_marks(marks, total_lines, window_height, content_offset_y, content_inset_bottom);
+        self.prepare_marks(
+            marks,
+            total_lines,
+            window_height,
+            content_offset_y,
+            content_inset_bottom,
+        );
     }
 
     /// Render the scrollbar (track + thumb)

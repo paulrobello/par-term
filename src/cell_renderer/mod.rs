@@ -76,6 +76,10 @@ pub struct CellRenderer {
     /// Bottom inset for terminal content (e.g., tab bar at bottom).
     /// Reduces available height without shifting content vertically.
     pub(crate) content_inset_bottom: f32,
+    /// Additional bottom inset from egui panels (status bar, tmux bar).
+    /// This is added to content_inset_bottom for scrollbar bounds only,
+    /// since egui panels already claim space before wgpu rendering.
+    pub(crate) egui_bottom_inset: f32,
     #[allow(dead_code)]
     pub(crate) scale_factor: f32,
 
@@ -463,6 +467,7 @@ impl CellRenderer {
             content_offset_y: 0.0,
             content_offset_x: 0.0,
             content_inset_bottom: 0.0,
+            egui_bottom_inset: 0.0,
             scale_factor,
             font_manager,
             scrollbar,
@@ -944,7 +949,7 @@ impl CellRenderer {
             self.config.width,
             self.config.height,
             self.content_offset_y,
-            self.content_inset_bottom,
+            self.content_inset_bottom + self.egui_bottom_inset,
             marks,
         );
     }
