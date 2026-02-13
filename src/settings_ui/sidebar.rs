@@ -270,6 +270,9 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "inherit cwd",
             "inherit directory",
             "profile drawer",
+            "new tab shortcut",
+            "profile picker",
+            "new tab profile",
             "max tabs",
             // Tab bar appearance
             "tab min width",

@@ -34,6 +34,10 @@ pub enum TabBarAction {
     Close(TabId),
     /// Create a new tab
     NewTab,
+    /// Create a new tab from a specific profile
+    NewTabWithProfile(crate::profile::ProfileId),
+    /// Show the new-tab profile selection menu (triggered by keyboard shortcut)
+    ShowNewTabProfileMenu,
     /// Reorder a tab to a new position
     Reorder(TabId, usize),
     /// Set custom color for a tab
@@ -72,6 +76,8 @@ pub struct TabBarUI {
     editing_color: [u8; 3],
     /// Horizontal scroll offset for tabs (in pixels)
     scroll_offset: f32,
+    /// Whether the new-tab profile popup is open
+    pub show_new_tab_profile_menu: bool,
 }
 
 impl TabBarUI {
@@ -92,6 +98,7 @@ impl TabBarUI {
             context_menu_opened_frame: 0,
             editing_color: [100, 100, 100],
             scroll_offset: 0.0,
+            show_new_tab_profile_menu: false,
         }
     }
 
@@ -115,6 +122,7 @@ impl TabBarUI {
         ctx: &egui::Context,
         tabs: &TabManager,
         config: &Config,
+        profiles: &crate::profile::ProfileManager,
     ) -> TabBarAction {
         let tab_count = tabs.tab_count();
 
@@ -124,8 +132,8 @@ impl TabBarUI {
         }
 
         match config.tab_bar_position {
-            TabBarPosition::Left => self.render_vertical(ctx, tabs, config),
-            _ => self.render_horizontal(ctx, tabs, config),
+            TabBarPosition::Left => self.render_vertical(ctx, tabs, config, profiles),
+            _ => self.render_horizontal(ctx, tabs, config, profiles),
         }
     }
 
@@ -135,6 +143,7 @@ impl TabBarUI {
         ctx: &egui::Context,
         tabs: &TabManager,
         config: &Config,
+        profiles: &crate::profile::ProfileManager,
     ) -> TabBarAction {
         let tab_count = tabs.tab_count();
 
@@ -297,24 +306,41 @@ impl TabBarUI {
                     }
                 }
 
-                // New tab button
+                // New tab split button: [+] [▾]
                 ui.add_space(tab_spacing);
-                let new_tab_btn = ui.add(
+
+                // "+" button — creates default tab
+                let plus_btn = ui.add(
                     egui::Button::new("+")
-                        .min_size(egui::vec2(new_tab_btn_width, config.tab_bar_height - 4.0))
+                        .min_size(egui::vec2(
+                            new_tab_btn_width - if profiles.is_empty() { 0.0 } else { 14.0 },
+                            config.tab_bar_height - 4.0,
+                        ))
                         .fill(egui::Color32::TRANSPARENT),
                 );
-
-                // Use clicked_by() to only respond to mouse clicks, not keyboard
-                if new_tab_btn.clicked_by(egui::PointerButton::Primary) {
+                if plus_btn.clicked_by(egui::PointerButton::Primary) {
                     action = TabBarAction::NewTab;
                 }
-
-                if new_tab_btn.hovered() {
+                if plus_btn.hovered() {
                     #[cfg(target_os = "macos")]
-                    new_tab_btn.on_hover_text("New Tab (Cmd+T)");
+                    plus_btn.on_hover_text("New Tab (Cmd+T)");
                     #[cfg(not(target_os = "macos"))]
-                    new_tab_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
+                    plus_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
+                }
+
+                // Only show chevron if there are profiles
+                if !profiles.is_empty() {
+                    let chevron_btn = ui.add(
+                        egui::Button::new("▾")
+                            .min_size(egui::vec2(14.0, config.tab_bar_height - 4.0))
+                            .fill(egui::Color32::TRANSPARENT),
+                    );
+                    if chevron_btn.clicked_by(egui::PointerButton::Primary) {
+                        self.show_new_tab_profile_menu = !self.show_new_tab_profile_menu;
+                    }
+                    if chevron_btn.hovered() {
+                        chevron_btn.on_hover_text("New tab from profile");
+                    }
                 }
             });
 
@@ -341,6 +367,12 @@ impl TabBarUI {
             }
         }
 
+        // Render new-tab profile menu if open
+        let menu_action = self.render_new_tab_profile_menu(ctx, profiles);
+        if menu_action != TabBarAction::None {
+            action = menu_action;
+        }
+
         action
     }
 
@@ -350,6 +382,7 @@ impl TabBarUI {
         ctx: &egui::Context,
         tabs: &TabManager,
         config: &Config,
+        profiles: &crate::profile::ProfileManager,
     ) -> TabBarAction {
         let tab_count = tabs.tab_count();
 
@@ -398,22 +431,43 @@ impl TabBarUI {
                                 }
                             }
 
-                            // New tab button at bottom
+                            // New tab split button
                             ui.add_space(tab_spacing);
-                            let new_tab_btn = ui.add(
-                                egui::Button::new("+")
-                                    .min_size(egui::vec2(ui.available_width(), tab_height - 4.0))
-                                    .fill(egui::Color32::TRANSPARENT),
-                            );
-                            if new_tab_btn.clicked_by(egui::PointerButton::Primary) {
-                                action = TabBarAction::NewTab;
-                            }
-                            if new_tab_btn.hovered() {
-                                #[cfg(target_os = "macos")]
-                                new_tab_btn.on_hover_text("New Tab (Cmd+T)");
-                                #[cfg(not(target_os = "macos"))]
-                                new_tab_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
-                            }
+                            ui.horizontal(|ui| {
+                                let plus_btn = ui.add(
+                                    egui::Button::new("+")
+                                        .min_size(egui::vec2(
+                                            ui.available_width()
+                                                - if profiles.is_empty() { 0.0 } else { 18.0 },
+                                            tab_height - 4.0,
+                                        ))
+                                        .fill(egui::Color32::TRANSPARENT),
+                                );
+                                if plus_btn.clicked_by(egui::PointerButton::Primary) {
+                                    action = TabBarAction::NewTab;
+                                }
+                                if plus_btn.hovered() {
+                                    #[cfg(target_os = "macos")]
+                                    plus_btn.on_hover_text("New Tab (Cmd+T)");
+                                    #[cfg(not(target_os = "macos"))]
+                                    plus_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
+                                }
+
+                                if !profiles.is_empty() {
+                                    let chevron_btn = ui.add(
+                                        egui::Button::new("▾")
+                                            .min_size(egui::vec2(14.0, tab_height - 4.0))
+                                            .fill(egui::Color32::TRANSPARENT),
+                                    );
+                                    if chevron_btn.clicked_by(egui::PointerButton::Primary) {
+                                        self.show_new_tab_profile_menu =
+                                            !self.show_new_tab_profile_menu;
+                                    }
+                                    if chevron_btn.hovered() {
+                                        chevron_btn.on_hover_text("New tab from profile");
+                                    }
+                                }
+                            });
                         });
                     });
 
@@ -437,6 +491,12 @@ impl TabBarUI {
             if menu_action != TabBarAction::None {
                 action = menu_action;
             }
+        }
+
+        // Render new-tab profile menu if open
+        let menu_action = self.render_new_tab_profile_menu(ctx, profiles);
+        if menu_action != TabBarAction::None {
+            action = menu_action;
         }
 
         action
@@ -1287,6 +1347,55 @@ impl TabBarUI {
                     egui::pos2(rect.left() + 8.0, rect.center().y - galley.size().y / 2.0);
                 ui.painter().galley(text_pos, galley, text_color);
             });
+    }
+
+    /// Render the new-tab profile selection popup
+    fn render_new_tab_profile_menu(
+        &mut self,
+        ctx: &egui::Context,
+        profiles: &crate::profile::ProfileManager,
+    ) -> TabBarAction {
+        let mut action = TabBarAction::None;
+
+        if !self.show_new_tab_profile_menu {
+            return action;
+        }
+
+        let mut open = true;
+        egui::Window::new("New Tab")
+            .collapsible(false)
+            .resizable(false)
+            .fixed_size(egui::vec2(200.0, 0.0))
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+            .open(&mut open)
+            .show(ctx, |ui| {
+                // "Default" entry — always first
+                if ui
+                    .selectable_label(false, "  Default")
+                    .on_hover_text("Open a new tab with default settings")
+                    .clicked()
+                {
+                    action = TabBarAction::NewTab;
+                    self.show_new_tab_profile_menu = false;
+                }
+                ui.separator();
+
+                // Profile entries in display order
+                for profile in profiles.profiles_ordered() {
+                    let icon = profile.icon.as_deref().unwrap_or("  ");
+                    let label = format!("{} {}", icon, profile.name);
+                    if ui.selectable_label(false, &label).clicked() {
+                        action = TabBarAction::NewTabWithProfile(profile.id);
+                        self.show_new_tab_profile_menu = false;
+                    }
+                }
+            });
+
+        if !open {
+            self.show_new_tab_profile_menu = false;
+        }
+
+        action
     }
 
     /// Render the context menu for tab options

@@ -996,8 +996,17 @@ impl WindowState {
             && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("t"));
 
         if is_new_tab {
-            self.new_tab();
-            log::info!("New tab created");
+            if self.config.new_tab_shortcut_shows_profiles && !self.profile_manager.is_empty() {
+                self.tab_bar_ui.show_new_tab_profile_menu =
+                    !self.tab_bar_ui.show_new_tab_profile_menu;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                log::info!("Toggled new-tab profile menu via shortcut");
+            } else {
+                self.new_tab();
+                log::info!("New tab created");
+            }
             return true;
         }
 
@@ -1244,8 +1253,17 @@ impl WindowState {
                 true
             }
             "new_tab" => {
-                self.new_tab();
-                log::info!("New tab created via keybinding");
+                if self.config.new_tab_shortcut_shows_profiles && !self.profile_manager.is_empty() {
+                    self.tab_bar_ui.show_new_tab_profile_menu =
+                        !self.tab_bar_ui.show_new_tab_profile_menu;
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                    log::info!("Toggled new-tab profile menu via keybinding");
+                } else {
+                    self.new_tab();
+                    log::info!("New tab created via keybinding");
+                }
                 true
             }
             "close_tab" => {
