@@ -56,7 +56,7 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
 }
 
 /// Recursively capture a pane tree node into a session-serializable form
-fn capture_pane_node(node: &PaneNode) -> SessionPaneNode {
+pub fn capture_pane_node(node: &PaneNode) -> SessionPaneNode {
     match node {
         PaneNode::Leaf(pane) => SessionPaneNode::Leaf {
             cwd: pane.get_cwd(),

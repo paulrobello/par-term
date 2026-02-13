@@ -1407,6 +1407,19 @@ pub struct Config {
     #[serde(default = "defaults::bool_false")]
     pub restore_session: bool,
 
+    /// Seconds to keep closed tab metadata for undo (0 = disabled)
+    #[serde(default = "defaults::session_undo_timeout_secs")]
+    pub session_undo_timeout_secs: u32,
+
+    /// Maximum number of closed tabs to remember for undo
+    #[serde(default = "defaults::session_undo_max_entries")]
+    pub session_undo_max_entries: usize,
+
+    /// When true, closing a tab hides the shell instead of killing it.
+    /// Undo restores the full session with scrollback and running processes.
+    #[serde(default = "defaults::session_undo_preserve_shell")]
+    pub session_undo_preserve_shell: bool,
+
     // ========================================================================
     // Search Settings
     // ========================================================================
@@ -1827,6 +1840,9 @@ impl Default for Config {
             last_notified_version: None,
             auto_restore_arrangement: None,
             restore_session: defaults::bool_false(),
+            session_undo_timeout_secs: defaults::session_undo_timeout_secs(),
+            session_undo_max_entries: defaults::session_undo_max_entries(),
+            session_undo_preserve_shell: defaults::session_undo_preserve_shell(),
             search_highlight_color: defaults::search_highlight_color(),
             search_current_highlight_color: defaults::search_current_highlight_color(),
             search_case_sensitive: defaults::bool_false(),

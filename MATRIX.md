@@ -240,7 +240,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Initial text to send | ✅ `Initial Text` | ✅ `initial_text` | ✅ | ⭐⭐ | 🟢 | Send text on start with delay/newline + escapes |
 | Anti-idle (keep-alive) | ✅ `Send Code When Idle` | ✅ `anti_idle_enabled` | ✅ | ⭐⭐ | 🟢 | Prevent SSH timeouts |
 | Jobs to ignore | ✅ | ✅ `confirm_close_running_jobs`, `jobs_to_ignore` | ✅ | - | - | Confirmation dialog when closing tabs/panes with running jobs; configurable ignore list |
-| Session close undo timeout | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Recover closed tabs |
+| Session close undo timeout | ✅ | ✅ `session_undo_timeout_secs` | ✅ | - | - | Reopen closed tabs within configurable timeout; optional `session_undo_preserve_shell` keeps PTY alive |
 | TERM variable | ✅ `Terminal Type` | ✅ | ✅ | - | - | Set via environment |
 | Character encoding | ✅ Multiple | ✅ UTF-8 | ✅ | - | - | UTF-8 only |
 | Unicode version | ✅ | ✅ | ✅ | ⭐ | 🟢 | Unicode 9.0-16.0 or Auto; ambiguous width narrow/wide; Settings > Terminal |
@@ -634,7 +634,7 @@ iTerm2 has sophisticated window state management.
 | Prompt on quit | ✅ `Prompt When Quitting` | ✅ `prompt_on_quit` | ✅ | ⭐⭐ | 🟢 | Confirm before closing app with sessions |
 | Confirm closing multiple sessions | ✅ `Confirm Closing Multiple Sessions` | ✅ Partial | ✅ | ⭐⭐ | 🟢 | Partial - jobs confirmation exists |
 | Only confirm when there are jobs | ✅ | ✅ | ✅ | - | - | Already implemented |
-| Session undo timeout | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Reopen closed tabs within timeout |
+| Session undo timeout | ✅ | ✅ `session_undo_timeout_secs` | ✅ | - | - | Reopen closed tabs within timeout; Cmd+Z / Ctrl+Shift+Z; `session_undo_preserve_shell` option |
 | Session restore on launch | ✅ `Restore Arrangement on Launch` | ✅ `restore_session` | ✅ | - | - | Saves windows/tabs/panes on exit, restores on launch |
 | Session restore at startup | ✅ | ✅ `restore_session` | ✅ | - | - | Auto-restore last session with pane layouts |
 | Open saved arrangement | ✅ `Open Arrangement` | ✅ `arrangements` | ✅ | - | - | Load saved window arrangement from settings UI |
@@ -901,7 +901,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Selection & Clipboard | 12 | 0 | 0 |
 | Mouse & Pointer | 9 | 0 | 1 |
 | Keyboard & Input | 9 | 0 | 2 |
-| Shell & Session | 14 | 0 | 2 |
+| Shell & Session | 14 | 0 | 1 |
 | Notifications & Bell | 12 | 0 | 0 |
 | Logging & Recording | 6 | 0 | 0 |
 | Profiles | 12 | 0 | 0 |
@@ -919,7 +919,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Copy Mode | 8 | 0 | 0 |
 | Snippets & Actions | 0 | 0 | 6 |
 | Window Arrangements & Placement | 2 | 0 | 8 |
-| Session Management & Quit Behavior | 5 | 1 | 1 |
+| Session Management & Quit Behavior | 5 | 0 | 1 |
 | Tab Styles & Appearance | 7 | 0 | 1 |
 | Pane & Split Customization | 9 | 0 | 0 |
 | Profile Switching & Dynamic Profiles | 2 | 0 | 5 |
@@ -997,7 +997,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Status Bar | ⭐⭐⭐ | 🔴 High | Customizable status bar with widgets |
 | Snippets system | ⭐⭐⭐ | 🟡 Medium | Saved text blocks for quick insertion |
 | Directory-based profile switching | ⭐⭐⭐ | 🟡 Medium | Auto-switch profile by directory |
-| Session undo timeout | ⭐⭐ | 🟡 Medium | Recover accidentally closed tabs |
+| ~~Session undo timeout~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (reopen closed tabs with Cmd+Z / Ctrl+Shift+Z) |
 | ~~Window arrangements~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Complete (§28 arrangements + §29 session restore) |
 | ~~Progress bars (OSC 934)~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (OSC 9;4 + OSC 934) |
 | Composer (auto-complete) | ⭐⭐ | 🔵 Very High | AI-style command completion |
@@ -1057,7 +1057,7 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 **Session Management (5 features)**
 - Prompt on quit with sessions
-- Session undo timeout (recover closed tabs)
+- ~~Session undo timeout (recover closed tabs)~~ ✅ Implemented
 - Session restore on launch
 
 **Tab Styles (1 remaining feature)**
@@ -1107,11 +1107,12 @@ The following iTerm2 features were identified and added to the matrix in this up
 - SSH hosts auto-discovery
 - Host profiles and quick connect
 
-**Total: ~126 new features remaining across 21 new categories**
+**Total: ~125 new features remaining across 21 new categories**
 
 ---
 
 ### Recently Completed (v0.14.0)
+- ✅ Session undo / reopen closed tabs (metadata capture on close, configurable timeout, Cmd+Z / Ctrl+Shift+Z)
 - ✅ Session restore on startup (save/restore windows, tabs, pane layouts, and CWDs on exit/launch)
 - ✅ Self-update capability (CLI and Settings UI, platform-aware installation detection)
 - ✅ Command separator lines (exit-code coloring, configurable thickness/opacity/color)
@@ -1145,6 +1146,6 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 ---
 
-*Updated: 2026-02-12 (Session restore on startup, self-update feature, copy mode, snippets completion)*
+*Updated: 2026-02-12 (Session undo, session restore on startup, self-update feature, copy mode, snippets completion)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.14.0*

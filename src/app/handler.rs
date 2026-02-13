@@ -1035,6 +1035,14 @@ impl WindowState {
             }
         }
 
+        // 5b. Session undo expiry: prune closed tab metadata that has timed out
+        if !self.closed_tabs.is_empty() && self.config.session_undo_timeout_secs > 0 {
+            let timeout =
+                std::time::Duration::from_secs(self.config.session_undo_timeout_secs as u64);
+            self.closed_tabs
+                .retain(|info| now.duration_since(info.closed_at) < timeout);
+        }
+
         // 6. Custom Background Shaders
         // If a custom shader is animated, render at the calculated frame interval.
         // When unfocused with pause_refresh_on_blur, this uses the slower unfocused_fps rate.

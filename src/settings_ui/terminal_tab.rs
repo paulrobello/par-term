@@ -102,6 +102,11 @@ pub fn show(
             "restore panes",
             "session state",
             "escape sequences",
+            "undo",
+            "undo close",
+            "reopen",
+            "reopen tab",
+            "closed tab",
         ],
     ) {
         show_startup_section(ui, settings, changes_this_frame, collapsed);
@@ -692,6 +697,56 @@ fn show_startup_section(
             .on_hover_text(
                 "When enabled, par-term will save your open tabs, pane layouts, and working\n\
                  directories when closing and restore them on next launch.",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.add_space(8.0);
+
+        ui.horizontal(|ui| {
+            ui.label("Undo close tab timeout:");
+            if ui
+                .add(
+                    egui::DragValue::new(&mut settings.config.session_undo_timeout_secs)
+                        .range(0..=60)
+                        .suffix("s"),
+                )
+                .on_hover_text(
+                    "How long closed tab metadata is kept for undo (reopen).\n\
+                     Set to 0 to disable the feature entirely.",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.label("Max entries:");
+            if ui
+                .add(
+                    egui::DragValue::new(&mut settings.config.session_undo_max_entries)
+                        .range(1..=50),
+                )
+                .on_hover_text("Maximum number of closed tabs to remember for undo.")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        if ui
+            .checkbox(
+                &mut settings.config.session_undo_preserve_shell,
+                "Preserve shell session on close",
+            )
+            .on_hover_text(
+                "When enabled, closing a tab hides the shell instead of killing it.\n\
+                 Undo restores the full session with scrollback and running processes.\n\
+                 Uses more memory while hidden tabs are kept alive.",
             )
             .changed()
         {

@@ -44,6 +44,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Validation ensures imported config is well-formed before applying
   - UI in Settings > Advanced > Import/Export Preferences
 
+- **Session Undo — Reopen Closed Tabs** (#115): Recover accidentally closed tabs
+  - Captures tab metadata (CWD, title, position, pane layout, custom color) on close
+  - Reopen with Cmd+Z (macOS) or Ctrl+Shift+Z (Linux/Windows)
+  - Toast notification shows undo keybinding hint and countdown
+  - Configurable timeout: `session_undo_timeout_secs` (default: 5s, 0 = disabled)
+  - Configurable queue depth: `session_undo_max_entries` (default: 10)
+  - **Preserve shell session**: `session_undo_preserve_shell` (default: false) — when enabled,
+    closing a tab hides the shell instead of killing it; undo restores the full session with
+    scrollback, running processes, and pane layout intact
+  - Restores tab at original position with title, custom color, and split pane layout
+  - Expired entries automatically pruned from queue (hidden tabs killed on expiry)
+  - UI controls in Settings > Terminal > Startup
+
 - **Session Restore on Startup** (#117): Automatically save and restore session state
   - Saves open windows, tabs, pane layouts, and working directories on clean exit
   - Restores full session on next launch including split pane trees with ratios

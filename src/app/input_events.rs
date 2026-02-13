@@ -1583,6 +1583,10 @@ impl WindowState {
                 );
                 true
             }
+            "reopen_closed_tab" => {
+                self.reopen_closed_tab();
+                true
+            }
             "save_arrangement" => {
                 // Open settings to Arrangements tab
                 self.open_settings_window_requested = true;

@@ -428,6 +428,11 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
             key: "CmdOrCtrl+R".to_string(),
             action: "toggle_command_history".to_string(),
         },
+        // Reopen recently closed tab
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Z".to_string(),
+            action: "reopen_closed_tab".to_string(),
+        },
     ];
 
     #[cfg(not(target_os = "macos"))]
@@ -526,6 +531,11 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
         super::types::KeyBinding {
             key: "Ctrl+Alt+R".to_string(),
             action: "toggle_command_history".to_string(),
+        },
+        // Reopen recently closed tab
+        super::types::KeyBinding {
+            key: "Ctrl+Shift+Z".to_string(),
+            action: "reopen_closed_tab".to_string(),
         },
     ];
 
@@ -816,6 +826,18 @@ pub fn badge_max_height() -> f32 {
 // Session logging defaults
 pub fn command_history_max_entries() -> usize {
     1000 // Maximum number of commands to persist across sessions
+}
+
+pub fn session_undo_timeout_secs() -> u32 {
+    5
+}
+
+pub fn session_undo_max_entries() -> usize {
+    10
+}
+
+pub fn session_undo_preserve_shell() -> bool {
+    false
 }
 
 pub fn session_log_directory() -> String {

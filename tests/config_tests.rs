@@ -20,6 +20,10 @@ fn test_config_defaults() {
     assert!(config.middle_click_paste);
     assert!(!config.copy_trailing_newline); // Inverted logic: false means strip trailing newline
     assert_eq!(config.screenshot_format, "png");
+    // Session undo defaults
+    assert_eq!(config.session_undo_timeout_secs, 5);
+    assert_eq!(config.session_undo_max_entries, 10);
+    assert!(!config.session_undo_preserve_shell);
 }
 
 #[test]

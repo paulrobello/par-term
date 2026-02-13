@@ -160,6 +160,51 @@ impl TabManager {
         self.tabs.is_empty()
     }
 
+    /// Remove a tab by ID without dropping it, returning the live Tab.
+    ///
+    /// Handles active tab switching and renumbering just like `close_tab`,
+    /// but returns the `Tab` so the caller can keep it alive.
+    ///
+    /// Returns `Some((tab, is_empty))` if the tab was found, `None` otherwise.
+    pub fn remove_tab(&mut self, id: TabId) -> Option<(Tab, bool)> {
+        let idx = self.tabs.iter().position(|t| t.id == id)?;
+
+        log::info!("Removing tab {} (index {}) without dropping", id, idx);
+
+        let tab = self.tabs.remove(idx);
+
+        // If we removed the active tab, switch to another
+        if self.active_tab_id == Some(id) {
+            self.active_tab_id = if self.tabs.is_empty() {
+                None
+            } else {
+                let new_idx = idx.min(self.tabs.len().saturating_sub(1));
+                Some(self.tabs[new_idx].id)
+            };
+        }
+
+        self.renumber_default_tabs();
+        let is_empty = self.tabs.is_empty();
+        Some((tab, is_empty))
+    }
+
+    /// Insert a live Tab at a specific index and make it active.
+    ///
+    /// The index is clamped to `0..=self.tabs.len()`.
+    pub fn insert_tab_at(&mut self, tab: Tab, index: usize) {
+        let clamped = index.min(self.tabs.len());
+        let id = tab.id;
+        self.tabs.insert(clamped, tab);
+        self.active_tab_id = Some(id);
+        self.renumber_default_tabs();
+        log::info!(
+            "Inserted tab {} at index {} (total: {})",
+            id,
+            clamped,
+            self.tabs.len()
+        );
+    }
+
     /// Renumber tabs that have default titles based on their current position
     fn renumber_default_tabs(&mut self) {
         for (idx, tab) in self.tabs.iter_mut().enumerate() {

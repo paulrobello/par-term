@@ -212,6 +212,9 @@ pub struct WindowState {
     /// When to hide the toast notification
     pub(crate) toast_hide_time: Option<std::time::Instant>,
 
+    /// Recently closed tab metadata for session undo (reopen closed tab)
+    pub(crate) closed_tabs: std::collections::VecDeque<super::tab_ops::ClosedTabInfo>,
+
     /// Keybinding registry for user-defined keyboard shortcuts
     pub(crate) keybinding_registry: KeybindingRegistry,
 
@@ -352,6 +355,7 @@ impl WindowState {
 
             toast_message: None,
             toast_hide_time: None,
+            closed_tabs: std::collections::VecDeque::new(),
 
             keybinding_registry,
 
@@ -2669,9 +2673,12 @@ impl WindowState {
                 }
             }
             TabBarAction::Close(id) => {
-                let was_last = self.tab_manager.close_tab(id);
+                // Switch to the tab first so close_current_tab() operates on it.
+                // This routes through the full close path: running-jobs confirmation,
+                // session undo capture, and preserve-shell logic.
+                self.tab_manager.switch_to(id);
+                let was_last = self.close_current_tab();
                 if was_last {
-                    // Last tab closed - close window
                     self.is_shutting_down = true;
                 }
                 if let Some(window) = &self.window {
