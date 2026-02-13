@@ -4,3 +4,4 @@
 //! the current time, username, git branch, CPU/memory usage, and more.
 
 pub mod config;
+pub mod system_monitor;
