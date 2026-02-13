@@ -58,6 +58,17 @@ pub fn show(
         show_auto_hide_section(ui, settings, changes_this_frame, collapsed);
     }
 
+    // Widget Options section
+    if section_matches(
+        &query,
+        "Widget Options",
+        &[
+            "time", "format", "clock", "git", "ahead", "behind", "dirty", "status",
+        ],
+    ) {
+        show_widget_options_section(ui, settings, changes_this_frame, collapsed);
+    }
+
     // Poll Intervals section
     if section_matches(
         &query,
@@ -341,6 +352,60 @@ fn show_auto_hide_section(
                         *changes_this_frame = true;
                     }
                 });
+            }
+        },
+    );
+}
+
+// ============================================================================
+// Widget Options Section
+// ============================================================================
+
+fn show_widget_options_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(
+        ui,
+        "Widget Options",
+        "status_bar_widget_options",
+        true,
+        collapsed,
+        |ui| {
+            // Time format
+            ui.horizontal(|ui| {
+                ui.label("Time format:");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut settings.config.status_bar_time_format)
+                            .hint_text("%H:%M:%S")
+                            .desired_width(120.0),
+                    )
+                    .on_hover_text("strftime format string for the Clock widget (e.g. %H:%M:%S, %I:%M %p, %H:%M)")
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            ui.add_space(8.0);
+
+            // Git show status
+            if ui
+                .checkbox(
+                    &mut settings.config.status_bar_git_show_status,
+                    "Show git ahead/behind and dirty status",
+                )
+                .on_hover_text(
+                    "Display commit counts ahead/behind upstream and a dirty indicator on the Git Branch widget",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
             }
         },
     );

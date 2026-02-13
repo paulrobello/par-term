@@ -17,6 +17,16 @@ pub struct WidgetContext {
     pub system_data: SystemMonitorData,
     /// Current git branch (if known)
     pub git_branch: Option<String>,
+    /// Commits ahead of upstream
+    pub git_ahead: u32,
+    /// Commits behind upstream
+    pub git_behind: u32,
+    /// Whether the working tree has uncommitted changes
+    pub git_dirty: bool,
+    /// Whether to show ahead/behind/dirty in the git widget
+    pub git_show_status: bool,
+    /// Time format string (chrono strftime syntax)
+    pub time_format: String,
 }
 
 /// Generate display text for a single widget.
@@ -29,7 +39,7 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
     }
 
     match id {
-        WidgetId::Clock => chrono::Local::now().format("%H:%M:%S").to_string(),
+        WidgetId::Clock => chrono::Local::now().format(&ctx.time_format).to_string(),
         WidgetId::UsernameHostname => {
             format!(
                 "{}@{}",
@@ -39,7 +49,19 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
         WidgetId::CurrentDirectory => ctx.session_vars.path.clone(),
         WidgetId::GitBranch => {
             if let Some(ref branch) = ctx.git_branch {
-                format!("\u{e0a0} {}", branch)
+                let mut text = format!("\u{e0a0} {}", branch);
+                if ctx.git_show_status {
+                    if ctx.git_ahead > 0 {
+                        text.push_str(&format!(" \u{2191}{}", ctx.git_ahead));
+                    }
+                    if ctx.git_behind > 0 {
+                        text.push_str(&format!(" \u{2193}{}", ctx.git_behind));
+                    }
+                    if ctx.git_dirty {
+                        text.push_str(" \u{25cf}");
+                    }
+                }
+                text
             } else {
                 String::new()
             }
@@ -117,6 +139,9 @@ fn resolve_variable(name: &str, ctx: &WidgetContext) -> String {
         // Session variables delegate to SessionVariables::get
         n if n.starts_with("session.") => ctx.session_vars.get(n).unwrap_or_default(),
         "git.branch" => ctx.git_branch.clone().unwrap_or_default(),
+        "git.ahead" => ctx.git_ahead.to_string(),
+        "git.behind" => ctx.git_behind.to_string(),
+        "git.dirty" => if ctx.git_dirty { "\u{25cf}" } else { "" }.to_string(),
         "system.cpu" => format!("{:.1}%", ctx.system_data.cpu_usage),
         "system.memory" => format_memory(ctx.system_data.memory_used, ctx.system_data.memory_total),
         _ => String::new(),
@@ -166,6 +191,11 @@ mod tests {
                 last_update: None,
             },
             git_branch: Some("main".to_string()),
+            git_ahead: 2,
+            git_behind: 1,
+            git_dirty: true,
+            git_show_status: true,
+            time_format: "%H:%M:%S".to_string(),
         }
     }
 
@@ -177,6 +207,14 @@ mod tests {
         assert_eq!(text.len(), 8);
         assert_eq!(text.as_bytes()[2], b':');
         assert_eq!(text.as_bytes()[5], b':');
+
+        // Custom time format
+        let mut ctx2 = make_ctx();
+        ctx2.time_format = "%H:%M".to_string();
+        let text = widget_text(&WidgetId::Clock, &ctx2, None);
+        // Should be HH:MM format
+        assert_eq!(text.len(), 5);
+        assert_eq!(text.as_bytes()[2], b':');
     }
 
     #[test]
@@ -197,6 +235,13 @@ mod tests {
     fn test_widget_text_git_branch() {
         let ctx = make_ctx();
         let text = widget_text(&WidgetId::GitBranch, &ctx, None);
+        // ahead=2, behind=1, dirty=true
+        assert_eq!(text, "\u{e0a0} main \u{2191}2 \u{2193}1 \u{25cf}");
+
+        // With status disabled
+        let mut ctx_no_status = make_ctx();
+        ctx_no_status.git_show_status = false;
+        let text = widget_text(&WidgetId::GitBranch, &ctx_no_status, None);
         assert_eq!(text, "\u{e0a0} main");
 
         // No branch
@@ -204,6 +249,14 @@ mod tests {
         ctx2.git_branch = None;
         let text = widget_text(&WidgetId::GitBranch, &ctx2, None);
         assert!(text.is_empty());
+
+        // Clean repo (no ahead/behind/dirty)
+        let mut ctx_clean = make_ctx();
+        ctx_clean.git_ahead = 0;
+        ctx_clean.git_behind = 0;
+        ctx_clean.git_dirty = false;
+        let text = widget_text(&WidgetId::GitBranch, &ctx_clean, None);
+        assert_eq!(text, "\u{e0a0} main");
     }
 
     #[test]

@@ -877,6 +877,10 @@ pub fn status_bar_git_poll_interval() -> f32 {
     5.0
 }
 
+pub fn status_bar_time_format() -> String {
+    "%H:%M:%S".to_string()
+}
+
 pub fn session_log_directory() -> String {
     // XDG-compliant default: ~/.local/share/par-term/logs/
     if let Some(home) = dirs::home_dir() {

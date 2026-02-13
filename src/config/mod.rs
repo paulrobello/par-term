@@ -1585,6 +1585,14 @@ pub struct Config {
     #[serde(default = "defaults::status_bar_git_poll_interval")]
     pub status_bar_git_poll_interval: f32,
 
+    /// Time format string for the Clock widget (chrono strftime syntax)
+    #[serde(default = "defaults::status_bar_time_format")]
+    pub status_bar_time_format: String,
+
+    /// Show ahead/behind and dirty indicators on the Git Branch widget
+    #[serde(default = "defaults::bool_true")]
+    pub status_bar_git_show_status: bool,
+
     /// Widget configuration list
     #[serde(default = "crate::status_bar::config::default_widgets")]
     pub status_bar_widgets: Vec<crate::status_bar::config::StatusBarWidgetConfig>,
@@ -1950,6 +1958,8 @@ impl Default for Config {
             status_bar_mouse_inactive_timeout: defaults::status_bar_mouse_inactive_timeout(),
             status_bar_system_poll_interval: defaults::status_bar_system_poll_interval(),
             status_bar_git_poll_interval: defaults::status_bar_git_poll_interval(),
+            status_bar_time_format: defaults::status_bar_time_format(),
+            status_bar_git_show_status: defaults::bool_true(),
             status_bar_widgets: crate::status_bar::config::default_widgets(),
             // Progress Bar
             progress_bar_enabled: defaults::bool_true(),

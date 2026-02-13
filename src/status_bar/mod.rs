@@ -19,10 +19,23 @@ use config::StatusBarSection;
 use system_monitor::SystemMonitor;
 use widgets::{WidgetContext, sorted_widgets_for_section, widget_text};
 
+/// Snapshot of git repository status.
+#[derive(Debug, Clone, Default)]
+pub struct GitStatus {
+    /// Current branch name.
+    pub branch: Option<String>,
+    /// Commits ahead of upstream.
+    pub ahead: u32,
+    /// Commits behind upstream.
+    pub behind: u32,
+    /// Whether the working tree has uncommitted changes.
+    pub dirty: bool,
+}
+
 /// Git branch poller that runs on a background thread.
 struct GitBranchPoller {
-    /// Shared branch name (read from render thread, written by poll thread).
-    branch: Arc<Mutex<Option<String>>>,
+    /// Shared git status (read from render thread, written by poll thread).
+    status: Arc<Mutex<GitStatus>>,
     /// Current working directory to poll in.
     cwd: Arc<Mutex<Option<String>>>,
     /// Whether the poller is running.
@@ -34,7 +47,7 @@ struct GitBranchPoller {
 impl GitBranchPoller {
     fn new() -> Self {
         Self {
-            branch: Arc::new(Mutex::new(None)),
+            status: Arc::new(Mutex::new(GitStatus::default())),
             cwd: Arc::new(Mutex::new(None)),
             running: Arc::new(AtomicBool::new(false)),
             thread: Mutex::new(None),
@@ -51,7 +64,7 @@ impl GitBranchPoller {
             return;
         }
 
-        let branch = Arc::clone(&self.branch);
+        let status = Arc::clone(&self.status);
         let cwd = Arc::clone(&self.cwd);
         let running = Arc::clone(&self.running);
         let interval = Duration::from_secs_f32(poll_interval_secs.max(1.0));
@@ -61,22 +74,10 @@ impl GitBranchPoller {
             .spawn(move || {
                 while running.load(Ordering::SeqCst) {
                     let dir = cwd.lock().clone();
-                    let result = dir.and_then(|d| {
-                        Command::new("git")
-                            .args(["rev-parse", "--abbrev-ref", "HEAD"])
-                            .current_dir(&d)
-                            .output()
-                            .ok()
-                            .and_then(|out| {
-                                if out.status.success() {
-                                    let b = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                                    if b.is_empty() { None } else { Some(b) }
-                                } else {
-                                    None
-                                }
-                            })
-                    });
-                    *branch.lock() = result;
+                    let result = dir
+                        .map(|d| poll_git_status(&d))
+                        .unwrap_or_default();
+                    *status.lock() = result;
                     std::thread::sleep(interval);
                 }
             })
@@ -98,13 +99,74 @@ impl GitBranchPoller {
         *self.cwd.lock() = new_cwd.map(String::from);
     }
 
-    /// Get the current branch name.
-    fn branch(&self) -> Option<String> {
-        self.branch.lock().clone()
+    /// Get the current git status snapshot.
+    fn status(&self) -> GitStatus {
+        self.status.lock().clone()
     }
 
     fn is_running(&self) -> bool {
         self.running.load(Ordering::SeqCst)
+    }
+}
+
+/// Poll git for branch name, ahead/behind counts, and dirty status.
+fn poll_git_status(dir: &str) -> GitStatus {
+    // Get branch name
+    let branch = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .current_dir(dir)
+        .output()
+        .ok()
+        .and_then(|out| {
+            if out.status.success() {
+                let b = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if b.is_empty() { None } else { Some(b) }
+            } else {
+                None
+            }
+        });
+
+    if branch.is_none() {
+        return GitStatus::default();
+    }
+
+    // Get ahead/behind counts via rev-list
+    let (ahead, behind) = Command::new("git")
+        .args(["rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
+        .current_dir(dir)
+        .output()
+        .ok()
+        .and_then(|out| {
+            if out.status.success() {
+                let text = String::from_utf8_lossy(&out.stdout);
+                let parts: Vec<&str> = text.trim().split('\t').collect();
+                if parts.len() == 2 {
+                    let a = parts[0].parse::<u32>().unwrap_or(0);
+                    let b = parts[1].parse::<u32>().unwrap_or(0);
+                    Some((a, b))
+                } else {
+                    None
+                }
+            } else {
+                // No upstream configured
+                None
+            }
+        })
+        .unwrap_or((0, 0));
+
+    // Check dirty status (fast: just check if there are any changes)
+    let dirty = Command::new("git")
+        .args(["status", "--porcelain", "-uno"])
+        .current_dir(dir)
+        .output()
+        .ok()
+        .is_some_and(|out| out.status.success() && !out.stdout.is_empty());
+
+    GitStatus {
+        branch,
+        ahead,
+        behind,
+        dirty,
     }
 }
 
@@ -232,10 +294,16 @@ impl StatusBarUI {
         self.git_poller.set_cwd(cwd);
 
         // Build widget context
+        let git_status = self.git_poller.status();
         let widget_ctx = WidgetContext {
             session_vars: session_vars.clone(),
             system_data: self.system_monitor.data(),
-            git_branch: self.git_poller.branch(),
+            git_branch: git_status.branch,
+            git_ahead: git_status.ahead,
+            git_behind: git_status.behind,
+            git_dirty: git_status.dirty,
+            git_show_status: config.status_bar_git_show_status,
+            time_format: config.status_bar_time_format.clone(),
         };
 
         let bar_height = config.status_bar_height;
