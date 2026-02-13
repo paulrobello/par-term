@@ -6,8 +6,8 @@ use crate::config::{Config, TabBarMode, TabBarPosition};
 use crate::tab::{TabId, TabManager};
 
 /// Width reserved for the profile chevron (▾) button in the tab bar split button.
-/// Accounts for the button min_size (14px) plus egui button padding.
-const CHEVRON_RESERVED: f32 = 20.0;
+/// Accounts for the button min_size (14px) plus egui button frame padding (~4px each side).
+const CHEVRON_RESERVED: f32 = 28.0;
 
 /// Styled text segment for rich tab titles
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -335,7 +335,7 @@ impl TabBarUI {
                 // "▾" chevron — opens profile dropdown (only when profiles exist)
                 if !profiles.is_empty() {
                     let chevron_btn = ui.add(
-                        egui::Button::new("▾")
+                        egui::Button::new("⏷")
                             .min_size(egui::vec2(14.0, config.tab_bar_height - 4.0))
                             .fill(egui::Color32::TRANSPARENT),
                     );
@@ -466,7 +466,7 @@ impl TabBarUI {
 
                                 if !profiles.is_empty() {
                                     let chevron_btn = ui.add(
-                                        egui::Button::new("▾")
+                                        egui::Button::new("⏷")
                                             .min_size(egui::vec2(14.0, tab_height - 4.0))
                                             .fill(egui::Color32::TRANSPARENT),
                                     );
