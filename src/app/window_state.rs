@@ -2842,10 +2842,10 @@ impl WindowState {
             RemoteShellInstallAction::Install => {
                 // Send the install command to the active terminal
                 let command = RemoteShellInstallUI::install_command();
-                if let Some(tab) = self.tab_manager.active_tab() {
-                    if let Ok(term) = tab.terminal.try_lock() {
-                        let _ = term.write_str(&format!("{}\r", command));
-                    }
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
+                {
+                    let _ = term.write_str(&format!("{}\r", command));
                 }
             }
             RemoteShellInstallAction::Cancel => {
