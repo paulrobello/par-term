@@ -1174,6 +1174,14 @@ impl WindowManager {
                         .set_selected_tab(crate::settings_ui::sidebar::SettingsTab::Arrangements);
                 }
             }
+            MenuAction::InstallShellIntegrationRemote => {
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                {
+                    window_state.remote_shell_install_ui.show_dialog();
+                    window_state.needs_redraw = true;
+                }
+            }
         }
     }
 

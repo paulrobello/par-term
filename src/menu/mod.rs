@@ -391,6 +391,23 @@ impl MenuManager {
 
         menu.append(&view_menu)?;
 
+        // Shell menu
+        let shell_menu = Submenu::new("Shell", true);
+
+        let install_remote_integration = MenuItem::with_id(
+            "install_remote_shell_integration",
+            "Install Shell Integration on Remote Host...",
+            true,
+            None,
+        );
+        action_map.insert(
+            install_remote_integration.id().clone(),
+            MenuAction::InstallShellIntegrationRemote,
+        );
+        shell_menu.append(&install_remote_integration)?;
+
+        menu.append(&shell_menu)?;
+
         // Window menu (primarily for macOS)
         #[cfg(target_os = "macos")]
         {

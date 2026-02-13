@@ -23,6 +23,7 @@ use crate::profile::{ProfileManager, storage as profile_storage};
 use crate::profile_drawer_ui::{ProfileDrawerAction, ProfileDrawerUI};
 use crate::progress_bar::{ProgressBarSnapshot, render_progress_bars};
 use crate::quit_confirmation_ui::{QuitConfirmAction, QuitConfirmationUI};
+use crate::remote_shell_install_ui::{RemoteShellInstallAction, RemoteShellInstallUI};
 use crate::renderer::{
     DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
 };
@@ -136,6 +137,8 @@ pub struct WindowState {
     pub(crate) close_confirmation_ui: CloseConfirmationUI,
     /// Quit confirmation dialog UI (prompt before closing window)
     pub(crate) quit_confirmation_ui: QuitConfirmationUI,
+    /// Remote shell integration install dialog UI
+    pub(crate) remote_shell_install_ui: RemoteShellInstallUI,
     /// Whether terminal session recording is active
     pub(crate) is_recording: bool,
     /// When recording started
@@ -322,6 +325,7 @@ impl WindowState {
             integrations_ui: IntegrationsUI::new(),
             close_confirmation_ui: CloseConfirmationUI::new(),
             quit_confirmation_ui: QuitConfirmationUI::new(),
+            remote_shell_install_ui: RemoteShellInstallUI::new(),
             is_recording: false,
             recording_start_time: None,
             is_shutting_down: false,
@@ -1765,6 +1769,7 @@ impl WindowState {
         let mut pending_close_confirm_action = CloseConfirmAction::None;
         // Quit confirmation action to handle after rendering
         let mut pending_quit_confirm_action = QuitConfirmAction::None;
+        let mut pending_remote_install_action = RemoteShellInstallAction::None;
 
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts
         // When tmux controls the layout, we don't use pane padding
@@ -2250,6 +2255,9 @@ impl WindowState {
 
                     // Show quit confirmation dialog if visible
                     pending_quit_confirm_action = self.quit_confirmation_ui.show(ctx);
+
+                    // Show remote shell install dialog if visible
+                    pending_remote_install_action = self.remote_shell_install_ui.show(ctx);
 
                     // Render profile drawer (right side panel)
                     pending_profile_drawer_action = self.profile_drawer_ui.render(
@@ -2827,6 +2835,23 @@ impl WindowState {
                 log::debug!("Quit confirmation cancelled");
             }
             QuitConfirmAction::None => {}
+        }
+
+        // Handle remote shell integration install action
+        match pending_remote_install_action {
+            RemoteShellInstallAction::Install => {
+                // Send the install command to the active terminal
+                let command = RemoteShellInstallUI::install_command();
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
+                {
+                    let _ = term.write_str(&format!("{}\r", command));
+                }
+            }
+            RemoteShellInstallAction::Cancel => {
+                // Nothing to do - dialog already hidden
+            }
+            RemoteShellInstallAction::None => {}
         }
 
         // Handle paste special actions collected during egui rendering

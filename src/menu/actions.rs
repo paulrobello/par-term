@@ -91,6 +91,10 @@ pub enum MenuAction {
     /// Save the current window layout as an arrangement
     SaveArrangement,
 
+    // Shell menu
+    /// Install shell integration on a remote host via curl
+    InstallShellIntegrationRemote,
+
     // Keybinding actions (triggered by user-defined keybindings or menu)
     /// Toggle background/custom shader on/off
     #[allow(dead_code)]

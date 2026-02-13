@@ -811,6 +811,7 @@ iTerm2 supports showing progress for long-running commands.
 | Command duration tracking | ✅ | ✅ Via tooltips | ✅ | - | - | Already implemented |
 | Command exit code in badge | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[Exit: N]` in title on failure; `\(session.exit_code)` badge var |
 | Remote host integration | ✅ | ✅ OSC 7 + OSC 1337 RemoteHost | ✅ | - | - | Hostname/username from OSC 7 file:// URLs and OSC 1337 RemoteHost; auto profile switching |
+| Remote shell integration install | ✅ | ✅ Shell menu + confirm dialog | ✅ | - | - | Shell > Install Shell Integration on Remote Host; sends curl command to active PTY (#135) |
 
 ---
 
