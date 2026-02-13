@@ -144,3 +144,41 @@ impl RemoteShellInstallUI {
         action
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_install_command_format() {
+        let cmd = RemoteShellInstallUI::install_command();
+        assert!(cmd.starts_with("curl"));
+        assert!(cmd.contains("paulrobello.github.io/par-term"));
+        assert!(cmd.contains("install-shell-integration.sh"));
+        assert!(cmd.ends_with("| sh"));
+    }
+
+    #[test]
+    fn test_dialog_initial_state() {
+        let ui = RemoteShellInstallUI::new();
+        assert!(!ui.is_visible());
+    }
+
+    #[test]
+    fn test_dialog_show_hide() {
+        let mut ui = RemoteShellInstallUI::new();
+        assert!(!ui.is_visible());
+
+        ui.show_dialog();
+        assert!(ui.is_visible());
+
+        ui.hide();
+        assert!(!ui.is_visible());
+    }
+
+    #[test]
+    fn test_default_impl() {
+        let ui = RemoteShellInstallUI::default();
+        assert!(!ui.is_visible());
+    }
+}
