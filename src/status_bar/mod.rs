@@ -184,6 +184,8 @@ pub struct StatusBarUI {
     last_mouse_activity: Instant,
     /// Whether the status bar is currently visible.
     visible: bool,
+    /// Last valid time format string (for fallback when user is mid-edit).
+    last_valid_time_format: String,
 }
 
 impl StatusBarUI {
@@ -194,6 +196,7 @@ impl StatusBarUI {
             git_poller: GitBranchPoller::new(),
             last_mouse_activity: Instant::now(),
             visible: true,
+            last_valid_time_format: "%H:%M:%S".to_string(),
         }
     }
 
@@ -291,6 +294,17 @@ impl StatusBarUI {
         };
         self.git_poller.set_cwd(cwd);
 
+        // Validate time format — update last-known-good on success, fall back on failure
+        {
+            use chrono::format::strftime::StrftimeItems;
+            let valid = !config.status_bar_time_format.is_empty()
+                && StrftimeItems::new(&config.status_bar_time_format)
+                    .all(|item| !matches!(item, chrono::format::Item::Error));
+            if valid {
+                self.last_valid_time_format = config.status_bar_time_format.clone();
+            }
+        }
+
         // Build widget context
         let git_status = self.git_poller.status();
         let widget_ctx = WidgetContext {
@@ -301,7 +315,7 @@ impl StatusBarUI {
             git_behind: git_status.behind,
             git_dirty: git_status.dirty,
             git_show_status: config.status_bar_git_show_status,
-            time_format: config.status_bar_time_format.clone(),
+            time_format: self.last_valid_time_format.clone(),
         };
 
         let bar_height = config.status_bar_height;
