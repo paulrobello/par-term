@@ -943,6 +943,8 @@ impl CellRenderer {
             total_lines,
             self.config.width,
             self.config.height,
+            self.content_offset_y,
+            self.content_inset_bottom,
             marks,
         );
     }
