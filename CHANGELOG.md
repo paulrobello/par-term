@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Navigate to Settings from Application Menu** (#127): Platform-aware settings access from native application menu
+  - macOS: "par-term" application menu with Settings... (Cmd+,), About, and standard macOS items (Services, Hide, Hide Others, Show All, Quit)
+  - Windows/Linux: Edit > Preferences... (Ctrl+Shift+,) follows platform conventions
+  - View > Settings... (F12) retained on all platforms for backward compatibility
+
 - **Profile Selection on New Tab Button** (#129): Split button on the tab bar for quick profile-based tab creation
   - `+` button creates a default tab (existing behavior preserved)
   - `▾` chevron opens a profile dropdown with "Default" at top + all profiles in order with icons

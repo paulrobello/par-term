@@ -830,7 +830,7 @@ iTerm2 supports showing progress for long-running commands.
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
 | Config file location (XDG) | ✅ | ✅ | ✅ | - | - | Already implemented |
-| Settings UI | ✅ Full GUI | ✅ Full GUI (F12) | ✅ | - | - | Already implemented |
+| Settings UI | ✅ Full GUI | ✅ Full GUI (F12, Cmd+,/Ctrl+Shift+,) | ✅ | - | - | Platform-aware: macOS app menu (Cmd+,), Windows/Linux Edit > Preferences (Ctrl+Shift+,), View > Settings (F12) on all platforms |
 | Remember settings section states | ✅ | ✅ `collapsed_settings_sections` | ✅ | - | - | Persists section expand/collapse state across sessions |
 | Reload config (F5) | ❌ | ✅ | ✅ | - | - | par-term exclusive |
 | Window arrangements | ✅ Save/restore layouts | ✅ `arrangements` + `restore_session` | ✅ | - | - | Save/restore window positions, tabs, panes; session restore on startup |
@@ -848,7 +848,7 @@ iTerm2 supports showing progress for long-running commands.
 | Character encoding | ✅ Multiple | ✅ UTF-8 | ✅ | - | - | UTF-8 only is fine |
 | Check for updates automatically | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Open new viewer window | ✅ | ❌ | ❌ | ⭐ | 🟡 | Clone session in new window |
-| Variable substitution | ✅ | ✅ | ✅ | ⭐ | 🟡 | Environment vars in config (`${VAR}`, `${VAR:-default}`) |
+| Variable substitution | ✅ | ✅ | ✅ | - | - | Environment vars in config (`${VAR}`, `${VAR:-default}`) |
 
 ---
 
@@ -1114,6 +1114,7 @@ The following iTerm2 features were identified and added to the matrix in this up
 ---
 
 ### Recently Completed (Unreleased)
+- ✅ Navigate to settings from application menu (macOS Cmd+,, Windows/Linux Ctrl+Shift+, in Edit menu, F12 retained)
 - ✅ Shell selection per profile (platform-aware detection, per-profile login shell, dropdown UI)
 
 ### Recently Completed (v0.15.0)
