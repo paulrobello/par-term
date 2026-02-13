@@ -20,6 +20,17 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<String>,
 
+    /// Shell to use for this profile (e.g. "/bin/zsh", "/usr/bin/fish")
+    /// When set, overrides the global custom_shell / $SHELL for this profile.
+    /// Takes precedence over global config but is overridden by `command`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shell: Option<String>,
+
+    /// Per-profile login shell override.
+    /// None = inherit global config.login_shell, Some(true/false) = override.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub login_shell: Option<bool>,
+
     /// Command to run instead of the default shell
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
@@ -117,6 +128,8 @@ impl Profile {
             id: Uuid::new_v4(),
             name: name.into(),
             working_directory: None,
+            shell: None,
+            login_shell: None,
             command: None,
             command_args: None,
             tab_name: None,
@@ -146,6 +159,8 @@ impl Profile {
             id,
             name: name.into(),
             working_directory: None,
+            shell: None,
+            login_shell: None,
             command: None,
             command_args: None,
             tab_name: None,
@@ -172,6 +187,18 @@ impl Profile {
     /// Builder method to set working directory
     pub fn working_directory(mut self, dir: impl Into<String>) -> Self {
         self.working_directory = Some(dir.into());
+        self
+    }
+
+    /// Builder method to set shell
+    pub fn shell(mut self, shell: impl Into<String>) -> Self {
+        self.shell = Some(shell.into());
+        self
+    }
+
+    /// Builder method to set per-profile login shell
+    pub fn login_shell(mut self, login: bool) -> Self {
+        self.login_shell = Some(login);
         self
     }
 
@@ -682,6 +709,8 @@ impl ProfileManager {
                 .working_directory
                 .clone()
                 .or(resolved_parent.working_directory),
+            shell: profile.shell.clone().or(resolved_parent.shell),
+            login_shell: profile.login_shell.or(resolved_parent.login_shell),
             command: profile.command.clone().or(resolved_parent.command),
             command_args: profile
                 .command_args

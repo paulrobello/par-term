@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Shell Selection Per Profile** (#128): Configure a specific shell for each profile with platform-aware detection
+  - New `shell` field on profiles selects a shell independently of the `command` field
+  - New `login_shell` field per profile overrides the global login shell setting (None = inherit, true/false = override)
+  - Platform-aware shell detection: parses `/etc/shells` on Unix/macOS, checks known locations on Windows (PowerShell, cmd, Git Bash, WSL, MSYS2, Cygwin)
+  - Shell dropdown in profile editor with all detected shells + "Default (inherit global)" option
+  - Priority: profile `command` > profile `shell` > global `custom_shell` / `$SHELL`
+  - Inheritable via profile parent system
+  - Search keywords added to Settings Profiles tab for discoverability
+
 ---
 
 ## [0.15.0] - 2026-02-12

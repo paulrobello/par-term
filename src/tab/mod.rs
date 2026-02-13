@@ -588,16 +588,29 @@ impl Tab {
             .as_deref()
             .or(effective_startup_dir.as_deref());
 
-        // Determine command and args: profile command overrides config shell
+        // Determine command and args with priority:
+        // 1. profile.command → use as-is (non-shell commands like tmux, ssh)
+        // 2. profile.shell → use as shell, apply login_shell logic
+        // 3. neither → fall back to global config shell / $SHELL
         let (shell_cmd, mut shell_args) = if let Some(ref cmd) = profile.command {
             (cmd.clone(), profile.command_args.clone())
+        } else if let Some(ref shell) = profile.shell {
+            (shell.clone(), None)
         } else {
             get_shell_command(config)
         };
 
-        // Only apply login shell flag for default shell, not custom profile commands
+        // Apply login shell flag when using a shell (not a custom command).
+        // Per-profile login_shell overrides global config.login_shell.
         if profile.command.is_none() {
-            apply_login_shell_flag(&mut shell_args, config);
+            let use_login_shell = profile.login_shell.unwrap_or(config.login_shell);
+            if use_login_shell {
+                let args = shell_args.get_or_insert_with(Vec::new);
+                #[cfg(not(target_os = "windows"))]
+                if !args.iter().any(|a| a == "-l" || a == "--login") {
+                    args.insert(0, "-l".to_string());
+                }
+            }
         }
 
         let shell_args_deref = shell_args.as_deref();

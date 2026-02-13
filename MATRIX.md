@@ -289,6 +289,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Profile reordering | ✅ | ✅ Move up/down | ✅ | - | - | Drag-free reorder buttons |
 | Profile icon | ✅ Custom icons | ✅ Emoji icons + picker | ✅ | - | - | Emoji picker with ~70 curated icons in 9 categories; icon shown in tab bar |
 | Working directory | ✅ | ✅ Per-profile | ✅ | - | - | With directory browser |
+| Shell selection per profile | ✅ | ✅ `shell` + detection | ✅ | - | - | Platform-aware shell dropdown; priority: command > shell > global; per-profile `login_shell` override |
 | Custom command | ✅ | ✅ Per-profile | ✅ | - | - | Command + arguments |
 | Custom tab name | ✅ | ✅ Per-profile | ✅ | - | - | Override default tab naming |
 | Dynamic profiles (external files) | ✅ | ✅ `profiles.yaml` | ✅ | - | - | Loads from `~/.config/par-term/profiles.yaml` |
@@ -1110,6 +1111,9 @@ The following iTerm2 features were identified and added to the matrix in this up
 **Total: ~125 new features remaining across 21 new categories**
 
 ---
+
+### Recently Completed (Unreleased)
+- ✅ Shell selection per profile (platform-aware detection, per-profile login shell, dropdown UI)
 
 ### Recently Completed (v0.15.0)
 - ✅ Directory-based profile switching (glob patterns, CWD detection via OSC 7, priority system)
