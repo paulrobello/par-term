@@ -840,6 +840,43 @@ pub fn session_undo_preserve_shell() -> bool {
     false
 }
 
+// Status bar defaults
+pub fn status_bar_height() -> f32 {
+    22.0
+}
+
+pub fn status_bar_bg_color() -> [u8; 3] {
+    [30, 30, 30]
+}
+
+pub fn status_bar_bg_alpha() -> f32 {
+    0.95
+}
+
+pub fn status_bar_fg_color() -> [u8; 3] {
+    [200, 200, 200]
+}
+
+pub fn status_bar_font_size() -> f32 {
+    12.0
+}
+
+pub fn status_bar_separator() -> String {
+    " \u{2502} ".to_string() // " │ "
+}
+
+pub fn status_bar_mouse_inactive_timeout() -> f32 {
+    3.0
+}
+
+pub fn status_bar_system_poll_interval() -> f32 {
+    2.0
+}
+
+pub fn status_bar_git_poll_interval() -> f32 {
+    5.0
+}
+
 pub fn session_log_directory() -> String {
     // XDG-compliant default: ~/.local/share/par-term/logs/
     if let Some(home) = dirs::home_dir() {

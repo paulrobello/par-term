@@ -57,6 +57,7 @@ pub mod shell_integration_installer;
 pub mod shell_quote;
 pub mod smart_selection;
 pub mod snippets;
+pub mod status_bar;
 pub mod styled_content;
 pub mod tab;
 pub mod tab_bar_ui;

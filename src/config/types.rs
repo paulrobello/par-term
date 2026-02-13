@@ -291,6 +291,17 @@ pub enum TabBarMode {
     Never,
 }
 
+/// Status bar position
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum StatusBarPosition {
+    /// Status bar at the top of the window
+    Top,
+    /// Status bar at the bottom of the window (default)
+    #[default]
+    Bottom,
+}
+
 /// Window type for different display modes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
