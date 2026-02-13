@@ -502,6 +502,10 @@ Both use the same transpiler (`src/custom_shader_renderer/transpiler.rs`) and GL
    - Choose the appropriate tab (e.g., `bell_tab.rs` for notifications, `window_tab.rs` for display)
    - Use checkboxes for booleans, sliders for numeric ranges, dropdowns for enums
    - Remember to set `settings.has_changes = true` and `*changes_this_frame = true` on change
+7. **REQUIRED**: Update quick search keywords in `src/settings_ui/sidebar.rs` → `tab_search_keywords()`
+   - Add relevant search terms for the new option so users can find it via the Settings search box
+   - Include the setting name, synonyms, and related concepts (e.g., for a "blur_radius" setting, add keywords like `"blur"`, `"radius"`, `"background blur"`)
+   - Keywords are matched case-insensitively as substrings
 
 ### Adding Snippet or Action Keybindings
 
