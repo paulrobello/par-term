@@ -86,15 +86,23 @@ pub fn interpolate_format(fmt: &str, ctx: &WidgetContext) -> String {
             chars.next();
             // Collect variable name until ')'
             let mut var_name = String::new();
+            let mut found_close = false;
             for c in chars.by_ref() {
                 if c == ')' {
+                    found_close = true;
                     break;
                 }
                 var_name.push(c);
             }
-            // Resolve variable
-            let value = resolve_variable(&var_name, ctx);
-            result.push_str(&value);
+            if found_close {
+                // Resolve variable
+                let value = resolve_variable(&var_name, ctx);
+                result.push_str(&value);
+            } else {
+                // Unterminated \( — output raw text
+                result.push_str("\\(");
+                result.push_str(&var_name);
+            }
         } else {
             result.push(ch);
         }

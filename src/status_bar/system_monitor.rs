@@ -52,10 +52,13 @@ impl SystemMonitor {
     ///
     /// If the monitor is already running, this is a no-op.
     pub fn start(&self, poll_interval_secs: f32) {
-        if self.running.load(Ordering::SeqCst) {
+        if self
+            .running
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
             return;
         }
-        self.running.store(true, Ordering::SeqCst);
 
         let data = Arc::clone(&self.data);
         let running = Arc::clone(&self.running);

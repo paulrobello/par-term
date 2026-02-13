@@ -7,8 +7,11 @@ pub mod config;
 pub mod system_monitor;
 pub mod widgets;
 
+use parking_lot::Mutex;
 use std::process::Command;
-use std::time::Instant;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use crate::badge::SessionVariables;
 use crate::config::{Config, StatusBarPosition};
@@ -16,24 +19,98 @@ use config::StatusBarSection;
 use system_monitor::SystemMonitor;
 use widgets::{WidgetContext, sorted_widgets_for_section, widget_text};
 
-/// Git branch poller state.
-#[derive(Debug)]
+/// Git branch poller that runs on a background thread.
 struct GitBranchPoller {
-    /// Most recently detected branch name.
-    branch: Option<String>,
-    /// When we last polled.
-    last_poll: Instant,
-    /// Last working directory we polled in (re-poll if it changes).
-    cwd: Option<String>,
+    /// Shared branch name (read from render thread, written by poll thread).
+    branch: Arc<Mutex<Option<String>>>,
+    /// Current working directory to poll in.
+    cwd: Arc<Mutex<Option<String>>>,
+    /// Whether the poller is running.
+    running: Arc<AtomicBool>,
+    /// Handle to the polling thread.
+    thread: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
-impl Default for GitBranchPoller {
-    fn default() -> Self {
+impl GitBranchPoller {
+    fn new() -> Self {
         Self {
-            branch: None,
-            last_poll: Instant::now(),
-            cwd: None,
+            branch: Arc::new(Mutex::new(None)),
+            cwd: Arc::new(Mutex::new(None)),
+            running: Arc::new(AtomicBool::new(false)),
+            thread: Mutex::new(None),
         }
+    }
+
+    /// Start the background polling thread.
+    fn start(&self, poll_interval_secs: f32) {
+        if self
+            .running
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return;
+        }
+
+        let branch = Arc::clone(&self.branch);
+        let cwd = Arc::clone(&self.cwd);
+        let running = Arc::clone(&self.running);
+        let interval = Duration::from_secs_f32(poll_interval_secs.max(1.0));
+
+        let handle = std::thread::Builder::new()
+            .name("status-bar-git".into())
+            .spawn(move || {
+                while running.load(Ordering::SeqCst) {
+                    let dir = cwd.lock().clone();
+                    let result = dir.and_then(|d| {
+                        Command::new("git")
+                            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+                            .current_dir(&d)
+                            .output()
+                            .ok()
+                            .and_then(|out| {
+                                if out.status.success() {
+                                    let b = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                                    if b.is_empty() { None } else { Some(b) }
+                                } else {
+                                    None
+                                }
+                            })
+                    });
+                    *branch.lock() = result;
+                    std::thread::sleep(interval);
+                }
+            })
+            .expect("Failed to spawn git branch poller thread");
+
+        *self.thread.lock() = Some(handle);
+    }
+
+    /// Stop the background polling thread.
+    fn stop(&self) {
+        self.running.store(false, Ordering::SeqCst);
+        if let Some(handle) = self.thread.lock().take() {
+            let _ = handle.join();
+        }
+    }
+
+    /// Update the working directory to poll in.
+    fn set_cwd(&self, new_cwd: Option<&str>) {
+        *self.cwd.lock() = new_cwd.map(String::from);
+    }
+
+    /// Get the current branch name.
+    fn branch(&self) -> Option<String> {
+        self.branch.lock().clone()
+    }
+
+    fn is_running(&self) -> bool {
+        self.running.load(Ordering::SeqCst)
+    }
+}
+
+impl Drop for GitBranchPoller {
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 
@@ -54,7 +131,7 @@ impl StatusBarUI {
     pub fn new() -> Self {
         Self {
             system_monitor: SystemMonitor::new(),
-            git_poller: GitBranchPoller::default(),
+            git_poller: GitBranchPoller::new(),
             last_mouse_activity: Instant::now(),
             visible: true,
         }
@@ -94,15 +171,19 @@ impl StatusBarUI {
         self.visible = true;
     }
 
-    /// Start or stop the system monitor based on enabled widgets.
+    /// Start or stop the system monitor and git poller based on enabled widgets.
     pub fn sync_monitor_state(&self, config: &Config) {
         if !config.status_bar_enabled {
             if self.system_monitor.is_running() {
                 self.system_monitor.stop();
             }
+            if self.git_poller.is_running() {
+                self.git_poller.stop();
+            }
             return;
         }
 
+        // System monitor
         let needs_monitor = config
             .status_bar_widgets
             .iter()
@@ -114,60 +195,18 @@ impl StatusBarUI {
         } else if !needs_monitor && self.system_monitor.is_running() {
             self.system_monitor.stop();
         }
-    }
 
-    /// Poll git branch if enough time has elapsed or the cwd changed.
-    fn poll_git_branch(&mut self, config: &Config, cwd: Option<&str>) {
-        // Skip polling if git branch widget is not enabled
-        let git_enabled = config
+        // Git branch poller
+        let needs_git = config
             .status_bar_widgets
             .iter()
             .any(|w| w.enabled && w.id == config::WidgetId::GitBranch);
-        if !git_enabled {
-            self.git_poller.branch = None;
-            return;
+
+        if needs_git && !self.git_poller.is_running() {
+            self.git_poller.start(config.status_bar_git_poll_interval);
+        } else if !needs_git && self.git_poller.is_running() {
+            self.git_poller.stop();
         }
-
-        let cwd_changed = match (&self.git_poller.cwd, cwd) {
-            (Some(old), Some(new)) => old != new,
-            (None, Some(_)) => true,
-            _ => false,
-        };
-
-        let interval_elapsed = self.git_poller.last_poll.elapsed().as_secs_f32()
-            >= config.status_bar_git_poll_interval;
-
-        if !cwd_changed && !interval_elapsed {
-            return;
-        }
-
-        self.git_poller.cwd = cwd.map(String::from);
-        self.git_poller.last_poll = Instant::now();
-
-        // Only poll if we have a directory to poll in
-        let Some(dir) = cwd else {
-            self.git_poller.branch = None;
-            return;
-        };
-
-        // Run git rev-parse --abbrev-ref HEAD
-        let result = Command::new("git")
-            .args(["rev-parse", "--abbrev-ref", "HEAD"])
-            .current_dir(dir)
-            .output();
-
-        self.git_poller.branch = result.ok().and_then(|out| {
-            if out.status.success() {
-                let branch = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if branch.is_empty() {
-                    None
-                } else {
-                    Some(branch)
-                }
-            } else {
-                None
-            }
-        });
     }
 
     /// Render the status bar.
@@ -184,19 +223,19 @@ impl StatusBarUI {
             return 0.0;
         }
 
-        // Poll git branch (uses session_vars.path as cwd)
+        // Update git poller cwd from active tab's path
         let cwd = if session_vars.path.is_empty() {
             None
         } else {
             Some(session_vars.path.as_str())
         };
-        self.poll_git_branch(config, cwd);
+        self.git_poller.set_cwd(cwd);
 
         // Build widget context
         let widget_ctx = WidgetContext {
             session_vars: session_vars.clone(),
             system_data: self.system_monitor.data(),
-            git_branch: self.git_poller.branch.clone(),
+            git_branch: self.git_poller.branch(),
         };
 
         let bar_height = config.status_bar_height;

@@ -239,23 +239,6 @@ fn show_styling_section(
 
         ui.add_space(8.0);
 
-        // Font family
-        ui.horizontal(|ui| {
-            ui.label("Font:");
-            if ui
-                .add(
-                    egui::TextEdit::singleline(&mut settings.config.status_bar_font)
-                        .hint_text("monospace")
-                        .desired_width(150.0),
-                )
-                .on_hover_text("Font family for status bar text")
-                .changed()
-            {
-                settings.has_changes = true;
-                *changes_this_frame = true;
-            }
-        });
-
         // Font size
         ui.horizontal(|ui| {
             ui.label("Font size:");
