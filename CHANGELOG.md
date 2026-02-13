@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Install Shell Integration on Remote Host** (#135): New Shell menu with option to install shell integration on remote hosts via SSH
+  - Shell > Install Shell Integration on Remote Host... sends curl command to active terminal
+  - Confirmation dialog shows exact command before sending
+  - Uses existing install script hosted on GitHub Pages
+
 - **Navigate to Settings from Application Menu** (#127): Platform-aware settings access from native application menu
   - macOS: "par-term" application menu with Settings... (Cmd+,), About, and standard macOS items (Services, Hide, Hide Others, Show All, Quit)
   - Windows/Linux: Edit > Preferences... (Ctrl+Shift+,) follows platform conventions
