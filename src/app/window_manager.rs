@@ -1146,16 +1146,10 @@ impl WindowManager {
                 }
             }
             MenuAction::ManageProfiles => {
-                if let Some(window_id) = focused_window
-                    && let Some(window_state) = self.windows.get_mut(&window_id)
-                {
-                    window_state
-                        .profile_modal_ui
-                        .open(&window_state.profile_manager);
-                    window_state.needs_redraw = true;
-                    if let Some(window) = &window_state.window {
-                        window.request_redraw();
-                    }
+                self.open_settings_window(event_loop);
+                if let Some(sw) = &mut self.settings_window {
+                    sw.settings_ui
+                        .set_selected_tab(crate::settings_ui::sidebar::SettingsTab::Profiles);
                 }
             }
             MenuAction::ToggleProfileDrawer => {
@@ -1237,6 +1231,14 @@ impl WindowManager {
                 log::info!("Opened settings window {:?}", settings_window.window_id());
                 // Sync last update check result to settings UI
                 settings_window.settings_ui.last_update_result = self.last_update_result.clone();
+                // Sync profiles from first window's profile manager
+                let profiles = self
+                    .windows
+                    .values()
+                    .next()
+                    .map(|ws| ws.profile_manager.to_vec())
+                    .unwrap_or_default();
+                settings_window.settings_ui.sync_profiles(profiles);
                 self.settings_window = Some(settings_window);
                 // Sync arrangement data to settings UI
                 self.sync_arrangements_to_settings();

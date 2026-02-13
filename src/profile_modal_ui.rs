@@ -178,6 +178,21 @@ impl ProfileModalUI {
         self.clear_form();
     }
 
+    /// Load profiles into the working copy without toggling visibility.
+    ///
+    /// Used by the settings window to populate the inline profile editor
+    /// without opening a modal window.
+    pub fn load_profiles(&mut self, profiles: Vec<Profile>) {
+        self.working_profiles = profiles;
+        self.mode = ModalMode::List;
+        self.editing_id = None;
+        self.selected_id = None;
+        self.has_changes = false;
+        self.validation_error = None;
+        self.pending_delete = None;
+        self.clear_form();
+    }
+
     /// Get the working profiles (for saving)
     pub fn get_working_profiles(&self) -> &[Profile] {
         &self.working_profiles
@@ -439,6 +454,28 @@ impl ProfileModalUI {
         }
     }
 
+    /// Render the profile list/edit UI inline (no egui::Window wrapper).
+    ///
+    /// Used inside the settings window's Profiles tab to embed the profile
+    /// management UI directly. Returns `ProfileModalAction` to communicate
+    /// save/cancel/open-profile requests to the caller.
+    pub fn show_inline(&mut self, ui: &mut egui::Ui) -> ProfileModalAction {
+        let action = match &self.mode.clone() {
+            ModalMode::List => self.render_list_view(ui),
+            ModalMode::Edit(_) | ModalMode::Create => {
+                self.render_edit_view(ui);
+                ProfileModalAction::None
+            }
+        };
+
+        // Render delete confirmation dialog on top
+        if self.pending_delete.is_some() {
+            self.render_delete_confirmation(ui.ctx());
+        }
+
+        action
+    }
+
     /// Render the modal and return any action triggered
     pub fn show(&mut self, ctx: &egui::Context) -> ProfileModalAction {
         if !self.visible {
@@ -526,7 +563,7 @@ impl ProfileModalUI {
     }
 
     /// Render the list view
-    fn render_list_view(&mut self, ui: &mut egui::Ui) -> ProfileModalAction {
+    pub(crate) fn render_list_view(&mut self, ui: &mut egui::Ui) -> ProfileModalAction {
         let mut action = ProfileModalAction::None;
 
         // Header with create button
@@ -650,7 +687,7 @@ impl ProfileModalUI {
     }
 
     /// Render the edit/create view
-    fn render_edit_view(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn render_edit_view(&mut self, ui: &mut egui::Ui) {
         let title = match &self.mode {
             ModalMode::Create => "Create Profile",
             ModalMode::Edit(_) => "Edit Profile",

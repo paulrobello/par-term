@@ -19,7 +19,6 @@ impl WindowState {
             || self.clipboard_history_ui.visible
             || self.command_history_ui.visible
             || self.search_ui.visible
-            || self.profile_modal_ui.visible
             || self.tmux_session_picker_ui.visible;
 
         // When UI panels are visible, block ALL keys from going to terminal

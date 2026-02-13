@@ -4,6 +4,8 @@
 //! terminal options at runtime.
 
 use crate::config::{Config, CursorShaderMetadataCache, ShaderMetadataCache};
+use crate::profile::{Profile, ProfileId};
+use crate::profile_modal_ui::ProfileModalUI;
 use egui::{Color32, Context, Frame, Window, epaint::Shadow};
 use rfd::FileDialog;
 use std::collections::HashSet;
@@ -187,9 +189,13 @@ pub struct SettingsUI {
     /// Pending shell integration action (install/uninstall)
     pub(crate) shell_integration_action: Option<integrations_tab::ShellIntegrationAction>,
 
-    // Profiles tab action state
-    /// Flag to request opening the profile manager modal
-    pub open_profile_manager_requested: bool,
+    // Profiles tab inline management state
+    /// Inline profile management UI (embedded in Profiles tab)
+    pub(crate) profile_modal_ui: ProfileModalUI,
+    /// Flag: profile save was requested from inline UI
+    pub(crate) profile_save_requested: bool,
+    /// Flag: open a profile was requested from inline UI
+    pub(crate) profile_open_requested: Option<ProfileId>,
     // Shader install workflow state
     /// Whether a shader install/uninstall operation is running
     shader_installing: bool,
@@ -436,7 +442,9 @@ impl SettingsUI {
             selected_tab: SettingsTab::default(),
             collapsed_sections: initial_collapsed,
             shell_integration_action: None,
-            open_profile_manager_requested: false,
+            profile_modal_ui: ProfileModalUI::new(),
+            profile_save_requested: false,
+            profile_open_requested: None,
             shader_installing: false,
             shader_status: None,
             shader_error: None,
@@ -864,11 +872,24 @@ impl SettingsUI {
         requested
     }
 
-    /// Check if opening the profile manager was requested and clear the flag
-    pub fn take_open_profile_manager_request(&mut self) -> bool {
-        let requested = self.open_profile_manager_requested;
-        self.open_profile_manager_requested = false;
-        requested
+    /// Sync profiles from the main window's profile manager into the inline editor.
+    pub fn sync_profiles(&mut self, profiles: Vec<Profile>) {
+        self.profile_modal_ui.load_profiles(profiles);
+    }
+
+    /// Take profile save request: returns working profiles if save was requested.
+    pub fn take_profile_save_request(&mut self) -> Option<Vec<Profile>> {
+        if self.profile_save_requested {
+            self.profile_save_requested = false;
+            Some(self.profile_modal_ui.get_working_profiles().to_vec())
+        } else {
+            None
+        }
+    }
+
+    /// Take profile open request: returns and clears the profile ID to open.
+    pub fn take_profile_open_request(&mut self) -> Option<ProfileId> {
+        self.profile_open_requested.take()
     }
 
     /// Show the settings window and return results

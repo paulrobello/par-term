@@ -99,6 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improved
 
+- **Profile management moved to Settings window** (#125): Profile create/edit/delete/reorder UI is now embedded inline in the Settings > Profiles tab, replacing the terminal-window modal dialog. The profile drawer's "Manage" button and the menu's "Manage Profiles" action now open the Settings window to the Profiles tab. This eliminates the disjointed settings → terminal → modal flow.
 - **Settings quick search**: Added missing search keywords across all settings tabs for better discoverability of settings via the search box
 
 ### Fixed

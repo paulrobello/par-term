@@ -4,6 +4,7 @@
 //! allowing users to configure the terminal while viewing terminal content.
 
 use crate::config::Config;
+use crate::profile::{Profile, ProfileId};
 use crate::settings_ui::{CursorShaderEditorResult, SettingsUI, ShaderEditorResult};
 use anyhow::{Context, Result};
 use std::sync::Arc;
@@ -30,8 +31,10 @@ pub enum SettingsWindowAction {
     ApplyCursorShader(CursorShaderEditorResult),
     /// Send a test notification to verify permissions
     TestNotification,
-    /// Open the profile manager modal
-    OpenProfileManager,
+    /// Save profiles from inline editor to all windows
+    SaveProfiles(Vec<Profile>),
+    /// Open a profile in the focused terminal window
+    OpenProfile(ProfileId),
     /// Start a coprocess by config index on the active tab
     StartCoprocess(usize),
     /// Stop a coprocess by config index on the active tab
@@ -482,9 +485,16 @@ impl SettingsWindow {
             return SettingsWindowAction::TestNotification;
         }
 
-        // Check for profile manager request
-        if self.settings_ui.take_open_profile_manager_request() {
-            return SettingsWindowAction::OpenProfileManager;
+        // Check for profile save request
+        if let Some(profiles) = self.settings_ui.take_profile_save_request() {
+            self.window.request_redraw();
+            return SettingsWindowAction::SaveProfiles(profiles);
+        }
+
+        // Check for profile open request
+        if let Some(id) = self.settings_ui.take_profile_open_request() {
+            self.window.request_redraw();
+            return SettingsWindowAction::OpenProfile(id);
         }
 
         // Check for open log file request

@@ -284,8 +284,8 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
 | Multiple profiles | ✅ Full profile system | ✅ `ProfileManager` | ✅ | - | - | Named configurations with YAML persistence |
-| Profile selection | ✅ GUI + keyboard | ✅ Drawer + Modal | ✅ | - | - | Collapsible drawer, double-click to open |
-| Profile creation/editing | ✅ | ✅ Modal UI | ✅ | - | - | Full CRUD operations |
+| Profile selection | ✅ GUI + keyboard | ✅ Drawer + Settings UI | ✅ | - | - | Collapsible drawer, inline management in Settings Profiles tab |
+| Profile creation/editing | ✅ | ✅ Settings UI | ✅ | - | - | Full CRUD operations inline in Settings window Profiles tab |
 | Profile reordering | ✅ | ✅ Move up/down | ✅ | - | - | Drag-free reorder buttons |
 | Profile icon | ✅ Custom icons | ✅ Emoji icons + picker | ✅ | - | - | Emoji picker with ~70 curated icons in 9 categories; icon shown in tab bar |
 | Working directory | ✅ | ✅ Per-profile | ✅ | - | - | With directory browser |

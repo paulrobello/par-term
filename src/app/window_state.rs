@@ -21,7 +21,6 @@ use crate::keybindings::KeybindingRegistry;
 use crate::paste_special_ui::{PasteSpecialAction, PasteSpecialUI};
 use crate::profile::{ProfileManager, storage as profile_storage};
 use crate::profile_drawer_ui::{ProfileDrawerAction, ProfileDrawerUI};
-use crate::profile_modal_ui::{ProfileModalAction, ProfileModalUI};
 use crate::progress_bar::{ProgressBarSnapshot, render_progress_bars};
 use crate::quit_confirmation_ui::{QuitConfirmAction, QuitConfirmationUI};
 use crate::renderer::{
@@ -195,8 +194,8 @@ pub struct WindowState {
     pub(crate) profile_manager: ProfileManager,
     /// Profile drawer UI (collapsible side panel)
     pub(crate) profile_drawer_ui: ProfileDrawerUI,
-    /// Profile modal UI (management dialog)
-    pub(crate) profile_modal_ui: ProfileModalUI,
+    /// Flag to signal that the settings window should open to the Profiles tab
+    pub(crate) open_settings_profiles_tab: bool,
     /// Flag to indicate profiles menu needs to be updated in the main menu
     pub(crate) profiles_menu_needs_update: bool,
     /// Track if we blocked a mouse press for UI - also block the corresponding release
@@ -350,7 +349,7 @@ impl WindowState {
 
             profile_manager,
             profile_drawer_ui: ProfileDrawerUI::new(),
-            profile_modal_ui: ProfileModalUI::new(),
+            open_settings_profiles_tab: false,
             profiles_menu_needs_update: true, // Update menu on startup
             ui_consumed_mouse_press: false,
 
@@ -1104,8 +1103,7 @@ impl WindowState {
     /// Used to route clipboard operations (paste/copy/select-all) to egui
     /// instead of the terminal when a modal dialog is active.
     pub(crate) fn has_egui_overlay_visible(&self) -> bool {
-        self.profile_modal_ui.visible
-            || self.search_ui.visible
+        self.search_ui.visible
             || self.clipboard_history_ui.visible
             || self.command_history_ui.visible
             || self.shader_install_ui.visible
@@ -1121,8 +1119,7 @@ impl WindowState {
             || self.clipboard_history_ui.visible
             || self.command_history_ui.visible
             || self.shader_install_ui.visible
-            || self.integrations_ui.visible
-            || self.profile_modal_ui.visible;
+            || self.integrations_ui.visible;
         if !any_ui_visible {
             return false;
         }
@@ -1764,8 +1761,6 @@ impl WindowState {
         let mut pending_search_action = crate::search::SearchAction::None;
         // Profile drawer action to handle after rendering
         let mut pending_profile_drawer_action = ProfileDrawerAction::None;
-        // Profile modal action to handle after rendering
-        let mut pending_profile_modal_action = ProfileModalAction::None;
         // Close confirmation action to handle after rendering
         let mut pending_close_confirm_action = CloseConfirmAction::None;
         // Quit confirmation action to handle after rendering
@@ -2257,11 +2252,8 @@ impl WindowState {
                         ctx,
                         &self.profile_manager,
                         &self.config,
-                        self.profile_modal_ui.visible,
+                        false, // profile modal is no longer in the terminal window
                     );
-
-                    // Render profile modal (management dialog)
-                    pending_profile_modal_action = self.profile_modal_ui.show(ctx);
 
                     // Render progress bar overlay
                     if let (Some(snap), Some(size)) = (&progress_snapshot, window_size_for_badge) {
@@ -2969,24 +2961,11 @@ impl WindowState {
                 self.open_profile(id);
             }
             ProfileDrawerAction::ManageProfiles => {
-                self.profile_modal_ui.open(&self.profile_manager);
+                // Open settings window to Profiles tab instead of terminal-embedded modal
+                self.open_settings_window_requested = true;
+                self.open_settings_profiles_tab = true;
             }
             ProfileDrawerAction::None => {}
-        }
-
-        // Handle profile modal actions
-        match pending_profile_modal_action {
-            ProfileModalAction::Save => {
-                // Apply working profiles to manager and save to disk
-                // Note: get_working_profiles() must be called before close()
-                let profiles = self.profile_modal_ui.get_working_profiles().to_vec();
-                self.profile_modal_ui.close();
-                self.apply_profile_changes(profiles);
-            }
-            ProfileModalAction::OpenProfile(id) => {
-                self.open_profile(id);
-            }
-            ProfileModalAction::Cancel | ProfileModalAction::None => {}
         }
 
         let absolute_total = absolute_start.elapsed();
