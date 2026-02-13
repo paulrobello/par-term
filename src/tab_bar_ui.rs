@@ -5,6 +5,10 @@
 use crate::config::{Config, TabBarMode, TabBarPosition};
 use crate::tab::{TabId, TabManager};
 
+/// Width reserved for the profile chevron (▾) button in the tab bar split button.
+/// Accounts for the button min_size (14px) plus egui button padding.
+const CHEVRON_RESERVED: f32 = 20.0;
+
 /// Styled text segment for rich tab titles
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StyledSegment {
@@ -153,9 +157,8 @@ impl TabBarUI {
 
         // Layout constants
         let tab_spacing = 4.0;
-        let chevron_width: f32 = 18.0; // width for the ▾ button (14px min + egui spacing)
         let new_tab_btn_width =
-            28.0 + if profiles.is_empty() { 0.0 } else { chevron_width };
+            28.0 + if profiles.is_empty() { 0.0 } else { CHEVRON_RESERVED };
         let scroll_btn_width = 24.0;
 
         let bar_bg = config.tab_bar_background;
@@ -306,8 +309,12 @@ impl TabBarUI {
                     }
                 }
 
-                // New tab split button: [+] [▾]
+                // New tab split button: [+][▾]
                 ui.add_space(tab_spacing);
+
+                // Use zero spacing between + and ▾ so they render as one split button
+                let prev_spacing = ui.spacing().item_spacing.x;
+                ui.spacing_mut().item_spacing.x = 0.0;
 
                 // "+" button — creates default tab
                 let plus_btn = ui.add(
@@ -325,7 +332,7 @@ impl TabBarUI {
                     plus_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
                 }
 
-                // Only show chevron if there are profiles
+                // "▾" chevron — opens profile dropdown (only when profiles exist)
                 if !profiles.is_empty() {
                     let chevron_btn = ui.add(
                         egui::Button::new("▾")
@@ -339,6 +346,9 @@ impl TabBarUI {
                         chevron_btn.on_hover_text("New tab from profile");
                     }
                 }
+
+                // Restore original spacing
+                ui.spacing_mut().item_spacing.x = prev_spacing;
             });
 
             // Handle drag feedback and drop detection (outside horizontal layout
@@ -431,11 +441,15 @@ impl TabBarUI {
                             // New tab split button
                             ui.add_space(tab_spacing);
                             ui.horizontal(|ui| {
+                                // Zero spacing between + and ▾
+                                ui.spacing_mut().item_spacing.x = 0.0;
+
+                                let chevron_space =
+                                    if profiles.is_empty() { 0.0 } else { CHEVRON_RESERVED };
                                 let plus_btn = ui.add(
                                     egui::Button::new("+")
                                         .min_size(egui::vec2(
-                                            ui.available_width()
-                                                - if profiles.is_empty() { 0.0 } else { 18.0 },
+                                            ui.available_width() - chevron_space,
                                             tab_height - 4.0,
                                         ))
                                         .fill(egui::Color32::TRANSPARENT),
