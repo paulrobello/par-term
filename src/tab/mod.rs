@@ -346,6 +346,10 @@ pub struct Tab {
     pub auto_applied_profile_id: Option<crate::profile::ProfileId>,
     /// Profile ID that was auto-applied based on directory pattern matching
     pub auto_applied_dir_profile_id: Option<crate::profile::ProfileId>,
+    /// Icon from auto-applied profile (displayed in tab bar)
+    pub profile_icon: Option<String>,
+    /// Original tab title saved before auto-profile override (restored when profile clears)
+    pub pre_profile_title: Option<String>,
     /// Badge text override from auto-applied profile (overrides global badge_format)
     pub badge_override: Option<String>,
     /// Mapping from config index to coprocess ID (for UI tracking)
@@ -536,6 +540,8 @@ impl Tab {
             detected_cwd: None,
             auto_applied_profile_id: None,
             auto_applied_dir_profile_id: None,
+            profile_icon: None,
+            pre_profile_title: None,
             badge_override: None,
             coprocess_ids,
             trigger_marks: Vec::new(),
@@ -727,6 +733,8 @@ impl Tab {
             detected_cwd: None,
             auto_applied_profile_id: None,
             auto_applied_dir_profile_id: None,
+            profile_icon: None,
+            pre_profile_title: None,
             badge_override: None,
             coprocess_ids,
             trigger_marks: Vec::new(),
@@ -920,6 +928,10 @@ impl Tab {
     pub fn clear_auto_profile(&mut self) {
         self.auto_applied_profile_id = None;
         self.auto_applied_dir_profile_id = None;
+        self.profile_icon = None;
+        if let Some(original) = self.pre_profile_title.take() {
+            self.title = original;
+        }
         self.badge_override = None;
     }
 
@@ -1416,6 +1428,8 @@ impl Tab {
             detected_cwd: None,
             auto_applied_profile_id: None,
             auto_applied_dir_profile_id: None,
+            profile_icon: None,
+            pre_profile_title: None,
             badge_override: None,
             coprocess_ids: Vec::new(),
             trigger_marks: Vec::new(),

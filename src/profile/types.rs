@@ -547,10 +547,23 @@ impl ProfileManager {
         })
     }
 
+    /// Expand `~` at the start of a pattern to the user's home directory.
+    fn expand_tilde(pattern: &str) -> std::borrow::Cow<'_, str> {
+        if let Some(rest) = pattern.strip_prefix('~')
+            && let Some(home) = dirs::home_dir()
+        {
+            return std::borrow::Cow::Owned(format!("{}{}", home.display(), rest));
+        }
+        std::borrow::Cow::Borrowed(pattern)
+    }
+
     /// Check if a directory path matches a glob-style pattern
     /// Unlike hostname matching, directory matching is case-sensitive on Unix
     /// and supports path-specific glob patterns.
+    /// Supports `~` expansion in patterns (e.g., `~/projects/*`).
     fn directory_pattern_matches(path: &str, pattern: &str) -> bool {
+        // Expand ~ to home directory in pattern
+        let pattern = Self::expand_tilde(pattern);
         // Normalize trailing slashes for consistent matching
         let path = path.trim_end_matches('/');
         let pattern = pattern.trim_end_matches('/');
@@ -1259,6 +1272,38 @@ mod tests {
             "/Users/user/projects",
             "/Users/user/projects/work-*"
         ));
+    }
+
+    #[test]
+    fn test_directory_pattern_tilde_expansion() {
+        if let Some(home) = dirs::home_dir() {
+            let home_str = home.display().to_string();
+
+            // Tilde prefix match
+            let path = format!("{}/Repos/par-term", home_str);
+            assert!(ProfileManager::directory_pattern_matches(
+                &path,
+                "~/Repos/par-term*"
+            ));
+
+            // Tilde exact match
+            assert!(ProfileManager::directory_pattern_matches(
+                &path,
+                "~/Repos/par-term"
+            ));
+
+            // Tilde with trailing slash
+            assert!(ProfileManager::directory_pattern_matches(
+                &format!("{}/", path),
+                "~/Repos/par-term"
+            ));
+
+            // Non-match with tilde
+            assert!(!ProfileManager::directory_pattern_matches(
+                &format!("{}/other-project", home_str),
+                "~/Repos/par-term*"
+            ));
+        }
     }
 
     #[test]

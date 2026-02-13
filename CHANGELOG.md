@@ -18,6 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Settings UI for editing directory patterns per profile
   - Does not override explicit user profile selection or hostname-based switching
 
+- **Profile Emoji Picker** (#114): Emoji picker popup for the profile icon field in the profile modal
+  - Curated grid of ~70 terminal-relevant emojis in 9 categories (Terminal, Dev & Tools, Files & Data, Network & Cloud, Security, Status & Alerts, Containers & Infra, People & Roles, Misc)
+  - Scrollable popup with category headers and one-click selection
+  - Users can still type custom emojis directly in the text field
+  - "Clear icon" button to remove the current icon
+
+- **Full Profile Auto-Switch Application** (#114): Auto-switched profiles now apply all visual settings
+  - **Directory switching**: Applies profile icon in tab bar, overrides tab title, applies badge text and badge styling (color, alpha, font, bold, margins, size), executes profile command
+  - **Hostname switching**: Brought to full parity — applies icon, title, badge text/styling, and command execution on remote host detection
+  - **Tmux session switching**: Brought to full parity — applies icon, title, badge text/styling, and command execution on session name match
+  - Profile icon displayed in both horizontal and vertical tab bar layouts
+  - Original tab title saved and restored when auto-profile clears
+
 - **Tab Style Variants** (#112): Cosmetic tab bar presets with 5 built-in styles
   - Dark (default), Light, Compact, Minimal, and High Contrast presets
   - Each preset applies coordinated color/size/spacing adjustments
@@ -90,6 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Paste/Copy/Select-All in egui overlays**: Cmd+V, Cmd+C, and Cmd+A now correctly route to egui text fields when a modal dialog is active (profile modal, search overlay, clipboard history, command history, shader install, integrations). Previously, macOS menu accelerators (muda) intercepted these shortcuts and sent them to the terminal instead.
+- **Directory pattern tilde expansion**: Profile directory patterns using `~` (e.g., `~/Repos/par-term*`) now correctly expand to the home directory before matching. Previously, `~` was treated as a literal character and never matched.
 - **Comprehensive HiDPI/DPI scaling fix**: All pixel-dimension config values are now correctly scaled from logical pixels to physical pixels on HiDPI displays (e.g., Retina at scale_factor=2). Previously, many values rendered at half their intended size. Fixed values include:
   - Tab bar content offset (#121), window padding, scrollbar width
   - Pane padding, divider width/hit width, title height, focus border width

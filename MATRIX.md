@@ -287,7 +287,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Profile selection | ✅ GUI + keyboard | ✅ Drawer + Modal | ✅ | - | - | Collapsible drawer, double-click to open |
 | Profile creation/editing | ✅ | ✅ Modal UI | ✅ | - | - | Full CRUD operations |
 | Profile reordering | ✅ | ✅ Move up/down | ✅ | - | - | Drag-free reorder buttons |
-| Profile icon | ✅ Custom icons | ✅ Emoji icons | ✅ | - | - | Visual identification with emoji |
+| Profile icon | ✅ Custom icons | ✅ Emoji icons + picker | ✅ | - | - | Emoji picker with ~70 curated icons in 9 categories; icon shown in tab bar |
 | Working directory | ✅ | ✅ Per-profile | ✅ | - | - | With directory browser |
 | Custom command | ✅ | ✅ Per-profile | ✅ | - | - | Command + arguments |
 | Custom tab name | ✅ | ✅ Per-profile | ✅ | - | - | Override default tab naming |
@@ -295,7 +295,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Profile tags | ✅ Searchable tags | ✅ `tags` | ✅ | - | - | Filter/search profiles by tags in drawer |
 | Profile inheritance | ✅ Parent profiles | ✅ `parent_id` | ✅ | - | - | Child inherits parent settings, can override |
 | Profile keyboard shortcut | ✅ | ✅ `keyboard_shortcut` | ✅ | - | - | Quick profile launch via hotkey (e.g., "Cmd+1") |
-| Automatic profile switching | ✅ Based on hostname | ✅ `hostname_patterns`, `directory_patterns` | ✅ | - | - | OSC 7 hostname and CWD detection triggers profile match |
+| Automatic profile switching | ✅ Based on hostname | ✅ `hostname_patterns`, `directory_patterns` | ✅ | - | - | OSC 7 hostname and CWD detection triggers profile match; applies icon, title, badge, command |
 | Profile badge | ✅ `Badge Text` | ✅ `badge_text` | ✅ | - | - | Per-profile badge format override + session.profile_name |
 
 ---
@@ -386,7 +386,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | tmux clipboard sync | ✅ Bidirectional | ✅ `set-buffer` | ✅ | - | - | Sync with tmux paste buffers |
 | tmux pause mode handling | ✅ | ✅ | ✅ | - | - | Handle slow connection pausing with buffering |
 | Auto-attach on launch | ✅ | ✅ `tmux_auto_attach` | ✅ | - | - | Option to auto-attach to session |
-| tmux profile auto-switching | ✅ | ✅ | ✅ | - | - | Glob pattern matching on session names (e.g., `work-*`, `*-production`) |
+| tmux profile auto-switching | ✅ | ✅ | ✅ | - | - | Glob pattern matching on session names; applies icon, title, badge styling, command |
 
 ### How par-term's tmux Control Mode Works
 
@@ -411,7 +411,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 - `tmux_status_bar_left`: Format string for left side (default: `[{session}] {windows}`)
 - `tmux_status_bar_right`: Format string for right side (default: `{pane} | {time:%H:%M}`)
 - `tmux_status_bar_use_native_format`: Use native tmux format strings (queries tmux directly)
-- `tmux_profile`: Profile to use when connected (pending)
+- `tmux_profile`: Profile to use when connected (auto-switching applies full visual settings)
 
 ---
 
@@ -676,8 +676,8 @@ iTerm2 has sophisticated window state management.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Hostname-based switching | ✅ | ✅ | ✅ | - | - | Already implemented |
-| Directory-based switching | ✅ | ✅ `directory_patterns` | ✅ | - | - | Auto-switch profile by CWD via OSC 7 |
+| Hostname-based switching | ✅ | ✅ | ✅ | - | - | Full parity: applies icon, title, badge text/styling, command execution |
+| Directory-based switching | ✅ | ✅ `directory_patterns` | ✅ | - | - | Full parity: applies icon, title, badge text/styling, command execution; tilde expansion |
 | Command-based switching | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-switch by running command |
 | User-based switching | ✅ | ❌ | ❌ | ⭐ | 🟡 | Switch by SSH user |
 | Dynamic profiles from URL | ✅ `Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🔴 | Load profiles from remote URL |

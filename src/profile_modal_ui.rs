@@ -4,6 +4,43 @@
 
 use crate::profile::{Profile, ProfileId, ProfileManager};
 
+/// Curated emoji presets organized by category for the profile icon picker
+const EMOJI_PRESETS: &[(&str, &[&str])] = &[
+    (
+        "Terminal",
+        &["💻", "🖥️", "⌨️", "🐚", "📟", "🔲", "▶️", "⬛"],
+    ),
+    (
+        "Dev & Tools",
+        &["🔧", "🛠️", "⚙️", "🔨", "🧰", "📐", "🔬", "🧪"],
+    ),
+    (
+        "Files & Data",
+        &["📁", "📂", "📄", "📊", "💾", "🗄️", "📦", "🗃️"],
+    ),
+    (
+        "Network & Cloud",
+        &["🌐", "☁️", "📡", "🔗", "🌍", "📶", "🛰️", "🌎"],
+    ),
+    (
+        "Security",
+        &["🔒", "🔑", "🛡️", "🔐", "🚨", "⚠️", "🔓", "🧱"],
+    ),
+    (
+        "Status & Alerts",
+        &["✅", "❌", "⚡", "🔔", "💡", "🚀", "🎯", "🔥"],
+    ),
+    (
+        "Containers & Infra",
+        &["🐳", "🐧", "🏗️", "📀", "🧊", "📋", "🔄", "🏠"],
+    ),
+    (
+        "People & Roles",
+        &["👤", "👨‍💻", "👩‍💻", "🤖", "👥", "🧑‍🔧", "🧑‍🏫", "👷"],
+    ),
+    ("Misc", &["🎨", "📝", "🏷️", "⭐", "💎", "🌈", "🎮", "🎵"]),
+];
+
 /// Actions that can be triggered from the profile modal
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProfileModalAction {
@@ -639,11 +676,52 @@ impl ProfileModalUI {
                         ui.label("Icon:");
                         ui.horizontal(|ui| {
                             ui.text_edit_singleline(&mut self.temp_icon);
-                            ui.label(
-                                egui::RichText::new("(emoji)")
-                                    .small()
-                                    .color(egui::Color32::GRAY),
-                            );
+                            let picker_label = if self.temp_icon.is_empty() {
+                                "😀"
+                            } else {
+                                &self.temp_icon
+                            };
+                            let picker_btn = ui.button(picker_label);
+                            egui::Popup::from_toggle_button_response(&picker_btn)
+                                .close_behavior(
+                                    egui::PopupCloseBehavior::CloseOnClickOutside,
+                                )
+                                .show(|ui| {
+                                    ui.set_min_width(280.0);
+                                    egui::ScrollArea::vertical()
+                                        .max_height(300.0)
+                                        .show(ui, |ui| {
+                                            for (category, emojis) in EMOJI_PRESETS {
+                                                ui.label(
+                                                    egui::RichText::new(*category)
+                                                        .small()
+                                                        .strong(),
+                                                );
+                                                ui.horizontal_wrapped(|ui| {
+                                                    for emoji in *emojis {
+                                                        let btn = ui.add_sized(
+                                                            [28.0, 28.0],
+                                                            egui::Button::new(*emoji)
+                                                                .frame(false),
+                                                        );
+                                                        if btn.clicked() {
+                                                            self.temp_icon =
+                                                                emoji.to_string();
+                                                            egui::Popup::close_all(
+                                                                ui.ctx(),
+                                                            );
+                                                        }
+                                                    }
+                                                });
+                                                ui.add_space(2.0);
+                                            }
+                                            ui.add_space(4.0);
+                                            if ui.button("Clear icon").clicked() {
+                                                self.temp_icon.clear();
+                                                egui::Popup::close_all(ui.ctx());
+                                            }
+                                        });
+                                });
                         });
                         ui.end_row();
 

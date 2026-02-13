@@ -100,6 +100,10 @@ pub struct WindowState {
     pub(crate) egui_ctx: Option<egui::Context>,
     /// egui-winit state for event handling
     pub(crate) egui_state: Option<egui_winit::State>,
+    /// Pending egui events to inject into next frame's raw_input.
+    /// Used when macOS menu accelerators intercept Cmd+V/C/A before egui sees them
+    /// while an egui overlay (profile modal, search, etc.) is active.
+    pub(crate) pending_egui_events: Vec<egui::Event>,
     /// Whether egui has completed its first ctx.run() call
     /// Before first run, egui's is_using_pointer() returns unreliable results
     pub(crate) egui_initialized: bool,
@@ -298,6 +302,7 @@ impl WindowState {
             is_fullscreen: false,
             egui_ctx: None,
             egui_state: None,
+            pending_egui_events: Vec::new(),
             egui_initialized: false,
             shader_metadata_cache: ShaderMetadataCache::with_shaders_dir(shaders_dir.clone()),
             cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
@@ -1093,6 +1098,18 @@ impl WindowState {
         } else {
             false
         }
+    }
+
+    /// Check if any egui overlay with text input is visible.
+    /// Used to route clipboard operations (paste/copy/select-all) to egui
+    /// instead of the terminal when a modal dialog is active.
+    pub(crate) fn has_egui_overlay_visible(&self) -> bool {
+        self.profile_modal_ui.visible
+            || self.search_ui.visible
+            || self.clipboard_history_ui.visible
+            || self.command_history_ui.visible
+            || self.shader_install_ui.visible
+            || self.integrations_ui.visible
     }
 
     /// Check if egui is currently using keyboard input (e.g., text input or ComboBox has focus)
@@ -1982,7 +1999,11 @@ impl WindowState {
             let egui_data = if let (Some(egui_ctx), Some(egui_state)) =
                 (&self.egui_ctx, &mut self.egui_state)
             {
-                let raw_input = egui_state.take_egui_input(self.window.as_ref().unwrap());
+                let mut raw_input = egui_state.take_egui_input(self.window.as_ref().unwrap());
+
+                // Inject pending events from menu accelerators (Cmd+V/C/A intercepted by muda)
+                // when egui overlays (profile modal, search, etc.) are active
+                raw_input.events.append(&mut self.pending_egui_events);
 
                 let egui_output = egui_ctx.run(raw_input, |ctx| {
                     // Show FPS overlay if enabled (top-right corner)

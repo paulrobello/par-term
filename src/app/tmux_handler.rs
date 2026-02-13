@@ -2121,24 +2121,64 @@ impl WindowState {
         profile_id: crate::profile::ProfileId,
         profile_name: &str,
     ) {
+        // Extract profile settings before borrowing tab_manager
+        let profile_settings = self.profile_manager.get(&profile_id).map(|p| {
+            (
+                p.tab_name.clone(),
+                p.icon.clone(),
+                p.badge_text.clone(),
+                p.command.clone(),
+                p.command_args.clone(),
+            )
+        });
+
         if let Some(gateway_tab_id) = self.tmux_gateway_tab_id
             && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
         {
             // Mark the auto-applied profile
             tab.auto_applied_profile_id = Some(profile_id);
 
-            // Apply profile badge text if configured
-            if let Some(profile) = self.profile_manager.get(&profile_id)
-                && let Some(badge_text) = &profile.badge_text
-            {
-                // Update the badge for this tab
-                tab.badge_override = Some(badge_text.clone());
-                crate::debug_info!(
-                    "TMUX",
-                    "Applied badge text '{}' from profile '{}'",
-                    badge_text,
-                    profile_name
-                );
+            if let Some((tab_name, icon, badge_text, command, command_args)) = profile_settings {
+                // Apply profile icon
+                tab.profile_icon = icon;
+
+                // Save original title before overriding (only if not already saved)
+                if tab.pre_profile_title.is_none() {
+                    tab.pre_profile_title = Some(tab.title.clone());
+                }
+                // Apply profile tab name (fall back to profile name)
+                tab.title = tab_name.unwrap_or_else(|| profile_name.to_string());
+
+                // Apply badge text override if configured
+                if let Some(badge_text) = badge_text {
+                    tab.badge_override = Some(badge_text.clone());
+                    crate::debug_info!(
+                        "TMUX",
+                        "Applied badge text '{}' from profile '{}'",
+                        badge_text,
+                        profile_name
+                    );
+                }
+
+                // Execute profile command in the running shell if configured
+                if let Some(cmd) = command {
+                    let mut full_cmd = cmd;
+                    if let Some(args) = command_args {
+                        for arg in args {
+                            full_cmd.push(' ');
+                            full_cmd.push_str(&arg);
+                        }
+                    }
+                    full_cmd.push('\n');
+
+                    let terminal_clone = std::sync::Arc::clone(&tab.terminal);
+                    self.runtime.spawn(async move {
+                        let term = terminal_clone.lock().await;
+                        if let Err(e) = term.write(full_cmd.as_bytes()) {
+                            log::error!("Failed to execute tmux profile command: {}", e);
+                        }
+                    });
+                }
             }
 
             // Show notification about profile switch
@@ -2148,6 +2188,12 @@ impl WindowState {
                 profile_name,
                 gateway_tab_id
             );
+        }
+
+        // Apply profile badge settings (color, font, margins, etc.)
+        if let Some(profile) = self.profile_manager.get(&profile_id) {
+            let profile_clone = profile.clone();
+            self.apply_profile_badge(&profile_clone);
         }
     }
 
