@@ -237,6 +237,7 @@ impl TabBarUI {
                                         tab.id,
                                         index,
                                         &tab.title,
+                                        tab.profile_icon.as_deref(),
                                         is_active,
                                         tab.has_activity,
                                         is_bell_active,
@@ -279,6 +280,7 @@ impl TabBarUI {
                             tab.id,
                             index,
                             &tab.title,
+                            tab.profile_icon.as_deref(),
                             is_active,
                             tab.has_activity,
                             is_bell_active,
@@ -380,6 +382,7 @@ impl TabBarUI {
                                     tab.id,
                                     index,
                                     &tab.title,
+                                    tab.profile_icon.as_deref(),
                                     is_active,
                                     tab.has_activity,
                                     is_bell_active,
@@ -447,6 +450,7 @@ impl TabBarUI {
         id: TabId,
         _index: usize,
         title: &str,
+        profile_icon: Option<&str>,
         is_active: bool,
         has_activity: bool,
         is_bell_active: bool,
@@ -553,6 +557,15 @@ impl TabBarUI {
                     ui.add_space(2.0);
                 }
 
+                // Profile icon
+                let icon_width = if let Some(icon) = profile_icon {
+                    ui.label(icon);
+                    ui.add_space(2.0);
+                    18.0
+                } else {
+                    0.0
+                };
+
                 let text_color = if is_active {
                     let c = config.tab_active_text;
                     egui::Color32::from_rgba_unmultiplied(c[0], c[1], c[2], 255)
@@ -567,7 +580,7 @@ impl TabBarUI {
                 } else {
                     0.0
                 };
-                let available = (full_width - 16.0 - close_width).max(20.0);
+                let available = (full_width - 16.0 - icon_width - close_width).max(20.0);
                 let base_font_id = ui.style().text_styles[&egui::TextStyle::Button].clone();
                 let max_chars = estimate_max_chars(ui, &base_font_id, available);
                 let display_title = truncate_plain(title, max_chars);
@@ -761,6 +774,7 @@ impl TabBarUI {
         id: TabId,
         index: usize,
         title: &str,
+        profile_icon: Option<&str>,
         is_active: bool,
         has_activity: bool,
         is_bell_active: bool,
@@ -897,6 +911,15 @@ impl TabBarUI {
                     // We'd need to get the index, skip for now
                 }
 
+                // Profile icon (from auto-applied directory/hostname profile)
+                let icon_width = if let Some(icon) = profile_icon {
+                    ui.label(icon);
+                    ui.add_space(2.0);
+                    18.0
+                } else {
+                    0.0
+                };
+
                 // Title rendering with width-aware truncation
                 let base_font_id = ui.style().text_styles[&egui::TextStyle::Button].clone();
                 let indicator_width = if is_bell_active {
@@ -913,8 +936,13 @@ impl TabBarUI {
                     0.0
                 };
                 let padding = 12.0;
-                let title_available_width =
-                    (tab_width - indicator_width - hotkey_width - close_width - padding).max(24.0);
+                let title_available_width = (tab_width
+                    - indicator_width
+                    - icon_width
+                    - hotkey_width
+                    - close_width
+                    - padding)
+                    .max(24.0);
 
                 let max_chars = estimate_max_chars(ui, &base_font_id, title_available_width);
 

@@ -902,6 +902,11 @@ impl WindowState {
             grid_size,
         ) {
             Ok(tab_id) => {
+                // Set profile icon on the new tab
+                if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
+                    tab.profile_icon = profile.icon.clone();
+                }
+
                 // Start refresh task for the new tab and resize to match window
                 if let Some(window) = &self.window
                     && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
@@ -987,7 +992,7 @@ impl WindowState {
     ///
     /// Updates the badge session variables and applies any profile-specific
     /// badge configuration (format, color, font, margins, etc.).
-    fn apply_profile_badge(&mut self, profile: &crate::profile::Profile) {
+    pub(crate) fn apply_profile_badge(&mut self, profile: &crate::profile::Profile) {
         // Update session.profile_name variable
         {
             let mut vars = self.badge_state.variables_mut();
@@ -1033,41 +1038,57 @@ impl WindowState {
         self.profiles_menu_needs_update = true;
     }
 
-    /// Check for automatic profile switching based on hostname detection
+    /// Check for automatic profile switching based on hostname and directory detection
     ///
-    /// This checks the active tab for hostname changes (detected via OSC 7)
+    /// This checks the active tab for hostname and CWD changes (detected via OSC 7)
     /// and applies matching profiles automatically.
+    /// Priority: explicit user selection > hostname match > directory match > default
     ///
     /// Returns true if a profile was auto-applied, triggering a redraw.
     pub fn check_auto_profile_switch(&mut self) -> bool {
-        // Only check if auto-switching is enabled (at least one profile has hostname patterns)
         if self.profile_manager.is_empty() {
             return false;
         }
 
-        // Get active tab
+        let mut changed = false;
+
+        // --- Hostname-based switching (higher priority) ---
+        changed |= self.check_auto_hostname_switch();
+
+        // --- Directory-based switching (lower priority, only if no hostname profile) ---
+        changed |= self.check_auto_directory_switch();
+
+        changed
+    }
+
+    /// Check for hostname-based automatic profile switching
+    fn check_auto_hostname_switch(&mut self) -> bool {
         let tab = match self.tab_manager.active_tab_mut() {
             Some(t) => t,
             None => return false,
         };
 
-        // Check if hostname has changed
         let new_hostname = match tab.check_hostname_change() {
             Some(h) => h,
             None => {
-                // Hostname unchanged or returned to local - check if we should clear auto-profile
                 if tab.detected_hostname.is_none() && tab.auto_applied_profile_id.is_some() {
                     crate::debug_info!(
                         "PROFILE",
-                        "Clearing auto-applied profile (returned to localhost)"
+                        "Clearing auto-applied hostname profile (returned to localhost)"
                     );
-                    tab.clear_auto_profile();
+                    tab.auto_applied_profile_id = None;
+                    tab.profile_icon = None;
+                    tab.badge_override = None;
+                    // Restore original tab title
+                    if let Some(original) = tab.pre_profile_title.take() {
+                        tab.title = original;
+                    }
                 }
                 return false;
             }
         };
 
-        // Don't re-apply the same profile if already auto-applied
+        // Don't re-apply the same profile
         if let Some(existing_profile_id) = tab.auto_applied_profile_id
             && let Some(profile) = self.profile_manager.find_by_hostname(&new_hostname)
             && profile.id == existing_profile_id
@@ -1075,12 +1096,14 @@ impl WindowState {
             return false;
         }
 
-        // Find matching profile for this hostname
-        let matching_profile = self.profile_manager.find_by_hostname(&new_hostname);
-
-        if let Some(profile) = matching_profile {
+        if let Some(profile) = self.profile_manager.find_by_hostname(&new_hostname) {
             let profile_name = profile.name.clone();
             let profile_id = profile.id;
+            let profile_tab_name = profile.tab_name.clone();
+            let profile_icon = profile.icon.clone();
+            let profile_badge_text = profile.badge_text.clone();
+            let profile_command = profile.command.clone();
+            let profile_command_args = profile.command_args.clone();
 
             crate::debug_info!(
                 "PROFILE",
@@ -1089,26 +1112,52 @@ impl WindowState {
                 new_hostname
             );
 
-            // Mark this as an auto-applied profile
+            // Apply profile visual settings to the tab
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 tab.auto_applied_profile_id = Some(profile_id);
+                tab.profile_icon = profile_icon;
+
+                // Save original title before overriding (only if not already saved)
+                if tab.pre_profile_title.is_none() {
+                    tab.pre_profile_title = Some(tab.title.clone());
+                }
+                // Apply profile tab name (fall back to profile name)
+                tab.title = profile_tab_name.unwrap_or_else(|| profile_name.clone());
+
+                // Apply badge text override if configured
+                if let Some(badge_text) = profile_badge_text {
+                    tab.badge_override = Some(badge_text);
+                }
+
+                // Execute profile command in the running shell if configured
+                if let Some(cmd) = profile_command {
+                    let mut full_cmd = cmd;
+                    if let Some(args) = profile_command_args {
+                        for arg in args {
+                            full_cmd.push(' ');
+                            full_cmd.push_str(&arg);
+                        }
+                    }
+                    full_cmd.push('\n');
+
+                    let terminal_clone = Arc::clone(&tab.terminal);
+                    self.runtime.spawn(async move {
+                        let term = terminal_clone.lock().await;
+                        if let Err(e) = term.write(full_cmd.as_bytes()) {
+                            log::error!("Failed to execute profile command: {}", e);
+                        }
+                    });
+                }
             }
 
-            // For automatic switching, we don't open a new tab - we could optionally
-            // apply theme/settings to the current tab in the future.
-            // For now, we log the event and could show a notification.
+            // Apply profile badge settings (color, font, margins, etc.)
+            self.apply_profile_badge(&self.profile_manager.get(&profile_id).unwrap().clone());
+
             log::info!(
-                "Auto-detected profile '{}' for hostname '{}' (tab already running)",
+                "Auto-applied profile '{}' for hostname '{}'",
                 profile_name,
                 new_hostname
             );
-
-            // Optional: Show a brief notification about the hostname detection
-            // self.deliver_notification(
-            //     "SSH Detected",
-            //     &format!("Connected to {} (profile: {})", new_hostname, profile_name),
-            // );
-
             true
         } else {
             crate::debug_info!(
@@ -1116,6 +1165,116 @@ impl WindowState {
                 "No profile matches hostname '{}' - consider creating one",
                 new_hostname
             );
+            false
+        }
+    }
+
+    /// Check for directory-based automatic profile switching
+    fn check_auto_directory_switch(&mut self) -> bool {
+        let tab = match self.tab_manager.active_tab_mut() {
+            Some(t) => t,
+            None => return false,
+        };
+
+        // Don't override hostname-based profile (higher priority)
+        if tab.auto_applied_profile_id.is_some() {
+            return false;
+        }
+
+        let new_cwd = match tab.check_cwd_change() {
+            Some(c) => c,
+            None => return false,
+        };
+
+        // Don't re-apply the same profile
+        if let Some(existing_profile_id) = tab.auto_applied_dir_profile_id
+            && let Some(profile) = self.profile_manager.find_by_directory(&new_cwd)
+            && profile.id == existing_profile_id
+        {
+            return false;
+        }
+
+        if let Some(profile) = self.profile_manager.find_by_directory(&new_cwd) {
+            let profile_name = profile.name.clone();
+            let profile_id = profile.id;
+            let profile_tab_name = profile.tab_name.clone();
+            let profile_icon = profile.icon.clone();
+            let profile_badge_text = profile.badge_text.clone();
+            let profile_command = profile.command.clone();
+            let profile_command_args = profile.command_args.clone();
+
+            crate::debug_info!(
+                "PROFILE",
+                "Auto-switching to profile '{}' for directory '{}'",
+                profile_name,
+                new_cwd
+            );
+
+            // Apply profile visual settings to the tab
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.auto_applied_dir_profile_id = Some(profile_id);
+                tab.profile_icon = profile_icon;
+
+                // Save original title before overriding (only if not already saved)
+                if tab.pre_profile_title.is_none() {
+                    tab.pre_profile_title = Some(tab.title.clone());
+                }
+                // Apply profile tab name (fall back to profile name)
+                tab.title = profile_tab_name.unwrap_or_else(|| profile_name.clone());
+
+                // Apply badge text override if configured
+                if let Some(badge_text) = profile_badge_text {
+                    tab.badge_override = Some(badge_text);
+                }
+
+                // Execute profile command in the running shell if configured
+                if let Some(cmd) = profile_command {
+                    let mut full_cmd = cmd;
+                    if let Some(args) = profile_command_args {
+                        for arg in args {
+                            full_cmd.push(' ');
+                            full_cmd.push_str(&arg);
+                        }
+                    }
+                    full_cmd.push('\n');
+
+                    let terminal_clone = Arc::clone(&tab.terminal);
+                    self.runtime.spawn(async move {
+                        let term = terminal_clone.lock().await;
+                        if let Err(e) = term.write(full_cmd.as_bytes()) {
+                            log::error!("Failed to execute profile command: {}", e);
+                        }
+                    });
+                }
+            }
+
+            // Apply profile badge settings (color, font, margins, etc.)
+            self.apply_profile_badge(&self.profile_manager.get(&profile_id).unwrap().clone());
+
+            log::info!(
+                "Auto-applied profile '{}' for directory '{}'",
+                profile_name,
+                new_cwd
+            );
+            true
+        } else {
+            // Clear directory profile if CWD no longer matches any pattern
+            if let Some(tab) = self.tab_manager.active_tab_mut()
+                && tab.auto_applied_dir_profile_id.is_some()
+            {
+                crate::debug_info!(
+                    "PROFILE",
+                    "Clearing auto-applied directory profile (CWD '{}' no longer matches)",
+                    new_cwd
+                );
+                tab.auto_applied_dir_profile_id = None;
+                tab.profile_icon = None;
+                tab.badge_override = None;
+                // Restore original tab title
+                if let Some(original) = tab.pre_profile_title.take() {
+                    tab.title = original;
+                }
+            }
             false
         }
     }

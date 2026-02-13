@@ -65,6 +65,13 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tmux_session_patterns: Vec<String>,
 
+    /// Directory patterns for automatic profile switching based on CWD
+    /// Supports glob patterns (e.g., "/Users/*/projects/work-*", "/home/user/dev/*")
+    /// When the shell's CWD matches a pattern, this profile is auto-applied.
+    /// Priority: explicit user selection > hostname match > directory match > default
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub directory_patterns: Vec<String>,
+
     /// Per-profile badge text (overrides global badge_format when this profile is active)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub badge_text: Option<String>,
@@ -120,6 +127,7 @@ impl Profile {
             keyboard_shortcut: None,
             hostname_patterns: Vec::new(),
             tmux_session_patterns: Vec::new(),
+            directory_patterns: Vec::new(),
             badge_text: None,
             badge_color: None,
             badge_color_alpha: None,
@@ -148,6 +156,7 @@ impl Profile {
             keyboard_shortcut: None,
             hostname_patterns: Vec::new(),
             tmux_session_patterns: Vec::new(),
+            directory_patterns: Vec::new(),
             badge_text: None,
             badge_color: None,
             badge_color_alpha: None,
@@ -223,6 +232,12 @@ impl Profile {
     /// Builder method to set tmux session patterns
     pub fn tmux_session_patterns(mut self, patterns: Vec<String>) -> Self {
         self.tmux_session_patterns = patterns;
+        self
+    }
+
+    /// Builder method to set directory patterns
+    pub fn directory_patterns(mut self, patterns: Vec<String>) -> Self {
+        self.directory_patterns = patterns;
         self
     }
 
@@ -522,6 +537,55 @@ impl ProfileManager {
         })
     }
 
+    /// Find profile matching a directory pattern for automatic switching based on CWD
+    /// Uses glob-style pattern matching against the current working directory
+    pub fn find_by_directory(&self, cwd: &str) -> Option<&Profile> {
+        self.profiles_ordered().into_iter().find(|p| {
+            p.directory_patterns
+                .iter()
+                .any(|pattern| Self::directory_pattern_matches(cwd, pattern))
+        })
+    }
+
+    /// Expand `~` at the start of a pattern to the user's home directory.
+    fn expand_tilde(pattern: &str) -> std::borrow::Cow<'_, str> {
+        if let Some(rest) = pattern.strip_prefix('~')
+            && let Some(home) = dirs::home_dir()
+        {
+            return std::borrow::Cow::Owned(format!("{}{}", home.display(), rest));
+        }
+        std::borrow::Cow::Borrowed(pattern)
+    }
+
+    /// Check if a directory path matches a glob-style pattern
+    /// Unlike hostname matching, directory matching is case-sensitive on Unix
+    /// and supports path-specific glob patterns.
+    /// Supports `~` expansion in patterns (e.g., `~/projects/*`).
+    fn directory_pattern_matches(path: &str, pattern: &str) -> bool {
+        // Expand ~ to home directory in pattern
+        let pattern = Self::expand_tilde(pattern);
+        // Normalize trailing slashes for consistent matching
+        let path = path.trim_end_matches('/');
+        let pattern = pattern.trim_end_matches('/');
+
+        if pattern == "*" {
+            return true;
+        }
+
+        // Check for prefix match (pattern ends with *)
+        if let Some(prefix) = pattern.strip_suffix('*') {
+            return path.starts_with(prefix);
+        }
+
+        // Check for suffix match (pattern starts with *)
+        if let Some(suffix) = pattern.strip_prefix('*') {
+            return path.ends_with(suffix);
+        }
+
+        // Exact match
+        path == pattern
+    }
+
     /// Check if a string matches a glob-style pattern (case-insensitive)
     /// Supports: exact match, prefix match (pattern*), suffix match (*pattern),
     /// contains match (*pattern*), and wildcard (*)
@@ -645,6 +709,11 @@ impl ProfileManager {
                 resolved_parent.tmux_session_patterns
             } else {
                 profile.tmux_session_patterns.clone()
+            },
+            directory_patterns: if profile.directory_patterns.is_empty() {
+                resolved_parent.directory_patterns
+            } else {
+                profile.directory_patterns.clone()
             },
             badge_text: profile.badge_text.clone().or(resolved_parent.badge_text),
             badge_color: profile.badge_color.or(resolved_parent.badge_color),
@@ -1159,5 +1228,192 @@ mod tests {
         // Profile 3 can have Profile 1 or Profile 2 as parent
         let valid_for_p3 = manager.get_valid_parents(&id3);
         assert_eq!(valid_for_p3.len(), 2);
+    }
+
+    // ========================================================================
+    // Tests for directory-based profile switching (issue #114)
+    // ========================================================================
+
+    #[test]
+    fn test_directory_pattern_matching() {
+        // Prefix match
+        assert!(ProfileManager::directory_pattern_matches(
+            "/Users/user/projects/work-api",
+            "/Users/user/projects/work-*"
+        ));
+        // Suffix match
+        assert!(ProfileManager::directory_pattern_matches(
+            "/home/user/repos/my-project",
+            "*my-project"
+        ));
+        // Exact match
+        assert!(ProfileManager::directory_pattern_matches(
+            "/Users/user/projects",
+            "/Users/user/projects"
+        ));
+        // Exact match with trailing slash normalization
+        assert!(ProfileManager::directory_pattern_matches(
+            "/Users/user/projects/",
+            "/Users/user/projects"
+        ));
+        assert!(ProfileManager::directory_pattern_matches(
+            "/Users/user/projects",
+            "/Users/user/projects/"
+        ));
+        // Wildcard
+        assert!(ProfileManager::directory_pattern_matches("/any/path", "*"));
+
+        // Non-matches
+        assert!(!ProfileManager::directory_pattern_matches(
+            "/Users/user/personal/hobby",
+            "/Users/user/projects/work-*"
+        ));
+        assert!(!ProfileManager::directory_pattern_matches(
+            "/Users/user/projects",
+            "/Users/user/projects/work-*"
+        ));
+    }
+
+    #[test]
+    fn test_directory_pattern_tilde_expansion() {
+        if let Some(home) = dirs::home_dir() {
+            let home_str = home.display().to_string();
+
+            // Tilde prefix match
+            let path = format!("{}/Repos/par-term", home_str);
+            assert!(ProfileManager::directory_pattern_matches(
+                &path,
+                "~/Repos/par-term*"
+            ));
+
+            // Tilde exact match
+            assert!(ProfileManager::directory_pattern_matches(
+                &path,
+                "~/Repos/par-term"
+            ));
+
+            // Tilde with trailing slash
+            assert!(ProfileManager::directory_pattern_matches(
+                &format!("{}/", path),
+                "~/Repos/par-term"
+            ));
+
+            // Non-match with tilde
+            assert!(!ProfileManager::directory_pattern_matches(
+                &format!("{}/other-project", home_str),
+                "~/Repos/par-term*"
+            ));
+        }
+    }
+
+    #[test]
+    fn test_directory_pattern_matching_case_sensitive() {
+        // Directory matching should be case-sensitive (unlike hostname matching)
+        assert!(!ProfileManager::directory_pattern_matches(
+            "/Users/User/Projects",
+            "/Users/user/projects"
+        ));
+        assert!(ProfileManager::directory_pattern_matches(
+            "/Users/user/projects",
+            "/Users/user/projects"
+        ));
+    }
+
+    #[test]
+    fn test_find_by_directory() {
+        let mut manager = ProfileManager::new();
+        manager.add(
+            Profile::new("Work Profile").directory_patterns(vec!["/Users/user/work/*".to_string()]),
+        );
+        manager.add(
+            Profile::new("Personal Profile")
+                .directory_patterns(vec!["/Users/user/personal/*".to_string()]),
+        );
+        manager.add(Profile::new("No Patterns")); // No directory_patterns
+
+        assert_eq!(
+            manager
+                .find_by_directory("/Users/user/work/api-server")
+                .unwrap()
+                .name,
+            "Work Profile"
+        );
+        assert_eq!(
+            manager
+                .find_by_directory("/Users/user/personal/blog")
+                .unwrap()
+                .name,
+            "Personal Profile"
+        );
+        assert!(manager.find_by_directory("/Users/user/random").is_none());
+    }
+
+    #[test]
+    fn test_find_by_directory_multiple_patterns() {
+        let mut manager = ProfileManager::new();
+        manager.add(Profile::new("Dev Profile").directory_patterns(vec![
+            "/Users/user/work/*".to_string(),
+            "/Users/user/oss/*".to_string(),
+        ]));
+
+        assert_eq!(
+            manager
+                .find_by_directory("/Users/user/work/project")
+                .unwrap()
+                .name,
+            "Dev Profile"
+        );
+        assert_eq!(
+            manager
+                .find_by_directory("/Users/user/oss/contrib")
+                .unwrap()
+                .name,
+            "Dev Profile"
+        );
+    }
+
+    #[test]
+    fn test_directory_patterns_serialization() {
+        let profile =
+            Profile::new("Test").directory_patterns(vec!["/home/user/work/*".to_string()]);
+
+        let yaml = serde_yaml::to_string(&profile).unwrap();
+        let deserialized: Profile = serde_yaml::from_str(&yaml).unwrap();
+
+        assert_eq!(deserialized.directory_patterns, profile.directory_patterns);
+    }
+
+    #[test]
+    fn test_directory_patterns_inheritance() {
+        let mut manager = ProfileManager::new();
+
+        let parent =
+            Profile::new("Base Work").directory_patterns(vec!["/Users/user/work/*".to_string()]);
+        let parent_id = parent.id;
+        manager.add(parent);
+
+        // Child without directory_patterns inherits from parent
+        let child = Profile::new("Specific Work").parent_id(parent_id);
+        let child_id = child.id;
+        manager.add(child);
+
+        let resolved = manager.resolve_profile(&child_id).unwrap();
+        assert_eq!(
+            resolved.directory_patterns,
+            vec!["/Users/user/work/*".to_string()]
+        );
+
+        // Child with own directory_patterns overrides parent
+        let child2 = Profile::new("Override Work")
+            .parent_id(parent_id)
+            .directory_patterns(vec!["/Users/user/projects/*".to_string()]);
+        let child2_id = child2.id;
+        manager.add(child2);
+
+        let resolved2 = manager.resolve_profile(&child2_id).unwrap();
+        assert_eq!(
+            resolved2.directory_patterns,
+            vec!["/Users/user/projects/*".to_string()]
+        );
     }
 }

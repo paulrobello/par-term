@@ -340,8 +340,16 @@ pub struct Tab {
     pub tmux_pane_id: Option<crate::tmux::TmuxPaneId>,
     /// Last detected hostname for automatic profile switching (from OSC 7)
     pub detected_hostname: Option<String>,
+    /// Last detected CWD for automatic profile switching (from OSC 7)
+    pub detected_cwd: Option<String>,
     /// Profile ID that was auto-applied based on hostname detection
     pub auto_applied_profile_id: Option<crate::profile::ProfileId>,
+    /// Profile ID that was auto-applied based on directory pattern matching
+    pub auto_applied_dir_profile_id: Option<crate::profile::ProfileId>,
+    /// Icon from auto-applied profile (displayed in tab bar)
+    pub profile_icon: Option<String>,
+    /// Original tab title saved before auto-profile override (restored when profile clears)
+    pub pre_profile_title: Option<String>,
     /// Badge text override from auto-applied profile (overrides global badge_format)
     pub badge_override: Option<String>,
     /// Mapping from config index to coprocess ID (for UI tracking)
@@ -529,7 +537,11 @@ impl Tab {
             tmux_gateway_active: false,
             tmux_pane_id: None,
             detected_hostname: None,
+            detected_cwd: None,
             auto_applied_profile_id: None,
+            auto_applied_dir_profile_id: None,
+            profile_icon: None,
+            pre_profile_title: None,
             badge_override: None,
             coprocess_ids,
             trigger_marks: Vec::new(),
@@ -718,7 +730,11 @@ impl Tab {
             tmux_gateway_active: false,
             tmux_pane_id: None,
             detected_hostname: None,
+            detected_cwd: None,
             auto_applied_profile_id: None,
+            auto_applied_dir_profile_id: None,
+            profile_icon: None,
+            pre_profile_title: None,
             badge_override: None,
             coprocess_ids,
             trigger_marks: Vec::new(),
@@ -886,12 +902,36 @@ impl Tab {
         }
     }
 
+    /// Check if CWD has changed and update tracking
+    ///
+    /// Returns Some(cwd) if the CWD has changed, None otherwise.
+    /// Uses the CWD reported via OSC 7 by the terminal emulator.
+    pub fn check_cwd_change(&mut self) -> Option<String> {
+        let current_cwd = self.get_cwd();
+
+        if current_cwd != self.detected_cwd {
+            let old_cwd = self.detected_cwd.take();
+            self.detected_cwd = current_cwd.clone();
+
+            crate::debug_info!("PROFILE", "CWD changed: {:?} -> {:?}", old_cwd, current_cwd);
+
+            current_cwd
+        } else {
+            None
+        }
+    }
+
     /// Clear auto-applied profile tracking
     ///
     /// Call this when manually switching profiles or when the hostname
     /// returns to local, or when disconnecting from tmux.
     pub fn clear_auto_profile(&mut self) {
         self.auto_applied_profile_id = None;
+        self.auto_applied_dir_profile_id = None;
+        self.profile_icon = None;
+        if let Some(original) = self.pre_profile_title.take() {
+            self.title = original;
+        }
         self.badge_override = None;
     }
 
@@ -1385,7 +1425,11 @@ impl Tab {
             tmux_gateway_active: false,
             tmux_pane_id: None,
             detected_hostname: None,
+            detected_cwd: None,
             auto_applied_profile_id: None,
+            auto_applied_dir_profile_id: None,
+            profile_icon: None,
+            pre_profile_title: None,
             badge_override: None,
             coprocess_ids: Vec::new(),
             trigger_marks: Vec::new(),

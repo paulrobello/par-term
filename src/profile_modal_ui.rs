@@ -4,6 +4,43 @@
 
 use crate::profile::{Profile, ProfileId, ProfileManager};
 
+/// Curated emoji presets organized by category for the profile icon picker
+const EMOJI_PRESETS: &[(&str, &[&str])] = &[
+    (
+        "Terminal",
+        &["💻", "🖥️", "⌨️", "🐚", "📟", "🔲", "▶️", "⬛"],
+    ),
+    (
+        "Dev & Tools",
+        &["🔧", "🛠️", "⚙️", "🔨", "🧰", "📐", "🔬", "🧪"],
+    ),
+    (
+        "Files & Data",
+        &["📁", "📂", "📄", "📊", "💾", "🗄️", "📦", "🗃️"],
+    ),
+    (
+        "Network & Cloud",
+        &["🌐", "☁️", "📡", "🔗", "🌍", "📶", "🛰️", "🌎"],
+    ),
+    (
+        "Security",
+        &["🔒", "🔑", "🛡️", "🔐", "🚨", "⚠️", "🔓", "🧱"],
+    ),
+    (
+        "Status & Alerts",
+        &["✅", "❌", "⚡", "🔔", "💡", "🚀", "🎯", "🔥"],
+    ),
+    (
+        "Containers & Infra",
+        &["🐳", "🐧", "🏗️", "📀", "🧊", "📋", "🔄", "🏠"],
+    ),
+    (
+        "People & Roles",
+        &["👤", "👨‍💻", "👩‍💻", "🤖", "👥", "🧑‍🔧", "🧑‍🏫", "👷"],
+    ),
+    ("Misc", &["🎨", "📝", "🏷️", "⭐", "💎", "🌈", "🎮", "🎵"]),
+];
+
 /// Actions that can be triggered from the profile modal
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProfileModalAction {
@@ -53,6 +90,7 @@ pub struct ProfileModalUI {
     temp_keyboard_shortcut: String,
     temp_hostname_patterns: String,
     temp_tmux_session_patterns: String,
+    temp_directory_patterns: String,
     temp_badge_text: String,
     // Badge appearance settings
     temp_badge_color: Option<[u8; 3]>,
@@ -95,6 +133,7 @@ impl ProfileModalUI {
             temp_keyboard_shortcut: String::new(),
             temp_hostname_patterns: String::new(),
             temp_tmux_session_patterns: String::new(),
+            temp_directory_patterns: String::new(),
             temp_badge_text: String::new(),
             temp_badge_color: None,
             temp_badge_color_alpha: None,
@@ -157,6 +196,7 @@ impl ProfileModalUI {
         self.temp_keyboard_shortcut.clear();
         self.temp_hostname_patterns.clear();
         self.temp_tmux_session_patterns.clear();
+        self.temp_directory_patterns.clear();
         self.temp_badge_text.clear();
         self.temp_badge_color = None;
         self.temp_badge_color_alpha = None;
@@ -187,6 +227,7 @@ impl ProfileModalUI {
         self.temp_keyboard_shortcut = profile.keyboard_shortcut.clone().unwrap_or_default();
         self.temp_hostname_patterns = profile.hostname_patterns.join(", ");
         self.temp_tmux_session_patterns = profile.tmux_session_patterns.join(", ");
+        self.temp_directory_patterns = profile.directory_patterns.join(", ");
         self.temp_badge_text = profile.badge_text.clone().unwrap_or_default();
         // Badge appearance settings
         self.temp_badge_color = profile.badge_color;
@@ -249,6 +290,14 @@ impl ProfileModalUI {
         if !self.temp_tmux_session_patterns.is_empty() {
             profile.tmux_session_patterns = self
                 .temp_tmux_session_patterns
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+        if !self.temp_directory_patterns.is_empty() {
+            profile.directory_patterns = self
+                .temp_directory_patterns
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
@@ -627,11 +676,52 @@ impl ProfileModalUI {
                         ui.label("Icon:");
                         ui.horizontal(|ui| {
                             ui.text_edit_singleline(&mut self.temp_icon);
-                            ui.label(
-                                egui::RichText::new("(emoji)")
-                                    .small()
-                                    .color(egui::Color32::GRAY),
-                            );
+                            let picker_label = if self.temp_icon.is_empty() {
+                                "😀"
+                            } else {
+                                &self.temp_icon
+                            };
+                            let picker_btn = ui.button(picker_label);
+                            egui::Popup::from_toggle_button_response(&picker_btn)
+                                .close_behavior(
+                                    egui::PopupCloseBehavior::CloseOnClickOutside,
+                                )
+                                .show(|ui| {
+                                    ui.set_min_width(280.0);
+                                    egui::ScrollArea::vertical()
+                                        .max_height(300.0)
+                                        .show(ui, |ui| {
+                                            for (category, emojis) in EMOJI_PRESETS {
+                                                ui.label(
+                                                    egui::RichText::new(*category)
+                                                        .small()
+                                                        .strong(),
+                                                );
+                                                ui.horizontal_wrapped(|ui| {
+                                                    for emoji in *emojis {
+                                                        let btn = ui.add_sized(
+                                                            [28.0, 28.0],
+                                                            egui::Button::new(*emoji)
+                                                                .frame(false),
+                                                        );
+                                                        if btn.clicked() {
+                                                            self.temp_icon =
+                                                                emoji.to_string();
+                                                            egui::Popup::close_all(
+                                                                ui.ctx(),
+                                                            );
+                                                        }
+                                                    }
+                                                });
+                                                ui.add_space(2.0);
+                                            }
+                                            ui.add_space(4.0);
+                                            if ui.button("Clear icon").clicked() {
+                                                self.temp_icon.clear();
+                                                egui::Popup::close_all(ui.ctx());
+                                            }
+                                        });
+                                });
                         });
                         ui.end_row();
 
@@ -739,6 +829,18 @@ impl ProfileModalUI {
                             ui.text_edit_singleline(&mut self.temp_tmux_session_patterns);
                             ui.label(
                                 egui::RichText::new("(work-*, *-dev)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
+
+                        // Directory patterns for auto-switching
+                        ui.label("Auto-Switch Dirs:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_directory_patterns);
+                            ui.label(
+                                egui::RichText::new("(~/projects/work-*)")
                                     .small()
                                     .color(egui::Color32::GRAY),
                             );

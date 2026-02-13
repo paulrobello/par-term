@@ -885,6 +885,14 @@ impl WindowManager {
                     }
                     return;
                 }
+                // If an egui overlay (profile modal, search, etc.) is active, inject into main egui
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                    && window_state.has_egui_overlay_visible()
+                {
+                    window_state.pending_egui_events.push(egui::Event::Copy);
+                    return;
+                }
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                     && let Some(text) = window_state.get_selected_text()
@@ -911,6 +919,20 @@ impl WindowManager {
                     }
                     return;
                 }
+                // If an egui overlay (profile modal, search, etc.) is active, inject into main egui
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                    && window_state.has_egui_overlay_visible()
+                {
+                    if let Ok(mut clipboard) = arboard::Clipboard::new()
+                        && let Ok(text) = clipboard.get_text()
+                    {
+                        window_state
+                            .pending_egui_events
+                            .push(egui::Event::Paste(text));
+                    }
+                    return;
+                }
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                     && let Some(text) = window_state.input_handler.paste_from_clipboard()
@@ -933,6 +955,20 @@ impl WindowManager {
                             modifiers: egui::Modifiers::COMMAND,
                         });
                     }
+                    return;
+                }
+                // If an egui overlay is active, inject select-all into main egui
+                if let Some(window_id) = focused_window
+                    && let Some(window_state) = self.windows.get_mut(&window_id)
+                    && window_state.has_egui_overlay_visible()
+                {
+                    window_state.pending_egui_events.push(egui::Event::Key {
+                        key: egui::Key::A,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: egui::Modifiers::COMMAND,
+                    });
                     return;
                 }
                 // Not implemented for terminal - would select all visible text
