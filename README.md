@@ -12,55 +12,120 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.14.0
+## What's New in 0.15.0
 
-### 🔄 Self-Update
+### 📂 Directory-Based Profile Switching
+
+Automatically switch profiles based on current working directory.
+
+- New `directory_patterns` field on profiles (glob patterns like `/Users/*/projects/work-*`)
+- CWD changes detected via OSC 7 trigger profile matching
+- Priority: explicit user selection > hostname match > directory match > default
+- Settings UI for editing directory patterns per profile
+
+### 🎨 Tab Style Variants
+
+Cosmetic tab bar presets with 5 built-in styles.
+
+- Dark (default), Light, Compact, Minimal, and High Contrast presets
+- Each preset applies coordinated color/size/spacing adjustments
+- Config: `tab_style: dark|light|compact|minimal|high_contrast`
+
+### 🔊 Alert Sounds
+
+Configurable sound effects for terminal events.
+
+- Per-event sound configuration: Bell, Command Complete, New Tab, Tab Close
+- Each event supports: enable/disable, volume, frequency, duration, custom sound file
+- Custom sound files: WAV/OGG/FLAC format with `~` home directory expansion
+- UI in Settings > Notifications > Alert Sounds
+
+### 🔍 Fuzzy Command History Search
+
+Searchable overlay for browsing and selecting from command history.
+
+- Fuzzy matching with ranked results via Skim algorithm
+- Match highlighting, exit code indicators, and relative timestamps
+- Keyboard navigation: Arrow Up/Down, Enter to insert, Esc to close
+- History persisted across sessions; keybinding: Cmd+R (macOS), Ctrl+Alt+R (Linux/Windows)
+
+### ↩️ Session Undo — Reopen Closed Tabs
+
+Recover accidentally closed tabs.
+
+- Reopen with Cmd+Z (macOS) or Ctrl+Shift+Z (Linux/Windows)
+- Toast notification shows undo keybinding hint and countdown
+- Optional shell session preservation for full session restore with scrollback intact
+- Configurable timeout and queue depth
+
+### 💾 Session Restore on Startup
+
+Automatically save and restore session state.
+
+- Saves open windows, tabs, pane layouts, and working directories on clean exit
+- Restores full session on next launch including split pane trees with ratios
+- Config: `restore_session: true` (default: false)
+
+### 📍 Tab Bar Position
+
+Configurable tab bar placement with three positions.
+
+- **Top** (default), **Bottom**, or **Left** (vertical sidebar)
+- Configurable sidebar width for Left position (default 160px, range 100–300)
+- All positions support tab bar visibility modes and live switching via Settings UI
+
+### 📥 Import/Export Preferences
+
+Import and export terminal configuration.
+
+- Export current config to a YAML file via native file dialog
+- Import from local file or URL with replace or merge modes
+- Merge mode only overrides values that differ from defaults
+
+### 🔧 Other Changes
+
+- **Profile Emoji Picker**: Curated grid of ~70 terminal-relevant emojis in 9 categories for profile icons
+- **Full Profile Auto-Switch Application**: Directory, hostname, and tmux session switching now apply all visual settings (icon, title, badge, command)
+- **Profile Management in Settings**: Profile create/edit/delete/reorder UI moved inline to Settings > Profiles tab
+- **Settings Quick Search**: Added missing search keywords across all settings tabs
+- **HiDPI/DPI Scaling Fix**: All pixel-dimension config values now correctly scale on HiDPI displays
+- **Text Shaper LRU Cache**: Upgraded from FIFO to proper LRU eviction for better cache hit rates
+- **Default Update Check**: Changed from weekly to daily for faster update discovery
+
+<details>
+<summary><strong>What's New in 0.14.0</strong></summary>
+
+#### 🔄 Self-Update
 
 par-term can now update itself in-place — no package manager needed.
 
 - **CLI**: `par-term self-update` with `--yes` flag for non-interactive use
 - **Settings UI**: "Check Now" and "Install Update" buttons in Advanced > Updates
 - Detects installation method (Homebrew, cargo, .app bundle, standalone binary) and shows appropriate instructions
-- macOS .app bundle: extracts and replaces bundle contents from zip
-- Linux/Windows standalone: atomic binary replacement
 
-### ─── Command Separator Lines
+#### ─── Command Separator Lines
 
 Horizontal separator lines between shell commands in the terminal grid.
 
 - Renders thin lines at prompt boundaries using shell integration (OSC 133) marks
 - Exit-code coloring: green for success, red for failure, gray for unknown
-- Configurable thickness (0.5-5.0 px), opacity (0.0-1.0), and custom fixed color
-- Works with any prompt height and in both single-pane and split-pane modes
-- Disabled by default (opt-in via Settings > Terminal > Command Separators)
+- Configurable thickness, opacity, and custom fixed color
 
-### 🔀 Drag-and-Drop Tab Reordering
+#### 🔀 Drag-and-Drop Tab Reordering
 
-Reorder tabs by dragging them in the tab bar.
+Reorder tabs by dragging them in the tab bar with ghost tab preview and insertion indicators.
 
-- Floating ghost tab follows cursor with semi-transparent preview
-- Blue insertion indicator line with glow effect shows drop target
-- Escape key cancels the drag operation
+#### 📐 Window Arrangements
 
-### 📐 Window Arrangements
+Save and restore window layouts (iTerm2 parity) with monitor-aware positioning and auto-restore on startup.
 
-Save and restore window layouts (iTerm2 parity).
-
-- **Save**: Capture current window positions, sizes, tab CWDs, and active tab indices as named arrangements
-- **Restore**: Recreate saved layouts, replacing all current windows
-- **Monitor-aware**: Positions stored relative to monitor origin with name/index matching and position clamping
-- **Auto-restore**: Configure an arrangement to restore automatically on app launch
-- **Settings UI**: New "Arrangements" tab (📐) with full CRUD, reorder, and auto-restore controls
-- **Keybinding support**: `save_arrangement` and `restore_arrangement:<name>` actions
-
-### 🔧 Other Changes
+#### 🔧 Other Changes
 
 - **Variable Substitution in Config** (#102): Use `${VAR}` and `${VAR:-default}` in config.yaml values
-- **Shell Integration Event Queuing**: OSC 133 markers now queue with cursor positions for accurate separator placement
-- **Remember Settings Section States** (#105): Collapsible section expand/collapse states persist across sessions
-- **Default Font Size**: Increased from 10.0 to 12.0 for better readability out of the box
-- **Fix**: Duplicate arrangement names now prompt to overwrite instead of creating duplicates
-- **Fix**: Update notification text shortened to prevent clipping on some systems
+- **Shell Integration Event Queuing**: OSC 133 markers now queue with cursor positions
+- **Remember Settings Section States** (#105): Collapsible section states persist across sessions
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.13.0</strong></summary>

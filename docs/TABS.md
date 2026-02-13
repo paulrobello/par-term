@@ -5,12 +5,15 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
 ## Table of Contents
 - [Overview](#overview)
 - [Creating and Closing Tabs](#creating-and-closing-tabs)
+- [Reopening Closed Tabs](#reopening-closed-tabs)
 - [Switching Tabs](#switching-tabs)
 - [Reordering Tabs](#reordering-tabs)
   - [Drag-and-Drop Reordering](#drag-and-drop-reordering)
   - [Keyboard Reordering](#keyboard-reordering)
 - [Tab Bar](#tab-bar)
+  - [Tab Bar Position](#tab-bar-position)
   - [Visibility Modes](#visibility-modes)
+  - [Tab Style Variants](#tab-style-variants)
   - [Tab Stretch](#tab-stretch)
   - [HTML Titles](#html-titles)
 - [Tab Appearance](#tab-appearance)
@@ -57,6 +60,18 @@ graph TD
 
 New tabs inherit the working directory from the current tab (if shell integration is installed) or start in the configured startup directory.
 
+## Reopening Closed Tabs
+
+Accidentally closed tabs can be recovered using session undo:
+
+| Action | macOS | Linux/Windows |
+|--------|-------|---------------|
+| Reopen closed tab | `Cmd + Z` | `Ctrl + Shift + Z` |
+
+A toast notification appears after closing a tab, showing the undo keybinding and a countdown timer. Undo restores the tab at its original position with its title, custom color, and split pane layout.
+
+For full details on session undo configuration and shell session preservation, see [Session Management](SESSION_MANAGEMENT.md).
+
 ## Switching Tabs
 
 | Action | Shortcut |
@@ -97,6 +112,33 @@ Click and drag any tab in the tab bar to move it to a new position:
 
 ## Tab Bar
 
+### Tab Bar Position
+
+The tab bar can be placed in three positions:
+
+| Position | Description |
+|----------|-------------|
+| **Top** | Horizontal tab bar at the top of the window (default) |
+| **Bottom** | Horizontal tab bar below terminal content |
+| **Left** | Vertical sidebar with scrollable tab list |
+
+The **Left** position renders a vertical sidebar with:
+- Scrollable tab list with active indicator
+- Drag-and-drop reordering support
+- Configurable sidebar width (default 160px, range 100–300px)
+
+```yaml
+# Tab bar position: "top", "bottom", or "left"
+tab_bar_position: top
+
+# Sidebar width for left position (pixels)
+tab_bar_width: 160.0
+```
+
+**Settings UI:** Settings > Window > Tab Bar > "Tab Bar Position"
+
+Switching between positions takes effect immediately without restart.
+
 ### Visibility Modes
 
 Control when the tab bar appears:
@@ -110,6 +152,27 @@ Control when the tab bar appears:
 ```yaml
 tab_bar_visibility: "when_multiple"
 ```
+
+### Tab Style Variants
+
+par-term includes 5 built-in tab style presets that apply coordinated color, size, and spacing adjustments:
+
+| Style | Description |
+|-------|-------------|
+| **Dark** | Default dark theme with subtle contrast (default) |
+| **Light** | Light background with darker text |
+| **Compact** | Reduced height and spacing for minimal footprint |
+| **Minimal** | Understated design with muted colors |
+| **High Contrast** | Bold colors for maximum readability |
+
+```yaml
+# Tab style preset
+tab_style: dark  # dark, light, compact, minimal, high_contrast
+```
+
+**Settings UI:** Settings > Window > Tab Bar > "Tab Style"
+
+Each preset adjusts the tab bar background, active/inactive colors, height, and spacing as a coordinated set. Individual settings can still be overridden after selecting a preset.
 
 ### Tab Stretch
 
@@ -193,12 +256,19 @@ tab_html_titles: true
 Complete tab configuration reference:
 
 ```yaml
+# Tab bar position: "top", "bottom", "left"
+tab_bar_position: top
+
 # Tab bar visibility: "always", "when_multiple", "never"
 tab_bar_visibility: "when_multiple"
+
+# Tab style preset: "dark", "light", "compact", "minimal", "high_contrast"
+tab_style: dark
 
 # Tab bar appearance
 tab_bar_height: 28.0
 tab_bar_background: [30, 30, 30, 255]
+tab_bar_width: 160.0  # Sidebar width for left position
 
 # Tab colors
 tab_active_color: "blue"
@@ -216,6 +286,7 @@ tab_html_titles: true
 ## Related Documentation
 
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Tab navigation shortcuts
+- [Session Management](SESSION_MANAGEMENT.md) - Reopen closed tabs and session restore
 - [Profiles](PROFILES.md) - Open profiles in new tabs
 - [Window Management](WINDOW_MANAGEMENT.md) - Window and tab interaction
 - [Integrations](INTEGRATIONS.md) - Shell integration for directory inheritance

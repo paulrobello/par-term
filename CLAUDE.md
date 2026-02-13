@@ -9,7 +9,7 @@ par-term is a cross-platform GPU-accelerated terminal emulator frontend built in
 **Language**: Rust (Edition 2024)
 **Platform**: Cross-platform (macOS, Linux, Windows)
 **Graphics**: wgpu (Vulkan/Metal/DirectX 12)
-**Version**: 0.14.0
+**Version**: 0.15.0
 
 ## Development Commands
 

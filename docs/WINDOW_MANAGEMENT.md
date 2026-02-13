@@ -14,6 +14,7 @@ par-term provides extensive window management features including edge-anchored w
 - [Transparency](#transparency)
 - [Fullscreen](#fullscreen)
 - [Window Arrangements](#window-arrangements)
+- [Session Restore on Startup](#session-restore-on-startup)
 - [Configuration](#configuration)
 - [Related Documentation](#related-documentation)
 
@@ -303,6 +304,23 @@ Arrangements are stored in `~/.config/par-term/arrangements.yaml`.
 
 For full details, see [ARRANGEMENTS.md](ARRANGEMENTS.md).
 
+## Session Restore on Startup
+
+par-term can automatically save the current session state on clean exit and restore it when the app launches. This provides continuity across restarts without requiring named arrangements.
+
+```yaml
+# Enable session restore (default: false)
+restore_session: false
+```
+
+**Settings UI:** Settings > Terminal > Startup > "Restore session on startup"
+
+**What gets saved:** Open windows with positions and sizes, all tabs with working directories, split pane trees with ratios, and active tab indices.
+
+**Behavior:** The session file saves on clean exit and clears after successful restore to prevent stale state. Missing directories fall back to `$HOME`. When both `restore_session` and `auto_restore_arrangement` are enabled, session restore takes precedence.
+
+For full details on session persistence including session undo, see [Session Management](SESSION_MANAGEMENT.md).
+
 ## Configuration
 
 ### Complete Window Settings
@@ -367,3 +385,4 @@ The Window tab in Settings provides sections for:
 - [README.md](../README.md) - Project overview
 - [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) - Window keyboard shortcuts
 - [ARRANGEMENTS.md](ARRANGEMENTS.md) - Full window arrangements documentation
+- [Session Management](SESSION_MANAGEMENT.md) - Session restore and undo

@@ -1111,9 +1111,22 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 ---
 
-### Recently Completed (v0.14.0)
-- ✅ Session undo / reopen closed tabs (metadata capture on close, configurable timeout, Cmd+Z / Ctrl+Shift+Z)
-- ✅ Session restore on startup (save/restore windows, tabs, pane layouts, and CWDs on exit/launch)
+### Recently Completed (v0.15.0)
+- ✅ Directory-based profile switching (glob patterns, CWD detection via OSC 7, priority system)
+- ✅ Profile emoji picker (curated grid of ~70 emojis in 9 categories)
+- ✅ Full profile auto-switch application (directory, hostname, tmux session switching apply all visual settings)
+- ✅ Tab style variants (5 built-in styles: Dark, Light, Compact, Minimal, High Contrast)
+- ✅ Alert sounds (per-event: Bell, Command Complete, New Tab, Tab Close with volume/frequency/duration)
+- ✅ Fuzzy command history search (Skim algorithm, match highlighting, exit code indicators)
+- ✅ Import/export preferences (file & URL import with replace/merge, YAML export)
+- ✅ Session undo / reopen closed tabs (metadata capture, optional shell session preservation)
+- ✅ Session restore on startup (save/restore windows, tabs, pane layouts, CWDs)
+- ✅ Tab bar position (top/bottom/left with configurable sidebar width)
+- ✅ Profile management moved to Settings window
+- ✅ Comprehensive HiDPI/DPI scaling fix
+- ✅ Text shaper LRU cache upgrade
+
+### Previously Completed (v0.14.0)
 - ✅ Self-update capability (CLI and Settings UI, platform-aware installation detection)
 - ✅ Command separator lines (exit-code coloring, configurable thickness/opacity/color)
 - ✅ Drag-and-drop tab reordering (ghost tab preview, insertion indicator)
@@ -1121,8 +1134,6 @@ The following iTerm2 features were identified and added to the matrix in this up
 - ✅ Variable substitution in config (`${VAR}` and `${VAR:-default}` syntax)
 - ✅ Shell integration event queuing (accurate OSC 133 marker positions)
 - ✅ Remember settings section expand/collapse states
-- ✅ Duplicate arrangement name overwrite prompt fix
-- ✅ Import/export preferences (file & URL import with replace/merge, YAML export)
 
 ### Previously Completed (v0.13.0)
 - ✅ Vi-style copy mode (full vi motions, visual selection, search, marks, status bar)
@@ -1148,4 +1159,4 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 *Updated: 2026-02-12 (Session undo, session restore on startup, self-update feature, copy mode, snippets completion)*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.14.0*
+*par-term Version: 0.15.0*

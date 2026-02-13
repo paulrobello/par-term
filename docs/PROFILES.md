@@ -6,11 +6,19 @@ par-term provides a profile system for saving and quickly launching terminal ses
 - [Overview](#overview)
 - [Profile Settings](#profile-settings)
 - [Managing Profiles](#managing-profiles)
+  - [Settings UI](#settings-ui)
   - [Profile Drawer](#profile-drawer)
-  - [Profile Modal](#profile-modal)
 - [Creating Profiles](#creating-profiles)
+  - [Profile Emoji Picker](#profile-emoji-picker)
 - [Using Profiles](#using-profiles)
+- [Auto-Switching](#auto-switching)
+  - [Directory-Based Profile Switching](#directory-based-profile-switching)
+  - [Tmux Profile Auto-Switching](#tmux-profile-auto-switching)
+  - [Hostname-Based Switching](#hostname-based-switching)
+  - [Auto-Switch Priority](#auto-switch-priority)
+  - [Auto-Switch Visual Application](#auto-switch-visual-application)
 - [Default Startup Directory](#default-startup-directory)
+- [Per-Profile Badge Configuration](#per-profile-badge-configuration)
 - [Storage](#storage)
 - [Related Documentation](#related-documentation)
 
@@ -55,11 +63,24 @@ Each profile can customize the following:
 | **Command** | Custom command (instead of default shell) | No |
 | **Command Arguments** | Arguments for the custom command | No |
 | **Tab Name** | Custom name for the terminal tab | No |
+| **Directory Patterns** | Glob patterns for CWD-based auto-switching | No |
 | **Tmux Session Patterns** | Glob patterns for auto-switching (e.g., `work-*`) | No |
 | **Badge Text** | Custom badge format for this profile | No |
 | **Badge Appearance** | Override badge color, font, position, size | No |
 
 ## Managing Profiles
+
+### Settings UI
+
+Profile management is embedded in the Settings window under the **Profiles** tab. Open Settings (`F12` or `Cmd/Ctrl + ,`) and navigate to the Profiles tab.
+
+**Profile Management Features:**
+- Create, edit, delete, and reorder profiles inline
+- Up/Down buttons to change profile order
+- Edit (pencil) and Delete (trash) buttons per profile
+- Unsaved changes indicator
+
+The profile drawer's **Manage** button and the menu's **Manage Profiles** action both open the Settings window to the Profiles tab.
 
 ### Profile Drawer
 
@@ -87,38 +108,15 @@ flowchart LR
     Drawer --> List
     Drawer --> Actions
     Actions -->|Open| Launch[Launch Session]
-    Actions -->|Manage| Modal[Profile Modal]
+    Actions -->|Manage| Settings[Settings > Profiles]
 
     style Toggle fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Drawer fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style List fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Actions fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Launch fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
-    style Modal fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style Settings fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
 ```
-
-### Profile Modal
-
-The profile modal provides full CRUD (Create, Read, Update, Delete) operations.
-
-**Opening the Modal:**
-- Click **Manage** in the profile drawer
-- Or use the Settings UI
-
-**Modal Views:**
-
-1. **List View** - Shows all profiles with:
-   - Up/Down reorder buttons
-   - Edit (pencil) button
-   - Delete (trash) button
-   - Unsaved changes indicator
-
-2. **Edit/Create Form** - Fields for all profile settings with:
-   - Name validation (required)
-   - Browse button for working directory
-   - Help text for optional fields
-
-3. **Delete Confirmation** - Safety dialog before deletion
 
 ## Creating Profiles
 
@@ -134,8 +132,27 @@ The profile modal provides full CRUD (Create, Read, Update, Delete) operations.
    - **Command**: Override the default shell (optional)
    - **Arguments**: Space-separated command arguments
    - **Tab Name**: Custom tab title (optional)
-5. Click **Save Profile**
-6. Click **Save** to persist changes
+5. Optionally click the emoji picker button to choose a profile icon
+6. Click **Save Profile**
+7. Click **Save** to persist changes
+
+### Profile Emoji Picker
+
+The profile icon field includes an emoji picker popup with a curated grid of ~70 terminal-relevant emojis organized in 9 categories:
+
+| Category | Examples |
+|----------|----------|
+| Terminal | `💻`, `🖥️`, `⌨️` |
+| Dev & Tools | `🔧`, `🛠️`, `⚙️` |
+| Files & Data | `📁`, `📄`, `💾` |
+| Network & Cloud | `🌐`, `☁️`, `🔗` |
+| Security | `🔒`, `🔑`, `🛡️` |
+| Status & Alerts | `✅`, `⚠️`, `❌` |
+| Containers & Infra | `🐳`, `📦`, `🏗️` |
+| People & Roles | `👤`, `👥`, `🧑‍💻` |
+| Misc | `⭐`, `🎯`, `🚀` |
+
+Click any emoji to set it as the profile icon, or type a custom emoji directly in the text field. Use the "Clear icon" button to remove the current icon.
 
 **Example Profiles:**
 
@@ -200,13 +217,56 @@ Directory selection follows this priority:
 
 > **📝 Note:** The `previous` mode requires shell integration to track directory changes during a session.
 
-## Tmux Profile Auto-Switching
+## Auto-Switching
+
+par-term can automatically apply profiles based on the current working directory, tmux session name, or remote hostname. Auto-switched profiles apply all visual settings including icon, title, badge, and optional command execution.
+
+### Directory-Based Profile Switching
+
+Profiles can automatically apply when the terminal's working directory matches configured glob patterns.
+
+**Configuration:**
+
+Add `directory_patterns` to a profile:
+
+```yaml
+- id: 550e8400-e29b-41d4-a716-446655440000
+  name: Work Projects
+  directory_patterns:
+    - "~/Repos/work-*"
+    - "~/Repos/company-*"
+    - "/opt/projects/*"
+  icon: "🏢"
+  badge_text: "WORK"
+```
+
+**Pattern Examples:**
+
+| Pattern | Matches |
+|---------|---------|
+| `~/Repos/work-*` | `~/Repos/work-api`, `~/Repos/work-frontend` |
+| `/opt/projects/*` | Any directory under `/opt/projects/` |
+| `~/Repos/par-term*` | `~/Repos/par-term`, `~/Repos/par-term-core` |
+
+- Patterns support `~` for home directory expansion
+- CWD changes are detected via OSC 7 (requires shell integration)
+- First matching profile wins (check profile order)
+- Profile clears when CWD no longer matches any pattern
+
+**Settings UI:**
+
+1. Open Settings > Profiles
+2. Edit a profile
+3. Find the "Directory Patterns" field
+4. Enter comma-separated glob patterns
+
+### Tmux Profile Auto-Switching
 
 Profiles can automatically apply when connecting to tmux sessions with matching names.
 
-### Configuration
+**Configuration:**
 
-Add `tmux_session_patterns` to a profile with glob patterns:
+Add `tmux_session_patterns` to a profile:
 
 ```yaml
 - id: 550e8400-e29b-41d4-a716-446655440000
@@ -219,7 +279,7 @@ Add `tmux_session_patterns` to a profile with glob patterns:
   badge_color: [255, 0, 0]
 ```
 
-### Pattern Matching
+**Pattern Matching:**
 
 | Pattern | Matches |
 |---------|---------|
@@ -230,13 +290,41 @@ Add `tmux_session_patterns` to a profile with glob patterns:
 
 - Patterns are case-insensitive
 - First matching profile wins (check profile order)
-- Profile is cleared when tmux session ends
+- Profile clears when tmux session ends
 
-### Settings UI
+**Settings UI:**
 
-1. Open profile editor
-2. Find "Auto-Switch Tmux" field
-3. Enter comma-separated patterns: `work-*, *-production`
+1. Open Settings > Profiles
+2. Edit a profile
+3. Find "Auto-Switch Tmux" field
+4. Enter comma-separated patterns: `work-*, *-production`
+
+### Hostname-Based Switching
+
+Profiles automatically apply when connecting to remote hosts with matching hostnames, detected via OSC 7 and OSC 1337 RemoteHost sequences.
+
+### Auto-Switch Priority
+
+When multiple auto-switch mechanisms could apply, the following priority order determines which profile wins:
+
+1. **Explicit user selection** — manual profile selection always takes precedence
+2. **Hostname match** — remote host detection
+3. **Directory match** — CWD-based matching
+4. **Default profile** — fallback when no pattern matches
+
+### Auto-Switch Visual Application
+
+When a profile is auto-applied via any switching mechanism (directory, hostname, or tmux session), the following settings are applied:
+
+| Setting | Description |
+|---------|-------------|
+| **Profile icon** | Displayed in the tab bar (horizontal and vertical layouts) |
+| **Tab title** | Overrides the current tab title |
+| **Badge text** | Sets the badge overlay text |
+| **Badge styling** | Applies badge color, alpha, font, bold, margins, size |
+| **Command** | Executes the profile's command (if configured) |
+
+The original tab title saves when an auto-profile applies and restores when the auto-profile clears.
 
 ## Per-Profile Badge Configuration
 
@@ -315,4 +403,5 @@ Profiles are stored in YAML format:
 
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Profile keyboard shortcuts
 - [Tabs](TABS.md) - Tab management and directory inheritance
+- [Badges](BADGES.md) - Badge system and variables
 - [Integrations](INTEGRATIONS.md) - Shell integration for directory tracking

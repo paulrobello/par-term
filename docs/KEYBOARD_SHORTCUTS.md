@@ -33,6 +33,7 @@ Complete reference for all par-term keyboard shortcuts.
 | Switch to tab 1-9 | `Cmd + 1-9` | `Alt + 1-9` |
 | Move tab left | `Cmd + Shift + Left` | `Cmd + Shift + Left` |
 | Move tab right | `Cmd + Shift + Right` | `Cmd + Shift + Right` |
+| Reopen closed tab | `Cmd + Z` | `Ctrl + Shift + Z` |
 | Save window arrangement | View menu: "Save Window Arrangement..." | View menu: "Save Window Arrangement..." |
 
 ## Navigation & Scrolling
@@ -93,7 +94,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 | `'{a-z}` | Jump to mark |
 | `q` / `Escape` | Exit copy mode |
 
-## Search
+## Search & History
 
 | Action | macOS | Linux/Windows |
 |--------|-------|---------------|
@@ -103,6 +104,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 | Close search | `Escape` | `Escape` |
 | Find next (global) | `Cmd + G` | `Ctrl + G` |
 | Find previous (global) | `Cmd + Shift + G` | `Ctrl + Shift + G` |
+| Open command history | `Cmd + R` | `Ctrl + Alt + R` |
 
 ## Terminal Operations
 
@@ -195,6 +197,7 @@ keybindings:
 - `new_tab`, `close_tab`, `next_tab`, `prev_tab`
 - `move_tab_left`, `move_tab_right`
 - `switch_to_tab_1` through `switch_to_tab_9`
+- `reopen_closed_tab`
 
 **Window Arrangements:**
 - `save_arrangement` - Save current window layout as a named arrangement
@@ -218,6 +221,7 @@ keybindings:
 - `toggle_background_shader`, `toggle_cursor_shader`
 - `toggle_broadcast_input`, `toggle_profile_drawer`
 - `toggle_tmux_session_picker`
+- `command_history_search`
 
 **Terminal:**
 - `clear_scrollback`, `reload_config`
@@ -230,4 +234,6 @@ keybindings:
 - [Mouse Features](MOUSE_FEATURES.md) - Mouse interactions and semantic history
 - [Profiles](PROFILES.md) - Profile keyboard shortcuts
 - [Search](SEARCH.md) - Search keyboard shortcuts
+- [Command History](COMMAND_HISTORY.md) - Fuzzy command history search
+- [Session Management](SESSION_MANAGEMENT.md) - Session undo and restore
 - [Window Management](WINDOW_MANAGEMENT.md) - Window arrangements and layout management

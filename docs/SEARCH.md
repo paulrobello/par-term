@@ -175,5 +175,6 @@ Each match tracks:
 
 ## Related Documentation
 
+- [Command History](COMMAND_HISTORY.md) - Fuzzy command history search (separate from terminal text search)
+- [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - All keyboard shortcuts
 - [README.md](../README.md) - Project overview
-- [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) - All keyboard shortcuts
