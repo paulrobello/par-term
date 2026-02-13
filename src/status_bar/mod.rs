@@ -159,7 +159,11 @@ impl StatusBarUI {
         self.git_poller.branch = result.ok().and_then(|out| {
             if out.status.success() {
                 let branch = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if branch.is_empty() { None } else { Some(branch) }
+                if branch.is_empty() {
+                    None
+                } else {
+                    Some(branch)
+                }
             } else {
                 None
             }
@@ -270,8 +274,7 @@ impl StatusBarUI {
                         |ui| {
                             let mut first = true;
                             for w in &center_widgets {
-                                let text =
-                                    widget_text(&w.id, &widget_ctx, w.format.as_deref());
+                                let text = widget_text(&w.id, &widget_ctx, w.format.as_deref());
                                 if text.is_empty() {
                                     continue;
                                 }
@@ -286,30 +289,24 @@ impl StatusBarUI {
                 }
 
                 // === Right section ===
-                let right_widgets = sorted_widgets_for_section(
-                    &config.status_bar_widgets,
-                    StatusBarSection::Right,
-                );
+                let right_widgets =
+                    sorted_widgets_for_section(&config.status_bar_widgets, StatusBarSection::Right);
                 if !right_widgets.is_empty() {
-                    ui.with_layout(
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            // Render in reverse order so first widget ends up rightmost
-                            let mut first = true;
-                            for w in right_widgets.iter().rev() {
-                                let text =
-                                    widget_text(&w.id, &widget_ctx, w.format.as_deref());
-                                if text.is_empty() {
-                                    continue;
-                                }
-                                if !first {
-                                    ui.label(make_sep(separator));
-                                }
-                                first = false;
-                                ui.label(make_rich_text(&text));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Render in reverse order so first widget ends up rightmost
+                        let mut first = true;
+                        for w in right_widgets.iter().rev() {
+                            let text = widget_text(&w.id, &widget_ctx, w.format.as_deref());
+                            if text.is_empty() {
+                                continue;
                             }
-                        },
-                    );
+                            if !first {
+                                ui.label(make_sep(separator));
+                            }
+                            first = false;
+                            ui.label(make_rich_text(&text));
+                        }
+                    });
                 }
             });
         });

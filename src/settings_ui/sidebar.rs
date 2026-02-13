@@ -741,7 +741,9 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         SettingsTab::Input => "Keyboard shortcuts, mouse behavior, clipboard",
         SettingsTab::Terminal => "Shell, scrollback, search, scrollbar",
         SettingsTab::Effects => "Background image/shader, cursor effects",
-        SettingsTab::StatusBar => "Status bar widgets, layout, styling, auto-hide, and poll intervals",
+        SettingsTab::StatusBar => {
+            "Status bar widgets, layout, styling, auto-hide, and poll intervals"
+        }
         SettingsTab::Badge => "Session info overlay (hostname, username, etc.)",
         SettingsTab::ProgressBar => "Progress bar style, position, and colors",
         SettingsTab::Profiles => "Create and manage terminal profiles",

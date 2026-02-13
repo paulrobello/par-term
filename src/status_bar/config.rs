@@ -64,7 +64,7 @@ impl WidgetId {
     /// Icon/prefix character for the widget.
     pub fn icon(&self) -> &str {
         match self {
-            WidgetId::Clock => "\u{1f551}",           // clock emoji
+            WidgetId::Clock => "\u{1f551}",            // clock emoji
             WidgetId::UsernameHostname => "\u{1f464}", // bust in silhouette
             WidgetId::CurrentDirectory => "\u{1f4c2}", // open file folder
             WidgetId::GitBranch => "\u{e0a0}",         // powerline branch symbol

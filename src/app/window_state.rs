@@ -33,11 +33,11 @@ use crate::selection::SelectionMode;
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::smart_selection::SmartSelectionCache;
+use crate::status_bar::StatusBarUI;
 use crate::tab::{TabId, TabManager};
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
 use crate::tmux::{TmuxSession, TmuxSync};
 use crate::tmux_session_picker_ui::{SessionPickerAction, TmuxSessionPickerUI};
-use crate::status_bar::StatusBarUI;
 use crate::tmux_status_bar_ui::TmuxStatusBarUI;
 use anyhow::Result;
 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
@@ -1796,8 +1796,7 @@ impl WindowState {
             crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
 
         // Calculate custom status bar height
-        let custom_status_bar_height =
-            self.status_bar_ui.height(&self.config, self.is_fullscreen);
+        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
 
         // Capture window size before mutable borrow (for badge rendering in egui)
         let window_size_for_badge = self.renderer.as_ref().map(|r| r.size());
@@ -2389,7 +2388,8 @@ impl WindowState {
                 cell_width: renderer.cell_width(),
                 cell_height: renderer.cell_height(),
                 padding: renderer.window_padding(),
-                status_bar_height: (status_bar_height + custom_status_bar_height) * renderer.scale_factor(),
+                status_bar_height: (status_bar_height + custom_status_bar_height)
+                    * renderer.scale_factor(),
                 scale_factor: renderer.scale_factor(),
             };
 

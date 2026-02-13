@@ -606,8 +606,7 @@ impl WindowState {
         let is_tmux_connected = self.is_tmux_connected();
         let status_bar_height =
             crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
-        let custom_status_bar_height =
-            self.status_bar_ui.height(&self.config, self.is_fullscreen);
+        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
 
         // Get bounds info from renderer for proper pane sizing
         let bounds_info = self.renderer.as_ref().map(|r| {
@@ -686,8 +685,7 @@ impl WindowState {
         let is_tmux_connected = self.is_tmux_connected();
         let status_bar_height =
             crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
-        let custom_status_bar_height =
-            self.status_bar_ui.height(&self.config, self.is_fullscreen);
+        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
 
         // Get bounds info from renderer for proper pane sizing
         let bounds_info = self.renderer.as_ref().map(|r| {

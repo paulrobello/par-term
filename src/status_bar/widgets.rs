@@ -31,7 +31,10 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
     match id {
         WidgetId::Clock => chrono::Local::now().format("%H:%M:%S").to_string(),
         WidgetId::UsernameHostname => {
-            format!("{}@{}", ctx.session_vars.username, ctx.session_vars.hostname)
+            format!(
+                "{}@{}",
+                ctx.session_vars.username, ctx.session_vars.hostname
+            )
         }
         WidgetId::CurrentDirectory => ctx.session_vars.path.clone(),
         WidgetId::GitBranch => {
@@ -62,11 +65,7 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
                 String::new()
             }
         }
-        WidgetId::CurrentCommand => ctx
-            .session_vars
-            .current_command
-            .clone()
-            .unwrap_or_default(),
+        WidgetId::CurrentCommand => ctx.session_vars.current_command.clone().unwrap_or_default(),
         WidgetId::Custom(_) => String::new(),
     }
 }
@@ -108,10 +107,7 @@ pub fn interpolate_format(fmt: &str, ctx: &WidgetContext) -> String {
 fn resolve_variable(name: &str, ctx: &WidgetContext) -> String {
     match name {
         // Session variables delegate to SessionVariables::get
-        n if n.starts_with("session.") => ctx
-            .session_vars
-            .get(n)
-            .unwrap_or_default(),
+        n if n.starts_with("session.") => ctx.session_vars.get(n).unwrap_or_default(),
         "git.branch" => ctx.git_branch.clone().unwrap_or_default(),
         "system.cpu" => format!("{:.1}%", ctx.system_data.cpu_usage),
         "system.memory" => format_memory(ctx.system_data.memory_used, ctx.system_data.memory_total),
@@ -155,7 +151,7 @@ mod tests {
             session_vars: sv,
             system_data: SystemMonitorData {
                 cpu_usage: 42.5,
-                memory_used: 4_294_967_296,  // 4 GB
+                memory_used: 4_294_967_296,   // 4 GB
                 memory_total: 17_179_869_184, // 16 GB
                 network_rx_rate: 1024,
                 network_tx_rate: 2048,

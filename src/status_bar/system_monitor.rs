@@ -4,8 +4,8 @@
 //! Data is shared via `Arc<parking_lot::Mutex<...>>` for lock-free reads from
 //! the render thread.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 

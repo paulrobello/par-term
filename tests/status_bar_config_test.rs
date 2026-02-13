@@ -58,10 +58,7 @@ fn test_custom_widget_config_serialization() {
     };
     let yaml = serde_yaml::to_string(&widget).expect("serialize");
     let deserialized: StatusBarWidgetConfig = serde_yaml::from_str(&yaml).expect("deserialize");
-    assert_eq!(
-        deserialized.id,
-        WidgetId::Custom("my_widget".to_string())
-    );
+    assert_eq!(deserialized.id, WidgetId::Custom("my_widget".to_string()));
     assert_eq!(
         deserialized.format,
         Some("\\(session.username) on \\(session.hostname)".to_string())
