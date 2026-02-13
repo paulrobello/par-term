@@ -996,8 +996,7 @@ impl WindowState {
             && matches!(event.logical_key, Key::Character(ref c) if c.eq_ignore_ascii_case("t"));
 
         if is_new_tab {
-            self.new_tab();
-            log::info!("New tab created");
+            self.new_tab_or_show_profiles();
             return true;
         }
 
@@ -1244,8 +1243,7 @@ impl WindowState {
                 true
             }
             "new_tab" => {
-                self.new_tab();
-                log::info!("New tab created via keybinding");
+                self.new_tab_or_show_profiles();
                 true
             }
             "close_tab" => {

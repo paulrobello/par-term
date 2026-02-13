@@ -1054,6 +1054,11 @@ pub struct Config {
     #[serde(default = "defaults::bool_false")]
     pub show_profile_drawer_button: bool,
 
+    /// When true, the new-tab keyboard shortcut (Cmd+T / Ctrl+Shift+T) shows the
+    /// profile selection dropdown instead of immediately opening a default tab
+    #[serde(default = "defaults::bool_false")]
+    pub new_tab_shortcut_shows_profiles: bool,
+
     // ========================================================================
     // Tab Bar Colors
     // ========================================================================
@@ -1771,6 +1776,7 @@ impl Default for Config {
             tab_inherit_cwd: defaults::bool_true(),
             max_tabs: defaults::zero(),
             show_profile_drawer_button: defaults::bool_false(),
+            new_tab_shortcut_shows_profiles: defaults::bool_false(),
             tab_bar_background: defaults::tab_bar_background(),
             tab_active_background: defaults::tab_active_background(),
             tab_inactive_background: defaults::tab_inactive_background(),

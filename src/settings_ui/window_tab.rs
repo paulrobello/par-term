@@ -994,6 +994,20 @@ fn show_tab_bar_section(
             *changes_this_frame = true;
         }
 
+        if ui
+            .checkbox(
+                &mut settings.config.new_tab_shortcut_shows_profiles,
+                "New tab shortcut shows profile picker",
+            )
+            .on_hover_text(
+                "When enabled, the new tab keyboard shortcut (Cmd+T / Ctrl+Shift+T) shows a profile selection dropdown instead of immediately creating a default tab",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
         ui.horizontal(|ui| {
             ui.label("Maximum tabs:");
             // Convert usize to u32 for slider

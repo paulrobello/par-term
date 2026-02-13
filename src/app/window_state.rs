@@ -2201,8 +2201,12 @@ impl WindowState {
                     }
 
                     // Render tab bar if visible (action handled after closure)
-                    pending_tab_action =
-                        self.tab_bar_ui.render(ctx, &self.tab_manager, &self.config);
+                    pending_tab_action = self.tab_bar_ui.render(
+                        ctx,
+                        &self.tab_manager,
+                        &self.config,
+                        &self.profile_manager,
+                    );
 
                     // Render tmux status bar if connected
                     self.tmux_status_bar_ui.render(
@@ -2734,6 +2738,12 @@ impl WindowState {
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
+                }
+            }
+            TabBarAction::NewTabWithProfile(profile_id) => {
+                self.open_profile(profile_id);
+                if let Some(window) = &self.window {
+                    window.request_redraw();
                 }
             }
             TabBarAction::None => {}

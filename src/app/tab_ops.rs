@@ -24,6 +24,20 @@ pub(crate) struct ClosedTabInfo {
 }
 
 impl WindowState {
+    /// Create a new tab, or show profile picker if configured and profiles exist
+    pub fn new_tab_or_show_profiles(&mut self) {
+        if self.config.new_tab_shortcut_shows_profiles && !self.profile_manager.is_empty() {
+            self.tab_bar_ui.show_new_tab_profile_menu = !self.tab_bar_ui.show_new_tab_profile_menu;
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            log::info!("Toggled new-tab profile menu via shortcut");
+        } else {
+            self.new_tab();
+            log::info!("New tab created");
+        }
+    }
+
     /// Create a new tab
     pub fn new_tab(&mut self) {
         // Check max tabs limit
