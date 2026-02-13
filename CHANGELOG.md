@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Status Bar**: Configurable status bar with widget system (#133)
+  - 10 built-in widgets: clock, username@hostname, current directory, git branch, CPU usage, memory usage, network status, bell indicator, current command, custom text
+  - Three-section layout (left/center/right) with configurable separator
+  - Widget configurator in Settings UI with drag-and-drop reordering
+  - System monitoring via background thread (CPU, memory, network)
+  - Git branch polling with configurable interval
+  - Auto-hide on fullscreen and/or mouse inactivity
+  - Per-widget enable/disable and section assignment
+  - Customizable colors, font, opacity, and height
+  - Top or bottom positioning (stacks with tab bar)
+
 - **Install Shell Integration on Remote Host** (#135): New Shell menu with option to install shell integration on remote hosts via SSH
   - Shell > Install Shell Integration on Remote Host... sends curl command to active terminal
   - Confirmation dialog shows exact command before sending
