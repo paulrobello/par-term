@@ -118,6 +118,16 @@ impl StatusBarUI {
 
     /// Poll git branch if enough time has elapsed or the cwd changed.
     fn poll_git_branch(&mut self, config: &Config, cwd: Option<&str>) {
+        // Skip polling if git branch widget is not enabled
+        let git_enabled = config
+            .status_bar_widgets
+            .iter()
+            .any(|w| w.enabled && w.id == config::WidgetId::GitBranch);
+        if !git_enabled {
+            self.git_poller.branch = None;
+            return;
+        }
+
         let cwd_changed = match (&self.git_poller.cwd, cwd) {
             (Some(old), Some(new)) => old != new,
             (None, Some(_)) => true,

@@ -142,12 +142,14 @@ mod tests {
     use crate::status_bar::config::StatusBarSection;
 
     fn make_ctx() -> WidgetContext {
-        let mut sv = SessionVariables::default();
-        sv.username = "alice".to_string();
-        sv.hostname = "dev-box".to_string();
-        sv.path = "/home/alice/project".to_string();
-        sv.bell_count = 3;
-        sv.current_command = Some("cargo build".to_string());
+        let sv = SessionVariables {
+            username: "alice".to_string(),
+            hostname: "dev-box".to_string(),
+            path: "/home/alice/project".to_string(),
+            bell_count: 3,
+            current_command: Some("cargo build".to_string()),
+            ..Default::default()
+        };
 
         WidgetContext {
             session_vars: sv,

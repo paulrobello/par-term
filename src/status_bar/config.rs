@@ -87,7 +87,7 @@ impl WidgetId {
 }
 
 /// Configuration for a single status bar widget.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct StatusBarWidgetConfig {
     /// Which widget to display
     pub id: WidgetId,
@@ -101,7 +101,7 @@ pub struct StatusBarWidgetConfig {
     #[serde(default)]
     pub order: i32,
     /// Optional format override string with `\(variable)` interpolation
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<String>,
 }
 
