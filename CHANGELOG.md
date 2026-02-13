@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Profile Selection on New Tab Button** (#129): Split button on the tab bar for quick profile-based tab creation
+  - `+` button creates a default tab (existing behavior preserved)
+  - `▾` chevron opens a profile dropdown with "Default" at top + all profiles in order with icons
+  - Chevron only appears when profiles exist
+  - Works in both horizontal and vertical tab bar layouts
+  - New config option `new_tab_shortcut_shows_profiles` (default: false) to make Cmd+T / Ctrl+Shift+T show the profile picker instead
+  - Escape key dismisses the dropdown
+  - Settings checkbox in Window > Tab Behavior section
+
 - **Shell Selection Per Profile** (#128): Configure a specific shell for each profile with platform-aware detection
   - New `shell` field on profiles selects a shell independently of the `command` field
   - New `login_shell` field per profile overrides the global login shell setting (None = inherit, true/false = override)

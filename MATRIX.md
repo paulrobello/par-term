@@ -143,6 +143,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Dim inactive tabs | ✅ | ✅ `dim_inactive_tabs`, `inactive_tab_opacity` | ✅ | - | - | - |
 | Tab min width | ❌ | ✅ `tab_min_width` | ✅ | - | - | par-term exclusive |
 | Stretch tabs to fill | ✅ `Stretch Tabs to Fill Bar` | ✅ `tab_stretch_to_fill` (default on) | ✅ | ⭐ | 🟢 | Equal-width distribution with `tab_min_width` floor |
+| New tab profile selection | ✅ Profile menu on new tab | ✅ Split button `+` / `▾` | ✅ | - | - | Split button: `+` for default, `▾` for profile dropdown; configurable shortcut behavior |
 | New tabs at end | ✅ `New Tabs Open at End` | ✅ | ✅ | - | - | Default behavior |
 | Inherit working directory | ✅ | ✅ `tab_inherit_cwd` | ✅ | - | - | - |
 | Max tabs limit | ❌ | ✅ `max_tabs` | ✅ | - | - | par-term exclusive |
@@ -284,7 +285,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
 | Multiple profiles | ✅ Full profile system | ✅ `ProfileManager` | ✅ | - | - | Named configurations with YAML persistence |
-| Profile selection | ✅ GUI + keyboard | ✅ Drawer + Settings UI | ✅ | - | - | Collapsible drawer, inline management in Settings Profiles tab |
+| Profile selection | ✅ GUI + keyboard | ✅ Drawer + Settings UI + tab bar split button | ✅ | - | - | Collapsible drawer, inline management in Settings Profiles tab, split `+`/`▾` button on tab bar |
 | Profile creation/editing | ✅ | ✅ Settings UI | ✅ | - | - | Full CRUD operations inline in Settings window Profiles tab |
 | Profile reordering | ✅ | ✅ Move up/down | ✅ | - | - | Drag-free reorder buttons |
 | Profile icon | ✅ Custom icons | ✅ Emoji icons + picker | ✅ | - | - | Emoji picker with ~70 curated icons in 9 categories; icon shown in tab bar |
