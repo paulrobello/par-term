@@ -58,6 +58,45 @@ impl MenuManager {
         #[cfg(not(target_os = "macos"))]
         let tab_switch_mod = Modifiers::ALT;
 
+        // macOS: Application menu (must be first submenu — becomes the macOS app menu)
+        #[cfg(target_os = "macos")]
+        {
+            let app_menu = Submenu::new("par-term", true);
+
+            // About par-term
+            let about_app = MenuItem::with_id("about_app", "About par-term", true, None);
+            action_map.insert(about_app.id().clone(), MenuAction::About);
+            app_menu.append(&about_app)?;
+
+            app_menu.append(&PredefinedMenuItem::separator())?;
+
+            // Settings... (Cmd+,) — standard macOS settings shortcut
+            let settings_app = MenuItem::with_id(
+                "settings_app",
+                "Settings...",
+                true,
+                Some(Accelerator::new(Some(Modifiers::META), Code::Comma)),
+            );
+            action_map.insert(settings_app.id().clone(), MenuAction::OpenSettings);
+            app_menu.append(&settings_app)?;
+
+            app_menu.append(&PredefinedMenuItem::separator())?;
+
+            app_menu.append(&PredefinedMenuItem::services(None))?;
+
+            app_menu.append(&PredefinedMenuItem::separator())?;
+
+            app_menu.append(&PredefinedMenuItem::hide(None))?;
+            app_menu.append(&PredefinedMenuItem::hide_others(None))?;
+            app_menu.append(&PredefinedMenuItem::show_all(None))?;
+
+            app_menu.append(&PredefinedMenuItem::separator())?;
+
+            app_menu.append(&PredefinedMenuItem::quit(None))?;
+
+            menu.append(&app_menu)?;
+        }
+
         // File menu
         let file_menu = Submenu::new("File", true);
 
@@ -250,6 +289,24 @@ impl MenuManager {
         action_map.insert(clipboard_history.id().clone(), MenuAction::ClipboardHistory);
         edit_menu.append(&clipboard_history)?;
 
+        // Windows/Linux: Add Preferences to Edit menu (standard location on these platforms)
+        #[cfg(not(target_os = "macos"))]
+        {
+            edit_menu.append(&PredefinedMenuItem::separator())?;
+
+            let preferences = MenuItem::with_id(
+                "preferences",
+                "Preferences...",
+                true,
+                Some(Accelerator::new(
+                    Some(Modifiers::CONTROL | Modifiers::SHIFT),
+                    Code::Comma,
+                )),
+            );
+            action_map.insert(preferences.id().clone(), MenuAction::OpenSettings);
+            edit_menu.append(&preferences)?;
+        }
+
         menu.append(&edit_menu)?;
 
         // View menu
@@ -318,7 +375,7 @@ impl MenuManager {
 
         let settings = MenuItem::with_id(
             "settings",
-            "Settings",
+            "Settings...",
             true,
             Some(Accelerator::new(None, Code::F12)),
         );

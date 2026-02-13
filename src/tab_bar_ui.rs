@@ -157,8 +157,12 @@ impl TabBarUI {
 
         // Layout constants
         let tab_spacing = 4.0;
-        let new_tab_btn_width =
-            28.0 + if profiles.is_empty() { 0.0 } else { CHEVRON_RESERVED };
+        let new_tab_btn_width = 28.0
+            + if profiles.is_empty() {
+                0.0
+            } else {
+                CHEVRON_RESERVED
+            };
         let scroll_btn_width = 24.0;
 
         let bar_bg = config.tab_bar_background;
@@ -444,8 +448,11 @@ impl TabBarUI {
                                 // Zero spacing between + and ▾
                                 ui.spacing_mut().item_spacing.x = 0.0;
 
-                                let chevron_space =
-                                    if profiles.is_empty() { 0.0 } else { CHEVRON_RESERVED };
+                                let chevron_space = if profiles.is_empty() {
+                                    0.0
+                                } else {
+                                    CHEVRON_RESERVED
+                                };
                                 let plus_btn = ui.add(
                                     egui::Button::new("+")
                                         .min_size(egui::vec2(
