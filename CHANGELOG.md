@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Directory-Based Profile Switching** (#114): Automatically switch profiles based on current working directory
+  - New `directory_patterns` field on profiles (glob patterns like `/Users/*/projects/work-*`)
+  - CWD changes detected via OSC 7 trigger profile matching
+  - Priority: explicit user selection > hostname match > directory match > default
+  - Settings UI for editing directory patterns per profile
+  - Does not override explicit user profile selection or hostname-based switching
+
 - **Tab Style Variants** (#112): Cosmetic tab bar presets with 5 built-in styles
   - Dark (default), Light, Compact, Minimal, and High Contrast presets
   - Each preset applies coordinated color/size/spacing adjustments

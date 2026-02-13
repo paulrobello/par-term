@@ -295,7 +295,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Profile tags | ✅ Searchable tags | ✅ `tags` | ✅ | - | - | Filter/search profiles by tags in drawer |
 | Profile inheritance | ✅ Parent profiles | ✅ `parent_id` | ✅ | - | - | Child inherits parent settings, can override |
 | Profile keyboard shortcut | ✅ | ✅ `keyboard_shortcut` | ✅ | - | - | Quick profile launch via hotkey (e.g., "Cmd+1") |
-| Automatic profile switching | ✅ Based on hostname | ✅ `hostname_patterns` | ✅ | - | - | OSC 7 hostname detection triggers profile match |
+| Automatic profile switching | ✅ Based on hostname | ✅ `hostname_patterns`, `directory_patterns` | ✅ | - | - | OSC 7 hostname and CWD detection triggers profile match |
 | Profile badge | ✅ `Badge Text` | ✅ `badge_text` | ✅ | - | - | Per-profile badge format override + session.profile_name |
 
 ---
@@ -677,7 +677,7 @@ iTerm2 has sophisticated window state management.
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
 | Hostname-based switching | ✅ | ✅ | ✅ | - | - | Already implemented |
-| Directory-based switching | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Auto-switch profile by directory |
+| Directory-based switching | ✅ | ✅ `directory_patterns` | ✅ | - | - | Auto-switch profile by CWD via OSC 7 |
 | Command-based switching | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-switch by running command |
 | User-based switching | ✅ | ❌ | ❌ | ⭐ | 🟡 | Switch by SSH user |
 | Dynamic profiles from URL | ✅ `Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🔴 | Load profiles from remote URL |
@@ -922,7 +922,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Session Management & Quit Behavior | 5 | 0 | 1 |
 | Tab Styles & Appearance | 7 | 0 | 1 |
 | Pane & Split Customization | 9 | 0 | 0 |
-| Profile Switching & Dynamic Profiles | 2 | 0 | 5 |
+| Profile Switching & Dynamic Profiles | 3 | 0 | 4 |
 | Image Protocol Enhancements | 9 | 0 | 0 |
 | Audio & Haptic Feedback | 3 | 0 | 2 |
 | Advanced GPU & Rendering Settings | 3 | 0 | 2 |
@@ -996,7 +996,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | ~~Copy Mode (vi-style navigation)~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§26 - vi-style copy mode) |
 | Status Bar | ⭐⭐⭐ | 🔴 High | Customizable status bar with widgets |
 | Snippets system | ⭐⭐⭐ | 🟡 Medium | Saved text blocks for quick insertion |
-| Directory-based profile switching | ⭐⭐⭐ | 🟡 Medium | Auto-switch profile by directory |
+| ~~Directory-based profile switching~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§32 - `directory_patterns` on profiles) |
 | ~~Session undo timeout~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (reopen closed tabs with Cmd+Z / Ctrl+Shift+Z) |
 | ~~Window arrangements~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Complete (§28 arrangements + §29 session restore) |
 | ~~Progress bars (OSC 934)~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (OSC 9;4 + OSC 934) |
@@ -1069,8 +1069,8 @@ The following iTerm2 features were identified and added to the matrix in this up
 - ~~Division thickness and style variants~~ ✅ Implemented
 - Per-pane backgrounds (data model ready, renderer pending)
 
-**Profile Switching (5 features)**
-- Directory-based auto-switching
+**Profile Switching (4 features)**
+- ~~Directory-based auto-switching~~ ✅ Implemented
 - Command-based auto-switching
 - User-based auto-switching
 - Dynamic profiles from URL with auto-reload

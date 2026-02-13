@@ -1033,41 +1033,52 @@ impl WindowState {
         self.profiles_menu_needs_update = true;
     }
 
-    /// Check for automatic profile switching based on hostname detection
+    /// Check for automatic profile switching based on hostname and directory detection
     ///
-    /// This checks the active tab for hostname changes (detected via OSC 7)
+    /// This checks the active tab for hostname and CWD changes (detected via OSC 7)
     /// and applies matching profiles automatically.
+    /// Priority: explicit user selection > hostname match > directory match > default
     ///
     /// Returns true if a profile was auto-applied, triggering a redraw.
     pub fn check_auto_profile_switch(&mut self) -> bool {
-        // Only check if auto-switching is enabled (at least one profile has hostname patterns)
         if self.profile_manager.is_empty() {
             return false;
         }
 
-        // Get active tab
+        let mut changed = false;
+
+        // --- Hostname-based switching (higher priority) ---
+        changed |= self.check_auto_hostname_switch();
+
+        // --- Directory-based switching (lower priority, only if no hostname profile) ---
+        changed |= self.check_auto_directory_switch();
+
+        changed
+    }
+
+    /// Check for hostname-based automatic profile switching
+    fn check_auto_hostname_switch(&mut self) -> bool {
         let tab = match self.tab_manager.active_tab_mut() {
             Some(t) => t,
             None => return false,
         };
 
-        // Check if hostname has changed
         let new_hostname = match tab.check_hostname_change() {
             Some(h) => h,
             None => {
-                // Hostname unchanged or returned to local - check if we should clear auto-profile
                 if tab.detected_hostname.is_none() && tab.auto_applied_profile_id.is_some() {
                     crate::debug_info!(
                         "PROFILE",
-                        "Clearing auto-applied profile (returned to localhost)"
+                        "Clearing auto-applied hostname profile (returned to localhost)"
                     );
-                    tab.clear_auto_profile();
+                    tab.auto_applied_profile_id = None;
+                    tab.badge_override = None;
                 }
                 return false;
             }
         };
 
-        // Don't re-apply the same profile if already auto-applied
+        // Don't re-apply the same profile
         if let Some(existing_profile_id) = tab.auto_applied_profile_id
             && let Some(profile) = self.profile_manager.find_by_hostname(&new_hostname)
             && profile.id == existing_profile_id
@@ -1075,10 +1086,7 @@ impl WindowState {
             return false;
         }
 
-        // Find matching profile for this hostname
-        let matching_profile = self.profile_manager.find_by_hostname(&new_hostname);
-
-        if let Some(profile) = matching_profile {
+        if let Some(profile) = self.profile_manager.find_by_hostname(&new_hostname) {
             let profile_name = profile.name.clone();
             let profile_id = profile.id;
 
@@ -1089,26 +1097,15 @@ impl WindowState {
                 new_hostname
             );
 
-            // Mark this as an auto-applied profile
             if let Some(tab) = self.tab_manager.active_tab_mut() {
                 tab.auto_applied_profile_id = Some(profile_id);
             }
 
-            // For automatic switching, we don't open a new tab - we could optionally
-            // apply theme/settings to the current tab in the future.
-            // For now, we log the event and could show a notification.
             log::info!(
                 "Auto-detected profile '{}' for hostname '{}' (tab already running)",
                 profile_name,
                 new_hostname
             );
-
-            // Optional: Show a brief notification about the hostname detection
-            // self.deliver_notification(
-            //     "SSH Detected",
-            //     &format!("Connected to {} (profile: {})", new_hostname, profile_name),
-            // );
-
             true
         } else {
             crate::debug_info!(
@@ -1116,6 +1113,68 @@ impl WindowState {
                 "No profile matches hostname '{}' - consider creating one",
                 new_hostname
             );
+            false
+        }
+    }
+
+    /// Check for directory-based automatic profile switching
+    fn check_auto_directory_switch(&mut self) -> bool {
+        let tab = match self.tab_manager.active_tab_mut() {
+            Some(t) => t,
+            None => return false,
+        };
+
+        // Don't override hostname-based profile (higher priority)
+        if tab.auto_applied_profile_id.is_some() {
+            return false;
+        }
+
+        let new_cwd = match tab.check_cwd_change() {
+            Some(c) => c,
+            None => return false,
+        };
+
+        // Don't re-apply the same profile
+        if let Some(existing_profile_id) = tab.auto_applied_dir_profile_id
+            && let Some(profile) = self.profile_manager.find_by_directory(&new_cwd)
+            && profile.id == existing_profile_id
+        {
+            return false;
+        }
+
+        if let Some(profile) = self.profile_manager.find_by_directory(&new_cwd) {
+            let profile_name = profile.name.clone();
+            let profile_id = profile.id;
+
+            crate::debug_info!(
+                "PROFILE",
+                "Auto-switching to profile '{}' for directory '{}'",
+                profile_name,
+                new_cwd
+            );
+
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.auto_applied_dir_profile_id = Some(profile_id);
+            }
+
+            log::info!(
+                "Auto-detected profile '{}' for directory '{}' (tab already running)",
+                profile_name,
+                new_cwd
+            );
+            true
+        } else {
+            // Clear directory profile if CWD no longer matches any pattern
+            if let Some(tab) = self.tab_manager.active_tab_mut()
+                && tab.auto_applied_dir_profile_id.is_some()
+            {
+                crate::debug_info!(
+                    "PROFILE",
+                    "Clearing auto-applied directory profile (CWD '{}' no longer matches)",
+                    new_cwd
+                );
+                tab.auto_applied_dir_profile_id = None;
+            }
             false
         }
     }

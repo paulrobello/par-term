@@ -53,6 +53,7 @@ pub struct ProfileModalUI {
     temp_keyboard_shortcut: String,
     temp_hostname_patterns: String,
     temp_tmux_session_patterns: String,
+    temp_directory_patterns: String,
     temp_badge_text: String,
     // Badge appearance settings
     temp_badge_color: Option<[u8; 3]>,
@@ -95,6 +96,7 @@ impl ProfileModalUI {
             temp_keyboard_shortcut: String::new(),
             temp_hostname_patterns: String::new(),
             temp_tmux_session_patterns: String::new(),
+            temp_directory_patterns: String::new(),
             temp_badge_text: String::new(),
             temp_badge_color: None,
             temp_badge_color_alpha: None,
@@ -157,6 +159,7 @@ impl ProfileModalUI {
         self.temp_keyboard_shortcut.clear();
         self.temp_hostname_patterns.clear();
         self.temp_tmux_session_patterns.clear();
+        self.temp_directory_patterns.clear();
         self.temp_badge_text.clear();
         self.temp_badge_color = None;
         self.temp_badge_color_alpha = None;
@@ -187,6 +190,7 @@ impl ProfileModalUI {
         self.temp_keyboard_shortcut = profile.keyboard_shortcut.clone().unwrap_or_default();
         self.temp_hostname_patterns = profile.hostname_patterns.join(", ");
         self.temp_tmux_session_patterns = profile.tmux_session_patterns.join(", ");
+        self.temp_directory_patterns = profile.directory_patterns.join(", ");
         self.temp_badge_text = profile.badge_text.clone().unwrap_or_default();
         // Badge appearance settings
         self.temp_badge_color = profile.badge_color;
@@ -249,6 +253,14 @@ impl ProfileModalUI {
         if !self.temp_tmux_session_patterns.is_empty() {
             profile.tmux_session_patterns = self
                 .temp_tmux_session_patterns
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+        if !self.temp_directory_patterns.is_empty() {
+            profile.directory_patterns = self
+                .temp_directory_patterns
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
@@ -739,6 +751,18 @@ impl ProfileModalUI {
                             ui.text_edit_singleline(&mut self.temp_tmux_session_patterns);
                             ui.label(
                                 egui::RichText::new("(work-*, *-dev)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
+                        ui.end_row();
+
+                        // Directory patterns for auto-switching
+                        ui.label("Auto-Switch Dirs:");
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_directory_patterns);
+                            ui.label(
+                                egui::RichText::new("(~/projects/work-*)")
                                     .small()
                                     .color(egui::Color32::GRAY),
                             );
