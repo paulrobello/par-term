@@ -3,6 +3,7 @@
 //! Provides a modal dialog for creating, editing, and managing profiles.
 
 use crate::profile::{Profile, ProfileId, ProfileManager};
+use crate::shell_detection;
 
 /// Curated emoji presets organized by category for the profile icon picker
 const EMOJI_PRESETS: &[(&str, &[&str])] = &[
@@ -80,6 +81,8 @@ pub struct ProfileModalUI {
     // Temporary form fields
     temp_name: String,
     temp_working_dir: String,
+    temp_shell: Option<String>,
+    temp_login_shell: Option<bool>,
     temp_command: String,
     temp_args: String,
     temp_tab_name: String,
@@ -124,6 +127,8 @@ impl ProfileModalUI {
             editing_id: None,
             temp_name: String::new(),
             temp_working_dir: String::new(),
+            temp_shell: None,
+            temp_login_shell: None,
             temp_command: String::new(),
             temp_args: String::new(),
             temp_tab_name: String::new(),
@@ -202,6 +207,8 @@ impl ProfileModalUI {
     fn clear_form(&mut self) {
         self.temp_name.clear();
         self.temp_working_dir.clear();
+        self.temp_shell = None;
+        self.temp_login_shell = None;
         self.temp_command.clear();
         self.temp_args.clear();
         self.temp_tab_name.clear();
@@ -228,6 +235,8 @@ impl ProfileModalUI {
     fn load_profile_to_form(&mut self, profile: &Profile) {
         self.temp_name = profile.name.clone();
         self.temp_working_dir = profile.working_directory.clone().unwrap_or_default();
+        self.temp_shell = profile.shell.clone();
+        self.temp_login_shell = profile.login_shell;
         self.temp_command = profile.command.clone().unwrap_or_default();
         self.temp_args = profile
             .command_args
@@ -263,6 +272,8 @@ impl ProfileModalUI {
         if !self.temp_working_dir.is_empty() {
             profile.working_directory = Some(self.temp_working_dir.clone());
         }
+        profile.shell = self.temp_shell.clone();
+        profile.login_shell = self.temp_login_shell;
         if !self.temp_command.is_empty() {
             profile.command = Some(self.temp_command.clone());
         }
@@ -773,8 +784,89 @@ impl ProfileModalUI {
                         });
                         ui.end_row();
 
+                        // Shell selection dropdown
+                        ui.label("Shell:");
+                        ui.horizontal(|ui| {
+                            let shells = shell_detection::detected_shells();
+                            let selected_label = self
+                                .temp_shell
+                                .as_ref()
+                                .map(|path| {
+                                    // Find display name for selected shell
+                                    shells
+                                        .iter()
+                                        .find(|s| s.path == *path)
+                                        .map(|s| s.name.clone())
+                                        .unwrap_or_else(|| path.clone())
+                                })
+                                .unwrap_or_else(|| "Default (inherit global)".to_string());
+
+                            egui::ComboBox::from_id_salt("shell_selector")
+                                .selected_text(&selected_label)
+                                .show_ui(ui, |ui| {
+                                    // Default option (inherit global)
+                                    if ui
+                                        .selectable_label(
+                                            self.temp_shell.is_none(),
+                                            "Default (inherit global)",
+                                        )
+                                        .clicked()
+                                    {
+                                        self.temp_shell = None;
+                                    }
+                                    ui.separator();
+                                    // Detected shells
+                                    for shell in shells {
+                                        let is_selected = self
+                                            .temp_shell
+                                            .as_ref()
+                                            .is_some_and(|s| s == &shell.path);
+                                        if ui
+                                            .selectable_label(
+                                                is_selected,
+                                                format!("{} ({})", shell.name, shell.path),
+                                            )
+                                            .clicked()
+                                        {
+                                            self.temp_shell = Some(shell.path.clone());
+                                        }
+                                    }
+                                });
+                        });
+                        ui.end_row();
+
+                        // Login shell toggle
+                        ui.label("Login Shell:");
+                        ui.horizontal(|ui| {
+                            let mut use_custom = self.temp_login_shell.is_some();
+                            if ui.checkbox(&mut use_custom, "").changed() {
+                                if use_custom {
+                                    self.temp_login_shell = Some(true);
+                                } else {
+                                    self.temp_login_shell = None;
+                                }
+                            }
+                            if let Some(ref mut login) = self.temp_login_shell {
+                                ui.checkbox(login, "Use login shell (-l)");
+                            } else {
+                                ui.label(
+                                    egui::RichText::new("(inherit global)")
+                                        .small()
+                                        .color(egui::Color32::GRAY),
+                                );
+                            }
+                        });
+                        ui.end_row();
+
                         ui.label("Command:");
-                        ui.text_edit_singleline(&mut self.temp_command);
+                        ui.horizontal(|ui| {
+                            ui.text_edit_singleline(&mut self.temp_command);
+                            ui.label(
+                                egui::RichText::new("(overrides shell)")
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
                         ui.end_row();
 
                         ui.label("Arguments:");
