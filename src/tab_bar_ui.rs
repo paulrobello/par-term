@@ -153,7 +153,9 @@ impl TabBarUI {
 
         // Layout constants
         let tab_spacing = 4.0;
-        let new_tab_btn_width = 28.0;
+        let chevron_width: f32 = 18.0; // width for the ▾ button (14px min + egui spacing)
+        let new_tab_btn_width =
+            28.0 + if profiles.is_empty() { 0.0 } else { chevron_width };
         let scroll_btn_width = 24.0;
 
         let bar_bg = config.tab_bar_background;
@@ -310,10 +312,7 @@ impl TabBarUI {
                 // "+" button — creates default tab
                 let plus_btn = ui.add(
                     egui::Button::new("+")
-                        .min_size(egui::vec2(
-                            new_tab_btn_width - if profiles.is_empty() { 0.0 } else { 14.0 },
-                            config.tab_bar_height - 4.0,
-                        ))
+                        .min_size(egui::vec2(28.0, config.tab_bar_height - 4.0))
                         .fill(egui::Color32::TRANSPARENT),
                 );
                 if plus_btn.clicked_by(egui::PointerButton::Primary) {
