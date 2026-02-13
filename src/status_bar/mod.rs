@@ -331,9 +331,15 @@ impl StatusBarUI {
 
         // Choose top or bottom panel based on config
         let panel_id = "status_bar";
+        let scrollbar_inset = (config.scrollbar_width + 2.0) as i8;
         let frame = egui::Frame::NONE
             .fill(bg_color)
-            .inner_margin(egui::Margin::symmetric(8, 2));
+            .inner_margin(egui::Margin {
+                left: 8,
+                right: scrollbar_inset,
+                top: 2,
+                bottom: 2,
+            });
 
         let show_panel = |ui_fn: &mut dyn FnMut(&mut egui::Ui)| match config.status_bar_position {
             StatusBarPosition::Top => {
