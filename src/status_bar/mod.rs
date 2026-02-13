@@ -5,3 +5,4 @@
 
 pub mod config;
 pub mod system_monitor;
+pub mod widgets;
