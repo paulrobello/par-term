@@ -391,6 +391,39 @@ fn show_widget_options_section(
                 }
             });
 
+            // Expandable format reference
+            ui.collapsing("Format codes reference", |ui| {
+                let dim = egui::Color32::from_rgb(140, 140, 140);
+                let bright = egui::Color32::from_rgb(210, 210, 210);
+                egui::Grid::new("time_format_help")
+                    .num_columns(2)
+                    .spacing([16.0, 2.0])
+                    .show(ui, |ui| {
+                        let rows: &[(&str, &str)] = &[
+                            ("%H", "Hour 00–23"),
+                            ("%I", "Hour 01–12"),
+                            ("%M", "Minute 00–59"),
+                            ("%S", "Second 00–59"),
+                            ("%p", "AM / PM"),
+                            ("%P", "am / pm"),
+                            ("%Y", "Year (2026)"),
+                            ("%m", "Month 01–12"),
+                            ("%d", "Day 01–31"),
+                            ("%a", "Weekday (Mon)"),
+                            ("%A", "Weekday (Monday)"),
+                            ("%b", "Month (Jan)"),
+                            ("%B", "Month (January)"),
+                            ("%Z", "Timezone (UTC)"),
+                            ("%%", "Literal %"),
+                        ];
+                        for (code, desc) in rows {
+                            ui.label(egui::RichText::new(*code).color(bright).monospace());
+                            ui.label(egui::RichText::new(*desc).color(dim).small());
+                            ui.end_row();
+                        }
+                    });
+            });
+
             ui.add_space(8.0);
 
             // Git show status
