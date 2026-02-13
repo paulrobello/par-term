@@ -614,7 +614,17 @@ impl Tab {
         }
 
         let shell_args_deref = shell_args.as_deref();
-        let shell_env = build_shell_env(config.shell_env.as_ref());
+        let mut shell_env = build_shell_env(config.shell_env.as_ref());
+
+        // When a profile specifies a shell, set the SHELL env var so child
+        // processes (and $SHELL) reflect the selected shell, not the login shell.
+        if profile.command.is_none()
+            && let Some(ref shell_path) = profile.shell
+            && let Some(ref mut env) = shell_env
+        {
+            env.insert("SHELL".to_string(), shell_path.clone());
+        }
+
         terminal.spawn_custom_shell_with_dir(
             &shell_cmd,
             shell_args_deref,

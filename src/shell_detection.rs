@@ -78,6 +78,47 @@ fn detect_shells() -> Vec<ShellInfo> {
         shells.insert(0, ShellInfo::new(name, &current_shell));
     }
 
+    // Check for common shells not listed in /etc/shells
+    // (e.g. Homebrew-installed pwsh, fish, nushell)
+    let extra_shells: &[(&str, &[&str])] = &[
+        (
+            "pwsh",
+            &[
+                "/opt/homebrew/bin/pwsh",
+                "/usr/local/bin/pwsh",
+                "/usr/bin/pwsh",
+            ],
+        ),
+        (
+            "fish",
+            &[
+                "/opt/homebrew/bin/fish",
+                "/usr/local/bin/fish",
+                "/usr/bin/fish",
+            ],
+        ),
+        (
+            "nu",
+            &["/opt/homebrew/bin/nu", "/usr/local/bin/nu", "/usr/bin/nu"],
+        ),
+        (
+            "elvish",
+            &[
+                "/opt/homebrew/bin/elvish",
+                "/usr/local/bin/elvish",
+                "/usr/bin/elvish",
+            ],
+        ),
+    ];
+    for (name, paths) in extra_shells {
+        for path in *paths {
+            if Path::new(path).exists() && seen_paths.insert((*path).to_string()) {
+                shells.push(ShellInfo::new(*name, *path));
+                break; // Only add first found path for each shell
+            }
+        }
+    }
+
     // If nothing found, provide reasonable fallbacks
     if shells.is_empty() {
         for path in ["/bin/bash", "/bin/sh"] {
