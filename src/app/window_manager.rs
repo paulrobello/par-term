@@ -1174,6 +1174,10 @@ impl WindowManager {
                         .set_selected_tab(crate::settings_ui::sidebar::SettingsTab::Arrangements);
                 }
             }
+            MenuAction::InstallShellIntegrationRemote => {
+                // TODO: Show remote shell integration install dialog
+                log::info!("Install Shell Integration on Remote Host requested");
+            }
         }
     }
 
