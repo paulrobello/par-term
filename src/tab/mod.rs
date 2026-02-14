@@ -354,6 +354,15 @@ pub struct Tab {
     pub badge_override: Option<String>,
     /// Mapping from config index to coprocess ID (for UI tracking)
     pub coprocess_ids: Vec<Option<CoprocessId>>,
+    /// Script manager for this tab
+    pub script_manager: crate::scripting::manager::ScriptManager,
+    /// Maps config index to ScriptId for running scripts
+    pub script_ids: Vec<Option<crate::scripting::manager::ScriptId>>,
+    /// Observer IDs registered with the terminal for script event forwarding
+    pub script_observer_ids: Vec<Option<par_term_emu_core_rust::observer::ObserverId>>,
+    /// Event forwarders (shared with observer registration)
+    pub script_forwarders:
+        Vec<Option<std::sync::Arc<crate::scripting::observer::ScriptEventForwarder>>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
     pub trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
     /// Profile saved before SSH auto-switch (for revert on disconnect)
@@ -550,6 +559,10 @@ impl Tab {
             pre_profile_title: None,
             badge_override: None,
             coprocess_ids,
+            script_manager: crate::scripting::manager::ScriptManager::new(),
+            script_ids: Vec::new(),
+            script_observer_ids: Vec::new(),
+            script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
@@ -773,6 +786,10 @@ impl Tab {
             pre_profile_title: None,
             badge_override: None,
             coprocess_ids,
+            script_manager: crate::scripting::manager::ScriptManager::new(),
+            script_ids: Vec::new(),
+            script_observer_ids: Vec::new(),
+            script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
@@ -1476,6 +1493,10 @@ impl Tab {
             pre_profile_title: None,
             badge_override: None,
             coprocess_ids: Vec::new(),
+            script_manager: crate::scripting::manager::ScriptManager::new(),
+            script_ids: Vec::new(),
+            script_observer_ids: Vec::new(),
+            script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,

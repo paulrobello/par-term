@@ -5,6 +5,7 @@
 
 pub mod automation;
 pub mod defaults;
+pub mod scripting;
 pub mod shader_config;
 pub mod shader_metadata;
 pub mod snippets;
@@ -34,6 +35,8 @@ pub use types::{
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
+// Scripting / observer scripts
+pub use scripting::ScriptConfig;
 // Snippets and custom actions
 pub use snippets::{BuiltInVariable, CustomActionConfig, SnippetConfig, SnippetLibrary};
 #[allow(unused_imports)]
@@ -1710,6 +1713,10 @@ pub struct Config {
     #[serde(default)]
     pub coprocesses: Vec<automation::CoprocessDefConfig>,
 
+    /// External observer script definitions
+    #[serde(default)]
+    pub scripts: Vec<scripting::ScriptConfig>,
+
     // ========================================================================
     // Snippets & Actions
     // ========================================================================
@@ -2049,6 +2056,7 @@ impl Default for Config {
             progress_bar_indeterminate_color: defaults::progress_bar_indeterminate_color(),
             triggers: Vec::new(),
             coprocesses: Vec::new(),
+            scripts: Vec::new(),
             snippets: Vec::new(),
             actions: Vec::new(),
             collapsed_settings_sections: Vec::new(),

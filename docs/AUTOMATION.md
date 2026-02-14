@@ -1,6 +1,6 @@
-# Automation: Triggers, Actions, and Coprocesses
+# Automation: Triggers, Actions, Coprocesses, and Scripts
 
-Par Terminal provides an automation system that lets you react to terminal output with regex-based triggers, execute actions when patterns match, and run coprocesses that exchange data with the terminal session.
+Par Terminal provides an automation system that lets you react to terminal output with regex-based triggers, execute actions when patterns match, run coprocesses that exchange data with the terminal session, and run observer scripts that receive structured JSON events and send commands back to the terminal.
 
 ## Table of Contents
 
@@ -25,6 +25,16 @@ Par Terminal provides an automation system that lets you react to terminal outpu
   - [Restart Policy](#restart-policy)
   - [Auto-Start Behavior](#auto-start-behavior)
   - [Per-Tab Lifecycle](#per-tab-lifecycle)
+- [Scripts](#scripts)
+  - [Scripts vs. Coprocesses](#scripts-vs-coprocesses)
+  - [Defining a Script](#defining-a-script)
+  - [JSON Protocol](#json-protocol)
+    - [Events (stdin)](#events-stdin)
+    - [Commands (stdout)](#commands-stdout)
+  - [Event Subscription Filtering](#event-subscription-filtering)
+  - [Markdown Panels](#markdown-panels)
+  - [Script Lifecycle](#script-lifecycle)
+  - [Example Script](#example-script)
 - [Sound Files](#sound-files)
 - [Settings UI](#settings-ui)
   - [Managing Triggers](#managing-triggers)
@@ -35,13 +45,14 @@ Par Terminal provides an automation system that lets you react to terminal outpu
 
 ## Overview
 
-The automation system consists of three integrated features:
+The automation system consists of four integrated features:
 
 - **Triggers** match regex patterns against terminal output as it arrives. Each trigger carries one or more actions that fire when the pattern matches.
 - **Actions** define what happens when a trigger fires: highlighting matched text, sending desktop notifications, running external commands, playing sounds, sending text back to the terminal, and more.
 - **Coprocesses** are long-running external processes that receive a copy of terminal output on their stdin and can write data back to the terminal through their stdout.
+- **Scripts** are observer processes that receive structured JSON events from the terminal and can send JSON commands back. Scripts provide a higher-level protocol than coprocesses, with typed events, subscription filtering, and markdown panel support.
 
-Triggers and coprocesses are defined in `config.yaml` and managed through the Settings UI. They are registered per-tab at tab creation time and re-synced whenever settings are saved.
+Triggers, coprocesses, and scripts are defined in `config.yaml` and managed through the Settings UI. They are registered per-tab at tab creation time and re-synced whenever settings are saved.
 
 The following diagram shows how the automation system fits into the event loop:
 
@@ -58,6 +69,8 @@ graph TD
     PlaySnd[Play Sound]
     SendTxt[Write to PTY]
     Coproc[Coprocess Manager]
+    Script[Script Manager]
+    ScriptCmd[Script Commands]
     Render[Cell Renderer]
 
     PTY -->|raw bytes| Core
@@ -70,6 +83,9 @@ graph TD
     TriggerReg --> Highlight
     TriggerReg --> Notify
     Core -->|copy output| Coproc
+    Core -->|observer events| Script
+    Script -->|JSON commands| ScriptCmd
+    ScriptCmd -->|notify / write / badge| Dispatch
     Highlight -->|overlay colors| Render
 
     style PTY fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
@@ -83,6 +99,8 @@ graph TD
     style PlaySnd fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style SendTxt fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Coproc fill:#1a237e,stroke:#3f51b5,stroke-width:2px,color:#ffffff
+    style Script fill:#006064,stroke:#00bcd4,stroke-width:2px,color:#ffffff
+    style ScriptCmd fill:#006064,stroke:#00bcd4,stroke-width:2px,color:#ffffff
     style Render fill:#2e7d32,stroke:#66bb6a,stroke-width:2px,color:#ffffff
 ```
 
@@ -478,6 +496,187 @@ graph TD
     style Stop fill:#b71c1c,stroke:#f44336,stroke-width:2px,color:#ffffff
 ```
 
+## Scripts
+
+Scripts are external observer processes that communicate with the terminal using a structured JSON protocol. Unlike coprocesses (which receive raw terminal output on stdin), scripts receive typed events as JSON objects and can send typed commands back. This makes scripts ideal for building integrations, dashboards, and reactive automations without parsing raw terminal escape sequences.
+
+### Scripts vs. Coprocesses
+
+| Feature | Coprocesses | Scripts |
+|---------|-------------|---------|
+| **Input format** | Raw terminal output (bytes) | Structured JSON events |
+| **Output format** | Raw text written to PTY | Typed JSON commands |
+| **Event filtering** | None (receives all output) | Subscription-based (choose which events to receive) |
+| **Command capabilities** | Write to PTY only | Notify, set badge, set panel, log, write text, run command, change config |
+| **UI integration** | Output viewer | Markdown panels |
+| **Best for** | Filtering/logging terminal output | Reacting to terminal events, building dashboards |
+
+### Defining a Script
+
+Add script definitions to the `scripts` array in `config.yaml`:
+
+```yaml
+scripts:
+  - name: "Hello Observer"
+    script_path: "scripts/examples/hello_observer.py"
+    auto_start: true
+    subscriptions: ["bell_rang", "cwd_changed", "command_complete"]
+```
+
+Each script definition supports:
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `name` | string | Yes | -- | Human-readable identifier |
+| `enabled` | boolean | No | `true` | Whether the script is active |
+| `script_path` | string | Yes | -- | Path to the script executable |
+| `args` | array of strings | No | `[]` | Arguments to pass to the script |
+| `auto_start` | boolean | No | `false` | Start automatically when a tab is created |
+| `restart_policy` | enum | No | `never` | When to restart: `never`, `always`, or `on_failure` |
+| `restart_delay_ms` | integer | No | `0` | Delay in milliseconds before restarting |
+| `subscriptions` | array of strings | No | `[]` | Event types to receive (empty = all events) |
+| `env_vars` | object | No | `{}` | Additional environment variables for the script process |
+
+### JSON Protocol
+
+Scripts communicate over stdin/stdout using newline-delimited JSON (one JSON object per line).
+
+#### Events (stdin)
+
+The terminal sends events to the script's stdin. Each event has a `kind` field (string) and a `data` field (object with a `data_type` discriminant):
+
+```json
+{"kind": "bell_rang", "data": {"data_type": "Empty"}}
+```
+
+```json
+{"kind": "cwd_changed", "data": {"data_type": "CwdChanged", "cwd": "/home/user/project"}}
+```
+
+```json
+{"kind": "command_complete", "data": {"data_type": "CommandComplete", "command": "make test", "exit_code": 0}}
+```
+
+**Available event kinds:**
+
+| Kind | Data Type | Fields | Description |
+|------|-----------|--------|-------------|
+| `bell_rang` | `Empty` | -- | Terminal bell was triggered |
+| `cwd_changed` | `CwdChanged` | `cwd` | Working directory changed |
+| `command_complete` | `CommandComplete` | `command`, `exit_code` | A shell command finished (via shell integration) |
+| `title_changed` | `TitleChanged` | `title` | Terminal title changed |
+| `size_changed` | `SizeChanged` | `cols`, `rows` | Terminal was resized |
+| `user_var_changed` | `VariableChanged` | `name`, `value`, `old_value` | A user variable changed |
+| `environment_changed` | `EnvironmentChanged` | `key`, `value`, `old_value` | An environment variable changed |
+| `badge_changed` | `BadgeChanged` | `text` | Badge text changed |
+| `trigger_matched` | `TriggerMatched` | `pattern`, `matched_text`, `line` | A trigger pattern matched |
+| `zone_opened` | `ZoneEvent` | `zone_id`, `zone_type`, `event` | A semantic zone was opened |
+| `zone_closed` | `ZoneEvent` | `zone_id`, `zone_type`, `event` | A semantic zone was closed |
+| `zone_scrolled_out` | `ZoneEvent` | `zone_id`, `zone_type`, `event` | A semantic zone scrolled out of the buffer |
+
+#### Commands (stdout)
+
+Scripts write JSON commands to stdout to control the terminal. Each command has a `type` field that identifies the command:
+
+| Command | Fields | Description |
+|---------|--------|-------------|
+| `Log` | `level`, `message` | Write a log message (`level`: `"info"`, `"warn"`, `"error"`, `"debug"`) |
+| `Notify` | `title`, `body` | Show a desktop notification |
+| `SetBadge` | `text` | Set the tab's badge text |
+| `SetVariable` | `name`, `value` | Set a user variable |
+| `WriteText` | `text` | Write text to the PTY (as if typed) |
+| `RunCommand` | `command` | Execute a shell command |
+| `ChangeConfig` | `key`, `value` | Change a configuration value |
+| `SetPanel` | `title`, `content` | Display a markdown panel in the UI |
+| `ClearPanel` | -- | Remove the markdown panel |
+
+**Command examples:**
+
+```json
+{"type": "Log", "level": "info", "message": "Script started"}
+{"type": "Notify", "title": "Alert", "body": "Something happened"}
+{"type": "SetBadge", "text": "3 errors"}
+{"type": "SetPanel", "title": "Dashboard", "content": "## Status\n- All clear"}
+{"type": "WriteText", "text": "ls -la\n"}
+{"type": "ClearPanel"}
+```
+
+### Event Subscription Filtering
+
+By default, a script receives all terminal events. Use the `subscriptions` field to limit which events are delivered:
+
+```yaml
+scripts:
+  - name: "Build monitor"
+    script_path: "monitor.py"
+    subscriptions: ["command_complete", "cwd_changed"]
+```
+
+Only events whose `kind` matches an entry in the `subscriptions` array will be sent to the script. An empty array (or omitting the field) means the script receives every event.
+
+This filtering is useful for performance and simplicity: a script that only cares about command completion does not need to handle resize, bell, or title events.
+
+### Markdown Panels
+
+Scripts can display rich content in the terminal UI using the `SetPanel` command. The `content` field accepts Markdown:
+
+```json
+{"type": "SetPanel", "title": "Build Status", "content": "## Latest Build\n- **Status**: Passed\n- **Duration**: 12.3s\n- **Tests**: 47/47"}
+```
+
+Panels appear in the terminal UI and update in real time as the script sends new `SetPanel` commands. Use `ClearPanel` to remove the panel when it is no longer needed.
+
+### Script Lifecycle
+
+Scripts follow the same lifecycle patterns as coprocesses:
+
+- **Auto-start**: Scripts with `auto_start: true` are started when a new tab is created
+- **Per-tab isolation**: Each tab has its own set of running scripts
+- **Restart policies**: The `restart_policy` and `restart_delay_ms` fields control automatic restart behavior (same options as coprocesses: `never`, `always`, `on_failure`)
+- **Tab close**: All scripts in a tab are stopped when the tab is closed
+- **Settings sync**: Changes to script configuration in the Settings UI are applied when saved
+
+```mermaid
+sequenceDiagram
+    participant Tab as Tab
+    participant Mgr as Script Manager
+    participant Script as Script Process
+    participant Core as Terminal Core
+
+    Tab->>Mgr: Start script
+    Mgr->>Script: Spawn process
+    Core->>Mgr: Observer event (JSON)
+    Mgr->>Mgr: Check subscription filter
+    Mgr->>Script: Write event to stdin
+    Script->>Script: Process event
+    Script->>Mgr: Write command to stdout (JSON)
+    Mgr->>Tab: Forward command
+    Tab->>Core: Execute command (notify / write / badge / panel)
+
+    Note over Script: Script runs until<br/>tab closes or stopped
+    Tab->>Mgr: Stop script
+    Mgr->>Script: Kill process
+```
+
+### Example Script
+
+A complete working example is provided at [`scripts/examples/hello_observer.py`](../scripts/examples/hello_observer.py). This Python script demonstrates:
+
+- Reading JSON events from stdin
+- Sending `Log`, `SetPanel`, and `Notify` commands
+- Handling `bell_rang`, `cwd_changed`, and `command_complete` events
+- Maintaining an event counter displayed in a markdown panel
+
+To try it, add the following to your `config.yaml`:
+
+```yaml
+scripts:
+  - name: "Hello Observer"
+    script_path: "scripts/examples/hello_observer.py"
+    auto_start: true
+    subscriptions: ["bell_rang", "cwd_changed", "command_complete"]
+```
+
 ## Sound Files
 
 The `play_sound` action loads audio files from the par-term sounds directory:
@@ -505,7 +704,7 @@ If the specified file does not exist, a warning is logged and no sound is played
 
 ## Settings UI
 
-Triggers and coprocesses are managed through the **Settings > Automation** tab. The tab contains two collapsible sections.
+Triggers, coprocesses, and scripts are managed through the **Settings > Automation** tab and the **Settings > Scripts** tab.
 
 ### Managing Triggers
 
@@ -560,7 +759,7 @@ Each coprocess has a collapsible output viewer that displays the coprocess's std
 - Click **"Clear"** to discard buffered output
 - Output accumulates in memory until cleared or the tab is closed
 
-> **📝 Note:** The quick search bar in Settings supports the following keywords for the Automation tab: `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`.
+> **📝 Note:** The quick search bar in Settings supports the following keywords for the Automation tab: `trigger`, `regex`, `pattern`, `match`, `action`, `highlight`, `notify`, `coprocess`, `pipe`, `subprocess`, `auto start`, `restart`. The Scripts tab supports: `script`, `observer`, `json`, `event`, `panel`, `subscribe`.
 
 ## Complete Configuration Examples
 
@@ -686,9 +885,23 @@ coprocesses:
     restart_delay_ms: 1000
 ```
 
+### Observer Script for Command Monitoring
+
+Use an observer script to track command execution and display a live dashboard:
+
+```yaml
+scripts:
+  - name: "Command Monitor"
+    script_path: "~/.config/par-term/scripts/cmd_monitor.py"
+    auto_start: true
+    subscriptions: ["command_complete", "cwd_changed"]
+    env_vars:
+      LOG_LEVEL: "debug"
+```
+
 ### Full Automation Configuration
 
-A combined configuration showing triggers and coprocesses together:
+A combined configuration showing triggers, coprocesses, and scripts together:
 
 ```yaml
 # Trigger definitions
@@ -749,6 +962,21 @@ coprocesses:
     auto_start: false
     copy_terminal_output: true
     restart_policy: never
+
+# Script definitions
+scripts:
+  - name: "Hello Observer"
+    script_path: "scripts/examples/hello_observer.py"
+    auto_start: true
+    subscriptions: ["bell_rang", "cwd_changed", "command_complete"]
+
+  - name: "Build dashboard"
+    script_path: "~/.config/par-term/scripts/build_dashboard.py"
+    auto_start: false
+    restart_policy: on_failure
+    restart_delay_ms: 2000
+    env_vars:
+      PROJECT_ROOT: "/home/user/myproject"
 ```
 
 ## Related Documentation

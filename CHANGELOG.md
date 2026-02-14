@@ -20,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Scripting Manager**: Python scripts that react to terminal events via the observer API (#150)
+  - New config option: `scripts` array with per-script `name`, `script_path`, `args`, `auto_start`, `restart_policy`, `subscriptions`, `env_vars`
+  - JSON protocol over stdin/stdout: terminal sends events, scripts send commands back
+  - 12 event types: `bell_rang`, `cwd_changed`, `command_complete`, `title_changed`, `size_changed`, `user_var_changed`, `environment_changed`, `badge_changed`, `trigger_matched`, `zone_opened`, `zone_closed`, `zone_scrolled_out`
+  - 9 command types: `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, `ChangeConfig`, `Log`, `SetPanel`, `ClearPanel`
+  - Per-tab script lifecycle with auto-start and restart policies (Never/Always/OnFailure)
+  - Event subscription filtering (empty = all events)
+  - Markdown panels: scripts can register custom UI panels rendered in Settings
+  - Settings UI: Scripts tab with full CRUD, start/stop controls, output viewer, error display, panel viewer
+  - Observer bridge: `ScriptEventForwarder` implements core `TerminalObserver` trait for real-time event forwarding
+  - Example script: `scripts/examples/hello_observer.py`
+
 - **Configurable Link Handler**: Custom command for opening URLs instead of system default browser
   - New config option: `link_handler_command` with `{url}` placeholder (e.g., `firefox {url}`)
   - Falls back to system default browser when empty

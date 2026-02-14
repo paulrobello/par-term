@@ -40,6 +40,7 @@ pub mod progress_bar;
 pub mod quit_confirmation_ui;
 pub mod remote_shell_install_ui;
 pub mod renderer;
+pub mod scripting;
 pub mod scroll_state;
 pub mod scrollback_metadata;
 pub mod scrollbar;

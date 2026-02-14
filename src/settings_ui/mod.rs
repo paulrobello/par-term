@@ -24,6 +24,7 @@ pub mod notifications_tab;
 pub mod profiles_tab;
 pub mod progress_bar_tab;
 pub mod quick_settings;
+pub(crate) mod scripts_tab;
 pub mod section;
 pub mod sidebar;
 pub mod snippets_tab;
@@ -256,6 +257,40 @@ pub struct SettingsUI {
     pub coprocess_output: Vec<Vec<String>>,
     /// Which coprocess output viewers are expanded (indexed by config position)
     pub(crate) coprocess_output_expanded: Vec<bool>,
+    // === Script management state ===
+    /// Index of script currently being edited (None = not editing)
+    pub(crate) editing_script_index: Option<usize>,
+    /// Temporary script name for edit form
+    pub(crate) temp_script_name: String,
+    /// Temporary script path for edit form
+    pub(crate) temp_script_path: String,
+    /// Temporary script args for edit form
+    pub(crate) temp_script_args: String,
+    /// Temporary script auto_start for edit form
+    pub(crate) temp_script_auto_start: bool,
+    /// Temporary script enabled for edit form
+    pub(crate) temp_script_enabled: bool,
+    /// Temporary script restart policy for edit form
+    pub(crate) temp_script_restart_policy: crate::config::automation::RestartPolicy,
+    /// Temporary script restart delay for edit form
+    pub(crate) temp_script_restart_delay_ms: u64,
+    /// Temporary script subscriptions for edit form (comma-separated)
+    pub(crate) temp_script_subscriptions: String,
+    /// Whether the add-new-script form is active
+    pub(crate) adding_new_script: bool,
+    /// Pending script start/stop actions: (config_index, start=true/stop=false)
+    pub(crate) pending_script_actions: Vec<(usize, bool)>,
+    /// Running state of scripts (indexed by config position, updated by main window)
+    pub script_running: Vec<bool>,
+    /// Last error messages per script (indexed by config position, updated by main window)
+    pub script_errors: Vec<String>,
+    /// Buffered output per script (indexed by config position, drained from script manager)
+    pub script_output: Vec<Vec<String>>,
+    /// Which script output viewers are expanded (indexed by config position)
+    pub(crate) script_output_expanded: Vec<bool>,
+    /// Panel state per script: (title, content) from SetPanel commands
+    pub script_panels: Vec<Option<(String, String)>>,
+
     /// Flag to request opening the debug log file
     pub(crate) open_log_requested: bool,
 
@@ -484,6 +519,22 @@ impl SettingsUI {
             coprocess_errors: Vec::new(),
             coprocess_output: Vec::new(),
             coprocess_output_expanded: Vec::new(),
+            editing_script_index: None,
+            temp_script_name: String::new(),
+            temp_script_path: String::new(),
+            temp_script_args: String::new(),
+            temp_script_auto_start: false,
+            temp_script_enabled: true,
+            temp_script_restart_policy: crate::config::automation::RestartPolicy::Never,
+            temp_script_restart_delay_ms: 0,
+            temp_script_subscriptions: String::new(),
+            adding_new_script: false,
+            pending_script_actions: Vec::new(),
+            script_running: Vec::new(),
+            script_errors: Vec::new(),
+            script_output: Vec::new(),
+            script_output_expanded: Vec::new(),
+            script_panels: Vec::new(),
             open_log_requested: false,
             update_install_requested: false,
             check_now_requested: false,
@@ -1353,6 +1404,9 @@ impl SettingsUI {
             }
             SettingsTab::Automation => {
                 automation_tab::show(ui, self, changes_this_frame, &mut collapsed);
+            }
+            SettingsTab::Scripts => {
+                scripts_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Snippets => {
                 snippets_tab::show(ui, self, changes_this_frame, &mut collapsed);

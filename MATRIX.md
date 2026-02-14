@@ -354,7 +354,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Coprocesses | ✅ | ✅ `CoprocessManager` | ✅ | - | - | Per-tab coprocess with auto-start, restart policy (Never/Always/OnFailure), output viewer, start/stop controls, config persistence, Settings UI |
 | Shell integration | ✅ Full integration | ✅ OSC 133/7/1337 | ✅ | - | - | Command tracking, marks, CWD, badges |
 | **Automation Settings Tab** | ❌ | ✅ Settings > Automation | ✅ | - | - | **par-term exclusive** - Full CRUD for triggers and coprocesses |
-| Python API | ✅ Full scripting API | ❌ | ❌ | ⭐⭐ | 🔵 | Automation scripting. Requires **Core Extensibility Hooks** and a stable **FFI Representation** of terminal state. |
+| Python API | ✅ Full scripting API | ✅ Frontend scripting manager | ✅ | ⭐⭐ | 🟡 | Core `TerminalObserver` trait + C FFI + Python bindings (core v0.37+). Frontend: `ScriptManager` with subprocess JSON protocol, `ScriptEventForwarder` observer bridge, Settings UI Scripts tab with CRUD/status/output/panels, per-tab lifecycle with auto-start and restart policies. |
 
 ---
 
@@ -702,6 +702,8 @@ iTerm2 has sophisticated window state management.
 | Image placement modes | ✅ | ✅ | ✅ | - | - | Core ImagePlacement with inline/download, requested dimensions (cells/pixels/percent), z-index, sub-cell offsets |
 | Preserve aspect ratio | ✅ | ✅ `image_preserve_aspect_ratio` | ✅ | - | - | Global config + per-image flag from core |
 | Image metadata in files | ✅ | ✅ | ✅ | - | - | Core SerializableGraphic/GraphicsSnapshot with export/import JSON, base64 or file-backed pixel data |
+| File transfer (download) | ✅ | 🔶 | 🔶 | ⭐⭐ | 🟡 | Core `FileTransferManager` implemented with `inline=0` download, progress events, `take_completed_transfer()`. Frontend save dialog pending |
+| File transfer (upload) | ✅ | 🔶 | 🔶 | ⭐⭐ | 🟡 | Core `RequestUpload` handler implemented with `send_upload_data()`/`cancel_upload()`. Frontend file picker pending |
 
 ---
 
@@ -911,7 +913,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Split Panes | 9 | 1 | 0 |
 | Inline Graphics | 5 | 0 | 0 |
 | Hyperlinks & URLs | 5 | 0 | 0 |
-| Triggers & Automation | 8 | 0 | 1 |
+| Triggers & Automation | 8 | 1 | 0 |
 | tmux Integration | 17 | 0 | 0 |
 | Performance & Power | 9 | 0 | 1 |
 | Accessibility | 2 | 0 | 2 |
@@ -939,7 +941,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Miscellaneous | 12 | 0 | 5 |
 | Badges | 9 | 0 | 0 |
 | Scripting & Automation | 0 | 0 | 4 |
-| **TOTAL** | **~310** | **~4** | **~106** |
+| **TOTAL** | **~310** | **~5** | **~105** |
 
 **Overall Parity: ~74% of iTerm2 features implemented** (310 implemented out of ~420 total tracked features)
 
@@ -1036,10 +1038,10 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Profile switcher and directory history
 - Command history search/autocomplete
 
-**Scripting & Automation (4 features)**
-- Python API for terminal automation
-- Scripting manager window and auto-launch
-- Custom UI panels for scripts
+**Scripting & Automation (4 features)** — ✅ Core + frontend scripting manager implemented
+- ~~Python API for terminal automation~~ — ✅ Core `TerminalObserver` trait + C FFI + Python bindings (core v0.37+) + frontend `ScriptManager` with JSON protocol, Settings UI Scripts tab
+- ~~Scripting manager window and auto-launch~~ — ✅ Settings > Scripts tab with CRUD, start/stop, output viewer, auto-start support
+- ~~Custom UI panels for scripts~~ — ✅ Markdown-rendered panels via `SetPanel` command
 
 **Status Bar (10 features)** ✅ Complete
 - Status bar visibility, position, auto-hide
@@ -1083,8 +1085,8 @@ The following features are blocked by or significantly dependent on architectura
 | ~~**Semantic Buffer Zoning**~~ | ~~Core must segment the scrollback buffer into logical blocks (Prompt, Command, Output).~~ | ✅ **Implemented in core v0.37+** — `Vec<Zone>` on `Grid` with `ZoneType` (Prompt/Command/Output), OSC 133 FinalTerm markers, automatic scrollback eviction, Python bindings (`get_zones()`, `get_zone_at()`, `get_zone_text()`). Frontend integration pending. |
 | ~~**Command Output Capture**~~ | ~~Core requires a high-level API to programmatically extract text from specific `CommandExecution` blocks.~~ | ✅ **Implemented in core v0.37+** — `output_start_row`/`output_end_row` fields on `CommandExecution`; `get_command_output(index)` extracts output text for a specific completed command (0 = most recent); `get_command_outputs()` bulk-retrieves all commands with extractable output; reusable `extract_text_from_row_range` helper with eviction detection; Python bindings (`get_command_output()`, `get_command_outputs()`). Frontend integration pending. |
 | **Instant Replay** | Core must implement terminal state snapshots or a dedicated replay buffer that records incremental changes. | Add `SnapshotManager` to `Terminal`; implement incremental state delta recording; add `Terminal::restore_from_snapshot(timestamp)`. |
-| **Advanced File Protocols** | Full iTerm2-style file upload/download via OSC 1337 `File=` requires core state machines. | Implement DCS/OSC state machines for chunked base64 file transfers; add `FileTransfer` manager to `Terminal` with progress tracking. |
-| **Python / Scripting API** | Core requires extensibility hooks and a stable FFI-friendly representation of terminal state. | Define `TerminalObserver` trait; implement a C-compatible `SharedState` view for FFI; add hooks for all `Perform` actions. |
+| ~~**Advanced File Protocols**~~ | ~~Full iTerm2-style file upload/download via OSC 1337 `File=` requires core state machines.~~ | ✅ **Implemented in core v0.38+** — `FileTransferManager` with active transfer tracking and completed ring buffer (default 32 entries, 50MB max). Downloads (`inline=0`): base64 payload decoded, progress tracked, raw bytes stored for frontend retrieval via `take_completed_transfer(id)`. Multipart downloads: chunked transfers routed through manager with per-chunk progress events. Uploads: `RequestUpload=format=tgz` emits `UploadRequested` event; frontend responds via `send_upload_data()` or `cancel_upload()`. 5 new `TerminalEvent` variants (`FileTransferStarted`, `FileTransferProgress`, `FileTransferCompleted`, `FileTransferFailed`, `UploadRequested`). 9 new Terminal API methods. Full Python bindings and streaming protocol support (5 new protobuf messages). Frontend integration pending. |
+| ~~**Python / Scripting API**~~ | ~~Core requires extensibility hooks and a stable FFI-friendly representation of terminal state.~~ | ✅ **Implemented in core v0.37+** — `TerminalObserver` trait with deferred dispatch and category-specific callbacks (`on_zone_event`, `on_command_event`, `on_environment_event`, `on_screen_event`, `on_event`). C-compatible `SharedState`/`SharedCell` `#[repr(C)]` FFI types with full screen content. Python sync observer (`add_observer(callback, kinds)`) and async observer (`add_async_observer()` with `asyncio.Queue`). Subscription filtering via `TerminalEventKind`. Convenience wrappers: `on_command_complete()`, `on_zone_change()`, `on_cwd_change()`, `on_title_change()`, `on_bell()`. Observer panic isolation via `catch_unwind`. Frontend scripting manager pending. |
 | ~~**AI Terminal Inspection**~~ | ~~Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata.~~ | ✅ **Implemented in core v0.37+** — `get_semantic_snapshot(scope)` and `get_semantic_snapshot_json(scope)` return structured `SemanticSnapshot` with text content, zone map (`ZoneInfo`), command history (`CommandInfo`), CWD changes (`CwdChangeInfo`), cursor position, terminal dimensions, and environment metadata. Three scopes: `Visible` (screen only), `Recent(N)` (last N commands), `Full` (all history). Streaming protocol support via `SnapshotRequest`/`SemanticSnapshot` protobuf messages. Python bindings exposed. Frontend integration pending. |
 | ~~**Contextual Awareness API**~~ | ~~Granular notification system for the frontend to observe internal state changes beyond simple screen updates.~~ | ✅ **Implemented in core v0.37+** — 6 new `TerminalEvent` variants: `ZoneOpened`/`ZoneClosed`/`ZoneScrolledOut` (zone lifecycle with monotonic IDs), `EnvironmentChanged` (CWD/hostname/username), `RemoteHostTransition` (OSC 7 + OSC 1337 multi-signal detection), `SubShellDetected` (prompt nesting heuristic). Full streaming protocol support (4 new EventType values, 6 proto messages). Python bindings with `poll_events()` dict conversion and subscription filtering. Frontend integration pending. |
 
@@ -1102,6 +1104,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-02-14 (Dynamic profiles from remote URLs #142 — background auto-refresh, local caching, configurable conflict resolution, HTTPS enforcement, Settings UI with CRUD for sources)*
+*Updated: 2026-02-14 (Advanced File Protocols — core FileTransferManager with download/upload support, 5 terminal events, Python bindings, streaming protocol)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.16.0*
