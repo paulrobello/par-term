@@ -1193,6 +1193,47 @@ fn show_semantic_history_section(
                 .weak(),
             );
 
+            // Link handler command
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label("Link handler:");
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(
+                            &mut settings.config.link_handler_command,
+                        )
+                        .desired_width(INPUT_WIDTH)
+                        .hint_text("System default"),
+                    )
+                    .on_hover_text(
+                        "Custom command to open URLs.\n\n\
+                     Use {url} as placeholder for the URL.\n\n\
+                     Examples:\n\
+                     • firefox {url}\n\
+                     • open -a Safari {url} (macOS)\n\
+                     • chromium-browser {url} (Linux)\n\n\
+                     Leave empty to use system default browser.",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            if !settings.config.link_handler_command.is_empty()
+                && !settings.config.link_handler_command.contains("{url}")
+            {
+                ui.label(
+                    egui::RichText::new("⚠ Command should contain {url} placeholder")
+                        .small()
+                        .color(egui::Color32::from_rgb(255, 193, 7)),
+                );
+            }
+
+            ui.add_space(8.0);
+            ui.separator();
+
             ui.add_space(4.0);
 
             if ui

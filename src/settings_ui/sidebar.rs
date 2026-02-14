@@ -446,6 +446,11 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "editor",
             "editor mode",
             "editor command",
+            "link handler",
+            "browser",
+            "open url",
+            "open links",
+            "url handler",
             // Scrollbar
             "scrollbar",
             "thumb",
