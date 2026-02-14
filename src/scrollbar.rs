@@ -32,6 +32,10 @@ pub struct Scrollbar {
     scrollbar_height: f32, // Pixel height (thumb)
     window_width: u32,
     window_height: u32,
+    /// Top of the scrollbar track in pixels (accounts for tab bar, etc.)
+    track_top: f32,
+    /// Height of the scrollbar track in pixels (excludes insets)
+    track_pixel_height: f32,
 
     // Scroll state
     scroll_offset: usize,
@@ -217,6 +221,8 @@ impl Scrollbar {
             scrollbar_height: 0.0,
             window_width: 0,
             window_height: 0,
+            track_top: 0.0,
+            track_pixel_height: 0.0,
             scroll_offset: 0,
             visible_lines: 0,
             total_lines: 0,
@@ -233,6 +239,8 @@ impl Scrollbar {
     /// * `total_lines` - Total number of lines including scrollback
     /// * `window_width` - Window width in pixels
     /// * `window_height` - Window height in pixels
+    /// * `content_offset_y` - Top inset in pixels (e.g., tab bar at top)
+    /// * `content_inset_bottom` - Bottom inset in pixels (e.g., status bar)
     #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
@@ -242,6 +250,8 @@ impl Scrollbar {
         total_lines: usize,
         window_width: u32,
         window_height: u32,
+        content_offset_y: f32,
+        content_inset_bottom: f32,
         marks: &[crate::scrollback_metadata::ScrollbackMark],
     ) {
         // Store parameters for hit testing
@@ -258,10 +268,16 @@ impl Scrollbar {
             return;
         }
 
+        // The visible track area excludes top and bottom insets (tab bar, status bar, etc.)
+        let track_pixel_height =
+            (window_height as f32 - content_offset_y - content_inset_bottom).max(1.0);
+        self.track_top = content_offset_y;
+        self.track_pixel_height = track_pixel_height;
+
         // Calculate scrollbar dimensions (guard against zero)
         let total = total_lines.max(1);
         let viewport_ratio = visible_lines.min(total) as f32 / total as f32;
-        let scrollbar_height = (viewport_ratio * window_height as f32).max(20.0);
+        let scrollbar_height = (viewport_ratio * track_pixel_height).max(20.0);
 
         // Calculate scrollbar position
         // When scroll_offset is 0, we're at the bottom
@@ -277,9 +293,10 @@ impl Scrollbar {
             0.0
         };
 
-        // Position from bottom (invert scroll ratio since 0 = bottom)
-        let scrollbar_y = ((1.0 - scroll_ratio) * (window_height as f32 - scrollbar_height))
-            .clamp(0.0, window_height as f32 - scrollbar_height);
+        // Position from bottom within the visible track area (offset by content_offset_y)
+        let scrollbar_y = content_offset_y
+            + ((1.0 - scroll_ratio) * (track_pixel_height - scrollbar_height))
+                .clamp(0.0, track_pixel_height - scrollbar_height);
 
         // Store pixel coordinates for hit testing
         // Position on right or left based on config
@@ -292,6 +309,7 @@ impl Scrollbar {
         self.scrollbar_height = scrollbar_height;
 
         // Convert to normalized device coordinates (-1 to 1)
+        let wh = window_height as f32;
         let ndc_width = 2.0 * self.width / window_width as f32;
         let ndc_x = if self.position_right {
             1.0 - ndc_width // align right edge at +1
@@ -299,9 +317,10 @@ impl Scrollbar {
             -1.0 // left edge at -1
         };
 
-        // Update track uniforms (full height background)
-        let track_ndc_y = -1.0; // Full height from bottom to top
-        let track_ndc_height = 2.0; // Full NDC range
+        // Track spans only the visible area (between top inset and bottom inset)
+        let track_bottom_pixel = wh - content_offset_y - track_pixel_height;
+        let track_ndc_y = -1.0 + (2.0 * track_bottom_pixel / wh);
+        let track_ndc_height = 2.0 * track_pixel_height / wh;
         let track_uniforms = ScrollbarUniforms {
             position: [ndc_x, track_ndc_y],
             size: [ndc_width, track_ndc_height],
@@ -314,9 +333,9 @@ impl Scrollbar {
         );
 
         // Update thumb uniforms (scrollable part)
-        let thumb_bottom = window_height as f32 - (scrollbar_y + scrollbar_height);
-        let thumb_ndc_y = -1.0 + (2.0 * thumb_bottom / window_height as f32);
-        let thumb_ndc_height = 2.0 * scrollbar_height / window_height as f32;
+        let thumb_bottom = wh - (scrollbar_y + scrollbar_height);
+        let thumb_ndc_y = -1.0 + (2.0 * thumb_bottom / wh);
+        let thumb_ndc_height = 2.0 * scrollbar_height / wh;
         let thumb_uniforms = ScrollbarUniforms {
             position: [ndc_x, thumb_ndc_y],
             size: [ndc_width, thumb_ndc_height],
@@ -329,7 +348,13 @@ impl Scrollbar {
         );
 
         // Prepare and upload mark uniforms (draw later)
-        self.prepare_marks(marks, total_lines, window_height);
+        self.prepare_marks(
+            marks,
+            total_lines,
+            window_height,
+            content_offset_y,
+            content_inset_bottom,
+        );
     }
 
     /// Render the scrollbar (track + thumb)
@@ -360,6 +385,8 @@ impl Scrollbar {
         marks: &[crate::scrollback_metadata::ScrollbackMark],
         total_lines: usize,
         window_height: u32,
+        content_offset_y: f32,
+        content_inset_bottom: f32,
     ) {
         self.marks.clear();
         self.mark_hit_info.clear();
@@ -368,8 +395,9 @@ impl Scrollbar {
             return;
         }
 
-        let height_f = window_height as f32;
-        let mark_height_ndc = (2.0 * 4.0) / height_f; // 4px height
+        let wh = window_height as f32;
+        let track_pixel_height = (wh - content_offset_y - content_inset_bottom).max(1.0);
+        let mark_height_ndc = (2.0 * 4.0) / wh; // 4px height
         let ndc_width = 2.0 * self.width / self.window_width as f32;
         let ndc_x = if self.position_right {
             1.0 - ndc_width
@@ -382,10 +410,11 @@ impl Scrollbar {
                 continue;
             }
             let ratio = mark.line as f32 / (total_lines as f32 - 1.0).max(1.0);
-            let ndc_y = 1.0 - 2.0 * ratio;
+            // Position within the constrained track area
+            let y_pixel = content_offset_y + ratio * track_pixel_height;
+            let ndc_y = 1.0 - 2.0 * y_pixel / wh;
 
             // Store pixel position for hit testing (y from top)
-            let y_pixel = ratio * height_f;
             self.mark_hit_info.push(MarkHitInfo {
                 y_pixel,
                 mark: mark.clone(),
@@ -504,11 +533,12 @@ impl Scrollbar {
             return Some(0);
         }
 
-        // Calculate the scrollable track area (space the thumb can move)
-        let track_height = (self.window_height as f32 - self.scrollbar_height).max(1.0);
+        // Calculate the scrollable track area (space the thumb can move within the track)
+        let track_height = (self.track_pixel_height - self.scrollbar_height).max(1.0);
 
-        // Clamp mouse position (thumb top) to valid range
-        let clamped_y = mouse_y.clamp(0.0, track_height);
+        // Clamp mouse position relative to the track top
+        let relative_y = mouse_y - self.track_top;
+        let clamped_y = relative_y.clamp(0.0, track_height);
 
         // Calculate scroll ratio (inverted because 0 = bottom)
         let scroll_ratio = 1.0 - (clamped_y / track_height);

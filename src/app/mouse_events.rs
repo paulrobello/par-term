@@ -535,6 +535,9 @@ impl WindowState {
             tab.mouse.position = position;
         }
 
+        // Notify status bar of mouse activity (for auto-hide timer)
+        self.status_bar_ui.on_mouse_activity();
+
         // Check if profile drawer is open - let egui handle mouse events
         if self.profile_drawer_ui.expanded {
             if let Some(window) = &self.window {

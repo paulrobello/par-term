@@ -28,9 +28,9 @@ pub use types::{
     ModifierRemapping, ModifierTarget, OptionKeyMode, PaneTitlePosition, PowerPreference,
     ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat,
     ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType,
-    SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, TabBarMode, TabBarPosition,
-    TabStyle, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
-    default_smart_selection_rules,
+    SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, StatusBarPosition,
+    TabBarMode, TabBarPosition, TabStyle, ThinStrokesMode, UnfocusedCursorStyle,
+    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
@@ -1527,6 +1527,77 @@ pub struct Config {
     pub badge_max_height: f32,
 
     // ========================================================================
+    // Status Bar Settings
+    // ========================================================================
+    /// Enable the status bar
+    #[serde(default = "defaults::bool_false")]
+    pub status_bar_enabled: bool,
+
+    /// Status bar position (top or bottom)
+    #[serde(default)]
+    pub status_bar_position: StatusBarPosition,
+
+    /// Status bar height in pixels
+    #[serde(default = "defaults::status_bar_height")]
+    pub status_bar_height: f32,
+
+    /// Status bar background color [R, G, B] (0-255)
+    #[serde(default = "defaults::status_bar_bg_color")]
+    pub status_bar_bg_color: [u8; 3],
+
+    /// Status bar background alpha (0.0-1.0)
+    #[serde(default = "defaults::status_bar_bg_alpha")]
+    pub status_bar_bg_alpha: f32,
+
+    /// Status bar foreground (text) color [R, G, B] (0-255)
+    #[serde(default = "defaults::status_bar_fg_color")]
+    pub status_bar_fg_color: [u8; 3],
+
+    /// Status bar font family (empty string = use terminal font)
+    #[serde(default)]
+    pub status_bar_font: String,
+
+    /// Status bar font size in points
+    #[serde(default = "defaults::status_bar_font_size")]
+    pub status_bar_font_size: f32,
+
+    /// Separator string between widgets
+    #[serde(default = "defaults::status_bar_separator")]
+    pub status_bar_separator: String,
+
+    /// Auto-hide the status bar when in fullscreen mode
+    #[serde(default = "defaults::bool_true")]
+    pub status_bar_auto_hide_fullscreen: bool,
+
+    /// Auto-hide the status bar when mouse is inactive
+    #[serde(default = "defaults::bool_false")]
+    pub status_bar_auto_hide_mouse_inactive: bool,
+
+    /// Timeout in seconds before hiding status bar after last mouse activity
+    #[serde(default = "defaults::status_bar_mouse_inactive_timeout")]
+    pub status_bar_mouse_inactive_timeout: f32,
+
+    /// Polling interval in seconds for system monitor data (CPU, memory, network)
+    #[serde(default = "defaults::status_bar_system_poll_interval")]
+    pub status_bar_system_poll_interval: f32,
+
+    /// Polling interval in seconds for git branch detection
+    #[serde(default = "defaults::status_bar_git_poll_interval")]
+    pub status_bar_git_poll_interval: f32,
+
+    /// Time format string for the Clock widget (chrono strftime syntax)
+    #[serde(default = "defaults::status_bar_time_format")]
+    pub status_bar_time_format: String,
+
+    /// Show ahead/behind and dirty indicators on the Git Branch widget
+    #[serde(default = "defaults::bool_true")]
+    pub status_bar_git_show_status: bool,
+
+    /// Widget configuration list
+    #[serde(default = "crate::status_bar::config::default_widgets")]
+    pub status_bar_widgets: Vec<crate::status_bar::config::StatusBarWidgetConfig>,
+
+    // ========================================================================
     // Progress Bar Settings (OSC 9;4 and OSC 934)
     // ========================================================================
     /// Enable progress bar overlay
@@ -1872,6 +1943,24 @@ impl Default for Config {
             badge_right_margin: defaults::badge_right_margin(),
             badge_max_width: defaults::badge_max_width(),
             badge_max_height: defaults::badge_max_height(),
+            // Status Bar
+            status_bar_enabled: defaults::bool_false(),
+            status_bar_position: StatusBarPosition::default(),
+            status_bar_height: defaults::status_bar_height(),
+            status_bar_bg_color: defaults::status_bar_bg_color(),
+            status_bar_bg_alpha: defaults::status_bar_bg_alpha(),
+            status_bar_fg_color: defaults::status_bar_fg_color(),
+            status_bar_font: String::new(),
+            status_bar_font_size: defaults::status_bar_font_size(),
+            status_bar_separator: defaults::status_bar_separator(),
+            status_bar_auto_hide_fullscreen: defaults::bool_true(),
+            status_bar_auto_hide_mouse_inactive: defaults::bool_false(),
+            status_bar_mouse_inactive_timeout: defaults::status_bar_mouse_inactive_timeout(),
+            status_bar_system_poll_interval: defaults::status_bar_system_poll_interval(),
+            status_bar_git_poll_interval: defaults::status_bar_git_poll_interval(),
+            status_bar_time_format: defaults::status_bar_time_format(),
+            status_bar_git_show_status: defaults::bool_true(),
+            status_bar_widgets: crate::status_bar::config::default_widgets(),
             // Progress Bar
             progress_bar_enabled: defaults::bool_true(),
             progress_bar_style: ProgressBarStyle::default(),

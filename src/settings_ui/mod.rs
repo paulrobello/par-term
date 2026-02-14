@@ -27,6 +27,7 @@ pub mod quick_settings;
 pub mod section;
 pub mod sidebar;
 pub mod snippets_tab;
+pub mod status_bar_tab;
 pub mod terminal_tab;
 pub mod window_tab;
 
@@ -1319,6 +1320,9 @@ impl SettingsUI {
             }
             SettingsTab::ProgressBar => {
                 progress_bar_tab::show(ui, self, changes_this_frame, &mut collapsed);
+            }
+            SettingsTab::StatusBar => {
+                status_bar_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Profiles => {
                 profiles_tab::show(ui, self, changes_this_frame, &mut collapsed);

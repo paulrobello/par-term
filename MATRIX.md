@@ -461,16 +461,16 @@ iTerm2 has a comprehensive status bar system for displaying session and system i
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Status bar visibility | ✅ `Show Status Bar` | ❌ | ❌ | ⭐⭐ | 🟡 | Toggle status bar on/off |
-| Status bar position | ✅ Top/Bottom | ❌ | ❌ | ⭐⭐ | 🟡 | Choose status bar location |
-| Status bar components | ✅ Configurable widgets | ❌ | ❌ | ⭐⭐ | 🔴 | Add/remove components (time, battery, network, etc.) |
-| Status bar auto-hide | ✅ `Status Bar Location` (Automatic) | ❌ | ❌ | ⭐ | 🟡 | Hide when fullscreen/no mouse |
-| Status bar color | ✅ Per-profile | ❌ | ❌ | ⭐ | 🟢 | Custom colors |
-| Status bar font | ✅ `Status Bar Font` | ❌ | ❌ | ⭐ | 🟢 | Custom typography |
-| Git branch in status bar | ✅ Component | ❌ | ❌ | ⭐⭐ | 🟡 | Show current branch |
-| Network status | ✅ Component | ❌ | ❌ | ⭐ | 🟡 | Show network info |
-| CPU/memory usage | ✅ Component | ❌ | ❌ | ⭐ | 🟡 | System monitoring |
-| Username@hostname | ✅ Component | ❌ | ❌ | ⭐⭐ | 🟡 | Session info |
+| Status bar visibility | ✅ `Show Status Bar` | ✅ | ✅ | ⭐⭐ | 🟡 | Toggle status bar on/off |
+| Status bar position | ✅ Top/Bottom | ✅ | ✅ | ⭐⭐ | 🟡 | Choose status bar location |
+| Status bar components | ✅ Configurable widgets | ✅ | ✅ | ⭐⭐ | 🔴 | Add/remove components (time, battery, network, etc.) |
+| Status bar auto-hide | ✅ `Status Bar Location` (Automatic) | ✅ | ✅ | ⭐ | 🟡 | Hide when fullscreen/no mouse |
+| Status bar color | ✅ Per-profile | ✅ | ✅ | ⭐ | 🟢 | Custom colors |
+| Status bar font | ✅ `Status Bar Font` | ✅ | ✅ | ⭐ | 🟢 | Custom typography |
+| Git branch in status bar | ✅ Component | ✅ | ✅ | ⭐⭐ | 🟡 | Show current branch |
+| Network status | ✅ Component | ✅ | ✅ | ⭐ | 🟡 | Show network info |
+| CPU/memory usage | ✅ Component | ✅ | ✅ | ⭐ | 🟡 | System monitoring |
+| Username@hostname | ✅ Component | ✅ | ✅ | ⭐⭐ | 🟡 | Session info |
 
 ---
 
@@ -916,7 +916,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Performance & Power | 9 | 0 | 1 |
 | Accessibility | 2 | 0 | 2 |
 | AI Integration | 0 | 0 | 4 |
-| Status Bar | 0 | 0 | 10 |
+| Status Bar | 10 | 0 | 0 |
 | Toolbelt | 0 | 0 | 8 |
 | Composer & Auto-Complete | 2 | 0 | 3 |
 | Copy Mode | 8 | 0 | 0 |
@@ -938,7 +938,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Network & Discovery | 0 | 0 | 4 |
 | Miscellaneous | 11 | 0 | 6 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~294** | **~4** | **~118** |
+| **TOTAL** | **~304** | **~4** | **~108** |
 
 **Overall Parity: ~71% of iTerm2 features implemented** (294 implemented out of ~416 total tracked features)
 
@@ -997,7 +997,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 |---------|------------|--------|-------|
 | Hotkey window (Quake-style) | ⭐⭐⭐ | 🔴 High | Dropdown terminal with global hotkey |
 | ~~Copy Mode (vi-style navigation)~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§26 - vi-style copy mode) |
-| Status Bar | ⭐⭐⭐ | 🔴 High | Customizable status bar with widgets |
+| ~~Status Bar~~ | ⭐⭐⭐ | 🔴 High | ✅ Complete (§23 - configurable status bar with 10 built-in widgets) |
 | Snippets system | ⭐⭐⭐ | 🟡 Medium | Saved text blocks for quick insertion |
 | ~~Directory-based profile switching~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§32 - `directory_patterns` on profiles) |
 | ~~Session undo timeout~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (reopen closed tabs with Cmd+Z / Ctrl+Shift+Z) |
@@ -1025,7 +1025,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 The following iTerm2 features were identified and added to the matrix in this update:
 
-**Status Bar (10 features)**
+**Status Bar (10 features)** ✅ Complete
 - Status bar visibility, position, auto-hide
 - Configurable components (time, battery, network, git branch, etc.)
 - Custom colors and fonts
@@ -1110,7 +1110,7 @@ The following iTerm2 features were identified and added to the matrix in this up
 - SSH hosts auto-discovery
 - Host profiles and quick connect
 
-**Total: ~125 new features remaining across 21 new categories**
+**Total: ~115 new features remaining across 20 new categories**
 
 ---
 

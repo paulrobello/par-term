@@ -606,6 +606,7 @@ impl WindowState {
         let is_tmux_connected = self.is_tmux_connected();
         let status_bar_height =
             crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
+        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
 
         // Get bounds info from renderer for proper pane sizing
         let bounds_info = self.renderer.as_ref().map(|r| {
@@ -633,7 +634,8 @@ impl WindowState {
                 bounds_info
             {
                 // Scale status_bar_height from logical to physical pixels
-                let physical_status_bar_height = status_bar_height * scale;
+                let physical_status_bar_height =
+                    (status_bar_height + custom_status_bar_height) * scale;
                 let content_width = size.width as f32 - padding * 2.0;
                 let content_height =
                     size.height as f32 - content_offset_y - padding - physical_status_bar_height;
@@ -683,6 +685,7 @@ impl WindowState {
         let is_tmux_connected = self.is_tmux_connected();
         let status_bar_height =
             crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
+        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
 
         // Get bounds info from renderer for proper pane sizing
         let bounds_info = self.renderer.as_ref().map(|r| {
@@ -710,7 +713,8 @@ impl WindowState {
                 bounds_info
             {
                 // Scale status_bar_height from logical to physical pixels
-                let physical_status_bar_height = status_bar_height * scale;
+                let physical_status_bar_height =
+                    (status_bar_height + custom_status_bar_height) * scale;
                 let content_width = size.width as f32 - padding * 2.0;
                 let content_height =
                     size.height as f32 - content_offset_y - padding - physical_status_bar_height;

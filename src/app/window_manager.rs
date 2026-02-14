@@ -1687,6 +1687,9 @@ impl WindowManager {
                 window_state.badge_state.mark_dirty();
             }
 
+            // Sync status bar monitor state after config changes
+            window_state.status_bar_ui.sync_monitor_state(config);
+
             // Update pane divider settings on all tabs with pane managers
             // Scale from logical pixels (config) to physical pixels for layout calculations
             let dpi_scale = window_state
