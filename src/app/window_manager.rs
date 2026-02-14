@@ -53,6 +53,8 @@ pub struct WindowManager {
     pub(crate) arrangement_manager: ArrangementManager,
     /// Whether auto-restore has been attempted this session
     pub(crate) auto_restore_done: bool,
+    /// Dynamic profile manager for fetching remote profiles
+    pub(crate) dynamic_profile_manager: crate::profile::DynamicProfileManager,
 }
 
 impl WindowManager {
@@ -66,6 +68,11 @@ impl WindowManager {
                 ArrangementManager::new()
             }
         };
+
+        let mut dynamic_profile_manager = crate::profile::DynamicProfileManager::new();
+        if !config.dynamic_profile_sources.is_empty() {
+            dynamic_profile_manager.start(&config.dynamic_profile_sources, &runtime);
+        }
 
         Self {
             windows: HashMap::new(),
@@ -84,6 +91,7 @@ impl WindowManager {
             last_update_result: None,
             arrangement_manager,
             auto_restore_done: false,
+            dynamic_profile_manager,
         }
     }
 
@@ -1726,8 +1734,25 @@ impl WindowManager {
             window_state.needs_redraw = true;
         }
 
+        // Restart dynamic profile manager if sources changed
+        let dynamic_sources_changed =
+            self.config.dynamic_profile_sources != config.dynamic_profile_sources;
+
         // Also update the shared config
         self.config = config.clone();
+
+        // Restart dynamic profile manager with new sources if they changed
+        if dynamic_sources_changed {
+            self.dynamic_profile_manager.stop();
+            if !config.dynamic_profile_sources.is_empty() {
+                self.dynamic_profile_manager
+                    .start(&config.dynamic_profile_sources, &self.runtime);
+            }
+            log::info!(
+                "Dynamic profile manager restarted with {} sources",
+                config.dynamic_profile_sources.len()
+            );
+        }
 
         // Update standalone settings window with shader errors only when a change was attempted
         if let Some(settings_window) = &mut self.settings_window {

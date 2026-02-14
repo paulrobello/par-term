@@ -4,6 +4,24 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// Tracks where a profile came from (runtime-only, not persisted)
+#[derive(Debug, Clone, Default, PartialEq)]
+pub enum ProfileSource {
+    #[default]
+    Local,
+    Dynamic {
+        url: String,
+        last_fetched: Option<std::time::SystemTime>,
+    },
+}
+
+impl ProfileSource {
+    /// Returns true if this profile was fetched from a remote source
+    pub fn is_dynamic(&self) -> bool {
+        matches!(self, ProfileSource::Dynamic { .. })
+    }
+}
+
 /// Unique identifier for a profile
 pub type ProfileId = Uuid;
 
@@ -141,6 +159,10 @@ pub struct Profile {
     /// Extra SSH arguments (e.g., "-o StrictHostKeyChecking=no")
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssh_extra_args: Option<String>,
+
+    /// Where this profile was loaded from (runtime-only, not persisted to YAML)
+    #[serde(skip)]
+    pub source: ProfileSource,
 }
 
 #[allow(dead_code)]
@@ -178,6 +200,7 @@ impl Profile {
             ssh_port: None,
             ssh_identity_file: None,
             ssh_extra_args: None,
+            source: ProfileSource::default(),
         }
     }
 
@@ -214,6 +237,7 @@ impl Profile {
             ssh_port: None,
             ssh_identity_file: None,
             ssh_extra_args: None,
+            source: ProfileSource::default(),
         }
     }
 
@@ -855,6 +879,7 @@ impl ProfileManager {
                 .ssh_extra_args
                 .clone()
                 .or(resolved_parent.ssh_extra_args),
+            source: profile.source.clone(),
         })
     }
 

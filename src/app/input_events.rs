@@ -1605,6 +1605,14 @@ impl WindowState {
                 log::info!("SSH Quick Connect opened via keybinding");
                 true
             }
+            "reload_dynamic_profiles" => {
+                self.reload_dynamic_profiles_requested = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                log::info!("Dynamic profiles reload requested via keybinding");
+                true
+            }
             _ => {
                 // Check for snippet or action keybindings
                 if let Some(snippet_id) = action.strip_prefix("snippet:") {

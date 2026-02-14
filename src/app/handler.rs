@@ -1344,6 +1344,7 @@ impl ApplicationHandler for WindowManager {
         let mut cursor_shader_result: Option<Option<String>> = None;
         let mut profiles_to_update: Option<Vec<crate::profile::Profile>> = None;
         let mut arrangement_restore_name: Option<String> = None;
+        let mut reload_dynamic_profiles = false;
 
         for window_state in self.windows.values_mut() {
             if window_state.open_settings_window_requested {
@@ -1358,6 +1359,12 @@ impl ApplicationHandler for WindowManager {
             // Check for arrangement restore request from keybinding
             if let Some(name) = window_state.pending_arrangement_restore.take() {
                 arrangement_restore_name = Some(name);
+            }
+
+            // Check for dynamic profile reload request from keybinding
+            if window_state.reload_dynamic_profiles_requested {
+                window_state.reload_dynamic_profiles_requested = false;
+                reload_dynamic_profiles = true;
             }
 
             // Check if profiles menu needs updating (from profile modal save)
@@ -1376,6 +1383,43 @@ impl ApplicationHandler for WindowManager {
             if let Some(result) = window_state.cursor_shader_reload_result.take() {
                 cursor_shader_result = Some(result);
             }
+        }
+
+        // Check for dynamic profile updates
+        while let Some(update) = self.dynamic_profile_manager.try_recv() {
+            self.dynamic_profile_manager.update_status(&update);
+
+            // Merge into all window profile managers
+            for window_state in self.windows.values_mut() {
+                crate::profile::dynamic::merge_dynamic_profiles(
+                    &mut window_state.profile_manager,
+                    &update.profiles,
+                    &update.url,
+                    &update.conflict_resolution,
+                );
+                window_state.profiles_menu_needs_update = true;
+            }
+
+            log::info!(
+                "Dynamic profiles updated from {}: {} profiles{}",
+                update.url,
+                update.profiles.len(),
+                update
+                    .error
+                    .as_ref()
+                    .map_or(String::new(), |e| format!(" (error: {e})"))
+            );
+
+            // Ensure profiles_to_update is refreshed after dynamic merge
+            if let Some(window_state) = self.windows.values().next() {
+                profiles_to_update = Some(window_state.profile_manager.to_vec());
+            }
+        }
+
+        // Trigger dynamic profile refresh if requested via keybinding
+        if reload_dynamic_profiles {
+            self.dynamic_profile_manager
+                .refresh_all(&self.config.dynamic_profile_sources, &self.runtime);
         }
 
         // Update profiles menu if profiles changed

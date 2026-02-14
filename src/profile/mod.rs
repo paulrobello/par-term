@@ -8,7 +8,13 @@
 //!
 //! Profiles are stored in `~/.config/par-term/profiles.yaml`.
 
+pub mod dynamic;
 pub mod storage;
 pub mod types;
 
-pub use types::{Profile, ProfileId, ProfileManager};
+pub use dynamic::{
+    CacheMeta, ConflictResolution, DynamicProfileManager, DynamicProfileSource,
+    DynamicProfileUpdate, FetchResult, SourceStatus, cache_dir, fetch_profiles,
+    merge_dynamic_profiles, read_cache, url_to_cache_filename, write_cache,
+};
+pub use types::{Profile, ProfileId, ProfileManager, ProfileSource};
