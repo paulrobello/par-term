@@ -214,6 +214,8 @@ pub enum TabStyle {
     Minimal,
     /// Enhanced contrast for accessibility
     HighContrast,
+    /// Automatically switch between light/dark styles based on system theme
+    Automatic,
 }
 
 impl TabStyle {
@@ -225,11 +227,24 @@ impl TabStyle {
             TabStyle::Compact => "Compact",
             TabStyle::Minimal => "Minimal",
             TabStyle::HighContrast => "High Contrast",
+            TabStyle::Automatic => "Automatic",
         }
     }
 
     /// All available styles for UI iteration
     pub fn all() -> &'static [TabStyle] {
+        &[
+            TabStyle::Dark,
+            TabStyle::Light,
+            TabStyle::Compact,
+            TabStyle::Minimal,
+            TabStyle::HighContrast,
+            TabStyle::Automatic,
+        ]
+    }
+
+    /// All concrete styles (excludes Automatic) — for sub-style dropdowns
+    pub fn all_concrete() -> &'static [TabStyle] {
         &[
             TabStyle::Dark,
             TabStyle::Light,

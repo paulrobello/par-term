@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Settings UI controls in Appearance > Auto Dark Mode section
   - Defaults: light theme = "Light Background", dark theme = "Dark Background"
 
+- **Automatic Tab Style**: Auto-switch tab bar style based on system light/dark appearance (#141)
+  - New `Automatic` variant for the `tab_style` config option
+  - Configurable light/dark mapping via `light_tab_style` and `dark_tab_style`
+  - Detects system theme at startup and responds to real-time OS theme changes
+  - Settings UI sub-dropdowns for light/dark style selection when Automatic is chosen
+  - Defaults: light = "Light", dark = "Dark"
+
 - **macOS Target Space**: Open windows in a specific macOS Space (virtual desktop) (#140)
   - New config option: `target_space` (1-16, or null for OS default)
   - Uses private SkyLight Server (SLS) APIs with version-aware implementation

@@ -870,6 +870,54 @@ fn show_tab_bar_section(
                 });
         });
 
+        // Show light/dark sub-style dropdowns when Automatic is selected
+        if settings.config.tab_style == TabStyle::Automatic {
+            ui.indent("auto_tab_style_indent", |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Light tab style:");
+                    let current = settings.config.light_tab_style;
+                    egui::ComboBox::from_id_salt("window_light_tab_style")
+                        .selected_text(current.display_name())
+                        .show_ui(ui, |ui| {
+                            for style in TabStyle::all_concrete() {
+                                if ui
+                                    .selectable_value(
+                                        &mut settings.config.light_tab_style,
+                                        *style,
+                                        style.display_name(),
+                                    )
+                                    .changed()
+                                {
+                                    settings.has_changes = true;
+                                    *changes_this_frame = true;
+                                }
+                            }
+                        });
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Dark tab style:");
+                    let current = settings.config.dark_tab_style;
+                    egui::ComboBox::from_id_salt("window_dark_tab_style")
+                        .selected_text(current.display_name())
+                        .show_ui(ui, |ui| {
+                            for style in TabStyle::all_concrete() {
+                                if ui
+                                    .selectable_value(
+                                        &mut settings.config.dark_tab_style,
+                                        *style,
+                                        style.display_name(),
+                                    )
+                                    .changed()
+                                {
+                                    settings.has_changes = true;
+                                    *changes_this_frame = true;
+                                }
+                            }
+                        });
+                });
+            });
+        }
+
         ui.horizontal(|ui| {
             ui.label("Show tab bar:");
             let current = match settings.config.tab_bar_mode {

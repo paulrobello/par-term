@@ -1049,10 +1049,18 @@ pub struct Config {
     // ========================================================================
     // Tab Settings
     // ========================================================================
-    /// Tab visual style preset (dark, light, compact, minimal, high_contrast)
+    /// Tab visual style preset (dark, light, compact, minimal, high_contrast, automatic)
     /// Applies cosmetic color/size/spacing presets to the tab bar
     #[serde(default)]
     pub tab_style: TabStyle,
+
+    /// Tab style to use when system is in light mode (used when tab_style is Automatic)
+    #[serde(default = "defaults::light_tab_style")]
+    pub light_tab_style: TabStyle,
+
+    /// Tab style to use when system is in dark mode (used when tab_style is Automatic)
+    #[serde(default = "defaults::dark_tab_style")]
+    pub dark_tab_style: TabStyle,
 
     /// Tab bar visibility mode (always, when_multiple, never)
     #[serde(default)]
@@ -1883,6 +1891,8 @@ impl Default for Config {
             ssh_auto_profile_switch: defaults::bool_true(),
             ssh_revert_profile_on_disconnect: defaults::bool_true(),
             tab_style: TabStyle::default(),
+            light_tab_style: defaults::light_tab_style(),
+            dark_tab_style: defaults::dark_tab_style(),
             tab_bar_mode: TabBarMode::default(),
             tab_bar_height: defaults::tab_bar_height(),
             tab_bar_position: TabBarPosition::default(),
@@ -2095,6 +2105,9 @@ impl Config {
                 self.tab_border_color = [255, 255, 255];
                 self.tab_border_width = 2.0;
                 self.tab_bar_height = 30.0;
+            }
+            TabStyle::Automatic => {
+                // No-op here: actual style is resolved and applied by apply_system_tab_style()
             }
         }
     }
@@ -2544,6 +2557,24 @@ impl Config {
         } else {
             false
         }
+    }
+
+    /// Apply tab style based on system theme when tab_style is Automatic.
+    /// Returns true if the style was applied.
+    pub fn apply_system_tab_style(&mut self, is_dark: bool) -> bool {
+        if self.tab_style != TabStyle::Automatic {
+            return false;
+        }
+        let target = if is_dark {
+            self.dark_tab_style
+        } else {
+            self.light_tab_style
+        };
+        // Temporarily set to concrete style, apply colors, then restore Automatic
+        self.tab_style = target;
+        self.apply_tab_style();
+        self.tab_style = TabStyle::Automatic;
+        true
     }
 
     /// Get the user override config for a specific shader (if any)

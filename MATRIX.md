@@ -647,8 +647,8 @@ iTerm2 has sophisticated window state management.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Tab style variants | ✅ `Tab Style` (Automatic/Compact/High Contrast/Light/Minimal) | ✅ `tab_style` | ✅ | - | - | 5 presets: Dark/Light/Compact/Minimal/High Contrast |
-| Automatic tab style | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-switch based on system theme |
+| Tab style variants | ✅ `Tab Style` (Automatic/Compact/High Contrast/Light/Minimal) | ✅ `tab_style` | ✅ | - | - | 6 presets: Automatic/Dark/Light/Compact/Minimal/High Contrast |
+| Automatic tab style | ✅ | ✅ `tab_style: automatic` + `light_tab_style` / `dark_tab_style` | ✅ | - | - | Auto-switch based on system theme with configurable mapping |
 | Compact tab style | ✅ | ✅ `tab_style: compact` | ✅ | - | - | Smaller tabs (22px), tighter spacing |
 | Minimal tab style | ✅ | ✅ `tab_style: minimal` | ✅ | - | - | Clean, flat look with no visible borders |
 | High contrast tab style | ✅ | ✅ `tab_style: high_contrast` | ✅ | - | - | Black/white for accessibility |
@@ -923,7 +923,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Snippets & Actions | 6 | 0 | 0 |
 | Window Arrangements & Placement | 2 | 0 | 8 |
 | Session Management & Quit Behavior | 5 | 0 | 1 |
-| Tab Styles & Appearance | 7 | 0 | 1 |
+| Tab Styles & Appearance | 8 | 0 | 0 |
 | Pane & Split Customization | 9 | 0 | 0 |
 | Profile Switching & Dynamic Profiles | 5 | 0 | 2 |
 | Image Protocol Enhancements | 9 | 0 | 0 |
@@ -1009,7 +1009,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | ~~Shell integration auto-install~~ | ⭐⭐ | 🟢 Low | ✅ Complete (§41 - embedded auto-install) |
 | ~~Light/Dark mode switching~~ | ~~⭐⭐~~ | ~~🟢 Low~~ | ✅ Complete (§5 - auto_dark_mode with light_theme/dark_theme) |
 | ~~Tab bar position (left/bottom)~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (§6 - top/bottom/left positions) |
-| ~~Tab style variants~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented (5 presets) |
+| ~~Tab style variants~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented (6 presets including Automatic) |
 | ~~Paste delay options~~ | ⭐ | 🟢 Low | ✅ Complete (§40 - paste_delay_ms config) |
 | ~~Command in window title~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (§41 - shows [cmd] in title) |
 | Dynamic profiles from URL | ⭐⭐ | 🟡 Medium | Load profiles from remote URL (uses existing URL fetch/merge logic) |

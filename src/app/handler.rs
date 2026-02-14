@@ -676,13 +676,15 @@ impl WindowState {
 
             WindowEvent::ThemeChanged(system_theme) => {
                 let is_dark = system_theme == winit::window::Theme::Dark;
-                if self.config.apply_system_theme(is_dark) {
+                let theme_changed = self.config.apply_system_theme(is_dark);
+                let tab_style_changed = self.config.apply_system_tab_style(is_dark);
+
+                if theme_changed {
                     log::info!(
                         "System theme changed to {}, switching to theme: {}",
                         if is_dark { "dark" } else { "light" },
                         self.config.theme
                     );
-                    // Apply theme to all terminals in this window
                     let theme = self.config.load_theme();
                     for tab in self.tab_manager.tabs_mut() {
                         if let Ok(mut term) = tab.terminal.try_lock() {
@@ -690,7 +692,20 @@ impl WindowState {
                         }
                         tab.cache.cells = None;
                     }
-                    // Save config to persist the theme change
+                }
+
+                if tab_style_changed {
+                    log::info!(
+                        "Auto tab style: switching to {} tab style",
+                        if is_dark {
+                            self.config.dark_tab_style.display_name()
+                        } else {
+                            self.config.light_tab_style.display_name()
+                        }
+                    );
+                }
+
+                if theme_changed || tab_style_changed {
                     if let Err(e) = self.config.save() {
                         log::error!("Failed to save config after theme change: {}", e);
                     }
