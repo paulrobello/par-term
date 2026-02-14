@@ -1114,3 +1114,77 @@ fn test_tab_bar_width_yaml_serialization() {
     assert!(yaml.contains("tab_bar_position: left"));
     assert!(yaml.contains("tab_bar_width: 200.0"));
 }
+
+#[test]
+fn test_auto_dark_mode_defaults() {
+    let config = Config::default();
+    assert!(!config.auto_dark_mode);
+    assert_eq!(config.light_theme, "light-background");
+    assert_eq!(config.dark_theme, "dark-background");
+}
+
+#[test]
+fn test_apply_system_theme_disabled() {
+    let mut config = Config::default();
+    config.auto_dark_mode = false;
+    // Should not change theme when auto_dark_mode is off
+    assert!(!config.apply_system_theme(true));
+    assert!(!config.apply_system_theme(false));
+    assert_eq!(config.theme, "dark-background");
+}
+
+#[test]
+fn test_apply_system_theme_dark() {
+    let mut config = Config::default();
+    config.auto_dark_mode = true;
+    config.theme = "light-background".to_string();
+    config.dark_theme = "dracula".to_string();
+
+    assert!(config.apply_system_theme(true));
+    assert_eq!(config.theme, "dracula");
+}
+
+#[test]
+fn test_apply_system_theme_light() {
+    let mut config = Config::default();
+    config.auto_dark_mode = true;
+    config.theme = "dark-background".to_string();
+    config.light_theme = "solarized-light".to_string();
+
+    assert!(config.apply_system_theme(false));
+    assert_eq!(config.theme, "solarized-light");
+}
+
+#[test]
+fn test_apply_system_theme_no_change() {
+    let mut config = Config::default();
+    config.auto_dark_mode = true;
+    config.theme = "dark-background".to_string();
+    config.dark_theme = "dark-background".to_string();
+
+    // Already using the dark theme, should return false (no change)
+    assert!(!config.apply_system_theme(true));
+    assert_eq!(config.theme, "dark-background");
+}
+
+#[test]
+fn test_auto_dark_mode_yaml_deserialization() {
+    let yaml = r#"
+auto_dark_mode: true
+light_theme: solarized-light
+dark_theme: dracula
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.auto_dark_mode);
+    assert_eq!(config.light_theme, "solarized-light");
+    assert_eq!(config.dark_theme, "dracula");
+}
+
+#[test]
+fn test_auto_dark_mode_yaml_defaults_when_absent() {
+    let yaml = "cols: 120\n";
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(!config.auto_dark_mode);
+    assert_eq!(config.light_theme, "light-background");
+    assert_eq!(config.dark_theme, "dark-background");
+}

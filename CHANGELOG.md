@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Auto Dark Mode**: Automatically switch terminal theme based on system light/dark appearance (#139)
+  - New config options: `auto_dark_mode`, `light_theme`, `dark_theme`
+  - Detects system theme at startup via `Window::theme()`
+  - Responds to real-time OS theme changes via `WindowEvent::ThemeChanged`
+  - Settings UI controls in Appearance > Auto Dark Mode section
+  - Defaults: light theme = "Light Background", dark theme = "Dark Background"
+
 ---
 
 ## [0.16.0] - 2026-02-13
