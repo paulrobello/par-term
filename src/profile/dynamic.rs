@@ -481,9 +481,8 @@ impl DynamicProfileManager {
                 }
 
                 // Periodic refresh
-                let mut interval = tokio::time::interval(Duration::from_secs(
-                    source_clone.refresh_interval_secs,
-                ));
+                let mut interval =
+                    tokio::time::interval(Duration::from_secs(source_clone.refresh_interval_secs));
                 interval.tick().await; // Skip first immediate tick
                 loop {
                     interval.tick().await;

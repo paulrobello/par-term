@@ -59,15 +59,7 @@ pub fn show(
         &query,
         "Dynamic Profile Sources",
         &[
-            "dynamic",
-            "remote",
-            "url",
-            "fetch",
-            "refresh",
-            "team",
-            "shared",
-            "download",
-            "sync",
+            "dynamic", "remote", "url", "fetch", "refresh", "team", "shared", "download", "sync",
         ],
     ) {
         show_dynamic_sources_section(ui, settings, changes_this_frame, collapsed);
@@ -220,46 +212,41 @@ fn show_dynamic_sources_section(
                         } else {
                             source.url.clone()
                         };
-                        ui.label(
-                            egui::RichText::new(&url_display)
-                                .monospace()
-                                .color(if source.enabled {
-                                    egui::Color32::LIGHT_GRAY
-                                } else {
-                                    egui::Color32::DARK_GRAY
-                                }),
-                        )
+                        ui.label(egui::RichText::new(&url_display).monospace().color(
+                            if source.enabled {
+                                egui::Color32::LIGHT_GRAY
+                            } else {
+                                egui::Color32::DARK_GRAY
+                            },
+                        ))
                         .on_hover_text(&source.url);
 
                         // Right-aligned buttons
-                        ui.with_layout(
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                // Delete button (rightmost)
-                                if ui
-                                    .small_button(
-                                        egui::RichText::new("Remove")
-                                            .color(egui::Color32::from_rgb(200, 80, 80)),
-                                    )
-                                    .clicked()
-                                {
-                                    delete_index = Some(i);
-                                }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            // Delete button (rightmost)
+                            if ui
+                                .small_button(
+                                    egui::RichText::new("Remove")
+                                        .color(egui::Color32::from_rgb(200, 80, 80)),
+                                )
+                                .clicked()
+                            {
+                                delete_index = Some(i);
+                            }
 
-                                // Edit button
-                                if ui.small_button("Edit").clicked() {
-                                    start_edit_index = Some(i);
-                                }
+                            // Edit button
+                            if ui.small_button("Edit").clicked() {
+                                start_edit_index = Some(i);
+                            }
 
-                                // Status info
-                                let conflict_label = source.conflict_resolution.display_name();
-                                ui.label(
-                                    egui::RichText::new(conflict_label)
-                                        .small()
-                                        .color(egui::Color32::GRAY),
-                                );
-                            },
-                        );
+                            // Status info
+                            let conflict_label = source.conflict_resolution.display_name();
+                            ui.label(
+                                egui::RichText::new(conflict_label)
+                                    .small()
+                                    .color(egui::Color32::GRAY),
+                            );
+                        });
                     });
                 }
             }
@@ -303,14 +290,14 @@ fn show_dynamic_sources_section(
                 && settings.dynamic_source_editing.unwrap() >= source_count;
             if is_adding {
                 show_dynamic_source_edit_form(ui, settings, changes_this_frame, None);
-            } else if settings.dynamic_source_editing.is_none() {
-                if ui.button("+ Add Source").clicked() {
-                    // Use source_count as sentinel for "new entry"
-                    settings.dynamic_source_editing = Some(source_count);
-                    settings.dynamic_source_edit_buffer = Some(DynamicProfileSource::default());
-                    settings.dynamic_source_new_header_key = String::new();
-                    settings.dynamic_source_new_header_value = String::new();
-                }
+            } else if settings.dynamic_source_editing.is_none()
+                && ui.button("+ Add Source").clicked()
+            {
+                // Use source_count as sentinel for "new entry"
+                settings.dynamic_source_editing = Some(source_count);
+                settings.dynamic_source_edit_buffer = Some(DynamicProfileSource::default());
+                settings.dynamic_source_new_header_key = String::new();
+                settings.dynamic_source_new_header_value = String::new();
             }
         },
     );

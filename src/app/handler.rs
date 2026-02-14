@@ -1418,10 +1418,8 @@ impl ApplicationHandler for WindowManager {
 
         // Trigger dynamic profile refresh if requested via keybinding
         if reload_dynamic_profiles {
-            self.dynamic_profile_manager.refresh_all(
-                &self.config.dynamic_profile_sources,
-                &self.runtime,
-            );
+            self.dynamic_profile_manager
+                .refresh_all(&self.config.dynamic_profile_sources, &self.runtime);
         }
 
         // Update profiles menu if profiles changed
