@@ -176,6 +176,10 @@ pub fn bool_true() -> bool {
     true
 }
 
+pub fn mdns_timeout() -> u32 {
+    3
+}
+
 pub fn text_opacity() -> f32 {
     1.0 // Fully opaque text by default
 }
@@ -433,6 +437,11 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
             key: "CmdOrCtrl+Z".to_string(),
             action: "reopen_closed_tab".to_string(),
         },
+        // SSH Quick Connect
+        super::types::KeyBinding {
+            key: "CmdOrCtrl+Shift+S".to_string(),
+            action: "ssh_quick_connect".to_string(),
+        },
     ];
 
     #[cfg(not(target_os = "macos"))]
@@ -536,6 +545,11 @@ pub fn keybindings() -> Vec<super::types::KeyBinding> {
         super::types::KeyBinding {
             key: "Ctrl+Shift+Z".to_string(),
             action: "reopen_closed_tab".to_string(),
+        },
+        // SSH Quick Connect
+        super::types::KeyBinding {
+            key: "Ctrl+Shift+S".to_string(),
+            action: "ssh_quick_connect".to_string(),
         },
     ];
 

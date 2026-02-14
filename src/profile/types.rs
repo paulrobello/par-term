@@ -118,6 +118,29 @@ pub struct Profile {
     /// Per-profile badge max height as fraction 0.0-1.0 (overrides global badge_max_height)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub badge_max_height: Option<f32>,
+
+    // ========================================================================
+    // SSH connection fields (issue #134)
+    // ========================================================================
+    /// SSH hostname for direct connection (profile acts as SSH bookmark)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh_host: Option<String>,
+
+    /// SSH user for direct connection
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh_user: Option<String>,
+
+    /// SSH port for direct connection
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh_port: Option<u16>,
+
+    /// SSH identity file path for direct connection
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh_identity_file: Option<String>,
+
+    /// Extra SSH arguments (e.g., "-o StrictHostKeyChecking=no")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh_extra_args: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -150,6 +173,11 @@ impl Profile {
             badge_right_margin: None,
             badge_max_width: None,
             badge_max_height: None,
+            ssh_host: None,
+            ssh_user: None,
+            ssh_port: None,
+            ssh_identity_file: None,
+            ssh_extra_args: None,
         }
     }
 
@@ -181,6 +209,11 @@ impl Profile {
             badge_right_margin: None,
             badge_max_width: None,
             badge_max_height: None,
+            ssh_host: None,
+            ssh_user: None,
+            ssh_port: None,
+            ssh_identity_file: None,
+            ssh_extra_args: None,
         }
     }
 
@@ -320,6 +353,56 @@ impl Profile {
     pub fn badge_max_height(mut self, height: f32) -> Self {
         self.badge_max_height = Some(height);
         self
+    }
+
+    /// Builder method to set SSH host
+    pub fn ssh_host(mut self, host: impl Into<String>) -> Self {
+        self.ssh_host = Some(host.into());
+        self
+    }
+
+    /// Builder method to set SSH user
+    pub fn ssh_user(mut self, user: impl Into<String>) -> Self {
+        self.ssh_user = Some(user.into());
+        self
+    }
+
+    /// Builder method to set SSH port
+    pub fn ssh_port(mut self, port: u16) -> Self {
+        self.ssh_port = Some(port);
+        self
+    }
+
+    /// Build the SSH command arguments for this profile's SSH connection.
+    /// Returns None if ssh_host is not set.
+    pub fn ssh_command_args(&self) -> Option<Vec<String>> {
+        let host = self.ssh_host.as_ref()?;
+        let mut args = Vec::new();
+
+        if let Some(port) = self.ssh_port
+            && port != 22
+        {
+            args.push("-p".to_string());
+            args.push(port.to_string());
+        }
+
+        if let Some(ref identity) = self.ssh_identity_file {
+            args.push("-i".to_string());
+            args.push(identity.clone());
+        }
+
+        if let Some(ref extra) = self.ssh_extra_args {
+            args.extend(extra.split_whitespace().map(String::from));
+        }
+
+        let target = if let Some(ref user) = self.ssh_user {
+            format!("{}@{}", user, host)
+        } else {
+            host.clone()
+        };
+        args.push(target);
+
+        Some(args)
     }
 
     /// Get the display label (icon + name if icon exists)
@@ -761,6 +844,17 @@ impl ProfileManager {
             badge_max_height: profile
                 .badge_max_height
                 .or(resolved_parent.badge_max_height),
+            ssh_host: profile.ssh_host.clone().or(resolved_parent.ssh_host),
+            ssh_user: profile.ssh_user.clone().or(resolved_parent.ssh_user),
+            ssh_port: profile.ssh_port.or(resolved_parent.ssh_port),
+            ssh_identity_file: profile
+                .ssh_identity_file
+                .clone()
+                .or(resolved_parent.ssh_identity_file),
+            ssh_extra_args: profile
+                .ssh_extra_args
+                .clone()
+                .or(resolved_parent.ssh_extra_args),
         })
     }
 

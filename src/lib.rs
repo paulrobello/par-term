@@ -57,6 +57,8 @@ pub mod shell_integration_installer;
 pub mod shell_quote;
 pub mod smart_selection;
 pub mod snippets;
+pub mod ssh;
+pub mod ssh_connect_ui;
 pub mod status_bar;
 pub mod styled_content;
 pub mod tab;

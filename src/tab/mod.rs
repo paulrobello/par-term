@@ -356,6 +356,10 @@ pub struct Tab {
     pub coprocess_ids: Vec<Option<CoprocessId>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
     pub trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    /// Profile saved before SSH auto-switch (for revert on disconnect)
+    pub pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
+    /// Whether current profile was auto-applied due to SSH hostname detection
+    pub ssh_auto_switched: bool,
 }
 
 impl Tab {
@@ -545,6 +549,8 @@ impl Tab {
             badge_override: None,
             coprocess_ids,
             trigger_marks: Vec::new(),
+            pre_ssh_switch_profile: None,
+            ssh_auto_switched: false,
         })
     }
 
@@ -589,10 +595,14 @@ impl Tab {
             .or(effective_startup_dir.as_deref());
 
         // Determine command and args with priority:
+        // 0. profile.ssh_host → build ssh command with user/port/identity args
         // 1. profile.command → use as-is (non-shell commands like tmux, ssh)
         // 2. profile.shell → use as shell, apply login_shell logic
         // 3. neither → fall back to global config shell / $SHELL
-        let (shell_cmd, mut shell_args) = if let Some(ref cmd) = profile.command {
+        let is_ssh_profile = profile.ssh_host.is_some();
+        let (shell_cmd, mut shell_args) = if let Some(ssh_args) = profile.ssh_command_args() {
+            ("ssh".to_string(), Some(ssh_args))
+        } else if let Some(ref cmd) = profile.command {
             (cmd.clone(), profile.command_args.clone())
         } else if let Some(ref shell) = profile.shell {
             (shell.clone(), None)
@@ -600,9 +610,9 @@ impl Tab {
             get_shell_command(config)
         };
 
-        // Apply login shell flag when using a shell (not a custom command).
+        // Apply login shell flag when using a shell (not a custom command or SSH profile).
         // Per-profile login_shell overrides global config.login_shell.
-        if profile.command.is_none() {
+        if profile.command.is_none() && !is_ssh_profile {
             let use_login_shell = profile.login_shell.unwrap_or(config.login_shell);
             if use_login_shell {
                 let args = shell_args.get_or_insert_with(Vec::new);
@@ -761,6 +771,8 @@ impl Tab {
             badge_override: None,
             coprocess_ids,
             trigger_marks: Vec::new(),
+            pre_ssh_switch_profile: None,
+            ssh_auto_switched: false,
         })
     }
 
@@ -1456,6 +1468,8 @@ impl Tab {
             badge_override: None,
             coprocess_ids: Vec::new(),
             trigger_marks: Vec::new(),
+            pre_ssh_switch_profile: None,
+            ssh_auto_switched: false,
         }
     }
 }

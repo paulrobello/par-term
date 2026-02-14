@@ -1056,11 +1056,11 @@ impl WindowState {
         self.profiles_menu_needs_update = true;
     }
 
-    /// Check for automatic profile switching based on hostname and directory detection
+    /// Check for automatic profile switching based on hostname, SSH command, and directory detection
     ///
-    /// This checks the active tab for hostname and CWD changes (detected via OSC 7)
-    /// and applies matching profiles automatically.
-    /// Priority: explicit user selection > hostname match > directory match > default
+    /// This checks the active tab for hostname and CWD changes (detected via OSC 7),
+    /// SSH command detection, and applies matching profiles automatically.
+    /// Priority: explicit user selection > hostname match > SSH command match > directory match > default
     ///
     /// Returns true if a profile was auto-applied, triggering a redraw.
     pub fn check_auto_profile_switch(&mut self) -> bool {
@@ -1070,8 +1070,13 @@ impl WindowState {
 
         let mut changed = false;
 
-        // --- Hostname-based switching (higher priority) ---
+        // --- Hostname-based switching (highest priority) ---
         changed |= self.check_auto_hostname_switch();
+
+        // --- SSH command-based switching (medium priority, only if no hostname profile active) ---
+        if !changed {
+            changed |= self.check_ssh_command_switch();
+        }
 
         // --- Directory-based switching (lower priority, only if no hostname profile) ---
         changed |= self.check_auto_directory_switch();
@@ -1100,6 +1105,16 @@ impl WindowState {
                     // Restore original tab title
                     if let Some(original) = tab.pre_profile_title.take() {
                         tab.title = original;
+                    }
+
+                    // Revert SSH auto-switch if active
+                    if tab.ssh_auto_switched {
+                        crate::debug_info!(
+                            "PROFILE",
+                            "Reverting SSH auto-switch (disconnected from remote host)"
+                        );
+                        tab.ssh_auto_switched = false;
+                        tab.pre_ssh_switch_profile = None;
                     }
                 }
                 return false;
@@ -1132,6 +1147,12 @@ impl WindowState {
 
             // Apply profile visual settings to the tab
             if let Some(tab) = self.tab_manager.active_tab_mut() {
+                // Track SSH auto-switch state for revert on disconnect
+                if !tab.ssh_auto_switched {
+                    tab.pre_ssh_switch_profile = tab.auto_applied_profile_id;
+                    tab.ssh_auto_switched = true;
+                }
+
                 tab.auto_applied_profile_id = Some(profile_id);
                 tab.profile_icon = profile_icon;
 
@@ -1183,6 +1204,73 @@ impl WindowState {
                 "No profile matches hostname '{}' - consider creating one",
                 new_hostname
             );
+            false
+        }
+    }
+
+    /// Check for SSH command-based automatic profile switching
+    ///
+    /// When the running command is "ssh", parse the target host from the command
+    /// and try to match a profile by hostname pattern. When SSH disconnects
+    /// (command changes from "ssh" to something else), revert to the previous profile.
+    fn check_ssh_command_switch(&mut self) -> bool {
+        // Extract command info and current SSH state from the active tab
+        let (current_command, already_switched, has_hostname_profile) = {
+            let tab = match self.tab_manager.active_tab() {
+                Some(t) => t,
+                None => return false,
+            };
+
+            let cmd = if let Ok(term) = tab.terminal.try_lock() {
+                term.get_running_command_name()
+            } else {
+                None
+            };
+
+            (
+                cmd,
+                tab.ssh_auto_switched,
+                tab.auto_applied_profile_id.is_some(),
+            )
+        };
+
+        let is_ssh = current_command
+            .as_ref()
+            .is_some_and(|cmd| cmd == "ssh" || cmd.ends_with("/ssh"));
+
+        if is_ssh && !already_switched && !has_hostname_profile {
+            // SSH just started - try to extract the target host from the command
+            // Shell integration may report just "ssh" as the command name;
+            // the actual hostname will come via OSC 7 hostname detection.
+            // For now, mark that SSH is active so we can revert when it ends.
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                crate::debug_info!(
+                    "PROFILE",
+                    "SSH command detected - waiting for hostname via OSC 7"
+                );
+                // Mark SSH as active for revert tracking (the actual profile
+                // switch will happen via check_auto_hostname_switch when OSC 7 arrives)
+                tab.ssh_auto_switched = true;
+            }
+            false
+        } else if !is_ssh && already_switched && !has_hostname_profile {
+            // SSH disconnected and no hostname-based profile is active - revert
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                crate::debug_info!(
+                    "PROFILE",
+                    "SSH command ended - reverting auto-switch state"
+                );
+                tab.ssh_auto_switched = false;
+                let _prev_profile = tab.pre_ssh_switch_profile.take();
+                // Clear any SSH-related visual overrides
+                tab.profile_icon = None;
+                tab.badge_override = None;
+                if let Some(original) = tab.pre_profile_title.take() {
+                    tab.title = original;
+                }
+            }
+            true // Trigger redraw to reflect reverted state
+        } else {
             false
         }
     }

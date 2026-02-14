@@ -19,7 +19,8 @@ impl WindowState {
             || self.clipboard_history_ui.visible
             || self.command_history_ui.visible
             || self.search_ui.visible
-            || self.tmux_session_picker_ui.visible;
+            || self.tmux_session_picker_ui.visible
+            || self.ssh_connect_ui.is_visible();
 
         // When UI panels are visible, block ALL keys from going to terminal
         // except for UI control keys (Escape handled by egui, F1/F2/F3 for toggles)
@@ -1591,6 +1592,17 @@ impl WindowState {
                     window.request_redraw();
                 }
                 log::info!("Save arrangement requested via keybinding");
+                true
+            }
+            "ssh_quick_connect" => {
+                self.ssh_connect_ui.open(
+                    self.config.enable_mdns_discovery,
+                    self.config.mdns_scan_timeout_secs,
+                );
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                log::info!("SSH Quick Connect opened via keybinding");
                 true
             }
             _ => {
