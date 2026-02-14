@@ -53,6 +53,8 @@ pub struct WindowManager {
     pub(crate) arrangement_manager: ArrangementManager,
     /// Whether auto-restore has been attempted this session
     pub(crate) auto_restore_done: bool,
+    /// Dynamic profile manager for fetching remote profiles
+    pub(crate) dynamic_profile_manager: crate::profile::DynamicProfileManager,
 }
 
 impl WindowManager {
@@ -66,6 +68,11 @@ impl WindowManager {
                 ArrangementManager::new()
             }
         };
+
+        let mut dynamic_profile_manager = crate::profile::DynamicProfileManager::new();
+        if !config.dynamic_profile_sources.is_empty() {
+            dynamic_profile_manager.start(&config.dynamic_profile_sources, &runtime);
+        }
 
         Self {
             windows: HashMap::new(),
@@ -84,6 +91,7 @@ impl WindowManager {
             last_update_result: None,
             arrangement_manager,
             auto_restore_done: false,
+            dynamic_profile_manager,
         }
     }
 
