@@ -1715,6 +1715,13 @@ pub struct Config {
     /// Sections default to open unless specified otherwise; IDs in this set invert the default.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub collapsed_settings_sections: Vec<String>,
+
+    // ========================================================================
+    // Dynamic Profile Sources
+    // ========================================================================
+    /// Remote URLs to fetch profile definitions from
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dynamic_profile_sources: Vec<crate::profile::DynamicProfileSource>,
 }
 
 impl Default for Config {
@@ -2031,6 +2038,7 @@ impl Default for Config {
             snippets: Vec::new(),
             actions: Vec::new(),
             collapsed_settings_sections: Vec::new(),
+            dynamic_profile_sources: Vec::new(),
         }
     }
 }
