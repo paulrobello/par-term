@@ -66,7 +66,7 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
                 String::new()
             }
         }
-        WidgetId::CpuUsage => format!("CPU {:.1}%", ctx.system_data.cpu_usage),
+        WidgetId::CpuUsage => format!("CPU {:>5.1}%", ctx.system_data.cpu_usage),
         WidgetId::MemoryUsage => {
             format!(
                 "MEM {}",
@@ -270,21 +270,36 @@ mod tests {
     fn test_widget_text_cpu_usage() {
         let ctx = make_ctx();
         let text = widget_text(&WidgetId::CpuUsage, &ctx, None);
-        assert_eq!(text, "CPU 42.5%");
+        assert_eq!(text, "CPU  42.5%");
+
+        // Single-digit CPU should be padded
+        let mut ctx2 = make_ctx();
+        ctx2.system_data.cpu_usage = 5.0;
+        let text2 = widget_text(&WidgetId::CpuUsage, &ctx2, None);
+        assert_eq!(text2, "CPU   5.0%");
+        // Same width regardless of value
+        assert_eq!(text.len(), text2.len());
     }
 
     #[test]
     fn test_widget_text_memory_usage() {
         let ctx = make_ctx();
         let text = widget_text(&WidgetId::MemoryUsage, &ctx, None);
-        assert_eq!(text, "MEM 4.0 GB / 16.0 GB");
+        assert_eq!(text, "MEM   4.0 GB /  16.0 GB");
     }
 
     #[test]
     fn test_widget_text_network_status() {
         let ctx = make_ctx();
         let text = widget_text(&WidgetId::NetworkStatus, &ctx, None);
-        assert_eq!(text, "\u{2193} 1.0 KB/s \u{2191} 2.0 KB/s");
+        assert_eq!(text, "\u{2193}   1.0 KB/s \u{2191}   2.0 KB/s");
+
+        // Verify consistent width across different magnitudes
+        let mut ctx2 = make_ctx();
+        ctx2.system_data.network_rx_rate = 500; // B/s
+        ctx2.system_data.network_tx_rate = 1_048_576; // MB/s
+        let text2 = widget_text(&WidgetId::NetworkStatus, &ctx2, None);
+        assert_eq!(text.len(), text2.len());
     }
 
     #[test]

@@ -164,24 +164,31 @@ impl Drop for SystemMonitor {
 // Formatting helpers
 // ============================================================================
 
-/// Format bytes-per-second into a human-readable string.
+/// Format bytes-per-second into a fixed-width human-readable string.
+///
+/// Output is always 10 characters wide (e.g. `"  1.0 KB/s"`) so the
+/// status bar doesn't jump around when values change.
 pub fn format_bytes_per_sec(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = 1024 * 1024;
     const GB: u64 = 1024 * 1024 * 1024;
 
     if bytes >= GB {
-        format!("{:.1} GB/s", bytes as f64 / GB as f64)
+        format!("{:>5.1} GB/s", bytes as f64 / GB as f64)
     } else if bytes >= MB {
-        format!("{:.1} MB/s", bytes as f64 / MB as f64)
+        format!("{:>5.1} MB/s", bytes as f64 / MB as f64)
     } else if bytes >= KB {
-        format!("{:.1} KB/s", bytes as f64 / KB as f64)
+        format!("{:>5.1} KB/s", bytes as f64 / KB as f64)
     } else {
-        format!("{} B/s", bytes)
+        // Extra space before "B" so width matches "KB", "MB", "GB"
+        format!("{:>5}  B/s", bytes)
     }
 }
 
 /// Format memory usage (used / total) into a human-readable string.
+///
+/// Each side is fixed-width (7 chars, e.g. `"  4.0 GB"`) so the status
+/// bar doesn't jump when values change.
 pub fn format_memory(used: u64, total: u64) -> String {
     fn human(bytes: u64) -> String {
         const KB: u64 = 1024;
@@ -189,13 +196,13 @@ pub fn format_memory(used: u64, total: u64) -> String {
         const GB: u64 = 1024 * 1024 * 1024;
 
         if bytes >= GB {
-            format!("{:.1} GB", bytes as f64 / GB as f64)
+            format!("{:>5.1} GB", bytes as f64 / GB as f64)
         } else if bytes >= MB {
-            format!("{:.1} MB", bytes as f64 / MB as f64)
+            format!("{:>5.1} MB", bytes as f64 / MB as f64)
         } else if bytes >= KB {
-            format!("{:.1} KB", bytes as f64 / KB as f64)
+            format!("{:>5.1} KB", bytes as f64 / KB as f64)
         } else {
-            format!("{} B", bytes)
+            format!("{:>5}  B", bytes)
         }
     }
 
@@ -223,26 +230,35 @@ mod tests {
 
     #[test]
     fn test_format_bytes_per_sec() {
-        assert_eq!(format_bytes_per_sec(0), "0 B/s");
-        assert_eq!(format_bytes_per_sec(512), "512 B/s");
-        assert_eq!(format_bytes_per_sec(1024), "1.0 KB/s");
-        assert_eq!(format_bytes_per_sec(1536), "1.5 KB/s");
-        assert_eq!(format_bytes_per_sec(1_048_576), "1.0 MB/s");
-        assert_eq!(format_bytes_per_sec(1_073_741_824), "1.0 GB/s");
+        assert_eq!(format_bytes_per_sec(0), "    0  B/s");
+        assert_eq!(format_bytes_per_sec(512), "  512  B/s");
+        assert_eq!(format_bytes_per_sec(1024), "  1.0 KB/s");
+        assert_eq!(format_bytes_per_sec(1536), "  1.5 KB/s");
+        assert_eq!(format_bytes_per_sec(1_048_576), "  1.0 MB/s");
+        assert_eq!(format_bytes_per_sec(1_073_741_824), "  1.0 GB/s");
+        // All outputs have same width
+        assert_eq!(
+            format_bytes_per_sec(0).len(),
+            format_bytes_per_sec(1024).len()
+        );
+        assert_eq!(
+            format_bytes_per_sec(1024).len(),
+            format_bytes_per_sec(1_048_576).len()
+        );
     }
 
     #[test]
     fn test_format_memory() {
-        assert_eq!(format_memory(0, 0), "0 B / 0 B");
+        assert_eq!(format_memory(0, 0), "    0  B /     0  B");
         // 1 GB used / 8 GB total
         assert_eq!(
             format_memory(1_073_741_824, 8_589_934_592),
-            "1.0 GB / 8.0 GB"
+            "  1.0 GB /   8.0 GB"
         );
         // 512 MB / 1 GB
         assert_eq!(
             format_memory(536_870_912, 1_073_741_824),
-            "512.0 MB / 1.0 GB"
+            "512.0 MB /   1.0 GB"
         );
     }
 
