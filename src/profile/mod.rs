@@ -12,5 +12,8 @@ pub mod dynamic;
 pub mod storage;
 pub mod types;
 
-pub use dynamic::{ConflictResolution, DynamicProfileSource};
+pub use dynamic::{
+    CacheMeta, ConflictResolution, DynamicProfileSource, FetchResult, cache_dir, fetch_profiles,
+    merge_dynamic_profiles, read_cache, url_to_cache_filename, write_cache,
+};
 pub use types::{Profile, ProfileId, ProfileManager, ProfileSource};
