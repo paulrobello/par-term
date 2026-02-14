@@ -1520,6 +1520,38 @@ impl TerminalManager {
     }
 }
 
+// ========================================================================
+// Observer Management Methods
+// ========================================================================
+
+impl TerminalManager {
+    /// Register a terminal observer for push-based event delivery.
+    ///
+    /// The observer will receive `TerminalEvent` callbacks on the PTY reader
+    /// thread after each `process()` call. Use this to attach a
+    /// [`ScriptEventForwarder`](crate::scripting::observer::ScriptEventForwarder)
+    /// so that terminal events are forwarded to script sub-processes.
+    pub fn add_observer(
+        &self,
+        observer: std::sync::Arc<dyn par_term_emu_core_rust::observer::TerminalObserver>,
+    ) -> par_term_emu_core_rust::observer::ObserverId {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.add_observer(observer)
+    }
+
+    /// Remove a previously registered observer.
+    ///
+    /// Returns `true` if an observer with the given ID was found and removed.
+    pub fn remove_observer(&self, id: par_term_emu_core_rust::observer::ObserverId) -> bool {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.remove_observer(id)
+    }
+}
+
 impl Drop for TerminalManager {
     fn drop(&mut self) {
         log::info!("Shutting down terminal manager");
