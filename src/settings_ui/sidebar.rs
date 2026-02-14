@@ -575,6 +575,12 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "auto switch",
             "hostname",
             "ssh",
+            "ssh host",
+            "ssh user",
+            "ssh port",
+            "identity file",
+            "remote",
+            "connection",
             "profile drawer",
         ],
         SettingsTab::Ssh => &[
