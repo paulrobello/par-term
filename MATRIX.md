@@ -450,7 +450,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 |---------|--------|----------|--------|--------|--------|-------|
 | AI assistant | ✅ Full AI integration | ❌ | ❌ | ⭐⭐ | 🔵 | Command help, completion. Requires core-level APIs for high-performance extraction of buffer state and metadata. |
 | AI command generation | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | Natural language to commands |
-| AI terminal inspection | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | AI reads terminal state. Core semantic zones now available (v0.37+); needs frontend integration. |
+| AI terminal inspection | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | AI reads terminal state. Core semantic zones + command output capture now available (v0.37+); needs frontend integration. |
 | Multiple AI providers | ✅ OpenAI, Anthropic, etc. | ❌ | ❌ | ⭐⭐ | 🔵 | Provider selection |
 
 ---
@@ -806,7 +806,7 @@ iTerm2 supports showing progress for long-running commands.
 | Shell integration auto-install | ✅ | ✅ Embedded auto-install | ✅ | - | - | bash/zsh/fish scripts embedded, auto-installed to RC files |
 | Shell integration version check | ✅ | ✅ Version tracking | ✅ | - | - | Tracks installed/prompted versions, prompts on update |
 | Disable shell integration | ✅ | ✅ Uninstall in Settings | ✅ | - | - | Uninstall button cleanly removes from all RC files |
-| Shell integration features | ✅ `Features` | 🔶 OSC 133/7/1337 | 🔶 | - | - | Marks/CWD/badges + **Semantic Buffer Zoning** (core v0.37+). Lacks **Structured Command History** APIs and frontend integration for zone display. |
+| Shell integration features | ✅ `Features` | 🔶 OSC 133/7/1337 | 🔶 | - | - | Marks/CWD/badges + **Semantic Buffer Zoning** + **Command Output Capture** (core v0.37+). Lacks frontend integration for zone display and command output extraction. |
 | Current command in window title | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[cmd]` in title when running; `\(session.current_command)` badge var |
 | Command duration tracking | ✅ | ✅ Via tooltips | ✅ | - | - | Already implemented |
 | Command exit code in badge | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[Exit: N]` in title on failure; `\(session.exit_code)` badge var |
@@ -1081,11 +1081,11 @@ The following features are blocked by or significantly dependent on architectura
 |---------|---------------------------------|--------------------------------------|
 | **Bidirectional Text (RTL)** | Core `Grid` and `Line` structures must implement the Unicode Bidirectional Algorithm (Bidi). | Update `Line` to store embedding levels; implement logical-to-visual mapping in `Grid::get_cells`; support `DECRTL` / `DECTME` sequences. |
 | ~~**Semantic Buffer Zoning**~~ | ~~Core must segment the scrollback buffer into logical blocks (Prompt, Command, Output).~~ | ✅ **Implemented in core v0.37+** — `Vec<Zone>` on `Grid` with `ZoneType` (Prompt/Command/Output), OSC 133 FinalTerm markers, automatic scrollback eviction, Python bindings (`get_zones()`, `get_zone_at()`, `get_zone_text()`). Frontend integration pending. |
-| **Command Output Capture** | Core requires a high-level API to programmatically extract text from specific `CommandExecution` blocks. | Implement `Terminal::get_command_output(execution_id)`; add `output_range` (start/end cursor positions) to `CommandExecution` struct. |
+| ~~**Command Output Capture**~~ | ~~Core requires a high-level API to programmatically extract text from specific `CommandExecution` blocks.~~ | ✅ **Implemented in core v0.37+** — `output_start_row`/`output_end_row` fields on `CommandExecution`; `get_command_output(index)` extracts output text for a specific completed command (0 = most recent); `get_command_outputs()` bulk-retrieves all commands with extractable output; reusable `extract_text_from_row_range` helper with eviction detection; Python bindings (`get_command_output()`, `get_command_outputs()`). Frontend integration pending. |
 | **Instant Replay** | Core must implement terminal state snapshots or a dedicated replay buffer that records incremental changes. | Add `SnapshotManager` to `Terminal`; implement incremental state delta recording; add `Terminal::restore_from_snapshot(timestamp)`. |
 | **Advanced File Protocols** | Full iTerm2-style file upload/download via OSC 1337 `File=` requires core state machines. | Implement DCS/OSC state machines for chunked base64 file transfers; add `FileTransfer` manager to `Terminal` with progress tracking. |
 | **Python / Scripting API** | Core requires extensibility hooks and a stable FFI-friendly representation of terminal state. | Define `TerminalObserver` trait; implement a C-compatible `SharedState` view for FFI; add hooks for all `Perform` actions. |
-| **AI Terminal Inspection** | Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata. | Semantic zones now available in core (v0.37+). Next: implement `Terminal::get_semantic_snapshot()` returning structured data (JSON/Protobuf) with text + zones + attributes + metadata. |
+| **AI Terminal Inspection** | Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata. | Semantic zones and command output capture now available in core (v0.37+). Next: implement `Terminal::get_semantic_snapshot()` returning structured data (JSON/Protobuf) with text + zones + command outputs + attributes + metadata. |
 | **Contextual Awareness API** | Granular notification system for the frontend to observe internal state changes beyond simple screen updates. | Expand `TerminalEvent` to include sub-shell detection, environment changes, and remote host transitions. |
 
 ---
@@ -1101,6 +1101,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-02-13 (Semantic Buffer Zoning implemented in core v0.37+; updated core requirements and shell integration status)*
+*Updated: 2026-02-14 (Command Output Capture implemented in core v0.37+ PR #41; updated core requirements, shell integration, and AI inspection status)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.16.0*
