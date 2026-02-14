@@ -25,7 +25,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Fullscreen mode | ✅ Lion Fullscreen, Traditional | ✅ F11 toggle | ✅ | - | - | - |
 | Window type (normal/fullscreen/edge) | ✅ Multiple types | ✅ `window_type` | ✅ | - | - | Normal/Fullscreen/Edge-anchored windows |
 | Open on specific screen | ✅ `Screen` | ✅ `target_monitor` | ✅ | - | - | Multi-monitor support |
-| Open in specific Space | ✅ `Space` | ❌ | ❌ | ⭐ | 🟢 | macOS Spaces integration |
+| Open in specific Space | ✅ `Space` | ✅ `target_space` | ✅ | - | - | macOS Spaces integration via private SLS APIs |
 | Maximize vertically only | ✅ | ✅ Shift+F11 | ✅ | - | - | Menu and keybinding |
 | Lock window size | ✅ `Lock Window Size Automatically` | ✅ `lock_window_size` | ✅ | - | - | Prevent resize via config/settings |
 | Proxy icon in title bar | ✅ `Enable Proxy Icon` | ❌ | ❌ | ⭐ | 🟡 | macOS feature for current directory |
@@ -450,7 +450,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 |---------|--------|----------|--------|--------|--------|-------|
 | AI assistant | ✅ Full AI integration | ❌ | ❌ | ⭐⭐ | 🔵 | Command help, completion. Requires core-level APIs for high-performance extraction of buffer state and metadata. |
 | AI command generation | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | Natural language to commands |
-| AI terminal inspection | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | AI reads terminal state. Requires structured semantic buffer data from core. |
+| AI terminal inspection | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | AI reads terminal state. Core semantic zones now available (v0.37+); needs frontend integration. |
 | Multiple AI providers | ✅ OpenAI, Anthropic, etc. | ❌ | ❌ | ⭐⭐ | 🔵 | Provider selection |
 
 ---
@@ -806,7 +806,7 @@ iTerm2 supports showing progress for long-running commands.
 | Shell integration auto-install | ✅ | ✅ Embedded auto-install | ✅ | - | - | bash/zsh/fish scripts embedded, auto-installed to RC files |
 | Shell integration version check | ✅ | ✅ Version tracking | ✅ | - | - | Tracks installed/prompted versions, prompts on update |
 | Disable shell integration | ✅ | ✅ Uninstall in Settings | ✅ | - | - | Uninstall button cleanly removes from all RC files |
-| Shell integration features | ✅ `Features` | 🔶 OSC 133/7/1337 | 🔶 | - | - | Basic marks/CWD/badges. Lacks **Semantic Segmentation** (separating prompt/command/output) and **Structured Command History** APIs. |
+| Shell integration features | ✅ `Features` | 🔶 OSC 133/7/1337 | 🔶 | - | - | Marks/CWD/badges + **Semantic Buffer Zoning** (core v0.37+). Lacks **Structured Command History** APIs and frontend integration for zone display. |
 | Current command in window title | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[cmd]` in title when running; `\(session.current_command)` badge var |
 | Command duration tracking | ✅ | ✅ Via tooltips | ✅ | - | - | Already implemented |
 | Command exit code in badge | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[Exit: N]` in title on failure; `\(session.exit_code)` badge var |
@@ -1080,12 +1080,12 @@ The following features are blocked by or significantly dependent on architectura
 | Feature | Core Requirement / Technical Gap | Proposed Core Implementation Details |
 |---------|---------------------------------|--------------------------------------|
 | **Bidirectional Text (RTL)** | Core `Grid` and `Line` structures must implement the Unicode Bidirectional Algorithm (Bidi). | Update `Line` to store embedding levels; implement logical-to-visual mapping in `Grid::get_cells`; support `DECRTL` / `DECTME` sequences. |
-| **Semantic Buffer Zoning** | Core must segment the scrollback buffer into logical blocks (Prompt, Command, Output). | Add a `ZoneMap` to `Grid` that tracks `(row_start, row_end, ZoneType)`; update `Perform` trait to handle FinalTerm markers by initiating/closing zones. |
+| ~~**Semantic Buffer Zoning**~~ | ~~Core must segment the scrollback buffer into logical blocks (Prompt, Command, Output).~~ | ✅ **Implemented in core v0.37+** — `Vec<Zone>` on `Grid` with `ZoneType` (Prompt/Command/Output), OSC 133 FinalTerm markers, automatic scrollback eviction, Python bindings (`get_zones()`, `get_zone_at()`, `get_zone_text()`). Frontend integration pending. |
 | **Command Output Capture** | Core requires a high-level API to programmatically extract text from specific `CommandExecution` blocks. | Implement `Terminal::get_command_output(execution_id)`; add `output_range` (start/end cursor positions) to `CommandExecution` struct. |
 | **Instant Replay** | Core must implement terminal state snapshots or a dedicated replay buffer that records incremental changes. | Add `SnapshotManager` to `Terminal`; implement incremental state delta recording; add `Terminal::restore_from_snapshot(timestamp)`. |
 | **Advanced File Protocols** | Full iTerm2-style file upload/download via OSC 1337 `File=` requires core state machines. | Implement DCS/OSC state machines for chunked base64 file transfers; add `FileTransfer` manager to `Terminal` with progress tracking. |
 | **Python / Scripting API** | Core requires extensibility hooks and a stable FFI-friendly representation of terminal state. | Define `TerminalObserver` trait; implement a C-compatible `SharedState` view for FFI; add hooks for all `Perform` actions. |
-| **AI Terminal Inspection** | Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata. | Implement `Terminal::get_semantic_snapshot()` returning structured data (JSON/Protobuf) with text + zones + attributes + metadata. |
+| **AI Terminal Inspection** | Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata. | Semantic zones now available in core (v0.37+). Next: implement `Terminal::get_semantic_snapshot()` returning structured data (JSON/Protobuf) with text + zones + attributes + metadata. |
 | **Contextual Awareness API** | Granular notification system for the frontend to observe internal state changes beyond simple screen updates. | Expand `TerminalEvent` to include sub-shell detection, environment changes, and remote host transitions. |
 
 ---
@@ -1101,6 +1101,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-02-13 (Full review of uncompleted items, added core library requirement notes)*
+*Updated: 2026-02-13 (Semantic Buffer Zoning implemented in core v0.37+; updated core requirements and shell integration status)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.16.0*

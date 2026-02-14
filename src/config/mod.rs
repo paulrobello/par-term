@@ -286,6 +286,12 @@ pub struct Config {
     #[serde(default)]
     pub target_monitor: Option<usize>,
 
+    /// Target macOS Space (virtual desktop) for window placement (1-based ordinal)
+    /// Use None to let the OS decide which Space to open on.
+    /// Only effective on macOS; ignored on other platforms.
+    #[serde(default)]
+    pub target_space: Option<u32>,
+
     /// Lock window size to prevent resize
     /// When true, the window cannot be resized by the user
     #[serde(default = "defaults::bool_false")]
@@ -1786,6 +1792,7 @@ impl Default for Config {
             window_decorations: defaults::bool_true(),
             window_type: WindowType::default(),
             target_monitor: None,
+            target_space: None,
             lock_window_size: defaults::bool_false(),
             show_window_number: defaults::bool_false(),
             transparency_affects_only_default_background: defaults::bool_true(),

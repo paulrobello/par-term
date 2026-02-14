@@ -520,6 +520,8 @@ fn test_config_window_management_defaults() {
     assert_eq!(config.window_type, WindowType::Normal);
     // Target monitor should be None (OS decides)
     assert!(config.target_monitor.is_none());
+    // Target Space should be None (OS decides)
+    assert!(config.target_space.is_none());
     // Lock window size should be disabled by default
     assert!(!config.lock_window_size);
     // Show window number should be disabled by default
@@ -616,6 +618,49 @@ target_monitor: null
 "#;
     let config: Config = serde_yaml::from_str(yaml).unwrap();
     assert!(config.target_monitor.is_none());
+}
+
+#[test]
+fn test_config_target_space_default() {
+    let config = Config::default();
+    assert!(config.target_space.is_none());
+}
+
+#[test]
+fn test_config_target_space_yaml_deserialization() {
+    let yaml = r#"
+target_space: 3
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.target_space, Some(3));
+}
+
+#[test]
+fn test_config_target_space_null_yaml() {
+    let yaml = r#"
+target_space: null
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.target_space.is_none());
+}
+
+#[test]
+fn test_config_target_space_yaml_serialization() {
+    let mut config = Config::default();
+    config.target_space = Some(5);
+
+    let yaml = serde_yaml::to_string(&config).unwrap();
+    assert!(yaml.contains("target_space: 5"));
+}
+
+#[test]
+fn test_config_target_space_missing_defaults_to_none() {
+    // When target_space is not in YAML, it should default to None
+    let yaml = r#"
+font_size: 14.0
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert!(config.target_space.is_none());
 }
 
 #[test]

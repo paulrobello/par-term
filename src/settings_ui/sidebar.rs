@@ -274,6 +274,12 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "window type",
             "monitor",
             "target monitor",
+            "space",
+            "spaces",
+            "mission control",
+            "virtual desktop",
+            "macos space",
+            "target space",
             // Tab bar
             "tab bar",
             "tabs",

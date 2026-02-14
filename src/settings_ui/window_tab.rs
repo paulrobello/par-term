@@ -792,6 +792,45 @@ fn show_behavior_section(
                     "Note: Edge-anchored windows take effect on next window creation",
                 );
             }
+
+            // Target macOS Space setting (only visible on macOS)
+            if cfg!(target_os = "macos") {
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    ui.label("Target Space:");
+                    let mut space_number = settings.config.target_space.unwrap_or(1) as i32;
+                    let mut use_default = settings.config.target_space.is_none();
+
+                    if ui
+                        .checkbox(&mut use_default, "Auto")
+                        .on_hover_text("Let the OS decide which Space (virtual desktop) to open on")
+                        .changed()
+                    {
+                        if use_default {
+                            settings.config.target_space = None;
+                        } else {
+                            settings.config.target_space = Some(1);
+                        }
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+
+                    if !use_default
+                        && ui
+                            .add(egui::Slider::new(&mut space_number, 1..=16))
+                            .on_hover_text("Space number in Mission Control (1 = first Space)")
+                            .changed()
+                    {
+                        settings.config.target_space = Some(space_number as u32);
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+                ui.colored_label(
+                    egui::Color32::YELLOW,
+                    "Note: Target Space takes effect on next window creation",
+                );
+            }
         },
     );
 }

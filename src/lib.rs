@@ -27,6 +27,7 @@ pub mod integrations_ui;
 pub mod keybindings;
 pub mod macos_blur; // macOS window blur using private CGS API
 pub mod macos_metal; // macOS-specific CAMetalLayer configuration
+pub mod macos_space; // macOS Space (virtual desktop) targeting using private SLS API
 pub mod manifest;
 pub mod menu;
 pub mod pane;
