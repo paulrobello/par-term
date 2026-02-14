@@ -356,6 +356,10 @@ pub struct Tab {
     pub coprocess_ids: Vec<Option<CoprocessId>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
     pub trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    /// Profile saved before SSH auto-switch (for revert on disconnect)
+    pub pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
+    /// Whether current profile was auto-applied due to SSH hostname detection
+    pub ssh_auto_switched: bool,
 }
 
 impl Tab {
@@ -545,6 +549,8 @@ impl Tab {
             badge_override: None,
             coprocess_ids,
             trigger_marks: Vec::new(),
+            pre_ssh_switch_profile: None,
+            ssh_auto_switched: false,
         })
     }
 
@@ -761,6 +767,8 @@ impl Tab {
             badge_override: None,
             coprocess_ids,
             trigger_marks: Vec::new(),
+            pre_ssh_switch_profile: None,
+            ssh_auto_switched: false,
         })
     }
 
@@ -1456,6 +1464,8 @@ impl Tab {
             badge_override: None,
             coprocess_ids: Vec::new(),
             trigger_marks: Vec::new(),
+            pre_ssh_switch_profile: None,
+            ssh_auto_switched: false,
         }
     }
 }
