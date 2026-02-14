@@ -890,6 +890,19 @@ pub struct Config {
     #[serde(default = "defaults::semantic_history_editor")]
     pub semantic_history_editor: String,
 
+    /// Custom command to open URLs. When set, used instead of system default browser.
+    ///
+    /// Use `{url}` as placeholder for the URL.
+    ///
+    /// Examples:
+    /// - `firefox {url}` (open in Firefox)
+    /// - `open -a Safari {url}` (macOS: open in Safari)
+    /// - `chromium-browser {url}` (Linux: open in Chromium)
+    ///
+    /// When empty or unset, uses the system default browser.
+    #[serde(default)]
+    pub link_handler_command: String,
+
     // ========================================================================
     // Scrollbar (GUI-specific)
     // ========================================================================
@@ -1865,6 +1878,7 @@ impl Default for Config {
             semantic_history_enabled: defaults::bool_true(),
             semantic_history_editor_mode: SemanticHistoryEditorMode::default(),
             semantic_history_editor: defaults::semantic_history_editor(),
+            link_handler_command: String::new(),
             scrollbar_position: defaults::scrollbar_position(),
             scrollbar_width: defaults::scrollbar_width(),
             scrollbar_thumb_color: defaults::scrollbar_thumb_color(),

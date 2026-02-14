@@ -313,8 +313,8 @@ pub fn find_url_at_position(urls: &[DetectedUrl], col: usize, row: usize) -> Opt
         .find(|url| url.row == row && col >= url.start_col && col < url.end_col)
 }
 
-/// Open a URL in the default browser
-pub fn open_url(url: &str) -> Result<(), String> {
+/// Open a URL in the configured browser or system default
+pub fn open_url(url: &str, link_handler_command: &str) -> Result<(), String> {
     // Add scheme if missing (e.g., www.example.com -> https://www.example.com)
     let url_with_scheme = if !url.contains("://") {
         format!("https://{}", url)
@@ -322,7 +322,22 @@ pub fn open_url(url: &str) -> Result<(), String> {
         url.to_string()
     };
 
-    open::that(&url_with_scheme).map_err(|e| format!("Failed to open URL: {}", e))
+    if link_handler_command.is_empty() {
+        // Use system default
+        open::that(&url_with_scheme).map_err(|e| format!("Failed to open URL: {}", e))
+    } else {
+        // Use custom command with {url} placeholder
+        let expanded = link_handler_command.replace("{url}", &url_with_scheme);
+        let parts: Vec<&str> = expanded.split_whitespace().collect();
+        if parts.is_empty() {
+            return Err("Link handler command is empty after expansion".to_string());
+        }
+        std::process::Command::new(parts[0])
+            .args(&parts[1..])
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("Failed to run link handler '{}': {}", parts[0], e))
+    }
 }
 
 /// Open a file path in the configured editor, or a directory in the file manager

@@ -163,7 +163,7 @@ impl WindowState {
                     ) {
                         match &item.item_type {
                             url_detection::DetectedItemType::Url => {
-                                if let Err(e) = url_detection::open_url(&item.url) {
+                                if let Err(e) = url_detection::open_url(&item.url, &self.config.link_handler_command) {
                                     log::error!("Failed to open URL: {}", e);
                                 }
                             }
