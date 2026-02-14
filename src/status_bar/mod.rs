@@ -329,31 +329,35 @@ impl StatusBarUI {
         let separator = &config.status_bar_separator;
         let sep_color = fg_color.linear_multiply(0.4);
 
-        // Choose top or bottom panel based on config
+        // Choose top or bottom panel based on config.
+        // Use a transparent frame — we paint the background manually so it
+        // stops before the scrollbar instead of spanning the full window width.
         let panel_id = "status_bar";
-        let scrollbar_inset = (config.scrollbar_width + 2.0) as i8;
-        let frame = egui::Frame::NONE
-            .fill(bg_color)
-            .inner_margin(egui::Margin::symmetric(8, 2))
-            .outer_margin(egui::Margin {
-                left: 0,
-                right: scrollbar_inset,
-                top: 0,
-                bottom: 0,
-            });
+        let scrollbar_inset = config.scrollbar_width + 2.0;
+        let frame = egui::Frame::NONE.inner_margin(egui::Margin::symmetric(8, 2));
 
         let show_panel = |ui_fn: &mut dyn FnMut(&mut egui::Ui)| match config.status_bar_position {
             StatusBarPosition::Top => {
                 egui::TopBottomPanel::top(panel_id)
                     .exact_height(bar_height)
                     .frame(frame)
-                    .show(ctx, |ui| ui_fn(ui));
+                    .show(ctx, |ui| {
+                        let mut bg = ui.max_rect();
+                        bg.set_right(bg.right() - scrollbar_inset);
+                        ui.painter().rect_filled(bg, 0.0, bg_color);
+                        ui_fn(ui);
+                    });
             }
             StatusBarPosition::Bottom => {
                 egui::TopBottomPanel::bottom(panel_id)
                     .exact_height(bar_height)
                     .frame(frame)
-                    .show(ctx, |ui| ui_fn(ui));
+                    .show(ctx, |ui| {
+                        let mut bg = ui.max_rect();
+                        bg.set_right(bg.right() - scrollbar_inset);
+                        ui.painter().rect_filled(bg, 0.0, bg_color);
+                        ui_fn(ui);
+                    });
             }
         };
 
