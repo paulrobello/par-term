@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Settings UI controls in Appearance > Auto Dark Mode section
   - Defaults: light theme = "Light Background", dark theme = "Dark Background"
 
+- **macOS Target Space**: Open windows in a specific macOS Space (virtual desktop) (#140)
+  - New config option: `target_space` (1-16, or null for OS default)
+  - Uses private SkyLight Server (SLS) APIs with version-aware implementation
+  - Supports both legacy API (macOS < 14.5) and modern compat ID API (macOS 14.5+)
+  - Settings UI control in Window > Window Behavior section (macOS only)
+  - Graceful degradation: logs warning and continues if Space APIs unavailable
+
 ---
 
 ## [0.16.0] - 2026-02-13

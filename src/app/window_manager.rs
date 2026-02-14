@@ -660,6 +660,13 @@ impl WindowManager {
                 }
             }
         }
+
+        // Move window to target macOS Space if configured (macOS only, no-op on other platforms)
+        if let Some(space) = self.config.target_space
+            && let Err(e) = crate::macos_space::move_window_to_space(window, space)
+        {
+            log::warn!("Failed to move window to Space {}: {}", space, e);
+        }
     }
 
     /// Close a specific window
