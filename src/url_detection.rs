@@ -809,7 +809,8 @@ mod tests {
     #[test]
     fn test_expand_link_handler_no_placeholder() {
         // If command has no {url}, it still works - the URL just doesn't appear
-        let parts = expand_link_handler("my-browser", "https://example.com").expect("should succeed");
+        let parts =
+            expand_link_handler("my-browser", "https://example.com").expect("should succeed");
         assert_eq!(parts, vec!["my-browser"]);
     }
 

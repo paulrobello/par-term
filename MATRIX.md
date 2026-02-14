@@ -28,7 +28,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Open in specific Space | ✅ `Space` | ✅ `target_space` | ✅ | - | - | macOS Spaces integration via private SLS APIs |
 | Maximize vertically only | ✅ | ✅ Shift+F11 | ✅ | - | - | Menu and keybinding |
 | Lock window size | ✅ `Lock Window Size Automatically` | ✅ `lock_window_size` | ✅ | - | - | Prevent resize via config/settings |
-| Proxy icon in title bar | ✅ `Enable Proxy Icon` | ❌ | ❌ | ⭐ | 🟡 | macOS feature for current directory |
+| Proxy icon in title bar | ✅ `Enable Proxy Icon` | ❌ | 🚫 | ➖ | ➖ | Won't implement; macOS-only, winit doesn't expose NSWindow representedURL, limited payoff |
 | Window number display | ✅ `Show Window Number` | ✅ `show_window_number` | ✅ | - | - | Window index in title bar |
 | Transparency only for default BG | ✅ | ✅ `transparency_affects_only_default_background` | ✅ | - | - | - |
 | Keep text opaque | ❌ | ✅ `keep_text_opaque` | ✅ | - | - | par-term exclusive |
@@ -205,7 +205,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Cmd+click opens URLs | ✅ `Cmd Click Opens URLs` | ✅ Cmd/Ctrl+click | ✅ | - | - | Cmd on macOS, Ctrl elsewhere |
 | Option+click moves cursor | ✅ `Option Click Moves Cursor` | ✅ `option_click_moves_cursor` | ✅ | - | - | Uses arrow keys for shell compatibility |
 | Focus follows mouse | ✅ `Focus Follows Mouse` | ✅ `focus_follows_mouse` | ✅ | - | - | Auto-focus on hover (opt-in) |
-| Three-finger middle click | ✅ `Three Finger Emulates Middle` | ❌ | ❌ | ⭐ | 🟡 | Requires platform gesture APIs |
+| Three-finger middle click | ✅ `Three Finger Emulates Middle` | ❌ | 🚫 | ➖ | ➖ | Won't implement; requires raw platform gesture APIs not exposed by winit, obscure feature |
 | Right-click context menu | ✅ | ✅ | ✅ | - | - | - |
 | Horizontal scroll reporting | ✅ `Report Horizontal Scroll Events` | ✅ `report_horizontal_scroll` | ✅ | - | - | Button codes 66/67 |
 
@@ -767,7 +767,7 @@ iTerm2 has a built-in browser for web-based workflows.
 | Built-in browser | ✅ `Enable Browser Integration` | ❌ | ❌ | ⭐ | 🔵 | Embedded web browser (e.g. via Wry) |
 | Browser per tab | ✅ | ❌ | ❌ | ⭐ | 🔵 | Individual browser tabs |
 | Browser profile sync | ✅ | ❌ | ❌ | ⭐ | 🟡 | Sync with external browser |
-| Open links in browser | ✅ | ❌ | ❌ | ⭐ | 🟡 | Configurable link handler |
+| Open links in browser | ✅ | ✅ `link_handler_command` | ✅ | - | - | Custom command with {url} placeholder; falls back to system default |
 
 ---
 

@@ -1199,11 +1199,9 @@ fn show_semantic_history_section(
                 ui.label("Link handler:");
                 if ui
                     .add(
-                        egui::TextEdit::singleline(
-                            &mut settings.config.link_handler_command,
-                        )
-                        .desired_width(INPUT_WIDTH)
-                        .hint_text("System default"),
+                        egui::TextEdit::singleline(&mut settings.config.link_handler_command)
+                            .desired_width(INPUT_WIDTH)
+                            .hint_text("System default"),
                     )
                     .on_hover_text(
                         "Custom command to open URLs.\n\n\
