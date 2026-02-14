@@ -106,6 +106,14 @@ pub struct ProfileModalUI {
     temp_badge_max_height: Option<f32>,
     /// Whether badge settings section is expanded
     badge_section_expanded: bool,
+    /// Whether SSH settings section is expanded
+    ssh_section_expanded: bool,
+    // SSH temp fields
+    temp_ssh_host: String,
+    temp_ssh_user: String,
+    temp_ssh_port: String,
+    temp_ssh_identity_file: String,
+    temp_ssh_extra_args: String,
 
     /// Selected profile in list view
     selected_id: Option<ProfileId>,
@@ -149,6 +157,12 @@ impl ProfileModalUI {
             temp_badge_max_width: None,
             temp_badge_max_height: None,
             badge_section_expanded: false,
+            ssh_section_expanded: false,
+            temp_ssh_host: String::new(),
+            temp_ssh_user: String::new(),
+            temp_ssh_port: String::new(),
+            temp_ssh_identity_file: String::new(),
+            temp_ssh_extra_args: String::new(),
             selected_id: None,
             has_changes: false,
             validation_error: None,
@@ -228,6 +242,11 @@ impl ProfileModalUI {
         self.temp_badge_right_margin = None;
         self.temp_badge_max_width = None;
         self.temp_badge_max_height = None;
+        self.temp_ssh_host.clear();
+        self.temp_ssh_user.clear();
+        self.temp_ssh_port.clear();
+        self.temp_ssh_identity_file.clear();
+        self.temp_ssh_extra_args.clear();
         self.validation_error = None;
     }
 
@@ -262,6 +281,12 @@ impl ProfileModalUI {
         self.temp_badge_right_margin = profile.badge_right_margin;
         self.temp_badge_max_width = profile.badge_max_width;
         self.temp_badge_max_height = profile.badge_max_height;
+        // SSH fields
+        self.temp_ssh_host = profile.ssh_host.clone().unwrap_or_default();
+        self.temp_ssh_user = profile.ssh_user.clone().unwrap_or_default();
+        self.temp_ssh_port = profile.ssh_port.map(|p| p.to_string()).unwrap_or_default();
+        self.temp_ssh_identity_file = profile.ssh_identity_file.clone().unwrap_or_default();
+        self.temp_ssh_extra_args = profile.ssh_extra_args.clone().unwrap_or_default();
     }
 
     /// Create a profile from form fields
@@ -343,6 +368,22 @@ impl ProfileModalUI {
         profile.badge_right_margin = self.temp_badge_right_margin;
         profile.badge_max_width = self.temp_badge_max_width;
         profile.badge_max_height = self.temp_badge_max_height;
+        // SSH fields
+        if !self.temp_ssh_host.is_empty() {
+            profile.ssh_host = Some(self.temp_ssh_host.clone());
+        }
+        if !self.temp_ssh_user.is_empty() {
+            profile.ssh_user = Some(self.temp_ssh_user.clone());
+        }
+        if !self.temp_ssh_port.is_empty() {
+            profile.ssh_port = self.temp_ssh_port.parse().ok();
+        }
+        if !self.temp_ssh_identity_file.is_empty() {
+            profile.ssh_identity_file = Some(self.temp_ssh_identity_file.clone());
+        }
+        if !self.temp_ssh_extra_args.is_empty() {
+            profile.ssh_extra_args = Some(self.temp_ssh_extra_args.clone());
+        }
 
         profile
     }
@@ -1200,6 +1241,44 @@ impl ProfileModalUI {
                         egui::RichText::new("Check boxes to override global badge settings for this profile.")
                             .small()
                             .color(egui::Color32::GRAY),
+                    );
+                });
+
+                // SSH Connection section
+                ui.add_space(8.0);
+                egui::CollapsingHeader::new(
+                    egui::RichText::new("SSH Connection")
+                        .strong()
+                        .color(egui::Color32::LIGHT_BLUE),
+                )
+                .default_open(self.ssh_section_expanded)
+                .show(ui, |ui| {
+                    self.ssh_section_expanded = true;
+                    ui.horizontal(|ui| {
+                        ui.label("Host:");
+                        ui.text_edit_singleline(&mut self.temp_ssh_host);
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("User:");
+                        ui.text_edit_singleline(&mut self.temp_ssh_user);
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Port:");
+                        ui.add(egui::TextEdit::singleline(&mut self.temp_ssh_port).desired_width(60.0));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Identity File:");
+                        ui.text_edit_singleline(&mut self.temp_ssh_identity_file);
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Extra Args:");
+                        ui.text_edit_singleline(&mut self.temp_ssh_extra_args);
+                    });
+                    ui.add_space(4.0);
+                    ui.label(
+                        egui::RichText::new("When SSH Host is set, opening this profile connects via SSH instead of launching a shell.")
+                            .weak()
+                            .size(11.0),
                     );
                 });
 
