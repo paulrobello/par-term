@@ -341,6 +341,14 @@ pub fn blur_radius() -> u32 {
     8 // Default blur radius in points (macOS only)
 }
 
+pub fn light_tab_style() -> super::types::TabStyle {
+    super::types::TabStyle::Light
+}
+
+pub fn dark_tab_style() -> super::types::TabStyle {
+    super::types::TabStyle::Dark
+}
+
 pub fn use_background_as_channel0() -> bool {
     false // By default, use configured channel0 texture, not background image
 }
