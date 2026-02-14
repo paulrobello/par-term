@@ -1,7 +1,7 @@
 #![allow(clippy::field_reassign_with_default)]
 
 use par_term::config::{
-    Config, TabBarPosition, UnfocusedCursorStyle, WindowType, substitute_variables,
+    Config, TabBarPosition, TabStyle, UnfocusedCursorStyle, WindowType, substitute_variables,
 };
 
 #[test]
@@ -1232,4 +1232,95 @@ fn test_auto_dark_mode_yaml_defaults_when_absent() {
     assert!(!config.auto_dark_mode);
     assert_eq!(config.light_theme, "light-background");
     assert_eq!(config.dark_theme, "dark-background");
+}
+
+// =============================================================================
+// Auto Tab Style Tests
+// =============================================================================
+
+#[test]
+fn test_auto_tab_style_defaults() {
+    let config = Config::default();
+    assert_eq!(config.tab_style, TabStyle::Dark);
+    assert_eq!(config.light_tab_style, TabStyle::Light);
+    assert_eq!(config.dark_tab_style, TabStyle::Dark);
+}
+
+#[test]
+fn test_apply_system_tab_style_disabled_when_not_automatic() {
+    let mut config = Config::default();
+    config.tab_style = TabStyle::Dark;
+    assert!(!config.apply_system_tab_style(true));
+    assert!(!config.apply_system_tab_style(false));
+}
+
+#[test]
+fn test_apply_system_tab_style_dark() {
+    let mut config = Config::default();
+    config.tab_style = TabStyle::Automatic;
+    config.dark_tab_style = TabStyle::HighContrast;
+
+    assert!(config.apply_system_tab_style(true));
+    // Should have applied HighContrast colors but kept Automatic as the tab_style
+    assert_eq!(config.tab_style, TabStyle::Automatic);
+    // HighContrast sets tab_bar_background to [0, 0, 0]
+    assert_eq!(config.tab_bar_background, [0, 0, 0]);
+}
+
+#[test]
+fn test_apply_system_tab_style_light() {
+    let mut config = Config::default();
+    config.tab_style = TabStyle::Automatic;
+    config.light_tab_style = TabStyle::Light;
+
+    assert!(config.apply_system_tab_style(false));
+    assert_eq!(config.tab_style, TabStyle::Automatic);
+    // Light sets tab_bar_background to [235, 235, 235]
+    assert_eq!(config.tab_bar_background, [235, 235, 235]);
+}
+
+#[test]
+fn test_apply_system_tab_style_preserves_automatic() {
+    let mut config = Config::default();
+    config.tab_style = TabStyle::Automatic;
+    config.dark_tab_style = TabStyle::Compact;
+
+    config.apply_system_tab_style(true);
+    // tab_style must remain Automatic after applying
+    assert_eq!(config.tab_style, TabStyle::Automatic);
+}
+
+#[test]
+fn test_tab_style_all_concrete_excludes_automatic() {
+    let concrete = TabStyle::all_concrete();
+    assert!(!concrete.contains(&TabStyle::Automatic));
+    assert_eq!(concrete.len(), 5);
+}
+
+#[test]
+fn test_tab_style_all_includes_automatic() {
+    let all = TabStyle::all();
+    assert!(all.contains(&TabStyle::Automatic));
+    assert_eq!(all.len(), 6);
+}
+
+#[test]
+fn test_auto_tab_style_yaml_deserialization() {
+    let yaml = r#"
+tab_style: automatic
+light_tab_style: compact
+dark_tab_style: high_contrast
+"#;
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.tab_style, TabStyle::Automatic);
+    assert_eq!(config.light_tab_style, TabStyle::Compact);
+    assert_eq!(config.dark_tab_style, TabStyle::HighContrast);
+}
+
+#[test]
+fn test_auto_tab_style_yaml_defaults_when_absent() {
+    let yaml = "cols: 120\n";
+    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(config.light_tab_style, TabStyle::Light);
+    assert_eq!(config.dark_tab_style, TabStyle::Dark);
 }
