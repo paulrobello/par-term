@@ -1237,6 +1237,14 @@ impl ApplicationHandler for WindowManager {
                         log::debug!("Handler: received StopCoprocess({})", index);
                         self.stop_coprocess(index);
                     }
+                    SettingsWindowAction::StartScript(index) => {
+                        log::debug!("Handler: received StartScript({})", index);
+                        self.start_script(index);
+                    }
+                    SettingsWindowAction::StopScript(index) => {
+                        log::debug!("Handler: received StopScript({})", index);
+                        self.stop_script(index);
+                    }
                     SettingsWindowAction::OpenLogFile => {
                         let log_path = crate::debug::log_path();
                         log::info!("Opening log file: {}", log_path.display());
@@ -1483,9 +1491,10 @@ impl ApplicationHandler for WindowManager {
             self.close_window(window_id);
         }
 
-        // Sync coprocess running state to settings window
+        // Sync coprocess and script running state to settings window
         if self.settings_window.is_some() {
             self.sync_coprocess_running_state();
+            self.sync_script_running_state();
         }
 
         // Request redraw for settings window if it needs continuous updates

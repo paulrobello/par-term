@@ -39,6 +39,10 @@ pub enum SettingsWindowAction {
     StartCoprocess(usize),
     /// Stop a coprocess by config index on the active tab
     StopCoprocess(usize),
+    /// Start a script by config index on the active tab
+    StartScript(usize),
+    /// Stop a script by config index on the active tab
+    StopScript(usize),
     /// Open the debug log file in the system's default editor/viewer
     OpenLogFile,
     /// Save the current window layout as an arrangement
@@ -544,6 +548,21 @@ impl SettingsWindow {
                 SettingsWindowAction::StartCoprocess(index)
             } else {
                 SettingsWindowAction::StopCoprocess(index)
+            };
+        }
+
+        // Check for script start/stop actions
+        if let Some((index, start)) = self.settings_ui.pending_script_actions.pop() {
+            log::info!(
+                "Settings window: popped script action index={} start={}",
+                index,
+                start
+            );
+            self.window.request_redraw();
+            return if start {
+                SettingsWindowAction::StartScript(index)
+            } else {
+                SettingsWindowAction::StopScript(index)
             };
         }
 
