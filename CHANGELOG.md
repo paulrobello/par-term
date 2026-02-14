@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Configurable Link Handler**: Custom command for opening URLs instead of system default browser
+  - New config option: `link_handler_command` with `{url}` placeholder (e.g., `firefox {url}`)
+  - Falls back to system default browser when empty
+  - Settings UI field in Terminal > Semantic History with placeholder validation warning
+  - Searchable via "link handler", "browser", "open url" in Settings search
+
 - **Dynamic Profiles from Remote URLs**: Load profile definitions from remote URLs for team-shared configurations (#142)
   - New config option: `dynamic_profile_sources` with per-source URL, custom headers, refresh interval, size limits, and conflict resolution
   - Background auto-refresh via configurable timer (default 30 min)
