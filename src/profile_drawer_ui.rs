@@ -266,6 +266,7 @@ impl ProfileDrawerUI {
                     .show(ui, |ui| {
                         for profile in filtered_profiles {
                             let is_selected = self.selected == Some(profile.id);
+                            let is_dynamic = profile.source.is_dynamic();
 
                             // Build the label text
                             let label = if let Some(icon) = &profile.icon {
@@ -287,6 +288,15 @@ impl ProfileDrawerUI {
                             ui.horizontal(|ui| {
                                 // Use selectable_label which has reliable click handling
                                 let response = ui.selectable_label(is_selected, &label);
+
+                                // Dynamic profile indicator
+                                if is_dynamic {
+                                    ui.label(
+                                        egui::RichText::new("[dynamic]")
+                                            .color(egui::Color32::from_rgb(100, 180, 255))
+                                            .small(),
+                                    );
+                                }
 
                                 // Single click selects
                                 if response.clicked() {

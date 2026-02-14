@@ -692,19 +692,33 @@ impl ProfileModalUI {
                                         self.start_edit(profile.id);
                                     }
 
+                                    // Dynamic profile indicator
+                                    if profile.source.is_dynamic() {
+                                        ui.label(
+                                            egui::RichText::new("[dynamic]")
+                                                .color(egui::Color32::from_rgb(100, 180, 255))
+                                                .small(),
+                                        );
+                                    }
+
                                     // Spacer
+                                    let is_dynamic = profile.source.is_dynamic();
                                     ui.with_layout(
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
-                                            // Delete button
-                                            if ui.small_button("🗑").clicked() {
-                                                self.request_delete(
-                                                    profile.id,
-                                                    profile.name.clone(),
-                                                );
-                                            }
-                                            // Edit button
-                                            if ui.small_button("✏").clicked() {
+                                            // Delete button (disabled for dynamic profiles)
+                                            ui.add_enabled_ui(!is_dynamic, |ui| {
+                                                if ui.small_button("🗑").clicked() {
+                                                    self.request_delete(
+                                                        profile.id,
+                                                        profile.name.clone(),
+                                                    );
+                                                }
+                                            });
+                                            // Edit/View button
+                                            let edit_label =
+                                                if is_dynamic { "👁" } else { "✏" };
+                                            if ui.small_button(edit_label).clicked() {
                                                 self.start_edit(profile.id);
                                             }
                                         },
@@ -740,19 +754,49 @@ impl ProfileModalUI {
 
     /// Render the edit/create view
     pub(crate) fn render_edit_view(&mut self, ui: &mut egui::Ui) {
+        // Check if the profile being edited is a dynamic profile
+        let is_dynamic_profile = self
+            .editing_id
+            .and_then(|id| self.working_profiles.iter().find(|p| p.id == id))
+            .is_some_and(|p| p.source.is_dynamic());
+
         let title = match &self.mode {
             ModalMode::Create => "Create Profile",
-            ModalMode::Edit(_) => "Edit Profile",
+            ModalMode::Edit(_) => {
+                if is_dynamic_profile {
+                    "View Profile"
+                } else {
+                    "Edit Profile"
+                }
+            }
             _ => "Profile",
         };
 
         ui.heading(title);
+
+        // Show read-only notice for dynamic profiles
+        if is_dynamic_profile {
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("ℹ").color(egui::Color32::from_rgb(100, 180, 255)));
+                ui.colored_label(
+                    egui::Color32::from_rgb(100, 180, 255),
+                    "This profile is managed by a remote source and cannot be edited locally.",
+                );
+            });
+        }
+
         ui.separator();
 
         // Form in a scrollable area to handle many fields
         egui::ScrollArea::vertical()
             .max_height(ui.available_height() - 60.0)
             .show(ui, |ui| {
+                // Disable all form fields for dynamic (read-only) profiles
+                if is_dynamic_profile {
+                    ui.disable();
+                }
+
                 egui::Grid::new("profile_form")
                     .num_columns(2)
                     .spacing([10.0, 8.0])
@@ -1303,11 +1347,18 @@ impl ProfileModalUI {
         ui.add_space(8.0);
         ui.separator();
         ui.horizontal(|ui| {
-            if ui.button("Save Profile").clicked() {
-                self.save_form();
-            }
-            if ui.button("Cancel").clicked() {
-                self.cancel_edit();
+            if is_dynamic_profile {
+                // Dynamic profiles are read-only; only show Back button
+                if ui.button("Back").clicked() {
+                    self.cancel_edit();
+                }
+            } else {
+                if ui.button("Save Profile").clicked() {
+                    self.save_form();
+                }
+                if ui.button("Cancel").clicked() {
+                    self.cancel_edit();
+                }
             }
         });
     }

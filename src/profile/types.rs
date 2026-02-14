@@ -15,6 +15,13 @@ pub enum ProfileSource {
     },
 }
 
+impl ProfileSource {
+    /// Returns true if this profile was fetched from a remote source
+    pub fn is_dynamic(&self) -> bool {
+        matches!(self, ProfileSource::Dynamic { .. })
+    }
+}
+
 /// Unique identifier for a profile
 pub type ProfileId = Uuid;
 
