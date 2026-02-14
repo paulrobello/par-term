@@ -2012,19 +2012,42 @@ impl WindowManager {
 
     /// Start a script by config index on the focused window's active tab.
     pub fn start_script(&mut self, config_index: usize) {
-        log::debug!("start_script called with index {}", config_index);
+        crate::debug_info!(
+            "SCRIPT",
+            "start_script called with config_index={}",
+            config_index
+        );
         let focused = self.get_focused_window_id();
         if let Some(window_id) = focused
             && let Some(ws) = self.windows.get_mut(&window_id)
             && let Some(tab) = ws.tab_manager.active_tab_mut()
         {
+            crate::debug_info!(
+                "SCRIPT",
+                "start_script: ws.config.scripts.len()={}, tab.script_ids.len()={}",
+                ws.config.scripts.len(),
+                tab.script_ids.len()
+            );
             if config_index >= ws.config.scripts.len() {
-                log::warn!("Script config index {} out of range", config_index);
+                crate::debug_error!(
+                    "SCRIPT",
+                    "Script config index {} out of range (scripts.len={})",
+                    config_index,
+                    ws.config.scripts.len()
+                );
                 return;
             }
             let script_config = &ws.config.scripts[config_index];
+            crate::debug_info!(
+                "SCRIPT",
+                "start_script: found config name='{}' path='{}' enabled={} args={:?}",
+                script_config.name,
+                script_config.script_path,
+                script_config.enabled,
+                script_config.args
+            );
             if !script_config.enabled {
-                log::info!("Script '{}' is disabled, not starting", script_config.name);
+                crate::debug_info!("SCRIPT", "Script '{}' is disabled, not starting", script_config.name);
                 return;
             }
 
@@ -2053,11 +2076,12 @@ impl WindowManager {
             };
 
             // Start the script process
+            crate::debug_info!("SCRIPT", "start_script: spawning process...");
             match tab.script_manager.start_script(script_config) {
                 Ok(script_id) => {
-                    log::info!(
-                        "Started script '{}' (id={}, observer_id={:?})",
-                        script_config.name,
+                    crate::debug_info!(
+                        "SCRIPT",
+                        "start_script: SUCCESS script_id={} observer_id={:?}",
                         script_id,
                         observer_id
                     );
@@ -2079,7 +2103,12 @@ impl WindowManager {
                 }
                 Err(e) => {
                     let err_msg = format!("Failed to start: {}", e);
-                    log::error!("Failed to start script '{}': {}", script_config.name, e);
+                    crate::debug_error!(
+                        "SCRIPT",
+                        "start_script: FAILED to start '{}': {}",
+                        script_config.name,
+                        e
+                    );
 
                     // Remove observer since script failed to start
                     let term = tab.terminal.blocking_lock();
@@ -2101,7 +2130,7 @@ impl WindowManager {
             // Update running state in settings window
             self.sync_script_running_state();
         } else {
-            log::warn!("start_script: no focused window or active tab found");
+            crate::debug_error!("SCRIPT", "start_script: no focused window or active tab found");
         }
     }
 
@@ -2267,6 +2296,15 @@ impl WindowManager {
             let errors_changed = sw.settings_ui.script_errors != error_state;
             let has_new_output = new_output.iter().any(|lines| !lines.is_empty());
             let panels_changed = sw.settings_ui.script_panels != panel_state;
+
+            if running_changed || errors_changed {
+                crate::debug_info!(
+                    "SCRIPT",
+                    "sync: state change - running={:?} errors_changed={}",
+                    running_state,
+                    errors_changed
+                );
+            }
 
             let count = running_state.len();
             sw.settings_ui.script_output.resize_with(count, Vec::new);

@@ -553,7 +553,8 @@ impl SettingsWindow {
 
         // Check for script start/stop actions
         if let Some((index, start)) = self.settings_ui.pending_script_actions.pop() {
-            log::info!(
+            crate::debug_info!(
+                "SCRIPT",
                 "Settings window: popped script action index={} start={}",
                 index,
                 start
