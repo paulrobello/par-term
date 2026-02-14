@@ -1256,10 +1256,7 @@ impl WindowState {
         } else if !is_ssh && already_switched && !has_hostname_profile {
             // SSH disconnected and no hostname-based profile is active - revert
             if let Some(tab) = self.tab_manager.active_tab_mut() {
-                crate::debug_info!(
-                    "PROFILE",
-                    "SSH command ended - reverting auto-switch state"
-                );
+                crate::debug_info!("PROFILE", "SSH command ended - reverting auto-switch state");
                 tab.ssh_auto_switched = false;
                 let _prev_profile = tab.pre_ssh_switch_profile.take();
                 // Clear any SSH-related visual overrides

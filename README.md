@@ -12,9 +12,58 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.15.0
+## What's New in 0.16.0
 
-### 📂 Directory-Based Profile Switching
+### 🌐 SSH Host Management
+
+Comprehensive SSH host profiles, quick connect, and auto-discovery.
+
+- SSH Quick Connect dialog (`Cmd+Shift+S`) with search, keyboard navigation, grouped by source
+- SSH config parser (`~/.ssh/config`), known hosts parser, shell history scanner
+- mDNS/Bonjour SSH host discovery via `_ssh._tcp.local.` (opt-in)
+- SSH-specific profile fields: host, user, port, identity file, extra args
+- Profiles with `ssh_host` set launch SSH connections instead of shells
+- Automatic profile switching on SSH connection with auto-revert on disconnect
+- SSH settings tab in Settings UI
+
+### 📊 Status Bar
+
+Configurable status bar with widget system and system monitoring.
+
+- 10 built-in widgets: clock, username@hostname, current directory, git branch, CPU/memory usage, network status, bell indicator, current command, custom text
+- Three-section layout (left/center/right) with configurable separator
+- Widget configurator in Settings UI with drag-and-drop reordering
+- System monitoring via background thread (CPU, memory, network)
+- Git branch/ahead/behind/dirty status with configurable polling
+- Auto-hide on fullscreen and/or mouse inactivity
+- Top or bottom positioning (stacks with tab bar)
+
+### ➕ Profile Selection on New Tab
+
+Split button on the tab bar for quick profile-based tab creation.
+
+- `+` button creates a default tab, `▾` chevron opens a profile dropdown
+- Chevron shows all profiles with icons; works in horizontal and vertical layouts
+- Config: `new_tab_shortcut_shows_profiles: true` makes Cmd+T show the profile picker
+
+### 🐚 Shell Selection Per Profile
+
+Configure a specific shell for each profile with platform-aware detection.
+
+- New `shell` and `login_shell` fields per profile
+- Shell dropdown in profile editor with all detected shells
+- Priority: profile `command` > profile `shell` > global `custom_shell` / `$SHELL`
+
+### 🔧 Other Changes
+
+- **Navigate to Settings from Application Menu**: macOS app menu with Settings... (Cmd+,), About, and standard items; Windows/Linux Edit > Preferences... (Ctrl+Shift+,)
+- **Install Shell Integration on Remote Host**: Shell menu option to install shell integration on remote hosts via SSH with confirmation dialog
+- **Core Library Update**: Updated par-term-emu-core-rust to latest version
+
+<details>
+<summary><strong>What's New in 0.15.0</strong></summary>
+
+#### 📂 Directory-Based Profile Switching
 
 Automatically switch profiles based on current working directory.
 
@@ -23,7 +72,7 @@ Automatically switch profiles based on current working directory.
 - Priority: explicit user selection > hostname match > directory match > default
 - Settings UI for editing directory patterns per profile
 
-### 🎨 Tab Style Variants
+#### 🎨 Tab Style Variants
 
 Cosmetic tab bar presets with 5 built-in styles.
 
@@ -31,7 +80,7 @@ Cosmetic tab bar presets with 5 built-in styles.
 - Each preset applies coordinated color/size/spacing adjustments
 - Config: `tab_style: dark|light|compact|minimal|high_contrast`
 
-### 🔊 Alert Sounds
+#### 🔊 Alert Sounds
 
 Configurable sound effects for terminal events.
 
@@ -40,7 +89,7 @@ Configurable sound effects for terminal events.
 - Custom sound files: WAV/OGG/FLAC format with `~` home directory expansion
 - UI in Settings > Notifications > Alert Sounds
 
-### 🔍 Fuzzy Command History Search
+#### 🔍 Fuzzy Command History Search
 
 Searchable overlay for browsing and selecting from command history.
 
@@ -49,7 +98,7 @@ Searchable overlay for browsing and selecting from command history.
 - Keyboard navigation: Arrow Up/Down, Enter to insert, Esc to close
 - History persisted across sessions; keybinding: Cmd+R (macOS), Ctrl+Alt+R (Linux/Windows)
 
-### ↩️ Session Undo — Reopen Closed Tabs
+#### ↩️ Session Undo — Reopen Closed Tabs
 
 Recover accidentally closed tabs.
 
@@ -58,7 +107,7 @@ Recover accidentally closed tabs.
 - Optional shell session preservation for full session restore with scrollback intact
 - Configurable timeout and queue depth
 
-### 💾 Session Restore on Startup
+#### 💾 Session Restore on Startup
 
 Automatically save and restore session state.
 
@@ -66,7 +115,7 @@ Automatically save and restore session state.
 - Restores full session on next launch including split pane trees with ratios
 - Config: `restore_session: true` (default: false)
 
-### 📍 Tab Bar Position
+#### 📍 Tab Bar Position
 
 Configurable tab bar placement with three positions.
 
@@ -74,7 +123,7 @@ Configurable tab bar placement with three positions.
 - Configurable sidebar width for Left position (default 160px, range 100–300)
 - All positions support tab bar visibility modes and live switching via Settings UI
 
-### 📥 Import/Export Preferences
+#### 📥 Import/Export Preferences
 
 Import and export terminal configuration.
 
@@ -82,7 +131,7 @@ Import and export terminal configuration.
 - Import from local file or URL with replace or merge modes
 - Merge mode only overrides values that differ from defaults
 
-### 🔧 Other Changes
+#### 🔧 Other Changes
 
 - **Profile Emoji Picker**: Curated grid of ~70 terminal-relevant emojis in 9 categories for profile icons
 - **Full Profile Auto-Switch Application**: Directory, hostname, and tmux session switching now apply all visual settings (icon, title, badge, command)
@@ -91,6 +140,8 @@ Import and export terminal configuration.
 - **HiDPI/DPI Scaling Fix**: All pixel-dimension config values now correctly scale on HiDPI displays
 - **Text Shaper LRU Cache**: Upgraded from FIFO to proper LRU eviction for better cache hit rates
 - **Default Update Check**: Changed from weekly to daily for faster update discovery
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.14.0</strong></summary>
@@ -517,6 +568,8 @@ Essential feature for emacs/vim users.
 - **[Window Management](docs/WINDOW_MANAGEMENT.md)** - Window types, multi-monitor, and transparency.
 - **[Window Arrangements](docs/ARRANGEMENTS.md)** - Save and restore window layouts with auto-restore.
 - **[Command Separators](docs/COMMAND_SEPARATORS.md)** - Horizontal lines between shell commands with exit-code coloring.
+- **[SSH Host Management](docs/SSH.md)** - SSH quick connect, host discovery, and SSH profiles.
+- **[Status Bar](docs/STATUS_BAR.md)** - Configurable status bar with widgets and system monitoring.
 - **[Self-Update](docs/SELF_UPDATE.md)** - In-place update capability via CLI and Settings UI.
 - **[Debug Logging](docs/LOGGING.md)** - Configurable log levels and troubleshooting.
 

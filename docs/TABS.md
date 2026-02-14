@@ -5,6 +5,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
 ## Table of Contents
 - [Overview](#overview)
 - [Creating and Closing Tabs](#creating-and-closing-tabs)
+  - [Profile Selection on New Tab](#profile-selection-on-new-tab)
 - [Reopening Closed Tabs](#reopening-closed-tabs)
 - [Switching Tabs](#switching-tabs)
 - [Reordering Tabs](#reordering-tabs)
@@ -59,6 +60,31 @@ graph TD
 | Close window | `Cmd+Shift+W` (macOS) / `Ctrl+Shift+W` |
 
 New tabs inherit the working directory from the current tab (if shell integration is installed) or start in the configured startup directory.
+
+### Profile Selection on New Tab
+
+The new tab button (`+`) on the tab bar is a split button:
+
+- **Left portion** (`+`): Creates a default tab (existing behavior)
+- **Right portion** (`▾`): Opens a profile dropdown menu
+
+The dropdown shows:
+1. **Default** — creates a tab using global terminal config
+2. All user profiles listed in order with their icons
+
+Click a profile to open a new tab with that profile's settings (working directory, shell, command, tab name, etc.).
+
+> **📝 Note:** The chevron only appears when one or more profiles exist. Works in both horizontal and vertical tab bar layouts.
+
+**Configuration:**
+
+To make the new tab shortcut (`Cmd+T` / `Ctrl+Shift+T`) show the profile picker instead of immediately creating a default tab:
+
+```yaml
+new_tab_shortcut_shows_profiles: true  # default: false
+```
+
+**Settings UI:** Settings > Window > Tab Behavior > "New Tab Shortcut Shows Profiles"
 
 ## Reopening Closed Tabs
 
@@ -281,6 +307,9 @@ tab_max_tabs: 20
 
 # Tab titles
 tab_html_titles: true
+
+# Profile selection
+new_tab_shortcut_shows_profiles: false  # Show profile picker on Cmd+T
 ```
 
 ## Related Documentation
@@ -288,5 +317,6 @@ tab_html_titles: true
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Tab navigation shortcuts
 - [Session Management](SESSION_MANAGEMENT.md) - Reopen closed tabs and session restore
 - [Profiles](PROFILES.md) - Open profiles in new tabs
+- [SSH Host Management](SSH.md) - SSH profile-based tab creation
 - [Window Management](WINDOW_MANAGEMENT.md) - Window and tab interaction
 - [Integrations](INTEGRATIONS.md) - Shell integration for directory inheritance

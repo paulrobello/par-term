@@ -128,11 +128,7 @@ impl SshConnectUI {
                             ui.heading("SSH Quick Connect");
                             if self.mdns.is_scanning() {
                                 ui.spinner();
-                                ui.label(
-                                    egui::RichText::new("Scanning...")
-                                        .weak()
-                                        .size(11.0),
-                                );
+                                ui.label(egui::RichText::new("Scanning...").weak().size(11.0));
                             }
                         });
                         ui.add_space(8.0);
@@ -163,12 +159,12 @@ impl SshConnectUI {
                                     return true;
                                 }
                                 h.alias.to_lowercase().contains(&query_lower)
-                                    || h.hostname.as_deref().is_some_and(|n| {
-                                        n.to_lowercase().contains(&query_lower)
-                                    })
-                                    || h.user.as_deref().is_some_and(|u| {
-                                        u.to_lowercase().contains(&query_lower)
-                                    })
+                                    || h.hostname
+                                        .as_deref()
+                                        .is_some_and(|n| n.to_lowercase().contains(&query_lower))
+                                    || h.user
+                                        .as_deref()
+                                        .is_some_and(|u| u.to_lowercase().contains(&query_lower))
                             })
                             .map(|(i, _)| i)
                             .collect();
@@ -204,9 +200,7 @@ impl SshConnectUI {
                             .show(ui, |ui| {
                                 if filtered.is_empty() {
                                     ui.label(
-                                        egui::RichText::new("No hosts found.")
-                                            .weak()
-                                            .italics(),
+                                        egui::RichText::new("No hosts found.").weak().italics(),
                                     );
                                     return;
                                 }
@@ -236,11 +230,13 @@ impl SshConnectUI {
                                             host.alias,
                                             host.connection_string()
                                         )))
-                                        .fill(if is_selected {
-                                            Color32::from_rgb(50, 50, 70)
-                                        } else {
-                                            Color32::TRANSPARENT
-                                        }),
+                                        .fill(
+                                            if is_selected {
+                                                Color32::from_rgb(50, 50, 70)
+                                            } else {
+                                                Color32::TRANSPARENT
+                                            },
+                                        ),
                                     );
 
                                     if response.clicked() || (enter_pressed && is_selected) {

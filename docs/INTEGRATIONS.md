@@ -10,6 +10,7 @@ par-term provides optional integrations to enhance your terminal experience, inc
   - [Supported Shells](#supported-shells)
   - [How It Works](#how-it-works)
   - [Troubleshooting](#troubleshooting-shell)
+- [Remote Shell Integration](#remote-shell-integration)
 - [Shader Installation](#shader-installation)
   - [Included Shaders](#included-shaders)
   - [Installation Methods](#shader-installation-methods)
@@ -129,6 +130,40 @@ par-term install-shell-integration
 par-term uninstall-shell-integration
 par-term install-shell-integration
 ```
+
+## Remote Shell Integration
+
+When working on a remote host via SSH, you can install shell integration directly from par-term without manually running commands.
+
+### Installing on a Remote Host
+
+**Method 1: Application Menu (Recommended)**
+
+1. Establish an SSH connection to the remote host in a terminal tab
+2. From the menu bar: **Shell > Install Shell Integration on Remote Host...**
+3. A confirmation dialog appears showing the exact command that will be sent
+4. Click **Install** to send the command, or **Cancel** to dismiss
+
+The command sent to the remote host:
+
+```bash
+curl -sSL https://paulrobello.github.io/par-term/install-shell-integration.sh | sh
+```
+
+**Method 2: Manual Installation**
+
+If the menu option is not available, run the install command directly in your SSH session:
+
+```bash
+curl -sSL https://paulrobello.github.io/par-term/install-shell-integration.sh | sh
+```
+
+**Requirements:**
+- An active SSH session to the remote host
+- `curl` available on the remote host
+- Permission to modify shell RC files on the remote host
+
+> **📝 Note:** The install script auto-detects the remote shell (bash, zsh, or fish) and installs the appropriate integration script. Restart the remote shell after installation for changes to take effect.
 
 ## Shader Installation
 
@@ -277,4 +312,5 @@ par-term install-integrations [-y|--yes]
 
 - [SHADERS.md](SHADERS.md) - Complete shader gallery and descriptions
 - [CUSTOM_SHADERS.md](CUSTOM_SHADERS.md) - Creating custom shaders
+- [SSH Host Management](SSH.md) - SSH host profiles and quick connect
 - [../README.md](../README.md) - Project overview

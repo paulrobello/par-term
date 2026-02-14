@@ -46,6 +46,8 @@ graph TB
         Config[Configuration]
         SettingsWin[Settings Window]
         Profile[Profile Manager]
+        SSH[SSH Discovery]
+        StatusBar[Status Bar]
     end
 
     subgraph "Emulation Layer"
@@ -80,6 +82,8 @@ graph TB
     Pane --> TM
     Tab --> Tmux
     Profile --> Tab
+    SSH --> Tab
+    StatusBar --> WS
     WS --> Renderer
     TM --> Core
     Core <--> PTY
@@ -102,6 +106,8 @@ graph TB
     style Keybind fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style SettingsWin fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Profile fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style SSH fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style StatusBar fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style Tab fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Pane fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style TM fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
@@ -181,6 +187,22 @@ graph TB
 *   **Shell Integration Installer (`src/shell_integration_installer.rs`)**: Installs shell integration scripts for enhanced features.
 *   **Shader Installer (`src/shader_installer.rs`)**: Manages installation of custom shaders from the shader gallery.
 
+### SSH System
+
+*   **SSH Config Parser (`src/ssh/config_parser.rs`)**: Parses `~/.ssh/config` for host entries with wildcard filtering, multi-host blocks, and ProxyJump support.
+*   **Known Hosts Parser (`src/ssh/known_hosts.rs`)**: Extracts previously-connected hosts from `~/.ssh/known_hosts` with hashed entry skipping and bracketed `[host]:port` support.
+*   **History Scanner (`src/ssh/history_scanner.rs`)**: Scans bash/zsh/fish history files for previously-used SSH connections.
+*   **mDNS Discovery (`src/ssh/mdns.rs`)**: Discovers SSH services on the local network via `_ssh._tcp.local.` Bonjour/mDNS browsing (opt-in).
+*   **Discovery Aggregator (`src/ssh/discovery.rs`)**: Combines hosts from all sources with deduplication.
+*   **Quick Connect UI (`src/ssh_connect_ui.rs`)**: egui dialog with fuzzy search, keyboard navigation, and source grouping.
+
+### Status Bar
+
+*   **StatusBarUI (`src/status_bar/mod.rs`)**: egui-based status bar renderer with three-section layout (left/center/right).
+*   **Widget System (`src/status_bar/widgets.rs`)**: Trait-based architecture for 10 built-in widgets (clock, git branch, CPU/memory usage, network status, etc.).
+*   **System Monitor (`src/status_bar/system_monitor.rs`)**: Background thread polling CPU, memory, and network metrics at configurable intervals.
+*   **Configuration**: Per-widget enable/disable, section assignment, and styling options with auto-hide on fullscreen or mouse inactivity.
+
 ## Data Flow
 
 The flow of data from user input to screen update is bidirectional.
@@ -232,3 +254,5 @@ Access to shared resources (like the Terminal state) is managed via `parking_lot
 - [Documentation Style Guide](DOCUMENTATION_STYLE_GUIDE.md) - Standards for project documentation.
 - [Compositor Architecture](COMPOSITOR.md) - Deep dive into the GPU rendering pipeline and shader system.
 - [Custom Shaders Guide](CUSTOM_SHADERS.md) - Installing and creating custom GLSL shaders.
+- [SSH Host Management](SSH.md) - SSH host discovery and quick connect system.
+- [Status Bar](STATUS_BAR.md) - Status bar widgets and system monitoring.

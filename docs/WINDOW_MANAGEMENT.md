@@ -15,6 +15,7 @@ par-term provides extensive window management features including edge-anchored w
 - [Fullscreen](#fullscreen)
 - [Window Arrangements](#window-arrangements)
 - [Session Restore on Startup](#session-restore-on-startup)
+- [Status Bar](#status-bar)
 - [Configuration](#configuration)
 - [Related Documentation](#related-documentation)
 
@@ -321,6 +322,23 @@ restore_session: false
 
 For full details on session persistence including session undo, see [Session Management](SESSION_MANAGEMENT.md).
 
+## Status Bar
+
+The status bar displays session and system information at the top or bottom of the window. It stacks with the tab bar when both are visible.
+
+For full details on status bar configuration, widgets, and customization, see [Status Bar](STATUS_BAR.md).
+
+**Quick Configuration:**
+
+```yaml
+status_bar_enabled: true
+status_bar_position: bottom  # top or bottom
+status_bar_auto_hide_fullscreen: true
+status_bar_auto_hide_mouse: false
+```
+
+**Settings UI:** Settings > Status Bar
+
 ## Configuration
 
 ### Complete Window Settings
@@ -385,4 +403,5 @@ The Window tab in Settings provides sections for:
 - [README.md](../README.md) - Project overview
 - [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md) - Window keyboard shortcuts
 - [ARRANGEMENTS.md](ARRANGEMENTS.md) - Full window arrangements documentation
+- [Status Bar](STATUS_BAR.md) - Status bar widgets and system monitoring
 - [Session Management](SESSION_MANAGEMENT.md) - Session restore and undo

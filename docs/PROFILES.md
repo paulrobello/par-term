@@ -63,6 +63,13 @@ Each profile can customize the following:
 | **Command** | Custom command (instead of default shell) | No |
 | **Command Arguments** | Arguments for the custom command | No |
 | **Tab Name** | Custom name for the terminal tab | No |
+| **Shell** | Specific shell for this profile (overrides global) | No |
+| **Login Shell** | Override global login shell setting (None/true/false) | No |
+| **SSH Host** | SSH hostname for remote connections | No |
+| **SSH User** | SSH username | No |
+| **SSH Port** | SSH port number | No |
+| **SSH Identity File** | Path to SSH identity/key file | No |
+| **SSH Extra Args** | Additional SSH command-line arguments | No |
 | **Directory Patterns** | Glob patterns for CWD-based auto-switching | No |
 | **Tmux Session Patterns** | Glob patterns for auto-switching (e.g., `work-*`) | No |
 | **Badge Text** | Custom badge format for this profile | No |
@@ -308,9 +315,10 @@ Profiles automatically apply when connecting to remote hosts with matching hostn
 When multiple auto-switch mechanisms could apply, the following priority order determines which profile wins:
 
 1. **Explicit user selection** — manual profile selection always takes precedence
-2. **Hostname match** — remote host detection
-3. **Directory match** — CWD-based matching
-4. **Default profile** — fallback when no pattern matches
+2. **SSH command detection** — running `ssh` process triggers profile matching
+3. **Hostname match** — remote host detection via OSC 1337
+4. **Directory match** — CWD-based matching
+5. **Default profile** — fallback when no pattern matches
 
 ### Auto-Switch Visual Application
 
@@ -403,5 +411,6 @@ Profiles are stored in YAML format:
 
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Profile keyboard shortcuts
 - [Tabs](TABS.md) - Tab management and directory inheritance
+- [SSH Host Management](SSH.md) - SSH profiles and host-based auto-switching
 - [Badges](BADGES.md) - Badge system and variables
 - [Integrations](INTEGRATIONS.md) - Shell integration for directory tracking

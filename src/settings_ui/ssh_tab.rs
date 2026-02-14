@@ -68,11 +68,9 @@ impl SettingsUI {
                 *changes_this_frame = true;
             }
             ui.label(
-                egui::RichText::new(
-                    "Discover SSH hosts on the local network via Bonjour/mDNS.",
-                )
-                .weak()
-                .size(11.0),
+                egui::RichText::new("Discover SSH hosts on the local network via Bonjour/mDNS.")
+                    .weak()
+                    .size(11.0),
             );
 
             ui.add_space(4.0);

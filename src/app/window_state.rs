@@ -9,7 +9,6 @@ use crate::badge::{BadgeState, render_badge};
 use crate::cell_renderer::PaneViewport;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::close_confirmation_ui::{CloseConfirmAction, CloseConfirmationUI};
-use crate::ssh_connect_ui::{SshConnectAction, SshConnectUI};
 use crate::command_history::CommandHistory;
 use crate::command_history_ui::{CommandHistoryAction, CommandHistoryUI};
 use crate::config::{
@@ -34,6 +33,7 @@ use crate::selection::SelectionMode;
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::smart_selection::SmartSelectionCache;
+use crate::ssh_connect_ui::{SshConnectAction, SshConnectUI};
 use crate::status_bar::StatusBarUI;
 use crate::tab::{TabId, TabManager};
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
@@ -2907,7 +2907,10 @@ impl WindowState {
                 {
                     let _ = term.write_str(&ssh_cmd);
                 }
-                log::info!("SSH Quick Connect: connecting to {}", host.connection_string());
+                log::info!(
+                    "SSH Quick Connect: connecting to {}",
+                    host.connection_string()
+                );
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }

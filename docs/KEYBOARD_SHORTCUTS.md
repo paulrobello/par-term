@@ -163,6 +163,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 | `Cmd/Ctrl + Shift + B` | Toggle background shader |
 | `Cmd/Ctrl + Shift + U` | Toggle cursor shader |
 | `Cmd/Ctrl + Shift + P` | Toggle profile drawer |
+| `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
 | `Cmd/Ctrl + Alt + I` | Toggle broadcast input |
 | `Cmd/Ctrl + Alt + T` | Toggle tmux session picker |
 | `Ctrl + ,` | Cycle cursor style |
@@ -220,7 +221,7 @@ keybindings:
 - `toggle_copy_mode`, `toggle_session_logging`, `toggle_maximize_throughput`
 - `toggle_background_shader`, `toggle_cursor_shader`
 - `toggle_broadcast_input`, `toggle_profile_drawer`
-- `toggle_tmux_session_picker`
+- `toggle_tmux_session_picker`, `ssh_quick_connect`
 - `command_history_search`
 
 **Terminal:**
@@ -235,5 +236,6 @@ keybindings:
 - [Profiles](PROFILES.md) - Profile keyboard shortcuts
 - [Search](SEARCH.md) - Search keyboard shortcuts
 - [Command History](COMMAND_HISTORY.md) - Fuzzy command history search
+- [SSH Host Management](SSH.md) - SSH Quick Connect shortcuts
 - [Session Management](SESSION_MANAGEMENT.md) - Session undo and restore
 - [Window Management](WINDOW_MANAGEMENT.md) - Window arrangements and layout management

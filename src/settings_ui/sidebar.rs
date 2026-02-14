@@ -584,9 +584,19 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "profile drawer",
         ],
         SettingsTab::Ssh => &[
-            "ssh", "remote", "host", "connect", "quick connect",
-            "mdns", "bonjour", "discovery", "auto-switch", "auto switch",
-            "profile switch", "hostname", "known hosts",
+            "ssh",
+            "remote",
+            "host",
+            "connect",
+            "quick connect",
+            "mdns",
+            "bonjour",
+            "discovery",
+            "auto-switch",
+            "auto switch",
+            "profile switch",
+            "hostname",
+            "known hosts",
         ],
         SettingsTab::Notifications => &[
             // Bell
