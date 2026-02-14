@@ -110,7 +110,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Cursor color | ✅ | ✅ | ✅ | - | - | - |
 | Link color | ✅ `Link Color` | ✅ `link_color` | ✅ | - | - | Core tracks and styles OSC 8 hyperlinks |
 | Theme presets | ✅ Many built-in | ✅ 17 themes | ✅ | - | - | Dracula, Nord, Monokai, Solarized, etc. |
-| Light/Dark mode variants | ✅ Separate colors per mode | ❌ | ❌ | ⭐⭐ | 🟡 | Auto-switch with system theme |
+| Light/Dark mode variants | ✅ Separate colors per mode | ✅ `auto_dark_mode`, `light_theme`, `dark_theme` | ✅ | - | - | Auto-switch with system theme via winit ThemeChanged event |
 | Minimum contrast | ✅ `Minimum Contrast` | ✅ `minimum_contrast` | ✅ | - | - | WCAG luminance-based contrast adjustment (1.0-21.0) |
 | Smart cursor color | ✅ `Smart Cursor Color` | ✅ `smart_cursor_color` | ✅ | - | - | Core exposes setting, frontend implements |
 | Faint text alpha | ✅ `Faint Text Alpha` | ✅ `faint_text_alpha` | ✅ | - | - | Core exposes 0.0-1.0 alpha multiplier |
@@ -164,7 +164,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Scrollbar colors | ❌ | ✅ thumb/track colors | ✅ | - | - | par-term exclusive |
 | Scrollbar auto-hide | ❌ | ✅ `scrollbar_autohide_delay` | ✅ | - | - | par-term exclusive |
 | Scrollback in alt screen | ✅ `Scrollback in Alternate Screen` | ✅ | ✅ | - | - | - |
-| Instant Replay | ✅ `Instant Replay Memory` | ❌ | ❌ | ⭐⭐ | 🔵 | Rewind terminal state |
+| Instant Replay | ✅ `Instant Replay Memory` | ❌ | ❌ | ⭐⭐ | 🔵 | Rewind terminal state. Requires core-level state snapshots or a dedicated replay buffer recording incremental grid changes. |
 | Timestamps | ✅ `Show Timestamps` | 🔶 via tooltips | 🔶 | - | - | Hover scrollbar marks for timing info |
 | Mark indicators | ✅ `Show Mark Indicators` | ✅ `scrollbar_command_marks` | ✅ | - | - | Color-coded marks on scrollbar (green=success, red=fail) |
 | Mark tooltips | ❌ | ✅ `scrollbar_mark_tooltips` | ✅ | - | - | **par-term exclusive** - command, time, duration, exit code |
@@ -354,7 +354,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Coprocesses | ✅ | ✅ `CoprocessManager` | ✅ | - | - | Per-tab coprocess with auto-start, restart policy (Never/Always/OnFailure), output viewer, start/stop controls, config persistence, Settings UI |
 | Shell integration | ✅ Full integration | ✅ OSC 133/7/1337 | ✅ | - | - | Command tracking, marks, CWD, badges |
 | **Automation Settings Tab** | ❌ | ✅ Settings > Automation | ✅ | - | - | **par-term exclusive** - Full CRUD for triggers and coprocesses |
-| Python API | ✅ Full scripting API | ❌ | ❌ | ⭐⭐ | 🔵 | Automation scripting |
+| Python API | ✅ Full scripting API | ❌ | ❌ | ⭐⭐ | 🔵 | Automation scripting. Requires **Core Extensibility Hooks** and a stable **FFI Representation** of terminal state. |
 
 ---
 
@@ -439,7 +439,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 |---------|--------|----------|--------|--------|--------|-------|
 | Minimum contrast | ✅ | ✅ `minimum_contrast` | ✅ | - | - | WCAG luminance-based contrast (1.0-21.0) |
 | Focus on click | ✅ | ✅ | ✅ | - | - | - |
-| Bidirectional text | ✅ `Bidi` | ❌ | ❌ | ⭐⭐ | 🔴 | RTL language support |
+| Bidirectional text | ✅ `Bidi` | ❌ | ❌ | ⭐⭐ | 🔴 | RTL language support (requires core library grid support) |
 | VoiceOver support | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | Screen reader support |
 
 ---
@@ -448,9 +448,9 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| AI assistant | ✅ Full AI integration | ❌ | ❌ | ⭐⭐ | 🔵 | Command help, completion |
+| AI assistant | ✅ Full AI integration | ❌ | ❌ | ⭐⭐ | 🔵 | Command help, completion. Requires core-level APIs for high-performance extraction of buffer state and metadata. |
 | AI command generation | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | Natural language to commands |
-| AI terminal inspection | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | AI reads terminal state |
+| AI terminal inspection | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | AI reads terminal state. Requires structured semantic buffer data from core. |
 | Multiple AI providers | ✅ OpenAI, Anthropic, etc. | ❌ | ❌ | ⭐⭐ | 🔵 | Provider selection |
 
 ---
@@ -619,7 +619,7 @@ iTerm2 has sophisticated window state management.
 | Save window arrangements | ✅ `Save Window Arrangements` | ✅ `arrangements` | ✅ | - | - | Save window positions, tabs, and layouts |
 | Restore arrangements | ✅ `Restore Window Arrangements` | ✅ `auto_restore_arrangement` | ✅ | - | - | Restore saved layouts with monitor-aware positioning |
 | Arrange windows by app | ✅ | ❌ | ❌ | ⭐ | 🔴 | Auto-arrange windows |
-| Hotkey window type | ✅ | ❌ | ❌ | ⭐⭐⭐ | 🔴 | Quake-style dropdown terminal |
+| Hotkey window type | ✅ | ❌ | ❌ | ⭐⭐⭐ | 🔴 | Quake-style dropdown terminal (needs platform hooks) |
 | Hotkey window profile | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Different profile for hotkey window |
 | Hotkey window animation | ✅ `Animate Hotkey Window` | ❌ | ❌ | ⭐ | 🟡 | Slide/fade animations |
 | Hotkey window dock | ✅ | ❌ | ❌ | ⭐ | 🟡 | Show dock icon for hotkey window |
@@ -648,7 +648,7 @@ iTerm2 has sophisticated window state management.
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
 | Tab style variants | ✅ `Tab Style` (Automatic/Compact/High Contrast/Light/Minimal) | ✅ `tab_style` | ✅ | - | - | 5 presets: Dark/Light/Compact/Minimal/High Contrast |
-| Automatic tab style | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-switch based on theme |
+| Automatic tab style | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-switch based on system theme |
 | Compact tab style | ✅ | ✅ `tab_style: compact` | ✅ | - | - | Smaller tabs (22px), tighter spacing |
 | Minimal tab style | ✅ | ✅ `tab_style: minimal` | ✅ | - | - | Clean, flat look with no visible borders |
 | High contrast tab style | ✅ | ✅ `tab_style: high_contrast` | ✅ | - | - | Black/white for accessibility |
@@ -670,7 +670,7 @@ iTerm2 has sophisticated window state management.
 | Division thickness | ✅ `Division Thickness` | ✅ configurable width | ✅ | ⭐ | 🟢 | 1-10px slider in settings |
 | Division color | ✅ `Division Color` | ✅ | ✅ | ⭐ | 🟢 | Already implemented |
 | Division style | ✅ `Double/Shadow` | ✅ solid/double/dashed/shadow | ✅ | ⭐ | 🟢 | Four styles via settings UI |
-| Per-pane backgrounds | ✅ | 🔶 Data model ready | 🔶 | ⭐ | 🟡 | Renderer support pending |
+| Per-pane backgrounds | ✅ | 🔶 Data model ready | 🔶 | ⭐ | 🟡 | `Pane` struct has field; renderer support pending |
 
 ---
 
@@ -682,7 +682,7 @@ iTerm2 has sophisticated window state management.
 | Directory-based switching | ✅ | ✅ `directory_patterns` | ✅ | - | - | Full parity: applies icon, title, badge text/styling, command execution; tilde expansion |
 | Command-based switching | ✅ | ✅ `check_ssh_command_switch` | ✅ | - | - | Auto-switch by running SSH command with revert on disconnect |
 | User-based switching | ✅ | ✅ via OSC 1337 RemoteHost | ✅ | - | - | Switch by SSH user/hostname via shell integration |
-| Dynamic profiles from URL | ✅ `Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🔴 | Load profiles from remote URL |
+| Dynamic profiles from URL | ✅ `Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🟡 | Load profiles from remote URL (uses existing URL fetch/merge logic) |
 | Dynamic profiles reload | ✅ `Reload Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🟡 | Refresh dynamic profiles |
 | Dynamic profiles automatic reload | ✅ `Automatically Reload` | ❌ | ❌ | ⭐ | 🟡 | Auto-refresh on change |
 | Profile inheritance | ✅ Parent profiles | ✅ `parent_id` | ✅ | - | - | Already implemented |
@@ -754,7 +754,7 @@ iTerm2 has sophisticated window state management.
 | Ambiguous width characters | ✅ `Ambiguous Width Characters` | ✅ | ✅ | - | - | Already implemented |
 | Unicode box drawing | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Emoji variation sequences | ✅ | ✅ Grapheme + FE0F font selection | ✅ | - | - | VS15/VS16 preserved via grapheme strings, FE0F forces emoji font |
-| Right-to-left text | ✅ `Bidi` | ❌ | ❌ | ⭐⭐ | 🔴 | Bidirectional text support |
+| Right-to-left text | ✅ `Bidi` | ❌ | ❌ | ⭐⭐ | 🔴 | RTL language support. Requires core `Grid` to implement Unicode Bidi Algorithm for logical-to-visual reordering. |
 
 ---
 
@@ -764,8 +764,8 @@ iTerm2 has a built-in browser for web-based workflows.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Built-in browser | ✅ `Enable Browser Integration` | ❌ | ❌ | ⭐ | 🔴 | Embedded web browser |
-| Browser per tab | ✅ | ❌ | ❌ | ⭐ | 🔴 | Individual browser tabs |
+| Built-in browser | ✅ `Enable Browser Integration` | ❌ | ❌ | ⭐ | 🔵 | Embedded web browser (e.g. via Wry) |
+| Browser per tab | ✅ | ❌ | ❌ | ⭐ | 🔵 | Individual browser tabs |
 | Browser profile sync | ✅ | ❌ | ❌ | ⭐ | 🟡 | Sync with external browser |
 | Open links in browser | ✅ | ❌ | ❌ | ⭐ | 🟡 | Configurable link handler |
 
@@ -806,7 +806,7 @@ iTerm2 supports showing progress for long-running commands.
 | Shell integration auto-install | ✅ | ✅ Embedded auto-install | ✅ | - | - | bash/zsh/fish scripts embedded, auto-installed to RC files |
 | Shell integration version check | ✅ | ✅ Version tracking | ✅ | - | - | Tracks installed/prompted versions, prompts on update |
 | Disable shell integration | ✅ | ✅ Uninstall in Settings | ✅ | - | - | Uninstall button cleanly removes from all RC files |
-| Shell integration features | ✅ `Features` | ✅ OSC 133/7/1337 | ✅ | - | - | Partial - marks/CWD/badges |
+| Shell integration features | ✅ `Features` | 🔶 OSC 133/7/1337 | 🔶 | - | - | Basic marks/CWD/badges. Lacks **Semantic Segmentation** (separating prompt/command/output) and **Structured Command History** APIs. |
 | Current command in window title | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[cmd]` in title when running; `\(session.current_command)` badge var |
 | Command duration tracking | ✅ | ✅ Via tooltips | ✅ | - | - | Already implemented |
 | Command exit code in badge | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[Exit: N]` in title on failure; `\(session.exit_code)` badge var |
@@ -920,7 +920,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Toolbelt | 0 | 0 | 8 |
 | Composer & Auto-Complete | 2 | 0 | 3 |
 | Copy Mode | 8 | 0 | 0 |
-| Snippets & Actions | 0 | 0 | 6 |
+| Snippets & Actions | 6 | 0 | 0 |
 | Window Arrangements & Placement | 2 | 0 | 8 |
 | Session Management & Quit Behavior | 5 | 0 | 1 |
 | Tab Styles & Appearance | 7 | 0 | 1 |
@@ -938,9 +938,10 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Network & Discovery | 4 | 0 | 0 |
 | Miscellaneous | 12 | 0 | 5 |
 | Badges | 9 | 0 | 0 |
-| **TOTAL** | **~304** | **~4** | **~108** |
+| Scripting & Automation | 0 | 0 | 4 |
+| **TOTAL** | **~310** | **~4** | **~106** |
 
-**Overall Parity: ~71% of iTerm2 features implemented** (294 implemented out of ~416 total tracked features)
+**Overall Parity: ~74% of iTerm2 features implemented** (310 implemented out of ~420 total tracked features)
 
 **Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
@@ -995,10 +996,10 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 
 | Feature | Usefulness | Effort | Notes |
 |---------|------------|--------|-------|
-| Hotkey window (Quake-style) | ⭐⭐⭐ | 🔴 High | Dropdown terminal with global hotkey |
+| Hotkey window (Quake-style) | ⭐⭐⭐ | 🔴 High | Dropdown terminal with global hotkey (needs platform hooks) |
 | ~~Copy Mode (vi-style navigation)~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§26 - vi-style copy mode) |
 | ~~Status Bar~~ | ⭐⭐⭐ | 🔴 High | ✅ Complete (§23 - configurable status bar with 10 built-in widgets) |
-| Snippets system | ⭐⭐⭐ | 🟡 Medium | Saved text blocks for quick insertion |
+| ~~Snippets system~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§27 - snippets & actions) |
 | ~~Directory-based profile switching~~ | ⭐⭐⭐ | 🟡 Medium | ✅ Complete (§32 - `directory_patterns` on profiles) |
 | ~~Session undo timeout~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (reopen closed tabs with Cmd+Z / Ctrl+Shift+Z) |
 | ~~Window arrangements~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Complete (§28 arrangements + §29 session restore) |
@@ -1006,18 +1007,18 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Composer (auto-complete) | ⭐⭐ | 🔵 Very High | AI-style command completion |
 | Toolbelt sidebar | ⭐⭐ | 🔴 High | Notes, paste history, jobs panel |
 | ~~Shell integration auto-install~~ | ⭐⭐ | 🟢 Low | ✅ Complete (§41 - embedded auto-install) |
-| Light/Dark mode switching | ⭐⭐ | 🟡 Medium | Auto-switch with system theme |
-| Tab bar position (left/bottom) | ⭐⭐ | 🟡 Medium | Top/Bottom/Left options |
+| ~~Light/Dark mode switching~~ | ~~⭐⭐~~ | ~~🟢 Low~~ | ✅ Complete (§5 - auto_dark_mode with light_theme/dark_theme) |
+| ~~Tab bar position (left/bottom)~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (§6 - top/bottom/left positions) |
 | ~~Tab style variants~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented (5 presets) |
-| Paste delay options | ⭐ | 🟢 Low | Delay between pasted lines |
-| Command in window title | ⭐⭐ | 🟡 Medium | Show running command |
-| Dynamic profiles from URL | ⭐⭐ | 🔴 High | Load profiles from remote URL |
+| ~~Paste delay options~~ | ⭐ | 🟢 Low | ✅ Complete (§40 - paste_delay_ms config) |
+| ~~Command in window title~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (§41 - shows [cmd] in title) |
+| Dynamic profiles from URL | ⭐⭐ | 🟡 Medium | Load profiles from remote URL (uses existing URL fetch/merge logic) |
 | ~~Pane title customization~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Implemented |
 | ~~Division thickness/style~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented |
 | Instant Replay | ⭐⭐ | 🔵 Very High | Rewind terminal state |
-| AI integration | ⭐⭐ | 🔵 Very High | Command help and generation |
+| AI integration | ⭐⭐ | 🔵 Very High | Command help and generation (core API recommended) |
 | VoiceOver/accessibility | ⭐⭐ | 🔵 Very High | Screen reader support |
-| Bidirectional text | ⭐⭐ | 🔴 High | RTL language support |
+| Bidirectional text | ⭐⭐ | 🔴 High | RTL language support (requires core library grid support) |
 | Browser integration | ⭐ | 🔴 High | Embedded web browser |
 | ~~Bonjour/SSH discovery~~ | ~~⭐⭐~~ | ~~🔴 High~~ | ✅ Complete (§42 - mDNS, SSH config, known_hosts, history) |
 
@@ -1035,52 +1036,30 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Profile switcher and directory history
 - Command history search/autocomplete
 
+**Scripting & Automation (4 features)**
+- Python API for terminal automation
+- Scripting manager window and auto-launch
+- Custom UI panels for scripts
+
+**Status Bar (10 features)** ✅ Complete
+- Status bar visibility, position, auto-hide
+- Configurable components (time, battery, network, git branch, etc.)
+- Custom colors and fonts
+
+**Toolbelt (8 features)**
+- Sidebar with notes, paste history, jobs, actions
+- Profile switcher and directory history
+- Command history search/autocomplete
+
 **Composer & Auto-Complete (3 remaining features)**
 - AI-style command completion UI
-- ~~Command history search with fuzzy matching~~ ✅ Complete (#118)
 - Man page integration and command preview
-- ~~Shell integration auto-install~~ ✅ Complete
-
-**~~Copy Mode (8 features)~~** ✅ Complete
-- ~~Vi-style navigation for text selection~~
-- ~~Vi key bindings (hjkl, w, b, e, 0, $, etc.)~~
-- ~~Search (/ and ?) and marks (m and ')~~
-- ~~y operation to copy to clipboard~~
-
-**Snippets & Actions (6 features)**
-- Saved text snippets with shortcuts
-- Dynamic variables in snippets
-- Custom user-defined actions/macros
 
 **Window Arrangements (9 features)**
 - Save/restore window arrangements
 - Hotkey window type (Quake-style dropdown)
 - Hotkey window animations and profiles
 - Screen memory per arrangement
-
-**Session Management (5 features)**
-- Prompt on quit with sessions
-- ~~Session undo timeout (recover closed tabs)~~ ✅ Implemented
-- Session restore on launch
-
-**Tab Styles (1 remaining feature)**
-- ~~Multiple tab style variants (Compact/High Contrast/Light/Minimal/Dark)~~ ✅ Implemented
-- Auto-switch tab style based on theme
-
-**Pane Customization (1 remaining feature)**
-- ~~Pane title format, position, color, font~~ ✅ Implemented
-- ~~Division thickness and style variants~~ ✅ Implemented
-- Per-pane backgrounds (data model ready, renderer pending)
-
-**Profile Switching (2 remaining features)**
-- ~~Directory-based auto-switching~~ ✅ Implemented
-- ~~Command-based auto-switching~~ ✅ Implemented
-- ~~User-based auto-switching~~ ✅ Implemented
-- Dynamic profiles from URL with auto-reload
-
-**Advanced Configuration (8 features)**
-- Save preferences mode (auto-save/ask on quit)
-- Preference validation and profiles
 
 **Unicode & Text Processing (2 features)**
 - Emoji variation sequences
@@ -1090,80 +1069,38 @@ The following iTerm2 features were identified and added to the matrix in this up
 - Built-in browser for web-based workflows
 - Browser per tab, profile sync
 
-**Progress Bars (0 remaining - COMPLETE)**
-- ~~OSC 9;4 protocol support~~ ✅
-- ~~Progress bar style and position~~ ✅
-- ~~Multiple concurrent progress bars (OSC 934)~~ ✅
-
-**Advanced Paste (3 features)**
-- ~~Paste delay between lines~~ ✅
-- ~~Paste as single line~~ ✅
-- ~~Add/remove newlines on paste~~ ✅
-
-**Advanced Shell Integration (1 feature)**
-- ~~Current command in window title~~ ✅
-- ~~Command exit code in badge~~ ✅
-- ~~Remote host integration~~ ✅
-
-**Network & Discovery (0 remaining features)** ✅ Complete
-- ~~Bonjour discovery~~ ✅ Implemented
-- ~~SSH hosts auto-discovery~~ ✅ Implemented
-- ~~Host profiles and quick connect~~ ✅ Implemented
-
 **Total: ~105 new features remaining across 18 new categories**
 
 ---
 
-### Recently Completed (Unreleased)
-- ✅ Navigate to settings from application menu (macOS Cmd+,, Windows/Linux Ctrl+Shift+, in Edit menu, F12 retained)
-- ✅ Shell selection per profile (platform-aware detection, per-profile login shell, dropdown UI)
+## Features Requiring Core Library Updates
 
-### Recently Completed (v0.15.0)
-- ✅ Directory-based profile switching (glob patterns, CWD detection via OSC 7, priority system)
-- ✅ Profile emoji picker (curated grid of ~70 emojis in 9 categories)
-- ✅ Full profile auto-switch application (directory, hostname, tmux session switching apply all visual settings)
-- ✅ Tab style variants (5 built-in styles: Dark, Light, Compact, Minimal, High Contrast)
-- ✅ Alert sounds (per-event: Bell, Command Complete, New Tab, Tab Close with volume/frequency/duration)
-- ✅ Fuzzy command history search (Skim algorithm, match highlighting, exit code indicators)
-- ✅ Import/export preferences (file & URL import with replace/merge, YAML export)
-- ✅ Session undo / reopen closed tabs (metadata capture, optional shell session preservation)
-- ✅ Session restore on startup (save/restore windows, tabs, pane layouts, CWDs)
-- ✅ Tab bar position (top/bottom/left with configurable sidebar width)
-- ✅ Profile management moved to Settings window
-- ✅ Comprehensive HiDPI/DPI scaling fix
-- ✅ Text shaper LRU cache upgrade
+The following features are blocked by or significantly dependent on architectural changes or new APIs in the `par-term-emu-core-rust` library:
 
-### Previously Completed (v0.14.0)
-- ✅ Self-update capability (CLI and Settings UI, platform-aware installation detection)
-- ✅ Command separator lines (exit-code coloring, configurable thickness/opacity/color)
-- ✅ Drag-and-drop tab reordering (ghost tab preview, insertion indicator)
-- ✅ Window arrangements (save/restore layouts, monitor-aware, auto-restore on startup)
-- ✅ Variable substitution in config (`${VAR}` and `${VAR:-default}` syntax)
-- ✅ Shell integration event queuing (accurate OSC 133 marker positions)
-- ✅ Remember settings section expand/collapse states
-
-### Previously Completed (v0.13.0)
-- ✅ Vi-style copy mode (full vi motions, visual selection, search, marks, status bar)
-- ✅ Unicode normalization (NFC/NFD/NFKC/NFKD/None, live-update across tabs)
-- ✅ Snippets & actions completion (custom variables UI, key sequence simulation, import/export)
-- ✅ Color emoji rendering fix (Apple Color Emoji as colored bitmaps)
-- ✅ Mouse drag forwarding fix (tmux pane resize)
-- ✅ Text baseline alignment fix
-- ✅ Link highlighting fixes (multi-byte offset, absolute file paths)
-
-### Previously Completed (v0.12.0)
-- ✅ Snippets & actions system (text snippets, custom actions, keybinding recording, auto-execute)
-- ✅ Progress bar rendering (OSC 9;4 and OSC 934 named bars, iProgress shader uniform)
-- ✅ Paste delay and newline control transforms
-- ✅ Current command in window title, exit code and current command badge variables
-- ✅ Remote host integration: OSC 1337 RemoteHost support, hostname/username synced to badge variables
-- ✅ Image scaling quality and aspect ratio control
-- ✅ Pane title bars and divider style customization
-- ✅ Prompt on quit confirmation dialog
-- ✅ Cross-platform keybindings overhaul (Linux/Windows)
+| Feature | Core Requirement / Technical Gap | Proposed Core Implementation Details |
+|---------|---------------------------------|--------------------------------------|
+| **Bidirectional Text (RTL)** | Core `Grid` and `Line` structures must implement the Unicode Bidirectional Algorithm (Bidi). | Update `Line` to store embedding levels; implement logical-to-visual mapping in `Grid::get_cells`; support `DECRTL` / `DECTME` sequences. |
+| **Semantic Buffer Zoning** | Core must segment the scrollback buffer into logical blocks (Prompt, Command, Output). | Add a `ZoneMap` to `Grid` that tracks `(row_start, row_end, ZoneType)`; update `Perform` trait to handle FinalTerm markers by initiating/closing zones. |
+| **Command Output Capture** | Core requires a high-level API to programmatically extract text from specific `CommandExecution` blocks. | Implement `Terminal::get_command_output(execution_id)`; add `output_range` (start/end cursor positions) to `CommandExecution` struct. |
+| **Instant Replay** | Core must implement terminal state snapshots or a dedicated replay buffer that records incremental changes. | Add `SnapshotManager` to `Terminal`; implement incremental state delta recording; add `Terminal::restore_from_snapshot(timestamp)`. |
+| **Advanced File Protocols** | Full iTerm2-style file upload/download via OSC 1337 `File=` requires core state machines. | Implement DCS/OSC state machines for chunked base64 file transfers; add `FileTransfer` manager to `Terminal` with progress tracking. |
+| **Python / Scripting API** | Core requires extensibility hooks and a stable FFI-friendly representation of terminal state. | Define `TerminalObserver` trait; implement a C-compatible `SharedState` view for FFI; add hooks for all `Perform` actions. |
+| **AI Terminal Inspection** | Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata. | Implement `Terminal::get_semantic_snapshot()` returning structured data (JSON/Protobuf) with text + zones + attributes + metadata. |
+| **Contextual Awareness API** | Granular notification system for the frontend to observe internal state changes beyond simple screen updates. | Expand `TerminalEvent` to include sub-shell detection, environment changes, and remote host transitions. |
 
 ---
 
-*Updated: 2026-02-12 (Session undo, session restore on startup, self-update feature, copy mode, snippets completion)*
+### Recently Completed (v0.16.0)
+- ✅ **Status Bar**: Configurable status bar with 10 built-in widgets, drag-and-drop reordering, and background system monitoring (#133)
+- ✅ **SSH Host Profiles**: SSH config/known_hosts/history discovery, Quick Connect dialog (Cmd+Shift+S), and mDNS/Bonjour discovery (#134)
+- ✅ **Automatic SSH Profile Switching**: Hostname and command-based switching with auto-revert on disconnect
+- ✅ **Shell Selection Per Profile**: Configure specific shells (bash/zsh/fish/pwsh) and login shell mode independently for each profile (#128)
+- ✅ **Profile Selection on New Tab**: Split `+`/`▾` button on tab bar for quick profile launch; shortcut behavior toggle (#129)
+- ✅ **Remote Shell Integration Install**: Install integration on remote hosts via active PTY from Shell menu (#135)
+- ✅ **Native Application Menus**: Platform-aware settings access via Cmd+, (macOS) and Edit > Preferences (Windows/Linux) (#127)
+
+---
+
+*Updated: 2026-02-13 (Full review of uncompleted items, added core library requirement notes)*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.15.0*
+*par-term Version: 0.16.0*

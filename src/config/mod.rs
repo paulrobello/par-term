@@ -742,6 +742,18 @@ pub struct Config {
     #[serde(default = "defaults::theme")]
     pub theme: String,
 
+    /// Automatically switch theme based on system light/dark mode
+    #[serde(default)]
+    pub auto_dark_mode: bool,
+
+    /// Theme to use when system is in light mode (used when auto_dark_mode is true)
+    #[serde(default = "defaults::light_theme")]
+    pub light_theme: String,
+
+    /// Theme to use when system is in dark mode (used when auto_dark_mode is true)
+    #[serde(default = "defaults::dark_theme")]
+    pub dark_theme: String,
+
     // ========================================================================
     // Screenshot
     // ========================================================================
@@ -1739,6 +1751,9 @@ impl Default for Config {
             window_title: defaults::window_title(),
             allow_title_change: defaults::bool_true(),
             theme: defaults::theme(),
+            auto_dark_mode: false,
+            light_theme: defaults::light_theme(),
+            dark_theme: defaults::dark_theme(),
             left_option_key_mode: OptionKeyMode::default(),
             right_option_key_mode: OptionKeyMode::default(),
             modifier_remapping: ModifierRemapping::default(),
@@ -2503,6 +2518,25 @@ impl Config {
     /// Load theme configuration
     pub fn load_theme(&self) -> Theme {
         Theme::by_name(&self.theme).unwrap_or_default()
+    }
+
+    /// Apply system theme if auto_dark_mode is enabled.
+    /// Returns true if the theme was changed.
+    pub fn apply_system_theme(&mut self, is_dark: bool) -> bool {
+        if !self.auto_dark_mode {
+            return false;
+        }
+        let new_theme = if is_dark {
+            &self.dark_theme
+        } else {
+            &self.light_theme
+        };
+        if self.theme != *new_theme {
+            self.theme = new_theme.clone();
+            true
+        } else {
+            false
+        }
     }
 
     /// Get the user override config for a specific shader (if any)

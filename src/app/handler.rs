@@ -674,6 +674,31 @@ impl WindowState {
                 }
             }
 
+            WindowEvent::ThemeChanged(system_theme) => {
+                let is_dark = system_theme == winit::window::Theme::Dark;
+                if self.config.apply_system_theme(is_dark) {
+                    log::info!(
+                        "System theme changed to {}, switching to theme: {}",
+                        if is_dark { "dark" } else { "light" },
+                        self.config.theme
+                    );
+                    // Apply theme to all terminals in this window
+                    let theme = self.config.load_theme();
+                    for tab in self.tab_manager.tabs_mut() {
+                        if let Ok(mut term) = tab.terminal.try_lock() {
+                            term.set_theme(theme.clone());
+                        }
+                        tab.cache.cells = None;
+                    }
+                    // Save config to persist the theme change
+                    if let Err(e) = self.config.save() {
+                        log::error!("Failed to save config after theme change: {}", e);
+                    }
+                    self.needs_redraw = true;
+                    self.request_redraw();
+                }
+            }
+
             _ => {}
         }
 

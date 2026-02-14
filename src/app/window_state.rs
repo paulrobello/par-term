@@ -611,6 +611,20 @@ impl WindowState {
         window.set_ime_allowed(true);
         log::debug!("IME enabled for character input");
 
+        // Detect system theme at startup and apply if auto_dark_mode is enabled
+        if self.config.auto_dark_mode {
+            let is_dark = window
+                .theme()
+                .is_none_or(|t| t == winit::window::Theme::Dark);
+            if self.config.apply_system_theme(is_dark) {
+                log::info!(
+                    "Auto dark mode: detected {} system theme, using theme: {}",
+                    if is_dark { "dark" } else { "light" },
+                    self.config.theme
+                );
+            }
+        }
+
         let window = Arc::new(window);
 
         // Initialize egui context and state (no memory to preserve on first init)

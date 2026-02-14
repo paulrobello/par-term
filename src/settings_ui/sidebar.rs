@@ -182,6 +182,14 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "scheme",
             "dark",
             "light",
+            // Auto dark mode
+            "auto dark mode",
+            "auto",
+            "dark mode",
+            "light mode",
+            "system theme",
+            "system appearance",
+            "automatic",
             // Fonts
             "font",
             "family",

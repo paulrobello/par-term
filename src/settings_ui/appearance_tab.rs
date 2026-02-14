@@ -33,6 +33,23 @@ pub fn show(
         show_theme_section(ui, settings, changes_this_frame, collapsed);
     }
 
+    // Auto Dark Mode section
+    if section_matches(
+        &query,
+        "Auto Dark Mode",
+        &[
+            "auto",
+            "dark mode",
+            "light mode",
+            "system",
+            "appearance",
+            "automatic",
+            "system theme",
+        ],
+    ) {
+        show_auto_dark_mode_section(ui, settings, changes_this_frame, collapsed);
+    }
+
     // Fonts section
     if section_matches(
         &query,
@@ -190,6 +207,80 @@ fn show_theme_section(
             *changes_this_frame = true;
         }
     });
+}
+
+// ============================================================================
+// Auto Dark Mode Section
+// ============================================================================
+
+fn show_auto_dark_mode_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(
+        ui,
+        "Auto Dark Mode",
+        "appearance_auto_dark_mode",
+        false,
+        collapsed,
+        |ui| {
+            if ui
+                .checkbox(
+                    &mut settings.config.auto_dark_mode,
+                    "Auto-switch theme with system appearance",
+                )
+                .on_hover_text(
+                    "Automatically switch between light and dark themes when the OS appearance changes",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            ui.add_enabled_ui(settings.config.auto_dark_mode, |ui| {
+                let available = Theme::available_themes();
+
+                ui.horizontal(|ui| {
+                    ui.label("Light theme:");
+                    let mut selected = settings.config.light_theme.clone();
+                    egui::ComboBox::from_id_salt("appearance_light_theme_select")
+                        .width(INPUT_WIDTH)
+                        .selected_text(selected.clone())
+                        .show_ui(ui, |ui| {
+                            for theme in &available {
+                                ui.selectable_value(&mut selected, theme.to_string(), *theme);
+                            }
+                        });
+                    if selected != settings.config.light_theme {
+                        settings.config.light_theme = selected;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Dark theme:");
+                    let mut selected = settings.config.dark_theme.clone();
+                    egui::ComboBox::from_id_salt("appearance_dark_theme_select")
+                        .width(INPUT_WIDTH)
+                        .selected_text(selected.clone())
+                        .show_ui(ui, |ui| {
+                            for theme in &available {
+                                ui.selectable_value(&mut selected, theme.to_string(), *theme);
+                            }
+                        });
+                    if selected != settings.config.dark_theme {
+                        settings.config.dark_theme = selected;
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+                });
+            });
+        },
+    );
 }
 
 // ============================================================================

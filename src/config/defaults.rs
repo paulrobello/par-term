@@ -44,6 +44,14 @@ pub fn theme() -> String {
     "dark-background".to_string()
 }
 
+pub fn light_theme() -> String {
+    "light-background".to_string()
+}
+
+pub fn dark_theme() -> String {
+    "dark-background".to_string()
+}
+
 pub fn screenshot_format() -> String {
     "png".to_string()
 }
