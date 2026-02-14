@@ -248,6 +248,24 @@ fn fetch_profiles_inner(
 ) -> anyhow::Result<(Vec<super::types::Profile>, Option<String>)> {
     use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 
+    // Warn if using HTTP with auth headers (credential leaking risk)
+    if !source.url.starts_with("https://") && !source.url.starts_with("file://") {
+        if source.headers.keys().any(|k| {
+            let lower = k.to_lowercase();
+            lower == "authorization" || lower.contains("token") || lower.contains("secret")
+        }) {
+            anyhow::bail!(
+                "Refusing to send authentication headers over insecure HTTP for {}. Use HTTPS.",
+                source.url
+            );
+        }
+        crate::debug_info!(
+            "DYNAMIC_PROFILE",
+            "Warning: {} uses insecure HTTP. Consider using HTTPS.",
+            source.url
+        );
+    }
+
     // Create an agent with the source-specific timeout
     let tls_config = TlsConfig::builder()
         .provider(TlsProvider::NativeTls)
@@ -466,18 +484,32 @@ impl DynamicProfileManager {
             // Spawn background fetch task
             let tx = self.update_tx.clone();
             let source_clone = source.clone();
+            let url_for_log = source.url.clone();
             let handle = runtime.spawn(async move {
                 // Initial fetch using spawn_blocking since ureq is synchronous
                 let src = source_clone.clone();
                 let conflict = source_clone.conflict_resolution.clone();
-                if let Ok(result) = tokio::task::spawn_blocking(move || fetch_profiles(&src)).await
-                {
-                    let _ = tx.send(DynamicProfileUpdate {
-                        url: result.url.clone(),
-                        profiles: result.profiles,
-                        conflict_resolution: conflict,
-                        error: result.error,
-                    });
+                match tokio::task::spawn_blocking(move || fetch_profiles(&src)).await {
+                    Ok(result) => {
+                        if tx
+                            .send(DynamicProfileUpdate {
+                                url: result.url.clone(),
+                                profiles: result.profiles,
+                                conflict_resolution: conflict,
+                                error: result.error,
+                            })
+                            .is_err()
+                        {
+                            return; // Receiver dropped
+                        }
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "Dynamic profile fetch task panicked for {}: {}",
+                            url_for_log,
+                            e
+                        );
+                    }
                 }
 
                 // Periodic refresh
@@ -487,27 +519,38 @@ impl DynamicProfileManager {
                 loop {
                     interval.tick().await;
                     let src = source_clone.clone();
-                    let conflict = source_clone.conflict_resolution.clone();
+                    let source_clone2 = source_clone.clone();
                     let tx_clone = tx.clone();
-                    let send_failed = tokio::task::spawn_blocking(move || fetch_profiles(&src))
-                        .await
-                        .is_ok_and(|result| {
-                            tx_clone
+                    match tokio::task::spawn_blocking(move || fetch_profiles(&src)).await {
+                        Ok(result) => {
+                            if tx_clone
                                 .send(DynamicProfileUpdate {
                                     url: result.url.clone(),
                                     profiles: result.profiles,
-                                    conflict_resolution: conflict,
+                                    conflict_resolution: source_clone2.conflict_resolution.clone(),
                                     error: result.error,
                                 })
                                 .is_err()
-                        });
-                    if send_failed {
-                        break; // Receiver dropped, stop task
+                            {
+                                break; // Receiver dropped
+                            }
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Dynamic profile fetch task panicked for {}: {}",
+                                url_for_log,
+                                e
+                            );
+                        }
                     }
                 }
             });
 
             self.task_handles.push(handle);
+
+            if let Some(status) = self.statuses.get_mut(&source.url) {
+                status.fetching = true;
+            }
         }
     }
 
@@ -520,7 +563,7 @@ impl DynamicProfileManager {
 
     /// Trigger an immediate refresh of all enabled sources
     pub fn refresh_all(
-        &self,
+        &mut self,
         sources: &[DynamicProfileSource],
         runtime: &Arc<tokio::runtime::Runtime>,
     ) {
@@ -534,25 +577,37 @@ impl DynamicProfileManager {
 
     /// Trigger an immediate refresh of a specific source
     pub fn refresh_source(
-        &self,
+        &mut self,
         source: &DynamicProfileSource,
         runtime: &Arc<tokio::runtime::Runtime>,
     ) {
         let tx = self.update_tx.clone();
         let source_clone = source.clone();
+        let url_for_log = source.url.clone();
         runtime.spawn(async move {
             let conflict = source_clone.conflict_resolution.clone();
-            if let Ok(result) =
-                tokio::task::spawn_blocking(move || fetch_profiles(&source_clone)).await
-            {
-                let _ = tx.send(DynamicProfileUpdate {
-                    url: result.url.clone(),
-                    profiles: result.profiles,
-                    conflict_resolution: conflict,
-                    error: result.error,
-                });
+            match tokio::task::spawn_blocking(move || fetch_profiles(&source_clone)).await {
+                Ok(result) => {
+                    let _ = tx.send(DynamicProfileUpdate {
+                        url: result.url.clone(),
+                        profiles: result.profiles,
+                        conflict_resolution: conflict,
+                        error: result.error,
+                    });
+                }
+                Err(e) => {
+                    log::error!(
+                        "Dynamic profile fetch task panicked for {}: {}",
+                        url_for_log,
+                        e
+                    );
+                }
             }
         });
+
+        if let Some(status) = self.statuses.get_mut(&source.url) {
+            status.fetching = true;
+        }
     }
 
     /// Check for pending updates (non-blocking)
