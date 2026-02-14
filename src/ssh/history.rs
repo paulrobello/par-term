@@ -65,13 +65,13 @@ fn scan_fish_history(path: &Path, hosts: &mut Vec<SshHost>, seen: &mut HashSet<S
 
     for line in content.lines() {
         let line = line.trim();
-        if let Some(cmd) = line.strip_prefix("- cmd: ") {
-            if let Some(host) = parse_ssh_command(cmd) {
-                let key = host.connection_string();
-                if !seen.contains(&key) {
-                    seen.insert(key);
-                    hosts.push(host);
-                }
+        if let Some(cmd) = line.strip_prefix("- cmd: ")
+            && let Some(host) = parse_ssh_command(cmd)
+        {
+            let key = host.connection_string();
+            if !seen.contains(&key) {
+                seen.insert(key);
+                hosts.push(host);
             }
         }
     }

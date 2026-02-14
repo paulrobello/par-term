@@ -60,11 +60,11 @@ impl SshHost {
     pub fn ssh_args(&self) -> Vec<String> {
         let mut args = Vec::new();
 
-        if let Some(port) = self.port {
-            if port != 22 {
-                args.push("-p".to_string());
-                args.push(port.to_string());
-            }
+        if let Some(port) = self.port
+            && port != 22
+        {
+            args.push("-p".to_string());
+            args.push(port.to_string());
         }
 
         if let Some(ref identity) = self.identity_file {
@@ -95,11 +95,11 @@ impl SshHost {
             s.push('@');
         }
         s.push_str(self.connection_target());
-        if let Some(port) = self.port {
-            if port != 22 {
-                s.push(':');
-                s.push_str(&port.to_string());
-            }
+        if let Some(port) = self.port
+            && port != 22
+        {
+            s.push(':');
+            s.push_str(&port.to_string());
         }
         s
     }

@@ -71,9 +71,9 @@ pub fn parse_ssh_config_str(content: &str) -> Vec<SshHost> {
             "user" => user = Some(value.to_string()),
             "port" => port = value.parse().ok(),
             "identityfile" => {
-                let expanded = if value.starts_with("~/") {
+                let expanded = if let Some(rest) = value.strip_prefix("~/") {
                     if let Some(home) = dirs::home_dir() {
-                        format!("{}/{}", home.display(), &value[2..])
+                        format!("{}/{}", home.display(), rest)
                     } else {
                         value.to_string()
                     }

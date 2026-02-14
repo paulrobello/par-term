@@ -9,6 +9,7 @@ use crate::badge::{BadgeState, render_badge};
 use crate::cell_renderer::PaneViewport;
 use crate::clipboard_history_ui::{ClipboardHistoryAction, ClipboardHistoryUI};
 use crate::close_confirmation_ui::{CloseConfirmAction, CloseConfirmationUI};
+use crate::ssh_connect_ui::{SshConnectAction, SshConnectUI};
 use crate::command_history::CommandHistory;
 use crate::command_history_ui::{CommandHistoryAction, CommandHistoryUI};
 use crate::config::{
@@ -142,6 +143,8 @@ pub struct WindowState {
     pub(crate) quit_confirmation_ui: QuitConfirmationUI,
     /// Remote shell integration install dialog UI
     pub(crate) remote_shell_install_ui: RemoteShellInstallUI,
+    /// SSH Quick Connect dialog UI
+    pub(crate) ssh_connect_ui: SshConnectUI,
     /// Whether terminal session recording is active
     pub(crate) is_recording: bool,
     /// When recording started
@@ -330,6 +333,7 @@ impl WindowState {
             close_confirmation_ui: CloseConfirmationUI::new(),
             quit_confirmation_ui: QuitConfirmationUI::new(),
             remote_shell_install_ui: RemoteShellInstallUI::new(),
+            ssh_connect_ui: SshConnectUI::new(),
             is_recording: false,
             recording_start_time: None,
             is_shutting_down: false,
@@ -1777,6 +1781,7 @@ impl WindowState {
         // Quit confirmation action to handle after rendering
         let mut pending_quit_confirm_action = QuitConfirmAction::None;
         let mut pending_remote_install_action = RemoteShellInstallAction::None;
+        let mut pending_ssh_connect_action = SshConnectAction::None;
 
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts
         // When tmux controls the layout, we don't use pane padding
@@ -2288,6 +2293,9 @@ impl WindowState {
 
                     // Show remote shell install dialog if visible
                     pending_remote_install_action = self.remote_shell_install_ui.show(ctx);
+
+                    // Show SSH Quick Connect dialog if visible
+                    pending_ssh_connect_action = self.ssh_connect_ui.show(ctx);
 
                     // Render profile drawer (right side panel)
                     pending_profile_drawer_action = self.profile_drawer_ui.render(
@@ -2883,6 +2891,33 @@ impl WindowState {
                 // Nothing to do - dialog already hidden
             }
             RemoteShellInstallAction::None => {}
+        }
+
+        // Handle SSH Quick Connect actions
+        match pending_ssh_connect_action {
+            SshConnectAction::Connect {
+                host,
+                profile_override: _,
+            } => {
+                // Build SSH command and write it to the active terminal's PTY
+                let args = host.ssh_args();
+                let ssh_cmd = format!("ssh {}\n", args.join(" "));
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
+                {
+                    let _ = term.write_str(&ssh_cmd);
+                }
+                log::info!("SSH Quick Connect: connecting to {}", host.connection_string());
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            SshConnectAction::Cancel => {
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            SshConnectAction::None => {}
         }
 
         // Handle paste special actions collected during egui rendering

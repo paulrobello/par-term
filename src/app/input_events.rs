@@ -1593,6 +1593,17 @@ impl WindowState {
                 log::info!("Save arrangement requested via keybinding");
                 true
             }
+            "ssh_quick_connect" => {
+                self.ssh_connect_ui.open(
+                    self.config.enable_mdns_discovery,
+                    self.config.mdns_scan_timeout_secs,
+                );
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+                log::info!("SSH Quick Connect opened via keybinding");
+                true
+            }
             _ => {
                 // Check for snippet or action keybindings
                 if let Some(snippet_id) = action.strip_prefix("snippet:") {

@@ -379,11 +379,11 @@ impl Profile {
         let host = self.ssh_host.as_ref()?;
         let mut args = Vec::new();
 
-        if let Some(port) = self.ssh_port {
-            if port != 22 {
-                args.push("-p".to_string());
-                args.push(port.to_string());
-            }
+        if let Some(port) = self.ssh_port
+            && port != 22
+        {
+            args.push("-p".to_string());
+            args.push(port.to_string());
         }
 
         if let Some(ref identity) = self.ssh_identity_file {

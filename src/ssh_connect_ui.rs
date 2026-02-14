@@ -101,8 +101,8 @@ impl SshConnectUI {
 
         let mut action = SshConnectAction::None;
         let screen_rect = ctx.content_rect();
-        let dialog_width = (screen_rect.width() * 0.5).min(500.0).max(350.0);
-        let dialog_height = (screen_rect.height() * 0.6).min(500.0).max(300.0);
+        let dialog_width = (screen_rect.width() * 0.5).clamp(350.0, 500.0);
+        let dialog_height = (screen_rect.height() * 0.6).clamp(300.0, 500.0);
 
         egui::Area::new(egui::Id::new("ssh_connect_overlay"))
             .fixed_pos(egui::pos2(
