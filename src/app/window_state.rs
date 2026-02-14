@@ -625,6 +625,24 @@ impl WindowState {
             }
         }
 
+        // Detect system theme at startup and apply tab style if tab_style is Automatic
+        {
+            let is_dark = window
+                .theme()
+                .is_none_or(|t| t == winit::window::Theme::Dark);
+            if self.config.apply_system_tab_style(is_dark) {
+                log::info!(
+                    "Auto tab style: detected {} system theme, applying {} tab style",
+                    if is_dark { "dark" } else { "light" },
+                    if is_dark {
+                        self.config.dark_tab_style.display_name()
+                    } else {
+                        self.config.light_tab_style.display_name()
+                    }
+                );
+            }
+        }
+
         let window = Arc::new(window);
 
         // Initialize egui context and state (no memory to preserve on first init)

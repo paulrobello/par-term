@@ -309,6 +309,10 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "activity indicator",
             "bell indicator",
             "close button color",
+            "tab style",
+            "auto tab style",
+            "automatic tab",
+            "system tab style",
             // Split panes
             "panes",
             "split",
