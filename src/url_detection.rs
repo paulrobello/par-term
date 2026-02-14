@@ -313,26 +313,43 @@ pub fn find_url_at_position(urls: &[DetectedUrl], col: usize, row: usize) -> Opt
         .find(|url| url.row == row && col >= url.start_col && col < url.end_col)
 }
 
-/// Open a URL in the configured browser or system default
-pub fn open_url(url: &str, link_handler_command: &str) -> Result<(), String> {
-    // Add scheme if missing (e.g., www.example.com -> https://www.example.com)
-    let url_with_scheme = if !url.contains("://") {
+/// Ensure a URL has a scheme prefix, adding `https://` if missing.
+///
+/// # Examples
+/// - `"www.example.com"` -> `"https://www.example.com"`
+/// - `"https://example.com"` -> `"https://example.com"` (unchanged)
+pub fn ensure_url_scheme(url: &str) -> String {
+    if !url.contains("://") {
         format!("https://{}", url)
     } else {
         url.to_string()
-    };
+    }
+}
+
+/// Expand a link handler command template by replacing `{url}` with the given URL.
+///
+/// Returns the command split into program + arguments, ready for spawning.
+/// Returns an error if the expanded command is empty (whitespace-only or blank).
+pub fn expand_link_handler(command: &str, url: &str) -> Result<Vec<String>, String> {
+    let expanded = command.replace("{url}", url);
+    let parts: Vec<String> = expanded.split_whitespace().map(String::from).collect();
+    if parts.is_empty() {
+        return Err("Link handler command is empty after expansion".to_string());
+    }
+    Ok(parts)
+}
+
+/// Open a URL in the configured browser or system default
+pub fn open_url(url: &str, link_handler_command: &str) -> Result<(), String> {
+    let url_with_scheme = ensure_url_scheme(url);
 
     if link_handler_command.is_empty() {
         // Use system default
         open::that(&url_with_scheme).map_err(|e| format!("Failed to open URL: {}", e))
     } else {
         // Use custom command with {url} placeholder
-        let expanded = link_handler_command.replace("{url}", &url_with_scheme);
-        let parts: Vec<&str> = expanded.split_whitespace().collect();
-        if parts.is_empty() {
-            return Err("Link handler command is empty after expansion".to_string());
-        }
-        std::process::Command::new(parts[0])
+        let parts = expand_link_handler(link_handler_command, &url_with_scheme)?;
+        std::process::Command::new(&parts[0])
             .args(&parts[1..])
             .spawn()
             .map(|_| ())
@@ -737,5 +754,79 @@ mod tests {
         let end_col = map(paths[0].end_col);
         assert_eq!(start_col, 2, "Column should be 2 (after ★ and space)");
         assert_eq!(end_col, cols, "End column should be 8 (end of line)");
+    }
+
+    // --- ensure_url_scheme tests ---
+
+    #[test]
+    fn test_ensure_url_scheme_adds_https_when_no_scheme() {
+        assert_eq!(
+            ensure_url_scheme("www.example.com"),
+            "https://www.example.com"
+        );
+        assert_eq!(
+            ensure_url_scheme("example.com/path"),
+            "https://example.com/path"
+        );
+    }
+
+    #[test]
+    fn test_ensure_url_scheme_preserves_existing_scheme() {
+        assert_eq!(
+            ensure_url_scheme("https://example.com"),
+            "https://example.com"
+        );
+        assert_eq!(
+            ensure_url_scheme("http://example.com"),
+            "http://example.com"
+        );
+        assert_eq!(
+            ensure_url_scheme("ftp://files.example.com"),
+            "ftp://files.example.com"
+        );
+        assert_eq!(
+            ensure_url_scheme("file:///tmp/test.html"),
+            "file:///tmp/test.html"
+        );
+    }
+
+    // --- expand_link_handler tests ---
+
+    #[test]
+    fn test_expand_link_handler_replaces_url_placeholder() {
+        let parts =
+            expand_link_handler("firefox {url}", "https://example.com").expect("should succeed");
+        assert_eq!(parts, vec!["firefox", "https://example.com"]);
+    }
+
+    #[test]
+    fn test_expand_link_handler_multi_word_command() {
+        let parts = expand_link_handler("open -a Firefox {url}", "https://example.com")
+            .expect("should succeed");
+        assert_eq!(parts, vec!["open", "-a", "Firefox", "https://example.com"]);
+    }
+
+    #[test]
+    fn test_expand_link_handler_no_placeholder() {
+        // If command has no {url}, it still works - the URL just doesn't appear
+        let parts = expand_link_handler("my-browser", "https://example.com").expect("should succeed");
+        assert_eq!(parts, vec!["my-browser"]);
+    }
+
+    #[test]
+    fn test_expand_link_handler_errors_on_empty_expansion() {
+        // A command that is only whitespace after expansion should error
+        let result = expand_link_handler("   ", "https://example.com");
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Link handler command is empty after expansion"
+        );
+    }
+
+    #[test]
+    fn test_expand_link_handler_empty_command() {
+        let result = expand_link_handler("", "https://example.com");
+        assert!(result.is_err());
     }
 }
