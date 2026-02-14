@@ -334,11 +334,12 @@ impl StatusBarUI {
         let scrollbar_inset = (config.scrollbar_width + 2.0) as i8;
         let frame = egui::Frame::NONE
             .fill(bg_color)
-            .inner_margin(egui::Margin {
-                left: 8,
+            .inner_margin(egui::Margin::symmetric(8, 2))
+            .outer_margin(egui::Margin {
+                left: 0,
                 right: scrollbar_inset,
-                top: 2,
-                bottom: 2,
+                top: 0,
+                bottom: 0,
             });
 
         let show_panel = |ui_fn: &mut dyn FnMut(&mut egui::Ui)| match config.status_bar_position {
