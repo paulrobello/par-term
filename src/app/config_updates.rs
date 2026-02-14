@@ -105,6 +105,9 @@ pub(crate) struct ConfigChanges {
 
     // Command separator lines
     pub command_separator: bool,
+
+    // Dynamic profile sources
+    pub dynamic_profile_sources: bool,
 }
 
 impl ConfigChanges {
@@ -254,6 +257,8 @@ impl ConfigChanges {
                     > f32::EPSILON
                 || new.command_separator_exit_color != old.command_separator_exit_color
                 || new.command_separator_color != old.command_separator_color,
+
+            dynamic_profile_sources: new.dynamic_profile_sources != old.dynamic_profile_sources,
         }
     }
 
