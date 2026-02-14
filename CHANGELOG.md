@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dynamic Profiles from Remote URLs**: Load profile definitions from remote URLs for team-shared configurations (#142)
+  - New config option: `dynamic_profile_sources` with per-source URL, custom headers, refresh interval, size limits, and conflict resolution
+  - Background auto-refresh via configurable timer (default 30 min)
+  - Local cache for offline availability (`~/.config/par-term/cache/dynamic_profiles/`)
+  - Configurable conflict resolution: Local Wins (default) or Remote Wins
+  - HTTPS enforcement when auth headers are present
+  - Settings UI for managing dynamic sources (add/edit/remove, headers editor, refresh controls)
+  - Visual `[dynamic]` indicators in profile modal and drawer; dynamic profiles are read-only
+  - New keybinding action: `reload_dynamic_profiles` for manual refresh
+  - 11 unit tests covering serialization, cache, and merge logic
+
 - **Auto Dark Mode**: Automatically switch terminal theme based on system light/dark appearance (#139)
   - New config options: `auto_dark_mode`, `light_theme`, `dark_theme`
   - Detects system theme at startup via `Window::theme()`

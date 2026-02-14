@@ -682,9 +682,9 @@ iTerm2 has sophisticated window state management.
 | Directory-based switching | ✅ | ✅ `directory_patterns` | ✅ | - | - | Full parity: applies icon, title, badge text/styling, command execution; tilde expansion |
 | Command-based switching | ✅ | ✅ `check_ssh_command_switch` | ✅ | - | - | Auto-switch by running SSH command with revert on disconnect |
 | User-based switching | ✅ | ✅ via OSC 1337 RemoteHost | ✅ | - | - | Switch by SSH user/hostname via shell integration |
-| Dynamic profiles from URL | ✅ `Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🟡 | Load profiles from remote URL (uses existing URL fetch/merge logic) |
-| Dynamic profiles reload | ✅ `Reload Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🟡 | Refresh dynamic profiles |
-| Dynamic profiles automatic reload | ✅ `Automatically Reload` | ❌ | ❌ | ⭐ | 🟡 | Auto-refresh on change |
+| Dynamic profiles from URL | ✅ `Dynamic Profiles` | ✅ `dynamic_profile_sources` | ✅ | - | - | Load profiles from remote URLs with caching, custom headers, conflict resolution (#142) |
+| Dynamic profiles reload | ✅ `Reload Dynamic Profiles` | ✅ `reload_dynamic_profiles` keybinding | ✅ | - | - | Manual refresh via keybinding + Settings UI button (#142) |
+| Dynamic profiles automatic reload | ✅ `Automatically Reload` | ✅ `refresh_interval_secs` | ✅ | - | - | Configurable auto-refresh interval (default 30 min) (#142) |
 | Profile inheritance | ✅ Parent profiles | ✅ `parent_id` | ✅ | - | - | Already implemented |
 
 ---
@@ -806,7 +806,7 @@ iTerm2 supports showing progress for long-running commands.
 | Shell integration auto-install | ✅ | ✅ Embedded auto-install | ✅ | - | - | bash/zsh/fish scripts embedded, auto-installed to RC files |
 | Shell integration version check | ✅ | ✅ Version tracking | ✅ | - | - | Tracks installed/prompted versions, prompts on update |
 | Disable shell integration | ✅ | ✅ Uninstall in Settings | ✅ | - | - | Uninstall button cleanly removes from all RC files |
-| Shell integration features | ✅ `Features` | 🔶 OSC 133/7/1337 | 🔶 | - | - | Marks/CWD/badges + **Semantic Buffer Zoning** + **Command Output Capture** (core v0.37+). Lacks frontend integration for zone display and command output extraction. |
+| Shell integration features | ✅ `Features` | 🔶 OSC 133/7/1337 | 🔶 | - | - | Marks/CWD/badges + **Semantic Buffer Zoning** + **Command Output Capture** + **Contextual Awareness Events** (core v0.37+). Lacks frontend integration for zone display, command output extraction, and contextual event consumption. |
 | Current command in window title | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[cmd]` in title when running; `\(session.current_command)` badge var |
 | Command duration tracking | ✅ | ✅ Via tooltips | ✅ | - | - | Already implemented |
 | Command exit code in badge | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[Exit: N]` in title on failure; `\(session.exit_code)` badge var |
@@ -925,7 +925,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Session Management & Quit Behavior | 5 | 0 | 1 |
 | Tab Styles & Appearance | 8 | 0 | 0 |
 | Pane & Split Customization | 9 | 0 | 0 |
-| Profile Switching & Dynamic Profiles | 5 | 0 | 2 |
+| Profile Switching & Dynamic Profiles | 8 | 0 | 0 |
 | Image Protocol Enhancements | 9 | 0 | 0 |
 | Audio & Haptic Feedback | 3 | 0 | 2 |
 | Advanced GPU & Rendering Settings | 3 | 0 | 2 |
@@ -1012,7 +1012,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | ~~Tab style variants~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented (6 presets including Automatic) |
 | ~~Paste delay options~~ | ⭐ | 🟢 Low | ✅ Complete (§40 - paste_delay_ms config) |
 | ~~Command in window title~~ | ⭐⭐ | 🟡 Medium | ✅ Complete (§41 - shows [cmd] in title) |
-| Dynamic profiles from URL | ⭐⭐ | 🟡 Medium | Load profiles from remote URL (uses existing URL fetch/merge logic) |
+| ~~Dynamic profiles from URL~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Complete (§32 - dynamic_profile_sources with caching, auto-refresh, conflict resolution #142) |
 | ~~Pane title customization~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Implemented |
 | ~~Division thickness/style~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented |
 | Instant Replay | ⭐⭐ | 🔵 Very High | Rewind terminal state |
@@ -1085,12 +1085,13 @@ The following features are blocked by or significantly dependent on architectura
 | **Instant Replay** | Core must implement terminal state snapshots or a dedicated replay buffer that records incremental changes. | Add `SnapshotManager` to `Terminal`; implement incremental state delta recording; add `Terminal::restore_from_snapshot(timestamp)`. |
 | **Advanced File Protocols** | Full iTerm2-style file upload/download via OSC 1337 `File=` requires core state machines. | Implement DCS/OSC state machines for chunked base64 file transfers; add `FileTransfer` manager to `Terminal` with progress tracking. |
 | **Python / Scripting API** | Core requires extensibility hooks and a stable FFI-friendly representation of terminal state. | Define `TerminalObserver` trait; implement a C-compatible `SharedState` view for FFI; add hooks for all `Perform` actions. |
-| **AI Terminal Inspection** | Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata. | Semantic zones and command output capture now available in core (v0.37+). Next: implement `Terminal::get_semantic_snapshot()` returning structured data (JSON/Protobuf) with text + zones + command outputs + attributes + metadata. |
-| **Contextual Awareness API** | Granular notification system for the frontend to observe internal state changes beyond simple screen updates. | Expand `TerminalEvent` to include sub-shell detection, environment changes, and remote host transitions. |
+| **AI Terminal Inspection** | Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata. | Semantic zones, command output capture, and contextual awareness events now available in core (v0.37+). Next: implement `Terminal::get_semantic_snapshot()` returning structured data (JSON/Protobuf) with text + zones + command outputs + attributes + metadata. |
+| ~~**Contextual Awareness API**~~ | ~~Granular notification system for the frontend to observe internal state changes beyond simple screen updates.~~ | ✅ **Implemented in core v0.37+** — 6 new `TerminalEvent` variants: `ZoneOpened`/`ZoneClosed`/`ZoneScrolledOut` (zone lifecycle with monotonic IDs), `EnvironmentChanged` (CWD/hostname/username), `RemoteHostTransition` (OSC 7 + OSC 1337 multi-signal detection), `SubShellDetected` (prompt nesting heuristic). Full streaming protocol support (4 new EventType values, 6 proto messages). Python bindings with `poll_events()` dict conversion and subscription filtering. Frontend integration pending. |
 
 ---
 
 ### Recently Completed (v0.16.0)
+- ✅ **Dynamic Profiles from Remote URLs**: Load team-shared profiles from remote URLs with auto-refresh, caching, conflict resolution, and Settings UI (#142)
 - ✅ **Status Bar**: Configurable status bar with 10 built-in widgets, drag-and-drop reordering, and background system monitoring (#133)
 - ✅ **SSH Host Profiles**: SSH config/known_hosts/history discovery, Quick Connect dialog (Cmd+Shift+S), and mDNS/Bonjour discovery (#134)
 - ✅ **Automatic SSH Profile Switching**: Hostname and command-based switching with auto-revert on disconnect
@@ -1101,6 +1102,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-02-14 (Command Output Capture implemented in core v0.37+ PR #41; updated core requirements, shell integration, and AI inspection status)*
+*Updated: 2026-02-14 (Dynamic profiles from remote URLs #142 — background auto-refresh, local caching, configurable conflict resolution, HTTPS enforcement, Settings UI with CRUD for sources)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.16.0*
