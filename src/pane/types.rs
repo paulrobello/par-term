@@ -155,6 +155,8 @@ pub struct Pane {
     pub background_image: Option<String>,
     /// State for shell restart behavior (None = shell running or closed normally)
     pub restart_state: Option<RestartState>,
+    /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
+    pub(crate) shutdown_fast: bool,
 }
 
 impl Pane {
@@ -279,6 +281,7 @@ impl Pane {
             bounds: PaneBounds::default(),
             background_image: None, // Use global config by default
             restart_state: None,
+            shutdown_fast: false,
         })
     }
 
@@ -365,6 +368,7 @@ impl Pane {
             bounds: PaneBounds::default(),
             background_image: None, // Use global config by default
             restart_state: None,
+            shutdown_fast: false,
         })
     }
 
@@ -573,6 +577,14 @@ impl Pane {
 
 impl Drop for Pane {
     fn drop(&mut self) {
+        if self.shutdown_fast {
+            log::info!(
+                "Fast-dropping pane {} (cleanup handled externally)",
+                self.id
+            );
+            return;
+        }
+
         log::info!("Dropping pane {}", self.id);
 
         // Stop session logging first

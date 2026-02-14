@@ -41,7 +41,7 @@ fn main() -> Result<()> {
     match Arc::try_unwrap(runtime) {
         Ok(rt) => {
             // We have exclusive ownership, can shutdown gracefully
-            rt.shutdown_timeout(std::time::Duration::from_secs(2));
+            rt.shutdown_timeout(std::time::Duration::from_millis(500));
             log::info!("Tokio runtime shutdown complete");
         }
         Err(arc) => {

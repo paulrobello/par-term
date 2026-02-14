@@ -360,6 +360,8 @@ pub struct Tab {
     pub pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
     /// Whether current profile was auto-applied due to SSH hostname detection
     pub ssh_auto_switched: bool,
+    /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
+    pub(crate) shutdown_fast: bool,
 }
 
 impl Tab {
@@ -551,6 +553,7 @@ impl Tab {
             trigger_marks: Vec::new(),
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
+            shutdown_fast: false,
         })
     }
 
@@ -773,6 +776,7 @@ impl Tab {
             trigger_marks: Vec::new(),
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
+            shutdown_fast: false,
         })
     }
 
@@ -1400,6 +1404,11 @@ impl Tab {
 
 impl Drop for Tab {
     fn drop(&mut self) {
+        if self.shutdown_fast {
+            log::info!("Fast-dropping tab {} (cleanup handled externally)", self.id);
+            return;
+        }
+
         log::info!("Dropping tab {}", self.id);
 
         // Stop session logging first (before terminal is killed)
@@ -1470,6 +1479,7 @@ impl Tab {
             trigger_marks: Vec::new(),
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
+            shutdown_fast: false,
         }
     }
 }

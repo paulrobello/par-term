@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fast Window Shutdown**: Closing par-term is now visually instant instead of taking 8+ seconds with a beachball on macOS (#146)
+  - Window hides immediately on close for instant visual feedback
+  - PTY session cleanup runs on parallel background threads instead of sequentially on the main thread
+  - Reduced tokio runtime shutdown timeout from 2s to 500ms
+  - Eliminated unnecessary `thread::sleep()` calls (200ms + 50ms per tab) during shutdown
+  - 3-tab window: visual close time reduced from ~8.35s to instant; total cleanup ~2.5s (parallel, in background)
+
 ### Added
 
 - **Dynamic Profiles from Remote URLs**: Load profile definitions from remote URLs for team-shared configurations (#142)

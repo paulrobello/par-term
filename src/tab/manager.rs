@@ -374,6 +374,15 @@ impl TabManager {
         &mut self.tabs
     }
 
+    /// Drain all tabs from the manager, returning them without dropping
+    ///
+    /// This is used during fast shutdown to extract tabs so their terminals
+    /// can be dropped on background threads in parallel.
+    pub fn drain_tabs(&mut self) -> Vec<Tab> {
+        self.active_tab_id = None;
+        std::mem::take(&mut self.tabs)
+    }
+
     /// Get a tab by ID
     #[allow(dead_code)]
     pub fn get_tab(&self, id: TabId) -> Option<&Tab> {

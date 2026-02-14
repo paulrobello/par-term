@@ -693,6 +693,10 @@ impl WindowManager {
                 window_id,
                 self.windows.len()
             );
+            // Hide window immediately for instant visual feedback
+            if let Some(ref window) = window_state.window {
+                window.set_visible(false);
+            }
             // WindowState's Drop impl handles cleanup
             drop(window_state);
         }

@@ -3464,60 +3464,105 @@ impl WindowState {
 
 impl Drop for WindowState {
     fn drop(&mut self) {
-        log::info!("Shutting down window");
+        log::info!("Shutting down window (fast path)");
 
-        // Save command history before shutdown
+        // Save command history before shutdown (fast)
         self.command_history.save();
 
         // Set shutdown flag
         self.is_shutting_down = true;
 
+        // Hide the window immediately for instant visual feedback
+        if let Some(ref window) = self.window {
+            window.set_visible(false);
+            log::info!("Window hidden for instant visual close");
+        }
+
         // Clean up egui state FIRST before any other resources are dropped
-        // This prevents egui from accessing freed resources during its own cleanup
-        log::info!("Cleaning up egui state");
         self.egui_state = None;
         self.egui_ctx = None;
 
-        // Clean up all tabs
-        let tab_count = self.tab_manager.tab_count();
-        log::info!("Cleaning up {} tabs", tab_count);
+        // Drain all tabs from the manager (takes ownership without dropping)
+        let mut tabs = self.tab_manager.drain_tabs();
+        let tab_count = tabs.len();
+        log::info!("Fast shutdown: draining {} tabs", tab_count);
 
-        // Stop all refresh tasks first
-        for tab in self.tab_manager.tabs_mut() {
+        // Collect terminal Arcs from all tabs and panes BEFORE setting shutdown_fast.
+        // Cloning the Arc keeps TerminalManager alive even after Tab/Pane is dropped.
+        // We'll drop these clones on background threads where PtySession::drop runs.
+        let mut terminal_arcs = Vec::new();
+
+        for tab in &mut tabs {
+            // Stop refresh tasks (fast - just aborts tokio tasks)
             tab.stop_refresh_task();
-        }
-        log::info!("All refresh tasks aborted");
 
-        // Give abort time to take effect and any pending operations to complete
-        std::thread::sleep(std::time::Duration::from_millis(100));
+            // Stop session logger
+            if let Some(ref mut logger) = *tab.session_logger.lock() {
+                let _ = logger.stop();
+            }
 
-        // Kill all PTY processes
-        for tab in self.tab_manager.tabs_mut() {
-            if let Ok(mut term) = tab.terminal.try_lock() {
-                if term.is_running() {
-                    log::info!("Killing PTY process for tab {}", tab.id);
-                    match term.kill() {
-                        Ok(()) => {
-                            log::info!("PTY process killed successfully for tab {}", tab.id);
-                        }
-                        Err(e) => {
-                            log::warn!("Failed to kill PTY process for tab {}: {:?}", tab.id, e);
-                        }
+            // Clone terminal Arc before we mark shutdown_fast
+            terminal_arcs.push(Arc::clone(&tab.terminal));
+
+            // Also handle panes if this tab has splits
+            if let Some(ref mut pm) = tab.pane_manager {
+                for pane in pm.all_panes_mut() {
+                    pane.stop_refresh_task();
+                    if let Some(ref mut logger) = *pane.session_logger.lock() {
+                        let _ = logger.stop();
                     }
-                } else {
-                    log::info!("PTY process already stopped for tab {}", tab.id);
+                    terminal_arcs.push(Arc::clone(&pane.terminal));
+                    pane.shutdown_fast = true;
                 }
-            } else {
-                log::warn!(
-                    "Could not acquire terminal lock to kill PTY for tab {}",
-                    tab.id
-                );
+            }
+
+            // Mark tab for fast drop (skips sleep + kill in Tab::drop)
+            tab.shutdown_fast = true;
+        }
+
+        // Pre-kill all PTY processes (sends SIGKILL, fast non-blocking)
+        for arc in &terminal_arcs {
+            if let Ok(mut term) = arc.try_lock()
+                && term.is_running()
+            {
+                let _ = term.kill();
             }
         }
+        log::info!("Pre-killed {} terminal sessions", terminal_arcs.len());
 
-        // Give the PTY time to clean up after kill signal
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        // Drop tabs on main thread (fast - Tab::drop just returns immediately)
+        drop(tabs);
 
-        log::info!("Window shutdown complete");
+        // Now drop the cloned terminal Arcs on background threads.
+        // When our clone is the last reference, TerminalManager::drop runs,
+        // which triggers PtySession::drop (up to 2s reader thread wait).
+        // By running these in parallel, all sessions clean up concurrently.
+        let threads: Vec<_> = terminal_arcs
+            .into_iter()
+            .enumerate()
+            .map(|(i, arc)| {
+                std::thread::Builder::new()
+                    .name(format!("pty-cleanup-{}", i))
+                    .spawn(move || {
+                        drop(arc);
+                    })
+                    .expect("failed to spawn cleanup thread")
+            })
+            .collect();
+
+        // Wait for all cleanup threads with a global timeout
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        for (i, thread) in threads.into_iter().enumerate() {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                log::warn!("Cleanup thread {} timed out, abandoning", i);
+                break;
+            }
+            // park_timeout + join: we can't set a timeout on join directly,
+            // so we just join and rely on the PtySession 2s internal timeout
+            let _ = thread.join();
+        }
+
+        log::info!("Window shutdown complete ({} tabs cleaned up)", tab_count);
     }
 }
