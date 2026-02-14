@@ -55,6 +55,7 @@ pub mod shader_watcher;
 pub mod shell_detection;
 pub mod shell_integration_installer;
 pub mod shell_quote;
+pub mod ssh;
 pub mod smart_selection;
 pub mod snippets;
 pub mod status_bar;
