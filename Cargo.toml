@@ -101,6 +101,7 @@ base64 = "0.22.1"   # Base64 decoding for OSC 1337 SetBadgeFormat
 lru = "0.16.3"
 fuzzy-matcher = "0.3.7"  # Fuzzy string matching for command history search
 sysinfo = "0.37.2"  # Cross-platform CPU/memory/network monitoring for status bar
+mdns-sd = "0.17"  # mDNS/Bonjour service discovery for SSH host auto-detection
 
 # Linux-specific: GTK for native menus (muda requires gtk feature on Linux)
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies.muda]
