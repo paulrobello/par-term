@@ -330,6 +330,16 @@ pub struct SettingsUI {
     /// Recorded keybinding combo for action (displayed during recording)
     pub(crate) action_recorded_combo: Option<String>,
 
+    // Dynamic profile sources editing state
+    /// Index of dynamic source currently being edited (None = not editing)
+    pub(crate) dynamic_source_editing: Option<usize>,
+    /// Temp copy of the source being edited
+    pub(crate) dynamic_source_edit_buffer: Option<crate::profile::DynamicProfileSource>,
+    /// Temp buffer for new header key being added
+    pub(crate) dynamic_source_new_header_key: String,
+    /// Temp buffer for new header value being added
+    pub(crate) dynamic_source_new_header_value: String,
+
     // Import/export preferences state
     /// Temporary URL for import-from-URL feature
     pub(crate) temp_import_url: String,
@@ -507,6 +517,10 @@ impl SettingsUI {
             snippet_recorded_combo: None,
             recording_action_keybinding: false,
             action_recorded_combo: None,
+            dynamic_source_editing: None,
+            dynamic_source_edit_buffer: None,
+            dynamic_source_new_header_key: String::new(),
+            dynamic_source_new_header_value: String::new(),
             temp_import_url: String::new(),
             import_export_status: None,
             import_export_is_error: false,
