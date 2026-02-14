@@ -41,6 +41,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Escape key dismisses the dropdown
   - Settings checkbox in Window > Tab Behavior section
 
+- **SSH Host Profiles, Quick Connect & Auto-Discovery** (#134): Comprehensive SSH host management
+  - SSH config parser (`~/.ssh/config`) for host discovery with wildcard filtering, multi-host blocks, ProxyJump
+  - Known hosts parser (`~/.ssh/known_hosts`) with hashed entry skipping and bracketed `[host]:port` support
+  - Shell history scanner (bash/zsh/fish) for previously-used SSH connections
+  - mDNS/Bonjour SSH host discovery via `_ssh._tcp.local.` service browsing (opt-in)
+  - SSH Quick Connect dialog (`Cmd+Shift+S`) with search, keyboard navigation, grouped by source
+  - SSH-specific profile fields: host, user, port, identity file, extra args
+  - Profiles with `ssh_host` set launch SSH connections instead of shells
+  - Automatic profile switching on SSH connection (hostname-based via OSC 1337)
+  - Command-based profile switching when `ssh` process is detected running
+  - Auto-revert to previous profile when SSH session ends
+  - SSH settings tab in Settings UI (auto-switch toggles, mDNS config)
+  - Host discovery aggregator with deduplication across all sources
+
 - **Shell Selection Per Profile** (#128): Configure a specific shell for each profile with platform-aware detection
   - New `shell` field on profiles selects a shell independently of the `command` field
   - New `login_shell` field per profile overrides the global login shell setting (None = inherit, true/false = override)

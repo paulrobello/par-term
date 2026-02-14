@@ -680,8 +680,8 @@ iTerm2 has sophisticated window state management.
 |---------|--------|----------|--------|--------|--------|-------|
 | Hostname-based switching | ✅ | ✅ | ✅ | - | - | Full parity: applies icon, title, badge text/styling, command execution |
 | Directory-based switching | ✅ | ✅ `directory_patterns` | ✅ | - | - | Full parity: applies icon, title, badge text/styling, command execution; tilde expansion |
-| Command-based switching | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-switch by running command |
-| User-based switching | ✅ | ❌ | ❌ | ⭐ | 🟡 | Switch by SSH user |
+| Command-based switching | ✅ | ✅ `check_ssh_command_switch` | ✅ | - | - | Auto-switch by running SSH command with revert on disconnect |
+| User-based switching | ✅ | ✅ via OSC 1337 RemoteHost | ✅ | - | - | Switch by SSH user/hostname via shell integration |
 | Dynamic profiles from URL | ✅ `Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🔴 | Load profiles from remote URL |
 | Dynamic profiles reload | ✅ `Reload Dynamic Profiles` | ❌ | ❌ | ⭐⭐ | 🟡 | Refresh dynamic profiles |
 | Dynamic profiles automatic reload | ✅ `Automatically Reload` | ❌ | ❌ | ⭐ | 🟡 | Auto-refresh on change |
@@ -819,10 +819,10 @@ iTerm2 supports showing progress for long-running commands.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Bonjour discovery | ✅ `Bonjour Hosts` | ❌ | ❌ | ⭐ | 🟡 | Auto-discover SSH hosts |
-| SSH hosts auto-discover | ✅ | ❌ | ❌ | ⭐⭐ | 🔴 | Scan network for SSH |
-| Host profiles | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Per-host profiles |
-| Quick connect | ✅ | ❌ | ❌ | ⭐⭐ | 🟡 | Fast SSH connections |
+| Bonjour discovery | ✅ `Bonjour Hosts` | ✅ `mdns-sd` | ✅ | - | - | mDNS/Bonjour `_ssh._tcp.local.` discovery (opt-in) |
+| SSH hosts auto-discover | ✅ | ✅ `discover_local_hosts` | ✅ | - | - | Aggregates SSH config, known_hosts, shell history, mDNS |
+| Host profiles | ✅ | ✅ `ssh_host` on Profile | ✅ | - | - | Per-host SSH profiles with connection fields |
+| Quick connect | ✅ | ✅ `Cmd+Shift+S` | ✅ | - | - | Search dialog with keyboard navigation, grouped by source |
 
 ---
 
@@ -835,7 +835,7 @@ iTerm2 supports showing progress for long-running commands.
 | Remember settings section states | ✅ | ✅ `collapsed_settings_sections` | ✅ | - | - | Persists section expand/collapse state across sessions |
 | Reload config (F5) | ❌ | ✅ | ✅ | - | - | par-term exclusive |
 | Window arrangements | ✅ Save/restore layouts | ✅ `arrangements` + `restore_session` | ✅ | - | - | Save/restore window positions, tabs, panes; session restore on startup |
-| Bonjour host discovery | ✅ | ❌ | ❌ | ⭐ | 🟡 | Auto-discover SSH hosts |
+| Bonjour host discovery | ✅ | ✅ `mdns-sd` | ✅ | - | - | mDNS/Bonjour SSH host discovery (see §42) |
 | Password manager | ✅ | ❌ | ❌ | ⭐ | 🔴 | Secure credential storage |
 | Search in terminal | ✅ Cmd+F | ✅ Cmd/Ctrl+F | ✅ | - | - | Already implemented |
 | CLI command (`par-term`) | ❌ | ✅ Full CLI | ✅ | - | - | par-term exclusive |
@@ -925,7 +925,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Session Management & Quit Behavior | 5 | 0 | 1 |
 | Tab Styles & Appearance | 7 | 0 | 1 |
 | Pane & Split Customization | 9 | 0 | 0 |
-| Profile Switching & Dynamic Profiles | 3 | 0 | 4 |
+| Profile Switching & Dynamic Profiles | 5 | 0 | 2 |
 | Image Protocol Enhancements | 9 | 0 | 0 |
 | Audio & Haptic Feedback | 3 | 0 | 2 |
 | Advanced GPU & Rendering Settings | 3 | 0 | 2 |
@@ -935,8 +935,8 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Progress Bars | 5 | 0 | 0 |
 | Advanced Paste & Input | 6 | 0 | 0 |
 | Advanced Shell Integration | 6 | 1 | 1 |
-| Network & Discovery | 0 | 0 | 4 |
-| Miscellaneous | 11 | 0 | 6 |
+| Network & Discovery | 4 | 0 | 0 |
+| Miscellaneous | 12 | 0 | 5 |
 | Badges | 9 | 0 | 0 |
 | **TOTAL** | **~304** | **~4** | **~108** |
 
@@ -1019,7 +1019,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | VoiceOver/accessibility | ⭐⭐ | 🔵 Very High | Screen reader support |
 | Bidirectional text | ⭐⭐ | 🔴 High | RTL language support |
 | Browser integration | ⭐ | 🔴 High | Embedded web browser |
-| Bonjour/SSH discovery | ⭐⭐ | 🔴 High | Auto-discover SSH hosts |
+| ~~Bonjour/SSH discovery~~ | ~~⭐⭐~~ | ~~🔴 High~~ | ✅ Complete (§42 - mDNS, SSH config, known_hosts, history) |
 
 ### Newly Identified Features (This Update)
 
@@ -1072,10 +1072,10 @@ The following iTerm2 features were identified and added to the matrix in this up
 - ~~Division thickness and style variants~~ ✅ Implemented
 - Per-pane backgrounds (data model ready, renderer pending)
 
-**Profile Switching (4 features)**
+**Profile Switching (2 remaining features)**
 - ~~Directory-based auto-switching~~ ✅ Implemented
-- Command-based auto-switching
-- User-based auto-switching
+- ~~Command-based auto-switching~~ ✅ Implemented
+- ~~User-based auto-switching~~ ✅ Implemented
 - Dynamic profiles from URL with auto-reload
 
 **Advanced Configuration (8 features)**
@@ -1105,12 +1105,12 @@ The following iTerm2 features were identified and added to the matrix in this up
 - ~~Command exit code in badge~~ ✅
 - ~~Remote host integration~~ ✅
 
-**Network & Discovery (4 features)**
-- Bonjour discovery
-- SSH hosts auto-discovery
-- Host profiles and quick connect
+**Network & Discovery (0 remaining features)** ✅ Complete
+- ~~Bonjour discovery~~ ✅ Implemented
+- ~~SSH hosts auto-discovery~~ ✅ Implemented
+- ~~Host profiles and quick connect~~ ✅ Implemented
 
-**Total: ~115 new features remaining across 20 new categories**
+**Total: ~105 new features remaining across 18 new categories**
 
 ---
 
