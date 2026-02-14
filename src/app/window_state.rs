@@ -3464,6 +3464,7 @@ impl WindowState {
 
 impl Drop for WindowState {
     fn drop(&mut self) {
+        let t0 = std::time::Instant::now();
         log::info!("Shutting down window (fast path)");
 
         // Save command history before shutdown (fast)
@@ -3475,7 +3476,10 @@ impl Drop for WindowState {
         // Hide the window immediately for instant visual feedback
         if let Some(ref window) = self.window {
             window.set_visible(false);
-            log::info!("Window hidden for instant visual close");
+            log::info!(
+                "Window hidden for instant visual close (+{:.1}ms)",
+                t0.elapsed().as_secs_f64() * 1000.0
+            );
         }
 
         // Clean up egui state FIRST before any other resources are dropped
@@ -3485,7 +3489,11 @@ impl Drop for WindowState {
         // Drain all tabs from the manager (takes ownership without dropping)
         let mut tabs = self.tab_manager.drain_tabs();
         let tab_count = tabs.len();
-        log::info!("Fast shutdown: draining {} tabs", tab_count);
+        log::info!(
+            "Fast shutdown: draining {} tabs (+{:.1}ms)",
+            tab_count,
+            t0.elapsed().as_secs_f64() * 1000.0
+        );
 
         // Collect terminal Arcs from all tabs and panes BEFORE setting shutdown_fast.
         // Cloning the Arc keeps TerminalManager alive even after Tab/Pane is dropped.
@@ -3528,41 +3536,43 @@ impl Drop for WindowState {
                 let _ = term.kill();
             }
         }
-        log::info!("Pre-killed {} terminal sessions", terminal_arcs.len());
+        log::info!(
+            "Pre-killed {} terminal sessions (+{:.1}ms)",
+            terminal_arcs.len(),
+            t0.elapsed().as_secs_f64() * 1000.0
+        );
 
         // Drop tabs on main thread (fast - Tab::drop just returns immediately)
         drop(tabs);
+        log::info!(
+            "Tabs dropped (+{:.1}ms)",
+            t0.elapsed().as_secs_f64() * 1000.0
+        );
 
-        // Now drop the cloned terminal Arcs on background threads.
+        // Fire-and-forget: drop the cloned terminal Arcs on background threads.
         // When our clone is the last reference, TerminalManager::drop runs,
         // which triggers PtySession::drop (up to 2s reader thread wait).
         // By running these in parallel, all sessions clean up concurrently.
-        let threads: Vec<_> = terminal_arcs
-            .into_iter()
-            .enumerate()
-            .map(|(i, arc)| {
-                std::thread::Builder::new()
-                    .name(format!("pty-cleanup-{}", i))
-                    .spawn(move || {
-                        drop(arc);
-                    })
-                    .expect("failed to spawn cleanup thread")
-            })
-            .collect();
-
-        // Wait for all cleanup threads with a global timeout
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
-        for (i, thread) in threads.into_iter().enumerate() {
-            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
-            if remaining.is_zero() {
-                log::warn!("Cleanup thread {} timed out, abandoning", i);
-                break;
-            }
-            // park_timeout + join: we can't set a timeout on join directly,
-            // so we just join and rely on the PtySession 2s internal timeout
-            let _ = thread.join();
+        // We intentionally do NOT join these threads — the process is exiting
+        // and the OS will reclaim all resources.
+        for (i, arc) in terminal_arcs.into_iter().enumerate() {
+            let _ = std::thread::Builder::new()
+                .name(format!("pty-cleanup-{}", i))
+                .spawn(move || {
+                    let t = std::time::Instant::now();
+                    drop(arc);
+                    log::info!(
+                        "pty-cleanup-{} finished in {:.1}ms",
+                        i,
+                        t.elapsed().as_secs_f64() * 1000.0
+                    );
+                });
         }
 
-        log::info!("Window shutdown complete ({} tabs cleaned up)", tab_count);
+        log::info!(
+            "Window shutdown complete ({} tabs, main thread blocked {:.1}ms)",
+            tab_count,
+            t0.elapsed().as_secs_f64() * 1000.0
+        );
     }
 }

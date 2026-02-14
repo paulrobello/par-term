@@ -32,27 +32,11 @@ fn main() -> Result<()> {
     let app = App::new(Arc::clone(&runtime), runtime_options)?;
     let result = app.run();
 
-    // Explicitly shutdown the runtime to ensure all tasks are terminated
-    // This prevents hanging on exit due to background tasks
-    log::info!("Shutting down Tokio runtime");
-
-    // Try to get exclusive ownership of runtime for shutdown
-    // This will only succeed if all other Arc references are dropped
-    match Arc::try_unwrap(runtime) {
-        Ok(rt) => {
-            // We have exclusive ownership, can shutdown gracefully
-            rt.shutdown_timeout(std::time::Duration::from_millis(500));
-            log::info!("Tokio runtime shutdown complete");
-        }
-        Err(arc) => {
-            // Other references still exist, force shutdown background tasks
-            log::warn!(
-                "Runtime still has {} strong references, forcing shutdown",
-                Arc::strong_count(&arc)
-            );
-            // Note: Runtime will be dropped when last Arc is dropped
-        }
-    }
-
-    result
+    // All windows are closed and cleanup threads are running in background.
+    // Force-exit the process immediately to avoid blocking on tokio runtime
+    // shutdown or PtySession::drop timeouts. Background cleanup threads and
+    // the OS will handle any remaining resource cleanup.
+    log::info!("Event loop exited, force-exiting process");
+    let exit_code = if result.is_ok() { 0 } else { 1 };
+    std::process::exit(exit_code);
 }
