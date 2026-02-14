@@ -4,6 +4,10 @@
 //! and mDNS/Bonjour discovery for SSH hosts.
 
 pub mod config_parser;
+pub mod discovery;
+pub mod history;
+pub mod known_hosts;
 pub mod types;
 
+pub use discovery::discover_local_hosts;
 pub use types::{SshHost, SshHostSource};
