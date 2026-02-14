@@ -329,20 +329,26 @@ impl StatusBarUI {
         let separator = &config.status_bar_separator;
         let sep_color = fg_color.linear_multiply(0.4);
 
-        // Use an egui::Area instead of TopBottomPanel so we can control the
-        // exact width — stopping before the scrollbar column.
+        // Use an egui::Area with a fixed size so the status bar stops before
+        // the scrollbar column.  TopBottomPanel always spans the full window
+        // width and ignores every attempt to narrow it.
+        let h_margin: f32 = 8.0; // left + right inner margin per side
+        let v_margin: f32 = 2.0; // top + bottom inner margin per side
         let scrollbar_reserved = config.scrollbar_width + 2.0;
-        let screen = ctx.input(|i| i.viewport_rect());
-        let bar_width = (screen.width() - scrollbar_reserved).max(0.0);
+        let viewport = ctx.input(|i| i.viewport_rect());
+        // Content width is the frame width minus both horizontal margins.
+        let content_width =
+            (viewport.width() - scrollbar_reserved - h_margin * 2.0).max(0.0);
+        let content_height = (bar_height - v_margin * 2.0).max(0.0);
 
         let bar_pos = match config.status_bar_position {
             StatusBarPosition::Top => egui::pos2(0.0, 0.0),
-            StatusBarPosition::Bottom => egui::pos2(0.0, screen.height() - bar_height),
+            StatusBarPosition::Bottom => egui::pos2(0.0, viewport.height() - bar_height),
         };
 
         let frame = egui::Frame::NONE
             .fill(bg_color)
-            .inner_margin(egui::Margin::symmetric(8, 2));
+            .inner_margin(egui::Margin::symmetric(h_margin as i8, v_margin as i8));
 
         let make_rich_text = |text: &str| -> egui::RichText {
             egui::RichText::new(text)
@@ -363,13 +369,20 @@ impl StatusBarUI {
             .order(egui::Order::Background)
             .interactable(false)
             .show(ctx, |ui| {
+                // Constrain the outer UI so the frame cannot grow beyond the
+                // intended total width (content + margins).
+                ui.set_max_width(content_width + h_margin * 2.0);
+                ui.set_max_height(bar_height);
+
                 frame.show(ui, |ui| {
-                    ui.set_min_width(bar_width);
-                    ui.set_max_width(bar_width);
-                    ui.set_min_height(bar_height - 4.0); // account for inner margin
-                    ui.set_max_height(bar_height - 4.0);
+                    ui.set_min_size(egui::vec2(content_width, content_height));
+                    ui.set_max_size(egui::vec2(content_width, content_height));
 
                     ui.horizontal_centered(|ui| {
+                        // Clip widgets to the available content width so
+                        // right-to-left layouts cannot expand past the bar edge.
+                        ui.set_clip_rect(ui.max_rect());
+
                         // === Left section ===
                         let left_widgets = sorted_widgets_for_section(
                             &config.status_bar_widgets,
