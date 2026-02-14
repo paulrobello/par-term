@@ -176,6 +176,10 @@ pub fn bool_true() -> bool {
     true
 }
 
+pub fn mdns_timeout() -> u32 {
+    3
+}
+
 pub fn text_opacity() -> f32 {
     1.0 // Fully opaque text by default
 }

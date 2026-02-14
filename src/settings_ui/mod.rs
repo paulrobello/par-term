@@ -23,6 +23,7 @@ pub mod integrations_tab;
 pub mod notifications_tab;
 pub mod profiles_tab;
 pub mod progress_bar_tab;
+pub mod ssh_tab;
 pub mod quick_settings;
 pub mod section;
 pub mod sidebar;
@@ -1326,6 +1327,9 @@ impl SettingsUI {
             }
             SettingsTab::Profiles => {
                 profiles_tab::show(ui, self, changes_this_frame, &mut collapsed);
+            }
+            SettingsTab::Ssh => {
+                self.show_ssh_tab(ui, changes_this_frame);
             }
             SettingsTab::Notifications => {
                 notifications_tab::show(ui, self, changes_this_frame, &mut collapsed);

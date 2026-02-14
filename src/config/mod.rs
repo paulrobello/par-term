@@ -1010,6 +1010,25 @@ pub struct Config {
     pub alert_sounds: HashMap<AlertEvent, AlertSoundConfig>,
 
     // ========================================================================
+    // SSH Settings
+    // ========================================================================
+    /// Enable mDNS/Bonjour discovery for SSH hosts
+    #[serde(default = "defaults::bool_false")]
+    pub enable_mdns_discovery: bool,
+
+    /// mDNS scan timeout in seconds
+    #[serde(default = "defaults::mdns_timeout")]
+    pub mdns_scan_timeout_secs: u32,
+
+    /// Enable automatic profile switching based on SSH hostname
+    #[serde(default = "defaults::bool_true")]
+    pub ssh_auto_profile_switch: bool,
+
+    /// Revert profile when SSH session disconnects
+    #[serde(default = "defaults::bool_true")]
+    pub ssh_revert_profile_on_disconnect: bool,
+
+    // ========================================================================
     // Tab Settings
     // ========================================================================
     /// Tab visual style preset (dark, light, compact, minimal, high_contrast)
@@ -1837,6 +1856,10 @@ impl Default for Config {
             suppress_notifications_when_focused: defaults::bool_true(),
             notification_max_buffer: defaults::notification_max_buffer(),
             alert_sounds: HashMap::new(),
+            enable_mdns_discovery: defaults::bool_false(),
+            mdns_scan_timeout_secs: defaults::mdns_timeout(),
+            ssh_auto_profile_switch: defaults::bool_true(),
+            ssh_revert_profile_on_disconnect: defaults::bool_true(),
             tab_style: TabStyle::default(),
             tab_bar_mode: TabBarMode::default(),
             tab_bar_height: defaults::tab_bar_height(),
