@@ -337,8 +337,7 @@ impl StatusBarUI {
         let scrollbar_reserved = config.scrollbar_width + 2.0;
         let viewport = ctx.input(|i| i.viewport_rect());
         // Content width is the frame width minus both horizontal margins.
-        let content_width =
-            (viewport.width() - scrollbar_reserved - h_margin * 2.0).max(0.0);
+        let content_width = (viewport.width() - scrollbar_reserved - h_margin * 2.0).max(0.0);
         let content_height = (bar_height - v_margin * 2.0).max(0.0);
 
         let bar_pos = match config.status_bar_position {
@@ -408,9 +407,7 @@ impl StatusBarUI {
                         );
                         if !center_widgets.is_empty() {
                             ui.with_layout(
-                                egui::Layout::centered_and_justified(
-                                    egui::Direction::LeftToRight,
-                                ),
+                                egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
                                 |ui| {
                                     let mut first = true;
                                     for w in &center_widgets {

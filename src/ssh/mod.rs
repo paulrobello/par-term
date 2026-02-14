@@ -7,6 +7,7 @@ pub mod config_parser;
 pub mod discovery;
 pub mod history;
 pub mod known_hosts;
+pub mod mdns;
 pub mod types;
 
 pub use discovery::discover_local_hosts;
