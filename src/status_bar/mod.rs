@@ -329,28 +329,20 @@ impl StatusBarUI {
         let separator = &config.status_bar_separator;
         let sep_color = fg_color.linear_multiply(0.4);
 
-        // Choose top or bottom panel based on config.
-        // The scrollbar renders on top of egui, so we don't need to narrow
-        // the status bar — it can safely span the full width.
-        let panel_id = "status_bar";
+        // Use an egui::Area instead of TopBottomPanel so we can control the
+        // exact width — stopping before the scrollbar column.
+        let scrollbar_reserved = config.scrollbar_width + 2.0;
+        let screen = ctx.input(|i| i.viewport_rect());
+        let bar_width = (screen.width() - scrollbar_reserved).max(0.0);
+
+        let bar_pos = match config.status_bar_position {
+            StatusBarPosition::Top => egui::pos2(0.0, 0.0),
+            StatusBarPosition::Bottom => egui::pos2(0.0, screen.height() - bar_height),
+        };
+
         let frame = egui::Frame::NONE
             .fill(bg_color)
             .inner_margin(egui::Margin::symmetric(8, 2));
-
-        let show_panel = |ui_fn: &mut dyn FnMut(&mut egui::Ui)| match config.status_bar_position {
-            StatusBarPosition::Top => {
-                egui::TopBottomPanel::top(panel_id)
-                    .exact_height(bar_height)
-                    .frame(frame)
-                    .show(ctx, |ui| ui_fn(ui));
-            }
-            StatusBarPosition::Bottom => {
-                egui::TopBottomPanel::bottom(panel_id)
-                    .exact_height(bar_height)
-                    .frame(frame)
-                    .show(ctx, |ui| ui_fn(ui));
-            }
-        };
 
         let make_rich_text = |text: &str| -> egui::RichText {
             egui::RichText::new(text)
@@ -366,57 +358,25 @@ impl StatusBarUI {
                 .monospace()
         };
 
-        show_panel(&mut |ui: &mut egui::Ui| {
-            ui.horizontal_centered(|ui| {
-                // === Left section ===
-                let left_widgets =
-                    sorted_widgets_for_section(&config.status_bar_widgets, StatusBarSection::Left);
-                let mut first = true;
-                for w in &left_widgets {
-                    let text = widget_text(&w.id, &widget_ctx, w.format.as_deref());
-                    if text.is_empty() {
-                        continue;
-                    }
-                    if !first {
-                        ui.label(make_sep(separator));
-                    }
-                    first = false;
-                    ui.label(make_rich_text(&text));
-                }
+        egui::Area::new(egui::Id::new("status_bar"))
+            .fixed_pos(bar_pos)
+            .order(egui::Order::Background)
+            .interactable(false)
+            .show(ctx, |ui| {
+                frame.show(ui, |ui| {
+                    ui.set_min_width(bar_width);
+                    ui.set_max_width(bar_width);
+                    ui.set_min_height(bar_height - 4.0); // account for inner margin
+                    ui.set_max_height(bar_height - 4.0);
 
-                // === Center section ===
-                let center_widgets = sorted_widgets_for_section(
-                    &config.status_bar_widgets,
-                    StatusBarSection::Center,
-                );
-                if !center_widgets.is_empty() {
-                    ui.with_layout(
-                        egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-                        |ui| {
-                            let mut first = true;
-                            for w in &center_widgets {
-                                let text = widget_text(&w.id, &widget_ctx, w.format.as_deref());
-                                if text.is_empty() {
-                                    continue;
-                                }
-                                if !first {
-                                    ui.label(make_sep(separator));
-                                }
-                                first = false;
-                                ui.label(make_rich_text(&text));
-                            }
-                        },
-                    );
-                }
-
-                // === Right section ===
-                let right_widgets =
-                    sorted_widgets_for_section(&config.status_bar_widgets, StatusBarSection::Right);
-                if !right_widgets.is_empty() {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Render in reverse order so first widget ends up rightmost
+                    ui.horizontal_centered(|ui| {
+                        // === Left section ===
+                        let left_widgets = sorted_widgets_for_section(
+                            &config.status_bar_widgets,
+                            StatusBarSection::Left,
+                        );
                         let mut first = true;
-                        for w in right_widgets.iter().rev() {
+                        for w in &left_widgets {
                             let text = widget_text(&w.id, &widget_ctx, w.format.as_deref());
                             if text.is_empty() {
                                 continue;
@@ -427,10 +387,63 @@ impl StatusBarUI {
                             first = false;
                             ui.label(make_rich_text(&text));
                         }
+
+                        // === Center section ===
+                        let center_widgets = sorted_widgets_for_section(
+                            &config.status_bar_widgets,
+                            StatusBarSection::Center,
+                        );
+                        if !center_widgets.is_empty() {
+                            ui.with_layout(
+                                egui::Layout::centered_and_justified(
+                                    egui::Direction::LeftToRight,
+                                ),
+                                |ui| {
+                                    let mut first = true;
+                                    for w in &center_widgets {
+                                        let text =
+                                            widget_text(&w.id, &widget_ctx, w.format.as_deref());
+                                        if text.is_empty() {
+                                            continue;
+                                        }
+                                        if !first {
+                                            ui.label(make_sep(separator));
+                                        }
+                                        first = false;
+                                        ui.label(make_rich_text(&text));
+                                    }
+                                },
+                            );
+                        }
+
+                        // === Right section ===
+                        let right_widgets = sorted_widgets_for_section(
+                            &config.status_bar_widgets,
+                            StatusBarSection::Right,
+                        );
+                        if !right_widgets.is_empty() {
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    let mut first = true;
+                                    for w in right_widgets.iter().rev() {
+                                        let text =
+                                            widget_text(&w.id, &widget_ctx, w.format.as_deref());
+                                        if text.is_empty() {
+                                            continue;
+                                        }
+                                        if !first {
+                                            ui.label(make_sep(separator));
+                                        }
+                                        first = false;
+                                        ui.label(make_rich_text(&text));
+                                    }
+                                },
+                            );
+                        }
                     });
-                }
+                });
             });
-        });
 
         bar_height
     }
