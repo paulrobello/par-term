@@ -5,7 +5,7 @@ use crate::text_shaper::ShapingOptions;
 use anyhow::Result;
 
 impl CellRenderer {
-    pub fn render(&mut self, show_scrollbar: bool) -> Result<wgpu::SurfaceTexture> {
+    pub fn render(&mut self, _show_scrollbar: bool) -> Result<wgpu::SurfaceTexture> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -93,10 +93,6 @@ impl CellRenderer {
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.text_instance_buffer.slice(..));
             render_pass.draw(0..4, 0..self.max_text_instances as u32);
-
-            if show_scrollbar {
-                self.scrollbar.render(&mut render_pass);
-            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

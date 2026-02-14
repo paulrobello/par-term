@@ -975,6 +975,7 @@ impl Renderer {
             )?
         } else {
             // Render directly to surface (no shaders, or cursor shader disabled for alt screen)
+            // Note: scrollbar is rendered separately after egui so it appears on top
             self.cell_renderer.render(show_scrollbar)?
         };
         let cell_render_time = t1.elapsed();
@@ -1006,10 +1007,6 @@ impl Renderer {
                     &surface_view,
                     true, // Apply opacity - this is the final render
                 )?;
-
-                // Render overlays (scrollbar, visual bell) on top after shader
-                self.cell_renderer
-                    .render_overlays(&surface_texture, show_scrollbar)?;
             }
             t_custom.elapsed()
         } else {
@@ -1031,10 +1028,6 @@ impl Renderer {
                 &surface_view,
                 true, // Apply opacity - this is the final render to surface
             )?;
-
-            // Render overlays (scrollbar, visual bell) on top after cursor shader
-            self.cell_renderer
-                .render_overlays(&surface_texture, show_scrollbar)?;
             t_cursor.elapsed()
         } else {
             if self.cursor_shader_disabled_for_alt_screen {
@@ -1056,6 +1049,11 @@ impl Renderer {
             self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
         }
         let egui_render_time = t3.elapsed();
+
+        // Render overlays (scrollbar, visual bell) AFTER egui so they appear on top
+        // of the status bar and other egui panels
+        self.cell_renderer
+            .render_overlays(&surface_texture, show_scrollbar)?;
 
         // Present the surface texture - THIS IS WHERE VSYNC WAIT HAPPENS
         let t4 = std::time::Instant::now();
