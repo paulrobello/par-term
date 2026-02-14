@@ -198,6 +198,9 @@ pub struct WindowState {
     /// Pending arrangement restore request (name of arrangement to restore)
     pub(crate) pending_arrangement_restore: Option<String>,
 
+    /// Flag to request reload of dynamic profiles
+    pub(crate) reload_dynamic_profiles_requested: bool,
+
     // Profile management
     /// Profile manager for storing and managing terminal profiles
     pub(crate) profile_manager: ProfileManager,
@@ -358,6 +361,7 @@ impl WindowState {
 
             open_settings_window_requested: false,
             pending_arrangement_restore: None,
+            reload_dynamic_profiles_requested: false,
 
             profile_manager,
             profile_drawer_ui: ProfileDrawerUI::new(),
