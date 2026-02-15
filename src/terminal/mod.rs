@@ -1011,6 +1011,39 @@ impl TerminalManager {
         term.cancel_upload();
     }
 
+    /// Poll for pending upload requests from the terminal.
+    ///
+    /// Uses the event subscription system to selectively drain UploadRequested
+    /// events without disturbing other event types in the queue.
+    pub fn poll_upload_requests(&self) -> Vec<String> {
+        use par_term_emu_core_rust::terminal::{TerminalEvent, TerminalEventKind};
+
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+
+        // Set temporary subscription filter for UploadRequested events only
+        term.set_event_subscription(Some(vec![TerminalEventKind::UploadRequested]));
+
+        // Drain only UploadRequested events (others remain in the queue)
+        let events = term.poll_subscribed_events();
+
+        // Clear the subscription so other consumers are not affected
+        term.set_event_subscription(None);
+
+        // Extract format strings from the events
+        events
+            .into_iter()
+            .filter_map(|e| {
+                if let TerminalEvent::UploadRequested { format } = e {
+                    Some(format)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     /// Get custom session variables set by trigger SetVariable actions.
     ///
     /// Returns a clone of the core terminal's custom variables HashMap.

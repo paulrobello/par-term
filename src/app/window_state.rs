@@ -272,6 +272,10 @@ pub struct WindowState {
     // Copy mode (vi-style keyboard text selection)
     /// Copy mode state machine
     pub(crate) copy_mode: crate::copy_mode::CopyModeState,
+
+    // File transfer state
+    /// File transfer UI state (active transfers, pending saves/uploads, dialog state)
+    pub(crate) file_transfer_state: crate::app::file_transfers::FileTransferState,
 }
 
 impl WindowState {
@@ -401,6 +405,8 @@ impl WindowState {
             badge_state,
 
             copy_mode: crate::copy_mode::CopyModeState::new(),
+
+            file_transfer_state: crate::app::file_transfers::FileTransferState::default(),
         }
     }
 
