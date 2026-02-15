@@ -1,0 +1,112 @@
+#!/bin/sh
+# pt-ul — Upload files from local to remote via par-term
+#
+# Sends iTerm2 OSC 1337 RequestUpload escape sequence. par-term shows a
+# native file picker, user selects a file, and the data is sent back
+# as a base64-encoded response.
+#
+# Usage:
+#   pt-ul [destination_dir]
+#
+# Works over SSH on any remote host. Only requires: base64, printf, cat
+
+set -e
+
+# Detect tmux/screen for passthrough wrapping
+_pt_is_tmux() {
+    case "$TERM" in
+        screen*|tmux*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Print escape sequence with optional tmux passthrough
+_pt_print_osc() {
+    if _pt_is_tmux; then
+        printf '\033Ptmux;\033'
+    fi
+    printf '\033]'
+}
+
+_pt_print_st() {
+    printf '\007'
+    if _pt_is_tmux; then
+        printf '\033\\'
+    fi
+}
+
+# Destination directory (default: current directory)
+_dest_dir="${1:-.}"
+
+if [ ! -d "$_dest_dir" ]; then
+    echo "Error: destination directory '$_dest_dir' does not exist" >&2
+    exit 1
+fi
+
+# Save terminal settings and set raw mode for reading response
+_old_tty=""
+if command -v stty >/dev/null 2>&1; then
+    _old_tty=$(stty -g 2>/dev/null || true)
+    stty raw -echo 2>/dev/null || true
+fi
+
+# Restore terminal on exit
+_pt_cleanup() {
+    if [ -n "$_old_tty" ]; then
+        stty "$_old_tty" 2>/dev/null || true
+    fi
+}
+trap _pt_cleanup EXIT
+
+# Send upload request
+_pt_print_osc
+printf '1337;RequestUpload=format=tgz'
+_pt_print_st
+
+# Read response - terminal sends base64 data terminated by newline
+# The response format is: filename\nbase64data
+_response=""
+while IFS= read -r _line; do
+    _response="$_line"
+    break
+done
+
+# Restore terminal before processing
+_pt_cleanup
+trap - EXIT
+
+# Check for empty response (cancelled)
+if [ -z "$_response" ] || [ "$_response" = "abort" ]; then
+    echo "Upload cancelled." >&2
+    exit 0
+fi
+
+# Decode the response
+# Response is base64-encoded tar.gz data
+_tmpfile=$(mktemp "${TMPDIR:-/tmp}/pt-ul-XXXXXX.tgz")
+printf '%s' "$_response" | base64 -d > "$_tmpfile" 2>/dev/null
+
+if [ ! -s "$_tmpfile" ]; then
+    rm -f "$_tmpfile"
+    echo "Error: received empty upload data" >&2
+    exit 1
+fi
+
+# Extract to destination
+if command -v tar >/dev/null 2>&1; then
+    tar xzf "$_tmpfile" -C "$_dest_dir" 2>/dev/null
+    _rc=$?
+else
+    echo "Error: tar is required to extract uploaded files" >&2
+    rm -f "$_tmpfile"
+    exit 1
+fi
+
+rm -f "$_tmpfile"
+
+if [ "$_rc" -eq 0 ]; then
+    echo "Upload complete. Files saved to: $_dest_dir" >&2
+else
+    echo "Error: failed to extract uploaded files" >&2
+    exit 1
+fi

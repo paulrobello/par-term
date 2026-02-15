@@ -1,0 +1,148 @@
+#!/bin/sh
+# pt-imgcat — Display inline images in par-term
+#
+# Uses iTerm2 OSC 1337 File protocol with inline=1 to display images
+# directly in the terminal.
+#
+# Usage:
+#   pt-imgcat [options] <file>
+#   pt-imgcat [options] -          # read from stdin
+#   cat image.png | pt-imgcat
+#
+# Options:
+#   --width <N>                    Width in cells or pixels (e.g., 80, 400px)
+#   --height <N>                   Height in cells or pixels
+#   --preserve-aspect-ratio        Maintain aspect ratio (default: yes)
+#   --no-preserve-aspect-ratio     Allow stretching
+#
+# Works over SSH on any remote host. Only requires: base64, wc, printf, cat, basename
+
+set -e
+
+# Detect tmux/screen for passthrough wrapping
+_pt_is_tmux() {
+    case "$TERM" in
+        screen*|tmux*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Print escape sequence with optional tmux passthrough
+_pt_print_osc() {
+    if _pt_is_tmux; then
+        printf '\033Ptmux;\033'
+    fi
+    printf '\033]'
+}
+
+_pt_print_st() {
+    printf '\007'
+    if _pt_is_tmux; then
+        printf '\033\\'
+    fi
+}
+
+# Defaults
+_width=""
+_height=""
+_preserve_aspect="1"
+_file=""
+
+# Parse options
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --width)
+            _width="$2"
+            shift 2
+            ;;
+        --height)
+            _height="$2"
+            shift 2
+            ;;
+        --preserve-aspect-ratio)
+            _preserve_aspect="1"
+            shift
+            ;;
+        --no-preserve-aspect-ratio)
+            _preserve_aspect="0"
+            shift
+            ;;
+        --)
+            shift
+            _file="${1:--}"
+            break
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            echo "Usage: pt-imgcat [--width N] [--height N] [--no-preserve-aspect-ratio] <file|->" >&2
+            exit 1
+            ;;
+        *)
+            _file="$1"
+            shift
+            break
+            ;;
+    esac
+done
+
+# Determine input source
+_from_stdin=0
+if [ -z "$_file" ]; then
+    if [ -t 0 ]; then
+        echo "Usage: pt-imgcat [options] <file|->" >&2
+        echo "       cat image.png | pt-imgcat" >&2
+        exit 1
+    fi
+    _from_stdin=1
+    _file="-"
+elif [ "$_file" = "-" ]; then
+    _from_stdin=1
+fi
+
+# Build OSC parameters
+_params="inline=1"
+
+if [ -n "$_width" ]; then
+    _params="${_params};width=${_width}"
+fi
+
+if [ -n "$_height" ]; then
+    _params="${_params};height=${_height}"
+fi
+
+if [ "$_preserve_aspect" = "0" ]; then
+    _params="${_params};preserveAspectRatio=0"
+fi
+
+# Send the image
+if [ "$_from_stdin" -eq 1 ]; then
+    _b64name=$(printf '%s' "image" | base64 | tr -d '\n')
+    _b64data=$(base64 | tr -d '\n')
+    _size=$(printf '%s' "$_b64data" | base64 -d 2>/dev/null | wc -c | tr -d ' ')
+
+    _pt_print_osc
+    printf '1337;File=name=%s;size=%s;%s:' "$_b64name" "$_size" "$_params"
+    printf '%s' "$_b64data"
+    _pt_print_st
+    printf '\n'
+else
+    if [ ! -f "$_file" ]; then
+        echo "Error: '$_file' is not a regular file" >&2
+        exit 1
+    fi
+    if [ ! -r "$_file" ]; then
+        echo "Error: '$_file' is not readable" >&2
+        exit 1
+    fi
+
+    _basename=$(basename "$_file")
+    _b64name=$(printf '%s' "$_basename" | base64 | tr -d '\n')
+    _b64data=$(base64 < "$_file" | tr -d '\n')
+    _size=$(printf '%s' "$_b64data" | base64 -d 2>/dev/null | wc -c | tr -d ' ')
+
+    _pt_print_osc
+    printf '1337;File=name=%s;size=%s;%s:' "$_b64name" "$_size" "$_params"
+    printf '%s' "$_b64data"
+    _pt_print_st
+    printf '\n'
+fi

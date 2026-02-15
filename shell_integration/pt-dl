@@ -1,0 +1,97 @@
+#!/bin/sh
+# pt-dl — Download files from remote to local via par-term
+#
+# Uses iTerm2 OSC 1337 File protocol with inline=0 to trigger
+# a native save dialog in par-term.
+#
+# Usage:
+#   pt-dl <file> [file2 ...]
+#   cat data | pt-dl --name output.txt
+#
+# Works over SSH on any remote host. Only requires: base64, wc, printf, cat, basename
+
+set -e
+
+# Detect tmux/screen for passthrough wrapping
+_pt_is_tmux() {
+    case "$TERM" in
+        screen*|tmux*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Print escape sequence with optional tmux passthrough
+_pt_print_osc() {
+    if _pt_is_tmux; then
+        printf '\033Ptmux;\033'
+    fi
+    printf '\033]'
+}
+
+_pt_print_st() {
+    printf '\007'
+    if _pt_is_tmux; then
+        printf '\033\\'
+    fi
+}
+
+# Send a single file via OSC 1337 File protocol
+# Args: $1 = filename, stdin = file data
+_pt_send_file() {
+    _filename="$1"
+    _b64name=$(printf '%s' "$_filename" | base64 | tr -d '\n')
+    _b64data=$(base64 | tr -d '\n')
+    _size=$(printf '%s' "$_b64data" | base64 -d 2>/dev/null | wc -c | tr -d ' ')
+
+    _pt_print_osc
+    printf '1337;File=name=%s;size=%s;inline=0:' "$_b64name" "$_size"
+    printf '%s' "$_b64data"
+    _pt_print_st
+
+    printf '%s (%s bytes) sent for download\n' "$_filename" "$_size" >&2
+}
+
+# Parse arguments
+_stdin_mode=0
+_name=""
+
+if [ $# -eq 0 ]; then
+    # Check if stdin is a pipe
+    if [ -t 0 ]; then
+        echo "Usage: pt-dl <file> [file2 ...]" >&2
+        echo "       cat data | pt-dl --name output.txt" >&2
+        exit 1
+    fi
+    echo "Error: stdin mode requires --name flag" >&2
+    exit 1
+fi
+
+# Check for --name flag (stdin mode)
+if [ "$1" = "--name" ]; then
+    if [ -z "$2" ]; then
+        echo "Error: --name requires a filename argument" >&2
+        exit 1
+    fi
+    _name="$2"
+    _stdin_mode=1
+    shift 2
+fi
+
+if [ "$_stdin_mode" -eq 1 ]; then
+    # Read from stdin
+    _pt_send_file "$_name"
+else
+    # Process each file argument
+    for _file in "$@"; do
+        if [ ! -f "$_file" ]; then
+            echo "Error: '$_file' is not a regular file" >&2
+            continue
+        fi
+        if [ ! -r "$_file" ]; then
+            echo "Error: '$_file' is not readable" >&2
+            continue
+        fi
+        _basename=$(basename "$_file")
+        _pt_send_file "$_basename" < "$_file"
+    done
+fi
