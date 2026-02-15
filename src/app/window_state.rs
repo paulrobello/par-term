@@ -2513,12 +2513,9 @@ impl WindowState {
                 pane_count
             );
 
-            // Look up pane 0 background for single-pane (no splits) render path
-            let pane_0_bg = if !has_pane_manager {
-                self.config.get_pane_background(0)
-            } else {
-                None
-            };
+            // Per-pane backgrounds only take effect when splits are active.
+            // In single-pane mode, skip per-pane background lookup.
+            let pane_0_bg: Option<crate::pane::PaneBackground> = None;
 
             let render_result = if has_pane_manager {
                 // Render panes from pane manager - inline data gathering to avoid borrow conflicts
