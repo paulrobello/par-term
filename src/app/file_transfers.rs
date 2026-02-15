@@ -142,29 +142,28 @@ impl WindowState {
             // Take each completed download and queue for save dialog
             let terminal_arc = std::sync::Arc::clone(&tab.terminal);
             for id in completed_ids {
-                if let Ok(term) = terminal_arc.try_lock() {
-                    if let Some(ft) = term.take_completed_transfer(id) {
-                        let filename = if ft.filename.is_empty() {
-                            format!("download-{}", ft.id)
-                        } else {
-                            ft.filename.clone()
-                        };
-                        crate::debug_info!(
-                            "FILE_TRANSFER",
-                            "Download completed: {} ({} bytes)",
+                if let Ok(term) = terminal_arc.try_lock()
+                    && let Some(ft) = term.take_completed_transfer(id)
+                {
+                    let filename = if ft.filename.is_empty() {
+                        format!("download-{}", ft.id)
+                    } else {
+                        ft.filename.clone()
+                    };
+                    crate::debug_info!(
+                        "FILE_TRANSFER",
+                        "Download completed: {} ({} bytes)",
+                        filename,
+                        ft.data.len()
+                    );
+                    self.file_transfer_state
+                        .pending_saves
+                        .push_back(PendingSave {
+                            id: ft.id,
                             filename,
-                            ft.data.len()
-                        );
-                        self.file_transfer_state
-                            .pending_saves
-                            .push_back(PendingSave {
-                                id: ft.id,
-                                filename,
-                                data: ft.data,
-                            });
-                        self.file_transfer_state.last_completion_time =
-                            Some(std::time::Instant::now());
-                    }
+                            data: ft.data,
+                        });
+                    self.file_transfer_state.last_completion_time = Some(std::time::Instant::now());
                 }
             }
 
@@ -327,20 +326,20 @@ impl WindowState {
                         &format!("Failed to read file: {}", e),
                     );
                     // Cancel the upload since we can't send data
-                    if let Some(tab) = self.tab_manager.active_tab() {
-                        if let Ok(term) = tab.terminal.try_lock() {
-                            term.cancel_upload();
-                        }
+                    if let Some(tab) = self.tab_manager.active_tab()
+                        && let Ok(term) = tab.terminal.try_lock()
+                    {
+                        term.cancel_upload();
                     }
                 }
             }
         } else {
             crate::debug_info!("FILE_TRANSFER", "Upload file picker cancelled");
             // Cancel the upload since user cancelled the picker
-            if let Some(tab) = self.tab_manager.active_tab() {
-                if let Ok(term) = tab.terminal.try_lock() {
-                    term.cancel_upload();
-                }
+            if let Some(tab) = self.tab_manager.active_tab()
+                && let Ok(term) = tab.terminal.try_lock()
+            {
+                term.cancel_upload();
             }
         }
     }
@@ -357,12 +356,11 @@ impl WindowState {
                 .or_else(dirs::download_dir),
             DownloadSaveLocation::Cwd => {
                 // Try to get CWD from shell integration
-                if let Some(tab) = self.tab_manager.active_tab() {
-                    if let Ok(term) = tab.terminal.try_lock() {
-                        if let Some(cwd) = term.shell_integration_cwd() {
-                            return Some(PathBuf::from(cwd));
-                        }
-                    }
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
+                    && let Some(cwd) = term.shell_integration_cwd()
+                {
+                    return Some(PathBuf::from(cwd));
                 }
                 // Fall back to Downloads if CWD not available
                 dirs::download_dir()
@@ -377,7 +375,6 @@ impl WindowState {
             }
         }
     }
-
 }
 
 /// Render the file transfer progress overlay using egui.

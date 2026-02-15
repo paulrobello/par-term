@@ -375,7 +375,6 @@ pub struct Config {
     // ========================================================================
     // File Transfer Settings
     // ========================================================================
-
     /// Default save location for downloaded files
     #[serde(default)]
     pub download_save_location: DownloadSaveLocation,

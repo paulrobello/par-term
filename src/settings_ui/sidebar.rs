@@ -845,7 +845,9 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         SettingsTab::Snippets => "Text snippets with variable substitution",
         SettingsTab::Actions => "Custom actions (shell, text, keys)",
         SettingsTab::Arrangements => "Save and restore window layouts",
-        SettingsTab::Advanced => "tmux integration, logging, file transfers, updates, debug logging",
+        SettingsTab::Advanced => {
+            "tmux integration, logging, file transfers, updates, debug logging"
+        }
     }
 }
 

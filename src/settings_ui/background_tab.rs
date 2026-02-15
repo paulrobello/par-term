@@ -736,10 +736,7 @@ pub fn show_pane_backgrounds(
                 let mut index = settings.temp_pane_bg_index.unwrap_or(0);
                 let mut changed = false;
 
-                if ui
-                    .add_enabled(index > 0, egui::Button::new("<"))
-                    .clicked()
-                {
+                if ui.add_enabled(index > 0, egui::Button::new("<")).clicked() {
                     index = index.saturating_sub(1);
                     changed = true;
                 }
@@ -751,10 +748,7 @@ pub fn show_pane_backgrounds(
                     changed = true;
                 }
 
-                if ui
-                    .add_enabled(index < 9, egui::Button::new(">"))
-                    .clicked()
-                {
+                if ui.add_enabled(index < 9, egui::Button::new(">")).clicked() {
                     index = index.saturating_add(1).min(9);
                     changed = true;
                 }

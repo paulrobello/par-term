@@ -13,7 +13,9 @@
 
 use super::SettingsUI;
 use super::section::{INPUT_WIDTH, collapsing_section};
-use crate::config::{Config, DownloadSaveLocation, LogLevel, SessionLogFormat, UpdateCheckFrequency};
+use crate::config::{
+    Config, DownloadSaveLocation, LogLevel, SessionLogFormat, UpdateCheckFrequency,
+};
 use crate::update_checker::format_timestamp;
 use std::collections::HashSet;
 
@@ -1076,9 +1078,7 @@ fn show_file_transfers_section(
                             }
                         }
                         // Custom variant
-                        if ui
-                            .selectable_label(is_custom, "Custom directory")
-                            .clicked()
+                        if ui.selectable_label(is_custom, "Custom directory").clicked()
                             && !is_custom
                         {
                             settings.config.download_save_location =
@@ -1110,8 +1110,8 @@ fn show_file_transfers_section(
                     }
 
                     if ui.button("Browse...").clicked() {
-                        let mut dialog = rfd::FileDialog::new()
-                            .set_title("Select Download Directory");
+                        let mut dialog =
+                            rfd::FileDialog::new().set_title("Select Download Directory");
                         if !custom_path.is_empty() {
                             dialog = dialog.set_directory(&custom_path);
                         }
