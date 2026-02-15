@@ -69,8 +69,8 @@ type PaneRenderData = (
     Option<(usize, usize)>,
     f32,
     Vec<ScrollbackMark>,
-    usize, // scrollback_len
-    usize, // scroll_offset
+    usize,                               // scrollback_len
+    usize,                               // scroll_offset
     Option<crate::pane::PaneBackground>, // per-pane background
 );
 

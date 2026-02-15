@@ -1238,11 +1238,7 @@ impl ApplicationHandler for WindowManager {
                         self.stop_coprocess(index);
                     }
                     SettingsWindowAction::StartScript(index) => {
-                        crate::debug_info!(
-                            "SCRIPT",
-                            "Handler: received StartScript({})",
-                            index
-                        );
+                        crate::debug_info!("SCRIPT", "Handler: received StartScript({})", index);
                         self.start_script(index);
                     }
                     SettingsWindowAction::StopScript(index) => {

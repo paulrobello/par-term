@@ -2047,7 +2047,11 @@ impl WindowManager {
                 script_config.args
             );
             if !script_config.enabled {
-                crate::debug_info!("SCRIPT", "Script '{}' is disabled, not starting", script_config.name);
+                crate::debug_info!(
+                    "SCRIPT",
+                    "Script '{}' is disabled, not starting",
+                    script_config.name
+                );
                 return;
             }
 
@@ -2130,7 +2134,10 @@ impl WindowManager {
             // Update running state in settings window
             self.sync_script_running_state();
         } else {
-            crate::debug_error!("SCRIPT", "start_script: no focused window or active tab found");
+            crate::debug_error!(
+                "SCRIPT",
+                "start_script: no focused window or active tab found"
+            );
         }
     }
 

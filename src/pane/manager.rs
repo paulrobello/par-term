@@ -571,14 +571,15 @@ impl PaneManager {
             .iter()
             .enumerate()
             .filter_map(|(index, pane)| {
-                pane.background.image_path.as_ref().map(|path| {
-                    PaneBackgroundConfig {
+                pane.background
+                    .image_path
+                    .as_ref()
+                    .map(|path| PaneBackgroundConfig {
                         index,
                         image: path.clone(),
                         mode: pane.background.mode,
                         opacity: pane.background.opacity,
-                    }
-                })
+                    })
             })
             .collect()
     }

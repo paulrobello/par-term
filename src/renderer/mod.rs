@@ -1251,12 +1251,11 @@ impl Renderer {
 
         // Pre-load any per-pane background textures that aren't cached yet
         for pane in panes.iter() {
-            if let Some(ref bg) = pane.background {
-                if let Some(ref path) = bg.image_path {
-                    if let Err(e) = self.cell_renderer.load_pane_background(path) {
-                        log::error!("Failed to load pane background '{}': {}", path, e);
-                    }
-                }
+            if let Some(ref bg) = pane.background
+                && let Some(ref path) = bg.image_path
+                && let Err(e) = self.cell_renderer.load_pane_background(path)
+            {
+                log::error!("Failed to load pane background '{}': {}", path, e);
             }
         }
 

@@ -30,9 +30,8 @@ pub use types::{
     PowerPreference, ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode,
     SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction,
     ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode,
-    StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, ThinStrokesMode,
-    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
-    default_smart_selection_rules,
+    StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, ThinStrokesMode, UnfocusedCursorStyle,
+    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
