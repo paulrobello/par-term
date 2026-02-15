@@ -8,10 +8,14 @@
 //! - Session logging settings
 //! - Screenshot settings
 //! - Update settings
+//! - File transfer settings
+//! - Debug logging settings
 
 use super::SettingsUI;
 use super::section::{INPUT_WIDTH, collapsing_section};
-use crate::config::{Config, LogLevel, SessionLogFormat, UpdateCheckFrequency};
+use crate::config::{
+    Config, DownloadSaveLocation, LogLevel, SessionLogFormat, UpdateCheckFrequency,
+};
 use crate::update_checker::format_timestamp;
 use std::collections::HashSet;
 
@@ -107,6 +111,22 @@ pub fn show(
         ],
     ) {
         show_updates_section(ui, settings, changes_this_frame, collapsed);
+    }
+
+    // File Transfers section
+    if section_matches(
+        &query,
+        "File Transfers",
+        &[
+            "download",
+            "upload",
+            "transfer",
+            "file transfer",
+            "save location",
+            "save directory",
+        ],
+    ) {
+        show_file_transfers_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Debug Logging section
@@ -1005,6 +1025,107 @@ fn show_updates_section(
             .color(egui::Color32::GRAY),
         );
     });
+}
+
+// ============================================================================
+// File Transfers Section
+// ============================================================================
+
+fn show_file_transfers_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(
+        ui,
+        "File Transfers",
+        "advanced_file_transfers",
+        true,
+        collapsed,
+        |ui| {
+            ui.label("Configure where downloaded files are saved.");
+            ui.add_space(8.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Download save location:");
+
+                // Determine which variant is currently selected (ignoring Custom's inner string)
+                let is_custom = matches!(
+                    settings.config.download_save_location,
+                    DownloadSaveLocation::Custom(_)
+                );
+                let selected_text = settings.config.download_save_location.display_name();
+
+                egui::ComboBox::from_id_salt("advanced_download_save_location")
+                    .width(200.0)
+                    .selected_text(selected_text)
+                    .show_ui(ui, |ui| {
+                        // Non-custom variants
+                        for variant in DownloadSaveLocation::variants() {
+                            if ui
+                                .selectable_label(
+                                    !is_custom
+                                        && settings.config.download_save_location == *variant,
+                                    variant.display_name(),
+                                )
+                                .clicked()
+                                && settings.config.download_save_location != *variant
+                            {
+                                settings.config.download_save_location = variant.clone();
+                                settings.has_changes = true;
+                                *changes_this_frame = true;
+                            }
+                        }
+                        // Custom variant
+                        if ui.selectable_label(is_custom, "Custom directory").clicked()
+                            && !is_custom
+                        {
+                            settings.config.download_save_location =
+                                DownloadSaveLocation::Custom(String::new());
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    });
+            });
+
+            // Show custom path picker when Custom is selected
+            if let DownloadSaveLocation::Custom(ref path) = settings.config.download_save_location {
+                let mut custom_path = path.clone();
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label("Custom path:");
+                    if ui
+                        .add(
+                            egui::TextEdit::singleline(&mut custom_path)
+                                .desired_width(INPUT_WIDTH)
+                                .hint_text("/path/to/downloads"),
+                        )
+                        .changed()
+                    {
+                        settings.config.download_save_location =
+                            DownloadSaveLocation::Custom(custom_path.clone());
+                        settings.has_changes = true;
+                        *changes_this_frame = true;
+                    }
+
+                    if ui.button("Browse...").clicked() {
+                        let mut dialog =
+                            rfd::FileDialog::new().set_title("Select Download Directory");
+                        if !custom_path.is_empty() {
+                            dialog = dialog.set_directory(&custom_path);
+                        }
+                        if let Some(folder) = dialog.pick_folder() {
+                            settings.config.download_save_location =
+                                DownloadSaveLocation::Custom(folder.display().to_string());
+                            settings.has_changes = true;
+                            *changes_this_frame = true;
+                        }
+                    }
+                });
+            }
+        },
+    );
 }
 
 // ============================================================================

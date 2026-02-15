@@ -24,8 +24,8 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
-    CursorShaderMetadata, CursorStyle, DividerStyle, DroppedFileQuoteStyle, FontRange,
-    ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
+    CursorShaderMetadata, CursorStyle, DividerStyle, DownloadSaveLocation, DroppedFileQuoteStyle,
+    FontRange, ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
     ModifierRemapping, ModifierTarget, OptionKeyMode, PaneBackgroundConfig, PaneTitlePosition,
     PowerPreference, ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode,
     SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction,
@@ -371,6 +371,17 @@ pub struct Config {
     /// Transparency is controlled by window_opacity
     #[serde(default = "defaults::background_color")]
     pub background_color: [u8; 3],
+
+    // ========================================================================
+    // File Transfer Settings
+    // ========================================================================
+    /// Default save location for downloaded files
+    #[serde(default)]
+    pub download_save_location: DownloadSaveLocation,
+
+    /// Last used download directory (persisted internally)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_download_directory: Option<String>,
 
     /// Custom shader file path (GLSL format, relative to shaders folder or absolute)
     /// Shaders are loaded from ~/.config/par-term/shaders/ by default
@@ -1847,6 +1858,8 @@ impl Default for Config {
             background_mode: BackgroundMode::default(),
             pane_backgrounds: Vec::new(),
             background_color: defaults::background_color(),
+            download_save_location: DownloadSaveLocation::default(),
+            last_download_directory: None,
             custom_shader: None,
             custom_shader_enabled: defaults::bool_true(),
             custom_shader_animation: defaults::bool_true(),

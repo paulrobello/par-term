@@ -108,17 +108,18 @@ download_file() {
     fi
 }
 
-# Generate the source line for an RC file
+# Generate the source block content for an RC file
 get_source_line() {
     shell="$1"
     script_path="$2"
+    bin_dir="$3"
 
     case "$shell" in
         fish)
-            echo "source \"$script_path\""
+            printf 'if test -d "%s"\n    set -gx PATH "%s" $PATH\nend\nsource "%s"' "$bin_dir" "$bin_dir" "$script_path"
             ;;
         *)
-            echo "[ -f \"$script_path\" ] && source \"$script_path\""
+            printf 'if [ -d "%s" ]; then\n    export PATH="%s:$PATH"\nfi\n[ -f "%s" ] && source "%s"' "$bin_dir" "$bin_dir" "$script_path" "$script_path"
             ;;
     esac
 }
@@ -196,9 +197,21 @@ main() {
     printf "${GREEN}Downloaded:${NC} %s\n" "$SCRIPT_PATH"
     echo ""
 
+    # Download file transfer utilities
+    BIN_DIR="$CONFIG_DIR/bin"
+    mkdir -p "$BIN_DIR"
+    printf "Downloading file transfer utilities...\n"
+    for util in pt-dl pt-ul pt-imgcat; do
+        UTIL_URL="$BASE_URL/$util"
+        download_file "$UTIL_URL" "$BIN_DIR/$util"
+        chmod +x "$BIN_DIR/$util"
+        printf "${GREEN}Downloaded:${NC} %s\n" "$BIN_DIR/$util"
+    done
+    echo ""
+
     # Update RC file
     printf "Updating RC file...\n"
-    SOURCE_LINE=$(get_source_line "$SHELL_TYPE" "$SCRIPT_PATH")
+    SOURCE_LINE=$(get_source_line "$SHELL_TYPE" "$SCRIPT_PATH" "$BIN_DIR")
 
     # Remove any existing block first
     remove_existing_block "$RC_FILE"
@@ -216,6 +229,7 @@ main() {
     echo "  - Directory tracking (OSC 7)"
     echo "  - Command notifications (OSC 777)"
     echo "  - Current working directory sync"
+    echo "  - File transfer utilities (pt-dl, pt-ul, pt-imgcat)"
     echo ""
     printf "${YELLOW}Restart your shell or run:${NC}\n"
     case "$SHELL_TYPE" in

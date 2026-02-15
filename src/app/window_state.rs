@@ -272,6 +272,10 @@ pub struct WindowState {
     // Copy mode (vi-style keyboard text selection)
     /// Copy mode state machine
     pub(crate) copy_mode: crate::copy_mode::CopyModeState,
+
+    // File transfer state
+    /// File transfer UI state (active transfers, pending saves/uploads, dialog state)
+    pub(crate) file_transfer_state: crate::app::file_transfers::FileTransferState,
 }
 
 impl WindowState {
@@ -401,6 +405,8 @@ impl WindowState {
             badge_state,
 
             copy_mode: crate::copy_mode::CopyModeState::new(),
+
+            file_transfer_state: crate::app::file_transfers::FileTransferState::default(),
         }
     }
 
@@ -2406,6 +2412,12 @@ impl WindowState {
                         }
                     }
 
+                    // Render file transfer progress overlay (bottom-right corner)
+                    crate::app::file_transfers::render_file_transfer_overlay(
+                        &self.file_transfer_state,
+                        ctx,
+                    );
+
                     // Render badge overlay (top-right corner)
                     if let (Some(badge), Some(size)) = (&badge_state, window_size_for_badge) {
                         render_badge(ctx, badge, size.width as f32, size.height as f32);
@@ -2698,13 +2710,13 @@ impl WindowState {
                                     let pane_scroll_offset = pane.scroll_state.offset;
 
                                     // Per-pane backgrounds only apply when multiple panes exist
-                                    let pane_background =
-                                        if all_pane_ids.len() > 1 && pane.background().has_image()
-                                        {
-                                            Some(pane.background().clone())
-                                        } else {
-                                            None
-                                        };
+                                    let pane_background = if all_pane_ids.len() > 1
+                                        && pane.background().has_image()
+                                    {
+                                        Some(pane.background().clone())
+                                    } else {
+                                        None
+                                    };
 
                                     let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
                                         if term.is_cursor_visible() {

@@ -183,6 +183,42 @@ pub enum BackgroundImageMode {
     Center,
 }
 
+/// Default save location for downloaded files
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DownloadSaveLocation {
+    /// Save to ~/Downloads (default)
+    #[default]
+    Downloads,
+    /// Remember and re-use the last directory the user saved to
+    LastUsed,
+    /// Use the shell's current working directory
+    Cwd,
+    /// Use a custom directory path
+    Custom(String),
+}
+
+impl DownloadSaveLocation {
+    /// Get all non-Custom variants for settings UI dropdown
+    pub fn variants() -> &'static [DownloadSaveLocation] {
+        &[
+            DownloadSaveLocation::Downloads,
+            DownloadSaveLocation::LastUsed,
+            DownloadSaveLocation::Cwd,
+        ]
+    }
+
+    /// Display name for settings UI
+    pub fn display_name(&self) -> &str {
+        match self {
+            DownloadSaveLocation::Downloads => "Downloads folder",
+            DownloadSaveLocation::LastUsed => "Last used directory",
+            DownloadSaveLocation::Cwd => "Current working directory",
+            DownloadSaveLocation::Custom(_) => "Custom directory",
+        }
+    }
+}
+
 /// Background source selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]

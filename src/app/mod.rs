@@ -17,6 +17,7 @@ pub mod bell;
 pub mod config_updates;
 pub mod copy_mode_handler;
 pub mod debug_state;
+mod file_transfers;
 pub mod handler;
 pub mod input_events;
 pub mod keyboard_handlers;

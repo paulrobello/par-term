@@ -75,12 +75,15 @@ impl SessionLogger {
             env.insert("ROWS".to_string(), dimensions.1.to_string());
 
             Some(RecordingSession {
-                start_time: Utc::now().timestamp_millis() as u64,
+                id: uuid::Uuid::new_v4().to_string(),
+                created_at: Utc::now().timestamp_millis() as u64,
                 initial_size: dimensions,
                 env,
                 events: Vec::new(),
                 duration: 0,
-                title: title.clone(),
+                title: title
+                    .clone()
+                    .unwrap_or_else(|| "Terminal Recording".to_string()),
             })
         } else {
             None
@@ -304,8 +307,8 @@ impl SessionLogger {
                 "version": 2,
                 "width": recording.initial_size.0,
                 "height": recording.initial_size.1,
-                "timestamp": recording.start_time / 1000, // Convert to seconds
-                "title": recording.title.as_deref().unwrap_or("Terminal Recording"),
+                "timestamp": recording.created_at / 1000, // Convert to seconds
+                "title": &recording.title,
                 "env": recording.env,
             });
 
@@ -340,6 +343,12 @@ impl SessionLogger {
                         RecordingEventType::Marker => {
                             let label = String::from_utf8_lossy(&event.data);
                             let line = serde_json::json!([time_seconds, "m", label]);
+                            writeln!(writer, "{}", line)?;
+                        }
+                        RecordingEventType::Metadata => {
+                            // Metadata events store key-value pairs; emit as asciicast marker
+                            let data_str = String::from_utf8_lossy(&event.data);
+                            let line = serde_json::json!([time_seconds, "m", data_str]);
                             writeln!(writer, "{}", line)?;
                         }
                     }

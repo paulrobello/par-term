@@ -794,6 +794,9 @@ impl WindowState {
         // Check for and deliver notifications (OSC 9/777)
         self.check_notifications();
 
+        // Check for file transfer events (downloads, uploads, progress)
+        self.check_file_transfers();
+
         // Check for bell events and play audio/visual feedback
         self.check_bell();
 

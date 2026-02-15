@@ -726,7 +726,7 @@ impl TerminalManager {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let term = terminal.lock();
-        term.search(query, case_sensitive)
+        term.search_text(query, case_sensitive)
     }
 
     /// Search for text in the scrollback buffer.
@@ -774,7 +774,7 @@ impl TerminalManager {
         }
 
         // Search visible screen (returns 0+ row indices)
-        let screen_matches = term.search(query, case_sensitive);
+        let screen_matches = term.search_text(query, case_sensitive);
         for m in screen_matches {
             // Screen row 0 = scrollback_len in absolute terms
             let abs_line = scrollback_len + m.row as usize;
@@ -952,6 +952,74 @@ impl TerminalManager {
         let terminal = pty.terminal();
         let mut term = terminal.lock();
         term.poll_action_results()
+    }
+
+    // === File Transfer Methods ===
+
+    /// Get all active (in-progress) file transfers
+    pub fn get_active_transfers(
+        &self,
+    ) -> Vec<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.get_active_transfers()
+    }
+
+    /// Get all completed file transfers (without removing them)
+    pub fn get_completed_transfers(
+        &self,
+    ) -> Vec<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.get_completed_transfers()
+    }
+
+    /// Take a completed transfer by ID, removing it from the manager
+    pub fn take_completed_transfer(
+        &self,
+        id: u64,
+    ) -> Option<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.take_completed_transfer(id)
+    }
+
+    /// Cancel an active file transfer
+    pub fn cancel_file_transfer(&self, id: u64) -> bool {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.cancel_file_transfer(id)
+    }
+
+    /// Send data for an active upload (iTerm2 base64 format)
+    pub fn send_upload_data(&self, data: &[u8]) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.send_upload_data(data);
+    }
+
+    /// Cancel the current upload (sends Ctrl-C)
+    pub fn cancel_upload(&self) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.cancel_upload();
+    }
+
+    /// Poll for pending upload requests from the terminal.
+    ///
+    /// Drains UploadRequested events from the terminal event queue,
+    /// leaving other event types undisturbed.
+    pub fn poll_upload_requests(&self) -> Vec<String> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.poll_upload_requests()
     }
 
     /// Get custom session variables set by trigger SetVariable actions.

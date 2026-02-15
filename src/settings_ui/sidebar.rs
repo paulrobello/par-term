@@ -804,6 +804,13 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "release",
             "update check",
             "skipped version",
+            // File Transfers
+            "download",
+            "upload",
+            "transfer",
+            "file transfer",
+            "save location",
+            "save directory",
             // Debug Logging
             "debug",
             "debug logging",
@@ -838,7 +845,9 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         SettingsTab::Snippets => "Text snippets with variable substitution",
         SettingsTab::Actions => "Custom actions (shell, text, keys)",
         SettingsTab::Arrangements => "Save and restore window layouts",
-        SettingsTab::Advanced => "tmux integration, logging, updates, debug logging",
+        SettingsTab::Advanced => {
+            "tmux integration, logging, file transfers, updates, debug logging"
+        }
     }
 }
 

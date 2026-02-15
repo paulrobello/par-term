@@ -702,8 +702,8 @@ iTerm2 has sophisticated window state management.
 | Image placement modes | ✅ | ✅ | ✅ | - | - | Core ImagePlacement with inline/download, requested dimensions (cells/pixels/percent), z-index, sub-cell offsets |
 | Preserve aspect ratio | ✅ | ✅ `image_preserve_aspect_ratio` | ✅ | - | - | Global config + per-image flag from core |
 | Image metadata in files | ✅ | ✅ | ✅ | - | - | Core SerializableGraphic/GraphicsSnapshot with export/import JSON, base64 or file-backed pixel data |
-| File transfer (download) | ✅ | 🔶 | 🔶 | ⭐⭐ | 🟡 | Core `FileTransferManager` implemented with `inline=0` download, progress events, `take_completed_transfer()`. Frontend save dialog pending |
-| File transfer (upload) | ✅ | 🔶 | 🔶 | ⭐⭐ | 🟡 | Core `RequestUpload` handler implemented with `send_upload_data()`/`cancel_upload()`. Frontend file picker pending |
+| File transfer (download) | ✅ | ✅ | ✅ | ⭐⭐ | 🟢 | Core `FileTransferManager` + frontend native save dialog via `rfd`, configurable default save location, egui progress overlay, desktop notifications |
+| File transfer (upload) | ✅ | ✅ | ✅ | ⭐⭐ | 🟢 | Core `RequestUpload` handler + frontend native file picker via `rfd`, upload cancellation, desktop notifications |
 
 ---
 
@@ -814,6 +814,7 @@ iTerm2 supports showing progress for long-running commands.
 | Command exit code in badge | ✅ | ✅ Title bar + badge var | ✅ | - | - | Shows `[Exit: N]` in title on failure; `\(session.exit_code)` badge var |
 | Remote host integration | ✅ | ✅ OSC 7 + OSC 1337 RemoteHost | ✅ | - | - | Hostname/username from OSC 7 file:// URLs and OSC 1337 RemoteHost; auto profile switching |
 | Remote shell integration install | ✅ | ✅ Shell menu + confirm dialog | ✅ | - | - | Shell > Install Shell Integration on Remote Host; sends curl command to active PTY (#135) |
+| File transfer utilities | ✅ `it2dl`/`it2ul` | ✅ `pt-dl`/`pt-ul`/`pt-imgcat` | ✅ | - | - | POSIX sh scripts for file download, upload, inline image via OSC 1337; auto-installed to `~/.config/par-term/bin/` with PATH setup |
 
 ---
 
@@ -936,7 +937,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Browser Integration | 1 | 0 | 0 |
 | Progress Bars | 5 | 0 | 0 |
 | Advanced Paste & Input | 6 | 0 | 0 |
-| Advanced Shell Integration | 6 | 1 | 1 |
+| Advanced Shell Integration | 7 | 1 | 1 |
 | Network & Discovery | 4 | 0 | 0 |
 | Miscellaneous | 12 | 0 | 5 |
 | Badges | 9 | 0 | 0 |
