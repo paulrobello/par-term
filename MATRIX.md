@@ -164,7 +164,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Scrollbar colors | ❌ | ✅ thumb/track colors | ✅ | - | - | par-term exclusive |
 | Scrollbar auto-hide | ❌ | ✅ `scrollbar_autohide_delay` | ✅ | - | - | par-term exclusive |
 | Scrollback in alt screen | ✅ `Scrollback in Alternate Screen` | ✅ | ✅ | - | - | - |
-| Instant Replay | ✅ `Instant Replay Memory` | ❌ | ❌ | ⭐⭐ | 🔵 | Rewind terminal state. Requires core-level state snapshots or a dedicated replay buffer recording incremental grid changes. |
+| Instant Replay | ✅ `Instant Replay Memory` | 🔶 | 🔶 | ⭐⭐ | 🟡 | Rewind terminal state. ✅ **Core API implemented (v0.38+)** — `SnapshotManager` with rolling buffer (4 MiB default, 30s intervals), `ReplaySession` with timestamp/byte-granular seeking, `TerminalSnapshot` for full state capture/restore. Frontend replay UI pending. |
 | Timestamps | ✅ `Show Timestamps` | 🔶 via tooltips | 🔶 | - | - | Hover scrollbar marks for timing info |
 | Mark indicators | ✅ `Show Mark Indicators` | ✅ `scrollbar_command_marks` | ✅ | - | - | Color-coded marks on scrollbar (green=success, red=fail) |
 | Mark tooltips | ❌ | ✅ `scrollbar_mark_tooltips` | ✅ | - | - | **par-term exclusive** - command, time, duration, exit code |
@@ -439,7 +439,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 |---------|--------|----------|--------|--------|--------|-------|
 | Minimum contrast | ✅ | ✅ `minimum_contrast` | ✅ | - | - | WCAG luminance-based contrast (1.0-21.0) |
 | Focus on click | ✅ | ✅ | ✅ | - | - | - |
-| Bidirectional text | ✅ `Bidi` | ❌ | ❌ | ⭐⭐ | 🔴 | RTL language support (requires core library grid support) |
+| Bidirectional text | ✅ `Bidi` | ❌ | 🚫 | ➖ | ➖ | Won't implement; Unicode Bidi Algorithm requires deep Grid/Line restructuring in core library, extremely complex with minimal user demand for RTL in terminal emulators |
 | VoiceOver support | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | Screen reader support |
 
 ---
@@ -756,7 +756,7 @@ iTerm2 has sophisticated window state management.
 | Ambiguous width characters | ✅ `Ambiguous Width Characters` | ✅ | ✅ | - | - | Already implemented |
 | Unicode box drawing | ✅ | ✅ | ✅ | - | - | Already implemented |
 | Emoji variation sequences | ✅ | ✅ Grapheme + FE0F font selection | ✅ | - | - | VS15/VS16 preserved via grapheme strings, FE0F forces emoji font |
-| Right-to-left text | ✅ `Bidi` | ❌ | ❌ | ⭐⭐ | 🔴 | RTL language support. Requires core `Grid` to implement Unicode Bidi Algorithm for logical-to-visual reordering. |
+| Right-to-left text | ✅ `Bidi` | ❌ | 🚫 | ➖ | ➖ | Won't implement; Unicode Bidi Algorithm requires deep Grid/Line restructuring in core library, extremely complex with minimal user demand for RTL in terminal emulators |
 
 ---
 
@@ -766,9 +766,9 @@ iTerm2 has a built-in browser for web-based workflows.
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| Built-in browser | ✅ `Enable Browser Integration` | ❌ | ❌ | ⭐ | 🔵 | Embedded web browser (e.g. via Wry) |
-| Browser per tab | ✅ | ❌ | ❌ | ⭐ | 🔵 | Individual browser tabs |
-| Browser profile sync | ✅ | ❌ | ❌ | ⭐ | 🟡 | Sync with external browser |
+| Built-in browser | ✅ `Enable Browser Integration` | ❌ | 🚫 | ➖ | ➖ | Won't implement; zero community demand across all terminal emulators, massive effort/maintenance, security risk, 3-4x memory overhead, no other emulator implements this |
+| Browser per tab | ✅ | ❌ | 🚫 | ➖ | ➖ | Won't implement; depends on built-in browser |
+| Browser profile sync | ✅ | ❌ | 🚫 | ➖ | ➖ | Won't implement; depends on built-in browser |
 | Open links in browser | ✅ | ✅ `link_handler_command` | ✅ | - | - | Custom command with {url} placeholder; falls back to system default |
 
 ---
@@ -902,7 +902,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Background & Effects | 12 | 0 | 0 |
 | Colors & Themes | 16 | 0 | 1 |
 | Tab Bar | 18 | 0 | 2 |
-| Scrollback & Scrollbar | 11 | 1 | 1 |
+| Scrollback & Scrollbar | 11 | 2 | 0 |
 | Selection & Clipboard | 12 | 0 | 0 |
 | Mouse & Pointer | 9 | 0 | 1 |
 | Keyboard & Input | 9 | 0 | 2 |
@@ -916,7 +916,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Triggers & Automation | 8 | 1 | 0 |
 | tmux Integration | 17 | 0 | 0 |
 | Performance & Power | 9 | 0 | 1 |
-| Accessibility | 2 | 0 | 2 |
+| Accessibility | 2 | 0 | 1 |
 | AI Integration | 0 | 1 | 3 |
 | Status Bar | 10 | 0 | 0 |
 | Toolbelt | 0 | 0 | 8 |
@@ -932,8 +932,8 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Audio & Haptic Feedback | 3 | 0 | 2 |
 | Advanced GPU & Rendering Settings | 3 | 0 | 2 |
 | Advanced Configuration | 0 | 0 | 8 |
-| Unicode & Text Processing | 3 | 0 | 3 |
-| Browser Integration | 0 | 0 | 4 |
+| Unicode & Text Processing | 3 | 0 | 2 |
+| Browser Integration | 1 | 0 | 0 |
 | Progress Bars | 5 | 0 | 0 |
 | Advanced Paste & Input | 6 | 0 | 0 |
 | Advanced Shell Integration | 6 | 1 | 1 |
@@ -941,7 +941,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Miscellaneous | 12 | 0 | 5 |
 | Badges | 9 | 0 | 0 |
 | Scripting & Automation | 0 | 0 | 4 |
-| **TOTAL** | **~310** | **~5** | **~105** |
+| **TOTAL** | **~311** | **~6** | **~99** |
 
 **Overall Parity: ~74% of iTerm2 features implemented** (310 implemented out of ~420 total tracked features)
 
@@ -1017,11 +1017,11 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | ~~Dynamic profiles from URL~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Complete (§32 - dynamic_profile_sources with caching, auto-refresh, conflict resolution #142) |
 | ~~Pane title customization~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Implemented |
 | ~~Division thickness/style~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented |
-| Instant Replay | ⭐⭐ | 🔵 Very High | Rewind terminal state |
+| ~~Instant Replay~~ | ~~⭐⭐~~ | ~~🔵 Very High~~ | ✅ Core API complete (v0.38+ — SnapshotManager, ReplaySession, TerminalSnapshot). Frontend replay UI pending. |
 | AI integration | ⭐⭐ | 🔵 Very High | Command help and generation. Core semantic snapshot API now available (v0.37+); needs frontend UI integration. |
 | VoiceOver/accessibility | ⭐⭐ | 🔵 Very High | Screen reader support |
-| Bidirectional text | ⭐⭐ | 🔴 High | RTL language support (requires core library grid support) |
-| Browser integration | ⭐ | 🔴 High | Embedded web browser |
+| ~~Bidirectional text~~ | ~~⭐⭐~~ | ~~🔴 High~~ | 🚫 Won't implement |
+| ~~Browser integration~~ | ~~⭐~~ | ~~🔴 High~~ | 🚫 Won't implement; zero demand, massive effort, no other emulator implements this |
 | ~~Bonjour/SSH discovery~~ | ~~⭐⭐~~ | ~~🔴 High~~ | ✅ Complete (§42 - mDNS, SSH config, known_hosts, history) |
 
 ### Newly Identified Features (This Update)
@@ -1065,11 +1065,11 @@ The following iTerm2 features were identified and added to the matrix in this up
 
 **Unicode & Text Processing (2 features)**
 - Emoji variation sequences
-- Right-to-left text support
+- ~~Right-to-left text support~~ (won't implement)
 
-**Browser Integration (4 features)**
-- Built-in browser for web-based workflows
-- Browser per tab, profile sync
+**~~Browser Integration~~ (🚫 won't implement)**
+- ~~Built-in browser for web-based workflows~~
+- ~~Browser per tab, profile sync~~
 
 **Total: ~105 new features remaining across 18 new categories**
 
@@ -1081,10 +1081,10 @@ The following features are blocked by or significantly dependent on architectura
 
 | Feature | Core Requirement / Technical Gap | Proposed Core Implementation Details |
 |---------|---------------------------------|--------------------------------------|
-| **Bidirectional Text (RTL)** | Core `Grid` and `Line` structures must implement the Unicode Bidirectional Algorithm (Bidi). | Update `Line` to store embedding levels; implement logical-to-visual mapping in `Grid::get_cells`; support `DECRTL` / `DECTME` sequences. |
+| ~~**Bidirectional Text (RTL)**~~ | ~~Core `Grid` and `Line` structures must implement the Unicode Bidirectional Algorithm (Bidi).~~ | 🚫 **Won't implement** — Unicode Bidi Algorithm requires deep Grid/Line restructuring, extremely complex with minimal user demand for RTL in terminal emulators. |
 | ~~**Semantic Buffer Zoning**~~ | ~~Core must segment the scrollback buffer into logical blocks (Prompt, Command, Output).~~ | ✅ **Implemented in core v0.37+** — `Vec<Zone>` on `Grid` with `ZoneType` (Prompt/Command/Output), OSC 133 FinalTerm markers, automatic scrollback eviction, Python bindings (`get_zones()`, `get_zone_at()`, `get_zone_text()`). Frontend integration pending. |
 | ~~**Command Output Capture**~~ | ~~Core requires a high-level API to programmatically extract text from specific `CommandExecution` blocks.~~ | ✅ **Implemented in core v0.37+** — `output_start_row`/`output_end_row` fields on `CommandExecution`; `get_command_output(index)` extracts output text for a specific completed command (0 = most recent); `get_command_outputs()` bulk-retrieves all commands with extractable output; reusable `extract_text_from_row_range` helper with eviction detection; Python bindings (`get_command_output()`, `get_command_outputs()`). Frontend integration pending. |
-| **Instant Replay** | Core must implement terminal state snapshots or a dedicated replay buffer that records incremental changes. | Add `SnapshotManager` to `Terminal`; implement incremental state delta recording; add `Terminal::restore_from_snapshot(timestamp)`. |
+| ~~**Instant Replay**~~ | ~~Core must implement terminal state snapshots or a dedicated replay buffer that records incremental changes.~~ | ✅ **Implemented in core v0.38+** — `SnapshotManager` with rolling buffer (4 MiB default budget, 30s snapshot interval, size-based eviction). `TerminalSnapshot` captures full terminal state (grids, scrollback, cursor, modes, zones). `ReplaySession` provides timeline navigation: `seek_to_timestamp()`, `step_forward()`/`step_backward()` (byte-granular), `previous_entry()`/`next_entry()`. Reconstruction via snapshot restore + input replay. `Terminal::capture_snapshot()` and `Terminal::restore_from_snapshot()` integration. Frontend replay UI pending. |
 | ~~**Advanced File Protocols**~~ | ~~Full iTerm2-style file upload/download via OSC 1337 `File=` requires core state machines.~~ | ✅ **Implemented in core v0.38+** — `FileTransferManager` with active transfer tracking and completed ring buffer (default 32 entries, 50MB max). Downloads (`inline=0`): base64 payload decoded, progress tracked, raw bytes stored for frontend retrieval via `take_completed_transfer(id)`. Multipart downloads: chunked transfers routed through manager with per-chunk progress events. Uploads: `RequestUpload=format=tgz` emits `UploadRequested` event; frontend responds via `send_upload_data()` or `cancel_upload()`. 5 new `TerminalEvent` variants (`FileTransferStarted`, `FileTransferProgress`, `FileTransferCompleted`, `FileTransferFailed`, `UploadRequested`). 9 new Terminal API methods. Full Python bindings and streaming protocol support (5 new protobuf messages). Frontend integration pending. |
 | ~~**Python / Scripting API**~~ | ~~Core requires extensibility hooks and a stable FFI-friendly representation of terminal state.~~ | ✅ **Implemented in core v0.37+** — `TerminalObserver` trait with deferred dispatch and category-specific callbacks (`on_zone_event`, `on_command_event`, `on_environment_event`, `on_screen_event`, `on_event`). C-compatible `SharedState`/`SharedCell` `#[repr(C)]` FFI types with full screen content. Python sync observer (`add_observer(callback, kinds)`) and async observer (`add_async_observer()` with `asyncio.Queue`). Subscription filtering via `TerminalEventKind`. Convenience wrappers: `on_command_complete()`, `on_zone_change()`, `on_cwd_change()`, `on_title_change()`, `on_bell()`. Observer panic isolation via `catch_unwind`. Frontend scripting manager pending. |
 | ~~**AI Terminal Inspection**~~ | ~~Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata.~~ | ✅ **Implemented in core v0.37+** — `get_semantic_snapshot(scope)` and `get_semantic_snapshot_json(scope)` return structured `SemanticSnapshot` with text content, zone map (`ZoneInfo`), command history (`CommandInfo`), CWD changes (`CwdChangeInfo`), cursor position, terminal dimensions, and environment metadata. Three scopes: `Visible` (screen only), `Recent(N)` (last N commands), `Full` (all history). Streaming protocol support via `SnapshotRequest`/`SemanticSnapshot` protobuf messages. Python bindings exposed. Frontend integration pending. |
@@ -1104,6 +1104,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-02-14 (Advanced File Protocols — core FileTransferManager with download/upload support, 5 terminal events, Python bindings, streaming protocol)*
+*Updated: 2026-02-15 (Instant Replay — core SnapshotManager/ReplaySession/TerminalSnapshot in v0.38+, frontend UI pending)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.16.0*
