@@ -1273,27 +1273,23 @@ impl CellRenderer {
             separator_marks,
         )?;
 
-        // Pre-create per-pane background bind group if needed (must happen before render pass)
-        let pane_bg_resources = if !skip_background_image && !self.bg_is_solid_color {
-            if let Some(pane_bg) = pane_background {
-                if let Some(ref path) = pane_bg.image_path {
-                    self.pane_bg_cache.get(path.as_str()).map(|entry| {
-                        self.create_pane_bg_bind_group(
-                            entry,
-                            viewport.x,
-                            viewport.y,
-                            viewport.width,
-                            viewport.height,
-                            pane_bg.mode,
-                            pane_bg.opacity,
-                        )
-                    })
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+        // Pre-create per-pane background bind group if needed (must happen before render pass).
+        // Per-pane backgrounds are explicit user overrides and always created,
+        // even when a custom shader or global background would normally be skipped.
+        let pane_bg_resources = if let Some(pane_bg) = pane_background
+            && let Some(ref path) = pane_bg.image_path
+        {
+            self.pane_bg_cache.get(path.as_str()).map(|entry| {
+                self.create_pane_bg_bind_group(
+                    entry,
+                    viewport.x,
+                    viewport.y,
+                    viewport.width,
+                    viewport.height,
+                    pane_bg.mode,
+                    pane_bg.opacity,
+                )
+            })
         } else {
             None
         };
