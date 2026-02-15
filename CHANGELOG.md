@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Upload cancellation when user dismisses file picker
   - Settings UI in Advanced > File Transfers for download save location preference
 
+- **Shell Integration Utilities**: `pt-dl`, `pt-ul`, and `pt-imgcat` POSIX sh scripts for file download, upload, and inline image display via iTerm2 OSC 1337 protocol
+  - Work over SSH on any remote host using only standard Unix utilities
+  - Automatically installed to `~/.config/par-term/bin/` with PATH setup
+  - tmux/screen passthrough support for escape sequences
+  - Also available via the curl-based remote installer
+
 - **Per-Pane Background Images**: Individual background images for each split pane (#148)
   - New `PaneBackground` data model with per-pane image path, display mode (fit/fill/stretch/tile/center), and opacity
   - GPU texture cache with path-based deduplication for efficient multi-pane rendering
