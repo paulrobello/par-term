@@ -2697,11 +2697,14 @@ impl WindowState {
                                     };
                                     let pane_scroll_offset = pane.scroll_state.offset;
 
-                                    let pane_background = if pane.background().has_image() {
-                                        Some(pane.background().clone())
-                                    } else {
-                                        None
-                                    };
+                                    // Per-pane backgrounds only apply when multiple panes exist
+                                    let pane_background =
+                                        if all_pane_ids.len() > 1 && pane.background().has_image()
+                                        {
+                                            Some(pane.background().clone())
+                                        } else {
+                                            None
+                                        };
 
                                     let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
                                         if term.is_cursor_visible() {
