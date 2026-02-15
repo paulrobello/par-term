@@ -1360,12 +1360,9 @@ impl CellRenderer {
             render_pass.set_scissor_rect(sx, sy, sw, sh);
 
             // Render per-pane background image within scissor rect.
-            // Global background is rendered full-screen BEFORE pane rendering
-            // in render_split_panes(), so we only handle per-pane backgrounds here.
-            if !skip_background_image
-                && !self.bg_is_solid_color
-                && let Some((ref bind_group, ref _buf)) = pane_bg_resources
-            {
+            // Per-pane backgrounds are explicit user overrides and always render,
+            // even when a custom shader or global background is active.
+            if let Some((ref bind_group, ref _buf)) = pane_bg_resources {
                 render_pass.set_pipeline(&self.bg_image_pipeline);
                 render_pass.set_bind_group(0, bind_group, &[]);
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
