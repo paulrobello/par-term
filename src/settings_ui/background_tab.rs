@@ -729,16 +729,38 @@ pub fn show_pane_backgrounds(
                 }
             }
 
-            // Pane index selector
+            // Pane index selector with prev/next buttons
             ui.horizontal(|ui| {
                 ui.label("Pane index:");
+
                 let mut index = settings.temp_pane_bg_index.unwrap_or(0);
+                let mut changed = false;
+
+                if ui
+                    .add_enabled(index > 0, egui::Button::new("<"))
+                    .clicked()
+                {
+                    index = index.saturating_sub(1);
+                    changed = true;
+                }
+
                 if ui
                     .add(egui::DragValue::new(&mut index).range(0..=9))
                     .changed()
                 {
+                    changed = true;
+                }
+
+                if ui
+                    .add_enabled(index < 9, egui::Button::new(">"))
+                    .clicked()
+                {
+                    index = index.saturating_add(1).min(9);
+                    changed = true;
+                }
+
+                if changed {
                     settings.temp_pane_bg_index = Some(index);
-                    // Load existing config for this pane index if available
                     if let Some(pb) = settings.config.get_pane_background(index) {
                         settings.temp_pane_bg_path = pb.image_path.unwrap_or_default();
                         settings.temp_pane_bg_mode = pb.mode;
