@@ -192,8 +192,7 @@ impl WindowState {
                         "File Transfer Failed",
                         &format!("Transfer failed: {}", reason),
                     );
-                    self.file_transfer_state.last_completion_time =
-                        Some(std::time::Instant::now());
+                    self.file_transfer_state.last_completion_time = Some(std::time::Instant::now());
                 }
             }
 
@@ -265,11 +264,7 @@ impl WindowState {
                     }
                 }
                 Err(e) => {
-                    crate::debug_info!(
-                        "FILE_TRANSFER",
-                        "Failed to save download: {}",
-                        e
-                    );
+                    crate::debug_info!("FILE_TRANSFER", "Failed to save download: {}", e);
                     self.deliver_notification(
                         "Download Save Failed",
                         &format!("Failed to save {}: {}", pending.filename, e),
@@ -383,110 +378,102 @@ impl WindowState {
         }
     }
 
-    /// Render the file transfer progress overlay using egui.
-    ///
-    /// Shows a semi-transparent window anchored at the bottom-right with
-    /// progress bars for each active transfer. Auto-hides 2 seconds after
-    /// the last transfer completes.
-    #[allow(dead_code)]
-    pub(crate) fn render_file_transfer_overlay(&mut self, ctx: &egui::Context) {
-        let has_active = !self.file_transfer_state.active_transfers.is_empty();
-        let has_pending = !self.file_transfer_state.pending_saves.is_empty()
-            || !self.file_transfer_state.pending_uploads.is_empty();
+}
 
-        // Check if we should still show the overlay (2s after last completion)
-        let show_completion = if let Some(last) = self.file_transfer_state.last_completion_time {
-            last.elapsed() < std::time::Duration::from_secs(2)
-        } else {
-            false
-        };
+/// Render the file transfer progress overlay using egui.
+///
+/// This is a free function (not a method on WindowState) so it can be called
+/// from inside the `egui_ctx.run()` closure where `self` is already borrowed.
+///
+/// Shows a semi-transparent window anchored at the bottom-right with
+/// progress bars for each active transfer. Auto-hides 2 seconds after
+/// the last transfer completes.
+pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui::Context) {
+    let has_active = !state.active_transfers.is_empty();
+    let has_pending = !state.pending_saves.is_empty() || !state.pending_uploads.is_empty();
 
-        if !has_active && !has_pending && !show_completion {
-            return;
-        }
+    // Check if we should still show the overlay (2s after last completion)
+    let show_completion = state
+        .last_completion_time
+        .is_some_and(|last| last.elapsed() < std::time::Duration::from_secs(2));
 
-        // Clone transfer info to avoid borrow issues during rendering
-        let transfers = self.file_transfer_state.active_transfers.clone();
-        let pending_saves_count = self.file_transfer_state.pending_saves.len();
-        let pending_uploads_count = self.file_transfer_state.pending_uploads.len();
+    if !has_active && !has_pending && !show_completion {
+        return;
+    }
 
-        egui::Window::new("File Transfers")
-            .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-10.0, -10.0))
-            .resizable(false)
-            .collapsible(false)
-            .title_bar(true)
-            .frame(
-                egui::Frame::window(&ctx.style())
-                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220)),
-            )
-            .show(ctx, |ui| {
-                ui.set_min_width(250.0);
+    egui::Window::new("File Transfers")
+        .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-10.0, -10.0))
+        .resizable(false)
+        .collapsible(false)
+        .title_bar(true)
+        .frame(
+            egui::Frame::window(&ctx.style())
+                .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220)),
+        )
+        .show(ctx, |ui| {
+            ui.set_min_width(250.0);
 
-                if transfers.is_empty() && pending_saves_count == 0 && pending_uploads_count == 0 {
-                    ui.label("All transfers complete");
-                    return;
-                }
+            if state.active_transfers.is_empty()
+                && state.pending_saves.is_empty()
+                && state.pending_uploads.is_empty()
+            {
+                ui.label("All transfers complete");
+                return;
+            }
 
-                for info in &transfers {
-                    let direction_icon = match info.direction {
-                        TransferDirection::Download => "\u{2B07}",  // down arrow
-                        TransferDirection::Upload => "\u{2B06}",    // up arrow
-                    };
+            for info in &state.active_transfers {
+                let direction_icon = match info.direction {
+                    TransferDirection::Download => "\u{2B07}", // down arrow
+                    TransferDirection::Upload => "\u{2B06}",   // up arrow
+                };
 
-                    ui.horizontal(|ui| {
-                        ui.label(direction_icon);
-                        ui.label(&info.filename);
-                    });
+                ui.horizontal(|ui| {
+                    ui.label(direction_icon);
+                    ui.label(&info.filename);
+                });
 
-                    if let Some(total) = info.total_bytes {
-                        if total > 0 {
-                            let fraction = info.bytes_transferred as f32 / total as f32;
-                            let text = format!(
-                                "{} / {}",
-                                format_bytes(info.bytes_transferred),
-                                format_bytes(total)
-                            );
-                            ui.add(
-                                egui::ProgressBar::new(fraction)
-                                    .text(text)
-                                    .animate(false),
-                            );
-                        }
-                    } else {
-                        // Indeterminate progress
-                        let text = format_bytes(info.bytes_transferred);
-                        ui.add(
-                            egui::ProgressBar::new(0.0)
-                                .text(text)
-                                .animate(true),
+                if let Some(total) = info.total_bytes {
+                    if total > 0 {
+                        let fraction = info.bytes_transferred as f32 / total as f32;
+                        let text = format!(
+                            "{} / {}",
+                            format_bytes(info.bytes_transferred),
+                            format_bytes(total)
                         );
+                        ui.add(egui::ProgressBar::new(fraction).text(text).animate(false));
                     }
-
-                    ui.add_space(4.0);
+                } else {
+                    // Indeterminate progress
+                    let text = format_bytes(info.bytes_transferred);
+                    ui.add(egui::ProgressBar::new(0.0).text(text).animate(true));
                 }
 
-                if pending_saves_count > 0 {
-                    ui.separator();
-                    ui.label(format!(
-                        "{} download{} waiting to save",
-                        pending_saves_count,
-                        if pending_saves_count == 1 { "" } else { "s" }
-                    ));
-                }
+                ui.add_space(4.0);
+            }
 
-                if pending_uploads_count > 0 {
-                    ui.separator();
-                    ui.label(format!(
-                        "{} upload request{} pending",
-                        pending_uploads_count,
-                        if pending_uploads_count == 1 { "" } else { "s" }
-                    ));
-                }
-            });
+            if !state.pending_saves.is_empty() {
+                ui.separator();
+                let count = state.pending_saves.len();
+                ui.label(format!(
+                    "{} download{} waiting to save",
+                    count,
+                    if count == 1 { "" } else { "s" }
+                ));
+            }
 
-        // Request redraw while overlay is visible so animations work
-        if has_active {
-            ctx.request_repaint();
-        }
+            if !state.pending_uploads.is_empty() {
+                ui.separator();
+                let count = state.pending_uploads.len();
+                ui.label(format!(
+                    "{} upload request{} pending",
+                    count,
+                    if count == 1 { "" } else { "s" }
+                ));
+            }
+        });
+
+    // Request redraw while overlay is visible so animations work
+    if has_active {
+        ctx.request_repaint();
     }
 }
