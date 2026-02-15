@@ -304,7 +304,8 @@ ai_inspector_live_update: true        # Default to live mode vs paused
 ai_inspector_show_zones: true         # Zone content visible vs export-only mode
 
 # AI Inspector - Agent
-ai_inspector_agent: ""                # Last-used agent identity (e.g., "claude.com")
+ai_inspector_agent: "claude.com"      # Selected agent identity (default: Claude Code)
+ai_inspector_auto_launch: true        # Auto-launch agent when panel opens
 ai_inspector_auto_context: true       # Auto-send terminal context on command completion
 ai_inspector_context_max_lines: 200   # Max output lines sent to agent per command
 ai_inspector_auto_approve: false      # Yolo mode — auto-approve all agent permission requests
@@ -313,6 +314,17 @@ ai_inspector_auto_approve: false      # Yolo mode — auto-approve all agent per
 All settings exposed in Settings UI (dedicated AI Inspector tab).
 
 Panel open/closed state is NOT persisted — always starts closed on launch. Width, view preferences, and agent selection are persisted.
+
+### Agent Auto-Launch Behavior
+
+When `ai_inspector_auto_launch` is `true` (default):
+- Opening the panel automatically connects to the configured agent (`ai_inspector_agent`, defaults to Claude Code)
+- No manual "Connect" step needed — panel opens and agent is ready
+- If the agent process isn't installed, show an inline error with the install command from the agent's TOML config
+
+When `ai_inspector_auto_launch` is `false`:
+- Panel opens with agent disconnected
+- User must manually select and connect via the agent dropdown
 
 ## Implementation Notes
 
