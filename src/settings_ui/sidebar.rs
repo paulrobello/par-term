@@ -511,6 +511,11 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "glow intensity",
             "hides cursor",
             "alt screen",
+            // Per-pane background
+            "per-pane background",
+            "pane image",
+            "split background",
+            "per pane",
         ],
         SettingsTab::ProgressBar => &[
             "progress",
