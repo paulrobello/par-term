@@ -17,6 +17,11 @@ const BASH_SCRIPT: &str = include_str!("../shell_integration/par_term_shell_inte
 const ZSH_SCRIPT: &str = include_str!("../shell_integration/par_term_shell_integration.zsh");
 const FISH_SCRIPT: &str = include_str!("../shell_integration/par_term_shell_integration.fish");
 
+// Embedded file transfer utility scripts
+const PT_DL_SCRIPT: &str = include_str!("../shell_integration/pt-dl");
+const PT_UL_SCRIPT: &str = include_str!("../shell_integration/pt-ul");
+const PT_IMGCAT_SCRIPT: &str = include_str!("../shell_integration/pt-imgcat");
+
 /// Marker comments for identifying our additions to RC files
 const MARKER_START: &str = "# >>> par-term shell integration >>>";
 const MARKER_END: &str = "# <<< par-term shell integration <<<";
@@ -43,6 +48,38 @@ pub struct UninstallResult {
     pub needs_manual: Vec<PathBuf>,
     /// Integration script files that were removed
     pub scripts_removed: Vec<PathBuf>,
+}
+
+/// Install file transfer utility scripts to the bin directory
+///
+/// Creates `~/.config/par-term/bin/` and writes `pt-dl`, `pt-ul`, `pt-imgcat`
+/// with executable permissions.
+fn install_utilities() -> Result<PathBuf, String> {
+    let bin_dir = Config::shell_integration_dir().join("bin");
+    fs::create_dir_all(&bin_dir)
+        .map_err(|e| format!("Failed to create bin directory {:?}: {}", bin_dir, e))?;
+
+    let utilities: &[(&str, &str)] = &[
+        ("pt-dl", PT_DL_SCRIPT),
+        ("pt-ul", PT_UL_SCRIPT),
+        ("pt-imgcat", PT_IMGCAT_SCRIPT),
+    ];
+
+    for (name, content) in utilities {
+        let path = bin_dir.join(name);
+        fs::write(&path, content)
+            .map_err(|e| format!("Failed to write {:?}: {}", path, e))?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = std::fs::Permissions::from_mode(0o755);
+            fs::set_permissions(&path, perms)
+                .map_err(|e| format!("Failed to set permissions on {:?}: {}", path, e))?;
+        }
+    }
+
+    Ok(bin_dir)
 }
 
 /// Install shell integration for detected or specified shell
@@ -79,6 +116,9 @@ pub fn install(shell: Option<ShellType>) -> Result<InstallResult, String> {
 
     fs::write(&script_path, script_content)
         .map_err(|e| format!("Failed to write script to {:?}: {}", script_path, e))?;
+
+    // Install file transfer utilities to bin directory
+    install_utilities()?;
 
     // Get the RC file path
     let rc_file = get_rc_file(shell)?;
@@ -126,6 +166,12 @@ pub fn uninstall() -> Result<UninstallResult, String> {
         if script_path.exists() && fs::remove_file(&script_path).is_ok() {
             result.scripts_removed.push(script_path);
         }
+    }
+
+    // Remove bin directory with file transfer utilities
+    let bin_dir = integration_dir.join("bin");
+    if bin_dir.exists() {
+        let _ = fs::remove_dir_all(&bin_dir);
     }
 
     Ok(result)
@@ -271,23 +317,25 @@ fn generate_source_block(shell: ShellType) -> String {
     let integration_dir = Config::shell_integration_dir();
     let script_filename = format!("shell_integration.{}", shell.extension());
     let script_path = integration_dir.join(&script_filename);
+    let bin_dir = integration_dir.join("bin");
 
     // Use display() for path - will work on all platforms
     let script_path_str = script_path.display();
+    let bin_dir_str = bin_dir.display();
 
     match shell {
         ShellType::Fish => {
             // Fish uses 'source' command with different syntax
             format!(
-                "{}\nif test -f \"{}\"\n    source \"{}\"\nend\n{}\n",
-                MARKER_START, script_path_str, script_path_str, MARKER_END
+                "{}\nif test -d \"{}\"\n    set -gx PATH \"{}\" $PATH\nend\nif test -f \"{}\"\n    source \"{}\"\nend\n{}\n",
+                MARKER_START, bin_dir_str, bin_dir_str, script_path_str, script_path_str, MARKER_END
             )
         }
         _ => {
             // Bash and Zsh use similar syntax
             format!(
-                "{}\nif [ -f \"{}\" ]; then\n    source \"{}\"\nfi\n{}\n",
-                MARKER_START, script_path_str, script_path_str, MARKER_END
+                "{}\nif [ -d \"{}\" ]; then\n    export PATH=\"{}:$PATH\"\nfi\nif [ -f \"{}\" ]; then\n    source \"{}\"\nfi\n{}\n",
+                MARKER_START, bin_dir_str, bin_dir_str, script_path_str, script_path_str, MARKER_END
             )
         }
     }
@@ -361,6 +409,8 @@ mod tests {
         assert!(block.contains(MARKER_END));
         assert!(block.contains("source"));
         assert!(block.contains(".bash"));
+        assert!(block.contains("export PATH="));
+        assert!(block.contains("/bin"));
     }
 
     #[test]
@@ -370,6 +420,8 @@ mod tests {
         assert!(block.contains(MARKER_END));
         assert!(block.contains("source"));
         assert!(block.contains(".zsh"));
+        assert!(block.contains("export PATH="));
+        assert!(block.contains("/bin"));
     }
 
     #[test]
@@ -382,6 +434,8 @@ mod tests {
         // Fish uses different syntax
         assert!(block.contains("if test -f"));
         assert!(block.contains("end"));
+        assert!(block.contains("set -gx PATH"));
+        assert!(block.contains("/bin"));
     }
 
     #[test]
@@ -397,5 +451,16 @@ mod tests {
         // This will return whatever $SHELL is set to in the test environment
         // We just verify it doesn't panic
         let _shell = detected_shell();
+    }
+
+    #[test]
+    fn test_utility_scripts_embedded() {
+        // Verify that utility scripts are non-empty and start with shebang
+        assert!(!PT_DL_SCRIPT.is_empty());
+        assert!(!PT_UL_SCRIPT.is_empty());
+        assert!(!PT_IMGCAT_SCRIPT.is_empty());
+        assert!(PT_DL_SCRIPT.starts_with("#!/bin/sh"));
+        assert!(PT_UL_SCRIPT.starts_with("#!/bin/sh"));
+        assert!(PT_IMGCAT_SCRIPT.starts_with("#!/bin/sh"));
     }
 }
