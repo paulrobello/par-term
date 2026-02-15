@@ -726,7 +726,7 @@ impl TerminalManager {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let term = terminal.lock();
-        term.search(query, case_sensitive)
+        term.search_text(query, case_sensitive)
     }
 
     /// Search for text in the scrollback buffer.
@@ -774,7 +774,7 @@ impl TerminalManager {
         }
 
         // Search visible screen (returns 0+ row indices)
-        let screen_matches = term.search(query, case_sensitive);
+        let screen_matches = term.search_text(query, case_sensitive);
         for m in screen_matches {
             // Screen row 0 = scrollback_len in absolute terms
             let abs_line = scrollback_len + m.row as usize;
@@ -963,7 +963,7 @@ impl TerminalManager {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let term = terminal.lock();
-        term.get_active_transfers().into_iter().cloned().collect()
+        term.get_active_transfers()
     }
 
     /// Get all completed file transfers (without removing them)
@@ -973,7 +973,7 @@ impl TerminalManager {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let term = terminal.lock();
-        term.get_completed_transfers().to_vec()
+        term.get_completed_transfers()
     }
 
     /// Take a completed transfer by ID, removing it from the manager
@@ -1013,35 +1013,13 @@ impl TerminalManager {
 
     /// Poll for pending upload requests from the terminal.
     ///
-    /// Uses the event subscription system to selectively drain UploadRequested
-    /// events without disturbing other event types in the queue.
+    /// Drains UploadRequested events from the terminal event queue,
+    /// leaving other event types undisturbed.
     pub fn poll_upload_requests(&self) -> Vec<String> {
-        use par_term_emu_core_rust::terminal::{TerminalEvent, TerminalEventKind};
-
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let mut term = terminal.lock();
-
-        // Set temporary subscription filter for UploadRequested events only
-        term.set_event_subscription(Some(vec![TerminalEventKind::UploadRequested]));
-
-        // Drain only UploadRequested events (others remain in the queue)
-        let events = term.poll_subscribed_events();
-
-        // Clear the subscription so other consumers are not affected
-        term.set_event_subscription(None);
-
-        // Extract format strings from the events
-        events
-            .into_iter()
-            .filter_map(|e| {
-                if let TerminalEvent::UploadRequested { format } = e {
-                    Some(format)
-                } else {
-                    None
-                }
-            })
-            .collect()
+        term.poll_upload_requests()
     }
 
     /// Get custom session variables set by trigger SetVariable actions.
