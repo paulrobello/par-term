@@ -92,31 +92,39 @@ impl CellRenderer {
     }
 
     pub(crate) fn update_bg_image_uniforms(&mut self) {
-        // Shader uniform struct layout (32 bytes):
-        //   image_size: vec2<f32>   @ offset 0  (8 bytes)
-        //   window_size: vec2<f32>  @ offset 8  (8 bytes)
-        //   mode: u32               @ offset 16 (4 bytes)
-        //   opacity: f32            @ offset 20 (4 bytes)
-        //   _padding: vec2<f32>     @ offset 24 (8 bytes)
-        let mut data = [0u8; 32];
+        // Shader uniform struct layout (48 bytes):
+        //   image_size: vec2<f32>    @ offset 0  (8 bytes)
+        //   window_size: vec2<f32>   @ offset 8  (8 bytes)
+        //   mode: u32                @ offset 16 (4 bytes)
+        //   opacity: f32             @ offset 20 (4 bytes)
+        //   pane_offset: vec2<f32>   @ offset 24 (8 bytes) - (0,0) for global
+        //   surface_size: vec2<f32>  @ offset 32 (8 bytes) - same as window_size for global
+        let mut data = [0u8; 48];
+
+        let w = self.config.width as f32;
+        let h = self.config.height as f32;
 
         // image_size (vec2<f32>)
         data[0..4].copy_from_slice(&(self.bg_image_width as f32).to_le_bytes());
         data[4..8].copy_from_slice(&(self.bg_image_height as f32).to_le_bytes());
 
         // window_size (vec2<f32>)
-        data[8..12].copy_from_slice(&(self.config.width as f32).to_le_bytes());
-        data[12..16].copy_from_slice(&(self.config.height as f32).to_le_bytes());
+        data[8..12].copy_from_slice(&w.to_le_bytes());
+        data[12..16].copy_from_slice(&h.to_le_bytes());
 
         // mode (u32)
         data[16..20].copy_from_slice(&(self.bg_image_mode as u32).to_le_bytes());
 
         // opacity (f32) - combine bg_image_opacity with window_opacity
-        // so background images/solid colors respect window transparency
         let effective_opacity = self.bg_image_opacity * self.window_opacity;
         data[20..24].copy_from_slice(&effective_opacity.to_le_bytes());
 
-        // padding is already zeros
+        // pane_offset (vec2<f32>) - (0,0) for global background
+        // bytes 24..32 are already zeros
+
+        // surface_size (vec2<f32>) - same as window_size for global
+        data[32..36].copy_from_slice(&w.to_le_bytes());
+        data[36..40].copy_from_slice(&h.to_le_bytes());
 
         self.queue
             .write_buffer(&self.bg_image_uniform_buffer, 0, &data);
@@ -538,21 +546,31 @@ impl CellRenderer {
     }
 
     /// Create a bind group and uniform buffer for a per-pane background render.
-    /// The uniform buffer substitutes pane dimensions into `window_size` so the
-    /// existing background_image.wgsl shader computes texture coords relative to the pane.
+    /// The uniform buffer provides pane dimensions, position, and surface size so the
+    /// background_image.wgsl shader computes texture coords and NDC positions relative to the pane.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_pane_bg_bind_group(
         &self,
         entry: &super::background::PaneBackgroundEntry,
+        pane_x: f32,
+        pane_y: f32,
         pane_width: f32,
         pane_height: f32,
         mode: crate::config::BackgroundImageMode,
         opacity: f32,
     ) -> (wgpu::BindGroup, wgpu::Buffer) {
-        let mut data = [0u8; 32];
+        // Shader uniform struct layout (48 bytes):
+        //   image_size: vec2<f32>    @ offset 0  (8 bytes)
+        //   window_size: vec2<f32>   @ offset 8  (8 bytes) - pane dimensions
+        //   mode: u32                @ offset 16 (4 bytes)
+        //   opacity: f32             @ offset 20 (4 bytes)
+        //   pane_offset: vec2<f32>   @ offset 24 (8 bytes) - pane position in window
+        //   surface_size: vec2<f32>  @ offset 32 (8 bytes) - window dimensions
+        let mut data = [0u8; 48];
         // image_size (vec2<f32>)
         data[0..4].copy_from_slice(&(entry.width as f32).to_le_bytes());
         data[4..8].copy_from_slice(&(entry.height as f32).to_le_bytes());
-        // window_size (actually pane size -- shader doesn't know the difference)
+        // window_size (pane dimensions for UV calculation)
         data[8..12].copy_from_slice(&pane_width.to_le_bytes());
         data[12..16].copy_from_slice(&pane_height.to_le_bytes());
         // mode (u32)
@@ -560,10 +578,18 @@ impl CellRenderer {
         // opacity (combine with window_opacity)
         let effective_opacity = opacity * self.window_opacity;
         data[20..24].copy_from_slice(&effective_opacity.to_le_bytes());
+        // pane_offset (vec2<f32>) - pane position within the window
+        data[24..28].copy_from_slice(&pane_x.to_le_bytes());
+        data[28..32].copy_from_slice(&pane_y.to_le_bytes());
+        // surface_size (vec2<f32>) - full window dimensions
+        let surface_w = self.config.width as f32;
+        let surface_h = self.config.height as f32;
+        data[32..36].copy_from_slice(&surface_w.to_le_bytes());
+        data[36..40].copy_from_slice(&surface_h.to_le_bytes());
 
         let uniform_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("pane bg uniform buffer"),
-            size: 32,
+            size: 48,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });

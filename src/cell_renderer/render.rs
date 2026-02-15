@@ -5,12 +5,42 @@ use crate::text_shaper::ShapingOptions;
 use anyhow::Result;
 
 impl CellRenderer {
-    pub fn render(&mut self, _show_scrollbar: bool) -> Result<wgpu::SurfaceTexture> {
+    pub fn render(
+        &mut self,
+        _show_scrollbar: bool,
+        pane_background: Option<&crate::pane::PaneBackground>,
+    ) -> Result<wgpu::SurfaceTexture> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
         self.build_instance_buffers()?;
+
+        // Pre-create per-pane background bind group if needed (must happen before render pass)
+        // This supports pane 0 background in single-pane (no splits) mode.
+        let pane_bg_resources = if !self.bg_is_solid_color {
+            if let Some(pane_bg) = pane_background {
+                if let Some(ref path) = pane_bg.image_path {
+                    self.pane_bg_cache.get(path.as_str()).map(|entry| {
+                        self.create_pane_bg_bind_group(
+                            entry,
+                            0.0, // pane_x: full window starts at 0
+                            0.0, // pane_y: full window starts at 0
+                            self.config.width as f32,
+                            self.config.height as f32,
+                            pane_bg.mode,
+                            pane_bg.opacity,
+                        )
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         let mut encoder = self
             .device
@@ -22,7 +52,12 @@ impl CellRenderer {
         // - Solid color mode: use clear color directly (same as Default mode for proper transparency)
         // - Image mode: use TRANSPARENT clear, let bg_image_pipeline handle background
         // - Default mode: use theme background with window_opacity
-        let (clear_color, use_bg_image_pipeline) = if self.bg_is_solid_color {
+        // - Per-pane bg: use TRANSPARENT clear, render pane bg before global bg
+        let has_pane_bg = pane_bg_resources.is_some();
+        let (clear_color, use_bg_image_pipeline) = if has_pane_bg {
+            // Per-pane background: use transparent clear, pane bg will be rendered first
+            (wgpu::Color::TRANSPARENT, false)
+        } else if self.bg_is_solid_color {
             // Solid color mode: use clear color directly for proper window transparency
             // This works the same as Default mode - LoadOp::Clear sets alpha correctly
             debug_info!(
@@ -75,7 +110,15 @@ impl CellRenderer {
                 occlusion_query_set: None,
             });
 
-            // Render background image if present (not used for solid color mode)
+            // Render per-pane background for single-pane mode (pane 0)
+            if let Some((ref bind_group, _)) = pane_bg_resources {
+                render_pass.set_pipeline(&self.bg_image_pipeline);
+                render_pass.set_bind_group(0, bind_group, &[]);
+                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.draw(0..4, 0..1);
+            }
+
+            // Render global background image if present (not used for solid color or pane bg mode)
             if use_bg_image_pipeline && let Some(ref bg_bind_group) = self.bg_image_bind_group {
                 render_pass.set_pipeline(&self.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
@@ -1237,6 +1280,8 @@ impl CellRenderer {
                     self.pane_bg_cache.get(path.as_str()).map(|entry| {
                         self.create_pane_bg_bind_group(
                             entry,
+                            viewport.x,
+                            viewport.y,
                             viewport.width,
                             viewport.height,
                             pane_bg.mode,

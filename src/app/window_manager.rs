@@ -1488,6 +1488,18 @@ impl WindowManager {
 
                 // Apply per-pane background changes to existing panes
                 if changes.pane_backgrounds {
+                    // Pre-load all pane background textures into the renderer cache
+                    for pb_config in &config.pane_backgrounds {
+                        if let Err(e) = renderer.load_pane_background(&pb_config.image) {
+                            log::error!(
+                                "Failed to load pane {} background '{}': {}",
+                                pb_config.index,
+                                pb_config.image,
+                                e
+                            );
+                        }
+                    }
+
                     for tab in window_state.tab_manager.tabs_mut() {
                         if let Some(pm) = tab.pane_manager_mut() {
                             let panes = pm.all_panes_mut();
@@ -1501,6 +1513,7 @@ impl WindowManager {
                             }
                         }
                     }
+                    renderer.mark_dirty();
                     window_state.needs_redraw = true;
                 }
 

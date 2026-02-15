@@ -892,6 +892,12 @@ impl Renderer {
         self.dirty = true;
     }
 
+    /// Load a per-pane background image into the texture cache.
+    /// Delegates to CellRenderer::load_pane_background.
+    pub fn load_pane_background(&mut self, path: &str) -> anyhow::Result<bool> {
+        self.cell_renderer.load_pane_background(path)
+    }
+
     /// Update inline image scaling mode (nearest vs linear filtering).
     ///
     /// Recreates the GPU sampler and clears the texture cache so images
@@ -931,6 +937,7 @@ impl Renderer {
         egui_data: Option<(egui::FullOutput, &egui::Context)>,
         force_egui_opaque: bool,
         show_scrollbar: bool,
+        pane_background: Option<&crate::pane::PaneBackground>,
     ) -> Result<bool> {
         // Custom shader animation forces continuous rendering
         let force_render = self.needs_continuous_render();
@@ -978,7 +985,7 @@ impl Renderer {
         } else {
             // Render directly to surface (no shaders, or cursor shader disabled for alt screen)
             // Note: scrollbar is rendered separately after egui so it appears on top
-            self.cell_renderer.render(show_scrollbar)?
+            self.cell_renderer.render(show_scrollbar, pane_background)?
         };
         let cell_render_time = t1.elapsed();
 

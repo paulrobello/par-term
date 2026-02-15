@@ -2513,6 +2513,13 @@ impl WindowState {
                 pane_count
             );
 
+            // Look up pane 0 background for single-pane (no splits) render path
+            let pane_0_bg = if !has_pane_manager {
+                self.config.get_pane_background(0)
+            } else {
+                None
+            };
+
             let render_result = if has_pane_manager {
                 // Render panes from pane manager - inline data gathering to avoid borrow conflicts
                 let content_width =
@@ -2767,11 +2774,11 @@ impl WindowState {
                     )
                 } else {
                     // Fallback to single pane render
-                    renderer.render(egui_data, false, show_scrollbar)
+                    renderer.render(egui_data, false, show_scrollbar, pane_0_bg.as_ref())
                 }
             } else {
                 // Single pane - use standard render path
-                renderer.render(egui_data, false, show_scrollbar)
+                renderer.render(egui_data, false, show_scrollbar, pane_0_bg.as_ref())
             };
 
             match render_result {
