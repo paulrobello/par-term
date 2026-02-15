@@ -1,0 +1,8 @@
+identity = "claude.com"
+name = "Claude Code"
+short_name = "claude"
+protocol = "acp"
+type = "coding"
+
+[run_command]
+"*" = "claude-code-acp"
