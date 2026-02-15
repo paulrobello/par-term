@@ -24,8 +24,8 @@ pub use shader_metadata::{
 // Re-export config types
 pub use types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
-    CursorShaderMetadata, CursorStyle, DividerStyle, DroppedFileQuoteStyle, FontRange,
-    ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
+    CursorShaderMetadata, CursorStyle, DividerStyle, DownloadSaveLocation, DroppedFileQuoteStyle,
+    FontRange, ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
     ModifierRemapping, ModifierTarget, OptionKeyMode, PaneBackgroundConfig, PaneTitlePosition,
     PowerPreference, ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode,
     SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction,
