@@ -26,12 +26,13 @@ pub use types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
     CursorShaderMetadata, CursorStyle, DividerStyle, DroppedFileQuoteStyle, FontRange,
     ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
-    ModifierRemapping, ModifierTarget, OptionKeyMode, PaneTitlePosition, PowerPreference,
-    ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat,
-    ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType,
-    SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode, StatusBarPosition,
-    TabBarMode, TabBarPosition, TabStyle, ThinStrokesMode, UnfocusedCursorStyle,
-    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
+    ModifierRemapping, ModifierTarget, OptionKeyMode, PaneBackgroundConfig, PaneTitlePosition,
+    PowerPreference, ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode,
+    SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction,
+    ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode,
+    StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, ThinStrokesMode,
+    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
@@ -361,6 +362,10 @@ pub struct Config {
     /// Background mode selection (default, color, or image)
     #[serde(default)]
     pub background_mode: BackgroundMode,
+
+    /// Per-pane background image configurations
+    #[serde(default)]
+    pub pane_backgrounds: Vec<crate::config::PaneBackgroundConfig>,
 
     /// Custom solid background color [R, G, B] (0-255)
     /// Used when background_mode is "color"
@@ -1841,6 +1846,7 @@ impl Default for Config {
             image_scaling_mode: ImageScalingMode::default(),
             image_preserve_aspect_ratio: defaults::bool_true(),
             background_mode: BackgroundMode::default(),
+            pane_backgrounds: Vec::new(),
             background_color: defaults::background_color(),
             custom_shader: None,
             custom_shader_enabled: defaults::bool_true(),
