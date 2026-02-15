@@ -444,14 +444,24 @@ impl CellRenderer {
 
     /// Load a per-pane background image into the texture cache.
     /// Returns Ok(true) if the image was newly loaded, Ok(false) if already cached.
-    #[allow(dead_code)]
     pub(crate) fn load_pane_background(&mut self, path: &str) -> Result<bool> {
         if self.pane_bg_cache.contains_key(path) {
             return Ok(false);
         }
 
-        log::info!("Loading per-pane background image: {}", path);
-        let img = image::open(path)
+        // Expand tilde in path (e.g., ~/images/bg.png -> /home/user/images/bg.png)
+        let expanded = if let Some(rest) = path.strip_prefix("~/") {
+            if let Some(home) = dirs::home_dir() {
+                home.join(rest).to_string_lossy().to_string()
+            } else {
+                path.to_string()
+            }
+        } else {
+            path.to_string()
+        };
+
+        log::info!("Loading per-pane background image: {}", expanded);
+        let img = image::open(&expanded)
             .map_err(|e| {
                 log::error!("Failed to open pane background image '{}': {}", path, e);
                 e
@@ -530,7 +540,6 @@ impl CellRenderer {
     /// Create a bind group and uniform buffer for a per-pane background render.
     /// The uniform buffer substitutes pane dimensions into `window_size` so the
     /// existing background_image.wgsl shader computes texture coords relative to the pane.
-    #[allow(dead_code)]
     pub(crate) fn create_pane_bg_bind_group(
         &self,
         entry: &super::background::PaneBackgroundEntry,
