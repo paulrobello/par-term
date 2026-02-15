@@ -67,8 +67,7 @@ fn install_utilities() -> Result<PathBuf, String> {
 
     for (name, content) in utilities {
         let path = bin_dir.join(name);
-        fs::write(&path, content)
-            .map_err(|e| format!("Failed to write {:?}: {}", path, e))?;
+        fs::write(&path, content).map_err(|e| format!("Failed to write {:?}: {}", path, e))?;
 
         #[cfg(unix)]
         {
@@ -328,14 +327,24 @@ fn generate_source_block(shell: ShellType) -> String {
             // Fish uses 'source' command with different syntax
             format!(
                 "{}\nif test -d \"{}\"\n    set -gx PATH \"{}\" $PATH\nend\nif test -f \"{}\"\n    source \"{}\"\nend\n{}\n",
-                MARKER_START, bin_dir_str, bin_dir_str, script_path_str, script_path_str, MARKER_END
+                MARKER_START,
+                bin_dir_str,
+                bin_dir_str,
+                script_path_str,
+                script_path_str,
+                MARKER_END
             )
         }
         _ => {
             // Bash and Zsh use similar syntax
             format!(
                 "{}\nif [ -d \"{}\" ]; then\n    export PATH=\"{}:$PATH\"\nfi\nif [ -f \"{}\" ]; then\n    source \"{}\"\nfi\n{}\n",
-                MARKER_START, bin_dir_str, bin_dir_str, script_path_str, script_path_str, MARKER_END
+                MARKER_START,
+                bin_dir_str,
+                bin_dir_str,
+                script_path_str,
+                script_path_str,
+                MARKER_END
             )
         }
     }
