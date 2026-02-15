@@ -954,6 +954,63 @@ impl TerminalManager {
         term.poll_action_results()
     }
 
+    // === File Transfer Methods ===
+
+    /// Get all active (in-progress) file transfers
+    pub fn get_active_transfers(
+        &self,
+    ) -> Vec<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.get_active_transfers().into_iter().cloned().collect()
+    }
+
+    /// Get all completed file transfers (without removing them)
+    pub fn get_completed_transfers(
+        &self,
+    ) -> Vec<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        term.get_completed_transfers().to_vec()
+    }
+
+    /// Take a completed transfer by ID, removing it from the manager
+    pub fn take_completed_transfer(
+        &self,
+        id: u64,
+    ) -> Option<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.take_completed_transfer(id)
+    }
+
+    /// Cancel an active file transfer
+    pub fn cancel_file_transfer(&self, id: u64) -> bool {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.cancel_file_transfer(id)
+    }
+
+    /// Send data for an active upload (iTerm2 base64 format)
+    pub fn send_upload_data(&self, data: &[u8]) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.send_upload_data(data);
+    }
+
+    /// Cancel the current upload (sends Ctrl-C)
+    pub fn cancel_upload(&self) {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let mut term = terminal.lock();
+        term.cancel_upload();
+    }
+
     /// Get custom session variables set by trigger SetVariable actions.
     ///
     /// Returns a clone of the core terminal's custom variables HashMap.
