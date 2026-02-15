@@ -1215,6 +1215,7 @@ impl CellRenderer {
         clear_first: bool,
         skip_background_image: bool,
         separator_marks: &[SeparatorMark],
+        pane_background: Option<&crate::pane::PaneBackground>,
     ) -> Result<()> {
         // Build instance buffers for this pane's cells
         // Skip solid background fill if background (shader/image) was already rendered full-screen
@@ -1228,6 +1229,29 @@ impl CellRenderer {
             skip_background_image,
             separator_marks,
         )?;
+
+        // Pre-create per-pane background bind group if needed (must happen before render pass)
+        let pane_bg_resources = if !skip_background_image && !self.bg_is_solid_color {
+            if let Some(pane_bg) = pane_background {
+                if let Some(ref path) = pane_bg.image_path {
+                    self.pane_bg_cache.get(path.as_str()).map(|entry| {
+                        self.create_pane_bg_bind_group(
+                            entry,
+                            viewport.width,
+                            viewport.height,
+                            pane_bg.mode,
+                            pane_bg.opacity,
+                        )
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         let mut encoder = self
             .device
@@ -1290,16 +1314,24 @@ impl CellRenderer {
             let (sx, sy, sw, sh) = viewport.to_scissor_rect();
             render_pass.set_scissor_rect(sx, sy, sw, sh);
 
-            // Render background image if present (within scissor rect)
-            // Skip if already rendered full-screen (for split panes) or solid color mode
-            if !skip_background_image
-                && !self.bg_is_solid_color
-                && let Some(ref bg_bind_group) = self.bg_image_bind_group
-            {
-                render_pass.set_pipeline(&self.bg_image_pipeline);
-                render_pass.set_bind_group(0, bg_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-                render_pass.draw(0..4, 0..1);
+            // Render background image within scissor rect
+            if !skip_background_image && !self.bg_is_solid_color {
+                if let Some((ref bind_group, ref _buf)) = pane_bg_resources {
+                    // Per-pane background
+                    render_pass.set_pipeline(&self.bg_image_pipeline);
+                    render_pass.set_bind_group(0, bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                    render_pass.draw(0..4, 0..1);
+                } else if pane_background.is_none() {
+                    // No per-pane bg specified, fall back to global
+                    if let Some(ref bg_bind_group) = self.bg_image_bind_group {
+                        render_pass.set_pipeline(&self.bg_image_pipeline);
+                        render_pass.set_bind_group(0, bg_bind_group, &[]);
+                        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                        render_pass.draw(0..4, 0..1);
+                    }
+                }
+                // If pane_background is Some but image failed to load, skip background
             }
 
             // Render cell backgrounds

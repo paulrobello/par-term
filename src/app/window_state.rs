@@ -71,6 +71,7 @@ type PaneRenderData = (
     Vec<ScrollbackMark>,
     usize, // scrollback_len
     usize, // scroll_offset
+    Option<crate::pane::PaneBackground>, // per-pane background
 );
 
 /// Per-window state that manages a single terminal window with multiple tabs
@@ -2639,6 +2640,12 @@ impl WindowState {
                                     };
                                     let pane_scroll_offset = pane.scroll_state.offset;
 
+                                    let pane_background = if pane.background().has_image() {
+                                        Some(pane.background().clone())
+                                    } else {
+                                        None
+                                    };
+
                                     let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
                                         if term.is_cursor_visible() {
                                             Some(term.cursor_position())
@@ -2672,6 +2679,7 @@ impl WindowState {
                                         marks,
                                         pane_scrollback_len,
                                         pane_scroll_offset,
+                                        pane_background,
                                     ));
                                 }
                             }
@@ -3142,6 +3150,7 @@ impl WindowState {
             marks,
             scrollback_len,
             scroll_offset,
+            pane_background,
         ) in pane_data
         {
             let cells_boxed = cells.into_boxed_slice();
@@ -3159,6 +3168,7 @@ impl WindowState {
                 marks,
                 scrollback_len,
                 scroll_offset,
+                background: pane_background,
             });
         }
 

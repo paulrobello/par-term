@@ -62,6 +62,8 @@ pub struct PaneRenderInfo<'a> {
     pub scrollback_len: usize,
     /// Current scroll offset for this pane (needed for separator mark mapping)
     pub scroll_offset: usize,
+    /// Per-pane background image override (None = use global background)
+    pub background: Option<crate::pane::PaneBackground>,
 }
 
 /// Information needed to render a pane divider
@@ -1191,6 +1193,7 @@ impl Renderer {
                 false,                // Don't clear - we already cleared the surface
                 has_background_image, // Skip background image if already rendered full-screen
                 &separator_marks,
+                pane.background.as_ref(),
             )?;
         }
 
@@ -1245,6 +1248,17 @@ impl Renderer {
         }
 
         let has_custom_shader = self.custom_shader_renderer.is_some();
+
+        // Pre-load any per-pane background textures that aren't cached yet
+        for pane in panes.iter() {
+            if let Some(ref bg) = pane.background {
+                if let Some(ref path) = bg.image_path {
+                    if let Err(e) = self.cell_renderer.load_pane_background(path) {
+                        log::error!("Failed to load pane background '{}': {}", path, e);
+                    }
+                }
+            }
+        }
 
         // Get the surface texture
         let surface_texture = self.cell_renderer.surface.get_current_texture()?;
@@ -1349,6 +1363,7 @@ impl Renderer {
                 false, // Don't clear - we already cleared the surface
                 has_background_image || has_custom_shader, // Skip background if already rendered
                 &separator_marks,
+                pane.background.as_ref(),
             )?;
         }
 
