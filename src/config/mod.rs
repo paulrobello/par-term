@@ -2889,6 +2889,18 @@ impl Config {
         Ok(())
     }
 
+    /// Get per-pane background config for a given pane index, if configured
+    pub fn get_pane_background(&self, index: usize) -> Option<crate::pane::PaneBackground> {
+        self.pane_backgrounds
+            .iter()
+            .find(|pb| pb.index == index)
+            .map(|pb| crate::pane::PaneBackground {
+                image_path: Some(pb.image.clone()),
+                mode: pb.mode,
+                opacity: pb.opacity,
+            })
+    }
+
     /// Load the last working directory from state file
     pub fn load_last_working_directory(&mut self) {
         let state_path = Self::state_file_path();
