@@ -1341,8 +1341,11 @@ impl Renderer {
         }
 
         // Render background image (full-screen, after shader but before panes)
-        // Skip if custom shader is handling the background
-        let has_background_image = if !has_custom_shader {
+        // Skip if custom shader is handling the background.
+        // Also skip if any pane has a per-pane background configured -
+        // per-pane backgrounds are rendered individually in render_pane_to_view.
+        let any_pane_has_background = panes.iter().any(|p| p.background.is_some());
+        let has_background_image = if !has_custom_shader && !any_pane_has_background {
             self.cell_renderer
                 .render_background_only(&surface_view, false)?
         } else {

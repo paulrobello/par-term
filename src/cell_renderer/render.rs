@@ -1359,24 +1359,17 @@ impl CellRenderer {
             let (sx, sy, sw, sh) = viewport.to_scissor_rect();
             render_pass.set_scissor_rect(sx, sy, sw, sh);
 
-            // Render background image within scissor rect
-            if !skip_background_image && !self.bg_is_solid_color {
-                if let Some((ref bind_group, ref _buf)) = pane_bg_resources {
-                    // Per-pane background
-                    render_pass.set_pipeline(&self.bg_image_pipeline);
-                    render_pass.set_bind_group(0, bind_group, &[]);
-                    render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-                    render_pass.draw(0..4, 0..1);
-                } else if pane_background.is_none() {
-                    // No per-pane bg specified, fall back to global
-                    if let Some(ref bg_bind_group) = self.bg_image_bind_group {
-                        render_pass.set_pipeline(&self.bg_image_pipeline);
-                        render_pass.set_bind_group(0, bg_bind_group, &[]);
-                        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-                        render_pass.draw(0..4, 0..1);
-                    }
-                }
-                // If pane_background is Some but image failed to load, skip background
+            // Render per-pane background image within scissor rect.
+            // Global background is rendered full-screen BEFORE pane rendering
+            // in render_split_panes(), so we only handle per-pane backgrounds here.
+            if !skip_background_image
+                && !self.bg_is_solid_color
+                && let Some((ref bind_group, ref _buf)) = pane_bg_resources
+            {
+                render_pass.set_pipeline(&self.bg_image_pipeline);
+                render_pass.set_bind_group(0, bind_group, &[]);
+                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.draw(0..4, 0..1);
             }
 
             // Render cell backgrounds
