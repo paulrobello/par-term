@@ -23,7 +23,7 @@ exclude = [
 
 [dependencies]
 # Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
-par-term-emu-core-rust = { version = "0.38.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
 
 # Window management and rendering
 winit = "0.30"

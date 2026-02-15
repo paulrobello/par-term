@@ -3682,9 +3682,9 @@ dependencies = [
 
 [[package]]
 name = "par-term-emu-core-rust"
-version = "0.38.0"
+version = "0.39.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "086d61848bc7f9415d9dd784b57cdaad50ec035603c5156d030bfb43284c1d62"
+checksum = "15bc3e3eccbd68704c7f63fc6dcaa2ca873c8dadbd9b265e231cda3c0014fe9e"
 dependencies = [
  "base64",
  "bitflags 2.11.0",
@@ -3698,12 +3698,15 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "subtle",
  "swash",
  "unicode-normalization",
  "unicode-segmentation",
  "unicode-width",
  "url",
+ "uuid",
  "vte",
+ "zeroize",
 ]
 
 [[package]]
