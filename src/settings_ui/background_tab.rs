@@ -719,6 +719,16 @@ pub fn show_pane_backgrounds(
 
             ui.add_space(4.0);
 
+            // Initialize temp fields from pane 0 config on first render
+            if settings.temp_pane_bg_index.is_none() {
+                settings.temp_pane_bg_index = Some(0);
+                if let Some(pb) = settings.config.get_pane_background(0) {
+                    settings.temp_pane_bg_path = pb.image_path.unwrap_or_default();
+                    settings.temp_pane_bg_mode = pb.mode;
+                    settings.temp_pane_bg_opacity = pb.opacity;
+                }
+            }
+
             // Pane index selector
             ui.horizontal(|ui| {
                 ui.label("Pane index:");
