@@ -1855,6 +1855,15 @@ impl WindowState {
         }
     }
 
+    /// Show pane index overlays for a specified duration.
+    pub(crate) fn show_pane_indices(&mut self, duration: std::time::Duration) {
+        self.pane_identify_hide_time = Some(std::time::Instant::now() + duration);
+        self.needs_redraw = true;
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
     /// Toggle the background/custom shader on/off.
     pub(crate) fn toggle_background_shader(&mut self) {
         self.config.custom_shader_enabled = !self.config.custom_shader_enabled;

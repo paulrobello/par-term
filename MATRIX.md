@@ -88,7 +88,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Background image | ✅ `Background Image Location` | ✅ `background_image` | ✅ | - | - | - |
 | Background image modes | ✅ Stretch/Tile/Scale Aspect | ✅ fit/fill/stretch/tile/center | ✅ | - | - | - |
 | Background image opacity | ✅ `Blend` | ✅ `background_image_opacity` | ✅ | - | - | - |
-| Per-pane background image | ✅ | ❌ | ❌ | ⭐ | 🟡 | Per-pane/tab backgrounds |
+| Per-pane background image | ✅ | ✅ `pane_backgrounds` | ✅ | - | - | Per-pane image, mode, opacity |
 | **Custom GLSL shaders** | ❌ | ✅ `custom_shader*` | ✅ | - | - | **par-term exclusive** - 49+ shaders |
 | **Shader hot reload** | ❌ | ✅ `shader_hot_reload` | ✅ | - | - | **par-term exclusive** |
 | **Per-shader configuration** | ❌ | ✅ `shader_configs` | ✅ | - | - | **par-term exclusive** |
@@ -312,7 +312,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Pane resizing | ✅ | ✅ keyboard + mouse drag | ✅ | - | - | Resize pane boundaries |
 | Dim inactive panes | ✅ `Dim Inactive Split Panes` | ✅ `dim_inactive_panes` | ✅ | - | - | Visual focus indicator |
 | Per-pane titles | ✅ `Show Pane Titles` | ✅ | ✅ | - | - | Pane identification via OSC/CWD |
-| Per-pane background | ✅ | 🔶 Data model ready | 🔶 | ⭐ | 🟡 | Renderer support pending |
+| Per-pane background | ✅ | ✅ `pane_backgrounds` | ✅ | - | - | Per-pane image, mode, opacity via Settings UI |
 | Broadcast input | ✅ | ✅ `Cmd+Opt+I` | ✅ | - | - | Type to multiple panes |
 | Division view | ✅ `Enable Division View` | ✅ configurable dividers | ✅ | - | - | Pane divider lines with colors |
 
@@ -670,7 +670,7 @@ iTerm2 has sophisticated window state management.
 | Division thickness | ✅ `Division Thickness` | ✅ configurable width | ✅ | ⭐ | 🟢 | 1-10px slider in settings |
 | Division color | ✅ `Division Color` | ✅ | ✅ | ⭐ | 🟢 | Already implemented |
 | Division style | ✅ `Double/Shadow` | ✅ solid/double/dashed/shadow | ✅ | ⭐ | 🟢 | Four styles via settings UI |
-| Per-pane backgrounds | ✅ | 🔶 Data model ready | 🔶 | ⭐ | 🟡 | `Pane` struct has field; renderer support pending |
+| Per-pane backgrounds | ✅ | ✅ `pane_backgrounds` | ✅ | - | - | Per-pane image, mode, opacity; texture cache with deduplication |
 
 ---
 
@@ -899,7 +899,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Window & Display | 14 | 0 | 2 |
 | Typography & Fonts | 16 | 1 | 0 |
 | Cursor | 12 | 0 | 0 |
-| Background & Effects | 11 | 0 | 1 |
+| Background & Effects | 12 | 0 | 0 |
 | Colors & Themes | 16 | 0 | 1 |
 | Tab Bar | 18 | 0 | 2 |
 | Scrollback & Scrollbar | 11 | 1 | 1 |

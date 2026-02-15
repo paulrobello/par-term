@@ -108,6 +108,9 @@ pub(crate) struct ConfigChanges {
 
     // Dynamic profile sources
     pub dynamic_profile_sources: bool,
+
+    // Per-pane backgrounds
+    pub pane_backgrounds: bool,
 }
 
 impl ConfigChanges {
@@ -259,6 +262,8 @@ impl ConfigChanges {
                 || new.command_separator_color != old.command_separator_color,
 
             dynamic_profile_sources: new.dynamic_profile_sources != old.dynamic_profile_sources,
+
+            pane_backgrounds: new.pane_backgrounds != old.pane_backgrounds,
         }
     }
 

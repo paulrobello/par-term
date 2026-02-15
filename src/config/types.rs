@@ -196,6 +196,21 @@ pub enum BackgroundMode {
     Image,
 }
 
+/// Per-pane background image configuration (for config persistence)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaneBackgroundConfig {
+    /// Pane index (0-based)
+    pub index: usize,
+    /// Image path
+    pub image: String,
+    /// Display mode
+    #[serde(default)]
+    pub mode: BackgroundImageMode,
+    /// Opacity
+    #[serde(default = "super::defaults::background_image_opacity")]
+    pub opacity: f32,
+}
+
 /// Tab visual style preset
 ///
 /// Controls the cosmetic appearance of tabs (colors, sizes, spacing).

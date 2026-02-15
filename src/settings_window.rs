@@ -57,6 +57,8 @@ pub enum SettingsWindowAction {
     ForceUpdateCheck,
     /// User requested to install the available update
     InstallUpdate(String),
+    /// Flash pane indices on the terminal window
+    IdentifyPanes,
 }
 
 /// Manages a separate settings window with its own egui context and wgpu renderer
@@ -571,6 +573,13 @@ impl SettingsWindow {
         if let Some(action) = self.settings_ui.pending_arrangement_actions.pop() {
             self.window.request_redraw();
             return action;
+        }
+
+        // Check for identify panes request
+        if self.settings_ui.identify_panes_requested {
+            self.settings_ui.identify_panes_requested = false;
+            self.window.request_redraw();
+            return SettingsWindowAction::IdentifyPanes;
         }
 
         // Determine action based on settings UI results

@@ -1486,6 +1486,37 @@ impl WindowManager {
                     window_state.needs_redraw = true;
                 }
 
+                // Apply per-pane background changes to existing panes
+                if changes.pane_backgrounds {
+                    // Pre-load all pane background textures into the renderer cache
+                    for pb_config in &config.pane_backgrounds {
+                        if let Err(e) = renderer.load_pane_background(&pb_config.image) {
+                            log::error!(
+                                "Failed to load pane {} background '{}': {}",
+                                pb_config.index,
+                                pb_config.image,
+                                e
+                            );
+                        }
+                    }
+
+                    for tab in window_state.tab_manager.tabs_mut() {
+                        if let Some(pm) = tab.pane_manager_mut() {
+                            let panes = pm.all_panes_mut();
+                            for (index, pane) in panes.into_iter().enumerate() {
+                                if let Some(bg) = config.get_pane_background(index) {
+                                    pane.set_background(bg);
+                                } else {
+                                    // Clear pane background if no longer configured
+                                    pane.set_background(crate::pane::PaneBackground::new());
+                                }
+                            }
+                        }
+                    }
+                    renderer.mark_dirty();
+                    window_state.needs_redraw = true;
+                }
+
                 // Apply inline image settings changes
                 if changes.image_scaling_mode {
                     renderer.update_image_scaling_mode(config.image_scaling_mode);
@@ -2047,7 +2078,11 @@ impl WindowManager {
                 script_config.args
             );
             if !script_config.enabled {
-                crate::debug_info!("SCRIPT", "Script '{}' is disabled, not starting", script_config.name);
+                crate::debug_info!(
+                    "SCRIPT",
+                    "Script '{}' is disabled, not starting",
+                    script_config.name
+                );
                 return;
             }
 
@@ -2130,7 +2165,10 @@ impl WindowManager {
             // Update running state in settings window
             self.sync_script_running_state();
         } else {
-            crate::debug_error!("SCRIPT", "start_script: no focused window or active tab found");
+            crate::debug_error!(
+                "SCRIPT",
+                "start_script: no focused window or active tab found"
+            );
         }
     }
 

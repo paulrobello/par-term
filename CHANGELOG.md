@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Per-Pane Background Images**: Individual background images for each split pane (#148)
+  - New `PaneBackground` data model with per-pane image path, display mode (fit/fill/stretch/tile/center), and opacity
+  - GPU texture cache with path-based deduplication for efficient multi-pane rendering
+  - Per-pane bind groups substitute pane dimensions into existing background shader — no shader changes needed
+  - Config persistence via `pane_backgrounds` array in config.yaml with index, image, mode, opacity
+  - Falls back to global `background_image` when no per-pane image is configured
+  - Settings UI in Effects > Per-Pane Background with pane index selector, file picker, mode dropdown, opacity slider
+  - Tilde expansion for image paths (e.g., `~/Pictures/bg.png`)
+
 - **Scripting Manager**: Python scripts that react to terminal events via the observer API (#150)
   - New config option: `scripts` array with per-script `name`, `script_path`, `args`, `auto_start`, `restart_policy`, `subscriptions`, `env_vars`
   - JSON protocol over stdin/stdout: terminal sends events, scripts send commands back

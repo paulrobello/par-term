@@ -9,7 +9,7 @@
 use super::types::{
     DividerRect, NavigationDirection, Pane, PaneBounds, PaneId, PaneNode, SplitDirection,
 };
-use crate::config::Config;
+use crate::config::{Config, PaneBackgroundConfig};
 use crate::session::SessionPaneNode;
 use crate::tmux::{LayoutNode, TmuxLayout, TmuxPaneId};
 use anyhow::Result;
@@ -150,7 +150,13 @@ impl PaneManager {
             config.clone()
         };
 
-        let pane = Pane::new(id, &pane_config, runtime, working_directory)?;
+        let mut pane = Pane::new(id, &pane_config, runtime, working_directory)?;
+
+        // Apply per-pane background from config if available (index 0 for initial pane)
+        if let Some(bg) = config.get_pane_background(0) {
+            pane.set_background(bg);
+        }
+
         self.root = Some(PaneNode::leaf(pane));
         self.focused_pane_id = Some(id);
 
@@ -203,7 +209,14 @@ impl PaneManager {
         let new_id = self.next_pane_id;
         self.next_pane_id += 1;
 
-        let new_pane = Pane::new(new_id, &pane_config, runtime, working_dir)?;
+        let mut new_pane = Pane::new(new_id, &pane_config, runtime, working_dir)?;
+
+        // Apply per-pane background from config if available
+        // The new pane will be at the end of the pane list, so its index is the current count
+        let new_pane_index = self.pane_count(); // current count = index of new pane after insertion
+        if let Some(bg) = config.get_pane_background(new_pane_index) {
+            new_pane.set_background(bg);
+        }
 
         // Find and split the focused pane
         if let Some(root) = self.root.take() {
@@ -548,6 +561,29 @@ impl PaneManager {
             .unwrap_or_default()
     }
 
+    /// Collect current per-pane background settings for config persistence
+    ///
+    /// Returns a `Vec<PaneBackgroundConfig>` containing only panes that have
+    /// a custom background image set. The `index` field corresponds to the
+    /// pane's position in the tree traversal order.
+    pub fn collect_pane_backgrounds(&self) -> Vec<PaneBackgroundConfig> {
+        self.all_panes()
+            .iter()
+            .enumerate()
+            .filter_map(|(index, pane)| {
+                pane.background
+                    .image_path
+                    .as_ref()
+                    .map(|path| PaneBackgroundConfig {
+                        index,
+                        image: path.clone(),
+                        mode: pane.background.mode,
+                        opacity: pane.background.opacity,
+                    })
+            })
+            .collect()
+    }
+
     /// Get the number of panes
     pub fn pane_count(&self) -> usize {
         self.root.as_ref().map(|r| r.pane_count()).unwrap_or(0)
@@ -860,6 +896,15 @@ impl PaneManager {
         self.root = Some(root);
         self.focused_pane_id = first_id;
         self.recalculate_bounds();
+
+        // Apply per-pane backgrounds from config to restored panes
+        let panes = self.all_panes_mut();
+        for (index, pane) in panes.into_iter().enumerate() {
+            if let Some(bg) = config.get_pane_background(index) {
+                pane.set_background(bg);
+            }
+        }
+
         Ok(())
     }
 

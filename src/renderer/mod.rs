@@ -62,6 +62,8 @@ pub struct PaneRenderInfo<'a> {
     pub scrollback_len: usize,
     /// Current scroll offset for this pane (needed for separator mark mapping)
     pub scroll_offset: usize,
+    /// Per-pane background image override (None = use global background)
+    pub background: Option<crate::pane::PaneBackground>,
 }
 
 /// Information needed to render a pane divider
@@ -890,6 +892,12 @@ impl Renderer {
         self.dirty = true;
     }
 
+    /// Load a per-pane background image into the texture cache.
+    /// Delegates to CellRenderer::load_pane_background.
+    pub fn load_pane_background(&mut self, path: &str) -> anyhow::Result<bool> {
+        self.cell_renderer.load_pane_background(path)
+    }
+
     /// Update inline image scaling mode (nearest vs linear filtering).
     ///
     /// Recreates the GPU sampler and clears the texture cache so images
@@ -929,6 +937,7 @@ impl Renderer {
         egui_data: Option<(egui::FullOutput, &egui::Context)>,
         force_egui_opaque: bool,
         show_scrollbar: bool,
+        pane_background: Option<&crate::pane::PaneBackground>,
     ) -> Result<bool> {
         // Custom shader animation forces continuous rendering
         let force_render = self.needs_continuous_render();
@@ -976,7 +985,7 @@ impl Renderer {
         } else {
             // Render directly to surface (no shaders, or cursor shader disabled for alt screen)
             // Note: scrollbar is rendered separately after egui so it appears on top
-            self.cell_renderer.render(show_scrollbar)?
+            self.cell_renderer.render(show_scrollbar, pane_background)?
         };
         let cell_render_time = t1.elapsed();
 
@@ -1191,6 +1200,7 @@ impl Renderer {
                 false,                // Don't clear - we already cleared the surface
                 has_background_image, // Skip background image if already rendered full-screen
                 &separator_marks,
+                pane.background.as_ref(),
             )?;
         }
 
@@ -1245,6 +1255,16 @@ impl Renderer {
         }
 
         let has_custom_shader = self.custom_shader_renderer.is_some();
+
+        // Pre-load any per-pane background textures that aren't cached yet
+        for pane in panes.iter() {
+            if let Some(ref bg) = pane.background
+                && let Some(ref path) = bg.image_path
+                && let Err(e) = self.cell_renderer.load_pane_background(path)
+            {
+                log::error!("Failed to load pane background '{}': {}", path, e);
+            }
+        }
 
         // Get the surface texture
         let surface_texture = self.cell_renderer.surface.get_current_texture()?;
@@ -1321,8 +1341,11 @@ impl Renderer {
         }
 
         // Render background image (full-screen, after shader but before panes)
-        // Skip if custom shader is handling the background
-        let has_background_image = if !has_custom_shader {
+        // Skip if custom shader is handling the background.
+        // Also skip if any pane has a per-pane background configured -
+        // per-pane backgrounds are rendered individually in render_pane_to_view.
+        let any_pane_has_background = panes.iter().any(|p| p.background.is_some());
+        let has_background_image = if !has_custom_shader && !any_pane_has_background {
             self.cell_renderer
                 .render_background_only(&surface_view, false)?
         } else {
@@ -1349,6 +1372,7 @@ impl Renderer {
                 false, // Don't clear - we already cleared the surface
                 has_background_image || has_custom_shader, // Skip background if already rendered
                 &separator_marks,
+                pane.background.as_ref(),
             )?;
         }
 
