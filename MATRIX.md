@@ -702,8 +702,8 @@ iTerm2 has sophisticated window state management.
 | Image placement modes | ✅ | ✅ | ✅ | - | - | Core ImagePlacement with inline/download, requested dimensions (cells/pixels/percent), z-index, sub-cell offsets |
 | Preserve aspect ratio | ✅ | ✅ `image_preserve_aspect_ratio` | ✅ | - | - | Global config + per-image flag from core |
 | Image metadata in files | ✅ | ✅ | ✅ | - | - | Core SerializableGraphic/GraphicsSnapshot with export/import JSON, base64 or file-backed pixel data |
-| File transfer (download) | ✅ | 🔶 | 🔶 | ⭐⭐ | 🟡 | Core `FileTransferManager` implemented with `inline=0` download, progress events, `take_completed_transfer()`. Frontend save dialog pending |
-| File transfer (upload) | ✅ | 🔶 | 🔶 | ⭐⭐ | 🟡 | Core `RequestUpload` handler implemented with `send_upload_data()`/`cancel_upload()`. Frontend file picker pending |
+| File transfer (download) | ✅ | ✅ | ✅ | ⭐⭐ | 🟢 | Core `FileTransferManager` + frontend native save dialog via `rfd`, configurable default save location, egui progress overlay, desktop notifications |
+| File transfer (upload) | ✅ | ✅ | ✅ | ⭐⭐ | 🟢 | Core `RequestUpload` handler + frontend native file picker via `rfd`, upload cancellation, desktop notifications |
 
 ---
 

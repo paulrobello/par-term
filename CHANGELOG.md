@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **File Transfer UI**: Native file dialogs and progress overlay for iTerm2 OSC 1337 file transfers (#154)
+  - Native save dialog when file downloads complete, with configurable default save location (Downloads folder, last used, CWD, custom)
+  - Native file picker when remote application requests file upload
+  - Real-time egui progress overlay (bottom-right) showing all active transfers with progress bars
+  - Desktop notifications for transfer lifecycle events (start, complete, fail)
+  - Upload cancellation when user dismisses file picker
+  - Settings UI in Advanced > File Transfers for download save location preference
+
 - **Per-Pane Background Images**: Individual background images for each split pane (#148)
   - New `PaneBackground` data model with per-pane image path, display mode (fit/fill/stretch/tile/center), and opacity
   - GPU texture cache with path-based deduplication for efficient multi-pane rendering
