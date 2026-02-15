@@ -303,6 +303,9 @@ pub struct SettingsUI {
     /// Flag to request opening the debug log file
     pub(crate) open_log_requested: bool,
 
+    /// Flag to request identifying panes (flash indices on terminal window)
+    pub(crate) identify_panes_requested: bool,
+
     // Self-update state
     /// User requested to install the available update
     pub(crate) update_install_requested: bool,
@@ -549,6 +552,7 @@ impl SettingsUI {
             script_output_expanded: Vec::new(),
             script_panels: Vec::new(),
             open_log_requested: false,
+            identify_panes_requested: false,
             update_install_requested: false,
             check_now_requested: false,
             update_status: None,

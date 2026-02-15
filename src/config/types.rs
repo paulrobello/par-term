@@ -197,7 +197,7 @@ pub enum BackgroundMode {
 }
 
 /// Per-pane background image configuration (for config persistence)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PaneBackgroundConfig {
     /// Pane index (0-based)
     pub index: usize,

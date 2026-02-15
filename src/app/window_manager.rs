@@ -1486,6 +1486,24 @@ impl WindowManager {
                     window_state.needs_redraw = true;
                 }
 
+                // Apply per-pane background changes to existing panes
+                if changes.pane_backgrounds {
+                    for tab in window_state.tab_manager.tabs_mut() {
+                        if let Some(pm) = tab.pane_manager_mut() {
+                            let panes = pm.all_panes_mut();
+                            for (index, pane) in panes.into_iter().enumerate() {
+                                if let Some(bg) = config.get_pane_background(index) {
+                                    pane.set_background(bg);
+                                } else {
+                                    // Clear pane background if no longer configured
+                                    pane.set_background(crate::pane::PaneBackground::new());
+                                }
+                            }
+                        }
+                    }
+                    window_state.needs_redraw = true;
+                }
+
                 // Apply inline image settings changes
                 if changes.image_scaling_mode {
                     renderer.update_image_scaling_mode(config.image_scaling_mode);

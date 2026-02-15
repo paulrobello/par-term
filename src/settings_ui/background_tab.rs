@@ -706,6 +706,19 @@ pub fn show_pane_backgrounds(
             ui.label("Override the global background for individual split panes.");
             ui.add_space(4.0);
 
+            // Identify Panes button + Pane index selector
+            ui.horizontal(|ui| {
+                if ui
+                    .button("Identify Panes")
+                    .on_hover_text("Flash pane indices on the terminal window for 3 seconds")
+                    .clicked()
+                {
+                    settings.identify_panes_requested = true;
+                }
+            });
+
+            ui.add_space(4.0);
+
             // Pane index selector
             ui.horizontal(|ui| {
                 ui.label("Pane index:");

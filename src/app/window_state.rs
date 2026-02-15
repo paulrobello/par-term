@@ -228,6 +228,10 @@ pub struct WindowState {
     /// When to hide the toast notification
     pub(crate) toast_hide_time: Option<std::time::Instant>,
 
+    // Pane identification overlay
+    /// When to hide the pane index overlay
+    pub(crate) pane_identify_hide_time: Option<std::time::Instant>,
+
     /// Recently closed tab metadata for session undo (reopen closed tab)
     pub(crate) closed_tabs: std::collections::VecDeque<super::tab_ops::ClosedTabInfo>,
 
@@ -376,6 +380,7 @@ impl WindowState {
 
             toast_message: None,
             toast_hide_time: None,
+            pane_identify_hide_time: None,
             closed_tabs: std::collections::VecDeque::new(),
 
             keybinding_registry,
@@ -2058,6 +2063,24 @@ impl WindowState {
                     None
                 };
 
+            // Collect pane bounds for identify overlay (before egui borrow)
+            let pane_identify_bounds: Vec<(usize, crate::pane::PaneBounds)> =
+                if self.pane_identify_hide_time.is_some() {
+                    self.tab_manager
+                        .active_tab()
+                        .and_then(|tab| tab.pane_manager())
+                        .map(|pm| {
+                            pm.all_panes()
+                                .iter()
+                                .enumerate()
+                                .map(|(i, pane)| (i, pane.bounds))
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+
             let egui_data = if let (Some(egui_ctx), Some(egui_state)) =
                 (&self.egui_ctx, &mut self.egui_state)
             {
@@ -2351,6 +2374,36 @@ impl WindowState {
                             size.width as f32,
                             size.height as f32,
                         );
+                    }
+
+                    // Render pane identify overlay (large index numbers centered on each pane)
+                    if !pane_identify_bounds.is_empty() {
+                        for (index, bounds) in &pane_identify_bounds {
+                            let center_x = bounds.x + bounds.width / 2.0;
+                            let center_y = bounds.y + bounds.height / 2.0;
+                            egui::Area::new(egui::Id::new(format!("pane_identify_{}", index)))
+                                .fixed_pos(egui::pos2(center_x - 30.0, center_y - 30.0))
+                                .order(egui::Order::Foreground)
+                                .interactable(false)
+                                .show(ctx, |ui| {
+                                    egui::Frame::NONE
+                                        .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200))
+                                        .inner_margin(egui::Margin::symmetric(16, 8))
+                                        .corner_radius(8.0)
+                                        .stroke(egui::Stroke::new(
+                                            2.0,
+                                            egui::Color32::from_rgb(100, 200, 255),
+                                        ))
+                                        .show(ui, |ui| {
+                                            ui.label(
+                                                egui::RichText::new(format!("Pane {}", index))
+                                                    .monospace()
+                                                    .size(28.0)
+                                                    .color(egui::Color32::from_rgb(100, 200, 255)),
+                                            );
+                                        });
+                                });
+                        }
                     }
 
                     // Render badge overlay (top-right corner)
