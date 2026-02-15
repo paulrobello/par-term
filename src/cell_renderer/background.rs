@@ -2,6 +2,16 @@ use super::CellRenderer;
 use crate::custom_shader_renderer::textures::ChannelTexture;
 use anyhow::Result;
 
+/// Cached GPU texture for a per-pane background image
+#[allow(dead_code)]
+pub(crate) struct PaneBackgroundEntry {
+    pub(crate) texture: wgpu::Texture,
+    pub(crate) view: wgpu::TextureView,
+    pub(crate) sampler: wgpu::Sampler,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+}
+
 impl CellRenderer {
     pub(crate) fn load_background_image(&mut self, path: &str) -> Result<()> {
         log::info!("Loading background image from: {}", path);
@@ -430,5 +440,145 @@ impl CellRenderer {
                 }
             }
         }
+    }
+
+    /// Load a per-pane background image into the texture cache.
+    /// Returns Ok(true) if the image was newly loaded, Ok(false) if already cached.
+    #[allow(dead_code)]
+    pub(crate) fn load_pane_background(&mut self, path: &str) -> Result<bool> {
+        if self.pane_bg_cache.contains_key(path) {
+            return Ok(false);
+        }
+
+        log::info!("Loading per-pane background image: {}", path);
+        let img = image::open(path)
+            .map_err(|e| {
+                log::error!("Failed to open pane background image '{}': {}", path, e);
+                e
+            })?
+            .to_rgba8();
+
+        let (width, height) = img.dimensions();
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("pane bg image"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &img,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        self.pane_bg_cache.insert(
+            path.to_string(),
+            super::background::PaneBackgroundEntry {
+                texture,
+                view,
+                sampler,
+                width,
+                height,
+            },
+        );
+
+        Ok(true)
+    }
+
+    /// Remove a cached pane background texture
+    #[allow(dead_code)]
+    pub(crate) fn evict_pane_background(&mut self, path: &str) {
+        self.pane_bg_cache.remove(path);
+    }
+
+    /// Clear all cached pane background textures
+    #[allow(dead_code)]
+    pub(crate) fn clear_pane_bg_cache(&mut self) {
+        self.pane_bg_cache.clear();
+    }
+
+    /// Create a bind group and uniform buffer for a per-pane background render.
+    /// The uniform buffer substitutes pane dimensions into `window_size` so the
+    /// existing background_image.wgsl shader computes texture coords relative to the pane.
+    #[allow(dead_code)]
+    pub(crate) fn create_pane_bg_bind_group(
+        &self,
+        entry: &super::background::PaneBackgroundEntry,
+        pane_width: f32,
+        pane_height: f32,
+        mode: crate::config::BackgroundImageMode,
+        opacity: f32,
+    ) -> (wgpu::BindGroup, wgpu::Buffer) {
+        let mut data = [0u8; 32];
+        // image_size (vec2<f32>)
+        data[0..4].copy_from_slice(&(entry.width as f32).to_le_bytes());
+        data[4..8].copy_from_slice(&(entry.height as f32).to_le_bytes());
+        // window_size (actually pane size -- shader doesn't know the difference)
+        data[8..12].copy_from_slice(&pane_width.to_le_bytes());
+        data[12..16].copy_from_slice(&pane_height.to_le_bytes());
+        // mode (u32)
+        data[16..20].copy_from_slice(&(mode as u32).to_le_bytes());
+        // opacity (combine with window_opacity)
+        let effective_opacity = opacity * self.window_opacity;
+        data[20..24].copy_from_slice(&effective_opacity.to_le_bytes());
+
+        let uniform_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("pane bg uniform buffer"),
+            size: 32,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        self.queue.write_buffer(&uniform_buffer, 0, &data);
+
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("pane bg bind group"),
+            layout: &self.bg_image_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&entry.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&entry.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: uniform_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        (bind_group, uniform_buffer)
     }
 }
