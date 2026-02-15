@@ -896,6 +896,15 @@ impl PaneManager {
         self.root = Some(root);
         self.focused_pane_id = first_id;
         self.recalculate_bounds();
+
+        // Apply per-pane backgrounds from config to restored panes
+        let panes = self.all_panes_mut();
+        for (index, pane) in panes.into_iter().enumerate() {
+            if let Some(bg) = config.get_pane_background(index) {
+                pane.set_background(bg);
+            }
+        }
+
         Ok(())
     }
 
