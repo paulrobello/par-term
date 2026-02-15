@@ -1073,6 +1073,22 @@ impl WindowState {
             }
         }
 
+        // 5c. Pane Identification Overlay
+        // Check if the pane index overlay should be hidden (timer expired).
+        if let Some(hide_time) = self.pane_identify_hide_time {
+            if now >= hide_time {
+                self.pane_identify_hide_time = None;
+                self.needs_redraw = true;
+            } else {
+                if can_render {
+                    self.needs_redraw = true;
+                }
+                if hide_time < next_wake {
+                    next_wake = hide_time;
+                }
+            }
+        }
+
         // 5b. Session undo expiry: prune closed tab metadata that has timed out
         if !self.closed_tabs.is_empty() && self.config.session_undo_timeout_secs > 0 {
             let timeout =
@@ -1238,11 +1254,7 @@ impl ApplicationHandler for WindowManager {
                         self.stop_coprocess(index);
                     }
                     SettingsWindowAction::StartScript(index) => {
-                        crate::debug_info!(
-                            "SCRIPT",
-                            "Handler: received StartScript({})",
-                            index
-                        );
+                        crate::debug_info!("SCRIPT", "Handler: received StartScript({})", index);
                         self.start_script(index);
                     }
                     SettingsWindowAction::StopScript(index) => {
@@ -1282,6 +1294,12 @@ impl ApplicationHandler for WindowManager {
                         // The update is handled asynchronously inside SettingsUI.
                         // The InstallUpdate action is emitted for logging purposes.
                         log::info!("Self-update initiated from settings UI");
+                    }
+                    SettingsWindowAction::IdentifyPanes => {
+                        // Flash pane index overlays on all terminal windows
+                        for window_state in self.windows.values_mut() {
+                            window_state.show_pane_indices(std::time::Duration::from_secs(3));
+                        }
                     }
                     SettingsWindowAction::None => {}
                 }

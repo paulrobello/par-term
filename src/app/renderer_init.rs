@@ -101,6 +101,8 @@ pub(crate) struct RendererInitParams {
     pub command_separator_opacity: f32,
     pub command_separator_exit_color: bool,
     pub command_separator_color: [u8; 3],
+    // Per-pane background configs
+    pub pane_backgrounds: Vec<crate::config::PaneBackgroundConfig>,
 }
 
 impl RendererInitParams {
@@ -224,6 +226,7 @@ impl RendererInitParams {
             command_separator_opacity: config.command_separator_opacity,
             command_separator_exit_color: config.command_separator_exit_color,
             command_separator_color: config.command_separator_color,
+            pane_backgrounds: config.pane_backgrounds.clone(),
         }
     }
 
@@ -323,6 +326,18 @@ impl RendererInitParams {
             self.command_separator_exit_color,
             self.command_separator_color,
         );
+
+        // Pre-load per-pane background textures into the renderer cache
+        for pb_config in &self.pane_backgrounds {
+            if let Err(e) = renderer.load_pane_background(&pb_config.image) {
+                log::error!(
+                    "Failed to load pane {} background '{}': {}",
+                    pb_config.index,
+                    pb_config.image,
+                    e
+                );
+            }
+        }
 
         Ok(renderer)
     }

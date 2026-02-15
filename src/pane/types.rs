@@ -117,6 +117,33 @@ impl DividerRect {
     }
 }
 
+/// Per-pane background image configuration
+#[derive(Debug, Clone, Default)]
+pub struct PaneBackground {
+    /// Path to the background image (None = use global background)
+    pub image_path: Option<String>,
+    /// Display mode (fit/fill/stretch/tile/center)
+    pub mode: crate::config::BackgroundImageMode,
+    /// Opacity (0.0-1.0)
+    pub opacity: f32,
+}
+
+impl PaneBackground {
+    /// Create a new PaneBackground with default settings
+    pub fn new() -> Self {
+        Self {
+            image_path: None,
+            mode: crate::config::BackgroundImageMode::default(),
+            opacity: 1.0,
+        }
+    }
+
+    /// Returns true if this pane has a custom background image set
+    pub fn has_image(&self) -> bool {
+        self.image_path.is_some()
+    }
+}
+
 /// A single terminal pane with its own state
 pub struct Pane {
     /// Unique identifier for this pane
@@ -151,8 +178,8 @@ pub struct Pane {
     pub session_logger: SharedSessionLogger,
     /// Current bounds of this pane (updated on layout calculation)
     pub bounds: PaneBounds,
-    /// Per-pane background image path (overrides global config if set)
-    pub background_image: Option<String>,
+    /// Per-pane background settings (overrides global config if image_path is set)
+    pub background: PaneBackground,
     /// State for shell restart behavior (None = shell running or closed normally)
     pub restart_state: Option<RestartState>,
     /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
@@ -279,7 +306,7 @@ impl Pane {
             exit_notified: false,
             session_logger,
             bounds: PaneBounds::default(),
-            background_image: None, // Use global config by default
+            background: PaneBackground::new(),
             restart_state: None,
             shutdown_fast: false,
         })
@@ -366,7 +393,7 @@ impl Pane {
             exit_notified: false,
             session_logger,
             bounds: PaneBounds::default(),
-            background_image: None, // Use global config by default
+            background: PaneBackground::new(),
             restart_state: None,
             shutdown_fast: false,
         })
@@ -408,14 +435,24 @@ impl Pane {
         }
     }
 
+    /// Set per-pane background settings (overrides global config)
+    pub fn set_background(&mut self, background: PaneBackground) {
+        self.background = background;
+    }
+
+    /// Get per-pane background settings
+    pub fn background(&self) -> &PaneBackground {
+        &self.background
+    }
+
     /// Set a per-pane background image (overrides global config)
     pub fn set_background_image(&mut self, path: Option<String>) {
-        self.background_image = path;
+        self.background.image_path = path;
     }
 
     /// Get the per-pane background image path (if set)
     pub fn get_background_image(&self) -> Option<&str> {
-        self.background_image.as_deref()
+        self.background.image_path.as_deref()
     }
 
     /// Respawn the shell in this pane

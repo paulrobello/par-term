@@ -11,6 +11,6 @@ mod types;
 
 pub use manager::PaneManager;
 pub use types::{
-    DividerRect, NavigationDirection, Pane, PaneBounds, PaneId, PaneNode, RestartState,
-    SplitDirection,
+    DividerRect, NavigationDirection, Pane, PaneBackground, PaneBounds, PaneId, PaneNode,
+    RestartState, SplitDirection,
 };

@@ -47,6 +47,21 @@ pub fn show(
         super::background_tab::show_background(ui, settings, changes_this_frame);
     }
 
+    // Per-Pane Background section
+    if section_matches(
+        &query,
+        "Per-Pane Background",
+        &[
+            "per-pane",
+            "pane background",
+            "pane image",
+            "split background",
+            "per pane",
+        ],
+    ) {
+        super::background_tab::show_pane_backgrounds(ui, settings, changes_this_frame);
+    }
+
     // Inline Images section (Sixel, iTerm2, Kitty)
     if section_matches(
         &query,

@@ -3,14 +3,16 @@
 struct Uniforms {
     // Image dimensions (original)
     image_size: vec2<f32>,
-    // Window dimensions
+    // Window/pane dimensions (pane size for per-pane, window size for global)
     window_size: vec2<f32>,
     // Display mode: 0=fit, 1=fill, 2=stretch, 3=tile, 4=center
     mode: u32,
     // Opacity
     opacity: f32,
-    // Padding for alignment
-    _padding: vec2<f32>,
+    // Pane offset in pixels (0,0 for global background)
+    pane_offset: vec2<f32>,
+    // Surface (window) size in pixels (same as window_size for global)
+    surface_size: vec2<f32>,
 }
 
 struct VertexOutput {
@@ -31,14 +33,21 @@ var<uniform> uniforms: Uniforms;
 fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
     var out: VertexOutput;
 
-    // Generate full-screen quad vertices (triangle strip)
+    // Generate quad vertices (triangle strip)
+    // x and y go 0..1 across the pane area
     let x = f32(vertex_index & 1u);
     let y = f32((vertex_index >> 1u) & 1u);
 
-    // Full screen in NDC
-    out.position = vec4<f32>(x * 2.0 - 1.0, 1.0 - y * 2.0, 0.0, 1.0);
+    // Convert pane pixel coordinates to NDC (-1..1)
+    // pane_offset is (0,0) for global backgrounds, so this reduces to full-screen
+    let px = uniforms.pane_offset.x + x * uniforms.window_size.x;
+    let py = uniforms.pane_offset.y + y * uniforms.window_size.y;
+    let ndc_x = (px / uniforms.surface_size.x) * 2.0 - 1.0;
+    let ndc_y = 1.0 - (py / uniforms.surface_size.y) * 2.0;
+    out.position = vec4<f32>(ndc_x, ndc_y, 0.0, 1.0);
 
     // Calculate texture coordinates based on mode
+    // x and y are 0..1 across the pane, so UV math works correctly
     let mode = uniforms.mode;
     let img_aspect = uniforms.image_size.x / uniforms.image_size.y;
     let win_aspect = uniforms.window_size.x / uniforms.window_size.y;

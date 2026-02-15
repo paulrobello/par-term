@@ -3,7 +3,7 @@
 //! This module provides an egui-based settings window for configuring
 //! terminal options at runtime.
 
-use crate::config::{Config, CursorShaderMetadataCache, ShaderMetadataCache};
+use crate::config::{BackgroundImageMode, Config, CursorShaderMetadataCache, ShaderMetadataCache};
 use crate::profile::{Profile, ProfileId};
 use crate::profile_modal_ui::ProfileModalUI;
 use egui::{Color32, Context, Frame, Window, epaint::Shadow};
@@ -104,6 +104,15 @@ pub struct SettingsUI {
 
     /// Temporary color for solid background color editing
     pub(crate) temp_background_color: [u8; 3],
+
+    /// Temporary per-pane background image path for editing
+    pub(crate) temp_pane_bg_path: String,
+    /// Temporary per-pane background mode
+    pub(crate) temp_pane_bg_mode: BackgroundImageMode,
+    /// Temporary per-pane background opacity
+    pub(crate) temp_pane_bg_opacity: f32,
+    /// Index of the pane currently being configured (None = no pane selected)
+    pub(crate) temp_pane_bg_index: Option<usize>,
 
     /// Search query used to filter settings sections
     pub(crate) search_query: String,
@@ -294,6 +303,9 @@ pub struct SettingsUI {
     /// Flag to request opening the debug log file
     pub(crate) open_log_requested: bool,
 
+    /// Flag to request identifying panes (flash indices on terminal window)
+    pub(crate) identify_panes_requested: bool,
+
     // Self-update state
     /// User requested to install the available update
     pub(crate) update_install_requested: bool,
@@ -446,6 +458,10 @@ impl SettingsUI {
             temp_shader_channel3: config.custom_shader_channel3.clone().unwrap_or_default(),
             temp_cubemap_path: config.custom_shader_cubemap.clone().unwrap_or_default(),
             temp_background_color: config.background_color,
+            temp_pane_bg_path: String::new(),
+            temp_pane_bg_mode: BackgroundImageMode::default(),
+            temp_pane_bg_opacity: 1.0,
+            temp_pane_bg_index: None,
             last_live_opacity: config.window_opacity,
             current_cols: initial_cols,
             current_rows: initial_rows,
@@ -536,6 +552,7 @@ impl SettingsUI {
             script_output_expanded: Vec::new(),
             script_panels: Vec::new(),
             open_log_requested: false,
+            identify_panes_requested: false,
             update_install_requested: false,
             check_now_requested: false,
             update_status: None,

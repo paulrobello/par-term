@@ -155,6 +155,9 @@ pub struct CellRenderer {
     /// Only used when bg_is_solid_color is true.
     pub(crate) solid_bg_color: [f32; 3],
 
+    /// Cache of per-pane background textures keyed by image path
+    pub(crate) pane_bg_cache: HashMap<String, background::PaneBackgroundEntry>,
+
     // Metrics
     pub(crate) max_bg_instances: usize,
     pub(crate) max_text_instances: usize,
@@ -514,6 +517,7 @@ impl CellRenderer {
             bg_image_height: 0,
             bg_is_solid_color: false,
             solid_bg_color: [0.0, 0.0, 0.0],
+            pane_bg_cache: HashMap::new(),
             max_bg_instances,
             max_text_instances,
             bg_instances: vec![

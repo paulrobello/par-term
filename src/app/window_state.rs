@@ -69,8 +69,9 @@ type PaneRenderData = (
     Option<(usize, usize)>,
     f32,
     Vec<ScrollbackMark>,
-    usize, // scrollback_len
-    usize, // scroll_offset
+    usize,                               // scrollback_len
+    usize,                               // scroll_offset
+    Option<crate::pane::PaneBackground>, // per-pane background
 );
 
 /// Per-window state that manages a single terminal window with multiple tabs
@@ -227,6 +228,10 @@ pub struct WindowState {
     /// When to hide the toast notification
     pub(crate) toast_hide_time: Option<std::time::Instant>,
 
+    // Pane identification overlay
+    /// When to hide the pane index overlay
+    pub(crate) pane_identify_hide_time: Option<std::time::Instant>,
+
     /// Recently closed tab metadata for session undo (reopen closed tab)
     pub(crate) closed_tabs: std::collections::VecDeque<super::tab_ops::ClosedTabInfo>,
 
@@ -375,6 +380,7 @@ impl WindowState {
 
             toast_message: None,
             toast_hide_time: None,
+            pane_identify_hide_time: None,
             closed_tabs: std::collections::VecDeque::new(),
 
             keybinding_registry,
@@ -2057,6 +2063,24 @@ impl WindowState {
                     None
                 };
 
+            // Collect pane bounds for identify overlay (before egui borrow)
+            let pane_identify_bounds: Vec<(usize, crate::pane::PaneBounds)> =
+                if self.pane_identify_hide_time.is_some() {
+                    self.tab_manager
+                        .active_tab()
+                        .and_then(|tab| tab.pane_manager())
+                        .map(|pm| {
+                            pm.all_panes()
+                                .iter()
+                                .enumerate()
+                                .map(|(i, pane)| (i, pane.bounds))
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+
             let egui_data = if let (Some(egui_ctx), Some(egui_state)) =
                 (&self.egui_ctx, &mut self.egui_state)
             {
@@ -2352,6 +2376,36 @@ impl WindowState {
                         );
                     }
 
+                    // Render pane identify overlay (large index numbers centered on each pane)
+                    if !pane_identify_bounds.is_empty() {
+                        for (index, bounds) in &pane_identify_bounds {
+                            let center_x = bounds.x + bounds.width / 2.0;
+                            let center_y = bounds.y + bounds.height / 2.0;
+                            egui::Area::new(egui::Id::new(format!("pane_identify_{}", index)))
+                                .fixed_pos(egui::pos2(center_x - 30.0, center_y - 30.0))
+                                .order(egui::Order::Foreground)
+                                .interactable(false)
+                                .show(ctx, |ui| {
+                                    egui::Frame::NONE
+                                        .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200))
+                                        .inner_margin(egui::Margin::symmetric(16, 8))
+                                        .corner_radius(8.0)
+                                        .stroke(egui::Stroke::new(
+                                            2.0,
+                                            egui::Color32::from_rgb(100, 200, 255),
+                                        ))
+                                        .show(ui, |ui| {
+                                            ui.label(
+                                                egui::RichText::new(format!("Pane {}", index))
+                                                    .monospace()
+                                                    .size(28.0)
+                                                    .color(egui::Color32::from_rgb(100, 200, 255)),
+                                            );
+                                        });
+                                });
+                        }
+                    }
+
                     // Render badge overlay (top-right corner)
                     if let (Some(badge), Some(size)) = (&badge_state, window_size_for_badge) {
                         render_badge(ctx, badge, size.width as f32, size.height as f32);
@@ -2458,6 +2512,10 @@ impl WindowState {
                 has_pane_manager,
                 pane_count
             );
+
+            // Per-pane backgrounds only take effect when splits are active.
+            // In single-pane mode, skip per-pane background lookup.
+            let pane_0_bg: Option<crate::pane::PaneBackground> = None;
 
             let render_result = if has_pane_manager {
                 // Render panes from pane manager - inline data gathering to avoid borrow conflicts
@@ -2639,6 +2697,15 @@ impl WindowState {
                                     };
                                     let pane_scroll_offset = pane.scroll_state.offset;
 
+                                    // Per-pane backgrounds only apply when multiple panes exist
+                                    let pane_background =
+                                        if all_pane_ids.len() > 1 && pane.background().has_image()
+                                        {
+                                            Some(pane.background().clone())
+                                        } else {
+                                            None
+                                        };
+
                                     let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
                                         if term.is_cursor_visible() {
                                             Some(term.cursor_position())
@@ -2672,6 +2739,7 @@ impl WindowState {
                                         marks,
                                         pane_scrollback_len,
                                         pane_scroll_offset,
+                                        pane_background,
                                     ));
                                 }
                             }
@@ -2706,11 +2774,11 @@ impl WindowState {
                     )
                 } else {
                     // Fallback to single pane render
-                    renderer.render(egui_data, false, show_scrollbar)
+                    renderer.render(egui_data, false, show_scrollbar, pane_0_bg.as_ref())
                 }
             } else {
                 // Single pane - use standard render path
-                renderer.render(egui_data, false, show_scrollbar)
+                renderer.render(egui_data, false, show_scrollbar, pane_0_bg.as_ref())
             };
 
             match render_result {
@@ -3142,6 +3210,7 @@ impl WindowState {
             marks,
             scrollback_len,
             scroll_offset,
+            pane_background,
         ) in pane_data
         {
             let cells_boxed = cells.into_boxed_slice();
@@ -3159,6 +3228,7 @@ impl WindowState {
                 marks,
                 scrollback_len,
                 scroll_offset,
+                background: pane_background,
             });
         }
 
