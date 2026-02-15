@@ -924,3 +924,48 @@ pub fn session_log_directory() -> String {
         "logs".to_string()
     }
 }
+
+// AI Inspector defaults
+pub fn ai_inspector_enabled() -> bool {
+    true
+}
+
+pub fn ai_inspector_width() -> f32 {
+    300.0
+}
+
+pub fn ai_inspector_default_scope() -> String {
+    "visible".to_string()
+}
+
+pub fn ai_inspector_view_mode() -> String {
+    "cards".to_string()
+}
+
+pub fn ai_inspector_live_update() -> bool {
+    true
+}
+
+pub fn ai_inspector_show_zones() -> bool {
+    true
+}
+
+pub fn ai_inspector_agent() -> String {
+    "claude.com".to_string()
+}
+
+pub fn ai_inspector_auto_launch() -> bool {
+    true
+}
+
+pub fn ai_inspector_auto_context() -> bool {
+    true
+}
+
+pub fn ai_inspector_context_max_lines() -> usize {
+    200
+}
+
+pub fn ai_inspector_auto_approve() -> bool {
+    false
+}
