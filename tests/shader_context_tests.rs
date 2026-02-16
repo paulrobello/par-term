@@ -68,11 +68,13 @@ fn test_keyword_detection_comprehensive() {
 
 #[test]
 fn test_shader_context_with_active_config() {
-    let mut config = Config::default();
-    config.custom_shader = Some("crt.glsl".to_string());
-    config.custom_shader_enabled = true;
-    config.custom_shader_animation_speed = 2.0;
-    config.custom_shader_brightness = 0.5;
+    let config = Config {
+        custom_shader: Some("crt.glsl".to_string()),
+        custom_shader_enabled: true,
+        custom_shader_animation_speed: 2.0,
+        custom_shader_brightness: 0.5,
+        ..Config::default()
+    };
 
     let ctx = build_shader_context(&config);
 

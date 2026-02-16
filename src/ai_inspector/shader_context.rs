@@ -225,7 +225,9 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push_str("## Available Uniforms\n");
     ctx.push_str("Common (all shaders):\n");
     ctx.push_str("  - `iTime` (float) - elapsed time in seconds\n");
-    ctx.push_str("  - `iResolution` (vec3) - viewport resolution in pixels (xy) and aspect ratio (z)\n");
+    ctx.push_str(
+        "  - `iResolution` (vec3) - viewport resolution in pixels (xy) and aspect ratio (z)\n",
+    );
     ctx.push_str(
         "  - `iMouse` (vec4) - mouse position: xy=current, zw=click (Shadertoy-compatible)\n",
     );
@@ -282,31 +284,46 @@ mod tests {
     #[test]
     fn test_keyword_shader_lowercase() {
         let config = default_config();
-        assert!(should_inject_shader_context("help me write a shader", &config));
+        assert!(should_inject_shader_context(
+            "help me write a shader",
+            &config
+        ));
     }
 
     #[test]
     fn test_keyword_shader_uppercase() {
         let config = default_config();
-        assert!(should_inject_shader_context("I want a SHADER effect", &config));
+        assert!(should_inject_shader_context(
+            "I want a SHADER effect",
+            &config
+        ));
     }
 
     #[test]
     fn test_keyword_shader_mixed_case() {
         let config = default_config();
-        assert!(should_inject_shader_context("Create a Shader for CRT", &config));
+        assert!(should_inject_shader_context(
+            "Create a Shader for CRT",
+            &config
+        ));
     }
 
     #[test]
     fn test_keyword_glsl() {
         let config = default_config();
-        assert!(should_inject_shader_context("write some GLSL code", &config));
+        assert!(should_inject_shader_context(
+            "write some GLSL code",
+            &config
+        ));
     }
 
     #[test]
     fn test_keyword_wgsl() {
         let config = default_config();
-        assert!(should_inject_shader_context("what does the wgsl look like", &config));
+        assert!(should_inject_shader_context(
+            "what does the wgsl look like",
+            &config
+        ));
     }
 
     #[test]
@@ -318,19 +335,28 @@ mod tests {
     #[test]
     fn test_keyword_scanline() {
         let config = default_config();
-        assert!(should_inject_shader_context("add scanline overlay", &config));
+        assert!(should_inject_shader_context(
+            "add scanline overlay",
+            &config
+        ));
     }
 
     #[test]
     fn test_keyword_postprocess_hyphenated() {
         let config = default_config();
-        assert!(should_inject_shader_context("post-process my terminal", &config));
+        assert!(should_inject_shader_context(
+            "post-process my terminal",
+            &config
+        ));
     }
 
     #[test]
     fn test_keyword_postprocess_concatenated() {
         let config = default_config();
-        assert!(should_inject_shader_context("add a postprocess effect", &config));
+        assert!(should_inject_shader_context(
+            "add a postprocess effect",
+            &config
+        ));
     }
 
     #[test]
@@ -348,7 +374,10 @@ mod tests {
     #[test]
     fn test_keyword_ichannel() {
         let config = default_config();
-        assert!(should_inject_shader_context("how to use iChannel0", &config));
+        assert!(should_inject_shader_context(
+            "how to use iChannel0",
+            &config
+        ));
     }
 
     #[test]
@@ -360,13 +389,19 @@ mod tests {
     #[test]
     fn test_keyword_iresolution() {
         let config = default_config();
-        assert!(should_inject_shader_context("normalize by iResolution", &config));
+        assert!(should_inject_shader_context(
+            "normalize by iResolution",
+            &config
+        ));
     }
 
     #[test]
     fn test_keyword_shadertoy() {
         let config = default_config();
-        assert!(should_inject_shader_context("port this Shadertoy shader", &config));
+        assert!(should_inject_shader_context(
+            "port this Shadertoy shader",
+            &config
+        ));
     }
 
     #[test]
@@ -378,7 +413,10 @@ mod tests {
     #[test]
     fn test_keyword_naga() {
         let config = default_config();
-        assert!(should_inject_shader_context("naga transpiler error", &config));
+        assert!(should_inject_shader_context(
+            "naga transpiler error",
+            &config
+        ));
     }
 
     #[test]
@@ -396,19 +434,28 @@ mod tests {
     #[test]
     fn test_keyword_background_effect() {
         let config = default_config();
-        assert!(should_inject_shader_context("cool background effect", &config));
+        assert!(should_inject_shader_context(
+            "cool background effect",
+            &config
+        ));
     }
 
     #[test]
     fn test_keyword_background_shader() {
         let config = default_config();
-        assert!(should_inject_shader_context("tweak my background shader", &config));
+        assert!(should_inject_shader_context(
+            "tweak my background shader",
+            &config
+        ));
     }
 
     #[test]
     fn test_keyword_effect() {
         let config = default_config();
-        assert!(should_inject_shader_context("what visual effect can I add?", &config));
+        assert!(should_inject_shader_context(
+            "what visual effect can I add?",
+            &config
+        ));
     }
 
     // ---- Negative keyword cases ----
@@ -416,7 +463,10 @@ mod tests {
     #[test]
     fn test_no_keywords_general_question() {
         let config = default_config();
-        assert!(!should_inject_shader_context("how do I list files?", &config));
+        assert!(!should_inject_shader_context(
+            "how do I list files?",
+            &config
+        ));
     }
 
     #[test]

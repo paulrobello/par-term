@@ -1146,11 +1146,9 @@ impl WindowState {
                 self.config.cursor_shader_hides_cursor = new_config.cursor_shader_hides_cursor;
                 self.config.cursor_shader_disable_in_alt_screen =
                     new_config.cursor_shader_disable_in_alt_screen;
-                self.config.cursor_shader_trail_duration =
-                    new_config.cursor_shader_trail_duration;
+                self.config.cursor_shader_trail_duration = new_config.cursor_shader_trail_duration;
                 self.config.cursor_shader_glow_radius = new_config.cursor_shader_glow_radius;
-                self.config.cursor_shader_glow_intensity =
-                    new_config.cursor_shader_glow_intensity;
+                self.config.cursor_shader_glow_intensity = new_config.cursor_shader_glow_intensity;
                 self.config.cursor_shader_color = new_config.cursor_shader_color;
 
                 // Reinit shader watcher if paths changed
@@ -3615,8 +3613,7 @@ impl WindowState {
                     // knows to wrap commands in fenced code blocks.
                     if !self.ai_inspector.chat.system_prompt_sent {
                         self.ai_inspector.chat.system_prompt_sent = true;
-                        prompt_text
-                            .push_str(crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE);
+                        prompt_text.push_str(crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE);
                     }
 
                     // Inject shader context when relevant (keyword match or active shaders).

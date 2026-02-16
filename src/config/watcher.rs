@@ -78,11 +78,10 @@ impl ConfigWatcher {
                     }
 
                     // Check if any event path matches our config filename
-                    let matches_config: bool = event.paths.iter().any(|p: &PathBuf| {
-                        p.file_name()
-                            .map(|f| f == filename)
-                            .unwrap_or(false)
-                    });
+                    let matches_config: bool = event
+                        .paths
+                        .iter()
+                        .any(|p: &PathBuf| p.file_name().map(|f| f == filename).unwrap_or(false));
 
                     if !matches_config {
                         return;
@@ -111,10 +110,7 @@ impl ConfigWatcher {
                         let reload_event = ConfigReloadEvent {
                             path: canonical_path.clone(),
                         };
-                        log::info!(
-                            "Config file changed: {}",
-                            reload_event.path.display()
-                        );
+                        log::info!("Config file changed: {}", reload_event.path.display());
                         if let Err(e) = tx.send(reload_event) {
                             log::error!("Failed to send config reload event: {}", e);
                         }
@@ -128,16 +124,10 @@ impl ConfigWatcher {
         watcher
             .watch(&parent_dir, RecursiveMode::NonRecursive)
             .with_context(|| {
-                format!(
-                    "Failed to watch config directory: {}",
-                    parent_dir.display()
-                )
+                format!("Failed to watch config directory: {}", parent_dir.display())
             })?;
 
-        log::info!(
-            "Config hot reload: watching {}",
-            canonical.display()
-        );
+        log::info!("Config hot reload: watching {}", canonical.display());
 
         Ok(Self {
             _watcher: watcher,
@@ -166,14 +156,20 @@ mod tests {
         fs::write(&config_path, "font_size: 12.0\n").expect("Failed to write config");
 
         let result = ConfigWatcher::new(&config_path, 100);
-        assert!(result.is_ok(), "ConfigWatcher should succeed with existing file");
+        assert!(
+            result.is_ok(),
+            "ConfigWatcher should succeed with existing file"
+        );
     }
 
     #[test]
     fn test_watcher_creation_with_nonexistent_file() {
         let path = PathBuf::from("/tmp/nonexistent_config_watcher_test/config.yaml");
         let result = ConfigWatcher::new(&path, 100);
-        assert!(result.is_err(), "ConfigWatcher should fail with nonexistent file");
+        assert!(
+            result.is_err(),
+            "ConfigWatcher should fail with nonexistent file"
+        );
     }
 
     #[test]

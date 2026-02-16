@@ -4,9 +4,7 @@
 //! command history, and environment info. Supports multiple view modes
 //! (Cards, Timeline, Tree, ListDetail) and interactive controls.
 
-use egui::{
-    Color32, Context, CursorIcon, Frame, Id, Key, Label, Order, Pos2, RichText, Stroke,
-};
+use egui::{Color32, Context, CursorIcon, Frame, Id, Key, Label, Order, Pos2, RichText, Stroke};
 
 use crate::acp::agent::AgentStatus;
 use crate::acp::agents::AgentConfig;
@@ -757,7 +755,10 @@ impl AIInspectorPanel {
 
                 // Command text (truncated to fit)
                 let cmd_display = if cmd.command.len() > max_cmd_chars {
-                    format!("{}...", &cmd.command[..max_cmd_chars.min(cmd.command.len())])
+                    format!(
+                        "{}...",
+                        &cmd.command[..max_cmd_chars.min(cmd.command.len())]
+                    )
                 } else {
                     cmd.command.clone()
                 };
