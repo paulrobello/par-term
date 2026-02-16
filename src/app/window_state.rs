@@ -1960,6 +1960,46 @@ impl WindowState {
             }
         }
 
+        // Auto-context feeding: detect new command completions and send to agent
+        if self.config.ai_inspector_auto_context
+            && self.ai_inspector.open
+            && self.ai_inspector.agent_status == AgentStatus::Connected
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Ok(term) = tab.terminal.try_lock()
+        {
+            let history = term.core_command_history();
+            let current_count = history.len();
+            if current_count > self.ai_inspector.last_command_count
+                && self.ai_inspector.last_command_count > 0
+            {
+                // New command(s) completed -- send the latest one
+                if let Some((cmd, exit_code, duration_ms)) = history.last() {
+                    let exit_code_str = exit_code
+                        .map(|c| c.to_string())
+                        .unwrap_or_else(|| "N/A".to_string());
+                    let duration = duration_ms.unwrap_or(0);
+
+                    let cwd = term.shell_integration_cwd().unwrap_or_default();
+
+                    let context = format!(
+                        "Command completed:\n$ {}\nExit code: {}\nDuration: {}ms\nCWD: {}",
+                        cmd, exit_code_str, duration, cwd
+                    );
+
+                    if let Some(agent) = &self.agent {
+                        let agent = agent.clone();
+                        let content =
+                            vec![crate::acp::protocol::ContentBlock::Text { text: context }];
+                        self.runtime.spawn(async move {
+                            let agent = agent.lock().await;
+                            let _ = agent.send_prompt(content).await;
+                        });
+                    }
+                }
+            }
+            self.ai_inspector.last_command_count = current_count;
+        }
+
         // Refresh AI Inspector snapshot if needed
         if self.ai_inspector.open
             && self.ai_inspector.needs_refresh

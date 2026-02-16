@@ -23,7 +23,7 @@ use super::protocol::{
 // ---------------------------------------------------------------------------
 
 /// Current connection status of an agent.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AgentStatus {
     /// Not connected to any agent process.
     Disconnected,
