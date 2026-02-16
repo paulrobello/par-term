@@ -10,6 +10,7 @@ pub mod shader_config;
 pub mod shader_metadata;
 pub mod snippets;
 mod types;
+pub mod watcher;
 
 // Re-export shader config resolution functions (used by consumers)
 #[allow(unused_imports)]
