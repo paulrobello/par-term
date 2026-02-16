@@ -26,6 +26,7 @@ pub enum SettingsTab {
     Snippets,
     Actions,
     Arrangements,
+    AiInspector,
     Advanced,
 }
 
@@ -50,6 +51,7 @@ impl SettingsTab {
             Self::Snippets => "Snippets",
             Self::Actions => "Actions",
             Self::Arrangements => "Arrangements",
+            Self::AiInspector => "AI Inspector",
             Self::Advanced => "Advanced",
         }
     }
@@ -74,6 +76,7 @@ impl SettingsTab {
             Self::Snippets => "📝",
             Self::Actions => "🚀",
             Self::Arrangements => "📐",
+            Self::AiInspector => "🤖",
             Self::Advanced => "⚙",
         }
     }
@@ -98,6 +101,7 @@ impl SettingsTab {
             Self::Snippets,
             Self::Actions,
             Self::Arrangements,
+            Self::AiInspector,
             Self::Advanced,
         ]
     }
@@ -761,6 +765,34 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "window layout",
             "auto-restore",
         ],
+        SettingsTab::AiInspector => &[
+            "ai",
+            "inspector",
+            "agent",
+            "acp",
+            "llm",
+            "assistant",
+            "snapshot",
+            "zone",
+            "command",
+            "history",
+            "context",
+            "auto",
+            "approve",
+            "yolo",
+            "terminal",
+            "access",
+            "drive",
+            "execute",
+            "live",
+            "update",
+            "scope",
+            "cards",
+            "timeline",
+            "tree",
+            "export",
+            "json",
+        ],
         SettingsTab::Advanced => &[
             // tmux
             "tmux",
@@ -845,6 +877,7 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         SettingsTab::Snippets => "Text snippets with variable substitution",
         SettingsTab::Actions => "Custom actions (shell, text, keys)",
         SettingsTab::Arrangements => "Save and restore window layouts",
+        SettingsTab::AiInspector => "AI agent integration, panel settings, permissions",
         SettingsTab::Advanced => {
             "tmux integration, logging, file transfers, updates, debug logging"
         }

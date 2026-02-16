@@ -1388,6 +1388,7 @@ impl TabBarUI {
         egui::Window::new("New Tab")
             .collapsible(false)
             .resizable(false)
+            .order(egui::Order::Foreground)
             .fixed_size(egui::vec2(200.0, 0.0))
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .open(&mut open)

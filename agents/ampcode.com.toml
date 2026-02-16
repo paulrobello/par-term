@@ -1,0 +1,8 @@
+identity = "ampcode.com"
+name = "Amp (AmpCode)"
+short_name = "amp"
+protocol = "acp"
+type = "coding"
+
+[run_command]
+"*" = "npx -y amp-acp"

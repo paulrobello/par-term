@@ -3671,6 +3671,7 @@ dependencies = [
  "sysinfo",
  "tempfile",
  "tokio",
+ "toml 0.8.2",
  "unicode-segmentation",
  "ureq",
  "uuid",

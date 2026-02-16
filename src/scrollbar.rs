@@ -241,6 +241,7 @@ impl Scrollbar {
     /// * `window_height` - Window height in pixels
     /// * `content_offset_y` - Top inset in pixels (e.g., tab bar at top)
     /// * `content_inset_bottom` - Bottom inset in pixels (e.g., status bar)
+    /// * `content_inset_right` - Right inset in pixels (e.g., AI Inspector panel)
     #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
@@ -252,6 +253,7 @@ impl Scrollbar {
         window_height: u32,
         content_offset_y: f32,
         content_inset_bottom: f32,
+        content_inset_right: f32,
         marks: &[crate::scrollback_metadata::ScrollbackMark],
     ) {
         // Store parameters for hit testing
@@ -299,9 +301,9 @@ impl Scrollbar {
                 .clamp(0.0, track_pixel_height - scrollbar_height);
 
         // Store pixel coordinates for hit testing
-        // Position on right or left based on config
+        // Position on right or left based on config, accounting for right inset (panel)
         self.scrollbar_x = if self.position_right {
-            window_width as f32 - self.width
+            window_width as f32 - self.width - content_inset_right
         } else {
             0.0
         };
@@ -309,10 +311,13 @@ impl Scrollbar {
         self.scrollbar_height = scrollbar_height;
 
         // Convert to normalized device coordinates (-1 to 1)
+        let ww = window_width as f32;
         let wh = window_height as f32;
-        let ndc_width = 2.0 * self.width / window_width as f32;
+        let ndc_width = 2.0 * self.width / ww;
         let ndc_x = if self.position_right {
-            1.0 - ndc_width // align right edge at +1
+            // Offset from right edge by right inset (panel width)
+            let right_inset_ndc = 2.0 * content_inset_right / ww;
+            1.0 - ndc_width - right_inset_ndc
         } else {
             -1.0 // left edge at -1
         };
@@ -354,6 +359,7 @@ impl Scrollbar {
             window_height,
             content_offset_y,
             content_inset_bottom,
+            content_inset_right,
         );
     }
 
@@ -387,6 +393,7 @@ impl Scrollbar {
         window_height: u32,
         content_offset_y: f32,
         content_inset_bottom: f32,
+        content_inset_right: f32,
     ) {
         self.marks.clear();
         self.mark_hit_info.clear();
@@ -395,12 +402,14 @@ impl Scrollbar {
             return;
         }
 
+        let ww = self.window_width as f32;
         let wh = window_height as f32;
         let track_pixel_height = (wh - content_offset_y - content_inset_bottom).max(1.0);
         let mark_height_ndc = (2.0 * 4.0) / wh; // 4px height
-        let ndc_width = 2.0 * self.width / self.window_width as f32;
+        let ndc_width = 2.0 * self.width / ww;
         let ndc_x = if self.position_right {
-            1.0 - ndc_width
+            let right_inset_ndc = 2.0 * content_inset_right / ww;
+            1.0 - ndc_width - right_inset_ndc
         } else {
             -1.0
         };

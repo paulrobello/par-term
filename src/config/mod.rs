@@ -1757,6 +1757,57 @@ pub struct Config {
     /// Remote URLs to fetch profile definitions from
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dynamic_profile_sources: Vec<crate::profile::DynamicProfileSource>,
+
+    // ========================================================================
+    // AI Inspector
+    // ========================================================================
+    /// Enable AI Inspector side panel
+    #[serde(default = "defaults::ai_inspector_enabled")]
+    pub ai_inspector_enabled: bool,
+
+    /// Width of the AI Inspector panel in pixels
+    #[serde(default = "defaults::ai_inspector_width")]
+    pub ai_inspector_width: f32,
+
+    /// Default capture scope: "visible", "scrollback", or "selection"
+    #[serde(default = "defaults::ai_inspector_default_scope")]
+    pub ai_inspector_default_scope: String,
+
+    /// View mode for inspector results: "cards" or "raw"
+    #[serde(default = "defaults::ai_inspector_view_mode")]
+    pub ai_inspector_view_mode: String,
+
+    /// Automatically refresh inspector when terminal content changes
+    #[serde(default = "defaults::ai_inspector_live_update")]
+    pub ai_inspector_live_update: bool,
+
+    /// Show semantic zone overlays on terminal content
+    #[serde(default = "defaults::ai_inspector_show_zones")]
+    pub ai_inspector_show_zones: bool,
+
+    /// AI agent identifier for inspector queries
+    #[serde(default = "defaults::ai_inspector_agent")]
+    pub ai_inspector_agent: String,
+
+    /// Automatically launch AI agent when inspector opens
+    #[serde(default = "defaults::ai_inspector_auto_launch")]
+    pub ai_inspector_auto_launch: bool,
+
+    /// Automatically include terminal context with AI queries
+    #[serde(default = "defaults::ai_inspector_auto_context")]
+    pub ai_inspector_auto_context: bool,
+
+    /// Maximum number of terminal lines to include as AI context
+    #[serde(default = "defaults::ai_inspector_context_max_lines")]
+    pub ai_inspector_context_max_lines: usize,
+
+    /// Automatically approve AI-suggested actions without confirmation
+    #[serde(default = "defaults::ai_inspector_auto_approve")]
+    pub ai_inspector_auto_approve: bool,
+
+    /// Allow the AI agent to write input to the terminal (drive terminal)
+    #[serde(default = "defaults::ai_inspector_agent_terminal_access")]
+    pub ai_inspector_agent_terminal_access: bool,
 }
 
 impl Default for Config {
@@ -2079,6 +2130,19 @@ impl Default for Config {
             actions: Vec::new(),
             collapsed_settings_sections: Vec::new(),
             dynamic_profile_sources: Vec::new(),
+            // AI Inspector
+            ai_inspector_enabled: defaults::ai_inspector_enabled(),
+            ai_inspector_width: defaults::ai_inspector_width(),
+            ai_inspector_default_scope: defaults::ai_inspector_default_scope(),
+            ai_inspector_view_mode: defaults::ai_inspector_view_mode(),
+            ai_inspector_live_update: defaults::ai_inspector_live_update(),
+            ai_inspector_show_zones: defaults::ai_inspector_show_zones(),
+            ai_inspector_agent: defaults::ai_inspector_agent(),
+            ai_inspector_auto_launch: defaults::ai_inspector_auto_launch(),
+            ai_inspector_auto_context: defaults::ai_inspector_auto_context(),
+            ai_inspector_context_max_lines: defaults::ai_inspector_context_max_lines(),
+            ai_inspector_auto_approve: defaults::ai_inspector_auto_approve(),
+            ai_inspector_agent_terminal_access: defaults::ai_inspector_agent_terminal_access(),
         }
     }
 }

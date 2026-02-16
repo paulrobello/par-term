@@ -1030,7 +1030,8 @@ impl CellRenderer {
         // Slot 1: Cursor guide (horizontal line spanning full width at cursor row)
         if cursor_visible && self.cursor_guide_enabled {
             let guide_x0 = self.window_padding + self.content_offset_x;
-            let guide_x1 = self.config.width as f32 - self.window_padding;
+            let guide_x1 =
+                self.config.width as f32 - self.window_padding - self.content_inset_right;
             overlay_instances[1] = BackgroundInstance {
                 position: [
                     guide_x0 / self.config.width as f32 * 2.0 - 1.0,
@@ -1189,7 +1190,7 @@ impl CellRenderer {
             for &(screen_row, exit_code, custom_color) in &self.visible_separator_marks {
                 if screen_row < self.rows {
                     let x0 = self.window_padding + self.content_offset_x;
-                    let x1 = width_f - self.window_padding;
+                    let x1 = width_f - self.window_padding - self.content_inset_right;
                     let y0 = self.window_padding
                         + self.content_offset_y
                         + screen_row as f32 * self.cell_height;

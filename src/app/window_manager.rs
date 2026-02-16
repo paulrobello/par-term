@@ -1266,6 +1266,14 @@ impl WindowManager {
                     .map(|ws| ws.profile_manager.to_vec())
                     .unwrap_or_default();
                 settings_window.settings_ui.sync_profiles(profiles);
+                // Sync available agents from first window's discovered agents
+                if let Some(ws) = self.windows.values().next() {
+                    settings_window.settings_ui.available_agent_ids = ws
+                        .available_agents
+                        .iter()
+                        .map(|a| (a.identity.clone(), a.name.clone()))
+                        .collect();
+                }
                 self.settings_window = Some(settings_window);
                 // Sync arrangement data to settings UI
                 self.sync_arrangements_to_settings();

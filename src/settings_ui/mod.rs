@@ -13,6 +13,7 @@ use std::collections::HashSet;
 // Reorganized settings tabs (12 consolidated tabs)
 pub mod actions_tab;
 pub mod advanced_tab;
+pub mod ai_inspector_tab;
 pub mod appearance_tab;
 pub mod arrangements_tab;
 pub mod automation_tab;
@@ -136,6 +137,10 @@ pub struct SettingsUI {
     pub(crate) cursor_shader_editor_error: Option<String>,
     /// Original cursor shader source when editor was opened (for cancel)
     pub(crate) cursor_shader_editor_original: String,
+
+    // Agent state
+    /// Available agent identities for the AI Inspector dropdown (identity, name)
+    pub(crate) available_agent_ids: Vec<(String, String)>,
 
     // Shader management state
     /// List of available shader files in the shaders folder
@@ -482,6 +487,7 @@ impl SettingsUI {
             cursor_shader_editor_source: String::new(),
             cursor_shader_editor_error: None,
             cursor_shader_editor_original: String::new(),
+            available_agent_ids: Vec::new(),
             available_shaders: Self::scan_shaders_folder(),
             available_cubemaps: Self::scan_cubemaps_folder(),
             new_shader_name: String::new(),
@@ -747,6 +753,7 @@ impl SettingsUI {
         egui::Window::new("Reset to Defaults")
             .collapsible(false)
             .resizable(false)
+            .order(egui::Order::Foreground)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
@@ -1433,6 +1440,9 @@ impl SettingsUI {
             }
             SettingsTab::Arrangements => {
                 arrangements_tab::show(ui, self, changes_this_frame, &mut collapsed);
+            }
+            SettingsTab::AiInspector => {
+                ai_inspector_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Advanced => {
                 advanced_tab::show(ui, self, changes_this_frame, &mut collapsed);

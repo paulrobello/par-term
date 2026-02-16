@@ -554,6 +554,7 @@ impl ProfileModalUI {
         egui::Window::new("Manage Profiles")
             .collapsible(false)
             .resizable(false)
+            .order(egui::Order::Foreground)
             .default_size(modal_size)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .frame(
@@ -586,6 +587,7 @@ impl ProfileModalUI {
         egui::Window::new("Confirm Delete")
             .collapsible(false)
             .resizable(false)
+            .order(egui::Order::Foreground)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .frame(
                 egui::Frame::window(&ctx.style())
