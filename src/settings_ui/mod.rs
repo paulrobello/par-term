@@ -13,6 +13,7 @@ use std::collections::HashSet;
 // Reorganized settings tabs (12 consolidated tabs)
 pub mod actions_tab;
 pub mod advanced_tab;
+pub mod ai_inspector_tab;
 pub mod appearance_tab;
 pub mod arrangements_tab;
 pub mod automation_tab;
@@ -1433,6 +1434,9 @@ impl SettingsUI {
             }
             SettingsTab::Arrangements => {
                 arrangements_tab::show(ui, self, changes_this_frame, &mut collapsed);
+            }
+            SettingsTab::AiInspector => {
+                ai_inspector_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Advanced => {
                 advanced_tab::show(ui, self, changes_this_frame, &mut collapsed);
