@@ -28,6 +28,7 @@ use crate::renderer::{
     DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
 };
 use crate::scrollback_metadata::ScrollbackMark;
+use crate::ai_inspector::panel::{AIInspectorPanel, InspectorAction};
 use crate::search::SearchUI;
 use crate::selection::SelectionMode;
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
@@ -132,6 +133,8 @@ pub struct WindowState {
     pub(crate) tmux_session_picker_ui: TmuxSessionPickerUI,
     /// Search UI manager
     pub(crate) search_ui: SearchUI,
+    /// AI Inspector side panel
+    pub(crate) ai_inspector: AIInspectorPanel,
     /// Shader install prompt UI
     pub(crate) shader_install_ui: ShaderInstallUI,
     /// Receiver for shader installation results (from background thread)
@@ -299,8 +302,9 @@ impl WindowState {
             }
         };
 
-        // Create badge state before moving config
+        // Create badge state and AI inspector before moving config
         let badge_state = BadgeState::new(&config);
+        let ai_inspector = AIInspectorPanel::new(&config);
         let command_history_max = config.command_history_max_entries;
 
         Self {
@@ -339,6 +343,7 @@ impl WindowState {
             paste_special_ui: PasteSpecialUI::new(),
             tmux_session_picker_ui: TmuxSessionPickerUI::new(),
             search_ui: SearchUI::new(),
+            ai_inspector,
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
             integrations_ui: IntegrationsUI::new(),
@@ -1822,6 +1827,8 @@ impl WindowState {
         let mut pending_integrations_response = IntegrationsResponse::default();
         // Search action to handle after rendering
         let mut pending_search_action = crate::search::SearchAction::None;
+        // AI Inspector action to handle after rendering
+        let mut pending_inspector_action = InspectorAction::None;
         // Profile drawer action to handle after rendering
         let mut pending_profile_drawer_action = ProfileDrawerAction::None;
         // Close confirmation action to handle after rendering
@@ -1830,6 +1837,21 @@ impl WindowState {
         let mut pending_quit_confirm_action = QuitConfirmAction::None;
         let mut pending_remote_install_action = RemoteShellInstallAction::None;
         let mut pending_ssh_connect_action = SshConnectAction::None;
+
+        // Refresh AI Inspector snapshot if needed
+        if self.ai_inspector.open && self.ai_inspector.needs_refresh {
+            if let Some(tab) = self.tab_manager.active_tab() {
+                if let Ok(term) = tab.terminal.try_lock() {
+                    let snapshot = crate::ai_inspector::snapshot::SnapshotData::gather(
+                        &term,
+                        &self.ai_inspector.scope,
+                        self.config.ai_inspector_context_max_lines,
+                    );
+                    self.ai_inspector.snapshot = Some(snapshot);
+                    self.ai_inspector.needs_refresh = false;
+                }
+            }
+        }
 
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts
         // When tmux controls the layout, we don't use pane padding
@@ -2339,6 +2361,9 @@ impl WindowState {
 
                     // Show search UI and collect action
                     pending_search_action = self.search_ui.show(ctx, visible_lines, scrollback_len);
+
+                    // Show AI Inspector panel and collect action
+                    pending_inspector_action = self.ai_inspector.show(ctx);
 
                     // Show tmux session picker UI and collect action
                     let tmux_path = self.config.resolve_tmux_path();
@@ -3064,6 +3089,39 @@ impl WindowState {
                 }
             }
             crate::search::SearchAction::None => {}
+        }
+
+        // Handle AI Inspector actions collected during egui rendering
+        match pending_inspector_action {
+            InspectorAction::Close => {
+                self.ai_inspector.open = false;
+                self.needs_redraw = true;
+            }
+            InspectorAction::CopyJson(json) => {
+                if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                    let _ = clipboard.set_text(json);
+                }
+            }
+            InspectorAction::SaveToFile(json) => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_file_name(&format!(
+                        "par-term-snapshot-{}.json",
+                        chrono::Local::now().format("%Y-%m-%d-%H%M%S")
+                    ))
+                    .add_filter("JSON", &["json"])
+                    .save_file()
+                {
+                    let _ = std::fs::write(path, json);
+                }
+            }
+            InspectorAction::WriteToTerminal(cmd) => {
+                if let Some(tab) = self.tab_manager.active_tab() {
+                    if let Ok(term) = tab.terminal.try_lock() {
+                        let _ = term.write(cmd.as_bytes());
+                    }
+                }
+            }
+            InspectorAction::None => {}
         }
 
         // Handle tmux session picker actions collected during egui rendering
