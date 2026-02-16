@@ -321,6 +321,9 @@ impl AIInspectorPanel {
                 panel_frame.show(ui, |ui| {
                     ui.set_min_width(inner_width);
                     ui.set_max_width(inner_width);
+                    // Force panel to fill viewport height so bottom elements stay pinned.
+                    // Subtract frame inner_margin (8*2) + stroke (1*2) = 18px.
+                    ui.set_min_height((viewport.height() - 18.0).max(0.0));
 
                     // === Title bar ===
                     ui.horizontal(|ui| {
@@ -376,7 +379,7 @@ impl AIInspectorPanel {
                     } else {
                         36.0
                     };
-                    let available_height = ui.available_height() - bottom_reserve;
+                    let available_height = (ui.available_height() - bottom_reserve).max(50.0);
 
                     // === Scrollable content: commands + chat ===
                     egui::ScrollArea::vertical()
