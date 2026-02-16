@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **AI Shader Assistant**: Context-triggered shader expertise for ACP agents (#156)
+  - Auto-detects shader-related queries (20 keywords: shader, glsl, wgsl, crt, shadertoy, etc.) and active shader state
+  - Injects full shader reference into agent prompts: current shader state, available shaders, uniforms, GLSL template, debug file paths
+  - Config file watcher monitors `config.yaml` for external changes (e.g., agent-applied shader settings) and live-reloads without restart
+  - Enables ACP agents to create, edit, debug, and apply custom shaders end-to-end
+
 - **AI Inspector Panel**: DevTools-style right-side panel for terminal state inspection and ACP agent integration (#149)
   - Toggle with Cmd+I (macOS) / Ctrl+Shift+I (other) or `toggle_ai_inspector` keybinding action
   - 4 view modes (Cards, Timeline, Tree, List+Detail) for browsing command history with exit codes, durations, and output
