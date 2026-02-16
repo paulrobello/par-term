@@ -451,8 +451,8 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | AI assistant | ✅ Full AI integration | ✅ | ✅ | ⭐⭐ | 🔵 | ACP agent integration — connect to Claude Code and other ACP-compatible agents. Agent chat panel with streaming responses, tool call display, command suggestions. Auto-context feeding on command completion. |
 | AI command generation | ✅ | ✅ | ✅ | ⭐⭐ | 🔵 | Agent suggests commands rendered as clickable `▸ command` blocks; click writes to terminal input line for user review before execution. |
 | AI terminal inspection | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | DevTools-style right-side panel with structured terminal state. 4 view modes (Cards/Timeline/Tree/List+Detail), configurable scope (Visible/Recent/Full), JSON export (copy/save). Terminal reflows columns when panel opens/closes. Core `get_semantic_snapshot()` API + frontend UI. |
-| Multiple AI providers | ✅ OpenAI, Anthropic, etc. | ✅ | ✅ | ⭐⭐ | 🔵 | Agent discovery from TOML configs — bundled + user-defined agents in `~/.config/par-term/agents/`. Auto-launch configurable agent on panel open. |
-| AI permission management | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Inline permission prompts in chat area. "Yolo mode" auto-approves all agent requests. |
+| Multiple AI providers | ✅ OpenAI, Anthropic, etc. | ✅ | ✅ | ⭐⭐ | 🔵 | 8 bundled agent configs (Claude Code, Amp, Augment, Copilot, Docker, Gemini CLI, OpenAI, OpenHands) + user-defined TOML configs in `~/.config/par-term/agents/`. Auto-launch configurable agent on panel open. |
+| AI permission management | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Inline permission prompts in chat area. "Yolo mode" auto-approves all agent requests. Agent terminal access toggle. |
 
 ---
 
@@ -1100,8 +1100,12 @@ The following features are blocked by or significantly dependent on architectura
   - 4 view modes (Cards/Timeline/Tree/List+Detail), configurable scope (Visible/Recent/Full)
   - JSON export (copy to clipboard / save to file)
   - ACP agent chat — connect to Claude Code and other agents via JSON-RPC 2.0 over stdio
-  - Agent command suggestions written to terminal input line; auto-context feeding on command completion
-  - Agent discovery from TOML configs with auto-launch; yolo mode for auto-approving permissions
+  - Full chat UI: user/agent/system/thinking/tool-call/command-suggestion/permission message types
+  - Agent command suggestions with Run (execute + notify) and Paste actions
+  - Agent connection bar with connect/disconnect, install buttons, terminal access toggle
+  - 8 bundled agent configs (Claude Code, Amp, Augment, Copilot, Docker, Gemini CLI, OpenAI, OpenHands)
+  - Auto-context feeding on command completion; auto-launch; yolo mode
+  - Resizable panel with drag handle; auto-expands on content overflow
   - Terminal reflows columns when panel opens/closes/resizes; Settings UI tab for all options
   - Keybinding: Cmd+I (macOS) / Ctrl+Shift+I (other)
 - ✅ **Dynamic Profiles from Remote URLs**: Load team-shared profiles from remote URLs with auto-refresh, caching, conflict resolution, and Settings UI (#142)
@@ -1115,6 +1119,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-02-15 (AI Inspector — DevTools-style panel with ACP agent integration, terminal inspection, JSON export #149)*
+*Updated: 2026-02-16 (AI Inspector — ACP chat UI, 8 bundled agent configs, panel resize/drag fixes, dialog z-ordering #149)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.16.0*

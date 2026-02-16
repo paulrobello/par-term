@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **AI Inspector Panel Resize**: Comprehensive fix for panel resize handle behavior
+  - Eliminated 1-frame drag lag by moving resize handle input before panel rendering
+  - Fixed resize handle jumping into the panel on drag start when content overflows configured width
+  - Fixed resize handle and scrollbar jittering when dragged to min/max width (rendered_width oscillation)
+  - Fixed terminal text selection during resize drag by blocking mouse events via `wants_pointer()` check
+- **Dialog Z-Ordering**: All modal dialogs now render above the scrollbar and AI Inspector panel
+  - Added `Order::Foreground` to all 8 dialog windows (quit, close tab, manage profiles, confirm delete, new tab, file transfers, reset defaults, remote shell install)
+  - Moved scrollbar GPU render pass before egui pass so egui dialogs always appear on top
 - **Fast Window Shutdown**: Closing par-term is now visually instant instead of taking 8+ seconds with a beachball on macOS (#146)
   - Window hides immediately on close for instant visual feedback
   - PTY session cleanup runs on parallel background threads instead of sequentially on the main thread
@@ -26,12 +34,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Configurable scope: Visible (screen), Recent 5/10/25/50, or Full scrollback
   - JSON export: Copy to clipboard or save to file with structured snapshot data (environment, terminal state, commands)
   - ACP agent chat: Connect to Claude Code and other ACP-compatible agents via JSON-RPC 2.0 over stdio
-  - Agent command suggestions rendered as clickable blocks that write to terminal input line for review
+  - Full chat UI with user, agent, system, thinking, tool call, command suggestion, permission, and auto-approved message types
+  - Agent command suggestions rendered as clickable blocks with Run (execute + notify agent) and Paste (write to input) actions
+  - Agent connection bar with connect/disconnect controls and one-click install buttons for agents without connectors
+  - Agent terminal access toggle: allow or deny agent write access to the terminal
   - Auto-context feeding: Automatically sends command results to the connected agent on completion
-  - Agent discovery from bundled and user-defined TOML configs (`~/.config/par-term/agents/`)
+  - 8 bundled ACP agent configs: Claude Code, Amp, Augment, GitHub Copilot, Docker, Gemini CLI, OpenAI, OpenHands
+  - User-defined agent configs via TOML files in `~/.config/par-term/agents/`
   - Auto-launch configured agent when panel opens (default: Claude Code)
   - Yolo mode: Auto-approve all agent permission requests
-  - Terminal reflows columns when panel opens, closes, or is resized (drag left edge)
+  - Resizable panel with drag handle on left edge; auto-expands when content overflows
+  - Terminal reflows columns when panel opens, closes, or is resized
   - Settings UI tab with controls for all 11 configuration options
   - 50+ unit tests across snapshot, chat, JSON-RPC, protocol, agent discovery, and agent lifecycle modules
 
