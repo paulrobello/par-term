@@ -814,6 +814,9 @@ impl WindowState {
             log::debug!("Shader hot reload triggered redraw");
         }
 
+        // Check for config file changes (e.g., from ACP agent)
+        self.check_config_reload();
+
         // Check for tmux control mode notifications
         if self.check_tmux_notifications() {
             self.needs_redraw = true;

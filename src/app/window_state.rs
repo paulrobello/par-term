@@ -202,6 +202,8 @@ pub struct WindowState {
     // Shader hot reload
     /// Shader file watcher for hot reload support
     pub(crate) shader_watcher: Option<ShaderWatcher>,
+    /// Config file watcher for automatic reload (e.g., when ACP agent modifies config.yaml)
+    pub(crate) config_watcher: Option<crate::config::watcher::ConfigWatcher>,
     /// Last shader reload error message (for display in UI)
     pub(crate) shader_reload_error: Option<String>,
     /// Background shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
@@ -394,6 +396,7 @@ impl WindowState {
             throughput_batch_start: None,
 
             shader_watcher: None,
+            config_watcher: None,
             shader_reload_error: None,
             background_shader_reload_result: None,
             cursor_shader_reload_result: None,
@@ -779,6 +782,9 @@ impl WindowState {
         // Initialize shader watcher if hot reload is enabled
         self.init_shader_watcher();
 
+        // Initialize config file watcher for automatic reload
+        self.init_config_watcher();
+
         // Sync status bar monitor state based on config
         self.status_bar_ui.sync_monitor_state(&self.config);
 
@@ -1074,6 +1080,97 @@ impl WindowState {
 
         // Reinitialize if hot reload is still enabled
         self.init_shader_watcher();
+    }
+
+    /// Initialize the config file watcher for automatic reload.
+    ///
+    /// Watches `config.yaml` for changes so that when an ACP agent modifies
+    /// the config, par-term can auto-reload shader and other settings.
+    pub(crate) fn init_config_watcher(&mut self) {
+        let config_path = Config::config_path();
+        if !config_path.exists() {
+            debug_info!("CONFIG", "Config file does not exist, skipping watcher");
+            return;
+        }
+        match crate::config::watcher::ConfigWatcher::new(&config_path, 500) {
+            Ok(watcher) => {
+                debug_info!("CONFIG", "Config watcher initialized");
+                self.config_watcher = Some(watcher);
+            }
+            Err(e) => {
+                debug_info!("CONFIG", "Failed to initialize config watcher: {}", e);
+            }
+        }
+    }
+
+    /// Check for pending config file changes and apply them.
+    ///
+    /// Called periodically from the event loop. On config change:
+    /// 1. Reloads config from disk
+    /// 2. Applies shader-related config changes
+    /// 3. Reinitializes shader watcher if shader paths changed
+    pub(crate) fn check_config_reload(&mut self) {
+        let Some(watcher) = &self.config_watcher else {
+            return;
+        };
+        let Some(_event) = watcher.try_recv() else {
+            return;
+        };
+
+        debug_info!("CONFIG", "Config file changed, reloading...");
+
+        match Config::load() {
+            Ok(new_config) => {
+                let old_shader = self.config.custom_shader.clone();
+                let old_shader_enabled = self.config.custom_shader_enabled;
+                let old_cursor = self.config.cursor_shader.clone();
+                let old_cursor_enabled = self.config.cursor_shader_enabled;
+
+                // Apply shader-related config fields
+                self.config.custom_shader = new_config.custom_shader.clone();
+                self.config.custom_shader_enabled = new_config.custom_shader_enabled;
+                self.config.custom_shader_animation_speed =
+                    new_config.custom_shader_animation_speed;
+                self.config.custom_shader_brightness = new_config.custom_shader_brightness;
+                self.config.custom_shader_text_opacity = new_config.custom_shader_text_opacity;
+                self.config.custom_shader_full_content = new_config.custom_shader_full_content;
+                self.config.custom_shader_channel0 = new_config.custom_shader_channel0.clone();
+                self.config.custom_shader_channel1 = new_config.custom_shader_channel1.clone();
+                self.config.custom_shader_channel2 = new_config.custom_shader_channel2.clone();
+                self.config.custom_shader_channel3 = new_config.custom_shader_channel3.clone();
+                self.config.custom_shader_cubemap = new_config.custom_shader_cubemap.clone();
+                self.config.custom_shader_cubemap_enabled =
+                    new_config.custom_shader_cubemap_enabled;
+                self.config.cursor_shader = new_config.cursor_shader.clone();
+                self.config.cursor_shader_enabled = new_config.cursor_shader_enabled;
+                self.config.cursor_shader_hides_cursor = new_config.cursor_shader_hides_cursor;
+                self.config.cursor_shader_disable_in_alt_screen =
+                    new_config.cursor_shader_disable_in_alt_screen;
+                self.config.cursor_shader_trail_duration =
+                    new_config.cursor_shader_trail_duration;
+                self.config.cursor_shader_glow_radius = new_config.cursor_shader_glow_radius;
+                self.config.cursor_shader_glow_intensity =
+                    new_config.cursor_shader_glow_intensity;
+                self.config.cursor_shader_color = new_config.cursor_shader_color;
+
+                // Reinit shader watcher if paths changed
+                let shader_changed = self.config.custom_shader != old_shader
+                    || self.config.custom_shader_enabled != old_shader_enabled
+                    || self.config.cursor_shader != old_cursor
+                    || self.config.cursor_shader_enabled != old_cursor_enabled;
+
+                if shader_changed {
+                    debug_info!("CONFIG", "Shader config changed, reinitializing...");
+                    self.reinit_shader_watcher();
+                }
+
+                self.needs_redraw = true;
+                debug_info!("CONFIG", "Config reloaded successfully");
+            }
+            Err(e) => {
+                log::error!("Failed to reload config: {}", e);
+            }
+        }
     }
 
     /// Check anti-idle timers and send keep-alive codes when due.
@@ -3511,18 +3608,31 @@ impl WindowState {
                 self.ai_inspector.chat.add_user_message(text.clone());
                 if let Some(agent) = &self.agent {
                     let agent = agent.clone();
+                    // Build the prompt with optional system guidance and shader context.
+                    let mut prompt_text = String::new();
+
                     // Prepend system guidance on the first prompt so the agent
                     // knows to wrap commands in fenced code blocks.
-                    let prompt_text = if !self.ai_inspector.chat.system_prompt_sent {
+                    if !self.ai_inspector.chat.system_prompt_sent {
                         self.ai_inspector.chat.system_prompt_sent = true;
-                        format!(
-                            "{}{}",
-                            crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE,
-                            text
-                        )
-                    } else {
-                        text
-                    };
+                        prompt_text
+                            .push_str(crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE);
+                    }
+
+                    // Inject shader context when relevant (keyword match or active shaders).
+                    if crate::ai_inspector::shader_context::should_inject_shader_context(
+                        &text,
+                        &self.config,
+                    ) {
+                        prompt_text.push_str(
+                            &crate::ai_inspector::shader_context::build_shader_context(
+                                &self.config,
+                            ),
+                        );
+                    }
+
+                    prompt_text.push_str(&text);
+
                     let content =
                         vec![crate::acp::protocol::ContentBlock::Text { text: prompt_text }];
                     let tx = self.agent_tx.clone();
