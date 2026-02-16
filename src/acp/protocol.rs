@@ -693,7 +693,10 @@ mod tests {
         assert_eq!(result.session_id, "sess-abc123");
         let modes = result.modes.unwrap();
         assert_eq!(modes.entries.len(), 2);
-        assert_eq!(modes.entries[1].description.as_deref(), Some("Planning only"));
+        assert_eq!(
+            modes.entries[1].description.as_deref(),
+            Some("Planning only")
+        );
         let models = result.models.unwrap();
         assert_eq!(models.entries.len(), 1);
     }

@@ -13,10 +13,9 @@ use tokio::sync::mpsc;
 use super::agents::AgentConfig;
 use super::jsonrpc::{JsonRpcClient, RpcError};
 use super::protocol::{
-    ClientCapabilities, ClientInfo, ContentBlock, FsCapabilities, FsReadParams,
-    InitializeParams, PermissionOption, PermissionOutcome, RequestPermissionParams,
-    RequestPermissionResponse, SessionNewParams, SessionPromptParams, SessionResult,
-    SessionUpdate, SessionUpdateParams,
+    ClientCapabilities, ClientInfo, ContentBlock, FsCapabilities, FsReadParams, InitializeParams,
+    PermissionOption, PermissionOutcome, RequestPermissionParams, RequestPermissionResponse,
+    SessionNewParams, SessionPromptParams, SessionResult, SessionUpdate, SessionUpdateParams,
 };
 
 // ---------------------------------------------------------------------------
@@ -121,10 +120,7 @@ impl Agent {
             .stderr(std::process::Stdio::null())
             .spawn()?;
 
-        let stdin = child
-            .stdin
-            .take()
-            .ok_or("Failed to capture agent stdin")?;
+        let stdin = child.stdin.take().ok_or("Failed to capture agent stdin")?;
         let stdout = child
             .stdout
             .take()
@@ -170,10 +166,7 @@ impl Agent {
             mcp_servers: None,
         };
         let session_response = client
-            .request(
-                "session/new",
-                Some(serde_json::to_value(&session_params)?),
-            )
+            .request("session/new", Some(serde_json::to_value(&session_params)?))
             .await?;
         if let Some(err) = session_response.error {
             let msg = format!("Session creation failed: {err}");
@@ -273,11 +266,7 @@ impl Agent {
 
         let result = RequestPermissionResponse { outcome };
         client
-            .respond(
-                request_id,
-                Some(serde_json::to_value(&result)?),
-                None,
-            )
+            .respond(request_id, Some(serde_json::to_value(&result)?), None)
             .await?;
         Ok(())
     }
@@ -389,9 +378,7 @@ async fn handle_incoming_messages(
                                     let option_id = perm_params
                                         .options
                                         .iter()
-                                        .find(|o| {
-                                            o.kind.as_deref() == Some("allow")
-                                        })
+                                        .find(|o| o.kind.as_deref() == Some("allow"))
                                         .or_else(|| perm_params.options.first())
                                         .map(|o| o.option_id.clone());
 
@@ -405,8 +392,7 @@ async fn handle_incoming_messages(
                                         .respond(
                                             request_id,
                                             Some(
-                                                serde_json::to_value(&outcome)
-                                                    .unwrap_or_default(),
+                                                serde_json::to_value(&outcome).unwrap_or_default(),
                                             ),
                                             None,
                                         )
@@ -547,7 +533,10 @@ mod tests {
         assert!(matches!(agent.status, AgentStatus::Connecting));
 
         let msg = rx.try_recv().unwrap();
-        assert!(matches!(msg, AgentMessage::StatusChanged(AgentStatus::Connecting)));
+        assert!(matches!(
+            msg,
+            AgentMessage::StatusChanged(AgentStatus::Connecting)
+        ));
     }
 
     #[tokio::test]

@@ -98,9 +98,7 @@ impl SnapshotData {
                 // Take recent commands (approximate visible window)
                 history.iter().rev().take(10).rev().cloned().collect()
             }
-            SnapshotScope::Recent(n) => {
-                history.iter().rev().take(*n).rev().cloned().collect()
-            }
+            SnapshotScope::Recent(n) => history.iter().rev().take(*n).rev().cloned().collect(),
             SnapshotScope::Full => history,
         };
 
@@ -155,10 +153,7 @@ mod tests {
             SnapshotScope::from_config_str("visible"),
             SnapshotScope::Visible
         );
-        assert_eq!(
-            SnapshotScope::from_config_str("full"),
-            SnapshotScope::Full
-        );
+        assert_eq!(SnapshotScope::from_config_str("full"), SnapshotScope::Full);
         assert_eq!(
             SnapshotScope::from_config_str("recent_10"),
             SnapshotScope::Recent(10)

@@ -2238,11 +2238,27 @@ impl Renderer {
         self.cell_renderer.content_inset_bottom()
     }
 
+    /// Get the right content inset in physical pixels
+    pub fn content_inset_right(&self) -> f32 {
+        self.cell_renderer.content_inset_right()
+    }
+
     /// Set the bottom content inset (e.g., tab bar at bottom) in logical pixels.
     /// Returns Some((cols, rows)) if grid size changed, None otherwise.
     pub fn set_content_inset_bottom(&mut self, logical_inset: f32) -> Option<(usize, usize)> {
         let physical_inset = logical_inset * self.cell_renderer.scale_factor;
         let result = self.cell_renderer.set_content_inset_bottom(physical_inset);
+        if result.is_some() {
+            self.dirty = true;
+        }
+        result
+    }
+
+    /// Set the right content inset (e.g., AI Inspector panel) in logical pixels.
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_inset_right(&mut self, logical_inset: f32) -> Option<(usize, usize)> {
+        let physical_inset = logical_inset * self.cell_renderer.scale_factor;
+        let result = self.cell_renderer.set_content_inset_right(physical_inset);
         if result.is_some() {
             self.dirty = true;
         }
@@ -2257,6 +2273,16 @@ impl Renderer {
     pub fn set_egui_bottom_inset(&mut self, logical_inset: f32) {
         let physical_inset = logical_inset * self.cell_renderer.scale_factor;
         self.cell_renderer.egui_bottom_inset = physical_inset;
+    }
+
+    /// Set the additional right inset from egui panels (AI Inspector).
+    ///
+    /// This inset is added to `content_inset_right` for scrollbar bounds only.
+    /// egui panels already claim space before wgpu rendering, so this doesn't
+    /// affect the terminal grid sizing.
+    pub fn set_egui_right_inset(&mut self, logical_inset: f32) {
+        let physical_inset = logical_inset * self.cell_renderer.scale_factor;
+        self.cell_renderer.egui_right_inset = physical_inset;
     }
 
     /// Check if a point (in pixel coordinates) is within the scrollbar bounds

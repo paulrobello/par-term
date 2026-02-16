@@ -3,6 +3,10 @@
 //! This module contains `WindowState`, which holds all state specific to a single window,
 //! including its renderer, tab manager, input handler, and UI components.
 
+use crate::acp::agent::{Agent, AgentMessage, AgentStatus};
+use crate::acp::agents::{AgentConfig, discover_agents};
+use crate::ai_inspector::chat::ChatMessage;
+use crate::ai_inspector::panel::{AIInspectorPanel, InspectorAction};
 use crate::app::anti_idle::should_send_keep_alive;
 use crate::app::debug_state::DebugState;
 use crate::badge::{BadgeState, render_badge};
@@ -28,12 +32,7 @@ use crate::renderer::{
     DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
 };
 use crate::scrollback_metadata::ScrollbackMark;
-use crate::acp::agent::{Agent, AgentMessage, AgentStatus};
-use crate::acp::agents::{AgentConfig, discover_agents};
-use crate::ai_inspector::chat::ChatMessage;
-use crate::ai_inspector::panel::{AIInspectorPanel, InspectorAction};
 use crate::search::SearchUI;
-use tokio::sync::mpsc;
 use crate::selection::SelectionMode;
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
@@ -49,6 +48,7 @@ use anyhow::Result;
 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 use wgpu::SurfaceError;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
@@ -59,6 +59,7 @@ struct RendererSizing {
     content_offset_y: f32,
     content_offset_x: f32,
     content_inset_bottom: f32,
+    content_inset_right: f32,
     cell_width: f32,
     cell_height: f32,
     padding: f32,
@@ -139,6 +140,9 @@ pub struct WindowState {
     pub(crate) search_ui: SearchUI,
     /// AI Inspector side panel
     pub(crate) ai_inspector: AIInspectorPanel,
+    /// Last known AI Inspector panel consumed width (logical pixels).
+    /// Used to detect width changes from drag-resizing and trigger terminal reflow.
+    pub(crate) last_inspector_width: f32,
     /// ACP agent message receiver
     pub(crate) agent_rx: Option<mpsc::UnboundedReceiver<AgentMessage>>,
     /// ACP agent (managed via tokio)
@@ -358,6 +362,7 @@ impl WindowState {
             tmux_session_picker_ui: TmuxSessionPickerUI::new(),
             search_ui: SearchUI::new(),
             ai_inspector,
+            last_inspector_width: 0.0,
             agent_rx: None,
             agent: None,
             available_agents,
@@ -899,6 +904,54 @@ impl WindowState {
             result = Some(grid);
         }
         result
+    }
+
+    // AI Inspector Panel Width Sync
+    // ========================================================================
+
+    /// Sync the AI Inspector panel consumed width with the renderer.
+    ///
+    /// When the panel opens, closes, or is resized by dragging, the terminal
+    /// column count must be updated so text reflows to fit the available space.
+    /// This method checks whether the consumed width has changed and, if so,
+    /// updates the renderer's right content inset and resizes all terminals.
+    pub(crate) fn sync_ai_inspector_width(&mut self) {
+        let current_width = self.ai_inspector.consumed_width();
+        if (current_width - self.last_inspector_width).abs() < 1.0 {
+            return;
+        }
+        self.last_inspector_width = current_width;
+
+        if let Some(renderer) = &mut self.renderer {
+            // Update the right content inset (logical pixels -> physical pixels inside)
+            if let Some((new_cols, new_rows)) = renderer.set_content_inset_right(current_width) {
+                let cell_width = renderer.cell_width();
+                let cell_height = renderer.cell_height();
+                let width_px = (new_cols as f32 * cell_width) as usize;
+                let height_px = (new_rows as f32 * cell_height) as usize;
+
+                for tab in self.tab_manager.tabs_mut() {
+                    if let Ok(mut term) = tab.terminal.try_lock() {
+                        term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                        let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
+                    }
+                    tab.cache.cells = None;
+                }
+
+                crate::debug_info!(
+                    "AI_INSPECTOR",
+                    "Panel width changed to {:.0}px, resized terminals to {}x{}",
+                    current_width,
+                    new_cols,
+                    new_rows
+                );
+            }
+
+            // Also update the egui right inset for scrollbar positioning
+            renderer.set_egui_right_inset(current_width);
+        }
+
+        self.needs_redraw = true;
     }
 
     // Shader Hot Reload
@@ -1894,14 +1947,12 @@ impl WindowState {
                     AgentMessage::FileReadRequest {
                         request_id, path, ..
                     } => {
-                        let content =
-                            std::fs::read_to_string(&path).map_err(|e| e.to_string());
+                        let content = std::fs::read_to_string(&path).map_err(|e| e.to_string());
                         if let Some(agent) = &self.agent {
                             let agent = agent.clone();
                             self.runtime.spawn(async move {
                                 let agent = agent.lock().await;
-                                let _ =
-                                    agent.respond_file_read(request_id, content).await;
+                                let _ = agent.respond_file_read(request_id, content).await;
                             });
                         }
                     }
@@ -1910,18 +1961,18 @@ impl WindowState {
         }
 
         // Refresh AI Inspector snapshot if needed
-        if self.ai_inspector.open && self.ai_inspector.needs_refresh {
-            if let Some(tab) = self.tab_manager.active_tab() {
-                if let Ok(term) = tab.terminal.try_lock() {
-                    let snapshot = crate::ai_inspector::snapshot::SnapshotData::gather(
-                        &term,
-                        &self.ai_inspector.scope,
-                        self.config.ai_inspector_context_max_lines,
-                    );
-                    self.ai_inspector.snapshot = Some(snapshot);
-                    self.ai_inspector.needs_refresh = false;
-                }
-            }
+        if self.ai_inspector.open
+            && self.ai_inspector.needs_refresh
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Ok(term) = tab.terminal.try_lock()
+        {
+            let snapshot = crate::ai_inspector::snapshot::SnapshotData::gather(
+                &term,
+                &self.ai_inspector.scope,
+                self.config.ai_inspector_context_max_lines,
+            );
+            self.ai_inspector.snapshot = Some(snapshot);
+            self.ai_inspector.needs_refresh = false;
         }
 
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts
@@ -2594,6 +2645,7 @@ impl WindowState {
                 content_offset_y: renderer.content_offset_y(),
                 content_offset_x: renderer.content_offset_x(),
                 content_inset_bottom: renderer.content_inset_bottom(),
+                content_inset_right: renderer.content_inset_right(),
                 cell_width: renderer.cell_width(),
                 cell_height: renderer.cell_height(),
                 padding: renderer.window_padding(),
@@ -2627,8 +2679,10 @@ impl WindowState {
 
             let render_result = if has_pane_manager {
                 // Render panes from pane manager - inline data gathering to avoid borrow conflicts
-                let content_width =
-                    sizing.size.width as f32 - sizing.padding * 2.0 - sizing.content_offset_x;
+                let content_width = sizing.size.width as f32
+                    - sizing.padding * 2.0
+                    - sizing.content_offset_x
+                    - sizing.content_inset_right;
                 let content_height = sizing.size.height as f32
                     - sizing.content_offset_y
                     - sizing.content_inset_bottom
@@ -2931,6 +2985,11 @@ impl WindowState {
             self.debug.render_time = render_start.elapsed();
         }
 
+        // Sync AI Inspector panel width after the render pass.
+        // This catches drag-resize changes that update self.ai_inspector.width during show().
+        // Done here to avoid borrow conflicts with the renderer block above.
+        self.sync_ai_inspector_width();
+
         // Handle tab bar actions collected during egui rendering
         // (done here to avoid borrow conflicts with renderer)
         match pending_tab_action {
@@ -3166,7 +3225,7 @@ impl WindowState {
         match pending_inspector_action {
             InspectorAction::Close => {
                 self.ai_inspector.open = false;
-                self.needs_redraw = true;
+                self.sync_ai_inspector_width();
             }
             InspectorAction::CopyJson(json) => {
                 if let Ok(mut clipboard) = arboard::Clipboard::new() {
@@ -3175,7 +3234,7 @@ impl WindowState {
             }
             InspectorAction::SaveToFile(json) => {
                 if let Some(path) = rfd::FileDialog::new()
-                    .set_file_name(&format!(
+                    .set_file_name(format!(
                         "par-term-snapshot-{}.json",
                         chrono::Local::now().format("%Y-%m-%d-%H%M%S")
                     ))
@@ -3186,10 +3245,10 @@ impl WindowState {
                 }
             }
             InspectorAction::WriteToTerminal(cmd) => {
-                if let Some(tab) = self.tab_manager.active_tab() {
-                    if let Ok(term) = tab.terminal.try_lock() {
-                        let _ = term.write(cmd.as_bytes());
-                    }
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
+                {
+                    let _ = term.write(cmd.as_bytes());
                 }
             }
             InspectorAction::ConnectAgent(identity) => {
@@ -3225,11 +3284,7 @@ impl WindowState {
                     runtime.spawn(async move {
                         let mut agent = agent.lock().await;
                         if let Err(e) = agent.connect(&cwd).await {
-                            crate::debug_error!(
-                                "ACP",
-                                "Failed to connect to agent: {}",
-                                e
-                            );
+                            crate::debug_error!("ACP", "Failed to connect to agent: {}", e);
                         }
                     });
                 }
@@ -3249,8 +3304,7 @@ impl WindowState {
                 self.ai_inspector.chat.add_user_message(text.clone());
                 if let Some(agent) = &self.agent {
                     let agent = agent.clone();
-                    let content =
-                        vec![crate::acp::protocol::ContentBlock::Text { text }];
+                    let content = vec![crate::acp::protocol::ContentBlock::Text { text }];
                     self.runtime.spawn(async move {
                         let agent = agent.lock().await;
                         let _ = agent.send_prompt(content).await;

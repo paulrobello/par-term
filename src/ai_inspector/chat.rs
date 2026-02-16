@@ -93,16 +93,15 @@ impl ChatState {
                         title,
                         ..
                     } = msg
+                        && *tool_call_id == info.tool_call_id
                     {
-                        if *tool_call_id == info.tool_call_id {
-                            if let Some(new_status) = &info.status {
-                                *status = new_status.clone();
-                            }
-                            if let Some(new_title) = &info.title {
-                                *title = new_title.clone();
-                            }
-                            break;
+                        if let Some(new_status) = &info.status {
+                            *status = new_status.clone();
                         }
+                        if let Some(new_title) = &info.title {
+                            *title = new_title.clone();
+                        }
+                        break;
                     }
                 }
             }
@@ -378,7 +377,9 @@ mod tests {
 
         assert!(matches!(&state.messages[0], ChatMessage::User(t) if t == "test"));
         assert!(matches!(&state.messages[1], ChatMessage::System(t) if t == "system"));
-        assert!(matches!(&state.messages[2], ChatMessage::CommandSuggestion(t) if t == "cargo test"));
+        assert!(
+            matches!(&state.messages[2], ChatMessage::CommandSuggestion(t) if t == "cargo test")
+        );
         assert!(matches!(&state.messages[3], ChatMessage::AutoApproved(t) if t == "read file"));
     }
 }

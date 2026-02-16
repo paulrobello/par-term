@@ -596,6 +596,7 @@ impl WindowState {
             let size = r.size();
             let padding = r.window_padding();
             let content_offset_y = r.content_offset_y();
+            let content_inset_right = r.content_inset_right();
             let cell_width = r.cell_width();
             let cell_height = r.cell_height();
             // Scale status_bar_height from logical to physical pixels
@@ -605,6 +606,7 @@ impl WindowState {
                 size,
                 padding,
                 content_offset_y,
+                content_inset_right,
                 cell_width,
                 cell_height,
                 physical_status_bar_height,
@@ -631,13 +633,14 @@ impl WindowState {
                     size,
                     padding,
                     content_offset_y,
+                    content_inset_right,
                     _cell_width,
                     _cell_height,
                     status_bar_height,
                 )) = bounds_info
                     && let Some(pm) = tab.pane_manager_mut()
                 {
-                    let content_width = size.width as f32 - padding * 2.0;
+                    let content_width = size.width as f32 - padding * 2.0 - content_inset_right;
                     let content_height =
                         size.height as f32 - content_offset_y - padding - status_bar_height;
                     let bounds = crate::pane::PaneBounds::new(
@@ -679,7 +682,7 @@ impl WindowState {
 
                         // Resize terminals to match new bounds
                         // No padding in tmux mode - tmux controls the layout
-                        if let Some((_, _, _, cell_width, cell_height, _)) = bounds_info {
+                        if let Some((_, _, _, _, cell_width, cell_height, _)) = bounds_info {
                             pm.resize_all_terminals(cell_width, cell_height);
                         }
                     }
@@ -750,7 +753,7 @@ impl WindowState {
                         pm.recalculate_bounds();
 
                         // Resize terminals to match new bounds
-                        if let Some((_, _, _, cell_width, cell_height, _)) = bounds_info {
+                        if let Some((_, _, _, _, cell_width, cell_height, _)) = bounds_info {
                             pm.resize_all_terminals(cell_width, cell_height);
                         }
                     }
@@ -836,7 +839,8 @@ impl WindowState {
                                 );
 
                                 // Resize terminals to match new bounds
-                                if let Some((_, _, _, cell_width, cell_height, _)) = bounds_info {
+                                if let Some((_, _, _, _, cell_width, cell_height, _)) = bounds_info
+                                {
                                     pm.resize_all_terminals(cell_width, cell_height);
                                 }
                             }
@@ -979,13 +983,15 @@ impl WindowState {
                                 size,
                                 padding,
                                 content_offset_y,
+                                content_inset_right,
                                 _cell_width,
                                 _cell_height,
                                 status_bar_height,
                             )) = bounds_info
                                 && let Some(pm) = tab.pane_manager_mut()
                             {
-                                let content_width = size.width as f32 - padding * 2.0;
+                                let content_width =
+                                    size.width as f32 - padding * 2.0 - content_inset_right;
                                 let content_height = size.height as f32
                                     - content_offset_y
                                     - padding

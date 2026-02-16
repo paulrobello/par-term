@@ -843,7 +843,7 @@ impl WindowState {
 
         if is_inspector {
             let _just_opened = self.ai_inspector.toggle();
-            self.needs_redraw = true;
+            self.sync_ai_inspector_width();
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
@@ -1289,7 +1289,7 @@ impl WindowState {
             "toggle_ai_inspector" => {
                 if self.config.ai_inspector_enabled {
                     self.ai_inspector.toggle();
-                    self.needs_redraw = true;
+                    self.sync_ai_inspector_width();
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }

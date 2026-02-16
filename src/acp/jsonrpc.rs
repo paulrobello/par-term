@@ -1,12 +1,12 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{ChildStdin, ChildStdout};
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{Mutex, mpsc, oneshot};
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -159,14 +159,10 @@ impl JsonRpcClient {
                                 if let Some(tx) = map.remove(&id) {
                                     let _ = tx.send(msg.into_response());
                                 } else {
-                                    log::error!(
-                                        "Received response for unknown request id {id}"
-                                    );
+                                    log::error!("Received response for unknown request id {id}");
                                 }
                             } else {
-                                log::error!(
-                                    "Received response without id: {trimmed}"
-                                );
+                                log::error!("Received response without id: {trimmed}");
                             }
                         } else {
                             // Notification or incoming RPC call.
@@ -287,18 +283,15 @@ mod tests {
 
     #[test]
     fn test_incoming_message_classification() {
-        let msg: IncomingMessage = serde_json::from_str(
-            r#"{"jsonrpc":"2.0","id":1,"result":{"ok":true}}"#,
-        )
-        .unwrap();
+        let msg: IncomingMessage =
+            serde_json::from_str(r#"{"jsonrpc":"2.0","id":1,"result":{"ok":true}}"#).unwrap();
         assert!(msg.is_response());
         assert!(!msg.is_notification());
         assert!(!msg.is_rpc_call());
 
-        let msg: IncomingMessage = serde_json::from_str(
-            r#"{"jsonrpc":"2.0","method":"session/update","params":{}}"#,
-        )
-        .unwrap();
+        let msg: IncomingMessage =
+            serde_json::from_str(r#"{"jsonrpc":"2.0","method":"session/update","params":{}}"#)
+                .unwrap();
         assert!(!msg.is_response());
         assert!(msg.is_notification());
         assert!(!msg.is_rpc_call());
@@ -362,10 +355,8 @@ mod tests {
 
     #[test]
     fn test_incoming_into_response() {
-        let msg: IncomingMessage = serde_json::from_str(
-            r#"{"jsonrpc":"2.0","id":42,"result":{"data":"hello"}}"#,
-        )
-        .unwrap();
+        let msg: IncomingMessage =
+            serde_json::from_str(r#"{"jsonrpc":"2.0","id":42,"result":{"data":"hello"}}"#).unwrap();
         assert!(msg.is_response());
 
         let resp = msg.into_response();

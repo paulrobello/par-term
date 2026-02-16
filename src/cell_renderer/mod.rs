@@ -76,10 +76,17 @@ pub struct CellRenderer {
     /// Bottom inset for terminal content (e.g., tab bar at bottom).
     /// Reduces available height without shifting content vertically.
     pub(crate) content_inset_bottom: f32,
+    /// Right inset for terminal content (e.g., AI Inspector panel).
+    /// Reduces available width without shifting content horizontally.
+    pub(crate) content_inset_right: f32,
     /// Additional bottom inset from egui panels (status bar, tmux bar).
     /// This is added to content_inset_bottom for scrollbar bounds only,
     /// since egui panels already claim space before wgpu rendering.
     pub(crate) egui_bottom_inset: f32,
+    /// Additional right inset from egui panels (AI Inspector).
+    /// This is added to content_inset_right for scrollbar bounds only,
+    /// since egui panels already claim space before wgpu rendering.
+    pub(crate) egui_right_inset: f32,
     #[allow(dead_code)]
     pub(crate) scale_factor: f32,
 
@@ -470,7 +477,9 @@ impl CellRenderer {
             content_offset_y: 0.0,
             content_offset_x: 0.0,
             content_inset_bottom: 0.0,
+            content_inset_right: 0.0,
             egui_bottom_inset: 0.0,
+            egui_right_inset: 0.0,
             scale_factor,
             font_manager,
             scrollbar,
@@ -669,6 +678,19 @@ impl CellRenderer {
         }
         None
     }
+    pub fn content_inset_right(&self) -> f32 {
+        self.content_inset_right
+    }
+    /// Set the right content inset (e.g., AI Inspector panel).
+    /// Returns Some((cols, rows)) if grid size changed, None otherwise.
+    pub fn set_content_inset_right(&mut self, inset: f32) -> Option<(usize, usize)> {
+        if (self.content_inset_right - inset).abs() > f32::EPSILON {
+            self.content_inset_right = inset;
+            let size = (self.config.width, self.config.height);
+            return Some(self.resize(size.0, size.1));
+        }
+        None
+    }
     pub fn grid_size(&self) -> (usize, usize) {
         (self.cols, self.rows)
     }
@@ -684,8 +706,11 @@ impl CellRenderer {
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
 
-        let available_width =
-            (width as f32 - self.window_padding * 2.0 - self.content_offset_x).max(0.0);
+        let available_width = (width as f32
+            - self.window_padding * 2.0
+            - self.content_offset_x
+            - self.content_inset_right)
+            .max(0.0);
         let available_height = (height as f32
             - self.window_padding * 2.0
             - self.content_offset_y
@@ -954,6 +979,7 @@ impl CellRenderer {
             self.config.height,
             self.content_offset_y,
             self.content_inset_bottom + self.egui_bottom_inset,
+            self.content_inset_right + self.egui_right_inset,
             marks,
         );
     }
