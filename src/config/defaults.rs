@@ -969,3 +969,7 @@ pub fn ai_inspector_context_max_lines() -> usize {
 pub fn ai_inspector_auto_approve() -> bool {
     false
 }
+
+pub fn ai_inspector_agent_terminal_access() -> bool {
+    false
+}

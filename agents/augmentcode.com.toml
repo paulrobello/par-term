@@ -1,0 +1,8 @@
+identity = "augmentcode.com"
+name = "Auggie (Augment Code)"
+short_name = "auggie"
+protocol = "acp"
+type = "coding"
+
+[run_command]
+"*" = "auggie --acp"

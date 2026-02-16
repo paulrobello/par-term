@@ -20,6 +20,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **AI Inspector Panel**: DevTools-style right-side panel for terminal state inspection and ACP agent integration (#149)
+  - Toggle with Cmd+I (macOS) / Ctrl+Shift+I (other) or `toggle_ai_inspector` keybinding action
+  - 4 view modes (Cards, Timeline, Tree, List+Detail) for browsing command history with exit codes, durations, and output
+  - Configurable scope: Visible (screen), Recent 5/10/25/50, or Full scrollback
+  - JSON export: Copy to clipboard or save to file with structured snapshot data (environment, terminal state, commands)
+  - ACP agent chat: Connect to Claude Code and other ACP-compatible agents via JSON-RPC 2.0 over stdio
+  - Agent command suggestions rendered as clickable blocks that write to terminal input line for review
+  - Auto-context feeding: Automatically sends command results to the connected agent on completion
+  - Agent discovery from bundled and user-defined TOML configs (`~/.config/par-term/agents/`)
+  - Auto-launch configured agent when panel opens (default: Claude Code)
+  - Yolo mode: Auto-approve all agent permission requests
+  - Terminal reflows columns when panel opens, closes, or is resized (drag left edge)
+  - Settings UI tab with controls for all 11 configuration options
+  - 50+ unit tests across snapshot, chat, JSON-RPC, protocol, agent discovery, and agent lifecycle modules
+
 - **File Transfer UI**: Native file dialogs and progress overlay for iTerm2 OSC 1337 file transfers (#154)
   - Native save dialog when file downloads complete, with configurable default save location (Downloads folder, last used, CWD, custom)
   - Native file picker when remote application requests file upload

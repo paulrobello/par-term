@@ -520,6 +520,24 @@ impl Renderer {
             self.cell_renderer
                 .set_content_inset_bottom(new_physical_inset_bottom);
 
+            // Rescale egui_bottom_inset (status bar)
+            if self.cell_renderer.egui_bottom_inset > 0.0 {
+                let logical_egui_bottom = self.cell_renderer.egui_bottom_inset / old_scale;
+                self.cell_renderer.egui_bottom_inset = logical_egui_bottom * new_scale;
+            }
+
+            // Rescale content_inset_right (AI Inspector panel)
+            if self.cell_renderer.content_inset_right > 0.0 {
+                let logical_inset_right = self.cell_renderer.content_inset_right / old_scale;
+                self.cell_renderer.content_inset_right = logical_inset_right * new_scale;
+            }
+
+            // Rescale egui_right_inset
+            if self.cell_renderer.egui_right_inset > 0.0 {
+                let logical_egui_right = self.cell_renderer.egui_right_inset / old_scale;
+                self.cell_renderer.egui_right_inset = logical_egui_right * new_scale;
+            }
+
             // Rescale window_padding
             let logical_padding = self.cell_renderer.window_padding() / old_scale;
             let new_physical_padding = logical_padding * new_scale;
@@ -1052,17 +1070,18 @@ impl Renderer {
         }
         let sixel_render_time = t2.elapsed();
 
+        // Render overlays (scrollbar, visual bell) BEFORE egui so that modal
+        // dialogs (egui) render on top of the scrollbar. The scrollbar track
+        // already accounts for status bar inset via content_inset_bottom.
+        self.cell_renderer
+            .render_overlays(&surface_texture, show_scrollbar)?;
+
         // Render egui overlay if provided
         let t3 = std::time::Instant::now();
         if let Some((egui_output, egui_ctx)) = egui_data {
             self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
         }
         let egui_render_time = t3.elapsed();
-
-        // Render overlays (scrollbar, visual bell) AFTER egui so they appear on top
-        // of the status bar and other egui panels
-        self.cell_renderer
-            .render_overlays(&surface_texture, show_scrollbar)?;
 
         // Present the surface texture - THIS IS WHERE VSYNC WAIT HAPPENS
         let t4 = std::time::Instant::now();
@@ -2267,12 +2286,20 @@ impl Renderer {
 
     /// Set the additional bottom inset from egui panels (status bar, tmux bar).
     ///
-    /// This inset is added to `content_inset_bottom` for scrollbar bounds only.
-    /// egui panels already claim space before wgpu rendering, so this doesn't
-    /// affect the terminal grid sizing.
-    pub fn set_egui_bottom_inset(&mut self, logical_inset: f32) {
+    /// This inset reduces the terminal grid height so content does not render
+    /// behind the status bar. Also affects scrollbar bounds.
+    /// Returns `Some((cols, rows))` if the grid was resized.
+    pub fn set_egui_bottom_inset(&mut self, logical_inset: f32) -> Option<(usize, usize)> {
         let physical_inset = logical_inset * self.cell_renderer.scale_factor;
-        self.cell_renderer.egui_bottom_inset = physical_inset;
+        if (self.cell_renderer.egui_bottom_inset - physical_inset).abs() > f32::EPSILON {
+            self.cell_renderer.egui_bottom_inset = physical_inset;
+            let (w, h) = (
+                self.cell_renderer.config.width,
+                self.cell_renderer.config.height,
+            );
+            return Some(self.cell_renderer.resize(w, h));
+        }
+        None
     }
 
     /// Set the additional right inset from egui panels (AI Inspector).

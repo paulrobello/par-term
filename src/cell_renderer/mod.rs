@@ -685,6 +685,12 @@ impl CellRenderer {
     /// Returns Some((cols, rows)) if grid size changed, None otherwise.
     pub fn set_content_inset_right(&mut self, inset: f32) -> Option<(usize, usize)> {
         if (self.content_inset_right - inset).abs() > f32::EPSILON {
+            crate::debug_info!(
+                "SCROLLBAR",
+                "set_content_inset_right: {:.1} -> {:.1} (physical px)",
+                self.content_inset_right,
+                inset
+            );
             self.content_inset_right = inset;
             let size = (self.config.width, self.config.height);
             return Some(self.resize(size.0, size.1));
@@ -714,7 +720,8 @@ impl CellRenderer {
         let available_height = (height as f32
             - self.window_padding * 2.0
             - self.content_offset_y
-            - self.content_inset_bottom)
+            - self.content_inset_bottom
+            - self.egui_bottom_inset)
             .max(0.0);
         let new_cols = (available_width / self.cell_width).max(1.0) as usize;
         let new_rows = (available_height / self.cell_height).max(1.0) as usize;
@@ -970,6 +977,7 @@ impl CellRenderer {
         total_lines: usize,
         marks: &[crate::scrollback_metadata::ScrollbackMark],
     ) {
+        let right_inset = self.content_inset_right + self.egui_right_inset;
         self.scrollbar.update(
             &self.queue,
             scroll_offset,
@@ -979,7 +987,7 @@ impl CellRenderer {
             self.config.height,
             self.content_offset_y,
             self.content_inset_bottom + self.egui_bottom_inset,
-            self.content_inset_right + self.egui_right_inset,
+            right_inset,
             marks,
         );
     }

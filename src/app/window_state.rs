@@ -145,6 +145,8 @@ pub struct WindowState {
     pub(crate) last_inspector_width: f32,
     /// ACP agent message receiver
     pub(crate) agent_rx: Option<mpsc::UnboundedReceiver<AgentMessage>>,
+    /// ACP agent message sender (kept to signal prompt completion)
+    pub(crate) agent_tx: Option<mpsc::UnboundedSender<AgentMessage>>,
     /// ACP agent (managed via tokio)
     pub(crate) agent: Option<Arc<tokio::sync::Mutex<Agent>>>,
     /// Available agent configs
@@ -364,6 +366,7 @@ impl WindowState {
             ai_inspector,
             last_inspector_width: 0.0,
             agent_rx: None,
+            agent_tx: None,
             agent: None,
             available_agents,
             shader_install_ui: ShaderInstallUI::new(),
@@ -638,6 +641,12 @@ impl WindowState {
 
         self.renderer = Some(renderer);
         self.needs_redraw = true;
+
+        // Re-apply AI Inspector panel inset to the new renderer.
+        // The old renderer had the correct content_inset_right but the new one
+        // starts with 0.0. Force last_inspector_width to 0 so sync detects the change.
+        self.last_inspector_width = 0.0;
+        self.sync_ai_inspector_width();
 
         // Reset egui with preserved memory (window positions, collapse state)
         self.init_egui(&window, true);
@@ -917,13 +926,14 @@ impl WindowState {
     /// updates the renderer's right content inset and resizes all terminals.
     pub(crate) fn sync_ai_inspector_width(&mut self) {
         let current_width = self.ai_inspector.consumed_width();
-        if (current_width - self.last_inspector_width).abs() < 1.0 {
-            return;
-        }
-        self.last_inspector_width = current_width;
 
         if let Some(renderer) = &mut self.renderer {
-            // Update the right content inset (logical pixels -> physical pixels inside)
+            // Always verify the renderer's content_inset_right matches the expected
+            // physical value. This catches cases where content_inset_right was reset
+            // (e.g., renderer rebuild, scale factor change) even when the logical
+            // panel width hasn't changed.
+            // The renderer's set_content_inset_right() has its own guard that only
+            // triggers a resize when the physical value actually differs.
             if let Some((new_cols, new_rows)) = renderer.set_content_inset_right(current_width) {
                 let cell_width = renderer.cell_width();
                 let cell_height = renderer.cell_height();
@@ -940,18 +950,53 @@ impl WindowState {
 
                 crate::debug_info!(
                     "AI_INSPECTOR",
-                    "Panel width changed to {:.0}px, resized terminals to {}x{}",
+                    "Panel width synced to {:.0}px, resized terminals to {}x{}",
                     current_width,
                     new_cols,
                     new_rows
                 );
+                self.needs_redraw = true;
+            } else if (current_width - self.last_inspector_width).abs() >= 1.0 {
+                // Logical width changed but physical grid didn't resize
+                // (could happen with very small changes below cell width threshold)
+                self.needs_redraw = true;
             }
-
-            // Also update the egui right inset for scrollbar positioning
-            renderer.set_egui_right_inset(current_width);
         }
 
-        self.needs_redraw = true;
+        self.last_inspector_width = current_width;
+    }
+
+    // Status Bar Inset Sync
+    // ========================================================================
+
+    /// Sync the status bar bottom inset with the renderer so that the terminal
+    /// grid does not extend behind the status bar.
+    ///
+    /// Must be called before cells are gathered each frame so the grid size
+    /// is correct. Only triggers a terminal resize when the height changes
+    /// (e.g., status bar toggled on/off or height changed in settings).
+    pub(crate) fn sync_status_bar_inset(&mut self) {
+        let is_tmux = self.is_tmux_connected();
+        let tmux_bar = crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux);
+        let custom_bar = self.status_bar_ui.height(&self.config, self.is_fullscreen);
+        let total = tmux_bar + custom_bar;
+
+        if let Some(renderer) = &mut self.renderer
+            && let Some((new_cols, new_rows)) = renderer.set_egui_bottom_inset(total)
+        {
+            let cell_width = renderer.cell_width();
+            let cell_height = renderer.cell_height();
+            let width_px = (new_cols as f32 * cell_width) as usize;
+            let height_px = (new_rows as f32 * cell_height) as usize;
+
+            for tab in self.tab_manager.tabs_mut() {
+                if let Ok(mut term) = tab.terminal.try_lock() {
+                    term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                    let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
+                }
+                tab.cache.cells = None;
+            }
+        }
     }
 
     // Shader Hot Reload
@@ -1224,6 +1269,12 @@ impl WindowState {
 
     /// Check if egui is currently using the pointer (mouse is over an egui UI element)
     pub(crate) fn is_egui_using_pointer(&self) -> bool {
+        // AI Inspector resize handle uses direct pointer tracking (not egui widgets),
+        // so egui doesn't know about it. Check explicitly to prevent mouse events
+        // from reaching the terminal during resize drag or initial click on the handle.
+        if self.ai_inspector.wants_pointer() {
+            return true;
+        }
         // Before first render, egui state is unreliable - allow mouse events through
         if !self.egui_initialized {
             return false;
@@ -1257,7 +1308,8 @@ impl WindowState {
             || self.clipboard_history_ui.visible
             || self.command_history_ui.visible
             || self.shader_install_ui.visible
-            || self.integrations_ui.visible;
+            || self.integrations_ui.visible
+            || self.ai_inspector.open;
         if !any_ui_visible {
             return false;
         }
@@ -1513,6 +1565,10 @@ impl WindowState {
                 );
             }
         }
+
+        // Sync status bar inset so the terminal grid does not extend behind it.
+        // Must happen before cell gathering so the row count is correct.
+        self.sync_status_bar_inset();
 
         let (renderer_size, visible_lines, grid_cols) = if let Some(renderer) = &self.renderer {
             let (cols, rows) = renderer.grid_size();
@@ -1909,10 +1965,13 @@ impl WindowState {
         let mut pending_ssh_connect_action = SshConnectAction::None;
 
         // Process agent messages
+        let msg_count_before = self.ai_inspector.chat.messages.len();
         if let Some(rx) = &mut self.agent_rx {
             while let Ok(msg) = rx.try_recv() {
                 match msg {
                     AgentMessage::StatusChanged(status) => {
+                        // Flush any pending agent text on status change.
+                        self.ai_inspector.chat.flush_agent_message();
                         self.ai_inspector.agent_status = status;
                         self.needs_redraw = true;
                     }
@@ -1956,24 +2015,66 @@ impl WindowState {
                             });
                         }
                     }
+                    AgentMessage::PromptComplete => {
+                        self.ai_inspector.chat.flush_agent_message();
+                        self.needs_redraw = true;
+                    }
                 }
             }
         }
 
-        // Auto-context feeding: detect new command completions and send to agent
-        if self.config.ai_inspector_auto_context
-            && self.ai_inspector.open
-            && self.ai_inspector.agent_status == AgentStatus::Connected
+        // Auto-execute new CommandSuggestion messages when terminal access is enabled.
+        if self.config.ai_inspector_agent_terminal_access {
+            let new_messages = &self.ai_inspector.chat.messages[msg_count_before..];
+            let commands_to_run: Vec<String> = new_messages
+                .iter()
+                .filter_map(|msg| {
+                    if let ChatMessage::CommandSuggestion(cmd) = msg {
+                        Some(format!("{cmd}\n"))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if !commands_to_run.is_empty()
+                && let Some(tab) = self.tab_manager.active_tab()
+                && let Ok(term) = tab.terminal.try_lock()
+            {
+                for cmd in &commands_to_run {
+                    let _ = term.write(cmd.as_bytes());
+                }
+                crate::debug_info!(
+                    "AI_INSPECTOR",
+                    "Auto-executed {} command(s) in terminal",
+                    commands_to_run.len()
+                );
+            }
+        }
+
+        // Detect new command completions and auto-refresh the snapshot.
+        // This is separate from agent auto-context so the panel always shows
+        // up-to-date command history regardless of agent connection state.
+        if self.ai_inspector.open
             && let Some(tab) = self.tab_manager.active_tab()
             && let Ok(term) = tab.terminal.try_lock()
         {
             let history = term.core_command_history();
             let current_count = history.len();
-            if current_count > self.ai_inspector.last_command_count
-                && self.ai_inspector.last_command_count > 0
-            {
-                // New command(s) completed -- send the latest one
-                if let Some((cmd, exit_code, duration_ms)) = history.last() {
+
+            if current_count != self.ai_inspector.last_command_count {
+                // Command count changed — refresh the snapshot
+                let had_commands = self.ai_inspector.last_command_count > 0;
+                self.ai_inspector.last_command_count = current_count;
+                self.ai_inspector.needs_refresh = true;
+
+                // Auto-context feeding: send latest command info to agent
+                if had_commands
+                    && current_count > 0
+                    && self.config.ai_inspector_auto_context
+                    && self.ai_inspector.agent_status == AgentStatus::Connected
+                    && let Some((cmd, exit_code, duration_ms)) = history.last()
+                {
                     let exit_code_str = exit_code
                         .map(|c| c.to_string())
                         .unwrap_or_else(|| "N/A".to_string());
@@ -1997,7 +2098,6 @@ impl WindowState {
                     }
                 }
             }
-            self.ai_inspector.last_command_count = current_count;
         }
 
         // Refresh AI Inspector snapshot if needed
@@ -2053,9 +2153,13 @@ impl WindowState {
             None
         };
 
+        // Sync AI Inspector panel width before scrollbar update so the scrollbar
+        // position uses the current panel width on this frame (not the previous one).
+        self.sync_ai_inspector_width();
+
         if let Some(renderer) = &mut self.renderer {
-            // Update egui panel inset so the scrollbar avoids overlapping status bars
-            renderer.set_egui_bottom_inset(status_bar_height + custom_status_bar_height);
+            // Status bar inset is handled by sync_status_bar_inset() above,
+            // before cell gathering, so the grid height is correct.
 
             // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
             let disable_cursor_shader =
@@ -2525,7 +2629,7 @@ impl WindowState {
                     pending_search_action = self.search_ui.show(ctx, visible_lines, scrollback_len);
 
                     // Show AI Inspector panel and collect action
-                    pending_inspector_action = self.ai_inspector.show(ctx);
+                    pending_inspector_action = self.ai_inspector.show(ctx, &self.available_agents);
 
                     // Show tmux session picker UI and collect action
                     let tmux_path = self.config.resolve_tmux_path();
@@ -3291,6 +3395,67 @@ impl WindowState {
                     let _ = term.write(cmd.as_bytes());
                 }
             }
+            InspectorAction::RunCommandAndNotify(cmd) => {
+                // Write command + Enter to terminal
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
+                {
+                    let _ = term.write(format!("{cmd}\n").as_bytes());
+                }
+                // Record command count before execution so we can detect completion
+                let history_len = self
+                    .tab_manager
+                    .active_tab()
+                    .and_then(|tab| tab.terminal.try_lock().ok())
+                    .map(|term| term.core_command_history().len())
+                    .unwrap_or(0);
+                // Spawn a task that polls for command completion and notifies the agent
+                if let Some(agent) = &self.agent {
+                    let agent = agent.clone();
+                    let tx = self.agent_tx.clone();
+                    let terminal = self
+                        .tab_manager
+                        .active_tab()
+                        .map(|tab| tab.terminal.clone());
+                    let cmd_for_msg = cmd.clone();
+                    self.runtime.spawn(async move {
+                        // Poll for command completion (up to 30 seconds)
+                        let mut exit_code: Option<i32> = None;
+                        for _ in 0..300 {
+                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                            if let Some(ref terminal) = terminal
+                                && let Ok(term) = terminal.try_lock()
+                            {
+                                let history = term.core_command_history();
+                                if history.len() > history_len {
+                                    // New command finished
+                                    if let Some(last) = history.last() {
+                                        exit_code = last.1;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        // Send feedback to agent
+                        let exit_str = exit_code
+                            .map(|c| format!("exit code {c}"))
+                            .unwrap_or_else(|| "unknown exit code".to_string());
+                        let feedback = format!(
+                            "[System: The user executed `{cmd_for_msg}` in their terminal ({exit_str}). \
+                             The output is available through the normal terminal capture.]"
+                        );
+                        let content = vec![crate::acp::protocol::ContentBlock::Text {
+                            text: feedback,
+                        }];
+                        let agent = agent.lock().await;
+                        let _ = agent.send_prompt(content).await;
+                        if let Some(tx) = tx {
+                            let _ = tx.send(crate::acp::agent::AgentMessage::PromptComplete);
+                        }
+                    });
+                }
+                self.needs_redraw = true;
+            }
             InspectorAction::ConnectAgent(identity) => {
                 if let Some(agent_config) = self
                     .available_agents
@@ -3299,6 +3464,7 @@ impl WindowState {
                 {
                     let (tx, rx) = mpsc::unbounded_channel();
                     self.agent_rx = Some(rx);
+                    self.agent_tx = Some(tx.clone());
                     let mut agent = Agent::new(agent_config.clone(), tx);
                     agent.auto_approve = self.config.ai_inspector_auto_approve;
                     let agent = Arc::new(tokio::sync::Mutex::new(agent));
@@ -3324,7 +3490,7 @@ impl WindowState {
                     runtime.spawn(async move {
                         let mut agent = agent.lock().await;
                         if let Err(e) = agent.connect(&cwd).await {
-                            crate::debug_error!("ACP", "Failed to connect to agent: {}", e);
+                            log::error!("ACP: failed to connect to agent: {e}");
                         }
                     });
                 }
@@ -3337,6 +3503,7 @@ impl WindowState {
                     });
                 }
                 self.agent_rx = None;
+                self.agent_tx = None;
                 self.ai_inspector.agent_status = AgentStatus::Disconnected;
                 self.needs_redraw = true;
             }
@@ -3344,12 +3511,35 @@ impl WindowState {
                 self.ai_inspector.chat.add_user_message(text.clone());
                 if let Some(agent) = &self.agent {
                     let agent = agent.clone();
-                    let content = vec![crate::acp::protocol::ContentBlock::Text { text }];
+                    // Prepend system guidance on the first prompt so the agent
+                    // knows to wrap commands in fenced code blocks.
+                    let prompt_text = if !self.ai_inspector.chat.system_prompt_sent {
+                        self.ai_inspector.chat.system_prompt_sent = true;
+                        format!(
+                            "{}{}",
+                            crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE,
+                            text
+                        )
+                    } else {
+                        text
+                    };
+                    let content =
+                        vec![crate::acp::protocol::ContentBlock::Text { text: prompt_text }];
+                    let tx = self.agent_tx.clone();
                     self.runtime.spawn(async move {
                         let agent = agent.lock().await;
                         let _ = agent.send_prompt(content).await;
+                        // Signal the UI to flush the agent text buffer so
+                        // command suggestions are extracted.
+                        if let Some(tx) = tx {
+                            let _ = tx.send(AgentMessage::PromptComplete);
+                        }
                     });
                 }
+                self.needs_redraw = true;
+            }
+            InspectorAction::SetTerminalAccess(enabled) => {
+                self.config.ai_inspector_agent_terminal_access = enabled;
                 self.needs_redraw = true;
             }
             InspectorAction::None => {}

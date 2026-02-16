@@ -155,7 +155,7 @@ impl TerminalManager {
 
         // Process each queued event at its recorded cursor position.
         if !shell_events.is_empty() {
-            for (event_type, _command, exit_code, _timestamp, cursor_line) in &shell_events {
+            for (event_type, event_command, exit_code, _timestamp, cursor_line) in &shell_events {
                 let marker = match event_type.as_str() {
                     "prompt_start" => Some(ShellIntegrationMarker::PromptStart),
                     "command_start" => Some(ShellIntegrationMarker::CommandStart),
@@ -212,6 +212,26 @@ impl TerminalManager {
                     },
                     if is_finished { *exit_code } else { None },
                 );
+
+                // Feed command lifecycle into the core library's command history.
+                // This populates `get_command_history()` used by the AI Inspector.
+                match event_type.as_str() {
+                    "command_executed" => {
+                        // Prefer the command text from the event (set by shell integration),
+                        // fall back to our grid-extracted captured text.
+                        let cmd_text = event_command
+                            .clone()
+                            .or_else(|| self.captured_command_text.as_ref().map(|(_, t)| t.clone()))
+                            .unwrap_or_default();
+                        if !cmd_text.is_empty() {
+                            term.start_command_execution(cmd_text);
+                        }
+                    }
+                    "command_finished" => {
+                        term.end_command_execution(*exit_code);
+                    }
+                    _ => {}
+                }
             }
         }
         // When no queued events, do nothing. With the event queue in place,

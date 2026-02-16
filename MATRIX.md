@@ -448,10 +448,11 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 
 | Feature | iTerm2 | par-term | Status | Useful | Effort | Notes |
 |---------|--------|----------|--------|--------|--------|-------|
-| AI assistant | ✅ Full AI integration | ❌ | ❌ | ⭐⭐ | 🔵 | Command help, completion. Core semantic snapshot API now available (v0.37+); needs frontend UI. |
-| AI command generation | ✅ | ❌ | ❌ | ⭐⭐ | 🔵 | Natural language to commands |
-| AI terminal inspection | ✅ | 🔶 | 🔶 | ⭐⭐ | 🟡 | AI reads terminal state. ✅ **Core API implemented (v0.37+)** — `get_semantic_snapshot(scope)` returns structured JSON/Protobuf with text, zones, commands, metadata. Three scopes: Visible/Recent(N)/Full. Streaming protocol support via SnapshotRequest/SemanticSnapshot messages. Frontend integration pending. |
-| Multiple AI providers | ✅ OpenAI, Anthropic, etc. | ❌ | ❌ | ⭐⭐ | 🔵 | Provider selection |
+| AI assistant | ✅ Full AI integration | ✅ | ✅ | ⭐⭐ | 🔵 | ACP agent integration — connect to Claude Code and other ACP-compatible agents. Agent chat panel with streaming responses, tool call display, command suggestions. Auto-context feeding on command completion. |
+| AI command generation | ✅ | ✅ | ✅ | ⭐⭐ | 🔵 | Agent suggests commands rendered as clickable `▸ command` blocks; click writes to terminal input line for user review before execution. |
+| AI terminal inspection | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | DevTools-style right-side panel with structured terminal state. 4 view modes (Cards/Timeline/Tree/List+Detail), configurable scope (Visible/Recent/Full), JSON export (copy/save). Terminal reflows columns when panel opens/closes. Core `get_semantic_snapshot()` API + frontend UI. |
+| Multiple AI providers | ✅ OpenAI, Anthropic, etc. | ✅ | ✅ | ⭐⭐ | 🔵 | Agent discovery from TOML configs — bundled + user-defined agents in `~/.config/par-term/agents/`. Auto-launch configurable agent on panel open. |
+| AI permission management | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Inline permission prompts in chat area. "Yolo mode" auto-approves all agent requests. |
 
 ---
 
@@ -918,7 +919,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | tmux Integration | 17 | 0 | 0 |
 | Performance & Power | 9 | 0 | 1 |
 | Accessibility | 2 | 0 | 1 |
-| AI Integration | 0 | 1 | 3 |
+| AI Integration | 5 | 0 | 0 |
 | Status Bar | 10 | 0 | 0 |
 | Toolbelt | 0 | 0 | 8 |
 | Composer & Auto-Complete | 2 | 0 | 3 |
@@ -942,9 +943,9 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | Miscellaneous | 12 | 0 | 5 |
 | Badges | 9 | 0 | 0 |
 | Scripting & Automation | 0 | 0 | 4 |
-| **TOTAL** | **~311** | **~6** | **~99** |
+| **TOTAL** | **~316** | **~5** | **~96** |
 
-**Overall Parity: ~74% of iTerm2 features implemented** (310 implemented out of ~420 total tracked features)
+**Overall Parity: ~76% of iTerm2 features implemented** (316 implemented out of ~417 total tracked features)
 
 **Note: This includes many low-priority features. Core terminal functionality parity is much higher (80%+).**
 
@@ -981,6 +982,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 - tmux control mode integration with session picker
 - Broadcast input mode (type to all panes)
 - Badge system with 12 dynamic variables and Settings UI tab
+- ACP agent integration with configurable auto-context feeding and yolo mode
 - Per-side modifier remapping (left/right Ctrl, Alt, Super independently)
 - Physical key binding mode (language-agnostic keybindings via scan codes)
 - Keep text opaque (separate from window transparency)
@@ -1019,7 +1021,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | ~~Pane title customization~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Implemented |
 | ~~Division thickness/style~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented |
 | ~~Instant Replay~~ | ~~⭐⭐~~ | ~~🔵 Very High~~ | ✅ Core API complete (v0.38+ — SnapshotManager, ReplaySession, TerminalSnapshot). Frontend replay UI pending. |
-| AI integration | ⭐⭐ | 🔵 Very High | Command help and generation. Core semantic snapshot API now available (v0.37+); needs frontend UI integration. |
+| ~~AI integration~~ | ~~⭐⭐~~ | ~~🔵 Very High~~ | ✅ Complete (§22 — AI Inspector panel with ACP agent chat, terminal inspection, JSON export, auto-context feeding #149) |
 | VoiceOver/accessibility | ⭐⭐ | 🔵 Very High | Screen reader support |
 | ~~Bidirectional text~~ | ~~⭐⭐~~ | ~~🔴 High~~ | 🚫 Won't implement |
 | ~~Browser integration~~ | ~~⭐~~ | ~~🔴 High~~ | 🚫 Won't implement; zero demand, massive effort, no other emulator implements this |
@@ -1088,12 +1090,20 @@ The following features are blocked by or significantly dependent on architectura
 | ~~**Instant Replay**~~ | ~~Core must implement terminal state snapshots or a dedicated replay buffer that records incremental changes.~~ | ✅ **Implemented in core v0.38+** — `SnapshotManager` with rolling buffer (4 MiB default budget, 30s snapshot interval, size-based eviction). `TerminalSnapshot` captures full terminal state (grids, scrollback, cursor, modes, zones). `ReplaySession` provides timeline navigation: `seek_to_timestamp()`, `step_forward()`/`step_backward()` (byte-granular), `previous_entry()`/`next_entry()`. Reconstruction via snapshot restore + input replay. `Terminal::capture_snapshot()` and `Terminal::restore_from_snapshot()` integration. Frontend replay UI pending. |
 | ~~**Advanced File Protocols**~~ | ~~Full iTerm2-style file upload/download via OSC 1337 `File=` requires core state machines.~~ | ✅ **Implemented in core v0.38+** — `FileTransferManager` with active transfer tracking and completed ring buffer (default 32 entries, 50MB max). Downloads (`inline=0`): base64 payload decoded, progress tracked, raw bytes stored for frontend retrieval via `take_completed_transfer(id)`. Multipart downloads: chunked transfers routed through manager with per-chunk progress events. Uploads: `RequestUpload=format=tgz` emits `UploadRequested` event; frontend responds via `send_upload_data()` or `cancel_upload()`. 5 new `TerminalEvent` variants (`FileTransferStarted`, `FileTransferProgress`, `FileTransferCompleted`, `FileTransferFailed`, `UploadRequested`). 9 new Terminal API methods. Full Python bindings and streaming protocol support (5 new protobuf messages). Frontend integration pending. |
 | ~~**Python / Scripting API**~~ | ~~Core requires extensibility hooks and a stable FFI-friendly representation of terminal state.~~ | ✅ **Implemented in core v0.37+** — `TerminalObserver` trait with deferred dispatch and category-specific callbacks (`on_zone_event`, `on_command_event`, `on_environment_event`, `on_screen_event`, `on_event`). C-compatible `SharedState`/`SharedCell` `#[repr(C)]` FFI types with full screen content. Python sync observer (`add_observer(callback, kinds)`) and async observer (`add_async_observer()` with `asyncio.Queue`). Subscription filtering via `TerminalEventKind`. Convenience wrappers: `on_command_complete()`, `on_zone_change()`, `on_cwd_change()`, `on_title_change()`, `on_bell()`. Observer panic isolation via `catch_unwind`. Frontend scripting manager pending. |
-| ~~**AI Terminal Inspection**~~ | ~~Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata.~~ | ✅ **Implemented in core v0.37+** — `get_semantic_snapshot(scope)` and `get_semantic_snapshot_json(scope)` return structured `SemanticSnapshot` with text content, zone map (`ZoneInfo`), command history (`CommandInfo`), CWD changes (`CwdChangeInfo`), cursor position, terminal dimensions, and environment metadata. Three scopes: `Visible` (screen only), `Recent(N)` (last N commands), `Full` (all history). Streaming protocol support via `SnapshotRequest`/`SemanticSnapshot` protobuf messages. Python bindings exposed. Frontend integration pending. |
+| ~~**AI Terminal Inspection**~~ | ~~Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata.~~ | ✅ **Core implemented (v0.37+), frontend implemented (v0.16.0)** — Core: `get_semantic_snapshot(scope)` returns structured `SemanticSnapshot`. Frontend: DevTools-style right-side panel with 4 view modes, JSON export, ACP agent chat integration, auto-context feeding, terminal reflow. Settings UI tab with all config options. |
 | ~~**Contextual Awareness API**~~ | ~~Granular notification system for the frontend to observe internal state changes beyond simple screen updates.~~ | ✅ **Implemented in core v0.37+** — 6 new `TerminalEvent` variants: `ZoneOpened`/`ZoneClosed`/`ZoneScrolledOut` (zone lifecycle with monotonic IDs), `EnvironmentChanged` (CWD/hostname/username), `RemoteHostTransition` (OSC 7 + OSC 1337 multi-signal detection), `SubShellDetected` (prompt nesting heuristic). Full streaming protocol support (4 new EventType values, 6 proto messages). Python bindings with `poll_events()` dict conversion and subscription filtering. Frontend integration pending. |
 
 ---
 
 ### Recently Completed (v0.16.0)
+- ✅ **AI Inspector Panel**: DevTools-style right-side panel for terminal state inspection with ACP agent integration (#149)
+  - 4 view modes (Cards/Timeline/Tree/List+Detail), configurable scope (Visible/Recent/Full)
+  - JSON export (copy to clipboard / save to file)
+  - ACP agent chat — connect to Claude Code and other agents via JSON-RPC 2.0 over stdio
+  - Agent command suggestions written to terminal input line; auto-context feeding on command completion
+  - Agent discovery from TOML configs with auto-launch; yolo mode for auto-approving permissions
+  - Terminal reflows columns when panel opens/closes/resizes; Settings UI tab for all options
+  - Keybinding: Cmd+I (macOS) / Ctrl+Shift+I (other)
 - ✅ **Dynamic Profiles from Remote URLs**: Load team-shared profiles from remote URLs with auto-refresh, caching, conflict resolution, and Settings UI (#142)
 - ✅ **Status Bar**: Configurable status bar with 10 built-in widgets, drag-and-drop reordering, and background system monitoring (#133)
 - ✅ **SSH Host Profiles**: SSH config/known_hosts/history discovery, Quick Connect dialog (Cmd+Shift+S), and mDNS/Bonjour discovery (#134)
@@ -1105,6 +1115,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-02-15 (Instant Replay — core SnapshotManager/ReplaySession/TerminalSnapshot in v0.38+, frontend UI pending)*
+*Updated: 2026-02-15 (AI Inspector — DevTools-style panel with ACP agent integration, terminal inspection, JSON export #149)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.16.0*

@@ -125,7 +125,8 @@ pub struct SessionResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModesInfo {
-    pub entries: Vec<ModeEntry>,
+    pub available_modes: Vec<ModeEntry>,
+    pub current_mode_id: String,
 }
 
 /// A single interaction mode.
@@ -142,14 +143,15 @@ pub struct ModeEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelsInfo {
-    pub entries: Vec<ModelEntry>,
+    pub available_models: Vec<ModelEntry>,
+    pub current_model_id: String,
 }
 
 /// A single model the agent can use.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelEntry {
-    pub id: String,
+    pub model_id: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -678,27 +680,29 @@ mod tests {
         let json = r#"{
             "sessionId": "sess-abc123",
             "modes": {
-                "entries": [
+                "availableModes": [
                     { "id": "agent", "name": "Agent Mode" },
                     { "id": "plan", "name": "Plan Mode", "description": "Planning only" }
-                ]
+                ],
+                "currentModeId": "agent"
             },
             "models": {
-                "entries": [
-                    { "id": "claude-4", "name": "Claude 4" }
-                ]
+                "availableModels": [
+                    { "modelId": "claude-4", "name": "Claude 4" }
+                ],
+                "currentModelId": "claude-4"
             }
         }"#;
         let result: SessionResult = serde_json::from_str(json).unwrap();
         assert_eq!(result.session_id, "sess-abc123");
         let modes = result.modes.unwrap();
-        assert_eq!(modes.entries.len(), 2);
+        assert_eq!(modes.available_modes.len(), 2);
         assert_eq!(
-            modes.entries[1].description.as_deref(),
+            modes.available_modes[1].description.as_deref(),
             Some("Planning only")
         );
         let models = result.models.unwrap();
-        assert_eq!(models.entries.len(), 1);
+        assert_eq!(models.available_models.len(), 1);
     }
 
     #[test]

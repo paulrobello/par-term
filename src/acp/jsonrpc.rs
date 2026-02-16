@@ -178,6 +178,22 @@ impl JsonRpcClient {
                     }
                 }
             }
+
+            // Agent process closed stdout — fail any pending requests so
+            // callers don't hang forever waiting for a response.
+            let mut map = reader_pending.lock().await;
+            for (id, tx) in map.drain() {
+                let _ = tx.send(Response {
+                    jsonrpc: "2.0".to_string(),
+                    result: None,
+                    error: Some(RpcError {
+                        code: -32003,
+                        message: "Agent process exited".to_string(),
+                        data: None,
+                    }),
+                    id: Some(id),
+                });
+            }
         });
 
         Self {

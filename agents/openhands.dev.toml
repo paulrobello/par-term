@@ -1,0 +1,8 @@
+identity = "openhands.dev"
+name = "OpenHands"
+short_name = "openhands"
+protocol = "acp"
+type = "coding"
+
+[run_command]
+"*" = "openhands acp"

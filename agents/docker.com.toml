@@ -1,0 +1,8 @@
+identity = "docker.com"
+name = "Docker cagent"
+short_name = "cagent"
+protocol = "acp"
+type = "coding"
+
+[run_command]
+"*" = "cagent acp"

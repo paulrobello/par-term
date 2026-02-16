@@ -1,0 +1,8 @@
+identity = "copilot.github.com"
+name = "Copilot"
+short_name = "copilot"
+protocol = "acp"
+type = "coding"
+
+[run_command]
+"*" = "copilot --acp"

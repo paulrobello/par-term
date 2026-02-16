@@ -400,6 +400,7 @@ pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui
 
     egui::Window::new("File Transfers")
         .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-10.0, -10.0))
+        .order(egui::Order::Foreground)
         .resizable(false)
         .collapsible(false)
         .title_bar(true)

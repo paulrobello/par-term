@@ -1,0 +1,8 @@
+identity = "geminicli.com"
+name = "Gemini CLI"
+short_name = "gemini"
+protocol = "acp"
+type = "coding"
+
+[run_command]
+"*" = "gemini --experimental-acp"

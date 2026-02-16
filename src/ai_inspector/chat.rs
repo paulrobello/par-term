@@ -37,6 +37,21 @@ pub enum ChatMessage {
     System(String),
 }
 
+/// System guidance prepended to the first user prompt so the agent always
+/// wraps shell commands in fenced code blocks (which the UI extracts as
+/// runnable `CommandSuggestion` entries).
+pub const AGENT_SYSTEM_GUIDANCE: &str = "\
+[System context] You are assisting a user inside the par-term terminal emulator. \
+When you suggest shell commands, ALWAYS wrap them in a fenced code block with a \
+shell language tag (```bash, ```sh, ```zsh, or ```shell). \
+The terminal UI will detect these blocks and render them with \"Run\" and \"Paste\" \
+buttons so the user can execute them directly. When the user runs a command, \
+you will receive a notification with the exit code, and the command output will \
+be visible to you through the normal terminal capture channel. \
+Do NOT add disclaimers about output not being captured. \
+Plain-text command suggestions will NOT be actionable. \
+Never use bare ``` blocks for commands — always include the language tag.\n\n";
+
 /// Chat state for the agent conversation.
 pub struct ChatState {
     /// All messages in the conversation history.
@@ -45,6 +60,8 @@ pub struct ChatState {
     pub input: String,
     /// Whether the agent is currently streaming a response.
     pub streaming: bool,
+    /// Whether the system guidance has been sent with the first prompt.
+    pub system_prompt_sent: bool,
     /// Buffer for assembling agent message chunks before flushing.
     agent_text_buffer: String,
 }
@@ -56,12 +73,17 @@ impl ChatState {
             messages: Vec::new(),
             input: String::new(),
             streaming: false,
+            system_prompt_sent: false,
             agent_text_buffer: String::new(),
         }
     }
 
     /// Process an incoming [`SessionUpdate`] from the agent, updating chat
     /// state accordingly.
+    ///
+    /// Non-chunk updates automatically flush any accumulated agent text
+    /// buffer so that the complete message is recorded before tool calls
+    /// or other events.
     pub fn handle_update(&mut self, update: SessionUpdate) {
         match update {
             SessionUpdate::AgentMessageChunk { text } => {
@@ -77,6 +99,8 @@ impl ChatState {
                 }
             }
             SessionUpdate::ToolCall(info) => {
+                // Flush any pending agent text before recording a tool call.
+                self.flush_agent_message();
                 self.messages.push(ChatMessage::ToolCall {
                     tool_call_id: info.tool_call_id,
                     title: info.title,
@@ -105,17 +129,32 @@ impl ChatState {
                     }
                 }
             }
-            _ => {}
+            _ => {
+                // For any other update type, flush pending text.
+                self.flush_agent_message();
+            }
         }
     }
 
     /// Flush the agent text buffer into a completed [`ChatMessage::Agent`]
     /// message and reset streaming state.
+    ///
+    /// Also extracts any fenced bash/sh code blocks and appends them as
+    /// [`ChatMessage::CommandSuggestion`] entries so the UI can offer
+    /// "Run in terminal" buttons.
     pub fn flush_agent_message(&mut self) {
         if !self.agent_text_buffer.is_empty() {
             let text = std::mem::take(&mut self.agent_text_buffer);
-            self.messages
-                .push(ChatMessage::Agent(text.trim_end().to_string()));
+            let trimmed = text.trim_end().to_string();
+
+            // Extract fenced code blocks with bash/sh language tags
+            let commands = extract_code_block_commands(&trimmed);
+
+            self.messages.push(ChatMessage::Agent(trimmed));
+
+            for cmd in commands {
+                self.messages.push(ChatMessage::CommandSuggestion(cmd));
+            }
         }
         self.streaming = false;
     }
@@ -126,7 +165,10 @@ impl ChatState {
     }
 
     /// Add a user message to the conversation.
+    ///
+    /// Flushes any pending agent text first so messages stay interleaved.
     pub fn add_user_message(&mut self, text: String) {
+        self.flush_agent_message();
         self.messages.push(ChatMessage::User(text));
     }
 
@@ -144,6 +186,43 @@ impl ChatState {
     pub fn add_auto_approved(&mut self, description: String) {
         self.messages.push(ChatMessage::AutoApproved(description));
     }
+}
+
+/// Extract shell commands from fenced code blocks in text.
+///
+/// Looks for code blocks tagged with `bash`, `sh`, `shell`, or `zsh`.
+/// Each line of the code block is treated as a separate command.
+/// Lines starting with `#` (comments) or empty lines are skipped.
+fn extract_code_block_commands(text: &str) -> Vec<String> {
+    let mut commands = Vec::new();
+    let mut in_block = false;
+    let mut is_shell_block = false;
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            if in_block {
+                // End of block
+                in_block = false;
+                is_shell_block = false;
+            } else {
+                // Start of block — check language tag
+                let lang = trimmed.trim_start_matches('`').trim().to_lowercase();
+                is_shell_block = lang == "bash" || lang == "sh" || lang == "shell" || lang == "zsh";
+                in_block = true;
+            }
+            continue;
+        }
+
+        if in_block && is_shell_block {
+            let cmd = trimmed.strip_prefix("$ ").unwrap_or(trimmed);
+            if !cmd.is_empty() && !cmd.starts_with('#') {
+                commands.push(cmd.to_string());
+            }
+        }
+    }
+
+    commands
 }
 
 impl Default for ChatState {
@@ -381,5 +460,62 @@ mod tests {
             matches!(&state.messages[2], ChatMessage::CommandSuggestion(t) if t == "cargo test")
         );
         assert!(matches!(&state.messages[3], ChatMessage::AutoApproved(t) if t == "read file"));
+    }
+
+    #[test]
+    fn test_extract_code_block_commands_bash() {
+        let text = "Here's a command:\n```bash\ncargo test\ncargo build --release\n```\nDone.";
+        let cmds = extract_code_block_commands(text);
+        assert_eq!(cmds, vec!["cargo test", "cargo build --release"]);
+    }
+
+    #[test]
+    fn test_extract_code_block_commands_sh() {
+        let text = "Try this:\n```sh\n$ echo hello\n$ ls -la\n```";
+        let cmds = extract_code_block_commands(text);
+        assert_eq!(cmds, vec!["echo hello", "ls -la"]);
+    }
+
+    #[test]
+    fn test_extract_code_block_commands_skips_comments_and_empty() {
+        let text = "```bash\n# This is a comment\n\necho hello\n```";
+        let cmds = extract_code_block_commands(text);
+        assert_eq!(cmds, vec!["echo hello"]);
+    }
+
+    #[test]
+    fn test_extract_code_block_commands_ignores_non_shell() {
+        let text = "```python\nprint('hello')\n```\n```bash\necho hi\n```";
+        let cmds = extract_code_block_commands(text);
+        assert_eq!(cmds, vec!["echo hi"]);
+    }
+
+    #[test]
+    fn test_extract_code_block_commands_no_blocks() {
+        let text = "No code blocks here.";
+        let cmds = extract_code_block_commands(text);
+        assert!(cmds.is_empty());
+    }
+
+    #[test]
+    fn test_extract_code_block_commands_ignores_bare_blocks() {
+        let text =
+            "Description:\n```\nThis is just text, not a command.\n```\n```bash\ngit status\n```";
+        let cmds = extract_code_block_commands(text);
+        assert_eq!(cmds, vec!["git status"]);
+    }
+
+    #[test]
+    fn test_flush_extracts_command_suggestions() {
+        let mut state = ChatState::new();
+        state.handle_update(SessionUpdate::AgentMessageChunk {
+            text: "Try this:\n```bash\ncargo test\n```".to_string(),
+        });
+        state.flush_agent_message();
+        assert_eq!(state.messages.len(), 2);
+        assert!(matches!(&state.messages[0], ChatMessage::Agent(_)));
+        assert!(
+            matches!(&state.messages[1], ChatMessage::CommandSuggestion(cmd) if cmd == "cargo test")
+        );
     }
 }

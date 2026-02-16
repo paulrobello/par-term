@@ -1,0 +1,8 @@
+identity = "openai.com"
+name = "Codex CLI"
+short_name = "codex"
+protocol = "acp"
+type = "coding"
+
+[run_command]
+"*" = "npx @zed-industries/codex-acp"

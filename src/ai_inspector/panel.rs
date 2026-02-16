@@ -5,11 +5,12 @@
 //! (Cards, Timeline, Tree, ListDetail) and interactive controls.
 
 use egui::{
-    Color32, Context, CursorIcon, Frame, Id, Key, Order, Pos2, Rect, RichText, Sense, Stroke, Vec2,
+    Color32, Context, CursorIcon, Frame, Id, Key, Label, Order, Pos2, RichText, Stroke,
 };
 
 use crate::acp::agent::AgentStatus;
-use crate::ai_inspector::chat::ChatState;
+use crate::acp::agents::AgentConfig;
+use crate::ai_inspector::chat::{ChatMessage, ChatState};
 use crate::ai_inspector::snapshot::{CommandEntry, SnapshotData, SnapshotScope};
 use crate::config::Config;
 
@@ -67,12 +68,16 @@ pub enum InspectorAction {
     SaveToFile(String),
     /// Write text into the active terminal.
     WriteToTerminal(String),
+    /// Run a command in the terminal AND notify the agent it was executed.
+    RunCommandAndNotify(String),
     /// Connect to an agent by identity string.
     ConnectAgent(String),
     /// Disconnect from the current agent.
     DisconnectAgent,
     /// Send a user prompt to the connected agent.
     SendPrompt(String),
+    /// Toggle agent terminal access.
+    SetTerminalAccess(bool),
 }
 
 /// Predefined scope options for the dropdown.
@@ -129,11 +134,29 @@ const EXIT_SUCCESS: Color32 = Color32::from_rgb(76, 175, 80);
 /// Exit code failure color (red).
 const EXIT_FAILURE: Color32 = Color32::from_rgb(244, 67, 54);
 
+/// User message background.
+const USER_MSG_BG: Color32 = Color32::from_rgb(30, 50, 70);
+
+/// Agent message background.
+const AGENT_MSG_BG: Color32 = Color32::from_rgb(35, 35, 40);
+
+/// System message color.
+const SYSTEM_MSG_COLOR: Color32 = Color32::from_gray(110);
+
+/// Command suggestion background.
+const CMD_SUGGEST_BG: Color32 = Color32::from_rgb(40, 45, 30);
+
+/// Connected status color.
+const AGENT_CONNECTED: Color32 = Color32::from_rgb(76, 175, 80);
+
+/// Disconnected status color.
+const AGENT_DISCONNECTED: Color32 = Color32::from_gray(100);
+
 /// AI Inspector side panel.
 pub struct AIInspectorPanel {
     /// Whether the panel is open.
     pub open: bool,
-    /// Current panel width in pixels.
+    /// Current panel width in pixels (configured/drag-resized).
     pub width: f32,
     /// Minimum panel width.
     min_width: f32,
@@ -159,6 +182,13 @@ pub struct AIInspectorPanel {
     pub agent_status: AgentStatus,
     /// Chat state for the agent conversation.
     pub chat: ChatState,
+    /// Whether the agent is allowed to write to the terminal.
+    pub agent_terminal_access: bool,
+    /// Actual rendered width from the last egui frame (may exceed `width` if content overflows).
+    rendered_width: f32,
+    /// Whether the pointer is hovering over the resize handle (persists between frames
+    /// so `is_egui_using_pointer` can block the initial mouse press from reaching the terminal).
+    hover_resize_handle: bool,
 }
 
 impl AIInspectorPanel {
@@ -179,6 +209,9 @@ impl AIInspectorPanel {
             last_command_count: 0,
             agent_status: AgentStatus::Disconnected,
             chat: ChatState::new(),
+            agent_terminal_access: config.ai_inspector_agent_terminal_access,
+            rendered_width: 0.0,
+            hover_resize_handle: false,
         }
     }
 
@@ -194,12 +227,25 @@ impl AIInspectorPanel {
     }
 
     /// Returns the width consumed by the panel (0 if closed).
+    ///
+    /// Uses the actual rendered width (which may exceed the configured `self.width`
+    /// if content overflows) to ensure the terminal insets correctly.
     pub fn consumed_width(&self) -> f32 {
-        if self.open { self.width } else { 0.0 }
+        if self.open {
+            self.rendered_width.max(self.width)
+        } else {
+            0.0
+        }
+    }
+
+    /// Whether the pointer is interacting with the resize handle (hovering or dragging).
+    /// Used by `is_egui_using_pointer()` to block mouse events from reaching the terminal.
+    pub fn wants_pointer(&self) -> bool {
+        self.resizing || self.hover_resize_handle
     }
 
     /// Render the inspector panel and return any action to perform.
-    pub fn show(&mut self, ctx: &Context) -> InspectorAction {
+    pub fn show(&mut self, ctx: &Context, available_agents: &[AgentConfig]) -> InspectorAction {
         if !self.open {
             return InspectorAction::None;
         }
@@ -214,58 +260,69 @@ impl AIInspectorPanel {
         let max_width = viewport.width() * self.max_width_ratio;
         self.width = self.width.clamp(self.min_width, max_width);
 
-        let panel_x = viewport.max.x - self.width;
+        // --- Resize handle input (BEFORE panel rendering so width updates this frame) ---
+        // Use previous frame's consumed_width for hover detection (imperceptible 1-frame lag).
+        let prev_panel_x = viewport.max.x - self.consumed_width();
+        let handle_left = prev_panel_x - RESIZE_HANDLE_WIDTH / 2.0;
+        let handle_right = prev_panel_x + RESIZE_HANDLE_WIDTH / 2.0;
+        let pointer_pos = ctx.input(|i| i.pointer.hover_pos());
+        let hover = pointer_pos.is_some_and(|pos| {
+            pos.x >= handle_left
+                && pos.x <= handle_right
+                && pos.y >= viewport.min.y
+                && pos.y <= viewport.max.y
+        });
 
-        // --- Resize handle ---
-        let handle_rect = Rect::from_min_size(
-            Pos2::new(panel_x - RESIZE_HANDLE_WIDTH / 2.0, viewport.min.y),
-            Vec2::new(RESIZE_HANDLE_WIDTH, viewport.height()),
-        );
-        egui::Area::new(Id::new("ai_inspector_resize_handle"))
-            .fixed_pos(handle_rect.min)
-            .order(Order::Foreground)
-            .interactable(true)
-            .show(ctx, |ui| {
-                let (_, handle_response) = ui.allocate_exact_size(
-                    Vec2::new(RESIZE_HANDLE_WIDTH, viewport.height()),
-                    Sense::drag(),
-                );
-                if handle_response.hovered() || self.resizing {
-                    ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
-                }
-                if handle_response.drag_started() {
-                    self.resizing = true;
-                }
-                if self.resizing {
-                    if handle_response.dragged() {
-                        let delta = -handle_response.drag_delta().x;
-                        self.width = (self.width + delta).clamp(self.min_width, max_width);
-                    }
-                    if handle_response.drag_stopped() {
-                        self.resizing = false;
-                    }
-                }
-            });
+        let primary_pressed = ctx.input(|i| i.pointer.primary_pressed());
+        let primary_down = ctx.input(|i| i.pointer.primary_down());
+        let delta = ctx.input(|i| i.pointer.delta());
+
+        if hover && primary_pressed {
+            self.resizing = true;
+        }
+        if self.resizing {
+            if primary_down {
+                let old_width = self.width;
+                self.width = (self.width - delta.x).clamp(self.min_width, max_width);
+                // Apply the same clamped delta to rendered_width so consumed_width()
+                // moves in lockstep with the drag. This avoids a jump at drag start
+                // (when rendered_width > self.width due to content overflow) and also
+                // prevents movement when clamped at min/max (clamped_delta == 0).
+                let clamped_delta = self.width - old_width;
+                self.rendered_width = (self.rendered_width + clamped_delta).max(self.width);
+            } else {
+                self.resizing = false;
+            }
+        }
+        // Persist hover state so is_egui_using_pointer() can block mouse events
+        // from reaching the terminal on the initial click (before resizing is set).
+        self.hover_resize_handle = hover;
+        if hover || self.resizing {
+            ctx.set_cursor_icon(CursorIcon::ResizeHorizontal);
+        }
+
+        // Recompute panel_x with potentially drag-updated width (eliminates 1-frame lag).
+        let panel_x = viewport.max.x - self.consumed_width();
 
         // --- Main panel area ---
+        // Use Order::Middle so modal dialogs (Order::Foreground) render above.
         let area_response = egui::Area::new(Id::new("ai_inspector_panel"))
             .fixed_pos(Pos2::new(panel_x, viewport.min.y))
-            .order(Order::Foreground)
+            .order(Order::Middle)
             .interactable(true)
             .show(ctx, |ui| {
                 let mut close_requested = false;
+                let mut action = InspectorAction::None;
 
+                let inner_width = self.width - 18.0; // 8px margin each side + 1px stroke each side
                 let panel_frame = Frame::new()
                     .fill(PANEL_BG)
                     .stroke(Stroke::new(1.0, Color32::from_gray(50)))
                     .inner_margin(8.0);
 
-                let frame_response = panel_frame.show(ui, |ui| {
-                    ui.set_min_size(Vec2::new(
-                        self.width - 16.0, // account for inner margin
-                        viewport.height() - 16.0,
-                    ));
-                    ui.set_max_width(self.width - 16.0);
+                panel_frame.show(ui, |ui| {
+                    ui.set_min_width(inner_width);
+                    ui.set_max_width(inner_width);
 
                     // === Title bar ===
                     ui.horizontal(|ui| {
@@ -276,7 +333,7 @@ impl AIInspectorPanel {
                         );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui
-                                .button(RichText::new("\u{2715}").size(14.0))
+                                .button(RichText::new("X").size(14.0))
                                 .on_hover_text("Close (Escape)")
                                 .clicked()
                             {
@@ -296,6 +353,16 @@ impl AIInspectorPanel {
                     ui.separator();
                     ui.add_space(4.0);
 
+                    // === Agent connection bar ===
+                    let agent_action = self.render_agent_bar(ui, available_agents);
+                    if !matches!(agent_action, InspectorAction::None) {
+                        action = agent_action;
+                    }
+
+                    ui.add_space(4.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+
                     // === Environment strip ===
                     if let Some(ref snapshot) = self.snapshot {
                         self.render_environment(ui, snapshot);
@@ -304,12 +371,23 @@ impl AIInspectorPanel {
                         ui.add_space(4.0);
                     }
 
-                    // === Scrollable zone content ===
-                    let available_height = ui.available_height() - 36.0; // reserve for action bar
+                    // Reserve space for pinned bottom elements:
+                    // chat input ~30, checkbox ~22, action bar ~30, separators+spacing ~20
+                    let bottom_reserve = if self.agent_status == AgentStatus::Connected {
+                        102.0
+                    } else {
+                        36.0
+                    };
+                    let available_height = ui.available_height() - bottom_reserve;
+
+                    // === Scrollable content: commands + chat ===
                     egui::ScrollArea::vertical()
+                        .id_salt("inspector_scroll")
                         .max_height(available_height)
                         .auto_shrink([false, false])
+                        .stick_to_bottom(true)
                         .show(ui, |ui| {
+                            // --- Commands section ---
                             if let Some(ref snapshot) = self.snapshot {
                                 if snapshot.commands.is_empty() {
                                     ui.vertical_centered(|ui| {
@@ -360,21 +438,93 @@ impl AIInspectorPanel {
                                     );
                                 });
                             }
+
+                            // --- Chat messages section ---
+                            if !self.chat.messages.is_empty() || self.chat.streaming {
+                                ui.add_space(8.0);
+                                ui.separator();
+                                ui.add_space(4.0);
+                                ui.label(
+                                    RichText::new("Chat")
+                                        .color(Color32::from_gray(160))
+                                        .small()
+                                        .strong(),
+                                );
+                                ui.add_space(4.0);
+
+                                let chat_action = Self::render_chat_messages(ui, &self.chat);
+                                if !matches!(chat_action, InspectorAction::None) {
+                                    action = chat_action;
+                                }
+                            }
                         });
 
-                    // === Action bar (bottom) ===
+                    // === Pinned bottom: Chat input + checkbox + action bar ===
+                    if self.agent_status == AgentStatus::Connected {
+                        ui.add_space(4.0);
+                        ui.separator();
+                        ui.add_space(2.0);
+                        let input_action = self.render_chat_input(ui);
+                        if !matches!(input_action, InspectorAction::None) {
+                            action = input_action;
+                        }
+                        ui.add_space(2.0);
+                        if ui
+                            .checkbox(
+                                &mut self.agent_terminal_access,
+                                RichText::new("Allow agent to drive terminal")
+                                    .small()
+                                    .color(Color32::from_gray(160)),
+                            )
+                            .changed()
+                        {
+                            action =
+                                InspectorAction::SetTerminalAccess(self.agent_terminal_access);
+                        }
+                    }
+
                     ui.add_space(4.0);
                     ui.separator();
                     ui.add_space(2.0);
-                    self.render_action_bar(ui)
+                    let bar_action = self.render_action_bar(ui);
+                    if !matches!(bar_action, InspectorAction::None) {
+                        action = bar_action;
+                    }
                 });
 
                 if close_requested {
                     InspectorAction::Close
                 } else {
-                    frame_response.inner
+                    action
                 }
             });
+
+        // Track the actual rendered width (used by consumed_width() next frame).
+        // Skip during active drag to prevent oscillation: the drag handler sets
+        // rendered_width = self.width, but the area may render wider than self.width
+        // (content overflow). Updating here would cause consumed_width() to bounce
+        // between the two values on alternating frames, making the scrollbar jitter.
+        if !self.resizing {
+            self.rendered_width = area_response.response.rect.width();
+        }
+
+        // --- Paint resize handle line (Order::Middle so Foreground dialogs render above) ---
+        let line_color = if hover || self.resizing {
+            Color32::from_gray(120)
+        } else {
+            Color32::from_gray(60)
+        };
+        let painter = ctx.layer_painter(egui::LayerId::new(
+            Order::Middle,
+            Id::new("ai_inspector_resize_line"),
+        ));
+        painter.line_segment(
+            [
+                Pos2::new(panel_x, viewport.min.y),
+                Pos2::new(panel_x, viewport.max.y),
+            ],
+            Stroke::new(2.0, line_color),
+        );
 
         let action = area_response.inner;
 
@@ -429,9 +579,9 @@ impl AIInspectorPanel {
         ui.horizontal(|ui| {
             // Live/Paused toggle
             let live_label = if self.live_update {
-                RichText::new("\u{25CF} Live").color(EXIT_SUCCESS).small()
+                RichText::new("* Live").color(EXIT_SUCCESS).small()
             } else {
-                RichText::new("\u{25CB} Paused")
+                RichText::new("o Paused")
                     .color(Color32::from_gray(140))
                     .small()
             };
@@ -449,7 +599,7 @@ impl AIInspectorPanel {
 
             // Refresh button
             if ui
-                .button(RichText::new("\u{21BB} Refresh").small())
+                .button(RichText::new("~ Refresh").small())
                 .on_hover_text("Refresh snapshot now")
                 .clicked()
             {
@@ -478,7 +628,7 @@ impl AIInspectorPanel {
 
             // Separator
             if env.username.is_some() || env.hostname.is_some() {
-                ui.label(RichText::new("\u{2502}").color(dim_color).small());
+                ui.label(RichText::new("|").color(dim_color).small());
             }
 
             // CWD
@@ -492,7 +642,7 @@ impl AIInspectorPanel {
             if let Some(ref shell) = env.shell {
                 ui.label(RichText::new("Shell:").color(dim_color).small());
                 ui.label(RichText::new(shell).color(val_color).small());
-                ui.label(RichText::new("\u{2502}").color(dim_color).small());
+                ui.label(RichText::new("|").color(dim_color).small());
             }
 
             // Command count
@@ -518,11 +668,14 @@ impl AIInspectorPanel {
             card_frame.show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
 
-                // Command text
-                ui.label(
-                    RichText::new(&cmd.command)
-                        .color(Color32::from_gray(230))
-                        .monospace(),
+                // Command text (wrap to prevent panel overflow)
+                ui.add(
+                    Label::new(
+                        RichText::new(&cmd.command)
+                            .color(Color32::from_gray(230))
+                            .monospace(),
+                    )
+                    .wrap(),
                 );
 
                 ui.add_space(4.0);
@@ -531,9 +684,9 @@ impl AIInspectorPanel {
                 ui.horizontal(|ui| {
                     if let Some(code) = cmd.exit_code {
                         let (color, text) = if code == 0 {
-                            (EXIT_SUCCESS, format!("\u{2713} {code}"))
+                            (EXIT_SUCCESS, format!("OK {code}"))
                         } else {
-                            (EXIT_FAILURE, format!("\u{2717} {code}"))
+                            (EXIT_FAILURE, format!("FAIL {code}"))
                         };
                         ui.label(RichText::new(text).color(color).small().strong());
                     }
@@ -569,11 +722,14 @@ impl AIInspectorPanel {
                     .id_salt(format!("card_output_{i}"))
                     .show(ui, |ui| {
                         let truncated = truncate_output(output, 20);
-                        ui.label(
-                            RichText::new(truncated)
-                                .color(Color32::from_gray(160))
-                                .monospace()
-                                .small(),
+                        ui.add(
+                            Label::new(
+                                RichText::new(truncated)
+                                    .color(Color32::from_gray(160))
+                                    .monospace()
+                                    .small(),
+                            )
+                            .wrap(),
                         );
                     });
                 }
@@ -585,19 +741,28 @@ impl AIInspectorPanel {
 
     /// Render timeline view: flat list with icons and durations.
     fn render_timeline(ui: &mut egui::Ui, commands: &[CommandEntry]) {
+        // Reserve space for icon (~15px), duration label (~60px), and spacing
+        let avail = ui.available_width();
+        let max_cmd_chars = ((avail - 90.0) / 7.5).max(10.0) as usize;
+
         for (i, cmd) in commands.iter().enumerate() {
             ui.horizontal(|ui| {
                 // Status icon
                 let icon = match cmd.exit_code {
-                    Some(0) => RichText::new("\u{25CF}").color(EXIT_SUCCESS),
-                    Some(_) => RichText::new("\u{25CF}").color(EXIT_FAILURE),
-                    None => RichText::new("\u{25CB}").color(Color32::from_gray(100)),
+                    Some(0) => RichText::new("*").color(EXIT_SUCCESS),
+                    Some(_) => RichText::new("*").color(EXIT_FAILURE),
+                    None => RichText::new("o").color(Color32::from_gray(100)),
                 };
                 ui.label(icon);
 
-                // Command text
+                // Command text (truncated to fit)
+                let cmd_display = if cmd.command.len() > max_cmd_chars {
+                    format!("{}...", &cmd.command[..max_cmd_chars.min(cmd.command.len())])
+                } else {
+                    cmd.command.clone()
+                };
                 ui.label(
-                    RichText::new(&cmd.command)
+                    RichText::new(cmd_display)
                         .color(Color32::from_gray(210))
                         .monospace(),
                 );
@@ -620,9 +785,14 @@ impl AIInspectorPanel {
 
     /// Render tree view: collapsing headers per command with detail children.
     fn render_tree(ui: &mut egui::Ui, commands: &[CommandEntry]) {
+        // Truncate to fit within panel - account for collapsing header icon (~20px)
+        // and monospace char width (~7-8px). Use available width dynamically.
+        let avail = ui.available_width();
+        let max_chars = ((avail - 20.0) / 7.5).max(10.0) as usize;
+
         for (i, cmd) in commands.iter().enumerate() {
-            let header_text = if cmd.command.len() > 40 {
-                format!("{}...", &cmd.command[..40])
+            let header_text = if cmd.command.len() > max_chars {
+                format!("{}...", &cmd.command[..max_chars.min(cmd.command.len())])
             } else {
                 cmd.command.clone()
             };
@@ -688,11 +858,14 @@ impl AIInspectorPanel {
                             .small(),
                     );
                     let truncated = truncate_output(output, 20);
-                    ui.label(
-                        RichText::new(truncated)
-                            .color(Color32::from_gray(160))
-                            .monospace()
-                            .small(),
+                    ui.add(
+                        Label::new(
+                            RichText::new(truncated)
+                                .color(Color32::from_gray(160))
+                                .monospace()
+                                .small(),
+                        )
+                        .wrap(),
                     );
                 }
             });
@@ -701,19 +874,31 @@ impl AIInspectorPanel {
 
     /// Render list detail view: simple list with icon and command text.
     fn render_list_detail(ui: &mut egui::Ui, commands: &[CommandEntry]) {
+        // Truncate command to fit in horizontal layout
+        let avail = ui.available_width();
+        let max_cmd_chars = ((avail - 50.0) / 7.5).max(10.0) as usize;
+
         for cmd in commands {
             ui.horizontal(|ui| {
                 // Status icon
                 let icon = match cmd.exit_code {
-                    Some(0) => RichText::new("\u{2713}").color(EXIT_SUCCESS),
-                    Some(_) => RichText::new("\u{2717}").color(EXIT_FAILURE),
-                    None => RichText::new("\u{2022}").color(Color32::from_gray(100)),
+                    Some(0) => RichText::new("OK").color(EXIT_SUCCESS),
+                    Some(_) => RichText::new("FAIL").color(EXIT_FAILURE),
+                    None => RichText::new("-").color(Color32::from_gray(100)),
                 };
                 ui.label(icon);
 
-                // Command text
+                // Command text (truncated to fit)
+                let cmd_display = if cmd.command.len() > max_cmd_chars {
+                    format!(
+                        "{}...",
+                        &cmd.command[..max_cmd_chars.min(cmd.command.len())]
+                    )
+                } else {
+                    cmd.command.clone()
+                };
                 ui.label(
-                    RichText::new(&cmd.command)
+                    RichText::new(cmd_display)
                         .color(Color32::from_gray(210))
                         .monospace(),
                 );
@@ -728,7 +913,7 @@ impl AIInspectorPanel {
         ui.horizontal(|ui| {
             // Copy JSON button
             if ui
-                .button(RichText::new("\u{1F4CB} Copy JSON").small())
+                .button(RichText::new(" Copy JSON").small())
                 .on_hover_text("Copy snapshot as JSON to clipboard")
                 .clicked()
                 && let Some(ref snapshot) = self.snapshot
@@ -739,13 +924,391 @@ impl AIInspectorPanel {
 
             // Save to file button
             if ui
-                .button(RichText::new("\u{1F4BE} Save").small())
+                .button(RichText::new(" Save").small())
                 .on_hover_text("Save snapshot JSON to file")
                 .clicked()
                 && let Some(ref snapshot) = self.snapshot
                 && let Ok(json) = snapshot.to_json()
             {
                 action = InspectorAction::SaveToFile(json);
+            }
+        });
+
+        action
+    }
+
+    /// Render the agent connection status bar with connect/disconnect controls.
+    fn render_agent_bar(
+        &mut self,
+        ui: &mut egui::Ui,
+        available_agents: &[AgentConfig],
+    ) -> InspectorAction {
+        let mut action = InspectorAction::None;
+
+        ui.horizontal(|ui| {
+            // Status indicator
+            let (status_icon, status_color, status_text) = match self.agent_status {
+                AgentStatus::Connected => ("*", AGENT_CONNECTED, "Connected"),
+                AgentStatus::Connecting => ("o", Color32::from_rgb(255, 193, 7), "Connecting..."),
+                AgentStatus::Disconnected => ("o", AGENT_DISCONNECTED, "Disconnected"),
+                AgentStatus::Error(_) => ("*", EXIT_FAILURE, "Error"),
+            };
+            ui.label(RichText::new(status_icon).color(status_color).small());
+            ui.label(RichText::new(status_text).color(status_color).small());
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                match self.agent_status {
+                    AgentStatus::Connected => {
+                        if ui
+                            .button(RichText::new("Disconnect").small())
+                            .on_hover_text("Disconnect from agent")
+                            .clicked()
+                        {
+                            action = InspectorAction::DisconnectAgent;
+                        }
+                    }
+                    AgentStatus::Disconnected | AgentStatus::Error(_) => {
+                        if !available_agents.is_empty() {
+                            // Connect button for first agent (most common case)
+                            let agent = &available_agents[0];
+                            if ui
+                                .button(RichText::new("Connect").small())
+                                .on_hover_text(format!("Connect to {}", agent.name))
+                                .clicked()
+                            {
+                                action = InspectorAction::ConnectAgent(agent.identity.clone());
+                            }
+
+                            // Agent selector dropdown (if multiple)
+                            if available_agents.len() > 1 {
+                                egui::ComboBox::from_id_salt("agent_selector")
+                                    .selected_text(&available_agents[0].short_name)
+                                    .width(80.0)
+                                    .show_ui(ui, |ui| {
+                                        for agent in available_agents {
+                                            if ui.selectable_label(false, &agent.name).clicked() {
+                                                action = InspectorAction::ConnectAgent(
+                                                    agent.identity.clone(),
+                                                );
+                                            }
+                                        }
+                                    });
+                            }
+                        } else {
+                            ui.label(
+                                RichText::new("No agents found")
+                                    .color(Color32::from_gray(80))
+                                    .small()
+                                    .italics(),
+                            );
+                        }
+                    }
+                    AgentStatus::Connecting => {
+                        ui.spinner();
+                    }
+                }
+            });
+        });
+
+        // Show install buttons only for agents whose connector binary is not in PATH
+        if matches!(
+            self.agent_status,
+            AgentStatus::Disconnected | AgentStatus::Error(_)
+        ) {
+            let installable: Vec<_> = available_agents
+                .iter()
+                .filter(|a| a.install_command.is_some() && !a.connector_installed)
+                .collect();
+            if !installable.is_empty() {
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new("Install ACP connectors:")
+                        .color(Color32::from_gray(130))
+                        .small(),
+                );
+                ui.horizontal_wrapped(|ui| {
+                    for agent in installable {
+                        let cmd = agent.install_command.as_deref().unwrap();
+                        if ui
+                            .button(RichText::new(format!("Install {}", agent.short_name)).small())
+                            .on_hover_text(format!("Paste '{cmd}' into terminal"))
+                            .clicked()
+                        {
+                            action = InspectorAction::WriteToTerminal(format!("{cmd}\n"));
+                        }
+                    }
+                });
+            }
+        }
+
+        action
+    }
+
+    /// Render chat messages from the conversation history.
+    fn render_chat_messages(ui: &mut egui::Ui, chat: &ChatState) -> InspectorAction {
+        let mut action = InspectorAction::None;
+
+        for msg in &chat.messages {
+            match msg {
+                ChatMessage::User(text) => {
+                    let frame = Frame::new()
+                        .fill(USER_MSG_BG)
+                        .corner_radius(4.0)
+                        .inner_margin(6.0);
+                    frame.show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new("You:")
+                                    .color(Color32::from_rgb(100, 160, 230))
+                                    .small()
+                                    .strong(),
+                            );
+                        });
+                        ui.add(
+                            Label::new(RichText::new(text).color(Color32::from_gray(220)))
+                                .selectable(true),
+                        );
+                    });
+                    ui.add_space(4.0);
+                }
+                ChatMessage::Agent(text) => {
+                    let frame = Frame::new()
+                        .fill(AGENT_MSG_BG)
+                        .corner_radius(4.0)
+                        .inner_margin(6.0);
+                    frame.show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.label(
+                            RichText::new("Agent:")
+                                .color(AGENT_CONNECTED)
+                                .small()
+                                .strong(),
+                        );
+                        ui.add(
+                            Label::new(RichText::new(text).color(Color32::from_gray(210)))
+                                .selectable(true),
+                        );
+                    });
+                    ui.add_space(4.0);
+                }
+                ChatMessage::Thinking(text) => {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("").color(Color32::from_gray(80)).small());
+                        ui.add(
+                            Label::new(
+                                RichText::new(text)
+                                    .color(Color32::from_gray(90))
+                                    .small()
+                                    .italics(),
+                            )
+                            .selectable(true),
+                        );
+                    });
+                    ui.add_space(2.0);
+                }
+                ChatMessage::ToolCall { title, status, .. } => {
+                    ui.horizontal(|ui| {
+                        let status_icon = if status == "completed" {
+                            RichText::new("OK").color(AGENT_CONNECTED).small()
+                        } else if status == "error" || status == "failed" {
+                            RichText::new("FAIL").color(EXIT_FAILURE).small()
+                        } else if status == "in_progress" || status == "running" {
+                            RichText::new(".")
+                                .color(Color32::from_rgb(255, 193, 7))
+                                .small()
+                        } else {
+                            // Empty or unknown status — show neutral pending indicator
+                            RichText::new("-").color(Color32::from_gray(120)).small()
+                        };
+                        ui.label(status_icon);
+                        ui.add(
+                            Label::new(
+                                RichText::new(title)
+                                    .color(Color32::from_gray(150))
+                                    .small()
+                                    .monospace(),
+                            )
+                            .selectable(true),
+                        );
+                    });
+                    ui.add_space(2.0);
+                }
+                ChatMessage::CommandSuggestion(cmd) => {
+                    let frame = Frame::new()
+                        .fill(CMD_SUGGEST_BG)
+                        .corner_radius(4.0)
+                        .inner_margin(6.0);
+                    frame.show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.label(
+                            RichText::new("Suggested command:")
+                                .color(Color32::from_gray(130))
+                                .small(),
+                        );
+                        ui.add(
+                            Label::new(
+                                RichText::new(format!("$ {cmd}"))
+                                    .color(Color32::from_gray(220))
+                                    .monospace(),
+                            )
+                            .selectable(true),
+                        );
+                        ui.horizontal(|ui| {
+                            if ui
+                                .button(RichText::new("> Run").small())
+                                .on_hover_text("Execute this command in the terminal")
+                                .clicked()
+                            {
+                                // Send command + Enter to terminal and notify agent
+                                action = InspectorAction::RunCommandAndNotify(cmd.clone());
+                            }
+                            if ui
+                                .button(RichText::new("# Paste").small())
+                                .on_hover_text("Paste command into terminal without executing")
+                                .clicked()
+                            {
+                                action = InspectorAction::WriteToTerminal(cmd.clone());
+                            }
+                        });
+                    });
+                    ui.add_space(4.0);
+                }
+                ChatMessage::Permission {
+                    description,
+                    resolved,
+                    ..
+                } => {
+                    let frame = Frame::new()
+                        .fill(Color32::from_rgb(50, 35, 20))
+                        .corner_radius(4.0)
+                        .inner_margin(6.0);
+                    frame.show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        ui.label(
+                            RichText::new(if *resolved {
+                                "OK Permission granted"
+                            } else {
+                                "! Permission requested"
+                            })
+                            .color(Color32::from_rgb(255, 193, 7))
+                            .small()
+                            .strong(),
+                        );
+                        ui.add(
+                            Label::new(
+                                RichText::new(description)
+                                    .color(Color32::from_gray(180))
+                                    .small(),
+                            )
+                            .selectable(true),
+                        );
+                    });
+                    ui.add_space(4.0);
+                }
+                ChatMessage::AutoApproved(desc) => {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("OK").color(Color32::from_gray(100)).small());
+                        ui.add(
+                            Label::new(
+                                RichText::new(format!("Auto-approved: {desc}"))
+                                    .color(Color32::from_gray(100))
+                                    .small()
+                                    .italics(),
+                            )
+                            .selectable(true),
+                        );
+                    });
+                    ui.add_space(2.0);
+                }
+                ChatMessage::System(text) => {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("i").color(SYSTEM_MSG_COLOR).small());
+                        ui.add(
+                            Label::new(
+                                RichText::new(text)
+                                    .color(SYSTEM_MSG_COLOR)
+                                    .small()
+                                    .italics(),
+                            )
+                            .selectable(true),
+                        );
+                    });
+                    ui.add_space(2.0);
+                }
+            }
+        }
+
+        // Show streaming text if agent is currently responding
+        if chat.streaming {
+            let streaming = chat.streaming_text();
+            if !streaming.is_empty() {
+                let frame = Frame::new()
+                    .fill(AGENT_MSG_BG)
+                    .corner_radius(4.0)
+                    .inner_margin(6.0);
+                frame.show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new("Agent:")
+                                .color(AGENT_CONNECTED)
+                                .small()
+                                .strong(),
+                        );
+                        ui.spinner();
+                    });
+                    ui.add(
+                        Label::new(RichText::new(streaming).color(Color32::from_gray(190)))
+                            .selectable(true),
+                    );
+                });
+            } else {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(
+                        RichText::new("Agent is thinking...")
+                            .color(Color32::from_gray(120))
+                            .small()
+                            .italics(),
+                    );
+                });
+            }
+        }
+
+        action
+    }
+
+    /// Render the chat text input and send button.
+    fn render_chat_input(&mut self, ui: &mut egui::Ui) -> InspectorAction {
+        let mut action = InspectorAction::None;
+
+        ui.horizontal(|ui| {
+            let input_width = ui.available_width() - 40.0;
+            let response = ui.add_sized(
+                [input_width, 24.0],
+                egui::TextEdit::singleline(&mut self.chat.input)
+                    .hint_text("Message agent...")
+                    .desired_width(input_width),
+            );
+
+            // Send on Enter
+            let enter_pressed = response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+
+            let send_clicked = ui
+                .button(RichText::new(">").size(14.0))
+                .on_hover_text("Send message (Enter)")
+                .clicked();
+
+            if (enter_pressed || send_clicked) && !self.chat.input.trim().is_empty() {
+                let text = self.chat.input.trim().to_string();
+                self.chat.input.clear();
+                action = InspectorAction::SendPrompt(text);
+            }
+
+            // Re-focus input after sending
+            if enter_pressed || send_clicked {
+                response.request_focus();
             }
         });
 

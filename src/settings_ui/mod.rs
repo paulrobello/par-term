@@ -138,6 +138,10 @@ pub struct SettingsUI {
     /// Original cursor shader source when editor was opened (for cancel)
     pub(crate) cursor_shader_editor_original: String,
 
+    // Agent state
+    /// Available agent identities for the AI Inspector dropdown (identity, name)
+    pub(crate) available_agent_ids: Vec<(String, String)>,
+
     // Shader management state
     /// List of available shader files in the shaders folder
     pub(crate) available_shaders: Vec<String>,
@@ -483,6 +487,7 @@ impl SettingsUI {
             cursor_shader_editor_source: String::new(),
             cursor_shader_editor_error: None,
             cursor_shader_editor_original: String::new(),
+            available_agent_ids: Vec::new(),
             available_shaders: Self::scan_shaders_folder(),
             available_cubemaps: Self::scan_cubemaps_folder(),
             new_shader_name: String::new(),
@@ -748,6 +753,7 @@ impl SettingsUI {
         egui::Window::new("Reset to Defaults")
             .collapsible(false)
             .resizable(false)
+            .order(egui::Order::Foreground)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {

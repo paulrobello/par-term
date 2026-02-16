@@ -1804,6 +1804,10 @@ pub struct Config {
     /// Automatically approve AI-suggested actions without confirmation
     #[serde(default = "defaults::ai_inspector_auto_approve")]
     pub ai_inspector_auto_approve: bool,
+
+    /// Allow the AI agent to write input to the terminal (drive terminal)
+    #[serde(default = "defaults::ai_inspector_agent_terminal_access")]
+    pub ai_inspector_agent_terminal_access: bool,
 }
 
 impl Default for Config {
@@ -2138,6 +2142,7 @@ impl Default for Config {
             ai_inspector_auto_context: defaults::ai_inspector_auto_context(),
             ai_inspector_context_max_lines: defaults::ai_inspector_context_max_lines(),
             ai_inspector_auto_approve: defaults::ai_inspector_auto_approve(),
+            ai_inspector_agent_terminal_access: defaults::ai_inspector_agent_terminal_access(),
         }
     }
 }

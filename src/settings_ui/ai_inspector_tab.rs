@@ -198,15 +198,22 @@ fn show_agent_section(
     collapsing_section(ui, "Agent", "ai_inspector_agent", true, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Default agent:");
+            // Find display name for the currently selected agent
+            let selected_display = settings
+                .available_agent_ids
+                .iter()
+                .find(|(id, _)| *id == settings.config.ai_inspector_agent)
+                .map(|(_, name)| name.as_str())
+                .unwrap_or(&settings.config.ai_inspector_agent);
             egui::ComboBox::from_id_salt("ai_agent")
-                .selected_text(&settings.config.ai_inspector_agent)
+                .selected_text(selected_display)
                 .show_ui(ui, |ui| {
-                    for agent_id in &["claude.com"] {
+                    for (agent_id, agent_name) in &settings.available_agent_ids {
                         if ui
                             .selectable_value(
                                 &mut settings.config.ai_inspector_agent,
-                                agent_id.to_string(),
-                                *agent_id,
+                                agent_id.clone(),
+                                agent_name,
                             )
                             .changed()
                         {
@@ -289,6 +296,29 @@ fn show_permissions_section(
                 ui.colored_label(
                     egui::Color32::from_rgb(255, 193, 7),
                     "All agent permission requests will be auto-approved",
+                );
+            }
+
+            ui.add_space(8.0);
+
+            let terminal_access_response = ui
+                .checkbox(
+                    &mut settings.config.ai_inspector_agent_terminal_access,
+                    "Allow Terminal Access",
+                )
+                .on_hover_text(
+                    "Allow the AI agent to write input directly to the terminal. \
+                     When enabled, command suggestions from the agent will be \
+                     auto-executed in the active terminal.",
+                );
+            if terminal_access_response.changed() {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+            if settings.config.ai_inspector_agent_terminal_access {
+                ui.colored_label(
+                    egui::Color32::from_rgb(255, 152, 0),
+                    "Agent can write commands to the terminal",
                 );
             }
         },

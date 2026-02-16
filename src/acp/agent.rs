@@ -55,6 +55,8 @@ pub enum AgentMessage {
         line: Option<u64>,
         limit: Option<u64>,
     },
+    /// The agent finished processing a prompt (flush pending text).
+    PromptComplete,
 }
 
 // ---------------------------------------------------------------------------
@@ -111,20 +113,60 @@ impl Agent {
 
         self.set_status(AgentStatus::Connecting);
 
-        // Spawn the agent subprocess.
-        let mut child = Command::new("sh")
-            .arg("-c")
+        // Spawn via login + interactive shell so the user's full PATH is
+        // available (nvm, homebrew, etc. are often configured in .bashrc
+        // which only loads for interactive shells). The JSON-RPC reader
+        // gracefully skips any non-JSON profile output on stdout.
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        log::info!(
+            "ACP: spawning agent '{}' via {shell} -lic '{run_command}' in cwd={cwd}",
+            self.config.identity,
+        );
+        let mut child = match Command::new(&shell)
+            .arg("-lic")
             .arg(&run_command)
+            .current_dir(cwd)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()?;
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+        {
+            Ok(child) => child,
+            Err(e) => {
+                let msg = format!("Failed to spawn agent: {e}");
+                self.set_status(AgentStatus::Error(msg.clone()));
+                return Err(msg.into());
+            }
+        };
 
         let stdin = child.stdin.take().ok_or("Failed to capture agent stdin")?;
         let stdout = child
             .stdout
             .take()
             .ok_or("Failed to capture agent stdout")?;
+
+        // Log stderr in the background (matches Zed's pattern).
+        if let Some(stderr) = child.stderr.take() {
+            let identity = self.config.identity.clone();
+            tokio::spawn(async move {
+                use tokio::io::AsyncBufReadExt;
+                let mut reader = tokio::io::BufReader::new(stderr);
+                let mut line = String::new();
+                loop {
+                    line.clear();
+                    match reader.read_line(&mut line).await {
+                        Ok(0) => break,
+                        Ok(_) => {
+                            let trimmed = line.trim();
+                            if !trimmed.is_empty() {
+                                log::warn!("ACP agent [{identity}] stderr: {trimmed}");
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+        }
 
         // Create the JSON-RPC client.
         let mut rpc_client = JsonRpcClient::new(stdin, stdout);
@@ -133,7 +175,8 @@ impl Agent {
             .ok_or("Failed to take incoming channel")?;
         let client = Arc::new(rpc_client);
 
-        // --- ACP Handshake ---
+        // --- ACP Handshake (with timeout) ---
+        const HANDSHAKE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
         // 1. Send `initialize` with par-term client info.
         let init_params = InitializeParams {
@@ -151,26 +194,65 @@ impl Agent {
                 version: env!("CARGO_PKG_VERSION").to_string(),
             },
         };
-        let init_response = client
-            .request("initialize", Some(serde_json::to_value(&init_params)?))
-            .await?;
+        log::info!("ACP: sending initialize request");
+        let init_response = match tokio::time::timeout(
+            HANDSHAKE_TIMEOUT,
+            client.request("initialize", Some(serde_json::to_value(&init_params)?)),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                let msg = format!("Initialize request failed: {e}");
+                self.set_status(AgentStatus::Error(msg.clone()));
+                let _ = child.kill().await;
+                return Err(msg.into());
+            }
+            Err(_) => {
+                let msg =
+                    "Agent handshake timed out (initialize). Is the agent installed?".to_string();
+                self.set_status(AgentStatus::Error(msg.clone()));
+                let _ = child.kill().await;
+                return Err(msg.into());
+            }
+        };
         if let Some(err) = init_response.error {
             let msg = format!("Initialize failed: {err}");
             self.set_status(AgentStatus::Error(msg.clone()));
+            let _ = child.kill().await;
             return Err(msg.into());
         }
+        log::info!("ACP: initialize succeeded");
 
         // 2. Send `session/new` to create a session.
         let session_params = SessionNewParams {
             cwd: cwd.to_string(),
-            mcp_servers: None,
+            mcp_servers: Some(vec![]),
         };
-        let session_response = client
-            .request("session/new", Some(serde_json::to_value(&session_params)?))
-            .await?;
+        let session_response = match tokio::time::timeout(
+            HANDSHAKE_TIMEOUT,
+            client.request("session/new", Some(serde_json::to_value(&session_params)?)),
+        )
+        .await
+        {
+            Ok(Ok(resp)) => resp,
+            Ok(Err(e)) => {
+                let msg = format!("Session creation request failed: {e}");
+                self.set_status(AgentStatus::Error(msg.clone()));
+                let _ = child.kill().await;
+                return Err(msg.into());
+            }
+            Err(_) => {
+                let msg = "Agent handshake timed out (session/new)".to_string();
+                self.set_status(AgentStatus::Error(msg.clone()));
+                let _ = child.kill().await;
+                return Err(msg.into());
+            }
+        };
         if let Some(err) = session_response.error {
             let msg = format!("Session creation failed: {err}");
             self.set_status(AgentStatus::Error(msg.clone()));
+            let _ = child.kill().await;
             return Err(msg.into());
         }
 
@@ -185,6 +267,7 @@ impl Agent {
         self.child = Some(child);
         self.client = Some(Arc::clone(&client));
         self.set_status(AgentStatus::Connected);
+        log::info!("ACP: connected, session_id={}", session_result.session_id);
 
         // 4. Spawn the message handler task.
         let ui_tx = self.ui_tx.clone();
@@ -494,7 +577,9 @@ mod tests {
                 m.insert("*".to_string(), "echo test".to_string());
                 m
             },
+            install_command: None,
             actions: HashMap::new(),
+            connector_installed: false,
         }
     }
 

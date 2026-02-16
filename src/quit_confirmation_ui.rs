@@ -66,6 +66,7 @@ impl QuitConfirmationUI {
         egui::Window::new("Quit par-term?")
             .collapsible(false)
             .resizable(false)
+            .order(egui::Order::Foreground)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
