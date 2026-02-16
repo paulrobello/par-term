@@ -28,8 +28,12 @@ use crate::renderer::{
     DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
 };
 use crate::scrollback_metadata::ScrollbackMark;
+use crate::acp::agent::{Agent, AgentMessage, AgentStatus};
+use crate::acp::agents::{AgentConfig, discover_agents};
+use crate::ai_inspector::chat::ChatMessage;
 use crate::ai_inspector::panel::{AIInspectorPanel, InspectorAction};
 use crate::search::SearchUI;
+use tokio::sync::mpsc;
 use crate::selection::SelectionMode;
 use crate::shader_install_ui::{ShaderInstallResponse, ShaderInstallUI};
 use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
@@ -135,6 +139,12 @@ pub struct WindowState {
     pub(crate) search_ui: SearchUI,
     /// AI Inspector side panel
     pub(crate) ai_inspector: AIInspectorPanel,
+    /// ACP agent message receiver
+    pub(crate) agent_rx: Option<mpsc::UnboundedReceiver<AgentMessage>>,
+    /// ACP agent (managed via tokio)
+    pub(crate) agent: Option<Arc<tokio::sync::Mutex<Agent>>>,
+    /// Available agent configs
+    pub(crate) available_agents: Vec<AgentConfig>,
     /// Shader install prompt UI
     pub(crate) shader_install_ui: ShaderInstallUI,
     /// Receiver for shader installation results (from background thread)
@@ -305,6 +315,10 @@ impl WindowState {
         // Create badge state and AI inspector before moving config
         let badge_state = BadgeState::new(&config);
         let ai_inspector = AIInspectorPanel::new(&config);
+
+        // Discover available ACP agents
+        let config_dir = dirs::config_dir().unwrap_or_default().join("par-term");
+        let available_agents = discover_agents(&config_dir);
         let command_history_max = config.command_history_max_entries;
 
         Self {
@@ -344,6 +358,9 @@ impl WindowState {
             tmux_session_picker_ui: TmuxSessionPickerUI::new(),
             search_ui: SearchUI::new(),
             ai_inspector,
+            agent_rx: None,
+            agent: None,
+            available_agents,
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
             integrations_ui: IntegrationsUI::new(),
@@ -1838,6 +1855,60 @@ impl WindowState {
         let mut pending_remote_install_action = RemoteShellInstallAction::None;
         let mut pending_ssh_connect_action = SshConnectAction::None;
 
+        // Process agent messages
+        if let Some(rx) = &mut self.agent_rx {
+            while let Ok(msg) = rx.try_recv() {
+                match msg {
+                    AgentMessage::StatusChanged(status) => {
+                        self.ai_inspector.agent_status = status;
+                        self.needs_redraw = true;
+                    }
+                    AgentMessage::SessionUpdate(update) => {
+                        self.ai_inspector.chat.handle_update(update);
+                        self.needs_redraw = true;
+                    }
+                    AgentMessage::PermissionRequest {
+                        request_id,
+                        tool_call,
+                        options,
+                    } => {
+                        let description = tool_call
+                            .get("title")
+                            .and_then(|t| t.as_str())
+                            .unwrap_or("Permission requested")
+                            .to_string();
+                        self.ai_inspector
+                            .chat
+                            .messages
+                            .push(ChatMessage::Permission {
+                                request_id,
+                                description,
+                                options: options
+                                    .iter()
+                                    .map(|o| (o.option_id.clone(), o.name.clone()))
+                                    .collect(),
+                                resolved: false,
+                            });
+                        self.needs_redraw = true;
+                    }
+                    AgentMessage::FileReadRequest {
+                        request_id, path, ..
+                    } => {
+                        let content =
+                            std::fs::read_to_string(&path).map_err(|e| e.to_string());
+                        if let Some(agent) = &self.agent {
+                            let agent = agent.clone();
+                            self.runtime.spawn(async move {
+                                let agent = agent.lock().await;
+                                let _ =
+                                    agent.respond_file_read(request_id, content).await;
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
         // Refresh AI Inspector snapshot if needed
         if self.ai_inspector.open && self.ai_inspector.needs_refresh {
             if let Some(tab) = self.tab_manager.active_tab() {
@@ -3120,6 +3191,72 @@ impl WindowState {
                         let _ = term.write(cmd.as_bytes());
                     }
                 }
+            }
+            InspectorAction::ConnectAgent(identity) => {
+                if let Some(agent_config) = self
+                    .available_agents
+                    .iter()
+                    .find(|a| a.identity == identity)
+                {
+                    let (tx, rx) = mpsc::unbounded_channel();
+                    self.agent_rx = Some(rx);
+                    let mut agent = Agent::new(agent_config.clone(), tx);
+                    agent.auto_approve = self.config.ai_inspector_auto_approve;
+                    let agent = Arc::new(tokio::sync::Mutex::new(agent));
+                    self.agent = Some(agent.clone());
+
+                    // Determine CWD for the agent session
+                    let fallback_cwd = std::env::current_dir()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string();
+                    let cwd = if let Some(tab) = self.tab_manager.active_tab() {
+                        if let Ok(term) = tab.terminal.try_lock() {
+                            term.shell_integration_cwd()
+                                .unwrap_or_else(|| fallback_cwd.clone())
+                        } else {
+                            fallback_cwd.clone()
+                        }
+                    } else {
+                        fallback_cwd
+                    };
+
+                    let runtime = self.runtime.clone();
+                    runtime.spawn(async move {
+                        let mut agent = agent.lock().await;
+                        if let Err(e) = agent.connect(&cwd).await {
+                            crate::debug_error!(
+                                "ACP",
+                                "Failed to connect to agent: {}",
+                                e
+                            );
+                        }
+                    });
+                }
+            }
+            InspectorAction::DisconnectAgent => {
+                if let Some(agent) = self.agent.take() {
+                    self.runtime.spawn(async move {
+                        let mut agent = agent.lock().await;
+                        agent.disconnect().await;
+                    });
+                }
+                self.agent_rx = None;
+                self.ai_inspector.agent_status = AgentStatus::Disconnected;
+                self.needs_redraw = true;
+            }
+            InspectorAction::SendPrompt(text) => {
+                self.ai_inspector.chat.add_user_message(text.clone());
+                if let Some(agent) = &self.agent {
+                    let agent = agent.clone();
+                    let content =
+                        vec![crate::acp::protocol::ContentBlock::Text { text }];
+                    self.runtime.spawn(async move {
+                        let agent = agent.lock().await;
+                        let _ = agent.send_prompt(content).await;
+                    });
+                }
+                self.needs_redraw = true;
             }
             InspectorAction::None => {}
         }

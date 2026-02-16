@@ -8,6 +8,8 @@ use egui::{
     Color32, Context, CursorIcon, Frame, Id, Key, Order, Pos2, Rect, RichText, Sense, Stroke, Vec2,
 };
 
+use crate::acp::agent::AgentStatus;
+use crate::ai_inspector::chat::ChatState;
 use crate::ai_inspector::snapshot::{CommandEntry, SnapshotData, SnapshotScope};
 use crate::config::Config;
 
@@ -65,6 +67,12 @@ pub enum InspectorAction {
     SaveToFile(String),
     /// Write text into the active terminal.
     WriteToTerminal(String),
+    /// Connect to an agent by identity string.
+    ConnectAgent(String),
+    /// Disconnect from the current agent.
+    DisconnectAgent,
+    /// Send a user prompt to the connected agent.
+    SendPrompt(String),
 }
 
 /// Predefined scope options for the dropdown.
@@ -147,6 +155,10 @@ pub struct AIInspectorPanel {
     pub needs_refresh: bool,
     /// Last known command count (for detecting changes).
     pub last_command_count: usize,
+    /// Current agent connection status.
+    pub agent_status: AgentStatus,
+    /// Chat state for the agent conversation.
+    pub chat: ChatState,
 }
 
 impl AIInspectorPanel {
@@ -165,6 +177,8 @@ impl AIInspectorPanel {
             snapshot: None,
             needs_refresh: true,
             last_command_count: 0,
+            agent_status: AgentStatus::Disconnected,
+            chat: ChatState::new(),
         }
     }
 
