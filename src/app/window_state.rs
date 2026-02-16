@@ -1392,6 +1392,7 @@ impl WindowState {
             || self.command_history_ui.visible
             || self.shader_install_ui.visible
             || self.integrations_ui.visible
+            || self.ai_inspector.open
     }
 
     /// Check if egui is currently using keyboard input (e.g., text input or ComboBox has focus)
