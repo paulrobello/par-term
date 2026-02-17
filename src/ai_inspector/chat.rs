@@ -4,7 +4,7 @@
 //! an ACP agent, including streaming message assembly, tool call tracking,
 //! permission requests, and system messages.
 
-use crate::acp::protocol::SessionUpdate;
+use par_term_acp::SessionUpdate;
 
 /// A message in the chat history.
 #[derive(Debug, Clone)]
@@ -251,7 +251,7 @@ impl Default for ChatState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::protocol::{ToolCallInfo, ToolCallUpdateInfo};
+    use par_term_acp::{ToolCallInfo, ToolCallUpdateInfo};
 
     #[test]
     fn test_new_chat_state() {

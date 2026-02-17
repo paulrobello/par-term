@@ -4,6 +4,7 @@
 //! routing incoming messages to the UI, and handling permission/file-read
 //! requests from the agent.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde_json::Value;
@@ -22,6 +23,15 @@ use super::protocol::{
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+/// Directories considered safe for agent writes (auto-approved).
+#[derive(Debug, Clone)]
+pub struct SafePaths {
+    /// Directory for par-term configuration files.
+    pub config_dir: PathBuf,
+    /// Directory for user shader files.
+    pub shaders_dir: PathBuf,
+}
 
 /// Current connection status of an agent.
 #[derive(Debug, Clone, PartialEq)]
@@ -76,16 +86,31 @@ pub struct Agent {
     /// The spawned child process.
     child: Option<tokio::process::Child>,
     /// JSON-RPC client for communication with the agent.
-    pub(crate) client: Option<Arc<JsonRpcClient>>,
+    pub client: Option<Arc<JsonRpcClient>>,
     /// Channel to send messages to the UI.
     ui_tx: mpsc::UnboundedSender<AgentMessage>,
     /// Whether to automatically approve permission requests.
     pub auto_approve: bool,
+    /// Paths considered safe for auto-approving writes.
+    safe_paths: SafePaths,
+    /// Path to the binary to use for MCP server (par-term executable).
+    mcp_server_bin: PathBuf,
 }
 
 impl Agent {
     /// Create a new agent manager in the [`AgentStatus::Disconnected`] state.
-    pub fn new(config: AgentConfig, ui_tx: mpsc::UnboundedSender<AgentMessage>) -> Self {
+    ///
+    /// # Arguments
+    /// * `config` - The agent configuration from TOML discovery.
+    /// * `ui_tx` - Channel to send messages to the UI layer.
+    /// * `safe_paths` - Directories considered safe for agent writes.
+    /// * `mcp_server_bin` - Path to the par-term binary for MCP server.
+    pub fn new(
+        config: AgentConfig,
+        ui_tx: mpsc::UnboundedSender<AgentMessage>,
+        safe_paths: SafePaths,
+        mcp_server_bin: PathBuf,
+    ) -> Self {
         Self {
             config,
             status: AgentStatus::Disconnected,
@@ -94,6 +119,8 @@ impl Agent {
             client: None,
             ui_tx,
             auto_approve: false,
+            safe_paths,
+            mcp_server_bin,
         }
     }
 
@@ -227,12 +254,10 @@ impl Agent {
         //
         // Include an MCP server that exposes par-term's `config_update` tool
         // so the agent can modify settings without editing config.yaml directly.
-        let config_update_path = crate::config::Config::config_dir().join(".config-update.json");
-        let par_term_bin =
-            std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("par-term"));
+        let config_update_path = self.safe_paths.config_dir.join(".config-update.json");
         let mcp_server = serde_json::json!({
             "name": "par-term-config",
-            "command": par_term_bin.to_string_lossy(),
+            "command": self.mcp_server_bin.to_string_lossy(),
             "args": ["mcp-server"],
             "env": [{
                 "name": "PAR_TERM_CONFIG_UPDATE_PATH",
@@ -287,8 +312,10 @@ impl Agent {
         let ui_tx = self.ui_tx.clone();
         let handler_client = Arc::clone(&client);
         let auto_approve = self.auto_approve;
+        let safe_paths = self.safe_paths.clone();
         tokio::spawn(async move {
-            handle_incoming_messages(incoming_rx, handler_client, ui_tx, auto_approve).await;
+            handle_incoming_messages(incoming_rx, handler_client, ui_tx, auto_approve, safe_paths)
+                .await;
         });
 
         Ok(())
@@ -419,7 +446,7 @@ impl Drop for Agent {
 ///
 /// Safe directories include `/tmp`, the par-term shaders directory, and the
 /// par-term config directory (for `.config-update.json`).
-fn is_safe_write_path(tool_call: &serde_json::Value) -> bool {
+fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths) -> bool {
     // Try to extract the path from various locations in the tool_call JSON.
     // Claude Code puts it in rawInput.file_path, rawInput.path, or the title
     // field as "Write /path/to/file".
@@ -456,14 +483,12 @@ fn is_safe_write_path(tool_call: &serde_json::Value) -> bool {
     }
 
     // Allow writes to par-term's shaders directory
-    let shaders_dir = crate::config::Config::shaders_dir();
-    if path.starts_with(&shaders_dir) {
+    if path.starts_with(&safe_paths.shaders_dir) {
         return true;
     }
 
     // Allow writes to par-term's config directory (for .config-update.json etc.)
-    let config_dir = crate::config::Config::config_dir();
-    if path.starts_with(&config_dir) {
+    if path.starts_with(&safe_paths.config_dir) {
         return true;
     }
 
@@ -481,6 +506,7 @@ async fn handle_incoming_messages(
     client: Arc<JsonRpcClient>,
     ui_tx: mpsc::UnboundedSender<AgentMessage>,
     auto_approve: bool,
+    safe_paths: SafePaths,
 ) {
     while let Some(msg) = incoming_rx.recv().await {
         let method = match msg.method.as_deref() {
@@ -594,7 +620,7 @@ async fn handle_incoming_messages(
                                         true
                                     } else if is_write_tool {
                                         // Only auto-approve writes to safe directories
-                                        is_safe_write_path(&perm_params.tool_call)
+                                        is_safe_write_path(&perm_params.tool_call, &safe_paths)
                                     } else {
                                         false
                                     }
@@ -1032,10 +1058,22 @@ mod tests {
         }
     }
 
+    fn make_safe_paths() -> SafePaths {
+        SafePaths {
+            config_dir: std::path::PathBuf::from("/tmp/test-config"),
+            shaders_dir: std::path::PathBuf::from("/tmp/test-shaders"),
+        }
+    }
+
     #[test]
     fn test_agent_new_disconnected() {
         let (tx, _rx) = mpsc::unbounded_channel();
-        let agent = Agent::new(make_test_config(), tx);
+        let agent = Agent::new(
+            make_test_config(),
+            tx,
+            make_safe_paths(),
+            std::path::PathBuf::from("par-term"),
+        );
         assert!(matches!(agent.status, AgentStatus::Disconnected));
         assert!(agent.session_id.is_none());
         assert!(agent.client.is_none());
@@ -1061,7 +1099,12 @@ mod tests {
     #[test]
     fn test_set_status_sends_message() {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut agent = Agent::new(make_test_config(), tx);
+        let mut agent = Agent::new(
+            make_test_config(),
+            tx,
+            make_safe_paths(),
+            std::path::PathBuf::from("par-term"),
+        );
 
         agent.set_status(AgentStatus::Connecting);
         assert!(matches!(agent.status, AgentStatus::Connecting));
@@ -1076,7 +1119,12 @@ mod tests {
     #[tokio::test]
     async fn test_disconnect_clears_state() {
         let (tx, _rx) = mpsc::unbounded_channel();
-        let mut agent = Agent::new(make_test_config(), tx);
+        let mut agent = Agent::new(
+            make_test_config(),
+            tx,
+            make_safe_paths(),
+            std::path::PathBuf::from("par-term"),
+        );
 
         // Simulate some connected state.
         agent.session_id = Some("test-session".to_string());
@@ -1093,7 +1141,12 @@ mod tests {
     #[tokio::test]
     async fn test_send_prompt_not_connected() {
         let (tx, _rx) = mpsc::unbounded_channel();
-        let agent = Agent::new(make_test_config(), tx);
+        let agent = Agent::new(
+            make_test_config(),
+            tx,
+            make_safe_paths(),
+            std::path::PathBuf::from("par-term"),
+        );
 
         let result = agent
             .send_prompt(vec![ContentBlock::Text {
@@ -1106,7 +1159,12 @@ mod tests {
     #[tokio::test]
     async fn test_cancel_not_connected() {
         let (tx, _rx) = mpsc::unbounded_channel();
-        let agent = Agent::new(make_test_config(), tx);
+        let agent = Agent::new(
+            make_test_config(),
+            tx,
+            make_safe_paths(),
+            std::path::PathBuf::from("par-term"),
+        );
 
         let result = agent.cancel().await;
         assert!(result.is_err());
@@ -1115,7 +1173,12 @@ mod tests {
     #[tokio::test]
     async fn test_respond_permission_not_connected() {
         let (tx, _rx) = mpsc::unbounded_channel();
-        let agent = Agent::new(make_test_config(), tx);
+        let agent = Agent::new(
+            make_test_config(),
+            tx,
+            make_safe_paths(),
+            std::path::PathBuf::from("par-term"),
+        );
 
         let result = agent.respond_permission(1, "allow", false).await;
         assert!(result.is_err());
@@ -1123,64 +1186,75 @@ mod tests {
 
     #[test]
     fn test_safe_write_path_tmp() {
+        let safe_paths = make_safe_paths();
         let tool_call = serde_json::json!({
             "rawInput": {"file_path": "/tmp/test.glsl"},
             "title": "Write /tmp/test.glsl"
         });
-        assert!(is_safe_write_path(&tool_call));
+        assert!(is_safe_write_path(&tool_call, &safe_paths));
     }
 
     #[test]
     fn test_safe_write_path_shaders_dir() {
-        let shaders_dir = crate::config::Config::shaders_dir();
-        let path = shaders_dir.join("crt.glsl");
+        let safe_paths = SafePaths {
+            shaders_dir: std::path::PathBuf::from("/tmp/test-shaders"),
+            config_dir: std::path::PathBuf::from("/tmp/test-config"),
+        };
+        let path = safe_paths.shaders_dir.join("crt.glsl");
         let tool_call = serde_json::json!({
             "rawInput": {"file_path": path.to_string_lossy()},
             "title": format!("Write {}", path.display())
         });
-        assert!(is_safe_write_path(&tool_call));
+        assert!(is_safe_write_path(&tool_call, &safe_paths));
     }
 
     #[test]
     fn test_safe_write_path_config_dir() {
-        let config_dir = crate::config::Config::config_dir();
-        let path = config_dir.join(".config-update.json");
+        let safe_paths = SafePaths {
+            config_dir: std::path::PathBuf::from("/tmp/test-config"),
+            shaders_dir: std::path::PathBuf::from("/tmp/test-shaders"),
+        };
+        let path = safe_paths.config_dir.join(".config-update.json");
         let tool_call = serde_json::json!({
             "rawInput": {"file_path": path.to_string_lossy()},
         });
-        assert!(is_safe_write_path(&tool_call));
+        assert!(is_safe_write_path(&tool_call, &safe_paths));
     }
 
     #[test]
     fn test_unsafe_write_path_home() {
+        let safe_paths = make_safe_paths();
         let tool_call = serde_json::json!({
             "rawInput": {"file_path": "/Users/someone/.bashrc"},
             "title": "Write /Users/someone/.bashrc"
         });
-        assert!(!is_safe_write_path(&tool_call));
+        assert!(!is_safe_write_path(&tool_call, &safe_paths));
     }
 
     #[test]
     fn test_unsafe_write_path_system() {
+        let safe_paths = make_safe_paths();
         let tool_call = serde_json::json!({
             "rawInput": {"file_path": "/etc/passwd"},
         });
-        assert!(!is_safe_write_path(&tool_call));
+        assert!(!is_safe_write_path(&tool_call, &safe_paths));
     }
 
     #[test]
     fn test_safe_write_path_from_title_fallback() {
+        let safe_paths = make_safe_paths();
         let tool_call = serde_json::json!({
             "title": "Write /tmp/shader.glsl"
         });
-        assert!(is_safe_write_path(&tool_call));
+        assert!(is_safe_write_path(&tool_call, &safe_paths));
     }
 
     #[test]
     fn test_safe_write_path_no_path() {
+        let safe_paths = make_safe_paths();
         let tool_call = serde_json::json!({
             "title": "Write"
         });
-        assert!(!is_safe_write_path(&tool_call));
+        assert!(!is_safe_write_path(&tool_call, &safe_paths));
     }
 }

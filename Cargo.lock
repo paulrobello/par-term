@@ -3655,6 +3655,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "objc2-quartz-core 0.3.2",
  "open",
+ "par-term-acp",
  "par-term-emu-core-rust",
  "parking_lot",
  "raw-window-handle",
@@ -3679,6 +3680,18 @@ dependencies = [
  "winit",
  "winres",
  "zip",
+]
+
+[[package]]
+name = "par-term-acp"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml 0.8.2",
 ]
 
 [[package]]

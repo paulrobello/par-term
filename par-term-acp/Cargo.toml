@@ -1,0 +1,26 @@
+[package]
+name = "par-term-acp"
+version = "0.1.0"
+edition = "2024"
+authors = ["Paul Robello <probello@gmail.com>"]
+description = "Agent Communication Protocol (ACP) implementation for par-term"
+license = "MIT"
+repository = "https://github.com/paulrobello/par-term"
+homepage = "https://github.com/paulrobello/par-term"
+keywords = ["terminal", "acp", "agent", "jsonrpc"]
+categories = ["development-tools"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.49", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+toml = "0.8"
+
+# Logging
+log = "0.4.29"
+
+[dev-dependencies]
+tempfile = "3.25"
