@@ -3,7 +3,6 @@
 #[macro_use]
 pub mod debug;
 
-pub mod acp;
 pub mod ai_inspector;
 pub mod app;
 pub mod arrangements;

@@ -3,9 +3,6 @@
 //! This module contains `WindowState`, which holds all state specific to a single window,
 //! including its renderer, tab manager, input handler, and UI components.
 
-use crate::acp::agent::{Agent, AgentMessage, AgentStatus};
-use crate::acp::agents::{AgentConfig, discover_agents};
-use crate::acp::protocol::{ClientCapabilities, FsCapabilities};
 use crate::ai_inspector::chat::ChatMessage;
 use crate::ai_inspector::panel::{AIInspectorPanel, InspectorAction};
 use crate::app::anti_idle::should_send_keep_alive;
@@ -46,6 +43,10 @@ use crate::tmux::{TmuxSession, TmuxSync};
 use crate::tmux_session_picker_ui::{SessionPickerAction, TmuxSessionPickerUI};
 use crate::tmux_status_bar_ui::TmuxStatusBarUI;
 use anyhow::Result;
+use par_term_acp::{
+    Agent, AgentConfig, AgentMessage, AgentStatus, ClientCapabilities, FsCapabilities, SafePaths,
+    discover_agents,
+};
 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -154,7 +155,7 @@ pub struct WindowState {
     /// Stored separately to avoid deadlocks: `send_prompt` holds the agent lock
     /// while waiting for the prompt response, but the agent's tool calls
     /// (e.g. `fs/readTextFile`) need us to respond via this same client.
-    pub(crate) agent_client: Option<Arc<crate::acp::jsonrpc::JsonRpcClient>>,
+    pub(crate) agent_client: Option<Arc<par_term_acp::JsonRpcClient>>,
     /// Available agent configs
     pub(crate) available_agents: Vec<AgentConfig>,
     /// Shader install prompt UI
@@ -1044,7 +1045,13 @@ impl WindowState {
             self.agent_rx = Some(rx);
             self.agent_tx = Some(tx.clone());
             let ui_tx = tx.clone();
-            let mut agent = Agent::new(agent_config.clone(), tx);
+            let safe_paths = SafePaths {
+                config_dir: Config::config_dir(),
+                shaders_dir: Config::shaders_dir(),
+            };
+            let mcp_server_bin =
+                std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("par-term"));
+            let mut agent = Agent::new(agent_config.clone(), tx, safe_paths, mcp_server_bin);
             agent.auto_approve = self.config.ai_inspector_auto_approve;
             let agent = Arc::new(tokio::sync::Mutex::new(agent));
             self.agent = Some(agent.clone());
@@ -2624,8 +2631,7 @@ impl WindowState {
 
                     if let Some(agent) = &self.agent {
                         let agent = agent.clone();
-                        let content =
-                            vec![crate::acp::protocol::ContentBlock::Text { text: context }];
+                        let content = vec![par_term_acp::ContentBlock::Text { text: context }];
                         self.runtime.spawn(async move {
                             let agent = agent.lock().await;
                             let _ = agent.send_prompt(content).await;
@@ -3979,13 +3985,13 @@ impl WindowState {
                             "[System: The user executed `{cmd_for_msg}` in their terminal ({exit_str}). \
                              The output is available through the normal terminal capture.]"
                         );
-                        let content = vec![crate::acp::protocol::ContentBlock::Text {
+                        let content = vec![par_term_acp::ContentBlock::Text {
                             text: feedback,
                         }];
                         let agent = agent.lock().await;
                         let _ = agent.send_prompt(content).await;
                         if let Some(tx) = tx {
-                            let _ = tx.send(crate::acp::agent::AgentMessage::PromptComplete);
+                            let _ = tx.send(par_term_acp::AgentMessage::PromptComplete);
                         }
                     });
                 }
@@ -4035,8 +4041,7 @@ impl WindowState {
 
                     prompt_text.push_str(&text);
 
-                    let content =
-                        vec![crate::acp::protocol::ContentBlock::Text { text: prompt_text }];
+                    let content = vec![par_term_acp::ContentBlock::Text { text: prompt_text }];
                     let tx = self.agent_tx.clone();
                     self.runtime.spawn(async move {
                         let agent = agent.lock().await;
@@ -4064,7 +4069,7 @@ impl WindowState {
                     let action = if cancelled { "cancelled" } else { "selected" };
                     log::info!("ACP: sending permission response id={request_id} action={action}");
                     self.runtime.spawn(async move {
-                        use crate::acp::protocol::{PermissionOutcome, RequestPermissionResponse};
+                        use par_term_acp::{PermissionOutcome, RequestPermissionResponse};
                         let outcome = if cancelled {
                             PermissionOutcome {
                                 outcome: "cancelled".to_string(),

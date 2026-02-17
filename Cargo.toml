@@ -1,3 +1,7 @@
+[workspace]
+members = ["par-term-acp"]
+resolver = "2"
+
 [package]
 name = "par-term"
 version = "0.16.0"
@@ -22,6 +26,9 @@ exclude = [
 ]
 
 [dependencies]
+# ACP (Agent Communication Protocol) implementation
+par-term-acp = { path = "par-term-acp" }
+
 # Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
 par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
 

@@ -6,11 +6,10 @@
 
 use egui::{Color32, Context, CursorIcon, Frame, Id, Key, Label, Order, Pos2, RichText, Stroke};
 
-use crate::acp::agent::AgentStatus;
-use crate::acp::agents::AgentConfig;
 use crate::ai_inspector::chat::{ChatMessage, ChatState};
 use crate::ai_inspector::snapshot::{CommandEntry, SnapshotData, SnapshotScope};
 use crate::config::Config;
+use par_term_acp::{AgentConfig, AgentStatus};
 
 /// View mode for displaying snapshot data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
