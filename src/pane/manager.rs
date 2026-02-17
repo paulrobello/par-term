@@ -153,8 +153,12 @@ impl PaneManager {
         let mut pane = Pane::new(id, &pane_config, runtime, working_directory)?;
 
         // Apply per-pane background from config if available (index 0 for initial pane)
-        if let Some(bg) = config.get_pane_background(0) {
-            pane.set_background(bg);
+        if let Some((image_path, mode, opacity)) = config.get_pane_background(0) {
+            pane.set_background(crate::pane::PaneBackground {
+                image_path: Some(image_path),
+                mode,
+                opacity,
+            });
         }
 
         self.root = Some(PaneNode::leaf(pane));
@@ -214,8 +218,12 @@ impl PaneManager {
         // Apply per-pane background from config if available
         // The new pane will be at the end of the pane list, so its index is the current count
         let new_pane_index = self.pane_count(); // current count = index of new pane after insertion
-        if let Some(bg) = config.get_pane_background(new_pane_index) {
-            new_pane.set_background(bg);
+        if let Some((image_path, mode, opacity)) = config.get_pane_background(new_pane_index) {
+            new_pane.set_background(crate::pane::PaneBackground {
+                image_path: Some(image_path),
+                mode,
+                opacity,
+            });
         }
 
         // Find and split the focused pane
@@ -900,8 +908,12 @@ impl PaneManager {
         // Apply per-pane backgrounds from config to restored panes
         let panes = self.all_panes_mut();
         for (index, pane) in panes.into_iter().enumerate() {
-            if let Some(bg) = config.get_pane_background(index) {
-                pane.set_background(bg);
+            if let Some((image_path, mode, opacity)) = config.get_pane_background(index) {
+                pane.set_background(crate::pane::PaneBackground {
+                    image_path: Some(image_path),
+                    mode,
+                    opacity,
+                });
             }
         }
 

@@ -3,7 +3,9 @@
 //! Defines the configuration for fetching profiles from remote URLs,
 //! caching fetched profiles, HTTP fetch logic, merge strategies,
 //! and background fetch management via tokio tasks.
-//! These types are serialized/deserialized as part of the main config file.
+
+// Re-export configuration types from par-term-config
+pub use par_term_config::{ConflictResolution, DynamicProfileSource};
 
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
@@ -13,94 +15,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::mpsc;
-
-/// How to resolve conflicts when a remote profile has the same ID as a local one
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum ConflictResolution {
-    /// Local profile takes precedence over remote
-    #[default]
-    LocalWins,
-    /// Remote profile takes precedence over local
-    RemoteWins,
-}
-
-impl ConflictResolution {
-    /// Returns all variants of `ConflictResolution`
-    pub fn variants() -> &'static [ConflictResolution] {
-        &[
-            ConflictResolution::LocalWins,
-            ConflictResolution::RemoteWins,
-        ]
-    }
-
-    /// Returns a human-readable display name for this variant
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            ConflictResolution::LocalWins => "Local Wins",
-            ConflictResolution::RemoteWins => "Remote Wins",
-        }
-    }
-}
-
-// ── Serde default helpers ──────────────────────────────────────────────
-
-fn default_refresh_interval_secs() -> u64 {
-    1800
-}
-
-fn default_max_size_bytes() -> usize {
-    1_048_576
-}
-
-fn default_fetch_timeout_secs() -> u64 {
-    10
-}
-
-/// A remote profile source configuration stored in the main config file
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct DynamicProfileSource {
-    /// URL to fetch profiles YAML from
-    pub url: String,
-
-    /// Custom HTTP headers to include in the fetch request (e.g., Authorization)
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub headers: HashMap<String, String>,
-
-    /// How often to re-fetch profiles, in seconds (default: 1800 = 30 min)
-    #[serde(default = "default_refresh_interval_secs")]
-    pub refresh_interval_secs: u64,
-
-    /// Maximum allowed response size in bytes (default: 1 MB)
-    #[serde(default = "default_max_size_bytes")]
-    pub max_size_bytes: usize,
-
-    /// Timeout for the HTTP fetch request, in seconds (default: 10)
-    #[serde(default = "default_fetch_timeout_secs")]
-    pub fetch_timeout_secs: u64,
-
-    /// Whether this source is enabled (default: true)
-    #[serde(default = "crate::config::defaults::bool_true")]
-    pub enabled: bool,
-
-    /// How to resolve conflicts when a remote profile ID matches a local one
-    #[serde(default)]
-    pub conflict_resolution: ConflictResolution,
-}
-
-impl Default for DynamicProfileSource {
-    fn default() -> Self {
-        Self {
-            url: String::new(),
-            headers: HashMap::new(),
-            refresh_interval_secs: default_refresh_interval_secs(),
-            max_size_bytes: default_max_size_bytes(),
-            fetch_timeout_secs: default_fetch_timeout_secs(),
-            enabled: true,
-            conflict_resolution: ConflictResolution::default(),
-        }
-    }
-}
 
 // ── Cache storage ──────────────────────────────────────────────────────
 

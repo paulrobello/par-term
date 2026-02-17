@@ -3656,6 +3656,7 @@ dependencies = [
  "objc2-quartz-core 0.3.2",
  "open",
  "par-term-acp",
+ "par-term-config",
  "par-term-emu-core-rust",
  "parking_lot",
  "raw-window-handle",
@@ -3692,6 +3693,27 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml 0.8.2",
+]
+
+[[package]]
+name = "par-term-config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dirs",
+ "hostname",
+ "log",
+ "notify",
+ "par-term-emu-core-rust",
+ "parking_lot",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "toml 0.8.2",
+ "uuid",
+ "wgpu",
 ]
 
 [[package]]
