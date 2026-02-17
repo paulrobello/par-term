@@ -112,6 +112,12 @@ pub struct JsonRpcClient {
     incoming_rx: Option<mpsc::UnboundedReceiver<IncomingMessage>>,
 }
 
+impl std::fmt::Debug for JsonRpcClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JsonRpcClient").finish_non_exhaustive()
+    }
+}
+
 impl JsonRpcClient {
     /// Create a new client.
     ///
@@ -282,6 +288,7 @@ impl JsonRpcClient {
         };
 
         let json = serde_json::to_string(&resp)?;
+        log::info!("ACP WIRE OUT: {json}");
         let mut writer = self.writer.lock().await;
         writer.write_all(format!("{json}\n").as_bytes()).await?;
         writer.flush().await?;

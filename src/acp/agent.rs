@@ -13,9 +13,10 @@ use tokio::sync::mpsc;
 use super::agents::AgentConfig;
 use super::jsonrpc::{JsonRpcClient, RpcError};
 use super::protocol::{
-    ClientCapabilities, ClientInfo, ContentBlock, FsCapabilities, FsReadParams, InitializeParams,
-    PermissionOption, PermissionOutcome, RequestPermissionParams, RequestPermissionResponse,
-    SessionNewParams, SessionPromptParams, SessionResult, SessionUpdate, SessionUpdateParams,
+    ClientCapabilities, ClientInfo, ConfigUpdateParams, ContentBlock, FsFindParams,
+    FsListDirectoryParams, FsReadParams, FsWriteParams, InitializeParams, PermissionOption,
+    PermissionOutcome, RequestPermissionParams, RequestPermissionResponse, SessionNewParams,
+    SessionPromptParams, SessionResult, SessionUpdate, SessionUpdateParams,
 };
 
 // ---------------------------------------------------------------------------
@@ -48,15 +49,16 @@ pub enum AgentMessage {
         tool_call: Value,
         options: Vec<PermissionOption>,
     },
-    /// The agent is requesting to read a file from the host.
-    FileReadRequest {
-        request_id: u64,
-        path: String,
-        line: Option<u64>,
-        limit: Option<u64>,
-    },
     /// The agent finished processing a prompt (flush pending text).
     PromptComplete,
+    /// The agent wants to update config settings.
+    ConfigUpdate {
+        updates: std::collections::HashMap<String, serde_json::Value>,
+        reply: tokio::sync::oneshot::Sender<Result<(), String>>,
+    },
+    /// The ACP client is ready — carry the `Arc<JsonRpcClient>` so the UI
+    /// can send responses without locking the agent mutex.
+    ClientReady(Arc<JsonRpcClient>),
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +76,7 @@ pub struct Agent {
     /// The spawned child process.
     child: Option<tokio::process::Child>,
     /// JSON-RPC client for communication with the agent.
-    client: Option<Arc<JsonRpcClient>>,
+    pub(crate) client: Option<Arc<JsonRpcClient>>,
     /// Channel to send messages to the UI.
     ui_tx: mpsc::UnboundedSender<AgentMessage>,
     /// Whether to automatically approve permission requests.
@@ -103,6 +105,7 @@ impl Agent {
     pub async fn connect(
         &mut self,
         cwd: &str,
+        capabilities: ClientCapabilities,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Resolve the run command for the current platform.
         let run_command = self
@@ -113,17 +116,19 @@ impl Agent {
 
         self.set_status(AgentStatus::Connecting);
 
-        // Spawn via login + interactive shell so the user's full PATH is
-        // available (nvm, homebrew, etc. are often configured in .bashrc
-        // which only loads for interactive shells). The JSON-RPC reader
-        // gracefully skips any non-JSON profile output on stdout.
+        // Spawn via login shell so the user's full PATH is available
+        // (nvm, homebrew, etc. are often configured in .bash_profile /
+        // .zprofile / .profile). We intentionally do NOT use interactive
+        // mode (-i) because it causes the shell to emit terminal control
+        // sequences (e.g. [?1034h) to stdout, which corrupts the JSON-RPC
+        // stream and causes handshake timeouts.
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
         log::info!(
-            "ACP: spawning agent '{}' via {shell} -lic '{run_command}' in cwd={cwd}",
+            "ACP: spawning agent '{}' via {shell} -lc '{run_command}' in cwd={cwd}",
             self.config.identity,
         );
         let mut child = match Command::new(&shell)
-            .arg("-lic")
+            .arg("-lc")
             .arg(&run_command)
             .current_dir(cwd)
             .stdin(std::process::Stdio::piped())
@@ -181,13 +186,7 @@ impl Agent {
         // 1. Send `initialize` with par-term client info.
         let init_params = InitializeParams {
             protocol_version: 1,
-            client_capabilities: ClientCapabilities {
-                fs: FsCapabilities {
-                    read_text_file: true,
-                    write_text_file: false,
-                },
-                terminal: false,
-            },
+            client_capabilities: capabilities,
             client_info: ClientInfo {
                 name: "par-term".to_string(),
                 title: "Par Term".to_string(),
@@ -225,9 +224,24 @@ impl Agent {
         log::info!("ACP: initialize succeeded");
 
         // 2. Send `session/new` to create a session.
+        //
+        // Include an MCP server that exposes par-term's `config_update` tool
+        // so the agent can modify settings without editing config.yaml directly.
+        let config_update_path = crate::config::Config::config_dir().join(".config-update.json");
+        let par_term_bin =
+            std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("par-term"));
+        let mcp_server = serde_json::json!({
+            "name": "par-term-config",
+            "command": par_term_bin.to_string_lossy(),
+            "args": ["mcp-server"],
+            "env": [{
+                "name": "PAR_TERM_CONFIG_UPDATE_PATH",
+                "value": config_update_path.to_string_lossy(),
+            }],
+        });
         let session_params = SessionNewParams {
             cwd: cwd.to_string(),
-            mcp_servers: Some(vec![]),
+            mcp_servers: Some(vec![mcp_server]),
         };
         let session_response = match tokio::time::timeout(
             HANDSHAKE_TIMEOUT,
@@ -312,6 +326,32 @@ impl Agent {
         Ok(())
     }
 
+    /// Set the agent's session interaction mode.
+    ///
+    /// Valid modes: `"default"`, `"acceptEdits"`, `"bypassPermissions"`,
+    /// `"dontAsk"`, `"plan"`.
+    pub async fn set_mode(
+        &self,
+        mode_id: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let client = self.client.as_ref().ok_or("Not connected")?;
+        let session_id = self.session_id.as_ref().ok_or("No active session")?;
+
+        let response = client
+            .request(
+                "session/setMode",
+                Some(serde_json::json!({
+                    "sessionId": session_id,
+                    "modeId": mode_id,
+                })),
+            )
+            .await?;
+        if let Some(err) = response.error {
+            return Err(format!("setMode failed: {err}").into());
+        }
+        Ok(())
+    }
+
     /// Cancel the current prompt execution.
     pub async fn cancel(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let client = self.client.as_ref().ok_or("Not connected")?;
@@ -342,7 +382,7 @@ impl Agent {
             }
         } else {
             PermissionOutcome {
-                outcome: "allowed".to_string(),
+                outcome: "selected".to_string(),
                 option_id: Some(option_id.to_string()),
             }
         };
@@ -351,41 +391,6 @@ impl Agent {
         client
             .respond(request_id, Some(serde_json::to_value(&result)?), None)
             .await?;
-        Ok(())
-    }
-
-    /// Respond to a file read request from the agent.
-    pub async fn respond_file_read(
-        &self,
-        request_id: u64,
-        content: Result<String, String>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let client = self.client.as_ref().ok_or("Not connected")?;
-
-        match content {
-            Ok(text) => {
-                client
-                    .respond(
-                        request_id,
-                        Some(serde_json::json!({ "content": text })),
-                        None,
-                    )
-                    .await?;
-            }
-            Err(err_msg) => {
-                client
-                    .respond(
-                        request_id,
-                        None,
-                        Some(RpcError {
-                            code: -32000,
-                            message: err_msg,
-                            data: None,
-                        }),
-                    )
-                    .await?;
-            }
-        }
         Ok(())
     }
 
@@ -403,6 +408,66 @@ impl Drop for Agent {
             let _ = child.start_kill();
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Extract the file path from a tool_call JSON and check if it's in a safe
+/// directory that can be auto-approved for writes.
+///
+/// Safe directories include `/tmp`, the par-term shaders directory, and the
+/// par-term config directory (for `.config-update.json`).
+fn is_safe_write_path(tool_call: &serde_json::Value) -> bool {
+    // Try to extract the path from various locations in the tool_call JSON.
+    // Claude Code puts it in rawInput.file_path, rawInput.path, or the title
+    // field as "Write /path/to/file".
+    let path_str = tool_call
+        .get("rawInput")
+        .and_then(|ri| {
+            ri.get("file_path")
+                .or_else(|| ri.get("filePath"))
+                .or_else(|| ri.get("path"))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            // Fall back to extracting path from title: "Write /path/to/file"
+            tool_call
+                .get("title")
+                .and_then(|v| v.as_str())
+                .and_then(|t| t.split_whitespace().nth(1))
+        });
+
+    let Some(path_str) = path_str else {
+        return false;
+    };
+
+    let path = std::path::Path::new(path_str);
+
+    // Allow writes to /tmp or platform temp dir
+    if path_str.starts_with("/tmp") || path_str.starts_with("/var/folders") {
+        return true;
+    }
+    if let Ok(temp_dir) = std::env::var("TMPDIR")
+        && path_str.starts_with(&temp_dir)
+    {
+        return true;
+    }
+
+    // Allow writes to par-term's shaders directory
+    let shaders_dir = crate::config::Config::shaders_dir();
+    if path.starts_with(&shaders_dir) {
+        return true;
+    }
+
+    // Allow writes to par-term's config directory (for .config-update.json etc.)
+    let config_dir = crate::config::Config::config_dir();
+    if path.starts_with(&config_dir) {
+        return true;
+    }
+
+    false
 }
 
 // ---------------------------------------------------------------------------
@@ -450,36 +515,131 @@ async fn handle_incoming_messages(
                 None => continue,
             };
 
+            log::info!("ACP RPC call: method={method} id={request_id}");
+
             match method {
                 "session/request_permission" => {
                     if let Some(params) = &msg.params {
                         match serde_json::from_value::<RequestPermissionParams>(params.clone()) {
                             Ok(perm_params) => {
-                                if auto_approve {
+                                // Identify the tool from the tool_call JSON.
+                                // Claude Code ACP puts the tool name in the "title"
+                                // field as "ToolName /path/..." rather than in a
+                                // dedicated "tool" or "name" field.
+                                let tool_name = perm_params
+                                    .tool_call
+                                    .get("tool")
+                                    .and_then(|v| v.as_str())
+                                    .or_else(|| {
+                                        perm_params.tool_call.get("name").and_then(|v| v.as_str())
+                                    })
+                                    .or_else(|| {
+                                        perm_params
+                                            .tool_call
+                                            .get("toolName")
+                                            .and_then(|v| v.as_str())
+                                    })
+                                    .or_else(|| {
+                                        // Extract first word from "title" field
+                                        // e.g. "Write /path/to/file" → "Write"
+                                        perm_params
+                                            .tool_call
+                                            .get("title")
+                                            .and_then(|v| v.as_str())
+                                            .and_then(|t| t.split_whitespace().next())
+                                    })
+                                    .unwrap_or("");
+
+                                log::info!(
+                                    "ACP permission request: id={request_id} tool={tool_name} \
+                                     tool_call={}",
+                                    perm_params.tool_call
+                                );
+
+                                // Auto-approve read-only tools and config updates.
+                                // Write/edit tools require approval unless writing
+                                // to a temp directory (shaders dir, /tmp, etc.).
+                                let is_safe_fs_tool = {
+                                    let lower = tool_name.to_lowercase();
+                                    let is_read_only = matches!(
+                                        lower.as_str(),
+                                        "read"
+                                            | "read_file"
+                                            | "readfile"
+                                            | "readtextfile"
+                                            | "glob"
+                                            | "grep"
+                                            | "find"
+                                            | "list_directory"
+                                            | "listdirectory"
+                                            | "toolsearch"
+                                            | "tool_search"
+                                            | "notebookedit"
+                                            | "notebook_edit"
+                                            | "config"
+                                            | "config_update"
+                                            | "configupdate"
+                                    ) || lower.contains("par-term-config");
+
+                                    let is_write_tool = matches!(
+                                        lower.as_str(),
+                                        "write"
+                                            | "write_file"
+                                            | "writefile"
+                                            | "writetextfile"
+                                            | "edit"
+                                    );
+
+                                    if is_read_only {
+                                        true
+                                    } else if is_write_tool {
+                                        // Only auto-approve writes to safe directories
+                                        is_safe_write_path(&perm_params.tool_call)
+                                    } else {
+                                        false
+                                    }
+                                };
+
+                                // Log all options for debugging.
+                                for (i, opt) in perm_params.options.iter().enumerate() {
+                                    log::info!(
+                                        "ACP permission option[{i}]: id={} name={} kind={:?}",
+                                        opt.option_id,
+                                        opt.name,
+                                        opt.kind
+                                    );
+                                }
+
+                                if auto_approve || is_safe_fs_tool {
                                     // Auto-approve: pick the first "allow" option, or just
                                     // the first option available.
                                     let option_id = perm_params
                                         .options
                                         .iter()
-                                        .find(|o| o.kind.as_deref() == Some("allow"))
+                                        .find(|o| {
+                                            o.kind.as_deref() == Some("allow")
+                                                || o.kind.as_deref() == Some("allowOnce")
+                                                || o.name.to_lowercase().contains("allow")
+                                        })
                                         .or_else(|| perm_params.options.first())
                                         .map(|o| o.option_id.clone());
 
+                                    log::info!(
+                                        "ACP: auto-approving tool={tool_name} id={request_id} \
+                                         chosen_option={option_id:?}"
+                                    );
+
                                     let outcome = RequestPermissionResponse {
                                         outcome: PermissionOutcome {
-                                            outcome: "allowed".to_string(),
+                                            outcome: "selected".to_string(),
                                             option_id,
                                         },
                                     };
-                                    if let Err(e) = client
-                                        .respond(
-                                            request_id,
-                                            Some(
-                                                serde_json::to_value(&outcome).unwrap_or_default(),
-                                            ),
-                                            None,
-                                        )
-                                        .await
+                                    let response_json =
+                                        serde_json::to_value(&outcome).unwrap_or_default();
+                                    log::info!("ACP: sending permission response: {response_json}");
+                                    if let Err(e) =
+                                        client.respond(request_id, Some(response_json), None).await
                                     {
                                         log::error!("Failed to auto-approve permission: {e}");
                                     }
@@ -509,30 +669,319 @@ async fn handle_incoming_messages(
                     }
                 }
                 "fs/read_text_file" | "fs/readTextFile" => {
-                    if let Some(params) = &msg.params {
-                        match serde_json::from_value::<FsReadParams>(params.clone()) {
-                            Ok(fs_params) => {
-                                let _ = ui_tx.send(AgentMessage::FileReadRequest {
-                                    request_id,
-                                    path: fs_params.path,
-                                    line: fs_params.line,
-                                    limit: fs_params.limit,
-                                });
-                            }
-                            Err(e) => {
-                                log::error!("Failed to parse fs/readTextFile params: {e}");
-                                let _ = client
-                                    .respond(
-                                        request_id,
-                                        None,
-                                        Some(RpcError {
-                                            code: -32602,
-                                            message: "Invalid params".to_string(),
-                                            data: None,
-                                        }),
+                    let c = Arc::clone(&client);
+                    match msg
+                        .params
+                        .as_ref()
+                        .and_then(|p| serde_json::from_value::<FsReadParams>(p.clone()).ok())
+                    {
+                        Some(fs_params) => {
+                            log::info!("ACP RPC: {method} path={}", fs_params.path);
+                            // Spawn independently so handler continues processing other messages.
+                            tokio::spawn(async move {
+                                let path = fs_params.path.clone();
+                                let result = tokio::task::spawn_blocking(move || {
+                                    super::fs_ops::read_file_with_range(
+                                        &fs_params.path,
+                                        fs_params.line,
+                                        fs_params.limit,
                                     )
-                                    .await;
-                            }
+                                })
+                                .await
+                                .unwrap_or_else(|e| Err(format!("Internal error: {e}")));
+
+                                let (res, err) = match result {
+                                    Ok(text) => {
+                                        log::info!(
+                                            "ACP fs/read OK: {} ({} bytes)",
+                                            path,
+                                            text.len()
+                                        );
+                                        (Some(serde_json::json!({ "content": text })), None)
+                                    }
+                                    Err(e) => {
+                                        log::warn!("ACP fs/read FAIL: {} — {}", path, e);
+                                        (
+                                            None,
+                                            Some(RpcError {
+                                                code: -32000,
+                                                message: e,
+                                                data: None,
+                                            }),
+                                        )
+                                    }
+                                };
+                                let _ = c.respond(request_id, res, err).await;
+                            });
+                        }
+                        None => {
+                            log::error!("ACP: failed to parse {method} params: {:?}", msg.params);
+                            let _ = client
+                                .respond(
+                                    request_id,
+                                    None,
+                                    Some(RpcError {
+                                        code: -32602,
+                                        message: "Invalid params".to_string(),
+                                        data: None,
+                                    }),
+                                )
+                                .await;
+                        }
+                    }
+                }
+                "fs/write_text_file" | "fs/writeTextFile" => {
+                    let c = Arc::clone(&client);
+                    match msg
+                        .params
+                        .as_ref()
+                        .and_then(|p| serde_json::from_value::<FsWriteParams>(p.clone()).ok())
+                    {
+                        Some(fs_params) => {
+                            log::info!(
+                                "ACP RPC: {method} path={} ({} bytes)",
+                                fs_params.path,
+                                fs_params.content.len()
+                            );
+                            tokio::spawn(async move {
+                                let path = fs_params.path.clone();
+                                let result = tokio::task::spawn_blocking(move || {
+                                    super::fs_ops::write_file_safe(
+                                        &fs_params.path,
+                                        &fs_params.content,
+                                    )
+                                })
+                                .await
+                                .unwrap_or_else(|e| Err(format!("Internal error: {e}")));
+
+                                let (res, err) = match result {
+                                    Ok(()) => {
+                                        log::info!("ACP fs/write OK: {}", path);
+                                        (Some(serde_json::json!(null)), None)
+                                    }
+                                    Err(e) => {
+                                        log::warn!("ACP fs/write FAIL: {} — {}", path, e);
+                                        (
+                                            None,
+                                            Some(RpcError {
+                                                code: -32000,
+                                                message: e,
+                                                data: None,
+                                            }),
+                                        )
+                                    }
+                                };
+                                let _ = c.respond(request_id, res, err).await;
+                            });
+                        }
+                        None => {
+                            log::error!("ACP: failed to parse {method} params: {:?}", msg.params);
+                            let _ = client
+                                .respond(
+                                    request_id,
+                                    None,
+                                    Some(RpcError {
+                                        code: -32602,
+                                        message: "Invalid params".to_string(),
+                                        data: None,
+                                    }),
+                                )
+                                .await;
+                        }
+                    }
+                }
+                "fs/list_directory" | "fs/listDirectory" => {
+                    let c = Arc::clone(&client);
+                    match msg.params.as_ref().and_then(|p| {
+                        serde_json::from_value::<FsListDirectoryParams>(p.clone()).ok()
+                    }) {
+                        Some(fs_params) => {
+                            log::info!("ACP RPC: {method} path={}", fs_params.path);
+                            let pattern = fs_params.pattern.clone();
+                            tokio::spawn(async move {
+                                let path = fs_params.path.clone();
+                                let result = tokio::task::spawn_blocking(move || {
+                                    super::fs_ops::list_directory_entries(
+                                        &fs_params.path,
+                                        pattern.as_deref(),
+                                    )
+                                })
+                                .await
+                                .unwrap_or_else(|e| Err(format!("Internal error: {e}")));
+
+                                let (res, err) = match result {
+                                    Ok(entries) => {
+                                        log::info!(
+                                            "ACP fs/list OK: {} ({} entries)",
+                                            path,
+                                            entries.len()
+                                        );
+                                        (Some(serde_json::json!({ "entries": entries })), None)
+                                    }
+                                    Err(e) => {
+                                        log::warn!("ACP fs/list FAIL: {} — {}", path, e);
+                                        (
+                                            None,
+                                            Some(RpcError {
+                                                code: -32000,
+                                                message: e,
+                                                data: None,
+                                            }),
+                                        )
+                                    }
+                                };
+                                let _ = c.respond(request_id, res, err).await;
+                            });
+                        }
+                        None => {
+                            log::error!("ACP: failed to parse {method} params: {:?}", msg.params);
+                            let _ = client
+                                .respond(
+                                    request_id,
+                                    None,
+                                    Some(RpcError {
+                                        code: -32602,
+                                        message: "Invalid params".to_string(),
+                                        data: None,
+                                    }),
+                                )
+                                .await;
+                        }
+                    }
+                }
+                "fs/find" | "fs/glob" => {
+                    let c = Arc::clone(&client);
+                    match msg
+                        .params
+                        .as_ref()
+                        .and_then(|p| serde_json::from_value::<FsFindParams>(p.clone()).ok())
+                    {
+                        Some(fs_params) => {
+                            log::info!("ACP RPC: {method} path={}", fs_params.path);
+                            tokio::spawn(async move {
+                                let path = fs_params.path.clone();
+                                let result = tokio::task::spawn_blocking(move || {
+                                    super::fs_ops::find_files_recursive(
+                                        &fs_params.path,
+                                        &fs_params.pattern,
+                                    )
+                                })
+                                .await
+                                .unwrap_or_else(|e| Err(format!("Internal error: {e}")));
+
+                                let (res, err) = match result {
+                                    Ok(files) => {
+                                        log::info!(
+                                            "ACP fs/find OK: {} ({} files)",
+                                            path,
+                                            files.len()
+                                        );
+                                        (Some(serde_json::json!({ "files": files })), None)
+                                    }
+                                    Err(e) => {
+                                        log::warn!("ACP fs/find FAIL: {} — {}", path, e);
+                                        (
+                                            None,
+                                            Some(RpcError {
+                                                code: -32000,
+                                                message: e,
+                                                data: None,
+                                            }),
+                                        )
+                                    }
+                                };
+                                let _ = c.respond(request_id, res, err).await;
+                            });
+                        }
+                        None => {
+                            log::error!("ACP: failed to parse {method} params: {:?}", msg.params);
+                            let _ = client
+                                .respond(
+                                    request_id,
+                                    None,
+                                    Some(RpcError {
+                                        code: -32602,
+                                        message: "Invalid params".to_string(),
+                                        data: None,
+                                    }),
+                                )
+                                .await;
+                        }
+                    }
+                }
+                "config/update" | "config/updateConfig" => {
+                    match msg
+                        .params
+                        .as_ref()
+                        .and_then(|p| serde_json::from_value::<ConfigUpdateParams>(p.clone()).ok())
+                    {
+                        Some(params) => {
+                            log::info!(
+                                "ACP RPC: config/update keys={:?}",
+                                params.updates.keys().collect::<Vec<_>>()
+                            );
+                            let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
+                            let _ = ui_tx.send(AgentMessage::ConfigUpdate {
+                                updates: params.updates,
+                                reply: reply_tx,
+                            });
+                            let c = Arc::clone(&client);
+                            tokio::spawn(async move {
+                                match reply_rx.await {
+                                    Ok(Ok(())) => {
+                                        log::info!("ACP config/update OK");
+                                        let _ = c
+                                            .respond(
+                                                request_id,
+                                                Some(serde_json::json!({"success": true})),
+                                                None,
+                                            )
+                                            .await;
+                                    }
+                                    Ok(Err(e)) => {
+                                        log::warn!("ACP config/update FAIL: {e}");
+                                        let _ = c
+                                            .respond(
+                                                request_id,
+                                                None,
+                                                Some(RpcError {
+                                                    code: -32000,
+                                                    message: e,
+                                                    data: None,
+                                                }),
+                                            )
+                                            .await;
+                                    }
+                                    Err(_) => {
+                                        let _ = c
+                                            .respond(
+                                                request_id,
+                                                None,
+                                                Some(RpcError {
+                                                    code: -32003,
+                                                    message: "Config update handler dropped"
+                                                        .to_string(),
+                                                    data: None,
+                                                }),
+                                            )
+                                            .await;
+                                    }
+                                }
+                            });
+                        }
+                        None => {
+                            log::error!("ACP: failed to parse {method} params: {:?}", msg.params);
+                            let _ = client
+                                .respond(
+                                    request_id,
+                                    None,
+                                    Some(RpcError {
+                                        code: -32602,
+                                        message: "Invalid params".to_string(),
+                                        data: None,
+                                    }),
+                                )
+                                .await;
                         }
                     }
                 }
@@ -672,14 +1121,66 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[tokio::test]
-    async fn test_respond_file_read_not_connected() {
-        let (tx, _rx) = mpsc::unbounded_channel();
-        let agent = Agent::new(make_test_config(), tx);
+    #[test]
+    fn test_safe_write_path_tmp() {
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": "/tmp/test.glsl"},
+            "title": "Write /tmp/test.glsl"
+        });
+        assert!(is_safe_write_path(&tool_call));
+    }
 
-        let result = agent
-            .respond_file_read(1, Ok("file content".to_string()))
-            .await;
-        assert!(result.is_err());
+    #[test]
+    fn test_safe_write_path_shaders_dir() {
+        let shaders_dir = crate::config::Config::shaders_dir();
+        let path = shaders_dir.join("crt.glsl");
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": path.to_string_lossy()},
+            "title": format!("Write {}", path.display())
+        });
+        assert!(is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_safe_write_path_config_dir() {
+        let config_dir = crate::config::Config::config_dir();
+        let path = config_dir.join(".config-update.json");
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": path.to_string_lossy()},
+        });
+        assert!(is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_unsafe_write_path_home() {
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": "/Users/someone/.bashrc"},
+            "title": "Write /Users/someone/.bashrc"
+        });
+        assert!(!is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_unsafe_write_path_system() {
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": "/etc/passwd"},
+        });
+        assert!(!is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_safe_write_path_from_title_fallback() {
+        let tool_call = serde_json::json!({
+            "title": "Write /tmp/shader.glsl"
+        });
+        assert!(is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_safe_write_path_no_path() {
+        let tool_call = serde_json::json!({
+            "title": "Write"
+        });
+        assert!(!is_safe_write_path(&tool_call));
     }
 }

@@ -10,6 +10,7 @@ pub mod shader_config;
 pub mod shader_metadata;
 pub mod snippets;
 mod types;
+pub mod watcher;
 
 // Re-export shader config resolution functions (used by consumers)
 #[allow(unused_imports)]
@@ -1765,6 +1766,10 @@ pub struct Config {
     #[serde(default = "defaults::ai_inspector_enabled")]
     pub ai_inspector_enabled: bool,
 
+    /// Open the AI Inspector panel automatically on startup
+    #[serde(default = "defaults::ai_inspector_open_on_startup")]
+    pub ai_inspector_open_on_startup: bool,
+
     /// Width of the AI Inspector panel in pixels
     #[serde(default = "defaults::ai_inspector_width")]
     pub ai_inspector_width: f32,
@@ -2132,6 +2137,7 @@ impl Default for Config {
             dynamic_profile_sources: Vec::new(),
             // AI Inspector
             ai_inspector_enabled: defaults::ai_inspector_enabled(),
+            ai_inspector_open_on_startup: defaults::ai_inspector_open_on_startup(),
             ai_inspector_width: defaults::ai_inspector_width(),
             ai_inspector_default_scope: defaults::ai_inspector_default_scope(),
             ai_inspector_view_mode: defaults::ai_inspector_view_mode(),

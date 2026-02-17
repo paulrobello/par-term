@@ -5,6 +5,7 @@
 
 use crate::acp::agent::{Agent, AgentMessage, AgentStatus};
 use crate::acp::agents::{AgentConfig, discover_agents};
+use crate::acp::protocol::{ClientCapabilities, FsCapabilities};
 use crate::ai_inspector::chat::ChatMessage;
 use crate::ai_inspector::panel::{AIInspectorPanel, InspectorAction};
 use crate::app::anti_idle::should_send_keep_alive;
@@ -149,6 +150,11 @@ pub struct WindowState {
     pub(crate) agent_tx: Option<mpsc::UnboundedSender<AgentMessage>>,
     /// ACP agent (managed via tokio)
     pub(crate) agent: Option<Arc<tokio::sync::Mutex<Agent>>>,
+    /// ACP JSON-RPC client for sending responses without locking the agent.
+    /// Stored separately to avoid deadlocks: `send_prompt` holds the agent lock
+    /// while waiting for the prompt response, but the agent's tool calls
+    /// (e.g. `fs/readTextFile`) need us to respond via this same client.
+    pub(crate) agent_client: Option<Arc<crate::acp::jsonrpc::JsonRpcClient>>,
     /// Available agent configs
     pub(crate) available_agents: Vec<AgentConfig>,
     /// Shader install prompt UI
@@ -178,6 +184,9 @@ pub struct WindowState {
     // Smart redraw tracking (event-driven rendering)
     /// Whether we need to render next frame
     pub(crate) needs_redraw: bool,
+    /// Set when an agent/MCP config update was applied — signals WindowManager to
+    /// sync its own config copy so subsequent saves don't overwrite agent changes.
+    pub(crate) config_changed_by_agent: bool,
     /// When to blink cursor next
     pub(crate) cursor_blink_timer: Option<std::time::Instant>,
     /// Whether we need to rebuild renderer after font-related changes
@@ -202,6 +211,10 @@ pub struct WindowState {
     // Shader hot reload
     /// Shader file watcher for hot reload support
     pub(crate) shader_watcher: Option<ShaderWatcher>,
+    /// Config file watcher for automatic reload (e.g., when ACP agent modifies config.yaml)
+    pub(crate) config_watcher: Option<crate::config::watcher::ConfigWatcher>,
+    /// Watcher for `.config-update.json` written by the MCP server
+    pub(crate) config_update_watcher: Option<crate::config::watcher::ConfigWatcher>,
     /// Last shader reload error message (for display in UI)
     pub(crate) shader_reload_error: Option<String>,
     /// Background shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
@@ -297,6 +310,17 @@ pub struct WindowState {
     pub(crate) file_transfer_state: crate::app::file_transfers::FileTransferState,
 }
 
+/// Extract an `f32` from a JSON value that may be an integer or float.
+fn json_as_f32(value: &serde_json::Value) -> Result<f32, String> {
+    if let Some(f) = value.as_f64() {
+        Ok(f as f32)
+    } else if let Some(i) = value.as_i64() {
+        Ok(i as f32)
+    } else {
+        Err("expected number".to_string())
+    }
+}
+
 impl WindowState {
     /// Create a new window state with the given configuration
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
@@ -368,6 +392,7 @@ impl WindowState {
             agent_rx: None,
             agent_tx: None,
             agent: None,
+            agent_client: None,
             available_agents,
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
@@ -382,6 +407,7 @@ impl WindowState {
             window_index: 1, // Will be set by WindowManager when window is created
 
             needs_redraw: true,
+            config_changed_by_agent: false,
             cursor_blink_timer: None,
             pending_font_rebuild: false,
 
@@ -394,6 +420,8 @@ impl WindowState {
             throughput_batch_start: None,
 
             shader_watcher: None,
+            config_watcher: None,
+            config_update_watcher: None,
             shader_reload_error: None,
             background_shader_reload_result: None,
             cursor_shader_reload_result: None,
@@ -779,6 +807,12 @@ impl WindowState {
         // Initialize shader watcher if hot reload is enabled
         self.init_shader_watcher();
 
+        // Initialize config file watcher for automatic reload
+        self.init_config_watcher();
+
+        // Initialize config-update file watcher (MCP server writes here)
+        self.init_config_update_watcher();
+
         // Sync status bar monitor state based on config
         self.status_bar_ui.sync_monitor_state(&self.config);
 
@@ -820,6 +854,11 @@ impl WindowState {
                 Arc::clone(&window),
                 self.config.max_fps,
             );
+        }
+
+        // Auto-connect agent if panel is open on startup and auto-launch is enabled
+        if self.ai_inspector.open {
+            self.try_auto_connect_agent();
         }
 
         // Check if we should prompt user to install integrations (shaders and/or shell integration)
@@ -963,7 +1002,110 @@ impl WindowState {
             }
         }
 
+        // Persist panel width to config when the user finishes resizing.
+        if !self.ai_inspector.is_resizing()
+            && (current_width - self.last_inspector_width).abs() >= 1.0
+            && current_width > 0.0
+            && self.ai_inspector.open
+        {
+            self.config.ai_inspector_width = self.ai_inspector.width;
+            // Save to disk so the width is remembered across sessions.
+            if let Err(e) = self.config.save() {
+                log::error!("Failed to save AI inspector width: {}", e);
+            }
+        }
+
         self.last_inspector_width = current_width;
+    }
+
+    /// Connect to an ACP agent by identity string.
+    ///
+    /// This extracts the agent connection logic so it can be called both from
+    /// `InspectorAction::ConnectAgent` and from the auto-connect-on-open path.
+    pub(crate) fn connect_agent(&mut self, identity: &str) {
+        if let Some(agent_config) = self
+            .available_agents
+            .iter()
+            .find(|a| a.identity == identity)
+        {
+            // Clean up any previous agent before starting a new connection.
+            if let Some(old_agent) = self.agent.take() {
+                let runtime = self.runtime.clone();
+                runtime.spawn(async move {
+                    let mut agent = old_agent.lock().await;
+                    agent.disconnect().await;
+                });
+            }
+            self.agent_rx = None;
+            self.agent_tx = None;
+            self.agent_client = None;
+
+            let (tx, rx) = mpsc::unbounded_channel();
+            self.agent_rx = Some(rx);
+            self.agent_tx = Some(tx.clone());
+            let ui_tx = tx.clone();
+            let mut agent = Agent::new(agent_config.clone(), tx);
+            agent.auto_approve = self.config.ai_inspector_auto_approve;
+            let agent = Arc::new(tokio::sync::Mutex::new(agent));
+            self.agent = Some(agent.clone());
+
+            // Determine CWD for the agent session
+            let fallback_cwd = std::env::current_dir()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let cwd = if let Some(tab) = self.tab_manager.active_tab() {
+                if let Ok(term) = tab.terminal.try_lock() {
+                    term.shell_integration_cwd()
+                        .unwrap_or_else(|| fallback_cwd.clone())
+                } else {
+                    fallback_cwd.clone()
+                }
+            } else {
+                fallback_cwd
+            };
+
+            let capabilities = ClientCapabilities {
+                fs: FsCapabilities {
+                    read_text_file: true,
+                    write_text_file: true,
+                    list_directory: true,
+                    find: true,
+                },
+                terminal: self.config.ai_inspector_agent_terminal_access,
+                config: true,
+            };
+
+            let auto_approve = self.config.ai_inspector_auto_approve;
+            let runtime = self.runtime.clone();
+            runtime.spawn(async move {
+                let mut agent = agent.lock().await;
+                if let Err(e) = agent.connect(&cwd, capabilities).await {
+                    log::error!("ACP: failed to connect to agent: {e}");
+                    return;
+                }
+                if let Some(client) = &agent.client {
+                    let _ = ui_tx.send(AgentMessage::ClientReady(Arc::clone(client)));
+                }
+                if auto_approve && let Err(e) = agent.set_mode("bypassPermissions").await {
+                    log::error!("ACP: failed to set bypassPermissions mode: {e}");
+                }
+            });
+        }
+    }
+
+    /// Auto-connect to the configured agent if auto-launch is enabled and no agent is connected.
+    pub(crate) fn try_auto_connect_agent(&mut self) {
+        if self.config.ai_inspector_auto_launch
+            && self.ai_inspector.agent_status == AgentStatus::Disconnected
+            && self.agent.is_none()
+        {
+            let identity = self.config.ai_inspector_agent.clone();
+            if !identity.is_empty() {
+                log::info!("ACP: auto-connecting to agent '{}'", identity);
+                self.connect_agent(&identity);
+            }
+        }
     }
 
     // Status Bar Inset Sync
@@ -1074,6 +1216,383 @@ impl WindowState {
 
         // Reinitialize if hot reload is still enabled
         self.init_shader_watcher();
+    }
+
+    /// Initialize the config file watcher for automatic reload.
+    ///
+    /// Watches `config.yaml` for changes so that when an ACP agent modifies
+    /// the config, par-term can auto-reload shader and other settings.
+    pub(crate) fn init_config_watcher(&mut self) {
+        let config_path = Config::config_path();
+        if !config_path.exists() {
+            debug_info!("CONFIG", "Config file does not exist, skipping watcher");
+            return;
+        }
+        match crate::config::watcher::ConfigWatcher::new(&config_path, 500) {
+            Ok(watcher) => {
+                debug_info!("CONFIG", "Config watcher initialized");
+                self.config_watcher = Some(watcher);
+            }
+            Err(e) => {
+                debug_info!("CONFIG", "Failed to initialize config watcher: {}", e);
+            }
+        }
+    }
+
+    /// Initialize the watcher for `.config-update.json` (MCP server config updates).
+    ///
+    /// The MCP server (spawned by the ACP agent) writes config updates to this
+    /// file. We watch it, apply the updates in-memory, and delete it.
+    pub(crate) fn init_config_update_watcher(&mut self) {
+        let update_path = Config::config_dir().join(".config-update.json");
+
+        // Create the file if it doesn't exist so the watcher can start
+        if !update_path.exists() {
+            if let Some(parent) = update_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(&update_path, "");
+        }
+
+        match crate::config::watcher::ConfigWatcher::new(&update_path, 200) {
+            Ok(watcher) => {
+                debug_info!("CONFIG", "Config-update watcher initialized");
+                self.config_update_watcher = Some(watcher);
+            }
+            Err(e) => {
+                debug_info!(
+                    "CONFIG",
+                    "Failed to initialize config-update watcher: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    /// Check for pending config update file changes (from MCP server).
+    ///
+    /// When the MCP server writes `.config-update.json`, this reads it,
+    /// applies the updates in-memory, saves to disk, and removes the file.
+    pub(crate) fn check_config_update_file(&mut self) {
+        let Some(watcher) = &self.config_update_watcher else {
+            return;
+        };
+        if watcher.try_recv().is_none() {
+            return;
+        }
+
+        let update_path = Config::config_dir().join(".config-update.json");
+        let content = match std::fs::read_to_string(&update_path) {
+            Ok(c) if c.trim().is_empty() => return,
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!("CONFIG: failed to read config-update file: {e}");
+                return;
+            }
+        };
+
+        match serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(&content)
+        {
+            Ok(updates) => {
+                log::info!(
+                    "CONFIG: applying MCP config update ({} keys): {:?}",
+                    updates.len(),
+                    updates
+                );
+                if let Err(e) = self.apply_agent_config_updates(&updates) {
+                    log::error!("CONFIG: MCP config update failed: {e}");
+                } else {
+                    self.config_changed_by_agent = true;
+                }
+                self.needs_redraw = true;
+            }
+            Err(e) => {
+                log::error!("CONFIG: invalid JSON in config-update file: {e}");
+            }
+        }
+
+        // Clear the file so we don't re-process it
+        let _ = std::fs::write(&update_path, "");
+    }
+
+    /// Check for pending config file changes and apply them.
+    ///
+    /// Called periodically from the event loop. On config change:
+    /// 1. Reloads config from disk
+    /// 2. Applies shader-related config changes
+    /// 3. Reinitializes shader watcher if shader paths changed
+    pub(crate) fn check_config_reload(&mut self) {
+        let Some(watcher) = &self.config_watcher else {
+            return;
+        };
+        let Some(_event) = watcher.try_recv() else {
+            return;
+        };
+
+        log::info!("CONFIG: config file changed, reloading...");
+
+        match Config::load() {
+            Ok(new_config) => {
+                use crate::app::config_updates::ConfigChanges;
+
+                let changes = ConfigChanges::detect(&self.config, &new_config);
+
+                // Replace the entire in-memory config so that any subsequent
+                // config.save() writes the agent's changes, not stale values.
+                self.config = new_config;
+
+                log::info!(
+                    "CONFIG: shader_changed={} cursor_changed={} shader={:?}",
+                    changes.any_shader_change(),
+                    changes.any_cursor_shader_toggle(),
+                    self.config.custom_shader
+                );
+
+                // Apply shader changes to the renderer
+                if let Some(renderer) = &mut self.renderer {
+                    if changes.any_shader_change() || changes.shader_per_shader_config {
+                        log::info!("CONFIG: applying background shader change to renderer");
+                        let shader_override = self
+                            .config
+                            .custom_shader
+                            .as_ref()
+                            .and_then(|name| self.config.shader_configs.get(name));
+                        let metadata = self
+                            .config
+                            .custom_shader
+                            .as_ref()
+                            .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+                        let resolved = crate::config::shader_config::resolve_shader_config(
+                            shader_override,
+                            metadata.as_ref(),
+                            &self.config,
+                        );
+                        if let Err(e) = renderer.set_custom_shader_enabled(
+                            self.config.custom_shader_enabled,
+                            self.config.custom_shader.as_deref(),
+                            self.config.window_opacity,
+                            self.config.custom_shader_animation,
+                            resolved.animation_speed,
+                            resolved.full_content,
+                            resolved.brightness,
+                            &resolved.channel_paths(),
+                            resolved.cubemap_path().map(|p| p.as_path()),
+                        ) {
+                            log::error!("Config reload: shader load failed: {e}");
+                        }
+                    }
+                    if changes.any_cursor_shader_toggle() {
+                        log::info!("CONFIG: applying cursor shader change to renderer");
+                        if let Err(e) = renderer.set_cursor_shader_enabled(
+                            self.config.cursor_shader_enabled,
+                            self.config.cursor_shader.as_deref(),
+                            self.config.window_opacity,
+                            self.config.cursor_shader_animation,
+                            self.config.cursor_shader_animation_speed,
+                        ) {
+                            log::error!("Config reload: cursor shader load failed: {e}");
+                        }
+                    }
+                }
+
+                // Reinit shader watcher if paths changed
+                if changes.needs_watcher_reinit() {
+                    self.reinit_shader_watcher();
+                }
+
+                self.needs_redraw = true;
+                debug_info!("CONFIG", "Config reloaded successfully");
+            }
+            Err(e) => {
+                log::error!("Failed to reload config: {}", e);
+            }
+        }
+    }
+
+    /// Apply config updates from the ACP agent.
+    ///
+    /// Updates the in-memory config, applies changes to the renderer, and
+    /// saves to disk. Returns `Ok(())` on success or an error string.
+    fn apply_agent_config_updates(
+        &mut self,
+        updates: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> Result<(), String> {
+        let mut errors = Vec::new();
+        let old_config = self.config.clone();
+
+        for (key, value) in updates {
+            if let Err(e) = self.apply_single_config_update(key, value) {
+                errors.push(format!("{key}: {e}"));
+            }
+        }
+
+        if !errors.is_empty() {
+            return Err(errors.join("; "));
+        }
+
+        // Detect changes and apply to renderer
+        use crate::app::config_updates::ConfigChanges;
+        let changes = ConfigChanges::detect(&old_config, &self.config);
+
+        log::info!(
+            "ACP config/update: shader_change={} cursor_change={} old_shader={:?} new_shader={:?}",
+            changes.any_shader_change(),
+            changes.any_cursor_shader_toggle(),
+            old_config.custom_shader,
+            self.config.custom_shader
+        );
+
+        if let Some(renderer) = &mut self.renderer {
+            if changes.any_shader_change() || changes.shader_per_shader_config {
+                log::info!("ACP config/update: applying background shader change to renderer");
+                let shader_override = self
+                    .config
+                    .custom_shader
+                    .as_ref()
+                    .and_then(|name| self.config.shader_configs.get(name));
+                let metadata = self
+                    .config
+                    .custom_shader
+                    .as_ref()
+                    .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+                let resolved = crate::config::shader_config::resolve_shader_config(
+                    shader_override,
+                    metadata.as_ref(),
+                    &self.config,
+                );
+                if let Err(e) = renderer.set_custom_shader_enabled(
+                    self.config.custom_shader_enabled,
+                    self.config.custom_shader.as_deref(),
+                    self.config.window_opacity,
+                    self.config.custom_shader_animation,
+                    resolved.animation_speed,
+                    resolved.full_content,
+                    resolved.brightness,
+                    &resolved.channel_paths(),
+                    resolved.cubemap_path().map(|p| p.as_path()),
+                ) {
+                    log::error!("ACP config/update: shader load failed: {e}");
+                }
+            }
+            if changes.any_cursor_shader_toggle() {
+                log::info!("ACP config/update: applying cursor shader change to renderer");
+                if let Err(e) = renderer.set_cursor_shader_enabled(
+                    self.config.cursor_shader_enabled,
+                    self.config.cursor_shader.as_deref(),
+                    self.config.window_opacity,
+                    self.config.cursor_shader_animation,
+                    self.config.cursor_shader_animation_speed,
+                ) {
+                    log::error!("ACP config/update: cursor shader load failed: {e}");
+                }
+            }
+        }
+
+        if changes.needs_watcher_reinit() {
+            self.reinit_shader_watcher();
+        }
+
+        // Save to disk
+        if let Err(e) = self.config.save() {
+            return Err(format!("Failed to save config: {e}"));
+        }
+
+        Ok(())
+    }
+
+    /// Apply a single config key/value update to the in-memory config.
+    fn apply_single_config_update(
+        &mut self,
+        key: &str,
+        value: &serde_json::Value,
+    ) -> Result<(), String> {
+        match key {
+            // -- Background shader --
+            "custom_shader" => {
+                self.config.custom_shader = if value.is_null() {
+                    None
+                } else {
+                    Some(value.as_str().ok_or("expected string or null")?.to_string())
+                };
+                Ok(())
+            }
+            "custom_shader_enabled" => {
+                self.config.custom_shader_enabled = value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+            "custom_shader_animation" => {
+                self.config.custom_shader_animation = value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+            "custom_shader_animation_speed" => {
+                self.config.custom_shader_animation_speed = json_as_f32(value)?;
+                Ok(())
+            }
+            "custom_shader_brightness" => {
+                self.config.custom_shader_brightness = json_as_f32(value)?;
+                Ok(())
+            }
+            "custom_shader_text_opacity" => {
+                self.config.custom_shader_text_opacity = json_as_f32(value)?;
+                Ok(())
+            }
+            "custom_shader_full_content" => {
+                self.config.custom_shader_full_content =
+                    value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+
+            // -- Cursor shader --
+            "cursor_shader" => {
+                self.config.cursor_shader = if value.is_null() {
+                    None
+                } else {
+                    Some(value.as_str().ok_or("expected string or null")?.to_string())
+                };
+                Ok(())
+            }
+            "cursor_shader_enabled" => {
+                self.config.cursor_shader_enabled = value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+            "cursor_shader_animation" => {
+                self.config.cursor_shader_animation = value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+            "cursor_shader_animation_speed" => {
+                self.config.cursor_shader_animation_speed = json_as_f32(value)?;
+                Ok(())
+            }
+            "cursor_shader_glow_radius" => {
+                self.config.cursor_shader_glow_radius = json_as_f32(value)?;
+                Ok(())
+            }
+            "cursor_shader_glow_intensity" => {
+                self.config.cursor_shader_glow_intensity = json_as_f32(value)?;
+                Ok(())
+            }
+            "cursor_shader_trail_duration" => {
+                self.config.cursor_shader_trail_duration = json_as_f32(value)?;
+                Ok(())
+            }
+            "cursor_shader_hides_cursor" => {
+                self.config.cursor_shader_hides_cursor =
+                    value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+
+            // -- Window --
+            "window_opacity" => {
+                self.config.window_opacity = json_as_f32(value)?;
+                Ok(())
+            }
+            "font_size" => {
+                self.config.font_size = json_as_f32(value)?;
+                Ok(())
+            }
+
+            _ => Err(format!("unknown or read-only config key: {key}")),
+        }
     }
 
     /// Check anti-idle timers and send keep-alive codes when due.
@@ -1297,6 +1816,7 @@ impl WindowState {
             || self.command_history_ui.visible
             || self.shader_install_ui.visible
             || self.integrations_ui.visible
+            || self.ai_inspector.open
     }
 
     /// Check if egui is currently using keyboard input (e.g., text input or ComboBox has focus)
@@ -1966,6 +2486,13 @@ impl WindowState {
 
         // Process agent messages
         let msg_count_before = self.ai_inspector.chat.messages.len();
+        // Config update requests are deferred to avoid double-borrow of self
+        // while iterating agent_rx.
+        type ConfigUpdateEntry = (
+            std::collections::HashMap<String, serde_json::Value>,
+            tokio::sync::oneshot::Sender<Result<(), String>>,
+        );
+        let mut pending_config_updates: Vec<ConfigUpdateEntry> = Vec::new();
         if let Some(rx) = &mut self.agent_rx {
             while let Ok(msg) = rx.try_recv() {
                 match msg {
@@ -1984,6 +2511,10 @@ impl WindowState {
                         tool_call,
                         options,
                     } => {
+                        log::info!(
+                            "ACP: permission request id={request_id} options={}",
+                            options.len()
+                        );
                         let description = tool_call
                             .get("title")
                             .and_then(|t| t.as_str())
@@ -2003,24 +2534,28 @@ impl WindowState {
                             });
                         self.needs_redraw = true;
                     }
-                    AgentMessage::FileReadRequest {
-                        request_id, path, ..
-                    } => {
-                        let content = std::fs::read_to_string(&path).map_err(|e| e.to_string());
-                        if let Some(agent) = &self.agent {
-                            let agent = agent.clone();
-                            self.runtime.spawn(async move {
-                                let agent = agent.lock().await;
-                                let _ = agent.respond_file_read(request_id, content).await;
-                            });
-                        }
-                    }
                     AgentMessage::PromptComplete => {
                         self.ai_inspector.chat.flush_agent_message();
                         self.needs_redraw = true;
                     }
+                    AgentMessage::ConfigUpdate { updates, reply } => {
+                        pending_config_updates.push((updates, reply));
+                    }
+                    AgentMessage::ClientReady(client) => {
+                        log::info!("ACP: agent_client ready");
+                        self.agent_client = Some(client);
+                    }
                 }
             }
+        }
+        // Process deferred config updates now that agent_rx borrow is released.
+        for (updates, reply) in pending_config_updates {
+            let result = self.apply_agent_config_updates(&updates);
+            if result.is_ok() {
+                self.config_changed_by_agent = true;
+            }
+            let _ = reply.send(result);
+            self.needs_redraw = true;
         }
 
         // Auto-execute new CommandSuggestion messages when terminal access is enabled.
@@ -3457,43 +3992,7 @@ impl WindowState {
                 self.needs_redraw = true;
             }
             InspectorAction::ConnectAgent(identity) => {
-                if let Some(agent_config) = self
-                    .available_agents
-                    .iter()
-                    .find(|a| a.identity == identity)
-                {
-                    let (tx, rx) = mpsc::unbounded_channel();
-                    self.agent_rx = Some(rx);
-                    self.agent_tx = Some(tx.clone());
-                    let mut agent = Agent::new(agent_config.clone(), tx);
-                    agent.auto_approve = self.config.ai_inspector_auto_approve;
-                    let agent = Arc::new(tokio::sync::Mutex::new(agent));
-                    self.agent = Some(agent.clone());
-
-                    // Determine CWD for the agent session
-                    let fallback_cwd = std::env::current_dir()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string();
-                    let cwd = if let Some(tab) = self.tab_manager.active_tab() {
-                        if let Ok(term) = tab.terminal.try_lock() {
-                            term.shell_integration_cwd()
-                                .unwrap_or_else(|| fallback_cwd.clone())
-                        } else {
-                            fallback_cwd.clone()
-                        }
-                    } else {
-                        fallback_cwd
-                    };
-
-                    let runtime = self.runtime.clone();
-                    runtime.spawn(async move {
-                        let mut agent = agent.lock().await;
-                        if let Err(e) = agent.connect(&cwd).await {
-                            log::error!("ACP: failed to connect to agent: {e}");
-                        }
-                    });
-                }
+                self.connect_agent(&identity);
             }
             InspectorAction::DisconnectAgent => {
                 if let Some(agent) = self.agent.take() {
@@ -3504,6 +4003,7 @@ impl WindowState {
                 }
                 self.agent_rx = None;
                 self.agent_tx = None;
+                self.agent_client = None;
                 self.ai_inspector.agent_status = AgentStatus::Disconnected;
                 self.needs_redraw = true;
             }
@@ -3511,18 +4011,30 @@ impl WindowState {
                 self.ai_inspector.chat.add_user_message(text.clone());
                 if let Some(agent) = &self.agent {
                     let agent = agent.clone();
+                    // Build the prompt with optional system guidance and shader context.
+                    let mut prompt_text = String::new();
+
                     // Prepend system guidance on the first prompt so the agent
                     // knows to wrap commands in fenced code blocks.
-                    let prompt_text = if !self.ai_inspector.chat.system_prompt_sent {
+                    if !self.ai_inspector.chat.system_prompt_sent {
                         self.ai_inspector.chat.system_prompt_sent = true;
-                        format!(
-                            "{}{}",
-                            crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE,
-                            text
-                        )
-                    } else {
-                        text
-                    };
+                        prompt_text.push_str(crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE);
+                    }
+
+                    // Inject shader context when relevant (keyword match or active shaders).
+                    if crate::ai_inspector::shader_context::should_inject_shader_context(
+                        &text,
+                        &self.config,
+                    ) {
+                        prompt_text.push_str(
+                            &crate::ai_inspector::shader_context::build_shader_context(
+                                &self.config,
+                            ),
+                        );
+                    }
+
+                    prompt_text.push_str(&text);
+
                     let content =
                         vec![crate::acp::protocol::ContentBlock::Text { text: prompt_text }];
                     let tx = self.agent_tx.clone();
@@ -3540,6 +4052,75 @@ impl WindowState {
             }
             InspectorAction::SetTerminalAccess(enabled) => {
                 self.config.ai_inspector_agent_terminal_access = enabled;
+                self.needs_redraw = true;
+            }
+            InspectorAction::RespondPermission {
+                request_id,
+                option_id,
+                cancelled,
+            } => {
+                if let Some(client) = &self.agent_client {
+                    let client = client.clone();
+                    let action = if cancelled { "cancelled" } else { "selected" };
+                    log::info!("ACP: sending permission response id={request_id} action={action}");
+                    self.runtime.spawn(async move {
+                        use crate::acp::protocol::{PermissionOutcome, RequestPermissionResponse};
+                        let outcome = if cancelled {
+                            PermissionOutcome {
+                                outcome: "cancelled".to_string(),
+                                option_id: None,
+                            }
+                        } else {
+                            PermissionOutcome {
+                                outcome: "selected".to_string(),
+                                option_id: Some(option_id),
+                            }
+                        };
+                        let result = RequestPermissionResponse { outcome };
+                        if let Err(e) = client
+                            .respond(
+                                request_id,
+                                Some(serde_json::to_value(&result).unwrap()),
+                                None,
+                            )
+                            .await
+                        {
+                            log::error!("ACP: failed to send permission response: {e}");
+                        }
+                    });
+                } else {
+                    log::error!(
+                        "ACP: cannot send permission response id={request_id} — agent_client is None!"
+                    );
+                }
+                // Mark the permission as resolved in the chat.
+                for msg in &mut self.ai_inspector.chat.messages {
+                    if let ChatMessage::Permission {
+                        request_id: rid,
+                        resolved,
+                        ..
+                    } = msg
+                        && *rid == request_id
+                    {
+                        *resolved = true;
+                        break;
+                    }
+                }
+                self.needs_redraw = true;
+            }
+            InspectorAction::SetAgentMode(mode_id) => {
+                let is_yolo = mode_id == "bypassPermissions";
+                self.config.ai_inspector_auto_approve = is_yolo;
+                if let Some(agent) = &self.agent {
+                    let agent = agent.clone();
+                    self.runtime.spawn(async move {
+                        let mut agent = agent.lock().await;
+                        agent.auto_approve = is_yolo;
+                        if let Err(e) = agent.set_mode(&mode_id).await {
+                            log::error!("ACP: failed to set mode '{mode_id}': {e}");
+                        }
+                    });
+                }
                 self.needs_redraw = true;
             }
             InspectorAction::None => {}
@@ -4023,6 +4604,7 @@ impl WindowState {
     }
 }
 
+// ---------------------------------------------------------------------------
 impl Drop for WindowState {
     fn drop(&mut self) {
         let t0 = std::time::Instant::now();

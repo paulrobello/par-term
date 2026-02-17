@@ -146,9 +146,9 @@ impl WindowState {
             return; // Key was handled for search, don't send to terminal
         }
 
-        // Check for AI Inspector toggle (Cmd+I / Ctrl+Shift+I)
+        // Check for Assistant panel toggle (Cmd+I / Ctrl+Shift+I)
         if self.handle_ai_inspector_toggle(&event) {
-            return; // Key was handled for AI inspector, don't send to terminal
+            return; // Key was handled for Assistant panel, don't send to terminal
         }
 
         // Check for fullscreen toggle (F11)
@@ -827,7 +827,7 @@ impl WindowState {
 
         let shift = self.input_handler.modifiers.state().shift_key();
 
-        // AI Inspector toggle: Cmd+I (macOS) / Ctrl+Shift+I (other)
+        // Assistant panel toggle: Cmd+I (macOS) / Ctrl+Shift+I (other)
         #[cfg(target_os = "macos")]
         let is_inspector = {
             let cmd = self.input_handler.modifiers.state().super_key();
@@ -842,12 +842,15 @@ impl WindowState {
         };
 
         if is_inspector {
-            let _just_opened = self.ai_inspector.toggle();
+            let just_opened = self.ai_inspector.toggle();
             self.sync_ai_inspector_width();
+            if just_opened {
+                self.try_auto_connect_agent();
+            }
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
-            log::debug!("AI Inspector toggled: {}", self.ai_inspector.open);
+            log::debug!("Assistant panel toggled: {}", self.ai_inspector.open);
             return true;
         }
 
@@ -1288,8 +1291,11 @@ impl WindowState {
             }
             "toggle_ai_inspector" => {
                 if self.config.ai_inspector_enabled {
-                    self.ai_inspector.toggle();
+                    let just_opened = self.ai_inspector.toggle();
                     self.sync_ai_inspector_width();
+                    if just_opened {
+                        self.try_auto_connect_agent();
+                    }
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }

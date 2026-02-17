@@ -814,6 +814,12 @@ impl WindowState {
             log::debug!("Shader hot reload triggered redraw");
         }
 
+        // Check for config file changes (e.g., from ACP agent)
+        self.check_config_reload();
+
+        // Check for MCP server config updates (.config-update.json)
+        self.check_config_update_file();
+
         // Check for tmux control mode notifications
         if self.check_tmux_notifications() {
             self.needs_redraw = true;
@@ -1203,6 +1209,7 @@ impl ApplicationHandler for WindowManager {
                     }
                     SettingsWindowAction::ApplyConfig(config) => {
                         // Apply live config changes to all terminal windows
+                        log::info!("SETTINGS: ApplyConfig shader={:?}", config.custom_shader);
                         self.apply_config_to_windows(&config);
                     }
                     SettingsWindowAction::SaveConfig(config) => {
@@ -1378,6 +1385,7 @@ impl ApplicationHandler for WindowManager {
         let mut profiles_to_update: Option<Vec<crate::profile::Profile>> = None;
         let mut arrangement_restore_name: Option<String> = None;
         let mut reload_dynamic_profiles = false;
+        let mut config_changed_by_agent = false;
 
         for window_state in self.windows.values_mut() {
             if window_state.open_settings_window_requested {
@@ -1409,12 +1417,33 @@ impl ApplicationHandler for WindowManager {
 
             window_state.about_to_wait(event_loop);
 
+            // If an agent/MCP config update was applied, sync to WindowManager's
+            // config so that subsequent saves (update checker, settings) don't
+            // overwrite the agent's changes.
+            if window_state.config_changed_by_agent {
+                window_state.config_changed_by_agent = false;
+                config_changed_by_agent = true;
+            }
+
             // Collect shader reload results and clear them from window_state
             if let Some(result) = window_state.background_shader_reload_result.take() {
                 background_shader_result = Some(result);
             }
             if let Some(result) = window_state.cursor_shader_reload_result.take() {
                 cursor_shader_result = Some(result);
+            }
+        }
+
+        // Sync agent config changes to WindowManager and settings window
+        // so other saves (update checker, settings) don't overwrite the agent's changes
+        if config_changed_by_agent && let Some(window_state) = self.windows.values().next() {
+            log::info!("CONFIG: syncing agent config changes to WindowManager");
+            self.config = window_state.config.clone();
+            // Force-update the settings window's config copy so it doesn't
+            // send stale values back via ApplyConfig/SaveConfig.
+            // Must use force_update_config to bypass the has_changes guard.
+            if let Some(settings_window) = &mut self.settings_window {
+                settings_window.force_update_config(self.config.clone());
             }
         }
 

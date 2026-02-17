@@ -1364,6 +1364,27 @@ impl WindowManager {
                 );
             }
 
+            // Sync AI Inspector auto-approve / YOLO mode to connected agent
+            if changes.ai_inspector_auto_approve
+                && let Some(agent) = &window_state.agent
+            {
+                let agent = agent.clone();
+                let auto_approve = config.ai_inspector_auto_approve;
+                let mode = if auto_approve {
+                    "bypassPermissions"
+                } else {
+                    "default"
+                }
+                .to_string();
+                window_state.runtime.spawn(async move {
+                    let mut agent = agent.lock().await;
+                    agent.auto_approve = auto_approve;
+                    if let Err(e) = agent.set_mode(&mode).await {
+                        log::error!("ACP: failed to set mode '{mode}': {e}");
+                    }
+                });
+            }
+
             // Apply changes to renderer and collect any shader errors
             let (shader_result, cursor_result) = if let Some(renderer) = &mut window_state.renderer
             {
@@ -1596,6 +1617,11 @@ impl WindowManager {
                 // Option<Option<String>>: None = no change attempted, Some(None) = success, Some(Some(err)) = error
                 let shader_result =
                     if changes.any_shader_change() || changes.shader_per_shader_config {
+                        log::info!(
+                            "SETTINGS: applying shader change: {:?} -> {:?}",
+                            window_state.config.custom_shader,
+                            config.custom_shader
+                        );
                         Some(
                             renderer
                                 .set_custom_shader_enabled(

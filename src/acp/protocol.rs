@@ -3,6 +3,8 @@
 //! These types model the JSON-RPC parameter and result objects exchanged
 //! between the par-term host and an ACP-compatible agent (e.g. Claude Code).
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -25,6 +27,9 @@ pub struct InitializeParams {
 pub struct ClientCapabilities {
     pub fs: FsCapabilities,
     pub terminal: bool,
+    /// Whether the host supports the `config/update` RPC call.
+    #[serde(default)]
+    pub config: bool,
 }
 
 /// File-system capabilities exposed by the host.
@@ -33,6 +38,10 @@ pub struct ClientCapabilities {
 pub struct FsCapabilities {
     pub read_text_file: bool,
     pub write_text_file: bool,
+    #[serde(default)]
+    pub list_directory: bool,
+    #[serde(default)]
+    pub find: bool,
 }
 
 /// Identifying information about the host client.
@@ -436,6 +445,7 @@ pub struct AgentCommand {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestPermissionParams {
+    #[serde(default)]
     pub session_id: String,
     pub tool_call: Value,
     pub options: Vec<PermissionOption>,
@@ -475,12 +485,67 @@ pub struct PermissionOutcome {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FsReadParams {
+    #[serde(default)]
     pub session_id: String,
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub line: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u64>,
+}
+
+/// Parameters for the `fs/writeTextFile` RPC call from agent to host.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsWriteParams {
+    #[serde(default)]
+    pub session_id: String,
+    pub path: String,
+    pub content: String,
+}
+
+/// Parameters for the `fs/listDirectory` RPC call from agent to host.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsListDirectoryParams {
+    #[serde(default)]
+    pub session_id: String,
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+}
+
+/// Parameters for the `fs/find` RPC call from agent to host.
+///
+/// This is a par-term extension (not part of the core ACP spec) that provides
+/// recursive glob-based file search, similar to Claude Code's built-in Glob tool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsFindParams {
+    #[serde(default)]
+    pub session_id: String,
+    pub path: String,
+    pub pattern: String,
+}
+
+// ---------------------------------------------------------------------------
+// Config update
+// ---------------------------------------------------------------------------
+
+/// Parameters for the `config/update` RPC call from agent to host.
+///
+/// Allows the agent to update par-term configuration settings directly,
+/// bypassing the config.yaml file to avoid race conditions with par-term's
+/// own config saves.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigUpdateParams {
+    #[serde(default)]
+    pub session_id: Option<String>,
+    /// Map of config key -> value to update.
+    /// Keys use snake_case matching config.yaml field names.
+    /// Values must be the correct JSON type for the field.
+    pub updates: HashMap<String, Value>,
 }
 
 // ---------------------------------------------------------------------------
@@ -529,8 +594,11 @@ mod tests {
                 fs: FsCapabilities {
                     read_text_file: true,
                     write_text_file: false,
+                    list_directory: false,
+                    find: false,
                 },
                 terminal: false,
+                config: false,
             },
             client_info: ClientInfo {
                 name: "par-term".to_string(),
@@ -759,5 +827,38 @@ mod tests {
         assert!(json.contains("sessionId"));
         assert!(json.contains(r#""line":10"#));
         assert!(!json.contains("limit"));
+    }
+
+    #[test]
+    fn test_fs_write_params_serialization() {
+        let params = FsWriteParams {
+            session_id: "sess-1".to_string(),
+            path: "/tmp/test.txt".to_string(),
+            content: "hello world".to_string(),
+        };
+        let json = serde_json::to_string(&params).unwrap();
+        assert!(json.contains("sessionId"));
+        assert!(json.contains("hello world"));
+    }
+
+    #[test]
+    fn test_fs_list_directory_params_serialization() {
+        let params = FsListDirectoryParams {
+            session_id: "sess-1".to_string(),
+            path: "/tmp".to_string(),
+            pattern: Some("*.rs".to_string()),
+        };
+        let json = serde_json::to_string(&params).unwrap();
+        assert!(json.contains("sessionId"));
+        assert!(json.contains("*.rs"));
+    }
+
+    #[test]
+    fn test_fs_capabilities_list_directory_default() {
+        let json = r#"{"readTextFile": true, "writeTextFile": false}"#;
+        let caps: FsCapabilities = serde_json::from_str(json).unwrap();
+        assert!(caps.read_text_file);
+        assert!(!caps.write_text_file);
+        assert!(!caps.list_directory);
     }
 }

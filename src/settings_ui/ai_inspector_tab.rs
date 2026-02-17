@@ -80,9 +80,21 @@ fn show_panel_section(
         if ui
             .checkbox(
                 &mut settings.config.ai_inspector_enabled,
-                "Enable AI Inspector",
+                "Enable Assistant Panel",
             )
-            .on_hover_text("Show AI Inspector panel toggle keybinding (Cmd+I / Ctrl+Shift+I)")
+            .on_hover_text("Show Assistant panel toggle keybinding (Cmd+I / Ctrl+Shift+I)")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        if ui
+            .checkbox(
+                &mut settings.config.ai_inspector_open_on_startup,
+                "Open on startup",
+            )
+            .on_hover_text("Automatically open the Assistant panel when a new window opens")
             .changed()
         {
             settings.has_changes = true;

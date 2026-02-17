@@ -9,14 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Assistant Panel Rebrand**: Renamed "AI Inspector" to "Assistant" throughout the UI
+  - Panel title, settings sidebar tab, settings checkboxes/tooltips, and log messages all updated
+  - Internal code identifiers (`ai_inspector`) unchanged for backwards compatibility
+- **Terminal Capture Defaults**: Terminal capture now defaults to paused instead of live, reducing resource usage when the panel is opened purely for agent chat
+- **Assistant Panel Layout**: Reorganized panel sections for better workflow
+  - ACP agent connection bar moved above the terminal capture area (was below)
+  - Terminal capture configuration and command history wrapped in a collapsible section, defaulting to collapsed
+
 ### Fixed
 
-- **AI Inspector Panel Resize**: Comprehensive fix for panel resize handle behavior
+- **Assistant Panel Resize**: Comprehensive fix for panel resize handle behavior
   - Eliminated 1-frame drag lag by moving resize handle input before panel rendering
   - Fixed resize handle jumping into the panel on drag start when content overflows configured width
   - Fixed resize handle and scrollbar jittering when dragged to min/max width (rendered_width oscillation)
   - Fixed terminal text selection during resize drag by blocking mouse events via `wants_pointer()` check
-- **Dialog Z-Ordering**: All modal dialogs now render above the scrollbar and AI Inspector panel
+- **Dialog Z-Ordering**: All modal dialogs now render above the scrollbar and Assistant panel
   - Added `Order::Foreground` to all 8 dialog windows (quit, close tab, manage profiles, confirm delete, new tab, file transfers, reset defaults, remote shell install)
   - Moved scrollbar GPU render pass before egui pass so egui dialogs always appear on top
 - **Fast Window Shutdown**: Closing par-term is now visually instant instead of taking 8+ seconds with a beachball on macOS (#146)
@@ -28,7 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **AI Inspector Panel**: DevTools-style right-side panel for terminal state inspection and ACP agent integration (#149)
+- **Shader Assistant**: Context-triggered shader expertise for ACP agents (#156)
+  - Auto-detects shader-related queries (20 keywords: shader, glsl, wgsl, crt, shadertoy, etc.) and active shader state
+  - Injects full shader reference into agent prompts: current shader state, available shaders, uniforms, GLSL template, debug file paths
+  - Config file watcher monitors `config.yaml` for external changes (e.g., agent-applied shader settings) and live-reloads without restart
+  - Enables ACP agents to create, edit, debug, and apply custom shaders end-to-end
+
+- **Assistant Panel** (formerly AI Inspector): DevTools-style right-side panel for terminal state inspection and ACP agent integration (#149)
   - Toggle with Cmd+I (macOS) / Ctrl+Shift+I (other) or `toggle_ai_inspector` keybinding action
   - 4 view modes (Cards, Timeline, Tree, List+Detail) for browsing command history with exit codes, durations, and output
   - Configurable scope: Visible (screen), Recent 5/10/25/50, or Full scrollback

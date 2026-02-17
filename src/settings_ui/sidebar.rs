@@ -51,7 +51,7 @@ impl SettingsTab {
             Self::Snippets => "Snippets",
             Self::Actions => "Actions",
             Self::Arrangements => "Arrangements",
-            Self::AiInspector => "AI Inspector",
+            Self::AiInspector => "Assistant",
             Self::Advanced => "Advanced",
         }
     }
@@ -792,6 +792,10 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "tree",
             "export",
             "json",
+            "startup",
+            "open",
+            "width",
+            "persist",
         ],
         SettingsTab::Advanced => &[
             // tmux
@@ -877,7 +881,7 @@ fn tab_contents_summary(tab: SettingsTab) -> &'static str {
         SettingsTab::Snippets => "Text snippets with variable substitution",
         SettingsTab::Actions => "Custom actions (shell, text, keys)",
         SettingsTab::Arrangements => "Save and restore window layouts",
-        SettingsTab::AiInspector => "AI agent integration, panel settings, permissions",
+        SettingsTab::AiInspector => "Assistant agent integration, panel settings, permissions",
         SettingsTab::Advanced => {
             "tmux integration, logging, file transfers, updates, debug logging"
         }

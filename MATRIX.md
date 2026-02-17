@@ -453,6 +453,7 @@ par-term implements iTerm2-style native tmux integration via control mode (`tmux
 | AI terminal inspection | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | DevTools-style right-side panel with structured terminal state. 4 view modes (Cards/Timeline/Tree/List+Detail), configurable scope (Visible/Recent/Full), JSON export (copy/save). Terminal reflows columns when panel opens/closes. Core `get_semantic_snapshot()` API + frontend UI. |
 | Multiple AI providers | ✅ OpenAI, Anthropic, etc. | ✅ | ✅ | ⭐⭐ | 🔵 | 8 bundled agent configs (Claude Code, Amp, Augment, Copilot, Docker, Gemini CLI, OpenAI, OpenHands) + user-defined TOML configs in `~/.config/par-term/agents/`. Auto-launch configurable agent on panel open. |
 | AI permission management | ✅ | ✅ | ✅ | ⭐⭐ | 🟡 | Inline permission prompts in chat area. "Yolo mode" auto-approves all agent requests. Agent terminal access toggle. |
+| AI shader assistant | ❌ | ✅ | ✅ | ⭐⭐ | 🟡 | **par-term exclusive** — Context-triggered shader expertise injection. Auto-detects shader-related queries and injects full shader reference (uniforms, templates, debug paths, available shaders) into agent prompts. Config file watcher enables agents to apply shader changes via config.yaml with live reload. (#156) |
 
 ---
 
@@ -983,6 +984,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 - Broadcast input mode (type to all panes)
 - Badge system with 12 dynamic variables and Settings UI tab
 - ACP agent integration with configurable auto-context feeding and yolo mode
+- AI shader assistant with context-triggered prompt injection and config file watcher
 - Per-side modifier remapping (left/right Ctrl, Alt, Super independently)
 - Physical key binding mode (language-agnostic keybindings via scan codes)
 - Keep text opaque (separate from window transparency)
@@ -1021,7 +1023,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | ~~Pane title customization~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Implemented |
 | ~~Division thickness/style~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented |
 | ~~Instant Replay~~ | ~~⭐⭐~~ | ~~🔵 Very High~~ | ✅ Core API complete (v0.38+ — SnapshotManager, ReplaySession, TerminalSnapshot). Frontend replay UI pending. |
-| ~~AI integration~~ | ~~⭐⭐~~ | ~~🔵 Very High~~ | ✅ Complete (§22 — AI Inspector panel with ACP agent chat, terminal inspection, JSON export, auto-context feeding #149) |
+| ~~AI integration~~ | ~~⭐⭐~~ | ~~🔵 Very High~~ | ✅ Complete (§22 — Assistant panel with ACP agent chat, terminal inspection, JSON export, auto-context feeding #149; shader assistant with context injection #156) |
 | VoiceOver/accessibility | ⭐⭐ | 🔵 Very High | Screen reader support |
 | ~~Bidirectional text~~ | ~~⭐⭐~~ | ~~🔴 High~~ | 🚫 Won't implement |
 | ~~Browser integration~~ | ~~⭐~~ | ~~🔴 High~~ | 🚫 Won't implement; zero demand, massive effort, no other emulator implements this |
@@ -1096,7 +1098,7 @@ The following features are blocked by or significantly dependent on architectura
 ---
 
 ### Recently Completed (v0.16.0)
-- ✅ **AI Inspector Panel**: DevTools-style right-side panel for terminal state inspection with ACP agent integration (#149)
+- ✅ **Assistant Panel** (formerly AI Inspector): DevTools-style right-side panel for terminal state inspection with ACP agent integration (#149)
   - 4 view modes (Cards/Timeline/Tree/List+Detail), configurable scope (Visible/Recent/Full)
   - JSON export (copy to clipboard / save to file)
   - ACP agent chat — connect to Claude Code and other agents via JSON-RPC 2.0 over stdio
@@ -1108,6 +1110,11 @@ The following features are blocked by or significantly dependent on architectura
   - Resizable panel with drag handle; auto-expands on content overflow
   - Terminal reflows columns when panel opens/closes/resizes; Settings UI tab for all options
   - Keybinding: Cmd+I (macOS) / Ctrl+Shift+I (other)
+- ✅ **AI Shader Assistant**: Context-triggered shader expertise for ACP agents (#156)
+  - Auto-detects shader-related queries (20 keywords: shader, glsl, wgsl, crt, shadertoy, etc.) and active shader state
+  - Injects full shader reference into agent prompts: current state, available shaders, uniforms, GLSL template, debug file paths
+  - Config file watcher monitors `config.yaml` for agent-applied changes and live-reloads shader settings
+  - Enables agents to create, edit, debug, and apply custom shaders end-to-end
 - ✅ **Dynamic Profiles from Remote URLs**: Load team-shared profiles from remote URLs with auto-refresh, caching, conflict resolution, and Settings UI (#142)
 - ✅ **Status Bar**: Configurable status bar with 10 built-in widgets, drag-and-drop reordering, and background system monitoring (#133)
 - ✅ **SSH Host Profiles**: SSH config/known_hosts/history discovery, Quick Connect dialog (Cmd+Shift+S), and mDNS/Bonjour discovery (#134)
@@ -1119,6 +1126,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-02-16 (AI Inspector — ACP chat UI, 8 bundled agent configs, panel resize/drag fixes, dialog z-ordering #149)*
+*Updated: 2026-02-17 (Assistant panel rebrand, collapsible terminal capture, layout reorder; previously: ACP chat UI, 8 bundled agent configs, panel resize/drag fixes, dialog z-ordering #149)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.16.0*

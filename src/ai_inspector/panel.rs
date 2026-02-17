@@ -4,9 +4,7 @@
 //! command history, and environment info. Supports multiple view modes
 //! (Cards, Timeline, Tree, ListDetail) and interactive controls.
 
-use egui::{
-    Color32, Context, CursorIcon, Frame, Id, Key, Label, Order, Pos2, RichText, Stroke,
-};
+use egui::{Color32, Context, CursorIcon, Frame, Id, Key, Label, Order, Pos2, RichText, Stroke};
 
 use crate::acp::agent::AgentStatus;
 use crate::acp::agents::AgentConfig;
@@ -78,6 +76,14 @@ pub enum InspectorAction {
     SendPrompt(String),
     /// Toggle agent terminal access.
     SetTerminalAccess(bool),
+    /// Respond to an agent permission request.
+    RespondPermission {
+        request_id: u64,
+        option_id: String,
+        cancelled: bool,
+    },
+    /// Set the agent's session mode (e.g. "bypassPermissions").
+    SetAgentMode(String),
 }
 
 /// Predefined scope options for the dropdown.
@@ -184,6 +190,8 @@ pub struct AIInspectorPanel {
     pub chat: ChatState,
     /// Whether the agent is allowed to write to the terminal.
     pub agent_terminal_access: bool,
+    /// Whether to auto-approve all agent permission requests (YOLO mode).
+    pub auto_approve: bool,
     /// Actual rendered width from the last egui frame (may exceed `width` if content overflows).
     rendered_width: f32,
     /// Whether the pointer is hovering over the resize handle (persists between frames
@@ -195,7 +203,7 @@ impl AIInspectorPanel {
     /// Create a new inspector panel initialized from config.
     pub fn new(config: &Config) -> Self {
         Self {
-            open: false,
+            open: config.ai_inspector_open_on_startup,
             width: config.ai_inspector_width,
             min_width: 200.0,
             max_width_ratio: 0.5,
@@ -210,6 +218,7 @@ impl AIInspectorPanel {
             agent_status: AgentStatus::Disconnected,
             chat: ChatState::new(),
             agent_terminal_access: config.ai_inspector_agent_terminal_access,
+            auto_approve: config.ai_inspector_auto_approve,
             rendered_width: 0.0,
             hover_resize_handle: false,
         }
@@ -236,6 +245,11 @@ impl AIInspectorPanel {
         } else {
             0.0
         }
+    }
+
+    /// Whether the user is currently drag-resizing the panel.
+    pub fn is_resizing(&self) -> bool {
+        self.resizing
     }
 
     /// Whether the pointer is interacting with the resize handle (hovering or dragging).
@@ -323,11 +337,14 @@ impl AIInspectorPanel {
                 panel_frame.show(ui, |ui| {
                     ui.set_min_width(inner_width);
                     ui.set_max_width(inner_width);
+                    // Force panel to fill viewport height so bottom elements stay pinned.
+                    // Subtract frame inner_margin (8*2) + stroke (1*2) = 18px.
+                    ui.set_min_height((viewport.height() - 18.0).max(0.0));
 
                     // === Title bar ===
                     ui.horizontal(|ui| {
                         ui.heading(
-                            RichText::new("AI Inspector")
+                            RichText::new("Assistant")
                                 .strong()
                                 .color(Color32::from_gray(220)),
                         );
@@ -346,14 +363,7 @@ impl AIInspectorPanel {
                     ui.separator();
                     ui.add_space(4.0);
 
-                    // === Controls row ===
-                    self.render_controls(ui);
-
-                    ui.add_space(4.0);
-                    ui.separator();
-                    ui.add_space(4.0);
-
-                    // === Agent connection bar ===
+                    // === Agent connection bar (above terminal capture) ===
                     let agent_action = self.render_agent_bar(ui, available_agents);
                     if !matches!(agent_action, InspectorAction::None) {
                         action = agent_action;
@@ -363,13 +373,96 @@ impl AIInspectorPanel {
                     ui.separator();
                     ui.add_space(4.0);
 
-                    // === Environment strip ===
-                    if let Some(ref snapshot) = self.snapshot {
-                        self.render_environment(ui, snapshot);
+                    // === Collapsible terminal capture section ===
+                    egui::CollapsingHeader::new(
+                        RichText::new("Terminal Capture")
+                            .color(Color32::from_gray(180))
+                            .strong(),
+                    )
+                    .id_salt("terminal_capture_section")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        // --- Controls row ---
+                        self.render_controls(ui);
+
                         ui.add_space(4.0);
                         ui.separator();
                         ui.add_space(4.0);
-                    }
+
+                        // --- Environment strip ---
+                        if let Some(ref snapshot) = self.snapshot {
+                            self.render_environment(ui, snapshot);
+                            ui.add_space(4.0);
+                            ui.separator();
+                            ui.add_space(4.0);
+                        }
+
+                        // --- Commands content ---
+                        // Use a fixed max height within the collapsible section
+                        let cmd_height = (ui.available_height() * 0.5).clamp(100.0, 300.0);
+                        egui::ScrollArea::vertical()
+                            .id_salt("capture_commands_scroll")
+                            .max_height(cmd_height)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                if let Some(ref snapshot) = self.snapshot {
+                                    if snapshot.commands.is_empty() {
+                                        ui.vertical_centered(|ui| {
+                                            ui.add_space(20.0);
+                                            ui.label(
+                                                RichText::new("No commands captured yet")
+                                                    .color(Color32::from_gray(100))
+                                                    .italics(),
+                                            );
+                                            ui.add_space(4.0);
+                                            ui.label(
+                                                RichText::new(
+                                                    "Run some commands in the terminal\nto see them here.",
+                                                )
+                                                .color(Color32::from_gray(80))
+                                                .small(),
+                                            );
+                                        });
+                                    } else {
+                                        match self.view_mode {
+                                            ViewMode::Cards => {
+                                                Self::render_cards(ui, &snapshot.commands);
+                                            }
+                                            ViewMode::Timeline => {
+                                                Self::render_timeline(ui, &snapshot.commands);
+                                            }
+                                            ViewMode::Tree => {
+                                                Self::render_tree(ui, &snapshot.commands);
+                                            }
+                                            ViewMode::ListDetail => {
+                                                Self::render_list_detail(ui, &snapshot.commands);
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    ui.vertical_centered(|ui| {
+                                        ui.add_space(20.0);
+                                        ui.label(
+                                            RichText::new("No snapshot available")
+                                                .color(Color32::from_gray(100))
+                                                .italics(),
+                                        );
+                                        ui.add_space(4.0);
+                                        ui.label(
+                                            RichText::new(
+                                                "Click Refresh to capture terminal state.",
+                                            )
+                                            .color(Color32::from_gray(80))
+                                            .small(),
+                                        );
+                                    });
+                                }
+                            });
+                    });
+
+                    ui.add_space(4.0);
+                    ui.separator();
+                    ui.add_space(4.0);
 
                     // Reserve space for pinned bottom elements:
                     // chat input ~30, checkbox ~22, action bar ~30, separators+spacing ~20
@@ -378,71 +471,17 @@ impl AIInspectorPanel {
                     } else {
                         36.0
                     };
-                    let available_height = ui.available_height() - bottom_reserve;
+                    let available_height = (ui.available_height() - bottom_reserve).max(50.0);
 
-                    // === Scrollable content: commands + chat ===
+                    // === Scrollable content: chat messages ===
                     egui::ScrollArea::vertical()
                         .id_salt("inspector_scroll")
                         .max_height(available_height)
                         .auto_shrink([false, false])
                         .stick_to_bottom(true)
                         .show(ui, |ui| {
-                            // --- Commands section ---
-                            if let Some(ref snapshot) = self.snapshot {
-                                if snapshot.commands.is_empty() {
-                                    ui.vertical_centered(|ui| {
-                                        ui.add_space(20.0);
-                                        ui.label(
-                                            RichText::new("No commands captured yet")
-                                                .color(Color32::from_gray(100))
-                                                .italics(),
-                                        );
-                                        ui.add_space(4.0);
-                                        ui.label(
-                                            RichText::new(
-                                                "Run some commands in the terminal\nto see them here.",
-                                            )
-                                            .color(Color32::from_gray(80))
-                                            .small(),
-                                        );
-                                    });
-                                } else {
-                                    match self.view_mode {
-                                        ViewMode::Cards => {
-                                            Self::render_cards(ui, &snapshot.commands);
-                                        }
-                                        ViewMode::Timeline => {
-                                            Self::render_timeline(ui, &snapshot.commands);
-                                        }
-                                        ViewMode::Tree => {
-                                            Self::render_tree(ui, &snapshot.commands);
-                                        }
-                                        ViewMode::ListDetail => {
-                                            Self::render_list_detail(ui, &snapshot.commands);
-                                        }
-                                    }
-                                }
-                            } else {
-                                ui.vertical_centered(|ui| {
-                                    ui.add_space(20.0);
-                                    ui.label(
-                                        RichText::new("No snapshot available")
-                                            .color(Color32::from_gray(100))
-                                            .italics(),
-                                    );
-                                    ui.add_space(4.0);
-                                    ui.label(
-                                        RichText::new("Click Refresh to capture terminal state.")
-                                            .color(Color32::from_gray(80))
-                                            .small(),
-                                    );
-                                });
-                            }
-
                             // --- Chat messages section ---
                             if !self.chat.messages.is_empty() || self.chat.streaming {
-                                ui.add_space(8.0);
-                                ui.separator();
                                 ui.add_space(4.0);
                                 ui.label(
                                     RichText::new("Chat")
@@ -469,18 +508,42 @@ impl AIInspectorPanel {
                             action = input_action;
                         }
                         ui.add_space(2.0);
-                        if ui
-                            .checkbox(
-                                &mut self.agent_terminal_access,
-                                RichText::new("Allow agent to drive terminal")
-                                    .small()
-                                    .color(Color32::from_gray(160)),
-                            )
-                            .changed()
-                        {
-                            action =
-                                InspectorAction::SetTerminalAccess(self.agent_terminal_access);
-                        }
+                        ui.horizontal(|ui| {
+                            if ui
+                                .checkbox(
+                                    &mut self.agent_terminal_access,
+                                    RichText::new("Terminal access")
+                                        .small()
+                                        .color(Color32::from_gray(160)),
+                                )
+                                .changed()
+                            {
+                                action =
+                                    InspectorAction::SetTerminalAccess(self.agent_terminal_access);
+                            }
+                            let yolo_color = if self.auto_approve {
+                                Color32::from_rgb(255, 193, 7)
+                            } else {
+                                Color32::from_gray(160)
+                            };
+                            if ui
+                                .checkbox(
+                                    &mut self.auto_approve,
+                                    RichText::new("YOLO").small().color(yolo_color),
+                                )
+                                .on_hover_text(
+                                    "Auto-approve all agent permission requests",
+                                )
+                                .changed()
+                            {
+                                let mode = if self.auto_approve {
+                                    "bypassPermissions"
+                                } else {
+                                    "default"
+                                };
+                                action = InspectorAction::SetAgentMode(mode.to_string());
+                            }
+                        });
                     }
 
                     ui.add_space(4.0);
@@ -757,7 +820,10 @@ impl AIInspectorPanel {
 
                 // Command text (truncated to fit)
                 let cmd_display = if cmd.command.len() > max_cmd_chars {
-                    format!("{}...", &cmd.command[..max_cmd_chars.min(cmd.command.len())])
+                    format!(
+                        "{}...",
+                        &cmd.command[..max_cmd_chars.min(cmd.command.len())]
+                    )
                 } else {
                     cmd.command.clone()
                 };
@@ -1175,9 +1241,10 @@ impl AIInspectorPanel {
                     ui.add_space(4.0);
                 }
                 ChatMessage::Permission {
+                    request_id,
                     description,
+                    options,
                     resolved,
-                    ..
                 } => {
                     let frame = Frame::new()
                         .fill(Color32::from_rgb(50, 35, 20))
@@ -1197,12 +1264,43 @@ impl AIInspectorPanel {
                         );
                         ui.add(
                             Label::new(
-                                RichText::new(description)
+                                RichText::new(description.as_str())
                                     .color(Color32::from_gray(180))
                                     .small(),
                             )
                             .selectable(true),
                         );
+                        if !*resolved {
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                for (opt_id, opt_label) in options {
+                                    if ui
+                                        .button(RichText::new(opt_label.as_str()).small())
+                                        .clicked()
+                                    {
+                                        action = InspectorAction::RespondPermission {
+                                            request_id: *request_id,
+                                            option_id: opt_id.clone(),
+                                            cancelled: false,
+                                        };
+                                    }
+                                }
+                                if ui
+                                    .button(
+                                        RichText::new("Deny")
+                                            .small()
+                                            .color(Color32::from_rgb(255, 100, 100)),
+                                    )
+                                    .clicked()
+                                {
+                                    action = InspectorAction::RespondPermission {
+                                        request_id: *request_id,
+                                        option_id: String::new(),
+                                        cancelled: true,
+                                    };
+                                }
+                            });
+                        }
                     });
                     ui.add_space(4.0);
                 }
@@ -1423,7 +1521,7 @@ mod tests {
         assert_eq!(panel.width, 300.0);
         assert_eq!(panel.scope, SnapshotScope::Visible);
         assert_eq!(panel.view_mode, ViewMode::Cards);
-        assert!(panel.live_update);
+        assert!(!panel.live_update);
         assert!(panel.show_zones);
     }
 }

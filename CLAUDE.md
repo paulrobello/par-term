@@ -15,18 +15,19 @@ par-term is a cross-platform GPU-accelerated terminal emulator frontend built in
 
 ### Build & Run
 
-**IMPORTANT**: When not actively debugging, always use `make release` to compile. Debug builds are significantly slower and may not represent actual performance. Only use debug builds when you need to add logging or step through code.
+**IMPORTANT**: Use `make build` / `make run` for day-to-day development. These use the `dev-release` profile (opt-level 3, thin LTO, 16 codegen-units) which compiles in ~30-40s with ~95% of full release performance. Only use `make build-debug` when you need debug symbols for stepping through code, and `make build-full` / `make release` for distribution builds.
 
 ```bash
-make build          # Debug build (only for debugging)
-make release        # Optimized release build (preferred)
-make run            # Run in debug mode
-make run-release    # Run in release mode
+make build          # Dev-release build (optimized, thin LTO — ~30-40s, preferred)
+make build-full     # Full release build (LTO, single codegen unit — ~3min, for distribution)
+make build-debug    # Debug build (unoptimized, for stepping through code)
+make run            # Run in dev-release mode (preferred)
+make run-release    # Run in full release mode
 
 # Or directly with cargo
-cargo build
-cargo run
-cargo build --release
+cargo build --profile dev-release   # Same as make build
+cargo build --release               # Same as make build-full
+cargo build                         # Same as make build-debug
 ```
 
 ### Testing
@@ -448,7 +449,7 @@ unfocused_fps: 10             # Target FPS when unfocused (default: 10)
 - Verify VT sequence parsing in par-term-emu-core-rust
 
 ### Profiling Rendering Performance
-- Use release build: `cargo build --release`
+- Use dev-release build for quick profiling: `make build` (or full release: `make build-full`)
 - Check frame time in render loop (logged when >10ms)
 - Profile GPU usage with platform tools (Xcode Instruments, RenderDoc, etc.)
 - Use `make profile` for CPU flamegraph generation

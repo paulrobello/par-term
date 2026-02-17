@@ -111,6 +111,9 @@ pub(crate) struct ConfigChanges {
 
     // Per-pane backgrounds
     pub pane_backgrounds: bool,
+
+    // AI Inspector
+    pub ai_inspector_auto_approve: bool,
 }
 
 impl ConfigChanges {
@@ -264,6 +267,9 @@ impl ConfigChanges {
             dynamic_profile_sources: new.dynamic_profile_sources != old.dynamic_profile_sources,
 
             pane_backgrounds: new.pane_backgrounds != old.pane_backgrounds,
+
+            ai_inspector_auto_approve: new.ai_inspector_auto_approve
+                != old.ai_inspector_auto_approve,
         }
     }
 
