@@ -10,11 +10,12 @@
 
 pub mod dynamic;
 pub mod storage;
-pub mod types;
+// types module is now in par-term-config, re-exported below
 
 pub use dynamic::{
     CacheMeta, ConflictResolution, DynamicProfileManager, DynamicProfileSource,
     DynamicProfileUpdate, FetchResult, SourceStatus, cache_dir, fetch_profiles,
     merge_dynamic_profiles, read_cache, url_to_cache_filename, write_cache,
 };
-pub use types::{Profile, ProfileId, ProfileManager, ProfileSource};
+// Re-export profile types from par-term-config
+pub use par_term_config::{Profile, ProfileId, ProfileManager, ProfileSource};

@@ -9,12 +9,13 @@
 //! - Snippets and automation support
 //! - Configuration file watching
 //! - Status bar widget configuration
-//! - Profile configuration types
+//! - Profile configuration types and manager
 
 pub mod automation;
 pub mod config;
 pub mod defaults;
 pub mod profile;
+pub mod profile_types;
 pub mod scripting;
 pub mod shader_config;
 pub mod shader_metadata;
@@ -51,6 +52,8 @@ pub use snippets::{BuiltInVariable, CustomActionConfig, SnippetConfig, SnippetLi
 pub use status_bar::{StatusBarSection, StatusBarWidgetConfig, WidgetId, default_widgets};
 // Profile configuration
 pub use profile::{ConflictResolution, DynamicProfileSource};
+// Profile types and manager
+pub use profile_types::{Profile, ProfileId, ProfileManager, ProfileSource};
 // Shader config resolution
 pub use shader_config::{resolve_cursor_shader_config, resolve_shader_config};
 // Shader metadata

@@ -49,7 +49,7 @@ pub struct CacheMeta {
 }
 
 /// Read cached profiles for a given URL
-pub fn read_cache(url: &str) -> anyhow::Result<(Vec<super::types::Profile>, CacheMeta)> {
+pub fn read_cache(url: &str) -> anyhow::Result<(Vec<par_term_config::Profile>, CacheMeta)> {
     let dir = cache_dir();
     let hash = url_to_cache_filename(url);
     let data_path = dir.join(format!("{hash}.yaml"));
@@ -60,7 +60,7 @@ pub fn read_cache(url: &str) -> anyhow::Result<(Vec<super::types::Profile>, Cach
     let meta_str = std::fs::read_to_string(&meta_path)
         .with_context(|| format!("Failed to read cache meta from {meta_path:?}"))?;
 
-    let profiles: Vec<super::types::Profile> =
+    let profiles: Vec<par_term_config::Profile> =
         serde_yaml::from_str(&data).with_context(|| "Failed to parse cached profiles")?;
     let meta: CacheMeta =
         serde_json::from_str(&meta_str).with_context(|| "Failed to parse cache metadata")?;
@@ -71,7 +71,7 @@ pub fn read_cache(url: &str) -> anyhow::Result<(Vec<super::types::Profile>, Cach
 /// Write profiles and metadata to cache
 pub fn write_cache(
     url: &str,
-    profiles: &[super::types::Profile],
+    profiles: &[par_term_config::Profile],
     etag: Option<String>,
 ) -> anyhow::Result<()> {
     let dir = cache_dir();
@@ -109,7 +109,7 @@ pub struct FetchResult {
     /// The source URL that was fetched
     pub url: String,
     /// Successfully parsed profiles (empty on error)
-    pub profiles: Vec<super::types::Profile>,
+    pub profiles: Vec<par_term_config::Profile>,
     /// HTTP ETag header from the response
     pub etag: Option<String>,
     /// Error message if the fetch failed
@@ -159,7 +159,7 @@ pub fn fetch_profiles(source: &DynamicProfileSource) -> FetchResult {
 /// Internal fetch implementation
 fn fetch_profiles_inner(
     source: &DynamicProfileSource,
-) -> anyhow::Result<(Vec<super::types::Profile>, Option<String>)> {
+) -> anyhow::Result<(Vec<par_term_config::Profile>, Option<String>)> {
     use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 
     // Warn if using HTTP with auth headers (credential leaking risk)
@@ -217,7 +217,7 @@ fn fetch_profiles_inner(
         .read_to_string()
         .with_context(|| format!("Failed to read response body from {}", source.url))?;
 
-    let profiles: Vec<super::types::Profile> = serde_yaml::from_str(&body)
+    let profiles: Vec<par_term_config::Profile> = serde_yaml::from_str(&body)
         .with_context(|| format!("Failed to parse YAML from {}", source.url))?;
 
     Ok((profiles, etag))
@@ -232,17 +232,17 @@ fn fetch_profiles_inner(
 /// 3. Apply conflict resolution strategy
 /// 4. Mark merged profiles with Dynamic source
 pub fn merge_dynamic_profiles(
-    manager: &mut super::types::ProfileManager,
-    remote_profiles: &[super::types::Profile],
+    manager: &mut par_term_config::ProfileManager,
+    remote_profiles: &[par_term_config::Profile],
     url: &str,
     conflict_resolution: &ConflictResolution,
 ) {
     // Remove existing dynamic profiles from this URL
-    let to_remove: Vec<super::types::ProfileId> = manager
+    let to_remove: Vec<par_term_config::ProfileId> = manager
         .profiles_ordered()
         .iter()
         .filter(
-            |p| matches!(&p.source, super::types::ProfileSource::Dynamic { url: u, .. } if u == url),
+            |p| matches!(&p.source, par_term_config::ProfileSource::Dynamic { url: u, .. } if u == url),
         )
         .map(|p| p.id)
         .collect();
@@ -263,7 +263,7 @@ pub fn merge_dynamic_profiles(
                 manager.remove(&local_id);
                 let mut profile = remote.clone();
                 profile.id = uuid::Uuid::new_v4();
-                profile.source = super::types::ProfileSource::Dynamic {
+                profile.source = par_term_config::ProfileSource::Dynamic {
                     url: url.to_string(),
                     last_fetched: Some(now),
                 };
@@ -277,7 +277,7 @@ pub fn merge_dynamic_profiles(
             (None, _) => {
                 let mut profile = remote.clone();
                 profile.id = uuid::Uuid::new_v4();
-                profile.source = super::types::ProfileSource::Dynamic {
+                profile.source = par_term_config::ProfileSource::Dynamic {
                     url: url.to_string(),
                     last_fetched: Some(now),
                 };
@@ -296,7 +296,7 @@ pub struct DynamicProfileUpdate {
     /// The source URL that was fetched
     pub url: String,
     /// Successfully parsed profiles (empty on error)
-    pub profiles: Vec<super::types::Profile>,
+    pub profiles: Vec<par_term_config::Profile>,
     /// How to resolve conflicts with local profiles
     pub conflict_resolution: ConflictResolution,
     /// Error message if the fetch failed
@@ -653,8 +653,8 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let url = "https://test.example.com/profiles.yaml";
         let profiles = vec![
-            super::super::types::Profile::new("Remote Profile 1"),
-            super::super::types::Profile::new("Remote Profile 2"),
+            par_term_config::Profile::new("Remote Profile 1"),
+            par_term_config::Profile::new("Remote Profile 2"),
         ];
         let hash = super::url_to_cache_filename(url);
         let data_path = temp.path().join(format!("{hash}.yaml"));
@@ -672,7 +672,7 @@ mod tests {
         std::fs::write(&meta_path, serde_json::to_string_pretty(&meta).unwrap()).unwrap();
 
         // Read back
-        let read_profiles: Vec<super::super::types::Profile> =
+        let read_profiles: Vec<par_term_config::Profile> =
             serde_yaml::from_str(&std::fs::read_to_string(&data_path).unwrap()).unwrap();
         assert_eq!(read_profiles.len(), 2);
         assert_eq!(read_profiles[0].name, "Remote Profile 1");
@@ -688,7 +688,7 @@ mod tests {
 
     #[test]
     fn test_merge_local_wins() {
-        use super::super::types::{Profile, ProfileManager, ProfileSource};
+        use par_term_config::{Profile, ProfileManager, ProfileSource};
         let mut manager = ProfileManager::new();
         manager.add(Profile::new("Shared Profile"));
         manager.add(Profile::new("Local Only"));
@@ -722,7 +722,7 @@ mod tests {
 
     #[test]
     fn test_merge_remote_wins() {
-        use super::super::types::{Profile, ProfileManager, ProfileSource};
+        use par_term_config::{Profile, ProfileManager, ProfileSource};
         let mut manager = ProfileManager::new();
         manager.add(Profile::new("Shared Profile"));
 
@@ -741,7 +741,7 @@ mod tests {
 
     #[test]
     fn test_merge_removes_stale_dynamic_profiles() {
-        use super::super::types::{Profile, ProfileManager, ProfileSource};
+        use par_term_config::{Profile, ProfileManager, ProfileSource};
         let mut manager = ProfileManager::new();
         let mut old = Profile::new("Old Remote");
         old.source = ProfileSource::Dynamic {
