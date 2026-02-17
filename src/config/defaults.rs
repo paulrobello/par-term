@@ -934,6 +934,10 @@ pub fn ai_inspector_width() -> f32 {
     300.0
 }
 
+pub fn ai_inspector_open_on_startup() -> bool {
+    false
+}
+
 pub fn ai_inspector_default_scope() -> String {
     "visible".to_string()
 }
@@ -955,7 +959,7 @@ pub fn ai_inspector_agent() -> String {
 }
 
 pub fn ai_inspector_auto_launch() -> bool {
-    true
+    false
 }
 
 pub fn ai_inspector_auto_context() -> bool {

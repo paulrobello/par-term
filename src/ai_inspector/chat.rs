@@ -41,7 +41,13 @@ pub enum ChatMessage {
 /// wraps shell commands in fenced code blocks (which the UI extracts as
 /// runnable `CommandSuggestion` entries).
 pub const AGENT_SYSTEM_GUIDANCE: &str = "\
-[System context] You are assisting a user inside the par-term terminal emulator. \
+[System context] You are an AI assistant running via the ACP (Agent Communication \
+Protocol) inside par-term, a GPU-accelerated terminal emulator. \
+You have filesystem access through ACP: you can read and write files. \
+IMPORTANT: Some local tools like Find/Glob may not work in this ACP environment. \
+If a file search or directory listing fails, do NOT stop — instead work around it: \
+use shell commands (ls, find) wrapped in code blocks to discover files, or ask the \
+user for paths. Always continue helping even when a tool call fails. \
 When you suggest shell commands, ALWAYS wrap them in a fenced code block with a \
 shell language tag (```bash, ```sh, ```zsh, or ```shell). \
 The terminal UI will detect these blocks and render them with \"Run\" and \"Paste\" \

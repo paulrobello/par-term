@@ -76,6 +76,14 @@ pub enum InspectorAction {
     SendPrompt(String),
     /// Toggle agent terminal access.
     SetTerminalAccess(bool),
+    /// Respond to an agent permission request.
+    RespondPermission {
+        request_id: u64,
+        option_id: String,
+        cancelled: bool,
+    },
+    /// Set the agent's session mode (e.g. "bypassPermissions").
+    SetAgentMode(String),
 }
 
 /// Predefined scope options for the dropdown.
@@ -182,6 +190,8 @@ pub struct AIInspectorPanel {
     pub chat: ChatState,
     /// Whether the agent is allowed to write to the terminal.
     pub agent_terminal_access: bool,
+    /// Whether to auto-approve all agent permission requests (YOLO mode).
+    pub auto_approve: bool,
     /// Actual rendered width from the last egui frame (may exceed `width` if content overflows).
     rendered_width: f32,
     /// Whether the pointer is hovering over the resize handle (persists between frames
@@ -193,7 +203,7 @@ impl AIInspectorPanel {
     /// Create a new inspector panel initialized from config.
     pub fn new(config: &Config) -> Self {
         Self {
-            open: false,
+            open: config.ai_inspector_open_on_startup,
             width: config.ai_inspector_width,
             min_width: 200.0,
             max_width_ratio: 0.5,
@@ -208,6 +218,7 @@ impl AIInspectorPanel {
             agent_status: AgentStatus::Disconnected,
             chat: ChatState::new(),
             agent_terminal_access: config.ai_inspector_agent_terminal_access,
+            auto_approve: config.ai_inspector_auto_approve,
             rendered_width: 0.0,
             hover_resize_handle: false,
         }
@@ -234,6 +245,11 @@ impl AIInspectorPanel {
         } else {
             0.0
         }
+    }
+
+    /// Whether the user is currently drag-resizing the panel.
+    pub fn is_resizing(&self) -> bool {
+        self.resizing
     }
 
     /// Whether the pointer is interacting with the resize handle (hovering or dragging).
@@ -470,18 +486,42 @@ impl AIInspectorPanel {
                             action = input_action;
                         }
                         ui.add_space(2.0);
-                        if ui
-                            .checkbox(
-                                &mut self.agent_terminal_access,
-                                RichText::new("Allow agent to drive terminal")
-                                    .small()
-                                    .color(Color32::from_gray(160)),
-                            )
-                            .changed()
-                        {
-                            action =
-                                InspectorAction::SetTerminalAccess(self.agent_terminal_access);
-                        }
+                        ui.horizontal(|ui| {
+                            if ui
+                                .checkbox(
+                                    &mut self.agent_terminal_access,
+                                    RichText::new("Terminal access")
+                                        .small()
+                                        .color(Color32::from_gray(160)),
+                                )
+                                .changed()
+                            {
+                                action =
+                                    InspectorAction::SetTerminalAccess(self.agent_terminal_access);
+                            }
+                            let yolo_color = if self.auto_approve {
+                                Color32::from_rgb(255, 193, 7)
+                            } else {
+                                Color32::from_gray(160)
+                            };
+                            if ui
+                                .checkbox(
+                                    &mut self.auto_approve,
+                                    RichText::new("YOLO").small().color(yolo_color),
+                                )
+                                .on_hover_text(
+                                    "Auto-approve all agent permission requests",
+                                )
+                                .changed()
+                            {
+                                let mode = if self.auto_approve {
+                                    "bypassPermissions"
+                                } else {
+                                    "default"
+                                };
+                                action = InspectorAction::SetAgentMode(mode.to_string());
+                            }
+                        });
                     }
 
                     ui.add_space(4.0);
@@ -1179,9 +1219,10 @@ impl AIInspectorPanel {
                     ui.add_space(4.0);
                 }
                 ChatMessage::Permission {
+                    request_id,
                     description,
+                    options,
                     resolved,
-                    ..
                 } => {
                     let frame = Frame::new()
                         .fill(Color32::from_rgb(50, 35, 20))
@@ -1201,12 +1242,43 @@ impl AIInspectorPanel {
                         );
                         ui.add(
                             Label::new(
-                                RichText::new(description)
+                                RichText::new(description.as_str())
                                     .color(Color32::from_gray(180))
                                     .small(),
                             )
                             .selectable(true),
                         );
+                        if !*resolved {
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                for (opt_id, opt_label) in options {
+                                    if ui
+                                        .button(RichText::new(opt_label.as_str()).small())
+                                        .clicked()
+                                    {
+                                        action = InspectorAction::RespondPermission {
+                                            request_id: *request_id,
+                                            option_id: opt_id.clone(),
+                                            cancelled: false,
+                                        };
+                                    }
+                                }
+                                if ui
+                                    .button(
+                                        RichText::new("Deny")
+                                            .small()
+                                            .color(Color32::from_rgb(255, 100, 100)),
+                                    )
+                                    .clicked()
+                                {
+                                    action = InspectorAction::RespondPermission {
+                                        request_id: *request_id,
+                                        option_id: String::new(),
+                                        cancelled: true,
+                                    };
+                                }
+                            });
+                        }
                     });
                     ui.add_space(4.0);
                 }

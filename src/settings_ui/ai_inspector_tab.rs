@@ -89,6 +89,18 @@ fn show_panel_section(
             *changes_this_frame = true;
         }
 
+        if ui
+            .checkbox(
+                &mut settings.config.ai_inspector_open_on_startup,
+                "Open on startup",
+            )
+            .on_hover_text("Automatically open the AI Inspector panel when a new window opens")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
         ui.add_space(4.0);
 
         ui.horizontal(|ui| {

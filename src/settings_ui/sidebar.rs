@@ -792,6 +792,10 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "tree",
             "export",
             "json",
+            "startup",
+            "open",
+            "width",
+            "persist",
         ],
         SettingsTab::Advanced => &[
             // tmux

@@ -11,10 +11,11 @@ help:
 	@echo "par-term - Cross-platform Terminal Emulator"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  make build       - Build the project in release mode"
-	@echo "  make build-debug - Build the project in debug mode"
-	@echo "  make run         - Run the application (release mode)"
-	@echo "  make run-debug   - Run with debug logging"
+	@echo "  make build        - Build the project (fast-release: optimized, no LTO)"
+	@echo "  make build-full   - Build with full release optimizations (LTO, slow)"
+	@echo "  make build-debug  - Build the project in debug mode"
+	@echo "  make run          - Run the application (fast-release mode)"
+	@echo "  make run-debug    - Run with debug logging"
 	@echo ""
 	@echo "Run with logging:"
 	@echo "  make run-error   - Run with error level logs"
@@ -58,9 +59,14 @@ help:
 	@echo "  make deploy      - Trigger Release and Deploy GitHub Action"
 	@echo ""
 
-# Build in release mode (default for faster runtime)
+# Build in dev-release mode (optimized, no full LTO — ~30-40s)
 build:
-	@echo "Building par-term (release mode)..."
+	@echo "Building par-term (dev-release: optimized, thin LTO)..."
+	cargo build --profile dev-release
+
+# Build in full release mode (LTO + codegen-units=1 — ~3min, for distribution)
+build-full:
+	@echo "Building par-term (full release: LTO, single codegen unit)..."
 	cargo build --release
 
 # Build in debug mode
@@ -68,18 +74,18 @@ build-debug:
 	@echo "Building par-term (debug mode)..."
 	cargo build
 
-# Alias for build (release mode)
-release: build
+# Alias for full release build (for distribution)
+release: build-full
 	@echo "Release binary: target/release/par-term"
 
-# Run the application (always use release mode for performance)
+# Run the application (dev-release for fast optimized builds)
 run:
-	@echo "Running par-term (release mode)..."
-	cargo run --release
+	@echo "Running par-term (dev-release mode)..."
+	cargo run --profile dev-release
 
-# Run the application in release mode
+# Run the application in full release mode
 run-release:
-	@echo "Running par-term (release mode)..."
+	@echo "Running par-term (full release mode)..."
 	cargo run --release
 
 # Run with error level logging

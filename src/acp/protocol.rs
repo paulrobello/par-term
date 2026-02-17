@@ -33,6 +33,10 @@ pub struct ClientCapabilities {
 pub struct FsCapabilities {
     pub read_text_file: bool,
     pub write_text_file: bool,
+    #[serde(default)]
+    pub list_directory: bool,
+    #[serde(default)]
+    pub find: bool,
 }
 
 /// Identifying information about the host client.
@@ -483,6 +487,37 @@ pub struct FsReadParams {
     pub limit: Option<u64>,
 }
 
+/// Parameters for the `fs/writeTextFile` RPC call from agent to host.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsWriteParams {
+    pub session_id: String,
+    pub path: String,
+    pub content: String,
+}
+
+/// Parameters for the `fs/listDirectory` RPC call from agent to host.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsListDirectoryParams {
+    pub session_id: String,
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+}
+
+/// Parameters for the `fs/find` RPC call from agent to host.
+///
+/// This is a par-term extension (not part of the core ACP spec) that provides
+/// recursive glob-based file search, similar to Claude Code's built-in Glob tool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsFindParams {
+    pub session_id: String,
+    pub path: String,
+    pub pattern: String,
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -529,6 +564,8 @@ mod tests {
                 fs: FsCapabilities {
                     read_text_file: true,
                     write_text_file: false,
+                    list_directory: false,
+                    find: false,
                 },
                 terminal: false,
             },
@@ -759,5 +796,38 @@ mod tests {
         assert!(json.contains("sessionId"));
         assert!(json.contains(r#""line":10"#));
         assert!(!json.contains("limit"));
+    }
+
+    #[test]
+    fn test_fs_write_params_serialization() {
+        let params = FsWriteParams {
+            session_id: "sess-1".to_string(),
+            path: "/tmp/test.txt".to_string(),
+            content: "hello world".to_string(),
+        };
+        let json = serde_json::to_string(&params).unwrap();
+        assert!(json.contains("sessionId"));
+        assert!(json.contains("hello world"));
+    }
+
+    #[test]
+    fn test_fs_list_directory_params_serialization() {
+        let params = FsListDirectoryParams {
+            session_id: "sess-1".to_string(),
+            path: "/tmp".to_string(),
+            pattern: Some("*.rs".to_string()),
+        };
+        let json = serde_json::to_string(&params).unwrap();
+        assert!(json.contains("sessionId"));
+        assert!(json.contains("*.rs"));
+    }
+
+    #[test]
+    fn test_fs_capabilities_list_directory_default() {
+        let json = r#"{"readTextFile": true, "writeTextFile": false}"#;
+        let caps: FsCapabilities = serde_json::from_str(json).unwrap();
+        assert!(caps.read_text_file);
+        assert!(!caps.write_text_file);
+        assert!(!caps.list_directory);
     }
 }

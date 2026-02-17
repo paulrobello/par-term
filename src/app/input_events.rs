@@ -842,8 +842,11 @@ impl WindowState {
         };
 
         if is_inspector {
-            let _just_opened = self.ai_inspector.toggle();
+            let just_opened = self.ai_inspector.toggle();
             self.sync_ai_inspector_width();
+            if just_opened {
+                self.try_auto_connect_agent();
+            }
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
@@ -1288,8 +1291,11 @@ impl WindowState {
             }
             "toggle_ai_inspector" => {
                 if self.config.ai_inspector_enabled {
-                    self.ai_inspector.toggle();
+                    let just_opened = self.ai_inspector.toggle();
                     self.sync_ai_inspector_width();
+                    if just_opened {
+                        self.try_auto_connect_agent();
+                    }
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }

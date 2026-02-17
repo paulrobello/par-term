@@ -5,6 +5,7 @@
 
 use crate::acp::agent::{Agent, AgentMessage, AgentStatus};
 use crate::acp::agents::{AgentConfig, discover_agents};
+use crate::acp::protocol::{ClientCapabilities, FsCapabilities};
 use crate::ai_inspector::chat::ChatMessage;
 use crate::ai_inspector::panel::{AIInspectorPanel, InspectorAction};
 use crate::app::anti_idle::should_send_keep_alive;
@@ -149,6 +150,11 @@ pub struct WindowState {
     pub(crate) agent_tx: Option<mpsc::UnboundedSender<AgentMessage>>,
     /// ACP agent (managed via tokio)
     pub(crate) agent: Option<Arc<tokio::sync::Mutex<Agent>>>,
+    /// ACP JSON-RPC client for sending responses without locking the agent.
+    /// Stored separately to avoid deadlocks: `send_prompt` holds the agent lock
+    /// while waiting for the prompt response, but the agent's tool calls
+    /// (e.g. `fs/readTextFile`) need us to respond via this same client.
+    pub(crate) agent_client: Option<Arc<crate::acp::jsonrpc::JsonRpcClient>>,
     /// Available agent configs
     pub(crate) available_agents: Vec<AgentConfig>,
     /// Shader install prompt UI
@@ -370,6 +376,7 @@ impl WindowState {
             agent_rx: None,
             agent_tx: None,
             agent: None,
+            agent_client: None,
             available_agents,
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
@@ -828,6 +835,11 @@ impl WindowState {
             );
         }
 
+        // Auto-connect agent if panel is open on startup and auto-launch is enabled
+        if self.ai_inspector.open {
+            self.try_auto_connect_agent();
+        }
+
         // Check if we should prompt user to install integrations (shaders and/or shell integration)
         if self.config.should_prompt_integrations() {
             log::info!("Integrations not installed - showing welcome dialog");
@@ -969,7 +981,109 @@ impl WindowState {
             }
         }
 
+        // Persist panel width to config when the user finishes resizing.
+        if !self.ai_inspector.is_resizing()
+            && (current_width - self.last_inspector_width).abs() >= 1.0
+            && current_width > 0.0
+            && self.ai_inspector.open
+        {
+            self.config.ai_inspector_width = self.ai_inspector.width;
+            // Save to disk so the width is remembered across sessions.
+            if let Err(e) = self.config.save() {
+                log::error!("Failed to save AI inspector width: {}", e);
+            }
+        }
+
         self.last_inspector_width = current_width;
+    }
+
+    /// Connect to an ACP agent by identity string.
+    ///
+    /// This extracts the agent connection logic so it can be called both from
+    /// `InspectorAction::ConnectAgent` and from the auto-connect-on-open path.
+    pub(crate) fn connect_agent(&mut self, identity: &str) {
+        if let Some(agent_config) = self
+            .available_agents
+            .iter()
+            .find(|a| a.identity == identity)
+        {
+            // Clean up any previous agent before starting a new connection.
+            if let Some(old_agent) = self.agent.take() {
+                let runtime = self.runtime.clone();
+                runtime.spawn(async move {
+                    let mut agent = old_agent.lock().await;
+                    agent.disconnect().await;
+                });
+            }
+            self.agent_rx = None;
+            self.agent_tx = None;
+            self.agent_client = None;
+
+            let (tx, rx) = mpsc::unbounded_channel();
+            self.agent_rx = Some(rx);
+            self.agent_tx = Some(tx.clone());
+            let ui_tx = tx.clone();
+            let mut agent = Agent::new(agent_config.clone(), tx);
+            agent.auto_approve = self.config.ai_inspector_auto_approve;
+            let agent = Arc::new(tokio::sync::Mutex::new(agent));
+            self.agent = Some(agent.clone());
+
+            // Determine CWD for the agent session
+            let fallback_cwd = std::env::current_dir()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let cwd = if let Some(tab) = self.tab_manager.active_tab() {
+                if let Ok(term) = tab.terminal.try_lock() {
+                    term.shell_integration_cwd()
+                        .unwrap_or_else(|| fallback_cwd.clone())
+                } else {
+                    fallback_cwd.clone()
+                }
+            } else {
+                fallback_cwd
+            };
+
+            let capabilities = ClientCapabilities {
+                fs: FsCapabilities {
+                    read_text_file: true,
+                    write_text_file: true,
+                    list_directory: true,
+                    find: true,
+                },
+                terminal: self.config.ai_inspector_agent_terminal_access,
+            };
+
+            let auto_approve = self.config.ai_inspector_auto_approve;
+            let runtime = self.runtime.clone();
+            runtime.spawn(async move {
+                let mut agent = agent.lock().await;
+                if let Err(e) = agent.connect(&cwd, capabilities).await {
+                    log::error!("ACP: failed to connect to agent: {e}");
+                    return;
+                }
+                if let Some(client) = &agent.client {
+                    let _ = ui_tx.send(AgentMessage::ClientReady(Arc::clone(client)));
+                }
+                if auto_approve && let Err(e) = agent.set_mode("bypassPermissions").await {
+                    log::error!("ACP: failed to set bypassPermissions mode: {e}");
+                }
+            });
+        }
+    }
+
+    /// Auto-connect to the configured agent if auto-launch is enabled and no agent is connected.
+    pub(crate) fn try_auto_connect_agent(&mut self) {
+        if self.config.ai_inspector_auto_launch
+            && self.ai_inspector.agent_status == AgentStatus::Disconnected
+            && self.agent.is_none()
+        {
+            let identity = self.config.ai_inspector_agent.clone();
+            if !identity.is_empty() {
+                log::info!("ACP: auto-connecting to agent '{}'", identity);
+                self.connect_agent(&identity);
+            }
+        }
     }
 
     // Status Bar Inset Sync
@@ -2100,20 +2214,114 @@ impl WindowState {
                         self.needs_redraw = true;
                     }
                     AgentMessage::FileReadRequest {
-                        request_id, path, ..
+                        request_id,
+                        path,
+                        line,
+                        limit,
                     } => {
-                        let content = std::fs::read_to_string(&path).map_err(|e| e.to_string());
-                        if let Some(agent) = &self.agent {
-                            let agent = agent.clone();
+                        let content = read_file_with_range(&path, line, limit);
+                        if let Some(client) = &self.agent_client {
+                            let client = client.clone();
                             self.runtime.spawn(async move {
-                                let agent = agent.lock().await;
-                                let _ = agent.respond_file_read(request_id, content).await;
+                                let (result, error) = match content {
+                                    Ok(text) => {
+                                        (Some(serde_json::json!({ "content": text })), None)
+                                    }
+                                    Err(e) => (
+                                        None,
+                                        Some(crate::acp::jsonrpc::RpcError {
+                                            code: -32000,
+                                            message: e,
+                                            data: None,
+                                        }),
+                                    ),
+                                };
+                                let _ = client.respond(request_id, result, error).await;
+                            });
+                        }
+                    }
+                    AgentMessage::FileWriteRequest {
+                        request_id,
+                        path,
+                        content,
+                    } => {
+                        let result = write_file_safe(&path, &content);
+                        if let Some(client) = &self.agent_client {
+                            let client = client.clone();
+                            self.runtime.spawn(async move {
+                                let (res, error) = match result {
+                                    Ok(()) => (Some(serde_json::json!(null)), None),
+                                    Err(e) => (
+                                        None,
+                                        Some(crate::acp::jsonrpc::RpcError {
+                                            code: -32000,
+                                            message: e,
+                                            data: None,
+                                        }),
+                                    ),
+                                };
+                                let _ = client.respond(request_id, res, error).await;
+                            });
+                        }
+                    }
+                    AgentMessage::ListDirectoryRequest {
+                        request_id,
+                        path,
+                        pattern,
+                    } => {
+                        let result = list_directory_entries(&path, pattern.as_deref());
+                        if let Some(client) = &self.agent_client {
+                            let client = client.clone();
+                            self.runtime.spawn(async move {
+                                let (res, error) = match result {
+                                    Ok(entries) => {
+                                        (Some(serde_json::json!({ "entries": entries })), None)
+                                    }
+                                    Err(e) => (
+                                        None,
+                                        Some(crate::acp::jsonrpc::RpcError {
+                                            code: -32000,
+                                            message: e,
+                                            data: None,
+                                        }),
+                                    ),
+                                };
+                                let _ = client.respond(request_id, res, error).await;
+                            });
+                        }
+                    }
+                    AgentMessage::FindRequest {
+                        request_id,
+                        path,
+                        pattern,
+                    } => {
+                        let result = find_files_recursive(&path, &pattern);
+                        if let Some(client) = &self.agent_client {
+                            let client = client.clone();
+                            self.runtime.spawn(async move {
+                                let (res, error) = match result {
+                                    Ok(files) => {
+                                        (Some(serde_json::json!({ "files": files })), None)
+                                    }
+                                    Err(e) => (
+                                        None,
+                                        Some(crate::acp::jsonrpc::RpcError {
+                                            code: -32000,
+                                            message: e,
+                                            data: None,
+                                        }),
+                                    ),
+                                };
+                                let _ = client.respond(request_id, res, error).await;
                             });
                         }
                     }
                     AgentMessage::PromptComplete => {
                         self.ai_inspector.chat.flush_agent_message();
                         self.needs_redraw = true;
+                    }
+                    AgentMessage::ClientReady(client) => {
+                        self.agent_client = Some(client);
                     }
                 }
             }
@@ -3553,43 +3761,7 @@ impl WindowState {
                 self.needs_redraw = true;
             }
             InspectorAction::ConnectAgent(identity) => {
-                if let Some(agent_config) = self
-                    .available_agents
-                    .iter()
-                    .find(|a| a.identity == identity)
-                {
-                    let (tx, rx) = mpsc::unbounded_channel();
-                    self.agent_rx = Some(rx);
-                    self.agent_tx = Some(tx.clone());
-                    let mut agent = Agent::new(agent_config.clone(), tx);
-                    agent.auto_approve = self.config.ai_inspector_auto_approve;
-                    let agent = Arc::new(tokio::sync::Mutex::new(agent));
-                    self.agent = Some(agent.clone());
-
-                    // Determine CWD for the agent session
-                    let fallback_cwd = std::env::current_dir()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string();
-                    let cwd = if let Some(tab) = self.tab_manager.active_tab() {
-                        if let Ok(term) = tab.terminal.try_lock() {
-                            term.shell_integration_cwd()
-                                .unwrap_or_else(|| fallback_cwd.clone())
-                        } else {
-                            fallback_cwd.clone()
-                        }
-                    } else {
-                        fallback_cwd
-                    };
-
-                    let runtime = self.runtime.clone();
-                    runtime.spawn(async move {
-                        let mut agent = agent.lock().await;
-                        if let Err(e) = agent.connect(&cwd).await {
-                            log::error!("ACP: failed to connect to agent: {e}");
-                        }
-                    });
-                }
+                self.connect_agent(&identity);
             }
             InspectorAction::DisconnectAgent => {
                 if let Some(agent) = self.agent.take() {
@@ -3600,6 +3772,7 @@ impl WindowState {
                 }
                 self.agent_rx = None;
                 self.agent_tx = None;
+                self.agent_client = None;
                 self.ai_inspector.agent_status = AgentStatus::Disconnected;
                 self.needs_redraw = true;
             }
@@ -3648,6 +3821,66 @@ impl WindowState {
             }
             InspectorAction::SetTerminalAccess(enabled) => {
                 self.config.ai_inspector_agent_terminal_access = enabled;
+                self.needs_redraw = true;
+            }
+            InspectorAction::RespondPermission {
+                request_id,
+                option_id,
+                cancelled,
+            } => {
+                if let Some(client) = &self.agent_client {
+                    let client = client.clone();
+                    self.runtime.spawn(async move {
+                        use crate::acp::protocol::{PermissionOutcome, RequestPermissionResponse};
+                        let outcome = if cancelled {
+                            PermissionOutcome {
+                                outcome: "cancelled".to_string(),
+                                option_id: None,
+                            }
+                        } else {
+                            PermissionOutcome {
+                                outcome: "allowed".to_string(),
+                                option_id: Some(option_id),
+                            }
+                        };
+                        let result = RequestPermissionResponse { outcome };
+                        let _ = client
+                            .respond(
+                                request_id,
+                                Some(serde_json::to_value(&result).unwrap()),
+                                None,
+                            )
+                            .await;
+                    });
+                }
+                // Mark the permission as resolved in the chat.
+                for msg in &mut self.ai_inspector.chat.messages {
+                    if let ChatMessage::Permission {
+                        request_id: rid,
+                        resolved,
+                        ..
+                    } = msg
+                        && *rid == request_id
+                    {
+                        *resolved = true;
+                        break;
+                    }
+                }
+                self.needs_redraw = true;
+            }
+            InspectorAction::SetAgentMode(mode_id) => {
+                let is_yolo = mode_id == "bypassPermissions";
+                self.config.ai_inspector_auto_approve = is_yolo;
+                if let Some(agent) = &self.agent {
+                    let agent = agent.clone();
+                    self.runtime.spawn(async move {
+                        let mut agent = agent.lock().await;
+                        agent.auto_approve = is_yolo;
+                        if let Err(e) = agent.set_mode(&mode_id).await {
+                            log::error!("ACP: failed to set mode '{mode_id}': {e}");
+                        }
+                    });
+                }
                 self.needs_redraw = true;
             }
             InspectorAction::None => {}
@@ -4129,6 +4362,153 @@ impl WindowState {
         }
         log::info!("Refresh tasks aborted, shutdown initiated");
     }
+}
+
+// ---------------------------------------------------------------------------
+// ACP filesystem helpers
+// ---------------------------------------------------------------------------
+
+/// Read a file with optional line offset and limit.
+///
+/// `line` is 1-based (first line = 1). `limit` is the maximum number of lines
+/// to return from that offset.
+fn read_file_with_range(
+    path: &str,
+    line: Option<u64>,
+    limit: Option<u64>,
+) -> Result<String, String> {
+    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+
+    match (line, limit) {
+        (None, None) => Ok(content),
+        _ => {
+            let skip = line.unwrap_or(1).saturating_sub(1) as usize;
+            let lines: Vec<&str> = content.lines().skip(skip).collect();
+            let taken: Vec<&str> = if let Some(lim) = limit {
+                lines.into_iter().take(lim as usize).collect()
+            } else {
+                lines
+            };
+            Ok(taken.join("\n"))
+        }
+    }
+}
+
+/// Write content to a file, creating parent directories as needed.
+///
+/// Requires an absolute path for safety.
+fn write_file_safe(path: &str, content: &str) -> Result<(), String> {
+    let p = std::path::Path::new(path);
+    if !p.is_absolute() {
+        return Err("Path must be absolute".to_string());
+    }
+    if let Some(parent) = p.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directories: {e}"))?;
+    }
+    std::fs::write(p, content).map_err(|e| format!("Failed to write file: {e}"))
+}
+
+/// List directory entries, optionally filtering by a glob-like pattern.
+///
+/// Returns a sorted vec of JSON objects with `name`, `path`, `isDirectory`, and
+/// `isFile` fields.
+fn list_directory_entries(
+    path: &str,
+    pattern: Option<&str>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let dir = std::path::Path::new(path);
+    if !dir.is_absolute() {
+        return Err("Path must be absolute".to_string());
+    }
+    let entries = std::fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {e}"))?;
+
+    let mut result: Vec<serde_json::Value> = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        // Simple glob matching: supports "*.ext" and "*" patterns.
+        if let Some(pat) = pattern
+            && !glob_match_simple(pat, &name)
+        {
+            continue;
+        }
+
+        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        result.push(serde_json::json!({
+            "name": name,
+            "path": entry.path().to_string_lossy(),
+            "isDirectory": file_type.is_dir(),
+            "isFile": file_type.is_file(),
+        }));
+    }
+    result.sort_by(|a, b| {
+        let a_name = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let b_name = b.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        a_name.cmp(b_name)
+    });
+    Ok(result)
+}
+
+/// Recursively find files matching a glob pattern.
+///
+/// Supports simple patterns like `*.glsl`, `**/*.rs`, and literal names.
+/// Returns a sorted list of absolute file paths.
+fn find_files_recursive(base_path: &str, pattern: &str) -> Result<Vec<String>, String> {
+    let base = std::path::Path::new(base_path);
+    if !base.is_absolute() {
+        return Err("Path must be absolute".to_string());
+    }
+    if !base.exists() {
+        return Err(format!("Path does not exist: {base_path}"));
+    }
+
+    let mut results = Vec::new();
+    // Strip leading **/ for simple recursive matching.
+    let file_pattern = pattern.strip_prefix("**/").unwrap_or(pattern);
+
+    fn walk_dir(
+        dir: &std::path::Path,
+        file_pattern: &str,
+        results: &mut Vec<String>,
+    ) -> Result<(), String> {
+        let entries =
+            std::fs::read_dir(dir).map_err(|e| format!("Failed to read {}: {e}", dir.display()))?;
+        for entry in entries {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let path = entry.path();
+            if path.is_dir() {
+                walk_dir(&path, file_pattern, results)?;
+            } else {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if glob_match_simple(file_pattern, &name) {
+                    results.push(path.to_string_lossy().to_string());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    walk_dir(base, file_pattern, &mut results)?;
+    results.sort();
+    Ok(results)
+}
+
+/// Simple glob matching for directory listing filters.
+///
+/// Supports `*` (match anything), `*.ext` (match extension), and literal names.
+fn glob_match_simple(pattern: &str, name: &str) -> bool {
+    if pattern == "*" {
+        return true;
+    }
+    if let Some(ext) = pattern.strip_prefix("*.") {
+        return name.ends_with(&format!(".{ext}"));
+    }
+    if let Some(prefix) = pattern.strip_suffix("*") {
+        return name.starts_with(prefix);
+    }
+    name == pattern
 }
 
 impl Drop for WindowState {

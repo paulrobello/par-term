@@ -13,9 +13,10 @@ use tokio::sync::mpsc;
 use super::agents::AgentConfig;
 use super::jsonrpc::{JsonRpcClient, RpcError};
 use super::protocol::{
-    ClientCapabilities, ClientInfo, ContentBlock, FsCapabilities, FsReadParams, InitializeParams,
-    PermissionOption, PermissionOutcome, RequestPermissionParams, RequestPermissionResponse,
-    SessionNewParams, SessionPromptParams, SessionResult, SessionUpdate, SessionUpdateParams,
+    ClientCapabilities, ClientInfo, ContentBlock, FsFindParams, FsListDirectoryParams,
+    FsReadParams, FsWriteParams, InitializeParams, PermissionOption, PermissionOutcome,
+    RequestPermissionParams, RequestPermissionResponse, SessionNewParams, SessionPromptParams,
+    SessionResult, SessionUpdate, SessionUpdateParams,
 };
 
 // ---------------------------------------------------------------------------
@@ -55,8 +56,29 @@ pub enum AgentMessage {
         line: Option<u64>,
         limit: Option<u64>,
     },
+    /// The agent is requesting to write a file on the host.
+    FileWriteRequest {
+        request_id: u64,
+        path: String,
+        content: String,
+    },
+    /// The agent is requesting a directory listing from the host.
+    ListDirectoryRequest {
+        request_id: u64,
+        path: String,
+        pattern: Option<String>,
+    },
+    /// The agent is requesting a recursive file search from the host.
+    FindRequest {
+        request_id: u64,
+        path: String,
+        pattern: String,
+    },
     /// The agent finished processing a prompt (flush pending text).
     PromptComplete,
+    /// The ACP client is ready — carry the `Arc<JsonRpcClient>` so the UI
+    /// can send responses without locking the agent mutex.
+    ClientReady(Arc<JsonRpcClient>),
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +96,7 @@ pub struct Agent {
     /// The spawned child process.
     child: Option<tokio::process::Child>,
     /// JSON-RPC client for communication with the agent.
-    client: Option<Arc<JsonRpcClient>>,
+    pub(crate) client: Option<Arc<JsonRpcClient>>,
     /// Channel to send messages to the UI.
     ui_tx: mpsc::UnboundedSender<AgentMessage>,
     /// Whether to automatically approve permission requests.
@@ -103,6 +125,7 @@ impl Agent {
     pub async fn connect(
         &mut self,
         cwd: &str,
+        capabilities: ClientCapabilities,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Resolve the run command for the current platform.
         let run_command = self
@@ -113,17 +136,19 @@ impl Agent {
 
         self.set_status(AgentStatus::Connecting);
 
-        // Spawn via login + interactive shell so the user's full PATH is
-        // available (nvm, homebrew, etc. are often configured in .bashrc
-        // which only loads for interactive shells). The JSON-RPC reader
-        // gracefully skips any non-JSON profile output on stdout.
+        // Spawn via login shell so the user's full PATH is available
+        // (nvm, homebrew, etc. are often configured in .bash_profile /
+        // .zprofile / .profile). We intentionally do NOT use interactive
+        // mode (-i) because it causes the shell to emit terminal control
+        // sequences (e.g. [?1034h) to stdout, which corrupts the JSON-RPC
+        // stream and causes handshake timeouts.
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
         log::info!(
-            "ACP: spawning agent '{}' via {shell} -lic '{run_command}' in cwd={cwd}",
+            "ACP: spawning agent '{}' via {shell} -lc '{run_command}' in cwd={cwd}",
             self.config.identity,
         );
         let mut child = match Command::new(&shell)
-            .arg("-lic")
+            .arg("-lc")
             .arg(&run_command)
             .current_dir(cwd)
             .stdin(std::process::Stdio::piped())
@@ -181,13 +206,7 @@ impl Agent {
         // 1. Send `initialize` with par-term client info.
         let init_params = InitializeParams {
             protocol_version: 1,
-            client_capabilities: ClientCapabilities {
-                fs: FsCapabilities {
-                    read_text_file: true,
-                    write_text_file: false,
-                },
-                terminal: false,
-            },
+            client_capabilities: capabilities,
             client_info: ClientInfo {
                 name: "par-term".to_string(),
                 title: "Par Term".to_string(),
@@ -312,6 +331,32 @@ impl Agent {
         Ok(())
     }
 
+    /// Set the agent's session interaction mode.
+    ///
+    /// Valid modes: `"default"`, `"acceptEdits"`, `"bypassPermissions"`,
+    /// `"dontAsk"`, `"plan"`.
+    pub async fn set_mode(
+        &self,
+        mode_id: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let client = self.client.as_ref().ok_or("Not connected")?;
+        let session_id = self.session_id.as_ref().ok_or("No active session")?;
+
+        let response = client
+            .request(
+                "session/setMode",
+                Some(serde_json::json!({
+                    "sessionId": session_id,
+                    "modeId": mode_id,
+                })),
+            )
+            .await?;
+        if let Some(err) = response.error {
+            return Err(format!("setMode failed: {err}").into());
+        }
+        Ok(())
+    }
+
     /// Cancel the current prompt execution.
     pub async fn cancel(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let client = self.client.as_ref().ok_or("Not connected")?;
@@ -368,6 +413,107 @@ impl Agent {
                     .respond(
                         request_id,
                         Some(serde_json::json!({ "content": text })),
+                        None,
+                    )
+                    .await?;
+            }
+            Err(err_msg) => {
+                client
+                    .respond(
+                        request_id,
+                        None,
+                        Some(RpcError {
+                            code: -32000,
+                            message: err_msg,
+                            data: None,
+                        }),
+                    )
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Respond to a file write request from the agent.
+    pub async fn respond_file_write(
+        &self,
+        request_id: u64,
+        result: Result<(), String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let client = self.client.as_ref().ok_or("Not connected")?;
+
+        match result {
+            Ok(()) => {
+                client
+                    .respond(request_id, Some(serde_json::json!(null)), None)
+                    .await?;
+            }
+            Err(err_msg) => {
+                client
+                    .respond(
+                        request_id,
+                        None,
+                        Some(RpcError {
+                            code: -32000,
+                            message: err_msg,
+                            data: None,
+                        }),
+                    )
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Respond to a list directory request from the agent.
+    pub async fn respond_list_directory(
+        &self,
+        request_id: u64,
+        result: Result<Vec<Value>, String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let client = self.client.as_ref().ok_or("Not connected")?;
+
+        match result {
+            Ok(entries) => {
+                client
+                    .respond(
+                        request_id,
+                        Some(serde_json::json!({ "entries": entries })),
+                        None,
+                    )
+                    .await?;
+            }
+            Err(err_msg) => {
+                client
+                    .respond(
+                        request_id,
+                        None,
+                        Some(RpcError {
+                            code: -32000,
+                            message: err_msg,
+                            data: None,
+                        }),
+                    )
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Respond to a find/glob request from the agent.
+    pub async fn respond_find(
+        &self,
+        request_id: u64,
+        result: Result<Vec<String>, String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let client = self.client.as_ref().ok_or("Not connected")?;
+
+        match result {
+            Ok(files) => {
+                client
+                    .respond(
+                        request_id,
+                        Some(serde_json::json!({ "files": files })),
                         None,
                     )
                     .await?;
@@ -536,6 +682,87 @@ async fn handle_incoming_messages(
                         }
                     }
                 }
+                "fs/write_text_file" | "fs/writeTextFile" => {
+                    if let Some(params) = &msg.params {
+                        match serde_json::from_value::<FsWriteParams>(params.clone()) {
+                            Ok(fs_params) => {
+                                let _ = ui_tx.send(AgentMessage::FileWriteRequest {
+                                    request_id,
+                                    path: fs_params.path,
+                                    content: fs_params.content,
+                                });
+                            }
+                            Err(e) => {
+                                log::error!("Failed to parse fs/writeTextFile params: {e}");
+                                let _ = client
+                                    .respond(
+                                        request_id,
+                                        None,
+                                        Some(RpcError {
+                                            code: -32602,
+                                            message: "Invalid params".to_string(),
+                                            data: None,
+                                        }),
+                                    )
+                                    .await;
+                            }
+                        }
+                    }
+                }
+                "fs/list_directory" | "fs/listDirectory" => {
+                    if let Some(params) = &msg.params {
+                        match serde_json::from_value::<FsListDirectoryParams>(params.clone()) {
+                            Ok(fs_params) => {
+                                let _ = ui_tx.send(AgentMessage::ListDirectoryRequest {
+                                    request_id,
+                                    path: fs_params.path,
+                                    pattern: fs_params.pattern,
+                                });
+                            }
+                            Err(e) => {
+                                log::error!("Failed to parse fs/listDirectory params: {e}");
+                                let _ = client
+                                    .respond(
+                                        request_id,
+                                        None,
+                                        Some(RpcError {
+                                            code: -32602,
+                                            message: "Invalid params".to_string(),
+                                            data: None,
+                                        }),
+                                    )
+                                    .await;
+                            }
+                        }
+                    }
+                }
+                "fs/find" | "fs/glob" => {
+                    if let Some(params) = &msg.params {
+                        match serde_json::from_value::<FsFindParams>(params.clone()) {
+                            Ok(fs_params) => {
+                                let _ = ui_tx.send(AgentMessage::FindRequest {
+                                    request_id,
+                                    path: fs_params.path,
+                                    pattern: fs_params.pattern,
+                                });
+                            }
+                            Err(e) => {
+                                log::error!("Failed to parse fs/find params: {e}");
+                                let _ = client
+                                    .respond(
+                                        request_id,
+                                        None,
+                                        Some(RpcError {
+                                            code: -32602,
+                                            message: "Invalid params".to_string(),
+                                            data: None,
+                                        }),
+                                    )
+                                    .await;
+                            }
+                        }
+                    }
+                }
                 _ => {
                     log::error!("Unknown RPC call method: {method}");
                     let _ = client
@@ -680,6 +907,24 @@ mod tests {
         let result = agent
             .respond_file_read(1, Ok("file content".to_string()))
             .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_respond_file_write_not_connected() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let agent = Agent::new(make_test_config(), tx);
+
+        let result = agent.respond_file_write(1, Ok(())).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_respond_list_directory_not_connected() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let agent = Agent::new(make_test_config(), tx);
+
+        let result = agent.respond_list_directory(1, Ok(vec![])).await;
         assert!(result.is_err());
     }
 }
