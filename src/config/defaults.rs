@@ -947,7 +947,7 @@ pub fn ai_inspector_view_mode() -> String {
 }
 
 pub fn ai_inspector_live_update() -> bool {
-    true
+    false
 }
 
 pub fn ai_inspector_show_zones() -> bool {

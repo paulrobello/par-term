@@ -344,7 +344,7 @@ impl AIInspectorPanel {
                     // === Title bar ===
                     ui.horizontal(|ui| {
                         ui.heading(
-                            RichText::new("AI Inspector")
+                            RichText::new("Assistant")
                                 .strong()
                                 .color(Color32::from_gray(220)),
                         );
@@ -363,14 +363,7 @@ impl AIInspectorPanel {
                     ui.separator();
                     ui.add_space(4.0);
 
-                    // === Controls row ===
-                    self.render_controls(ui);
-
-                    ui.add_space(4.0);
-                    ui.separator();
-                    ui.add_space(4.0);
-
-                    // === Agent connection bar ===
+                    // === Agent connection bar (above terminal capture) ===
                     let agent_action = self.render_agent_bar(ui, available_agents);
                     if !matches!(agent_action, InspectorAction::None) {
                         action = agent_action;
@@ -380,13 +373,96 @@ impl AIInspectorPanel {
                     ui.separator();
                     ui.add_space(4.0);
 
-                    // === Environment strip ===
-                    if let Some(ref snapshot) = self.snapshot {
-                        self.render_environment(ui, snapshot);
+                    // === Collapsible terminal capture section ===
+                    egui::CollapsingHeader::new(
+                        RichText::new("Terminal Capture")
+                            .color(Color32::from_gray(180))
+                            .strong(),
+                    )
+                    .id_salt("terminal_capture_section")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        // --- Controls row ---
+                        self.render_controls(ui);
+
                         ui.add_space(4.0);
                         ui.separator();
                         ui.add_space(4.0);
-                    }
+
+                        // --- Environment strip ---
+                        if let Some(ref snapshot) = self.snapshot {
+                            self.render_environment(ui, snapshot);
+                            ui.add_space(4.0);
+                            ui.separator();
+                            ui.add_space(4.0);
+                        }
+
+                        // --- Commands content ---
+                        // Use a fixed max height within the collapsible section
+                        let cmd_height = (ui.available_height() * 0.5).clamp(100.0, 300.0);
+                        egui::ScrollArea::vertical()
+                            .id_salt("capture_commands_scroll")
+                            .max_height(cmd_height)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                if let Some(ref snapshot) = self.snapshot {
+                                    if snapshot.commands.is_empty() {
+                                        ui.vertical_centered(|ui| {
+                                            ui.add_space(20.0);
+                                            ui.label(
+                                                RichText::new("No commands captured yet")
+                                                    .color(Color32::from_gray(100))
+                                                    .italics(),
+                                            );
+                                            ui.add_space(4.0);
+                                            ui.label(
+                                                RichText::new(
+                                                    "Run some commands in the terminal\nto see them here.",
+                                                )
+                                                .color(Color32::from_gray(80))
+                                                .small(),
+                                            );
+                                        });
+                                    } else {
+                                        match self.view_mode {
+                                            ViewMode::Cards => {
+                                                Self::render_cards(ui, &snapshot.commands);
+                                            }
+                                            ViewMode::Timeline => {
+                                                Self::render_timeline(ui, &snapshot.commands);
+                                            }
+                                            ViewMode::Tree => {
+                                                Self::render_tree(ui, &snapshot.commands);
+                                            }
+                                            ViewMode::ListDetail => {
+                                                Self::render_list_detail(ui, &snapshot.commands);
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    ui.vertical_centered(|ui| {
+                                        ui.add_space(20.0);
+                                        ui.label(
+                                            RichText::new("No snapshot available")
+                                                .color(Color32::from_gray(100))
+                                                .italics(),
+                                        );
+                                        ui.add_space(4.0);
+                                        ui.label(
+                                            RichText::new(
+                                                "Click Refresh to capture terminal state.",
+                                            )
+                                            .color(Color32::from_gray(80))
+                                            .small(),
+                                        );
+                                    });
+                                }
+                            });
+                    });
+
+                    ui.add_space(4.0);
+                    ui.separator();
+                    ui.add_space(4.0);
 
                     // Reserve space for pinned bottom elements:
                     // chat input ~30, checkbox ~22, action bar ~30, separators+spacing ~20
@@ -397,69 +473,15 @@ impl AIInspectorPanel {
                     };
                     let available_height = (ui.available_height() - bottom_reserve).max(50.0);
 
-                    // === Scrollable content: commands + chat ===
+                    // === Scrollable content: chat messages ===
                     egui::ScrollArea::vertical()
                         .id_salt("inspector_scroll")
                         .max_height(available_height)
                         .auto_shrink([false, false])
                         .stick_to_bottom(true)
                         .show(ui, |ui| {
-                            // --- Commands section ---
-                            if let Some(ref snapshot) = self.snapshot {
-                                if snapshot.commands.is_empty() {
-                                    ui.vertical_centered(|ui| {
-                                        ui.add_space(20.0);
-                                        ui.label(
-                                            RichText::new("No commands captured yet")
-                                                .color(Color32::from_gray(100))
-                                                .italics(),
-                                        );
-                                        ui.add_space(4.0);
-                                        ui.label(
-                                            RichText::new(
-                                                "Run some commands in the terminal\nto see them here.",
-                                            )
-                                            .color(Color32::from_gray(80))
-                                            .small(),
-                                        );
-                                    });
-                                } else {
-                                    match self.view_mode {
-                                        ViewMode::Cards => {
-                                            Self::render_cards(ui, &snapshot.commands);
-                                        }
-                                        ViewMode::Timeline => {
-                                            Self::render_timeline(ui, &snapshot.commands);
-                                        }
-                                        ViewMode::Tree => {
-                                            Self::render_tree(ui, &snapshot.commands);
-                                        }
-                                        ViewMode::ListDetail => {
-                                            Self::render_list_detail(ui, &snapshot.commands);
-                                        }
-                                    }
-                                }
-                            } else {
-                                ui.vertical_centered(|ui| {
-                                    ui.add_space(20.0);
-                                    ui.label(
-                                        RichText::new("No snapshot available")
-                                            .color(Color32::from_gray(100))
-                                            .italics(),
-                                    );
-                                    ui.add_space(4.0);
-                                    ui.label(
-                                        RichText::new("Click Refresh to capture terminal state.")
-                                            .color(Color32::from_gray(80))
-                                            .small(),
-                                    );
-                                });
-                            }
-
                             // --- Chat messages section ---
                             if !self.chat.messages.is_empty() || self.chat.streaming {
-                                ui.add_space(8.0);
-                                ui.separator();
                                 ui.add_space(4.0);
                                 ui.label(
                                     RichText::new("Chat")
@@ -1499,7 +1521,7 @@ mod tests {
         assert_eq!(panel.width, 300.0);
         assert_eq!(panel.scope, SnapshotScope::Visible);
         assert_eq!(panel.view_mode, ViewMode::Cards);
-        assert!(panel.live_update);
+        assert!(!panel.live_update);
         assert!(panel.show_zones);
     }
 }

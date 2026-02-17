@@ -1023,7 +1023,7 @@ Badges are semi-transparent text overlays displayed in the terminal corner showi
 | ~~Pane title customization~~ | ~~⭐⭐~~ | ~~🟡 Medium~~ | ✅ Implemented |
 | ~~Division thickness/style~~ | ~~⭐~~ | ~~🟢 Low~~ | ✅ Implemented |
 | ~~Instant Replay~~ | ~~⭐⭐~~ | ~~🔵 Very High~~ | ✅ Core API complete (v0.38+ — SnapshotManager, ReplaySession, TerminalSnapshot). Frontend replay UI pending. |
-| ~~AI integration~~ | ~~⭐⭐~~ | ~~🔵 Very High~~ | ✅ Complete (§22 — AI Inspector panel with ACP agent chat, terminal inspection, JSON export, auto-context feeding #149; shader assistant with context injection #156) |
+| ~~AI integration~~ | ~~⭐⭐~~ | ~~🔵 Very High~~ | ✅ Complete (§22 — Assistant panel with ACP agent chat, terminal inspection, JSON export, auto-context feeding #149; shader assistant with context injection #156) |
 | VoiceOver/accessibility | ⭐⭐ | 🔵 Very High | Screen reader support |
 | ~~Bidirectional text~~ | ~~⭐⭐~~ | ~~🔴 High~~ | 🚫 Won't implement |
 | ~~Browser integration~~ | ~~⭐~~ | ~~🔴 High~~ | 🚫 Won't implement; zero demand, massive effort, no other emulator implements this |
@@ -1098,7 +1098,7 @@ The following features are blocked by or significantly dependent on architectura
 ---
 
 ### Recently Completed (v0.16.0)
-- ✅ **AI Inspector Panel**: DevTools-style right-side panel for terminal state inspection with ACP agent integration (#149)
+- ✅ **Assistant Panel** (formerly AI Inspector): DevTools-style right-side panel for terminal state inspection with ACP agent integration (#149)
   - 4 view modes (Cards/Timeline/Tree/List+Detail), configurable scope (Visible/Recent/Full)
   - JSON export (copy to clipboard / save to file)
   - ACP agent chat — connect to Claude Code and other agents via JSON-RPC 2.0 over stdio
@@ -1126,6 +1126,6 @@ The following features are blocked by or significantly dependent on architectura
 
 ---
 
-*Updated: 2026-02-16 (AI Inspector — ACP chat UI, 8 bundled agent configs, panel resize/drag fixes, dialog z-ordering #149)*
+*Updated: 2026-02-17 (Assistant panel rebrand, collapsible terminal capture, layout reorder; previously: ACP chat UI, 8 bundled agent configs, panel resize/drag fixes, dialog z-ordering #149)*
 *iTerm2 Version: Latest (from source)*
 *par-term Version: 0.16.0*
