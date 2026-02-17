@@ -411,6 +411,66 @@ impl Drop for Agent {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Extract the file path from a tool_call JSON and check if it's in a safe
+/// directory that can be auto-approved for writes.
+///
+/// Safe directories include `/tmp`, the par-term shaders directory, and the
+/// par-term config directory (for `.config-update.json`).
+fn is_safe_write_path(tool_call: &serde_json::Value) -> bool {
+    // Try to extract the path from various locations in the tool_call JSON.
+    // Claude Code puts it in rawInput.file_path, rawInput.path, or the title
+    // field as "Write /path/to/file".
+    let path_str = tool_call
+        .get("rawInput")
+        .and_then(|ri| {
+            ri.get("file_path")
+                .or_else(|| ri.get("filePath"))
+                .or_else(|| ri.get("path"))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            // Fall back to extracting path from title: "Write /path/to/file"
+            tool_call
+                .get("title")
+                .and_then(|v| v.as_str())
+                .and_then(|t| t.split_whitespace().nth(1))
+        });
+
+    let Some(path_str) = path_str else {
+        return false;
+    };
+
+    let path = std::path::Path::new(path_str);
+
+    // Allow writes to /tmp or platform temp dir
+    if path_str.starts_with("/tmp") || path_str.starts_with("/var/folders") {
+        return true;
+    }
+    if let Ok(temp_dir) = std::env::var("TMPDIR")
+        && path_str.starts_with(&temp_dir)
+    {
+        return true;
+    }
+
+    // Allow writes to par-term's shaders directory
+    let shaders_dir = crate::config::Config::shaders_dir();
+    if path.starts_with(&shaders_dir) {
+        return true;
+    }
+
+    // Allow writes to par-term's config directory (for .config-update.json etc.)
+    let config_dir = crate::config::Config::config_dir();
+    if path.starts_with(&config_dir) {
+        return true;
+    }
+
+    false
+}
+
+// ---------------------------------------------------------------------------
 // Message handler
 // ---------------------------------------------------------------------------
 
@@ -496,23 +556,17 @@ async fn handle_incoming_messages(
                                     perm_params.tool_call
                                 );
 
-                                // Auto-approve file system operations (Read, Write, Glob,
-                                // Grep, Find, etc.) since the host declared these
-                                // capabilities.  Only terminal/bash commands require
-                                // explicit user approval.
+                                // Auto-approve read-only tools and config updates.
+                                // Write/edit tools require approval unless writing
+                                // to a temp directory (shaders dir, /tmp, etc.).
                                 let is_safe_fs_tool = {
                                     let lower = tool_name.to_lowercase();
-                                    matches!(
+                                    let is_read_only = matches!(
                                         lower.as_str(),
                                         "read"
                                             | "read_file"
                                             | "readfile"
                                             | "readtextfile"
-                                            | "write"
-                                            | "write_file"
-                                            | "writefile"
-                                            | "writetextfile"
-                                            | "edit"
                                             | "glob"
                                             | "grep"
                                             | "find"
@@ -525,7 +579,25 @@ async fn handle_incoming_messages(
                                             | "config"
                                             | "config_update"
                                             | "configupdate"
-                                    ) || lower.contains("par-term-config")
+                                    ) || lower.contains("par-term-config");
+
+                                    let is_write_tool = matches!(
+                                        lower.as_str(),
+                                        "write"
+                                            | "write_file"
+                                            | "writefile"
+                                            | "writetextfile"
+                                            | "edit"
+                                    );
+
+                                    if is_read_only {
+                                        true
+                                    } else if is_write_tool {
+                                        // Only auto-approve writes to safe directories
+                                        is_safe_write_path(&perm_params.tool_call)
+                                    } else {
+                                        false
+                                    }
                                 };
 
                                 // Log all options for debugging.
@@ -1047,5 +1119,68 @@ mod tests {
 
         let result = agent.respond_permission(1, "allow", false).await;
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_safe_write_path_tmp() {
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": "/tmp/test.glsl"},
+            "title": "Write /tmp/test.glsl"
+        });
+        assert!(is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_safe_write_path_shaders_dir() {
+        let shaders_dir = crate::config::Config::shaders_dir();
+        let path = shaders_dir.join("crt.glsl");
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": path.to_string_lossy()},
+            "title": format!("Write {}", path.display())
+        });
+        assert!(is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_safe_write_path_config_dir() {
+        let config_dir = crate::config::Config::config_dir();
+        let path = config_dir.join(".config-update.json");
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": path.to_string_lossy()},
+        });
+        assert!(is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_unsafe_write_path_home() {
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": "/Users/someone/.bashrc"},
+            "title": "Write /Users/someone/.bashrc"
+        });
+        assert!(!is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_unsafe_write_path_system() {
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": "/etc/passwd"},
+        });
+        assert!(!is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_safe_write_path_from_title_fallback() {
+        let tool_call = serde_json::json!({
+            "title": "Write /tmp/shader.glsl"
+        });
+        assert!(is_safe_write_path(&tool_call));
+    }
+
+    #[test]
+    fn test_safe_write_path_no_path() {
+        let tool_call = serde_json::json!({
+            "title": "Write"
+        });
+        assert!(!is_safe_write_path(&tool_call));
     }
 }

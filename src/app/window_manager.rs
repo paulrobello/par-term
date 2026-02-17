@@ -1617,6 +1617,11 @@ impl WindowManager {
                 // Option<Option<String>>: None = no change attempted, Some(None) = success, Some(Some(err)) = error
                 let shader_result =
                     if changes.any_shader_change() || changes.shader_per_shader_config {
+                        log::info!(
+                            "SETTINGS: applying shader change: {:?} -> {:?}",
+                            window_state.config.custom_shader,
+                            config.custom_shader
+                        );
                         Some(
                             renderer
                                 .set_custom_shader_enabled(

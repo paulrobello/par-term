@@ -648,7 +648,8 @@ impl SettingsUI {
             .map(|p| p.display().to_string())
     }
 
-    /// Update the config copy (e.g., when config is reloaded)
+    /// Update the config copy (e.g., when config is reloaded).
+    /// Skipped when the user has unsaved changes to avoid discarding their edits.
     pub fn update_config(&mut self, config: Config) {
         if !self.has_changes {
             self.config = config;
@@ -659,6 +660,17 @@ impl SettingsUI {
                 self.sync_font_temps_from_config();
             }
         }
+    }
+
+    /// Force-update the config copy, bypassing the `has_changes` guard.
+    /// Used when the ACP agent changes config fields — those changes must
+    /// propagate to the settings window so it doesn't send stale values.
+    pub fn force_update_config(&mut self, config: Config) {
+        self.config = config;
+        // Sync ALL temp fields (dropdown selections, text inputs, etc.)
+        // so egui widgets reflect the agent's changes.
+        self.sync_all_temps_from_config();
+        self.has_changes = false;
     }
 
     fn sync_font_temps_from_config(&mut self) {

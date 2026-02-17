@@ -1295,8 +1295,9 @@ impl WindowState {
         {
             Ok(updates) => {
                 log::info!(
-                    "CONFIG: applying MCP config update ({} keys)",
-                    updates.len()
+                    "CONFIG: applying MCP config update ({} keys): {:?}",
+                    updates.len(),
+                    updates
                 );
                 if let Err(e) = self.apply_agent_config_updates(&updates) {
                     log::error!("CONFIG: MCP config update failed: {e}");
@@ -1432,6 +1433,14 @@ impl WindowState {
         // Detect changes and apply to renderer
         use crate::app::config_updates::ConfigChanges;
         let changes = ConfigChanges::detect(&old_config, &self.config);
+
+        log::info!(
+            "ACP config/update: shader_change={} cursor_change={} old_shader={:?} new_shader={:?}",
+            changes.any_shader_change(),
+            changes.any_cursor_shader_toggle(),
+            old_config.custom_shader,
+            self.config.custom_shader
+        );
 
         if let Some(renderer) = &mut self.renderer {
             if changes.any_shader_change() || changes.shader_per_shader_config {

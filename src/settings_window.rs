@@ -271,6 +271,13 @@ impl SettingsWindow {
         self.settings_ui.update_config(config);
     }
 
+    /// Force-update the config, bypassing the `has_changes` guard.
+    /// Used when the ACP agent changes config — must propagate even if
+    /// the user has pending edits in the settings window.
+    pub fn force_update_config(&mut self, config: Config) {
+        self.settings_ui.force_update_config(config);
+    }
+
     /// Set a shader compilation error message
     pub fn set_shader_error(&mut self, error: Option<String>) {
         self.settings_ui.set_shader_error(error);

@@ -1209,6 +1209,7 @@ impl ApplicationHandler for WindowManager {
                     }
                     SettingsWindowAction::ApplyConfig(config) => {
                         // Apply live config changes to all terminal windows
+                        log::info!("SETTINGS: ApplyConfig shader={:?}", config.custom_shader);
                         self.apply_config_to_windows(&config);
                     }
                     SettingsWindowAction::SaveConfig(config) => {
@@ -1433,10 +1434,17 @@ impl ApplicationHandler for WindowManager {
             }
         }
 
-        // Sync agent config changes to WindowManager so other saves don't overwrite
+        // Sync agent config changes to WindowManager and settings window
+        // so other saves (update checker, settings) don't overwrite the agent's changes
         if config_changed_by_agent && let Some(window_state) = self.windows.values().next() {
             log::info!("CONFIG: syncing agent config changes to WindowManager");
             self.config = window_state.config.clone();
+            // Force-update the settings window's config copy so it doesn't
+            // send stale values back via ApplyConfig/SaveConfig.
+            // Must use force_update_config to bypass the has_changes guard.
+            if let Some(settings_window) = &mut self.settings_window {
+                settings_window.force_update_config(self.config.clone());
+            }
         }
 
         // Check for dynamic profile updates
