@@ -817,6 +817,9 @@ impl WindowState {
         // Check for config file changes (e.g., from ACP agent)
         self.check_config_reload();
 
+        // Check for MCP server config updates (.config-update.json)
+        self.check_config_update_file();
+
         // Check for tmux control mode notifications
         if self.check_tmux_notifications() {
             self.needs_redraw = true;

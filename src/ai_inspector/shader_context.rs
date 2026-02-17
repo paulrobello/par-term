@@ -108,7 +108,6 @@ fn scan_shaders(shaders_dir: &Path) -> Vec<String> {
 /// shader template, and instructions for applying changes.
 pub fn build_shader_context(config: &Config) -> String {
     let shaders_dir = Config::shaders_dir();
-    let config_path = Config::config_path();
 
     let available = scan_shaders(&shaders_dir);
     let (bg_shaders, cursor_shaders) = classify_shaders(&available);
@@ -258,13 +257,28 @@ pub fn build_shader_context(config: &Config) -> String {
         "1. Write shader GLSL files to: `{}`\n",
         shaders_dir.display()
     ));
-    ctx.push_str(&format!(
-        "2. Edit `{}` to set `custom_shader` or `cursor_shader` to the filename\n",
-        config_path.display()
-    ));
-    ctx.push_str("3. Set `custom_shader_enabled: true` or `cursor_shader_enabled: true`\n");
+    ctx.push_str("2. Use the `config_update` MCP tool to activate the shader:\n");
+    ctx.push_str("   ```json\n");
     ctx.push_str(
-        "4. par-term watches shader files and hot-reloads on save - no restart required\n",
+        "   config_update({\"updates\": {\"custom_shader\": \"filename.glsl\", \"custom_shader_enabled\": true}})\n",
+    );
+    ctx.push_str("   ```\n");
+    ctx.push_str("   For cursor shaders use `cursor_shader` and `cursor_shader_enabled` keys.\n");
+    ctx.push_str("3. Changes apply immediately — no restart or manual config edit needed.\n");
+
+    ctx.push('\n');
+
+    // ---- Available Config Keys ----
+    ctx.push_str("## Available Config Keys\n");
+    ctx.push_str("Background shader: custom_shader (string|null), custom_shader_enabled (bool),\n");
+    ctx.push_str("  custom_shader_animation (bool), custom_shader_animation_speed (float),\n");
+    ctx.push_str("  custom_shader_brightness (float), custom_shader_text_opacity (float)\n");
+    ctx.push_str("Cursor shader: cursor_shader (string|null), cursor_shader_enabled (bool),\n");
+    ctx.push_str("  cursor_shader_animation (bool), cursor_shader_animation_speed (float),\n");
+    ctx.push_str("  cursor_shader_glow_radius (float), cursor_shader_glow_intensity (float)\n");
+    ctx.push('\n');
+    ctx.push_str(
+        "IMPORTANT: Do NOT edit config.yaml directly — always use the config_update tool.\n",
     );
 
     ctx
@@ -629,6 +643,7 @@ mod tests {
         assert!(ctx.contains("## Available Uniforms"));
         assert!(ctx.contains("## Minimal Shader Template"));
         assert!(ctx.contains("## How to Apply Changes"));
+        assert!(ctx.contains("## Available Config Keys"));
     }
 
     #[test]
@@ -722,8 +737,9 @@ mod tests {
     fn test_context_how_to_apply_section() {
         let config = default_config();
         let ctx = build_shader_context(&config);
-        assert!(ctx.contains("custom_shader_enabled: true"));
-        assert!(ctx.contains("cursor_shader_enabled: true"));
-        assert!(ctx.contains("hot-reloads"));
+        assert!(ctx.contains("config_update"));
+        assert!(ctx.contains("custom_shader_enabled"));
+        assert!(ctx.contains("cursor_shader_enabled"));
+        assert!(ctx.contains("Do NOT edit config.yaml directly"));
     }
 }

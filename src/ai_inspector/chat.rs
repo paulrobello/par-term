@@ -56,7 +56,14 @@ you will receive a notification with the exit code, and the command output will 
 be visible to you through the normal terminal capture channel. \
 Do NOT add disclaimers about output not being captured. \
 Plain-text command suggestions will NOT be actionable. \
-Never use bare ``` blocks for commands — always include the language tag.\n\n";
+Never use bare ``` blocks for commands — always include the language tag. \
+To modify par-term settings (shaders, font_size, window_opacity, etc.), use the \
+`config_update` MCP tool (available via par-term-config MCP server). \
+Example: call config_update with updates: {\"custom_shader\": \"crt.glsl\", \
+\"custom_shader_enabled\": true}. Changes apply immediately — no restart needed. \
+IMPORTANT: Do NOT edit ~/.config/par-term/config.yaml directly — always use the \
+config_update tool instead. Direct config.yaml edits race with par-term's own \
+config saves and will be silently overwritten.\n\n";
 
 /// Chat state for the agent conversation.
 pub struct ChatState {

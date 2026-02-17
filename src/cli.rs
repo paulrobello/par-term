@@ -128,6 +128,9 @@ pub enum Commands {
         #[arg(short = 'y', long)]
         yes: bool,
     },
+
+    /// Run as an MCP server (used by ACP agents for config updates)
+    McpServer,
 }
 
 /// Runtime options passed from CLI to the application
@@ -183,6 +186,9 @@ pub fn process_cli() -> CliResult {
         Some(Commands::SelfUpdate { yes }) => {
             let result = self_update_cli(yes);
             CliResult::Exit(if result.is_ok() { 0 } else { 1 })
+        }
+        Some(Commands::McpServer) => {
+            crate::mcp_server::run_mcp_server();
         }
         None => {
             // Extract runtime options from CLI flags

@@ -3,6 +3,8 @@
 //! These types model the JSON-RPC parameter and result objects exchanged
 //! between the par-term host and an ACP-compatible agent (e.g. Claude Code).
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -25,6 +27,9 @@ pub struct InitializeParams {
 pub struct ClientCapabilities {
     pub fs: FsCapabilities,
     pub terminal: bool,
+    /// Whether the host supports the `config/update` RPC call.
+    #[serde(default)]
+    pub config: bool,
 }
 
 /// File-system capabilities exposed by the host.
@@ -440,6 +445,7 @@ pub struct AgentCommand {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestPermissionParams {
+    #[serde(default)]
     pub session_id: String,
     pub tool_call: Value,
     pub options: Vec<PermissionOption>,
@@ -479,6 +485,7 @@ pub struct PermissionOutcome {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FsReadParams {
+    #[serde(default)]
     pub session_id: String,
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -491,6 +498,7 @@ pub struct FsReadParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FsWriteParams {
+    #[serde(default)]
     pub session_id: String,
     pub path: String,
     pub content: String,
@@ -500,6 +508,7 @@ pub struct FsWriteParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FsListDirectoryParams {
+    #[serde(default)]
     pub session_id: String,
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -513,9 +522,30 @@ pub struct FsListDirectoryParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FsFindParams {
+    #[serde(default)]
     pub session_id: String,
     pub path: String,
     pub pattern: String,
+}
+
+// ---------------------------------------------------------------------------
+// Config update
+// ---------------------------------------------------------------------------
+
+/// Parameters for the `config/update` RPC call from agent to host.
+///
+/// Allows the agent to update par-term configuration settings directly,
+/// bypassing the config.yaml file to avoid race conditions with par-term's
+/// own config saves.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigUpdateParams {
+    #[serde(default)]
+    pub session_id: Option<String>,
+    /// Map of config key -> value to update.
+    /// Keys use snake_case matching config.yaml field names.
+    /// Values must be the correct JSON type for the field.
+    pub updates: HashMap<String, Value>,
 }
 
 // ---------------------------------------------------------------------------
@@ -568,6 +598,7 @@ mod tests {
                     find: false,
                 },
                 terminal: false,
+                config: false,
             },
             client_info: ClientInfo {
                 name: "par-term".to_string(),

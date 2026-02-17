@@ -210,6 +210,8 @@ pub struct WindowState {
     pub(crate) shader_watcher: Option<ShaderWatcher>,
     /// Config file watcher for automatic reload (e.g., when ACP agent modifies config.yaml)
     pub(crate) config_watcher: Option<crate::config::watcher::ConfigWatcher>,
+    /// Watcher for `.config-update.json` written by the MCP server
+    pub(crate) config_update_watcher: Option<crate::config::watcher::ConfigWatcher>,
     /// Last shader reload error message (for display in UI)
     pub(crate) shader_reload_error: Option<String>,
     /// Background shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
@@ -303,6 +305,17 @@ pub struct WindowState {
     // File transfer state
     /// File transfer UI state (active transfers, pending saves/uploads, dialog state)
     pub(crate) file_transfer_state: crate::app::file_transfers::FileTransferState,
+}
+
+/// Extract an `f32` from a JSON value that may be an integer or float.
+fn json_as_f32(value: &serde_json::Value) -> Result<f32, String> {
+    if let Some(f) = value.as_f64() {
+        Ok(f as f32)
+    } else if let Some(i) = value.as_i64() {
+        Ok(i as f32)
+    } else {
+        Err("expected number".to_string())
+    }
 }
 
 impl WindowState {
@@ -404,6 +417,7 @@ impl WindowState {
 
             shader_watcher: None,
             config_watcher: None,
+            config_update_watcher: None,
             shader_reload_error: None,
             background_shader_reload_result: None,
             cursor_shader_reload_result: None,
@@ -792,6 +806,9 @@ impl WindowState {
         // Initialize config file watcher for automatic reload
         self.init_config_watcher();
 
+        // Initialize config-update file watcher (MCP server writes here)
+        self.init_config_update_watcher();
+
         // Sync status bar monitor state based on config
         self.status_bar_ui.sync_monitor_state(&self.config);
 
@@ -1052,6 +1069,7 @@ impl WindowState {
                     find: true,
                 },
                 terminal: self.config.ai_inspector_agent_terminal_access,
+                config: true,
             };
 
             let auto_approve = self.config.ai_inspector_auto_approve;
@@ -1217,6 +1235,79 @@ impl WindowState {
         }
     }
 
+    /// Initialize the watcher for `.config-update.json` (MCP server config updates).
+    ///
+    /// The MCP server (spawned by the ACP agent) writes config updates to this
+    /// file. We watch it, apply the updates in-memory, and delete it.
+    pub(crate) fn init_config_update_watcher(&mut self) {
+        let update_path = Config::config_dir().join(".config-update.json");
+
+        // Create the file if it doesn't exist so the watcher can start
+        if !update_path.exists() {
+            if let Some(parent) = update_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(&update_path, "");
+        }
+
+        match crate::config::watcher::ConfigWatcher::new(&update_path, 200) {
+            Ok(watcher) => {
+                debug_info!("CONFIG", "Config-update watcher initialized");
+                self.config_update_watcher = Some(watcher);
+            }
+            Err(e) => {
+                debug_info!(
+                    "CONFIG",
+                    "Failed to initialize config-update watcher: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    /// Check for pending config update file changes (from MCP server).
+    ///
+    /// When the MCP server writes `.config-update.json`, this reads it,
+    /// applies the updates in-memory, saves to disk, and removes the file.
+    pub(crate) fn check_config_update_file(&mut self) {
+        let Some(watcher) = &self.config_update_watcher else {
+            return;
+        };
+        if watcher.try_recv().is_none() {
+            return;
+        }
+
+        let update_path = Config::config_dir().join(".config-update.json");
+        let content = match std::fs::read_to_string(&update_path) {
+            Ok(c) if c.trim().is_empty() => return,
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!("CONFIG: failed to read config-update file: {e}");
+                return;
+            }
+        };
+
+        match serde_json::from_str::<std::collections::HashMap<String, serde_json::Value>>(&content)
+        {
+            Ok(updates) => {
+                log::info!(
+                    "CONFIG: applying MCP config update ({} keys)",
+                    updates.len()
+                );
+                if let Err(e) = self.apply_agent_config_updates(&updates) {
+                    log::error!("CONFIG: MCP config update failed: {e}");
+                }
+                self.needs_redraw = true;
+            }
+            Err(e) => {
+                log::error!("CONFIG: invalid JSON in config-update file: {e}");
+            }
+        }
+
+        // Clear the file so we don't re-process it
+        let _ = std::fs::write(&update_path, "");
+    }
+
     /// Check for pending config file changes and apply them.
     ///
     /// Called periodically from the event loop. On config change:
@@ -1231,48 +1322,74 @@ impl WindowState {
             return;
         };
 
-        debug_info!("CONFIG", "Config file changed, reloading...");
+        log::info!("CONFIG: config file changed, reloading...");
 
         match Config::load() {
             Ok(new_config) => {
-                let old_shader = self.config.custom_shader.clone();
-                let old_shader_enabled = self.config.custom_shader_enabled;
-                let old_cursor = self.config.cursor_shader.clone();
-                let old_cursor_enabled = self.config.cursor_shader_enabled;
+                use crate::app::config_updates::ConfigChanges;
 
-                // Apply shader-related config fields
-                self.config.custom_shader = new_config.custom_shader.clone();
-                self.config.custom_shader_enabled = new_config.custom_shader_enabled;
-                self.config.custom_shader_animation_speed =
-                    new_config.custom_shader_animation_speed;
-                self.config.custom_shader_brightness = new_config.custom_shader_brightness;
-                self.config.custom_shader_text_opacity = new_config.custom_shader_text_opacity;
-                self.config.custom_shader_full_content = new_config.custom_shader_full_content;
-                self.config.custom_shader_channel0 = new_config.custom_shader_channel0.clone();
-                self.config.custom_shader_channel1 = new_config.custom_shader_channel1.clone();
-                self.config.custom_shader_channel2 = new_config.custom_shader_channel2.clone();
-                self.config.custom_shader_channel3 = new_config.custom_shader_channel3.clone();
-                self.config.custom_shader_cubemap = new_config.custom_shader_cubemap.clone();
-                self.config.custom_shader_cubemap_enabled =
-                    new_config.custom_shader_cubemap_enabled;
-                self.config.cursor_shader = new_config.cursor_shader.clone();
-                self.config.cursor_shader_enabled = new_config.cursor_shader_enabled;
-                self.config.cursor_shader_hides_cursor = new_config.cursor_shader_hides_cursor;
-                self.config.cursor_shader_disable_in_alt_screen =
-                    new_config.cursor_shader_disable_in_alt_screen;
-                self.config.cursor_shader_trail_duration = new_config.cursor_shader_trail_duration;
-                self.config.cursor_shader_glow_radius = new_config.cursor_shader_glow_radius;
-                self.config.cursor_shader_glow_intensity = new_config.cursor_shader_glow_intensity;
-                self.config.cursor_shader_color = new_config.cursor_shader_color;
+                let changes = ConfigChanges::detect(&self.config, &new_config);
+
+                // Replace the entire in-memory config so that any subsequent
+                // config.save() writes the agent's changes, not stale values.
+                self.config = new_config;
+
+                log::info!(
+                    "CONFIG: shader_changed={} cursor_changed={} shader={:?}",
+                    changes.any_shader_change(),
+                    changes.any_cursor_shader_toggle(),
+                    self.config.custom_shader
+                );
+
+                // Apply shader changes to the renderer
+                if let Some(renderer) = &mut self.renderer {
+                    if changes.any_shader_change() || changes.shader_per_shader_config {
+                        log::info!("CONFIG: applying background shader change to renderer");
+                        let shader_override = self
+                            .config
+                            .custom_shader
+                            .as_ref()
+                            .and_then(|name| self.config.shader_configs.get(name));
+                        let metadata = self
+                            .config
+                            .custom_shader
+                            .as_ref()
+                            .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+                        let resolved = crate::config::shader_config::resolve_shader_config(
+                            shader_override,
+                            metadata.as_ref(),
+                            &self.config,
+                        );
+                        if let Err(e) = renderer.set_custom_shader_enabled(
+                            self.config.custom_shader_enabled,
+                            self.config.custom_shader.as_deref(),
+                            self.config.window_opacity,
+                            self.config.custom_shader_animation,
+                            resolved.animation_speed,
+                            resolved.full_content,
+                            resolved.brightness,
+                            &resolved.channel_paths(),
+                            resolved.cubemap_path().map(|p| p.as_path()),
+                        ) {
+                            log::error!("Config reload: shader load failed: {e}");
+                        }
+                    }
+                    if changes.any_cursor_shader_toggle() {
+                        log::info!("CONFIG: applying cursor shader change to renderer");
+                        if let Err(e) = renderer.set_cursor_shader_enabled(
+                            self.config.cursor_shader_enabled,
+                            self.config.cursor_shader.as_deref(),
+                            self.config.window_opacity,
+                            self.config.cursor_shader_animation,
+                            self.config.cursor_shader_animation_speed,
+                        ) {
+                            log::error!("Config reload: cursor shader load failed: {e}");
+                        }
+                    }
+                }
 
                 // Reinit shader watcher if paths changed
-                let shader_changed = self.config.custom_shader != old_shader
-                    || self.config.custom_shader_enabled != old_shader_enabled
-                    || self.config.cursor_shader != old_cursor
-                    || self.config.cursor_shader_enabled != old_cursor_enabled;
-
-                if shader_changed {
-                    debug_info!("CONFIG", "Shader config changed, reinitializing...");
+                if changes.needs_watcher_reinit() {
                     self.reinit_shader_watcher();
                 }
 
@@ -1282,6 +1399,184 @@ impl WindowState {
             Err(e) => {
                 log::error!("Failed to reload config: {}", e);
             }
+        }
+    }
+
+    /// Apply config updates from the ACP agent.
+    ///
+    /// Updates the in-memory config, applies changes to the renderer, and
+    /// saves to disk. Returns `Ok(())` on success or an error string.
+    fn apply_agent_config_updates(
+        &mut self,
+        updates: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> Result<(), String> {
+        let mut errors = Vec::new();
+        let old_config = self.config.clone();
+
+        for (key, value) in updates {
+            if let Err(e) = self.apply_single_config_update(key, value) {
+                errors.push(format!("{key}: {e}"));
+            }
+        }
+
+        if !errors.is_empty() {
+            return Err(errors.join("; "));
+        }
+
+        // Detect changes and apply to renderer
+        use crate::app::config_updates::ConfigChanges;
+        let changes = ConfigChanges::detect(&old_config, &self.config);
+
+        if let Some(renderer) = &mut self.renderer {
+            if changes.any_shader_change() || changes.shader_per_shader_config {
+                log::info!("ACP config/update: applying background shader change to renderer");
+                let shader_override = self
+                    .config
+                    .custom_shader
+                    .as_ref()
+                    .and_then(|name| self.config.shader_configs.get(name));
+                let metadata = self
+                    .config
+                    .custom_shader
+                    .as_ref()
+                    .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+                let resolved = crate::config::shader_config::resolve_shader_config(
+                    shader_override,
+                    metadata.as_ref(),
+                    &self.config,
+                );
+                if let Err(e) = renderer.set_custom_shader_enabled(
+                    self.config.custom_shader_enabled,
+                    self.config.custom_shader.as_deref(),
+                    self.config.window_opacity,
+                    self.config.custom_shader_animation,
+                    resolved.animation_speed,
+                    resolved.full_content,
+                    resolved.brightness,
+                    &resolved.channel_paths(),
+                    resolved.cubemap_path().map(|p| p.as_path()),
+                ) {
+                    log::error!("ACP config/update: shader load failed: {e}");
+                }
+            }
+            if changes.any_cursor_shader_toggle() {
+                log::info!("ACP config/update: applying cursor shader change to renderer");
+                if let Err(e) = renderer.set_cursor_shader_enabled(
+                    self.config.cursor_shader_enabled,
+                    self.config.cursor_shader.as_deref(),
+                    self.config.window_opacity,
+                    self.config.cursor_shader_animation,
+                    self.config.cursor_shader_animation_speed,
+                ) {
+                    log::error!("ACP config/update: cursor shader load failed: {e}");
+                }
+            }
+        }
+
+        if changes.needs_watcher_reinit() {
+            self.reinit_shader_watcher();
+        }
+
+        // Save to disk
+        if let Err(e) = self.config.save() {
+            return Err(format!("Failed to save config: {e}"));
+        }
+
+        Ok(())
+    }
+
+    /// Apply a single config key/value update to the in-memory config.
+    fn apply_single_config_update(
+        &mut self,
+        key: &str,
+        value: &serde_json::Value,
+    ) -> Result<(), String> {
+        match key {
+            // -- Background shader --
+            "custom_shader" => {
+                self.config.custom_shader = if value.is_null() {
+                    None
+                } else {
+                    Some(value.as_str().ok_or("expected string or null")?.to_string())
+                };
+                Ok(())
+            }
+            "custom_shader_enabled" => {
+                self.config.custom_shader_enabled = value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+            "custom_shader_animation" => {
+                self.config.custom_shader_animation = value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+            "custom_shader_animation_speed" => {
+                self.config.custom_shader_animation_speed = json_as_f32(value)?;
+                Ok(())
+            }
+            "custom_shader_brightness" => {
+                self.config.custom_shader_brightness = json_as_f32(value)?;
+                Ok(())
+            }
+            "custom_shader_text_opacity" => {
+                self.config.custom_shader_text_opacity = json_as_f32(value)?;
+                Ok(())
+            }
+            "custom_shader_full_content" => {
+                self.config.custom_shader_full_content =
+                    value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+
+            // -- Cursor shader --
+            "cursor_shader" => {
+                self.config.cursor_shader = if value.is_null() {
+                    None
+                } else {
+                    Some(value.as_str().ok_or("expected string or null")?.to_string())
+                };
+                Ok(())
+            }
+            "cursor_shader_enabled" => {
+                self.config.cursor_shader_enabled = value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+            "cursor_shader_animation" => {
+                self.config.cursor_shader_animation = value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+            "cursor_shader_animation_speed" => {
+                self.config.cursor_shader_animation_speed = json_as_f32(value)?;
+                Ok(())
+            }
+            "cursor_shader_glow_radius" => {
+                self.config.cursor_shader_glow_radius = json_as_f32(value)?;
+                Ok(())
+            }
+            "cursor_shader_glow_intensity" => {
+                self.config.cursor_shader_glow_intensity = json_as_f32(value)?;
+                Ok(())
+            }
+            "cursor_shader_trail_duration" => {
+                self.config.cursor_shader_trail_duration = json_as_f32(value)?;
+                Ok(())
+            }
+            "cursor_shader_hides_cursor" => {
+                self.config.cursor_shader_hides_cursor =
+                    value.as_bool().ok_or("expected boolean")?;
+                Ok(())
+            }
+
+            // -- Window --
+            "window_opacity" => {
+                self.config.window_opacity = json_as_f32(value)?;
+                Ok(())
+            }
+            "font_size" => {
+                self.config.font_size = json_as_f32(value)?;
+                Ok(())
+            }
+
+            _ => Err(format!("unknown or read-only config key: {key}")),
         }
     }
 
@@ -2176,6 +2471,13 @@ impl WindowState {
 
         // Process agent messages
         let msg_count_before = self.ai_inspector.chat.messages.len();
+        // Config update requests are deferred to avoid double-borrow of self
+        // while iterating agent_rx.
+        type ConfigUpdateEntry = (
+            std::collections::HashMap<String, serde_json::Value>,
+            tokio::sync::oneshot::Sender<Result<(), String>>,
+        );
+        let mut pending_config_updates: Vec<ConfigUpdateEntry> = Vec::new();
         if let Some(rx) = &mut self.agent_rx {
             while let Ok(msg) = rx.try_recv() {
                 match msg {
@@ -2194,6 +2496,10 @@ impl WindowState {
                         tool_call,
                         options,
                     } => {
+                        log::info!(
+                            "ACP: permission request id={request_id} options={}",
+                            options.len()
+                        );
                         let description = tool_call
                             .get("title")
                             .and_then(|t| t.as_str())
@@ -2213,118 +2519,25 @@ impl WindowState {
                             });
                         self.needs_redraw = true;
                     }
-                    AgentMessage::FileReadRequest {
-                        request_id,
-                        path,
-                        line,
-                        limit,
-                    } => {
-                        let content = read_file_with_range(&path, line, limit);
-                        if let Some(client) = &self.agent_client {
-                            let client = client.clone();
-                            self.runtime.spawn(async move {
-                                let (result, error) = match content {
-                                    Ok(text) => {
-                                        (Some(serde_json::json!({ "content": text })), None)
-                                    }
-                                    Err(e) => (
-                                        None,
-                                        Some(crate::acp::jsonrpc::RpcError {
-                                            code: -32000,
-                                            message: e,
-                                            data: None,
-                                        }),
-                                    ),
-                                };
-                                let _ = client.respond(request_id, result, error).await;
-                            });
-                        }
-                    }
-                    AgentMessage::FileWriteRequest {
-                        request_id,
-                        path,
-                        content,
-                    } => {
-                        let result = write_file_safe(&path, &content);
-                        if let Some(client) = &self.agent_client {
-                            let client = client.clone();
-                            self.runtime.spawn(async move {
-                                let (res, error) = match result {
-                                    Ok(()) => (Some(serde_json::json!(null)), None),
-                                    Err(e) => (
-                                        None,
-                                        Some(crate::acp::jsonrpc::RpcError {
-                                            code: -32000,
-                                            message: e,
-                                            data: None,
-                                        }),
-                                    ),
-                                };
-                                let _ = client.respond(request_id, res, error).await;
-                            });
-                        }
-                    }
-                    AgentMessage::ListDirectoryRequest {
-                        request_id,
-                        path,
-                        pattern,
-                    } => {
-                        let result = list_directory_entries(&path, pattern.as_deref());
-                        if let Some(client) = &self.agent_client {
-                            let client = client.clone();
-                            self.runtime.spawn(async move {
-                                let (res, error) = match result {
-                                    Ok(entries) => {
-                                        (Some(serde_json::json!({ "entries": entries })), None)
-                                    }
-                                    Err(e) => (
-                                        None,
-                                        Some(crate::acp::jsonrpc::RpcError {
-                                            code: -32000,
-                                            message: e,
-                                            data: None,
-                                        }),
-                                    ),
-                                };
-                                let _ = client.respond(request_id, res, error).await;
-                            });
-                        }
-                    }
-                    AgentMessage::FindRequest {
-                        request_id,
-                        path,
-                        pattern,
-                    } => {
-                        let result = find_files_recursive(&path, &pattern);
-                        if let Some(client) = &self.agent_client {
-                            let client = client.clone();
-                            self.runtime.spawn(async move {
-                                let (res, error) = match result {
-                                    Ok(files) => {
-                                        (Some(serde_json::json!({ "files": files })), None)
-                                    }
-                                    Err(e) => (
-                                        None,
-                                        Some(crate::acp::jsonrpc::RpcError {
-                                            code: -32000,
-                                            message: e,
-                                            data: None,
-                                        }),
-                                    ),
-                                };
-                                let _ = client.respond(request_id, res, error).await;
-                            });
-                        }
-                    }
                     AgentMessage::PromptComplete => {
                         self.ai_inspector.chat.flush_agent_message();
                         self.needs_redraw = true;
                     }
+                    AgentMessage::ConfigUpdate { updates, reply } => {
+                        pending_config_updates.push((updates, reply));
+                    }
                     AgentMessage::ClientReady(client) => {
+                        log::info!("ACP: agent_client ready");
                         self.agent_client = Some(client);
                     }
                 }
             }
+        }
+        // Process deferred config updates now that agent_rx borrow is released.
+        for (updates, reply) in pending_config_updates {
+            let result = self.apply_agent_config_updates(&updates);
+            let _ = reply.send(result);
+            self.needs_redraw = true;
         }
 
         // Auto-execute new CommandSuggestion messages when terminal access is enabled.
@@ -3830,6 +4043,8 @@ impl WindowState {
             } => {
                 if let Some(client) = &self.agent_client {
                     let client = client.clone();
+                    let action = if cancelled { "cancelled" } else { "selected" };
+                    log::info!("ACP: sending permission response id={request_id} action={action}");
                     self.runtime.spawn(async move {
                         use crate::acp::protocol::{PermissionOutcome, RequestPermissionResponse};
                         let outcome = if cancelled {
@@ -3839,19 +4054,26 @@ impl WindowState {
                             }
                         } else {
                             PermissionOutcome {
-                                outcome: "allowed".to_string(),
+                                outcome: "selected".to_string(),
                                 option_id: Some(option_id),
                             }
                         };
                         let result = RequestPermissionResponse { outcome };
-                        let _ = client
+                        if let Err(e) = client
                             .respond(
                                 request_id,
                                 Some(serde_json::to_value(&result).unwrap()),
                                 None,
                             )
-                            .await;
+                            .await
+                        {
+                            log::error!("ACP: failed to send permission response: {e}");
+                        }
                     });
+                } else {
+                    log::error!(
+                        "ACP: cannot send permission response id={request_id} — agent_client is None!"
+                    );
                 }
                 // Mark the permission as resolved in the chat.
                 for msg in &mut self.ai_inspector.chat.messages {
@@ -4365,152 +4587,6 @@ impl WindowState {
 }
 
 // ---------------------------------------------------------------------------
-// ACP filesystem helpers
-// ---------------------------------------------------------------------------
-
-/// Read a file with optional line offset and limit.
-///
-/// `line` is 1-based (first line = 1). `limit` is the maximum number of lines
-/// to return from that offset.
-fn read_file_with_range(
-    path: &str,
-    line: Option<u64>,
-    limit: Option<u64>,
-) -> Result<String, String> {
-    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-
-    match (line, limit) {
-        (None, None) => Ok(content),
-        _ => {
-            let skip = line.unwrap_or(1).saturating_sub(1) as usize;
-            let lines: Vec<&str> = content.lines().skip(skip).collect();
-            let taken: Vec<&str> = if let Some(lim) = limit {
-                lines.into_iter().take(lim as usize).collect()
-            } else {
-                lines
-            };
-            Ok(taken.join("\n"))
-        }
-    }
-}
-
-/// Write content to a file, creating parent directories as needed.
-///
-/// Requires an absolute path for safety.
-fn write_file_safe(path: &str, content: &str) -> Result<(), String> {
-    let p = std::path::Path::new(path);
-    if !p.is_absolute() {
-        return Err("Path must be absolute".to_string());
-    }
-    if let Some(parent) = p.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create directories: {e}"))?;
-    }
-    std::fs::write(p, content).map_err(|e| format!("Failed to write file: {e}"))
-}
-
-/// List directory entries, optionally filtering by a glob-like pattern.
-///
-/// Returns a sorted vec of JSON objects with `name`, `path`, `isDirectory`, and
-/// `isFile` fields.
-fn list_directory_entries(
-    path: &str,
-    pattern: Option<&str>,
-) -> Result<Vec<serde_json::Value>, String> {
-    let dir = std::path::Path::new(path);
-    if !dir.is_absolute() {
-        return Err("Path must be absolute".to_string());
-    }
-    let entries = std::fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {e}"))?;
-
-    let mut result: Vec<serde_json::Value> = Vec::new();
-    for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
-        let name = entry.file_name().to_string_lossy().to_string();
-
-        // Simple glob matching: supports "*.ext" and "*" patterns.
-        if let Some(pat) = pattern
-            && !glob_match_simple(pat, &name)
-        {
-            continue;
-        }
-
-        let file_type = entry.file_type().map_err(|e| e.to_string())?;
-        result.push(serde_json::json!({
-            "name": name,
-            "path": entry.path().to_string_lossy(),
-            "isDirectory": file_type.is_dir(),
-            "isFile": file_type.is_file(),
-        }));
-    }
-    result.sort_by(|a, b| {
-        let a_name = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
-        let b_name = b.get("name").and_then(|v| v.as_str()).unwrap_or("");
-        a_name.cmp(b_name)
-    });
-    Ok(result)
-}
-
-/// Recursively find files matching a glob pattern.
-///
-/// Supports simple patterns like `*.glsl`, `**/*.rs`, and literal names.
-/// Returns a sorted list of absolute file paths.
-fn find_files_recursive(base_path: &str, pattern: &str) -> Result<Vec<String>, String> {
-    let base = std::path::Path::new(base_path);
-    if !base.is_absolute() {
-        return Err("Path must be absolute".to_string());
-    }
-    if !base.exists() {
-        return Err(format!("Path does not exist: {base_path}"));
-    }
-
-    let mut results = Vec::new();
-    // Strip leading **/ for simple recursive matching.
-    let file_pattern = pattern.strip_prefix("**/").unwrap_or(pattern);
-
-    fn walk_dir(
-        dir: &std::path::Path,
-        file_pattern: &str,
-        results: &mut Vec<String>,
-    ) -> Result<(), String> {
-        let entries =
-            std::fs::read_dir(dir).map_err(|e| format!("Failed to read {}: {e}", dir.display()))?;
-        for entry in entries {
-            let entry = entry.map_err(|e| e.to_string())?;
-            let path = entry.path();
-            if path.is_dir() {
-                walk_dir(&path, file_pattern, results)?;
-            } else {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if glob_match_simple(file_pattern, &name) {
-                    results.push(path.to_string_lossy().to_string());
-                }
-            }
-        }
-        Ok(())
-    }
-
-    walk_dir(base, file_pattern, &mut results)?;
-    results.sort();
-    Ok(results)
-}
-
-/// Simple glob matching for directory listing filters.
-///
-/// Supports `*` (match anything), `*.ext` (match extension), and literal names.
-fn glob_match_simple(pattern: &str, name: &str) -> bool {
-    if pattern == "*" {
-        return true;
-    }
-    if let Some(ext) = pattern.strip_prefix("*.") {
-        return name.ends_with(&format!(".{ext}"));
-    }
-    if let Some(prefix) = pattern.strip_suffix("*") {
-        return name.starts_with(prefix);
-    }
-    name == pattern
-}
-
 impl Drop for WindowState {
     fn drop(&mut self) {
         let t0 = std::time::Instant::now();
