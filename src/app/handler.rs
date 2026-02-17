@@ -1384,6 +1384,7 @@ impl ApplicationHandler for WindowManager {
         let mut profiles_to_update: Option<Vec<crate::profile::Profile>> = None;
         let mut arrangement_restore_name: Option<String> = None;
         let mut reload_dynamic_profiles = false;
+        let mut config_changed_by_agent = false;
 
         for window_state in self.windows.values_mut() {
             if window_state.open_settings_window_requested {
@@ -1415,6 +1416,14 @@ impl ApplicationHandler for WindowManager {
 
             window_state.about_to_wait(event_loop);
 
+            // If an agent/MCP config update was applied, sync to WindowManager's
+            // config so that subsequent saves (update checker, settings) don't
+            // overwrite the agent's changes.
+            if window_state.config_changed_by_agent {
+                window_state.config_changed_by_agent = false;
+                config_changed_by_agent = true;
+            }
+
             // Collect shader reload results and clear them from window_state
             if let Some(result) = window_state.background_shader_reload_result.take() {
                 background_shader_result = Some(result);
@@ -1422,6 +1431,12 @@ impl ApplicationHandler for WindowManager {
             if let Some(result) = window_state.cursor_shader_reload_result.take() {
                 cursor_shader_result = Some(result);
             }
+        }
+
+        // Sync agent config changes to WindowManager so other saves don't overwrite
+        if config_changed_by_agent && let Some(window_state) = self.windows.values().next() {
+            log::info!("CONFIG: syncing agent config changes to WindowManager");
+            self.config = window_state.config.clone();
         }
 
         // Check for dynamic profile updates

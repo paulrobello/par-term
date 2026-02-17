@@ -184,6 +184,9 @@ pub struct WindowState {
     // Smart redraw tracking (event-driven rendering)
     /// Whether we need to render next frame
     pub(crate) needs_redraw: bool,
+    /// Set when an agent/MCP config update was applied — signals WindowManager to
+    /// sync its own config copy so subsequent saves don't overwrite agent changes.
+    pub(crate) config_changed_by_agent: bool,
     /// When to blink cursor next
     pub(crate) cursor_blink_timer: Option<std::time::Instant>,
     /// Whether we need to rebuild renderer after font-related changes
@@ -404,6 +407,7 @@ impl WindowState {
             window_index: 1, // Will be set by WindowManager when window is created
 
             needs_redraw: true,
+            config_changed_by_agent: false,
             cursor_blink_timer: None,
             pending_font_rebuild: false,
 
@@ -1296,6 +1300,8 @@ impl WindowState {
                 );
                 if let Err(e) = self.apply_agent_config_updates(&updates) {
                     log::error!("CONFIG: MCP config update failed: {e}");
+                } else {
+                    self.config_changed_by_agent = true;
                 }
                 self.needs_redraw = true;
             }
@@ -2536,6 +2542,9 @@ impl WindowState {
         // Process deferred config updates now that agent_rx borrow is released.
         for (updates, reply) in pending_config_updates {
             let result = self.apply_agent_config_updates(&updates);
+            if result.is_ok() {
+                self.config_changed_by_agent = true;
+            }
             let _ = reply.send(result);
             self.needs_redraw = true;
         }

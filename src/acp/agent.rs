@@ -525,7 +525,7 @@ async fn handle_incoming_messages(
                                             | "config"
                                             | "config_update"
                                             | "configupdate"
-                                    )
+                                    ) || lower.contains("par-term-config")
                                 };
 
                                 // Log all options for debugging.
