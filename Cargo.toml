@@ -1,5 +1,5 @@
 [workspace]
-members = ["par-term-acp", "par-term-config"]
+members = ["par-term-acp", "par-term-config", "par-term-settings-ui"]
 resolver = "2"
 
 [package]

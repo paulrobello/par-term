@@ -3746,6 +3746,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "par-term-settings-ui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dirs",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "image",
+ "log",
+ "open",
+ "par-term-config",
+ "parking_lot",
+ "rfd",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "parking"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

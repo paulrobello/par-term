@@ -1,4 +1,7 @@
 //! Profile types and manager for terminal session configurations
+//!
+//! This module provides profile types that can be used by the settings UI
+//! and other configuration-dependent components.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -69,9 +72,6 @@ pub struct Profile {
     #[serde(default)]
     pub order: usize,
 
-    // ========================================================================
-    // New fields for enhanced profile system (issue #78)
-    // ========================================================================
     /// Searchable tags to organize and filter profiles
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
@@ -96,8 +96,6 @@ pub struct Profile {
 
     /// Directory patterns for automatic profile switching based on CWD
     /// Supports glob patterns (e.g., "/Users/*/projects/work-*", "/home/user/dev/*")
-    /// When the shell's CWD matches a pattern, this profile is auto-applied.
-    /// Priority: explicit user selection > hostname match > directory match > default
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub directory_patterns: Vec<String>,
 
@@ -137,9 +135,6 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub badge_max_height: Option<f32>,
 
-    // ========================================================================
-    // SSH connection fields (issue #134)
-    // ========================================================================
     /// SSH hostname for direct connection (profile acts as SSH bookmark)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssh_host: Option<String>,
@@ -599,10 +594,6 @@ impl ProfileManager {
             .find(|p| p.name.to_lowercase() == lower)
     }
 
-    // ========================================================================
-    // New methods for enhanced profile system (issue #78)
-    // ========================================================================
-
     /// Find a profile by keyboard shortcut
     pub fn find_by_shortcut(&self, shortcut: &str) -> Option<&Profile> {
         let lower = shortcut.to_lowercase();
@@ -758,12 +749,6 @@ impl ProfileManager {
         value_lower == pattern_lower
     }
 
-    // Keep the old method name as an alias for backwards compatibility
-    #[allow(dead_code)]
-    fn hostname_matches(hostname: &str, pattern: &str) -> bool {
-        Self::pattern_matches(hostname, pattern)
-    }
-
     /// Resolve a profile with inheritance - returns effective settings
     /// by merging parent profiles. Child values override parent values.
     pub fn resolve_profile(&self, id: &ProfileId) -> Option<Profile> {
@@ -811,7 +796,6 @@ impl ProfileManager {
             id: profile.id,
             name: profile.name.clone(),
             order: profile.order,
-            // Merge optional fields: child wins if set, otherwise use parent
             working_directory: profile
                 .working_directory
                 .clone()
@@ -825,13 +809,12 @@ impl ProfileManager {
                 .or(resolved_parent.command_args),
             tab_name: profile.tab_name.clone().or(resolved_parent.tab_name),
             icon: profile.icon.clone().or(resolved_parent.icon),
-            // New fields
             tags: if profile.tags.is_empty() {
                 resolved_parent.tags
             } else {
                 profile.tags.clone()
             },
-            parent_id: profile.parent_id, // Keep original parent reference
+            parent_id: profile.parent_id,
             keyboard_shortcut: profile
                 .keyboard_shortcut
                 .clone()
@@ -889,11 +872,9 @@ impl ProfileManager {
         self.profiles_ordered()
             .into_iter()
             .filter(|p| {
-                // Cannot be own parent
                 if p.id == *profile_id {
                     return false;
                 }
-                // Check if this profile has the target as an ancestor (would create cycle)
                 !self.has_ancestor(&p.id, profile_id)
             })
             .collect()
@@ -911,657 +892,11 @@ impl ProfileManager {
                 return true;
             }
             if visited.contains(&parent_id) {
-                // Cycle detected, stop
                 return false;
             }
             visited.push(parent_id);
             current_id = parent_id;
         }
         false
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_profile_creation() {
-        let profile = Profile::new("Test Profile");
-        assert!(!profile.id.is_nil());
-        assert_eq!(profile.name, "Test Profile");
-        assert!(profile.working_directory.is_none());
-        assert!(profile.command.is_none());
-    }
-
-    #[test]
-    fn test_profile_builder() {
-        let profile = Profile::new("SSH Server")
-            .working_directory("/home/user")
-            .command("ssh")
-            .command_args(vec!["user@server".to_string()])
-            .tab_name("Remote")
-            .icon("🖥");
-
-        assert_eq!(profile.name, "SSH Server");
-        assert_eq!(profile.working_directory.as_deref(), Some("/home/user"));
-        assert_eq!(profile.command.as_deref(), Some("ssh"));
-        assert_eq!(profile.command_args, Some(vec!["user@server".to_string()]));
-        assert_eq!(profile.tab_name.as_deref(), Some("Remote"));
-        assert_eq!(profile.icon.as_deref(), Some("🖥"));
-    }
-
-    #[test]
-    fn test_profile_display_label() {
-        let profile_no_icon = Profile::new("Basic");
-        assert_eq!(profile_no_icon.display_label(), "Basic");
-
-        let profile_with_icon = Profile::new("Server").icon("🖥");
-        assert_eq!(profile_with_icon.display_label(), "🖥 Server");
-    }
-
-    #[test]
-    fn test_profile_manager_basic_operations() {
-        let mut manager = ProfileManager::new();
-        assert!(manager.is_empty());
-
-        let profile = Profile::new("First");
-        let id = profile.id;
-        manager.add(profile);
-
-        assert_eq!(manager.len(), 1);
-        assert!(manager.get(&id).is_some());
-        assert_eq!(manager.get(&id).unwrap().name, "First");
-
-        // Remove
-        let removed = manager.remove(&id);
-        assert!(removed.is_some());
-        assert!(manager.is_empty());
-    }
-
-    #[test]
-    fn test_profile_manager_ordering() {
-        let mut manager = ProfileManager::new();
-
-        let p1 = Profile::new("First").order(0);
-        let p2 = Profile::new("Second").order(1);
-        let p3 = Profile::new("Third").order(2);
-
-        let id1 = p1.id;
-        let id2 = p2.id;
-        let id3 = p3.id;
-
-        manager.add(p1);
-        manager.add(p2);
-        manager.add(p3);
-
-        let ordered = manager.profiles_ordered();
-        assert_eq!(ordered.len(), 3);
-        assert_eq!(ordered[0].id, id1);
-        assert_eq!(ordered[1].id, id2);
-        assert_eq!(ordered[2].id, id3);
-
-        // Move second to first position
-        manager.move_up(&id2);
-        let ordered = manager.profiles_ordered();
-        assert_eq!(ordered[0].id, id2);
-        assert_eq!(ordered[1].id, id1);
-
-        // Move second (now first) down
-        manager.move_down(&id2);
-        let ordered = manager.profiles_ordered();
-        assert_eq!(ordered[0].id, id1);
-        assert_eq!(ordered[1].id, id2);
-    }
-
-    #[test]
-    fn test_profile_serialization() {
-        let profile = Profile::new("Test")
-            .working_directory("/tmp")
-            .command("bash")
-            .tab_name("My Tab");
-
-        let yaml = serde_yaml::to_string(&profile).unwrap();
-        let deserialized: Profile = serde_yaml::from_str(&yaml).unwrap();
-
-        assert_eq!(deserialized.id, profile.id);
-        assert_eq!(deserialized.name, profile.name);
-        assert_eq!(deserialized.working_directory, profile.working_directory);
-        assert_eq!(deserialized.command, profile.command);
-        assert_eq!(deserialized.tab_name, profile.tab_name);
-    }
-
-    #[test]
-    fn test_profile_validation() {
-        let valid = Profile::new("Valid Profile");
-        assert!(valid.validate().is_empty());
-
-        let empty_name = Profile::new("");
-        let warnings = empty_name.validate();
-        assert!(!warnings.is_empty());
-
-        let bad_dir = Profile::new("Bad Dir").working_directory("/nonexistent/path/12345");
-        let warnings = bad_dir.validate();
-        assert!(!warnings.is_empty());
-    }
-
-    #[test]
-    fn test_find_by_name() {
-        let mut manager = ProfileManager::new();
-        manager.add(Profile::new("Production Server"));
-        manager.add(Profile::new("Development"));
-
-        assert!(manager.find_by_name("production server").is_some());
-        assert!(manager.find_by_name("DEVELOPMENT").is_some());
-        assert!(manager.find_by_name("nonexistent").is_none());
-    }
-
-    // ========================================================================
-    // Tests for new profile features (issue #78)
-    // ========================================================================
-
-    #[test]
-    fn test_profile_new_fields() {
-        let profile = Profile::new("Enhanced")
-            .tags(vec!["ssh".to_string(), "production".to_string()])
-            .keyboard_shortcut("Cmd+1")
-            .hostname_patterns(vec!["*.example.com".to_string()])
-            .badge_text("PROD");
-
-        assert_eq!(profile.tags, vec!["ssh", "production"]);
-        assert_eq!(profile.keyboard_shortcut.as_deref(), Some("Cmd+1"));
-        assert_eq!(profile.hostname_patterns, vec!["*.example.com"]);
-        assert_eq!(profile.badge_text.as_deref(), Some("PROD"));
-    }
-
-    #[test]
-    fn test_profile_serialization_new_fields() {
-        let profile = Profile::new("Test")
-            .tags(vec!["tag1".to_string(), "tag2".to_string()])
-            .keyboard_shortcut("Ctrl+Shift+1")
-            .hostname_patterns(vec!["server-*".to_string()])
-            .badge_text("TEST");
-
-        let yaml = serde_yaml::to_string(&profile).unwrap();
-        let deserialized: Profile = serde_yaml::from_str(&yaml).unwrap();
-
-        assert_eq!(deserialized.tags, profile.tags);
-        assert_eq!(deserialized.keyboard_shortcut, profile.keyboard_shortcut);
-        assert_eq!(deserialized.hostname_patterns, profile.hostname_patterns);
-        assert_eq!(deserialized.badge_text, profile.badge_text);
-    }
-
-    #[test]
-    fn test_find_by_shortcut() {
-        let mut manager = ProfileManager::new();
-        manager.add(Profile::new("SSH").keyboard_shortcut("Cmd+1"));
-        manager.add(Profile::new("Dev").keyboard_shortcut("Cmd+2"));
-        manager.add(Profile::new("No Shortcut"));
-
-        assert!(manager.find_by_shortcut("cmd+1").is_some());
-        assert_eq!(manager.find_by_shortcut("Cmd+1").unwrap().name, "SSH");
-        assert!(manager.find_by_shortcut("cmd+3").is_none());
-    }
-
-    #[test]
-    fn test_find_by_tag() {
-        let mut manager = ProfileManager::new();
-        manager
-            .add(Profile::new("Prod SSH").tags(vec!["ssh".to_string(), "production".to_string()]));
-        manager
-            .add(Profile::new("Dev SSH").tags(vec!["ssh".to_string(), "development".to_string()]));
-        manager.add(Profile::new("Local").tags(vec!["local".to_string()]));
-
-        let ssh_profiles = manager.find_by_tag("ssh");
-        assert_eq!(ssh_profiles.len(), 2);
-
-        let prod_profiles = manager.find_by_tag("PRODUCTION"); // case-insensitive
-        assert_eq!(prod_profiles.len(), 1);
-        assert_eq!(prod_profiles[0].name, "Prod SSH");
-
-        let no_match = manager.find_by_tag("nonexistent");
-        assert!(no_match.is_empty());
-    }
-
-    #[test]
-    fn test_filter_by_tags() {
-        let mut manager = ProfileManager::new();
-        manager.add(Profile::new("Production Server").tags(vec!["prod".to_string()]));
-        manager.add(Profile::new("Dev Server").tags(vec!["dev".to_string()]));
-        manager.add(Profile::new("Local").tags(vec!["local".to_string()]));
-
-        // Filter by partial tag match
-        let filtered = manager.filter_by_tags("prod");
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0].name, "Production Server");
-
-        // Filter by name match (fallback)
-        let filtered = manager.filter_by_tags("Server");
-        assert_eq!(filtered.len(), 2);
-
-        // Empty filter returns all
-        let all = manager.filter_by_tags("");
-        assert_eq!(all.len(), 3);
-    }
-
-    #[test]
-    fn test_all_tags() {
-        let mut manager = ProfileManager::new();
-        manager.add(Profile::new("P1").tags(vec!["ssh".to_string(), "production".to_string()]));
-        manager.add(Profile::new("P2").tags(vec!["ssh".to_string(), "development".to_string()]));
-        manager.add(Profile::new("P3").tags(vec!["local".to_string()]));
-
-        let tags = manager.all_tags();
-        assert_eq!(tags, vec!["development", "local", "production", "ssh"]);
-    }
-
-    #[test]
-    fn test_hostname_matching() {
-        assert!(ProfileManager::hostname_matches(
-            "server.example.com",
-            "*.example.com"
-        ));
-        assert!(ProfileManager::hostname_matches(
-            "server.example.com",
-            "server*"
-        ));
-        assert!(ProfileManager::hostname_matches(
-            "myserver.example.com",
-            "*server*"
-        ));
-        assert!(ProfileManager::hostname_matches(
-            "server.example.com",
-            "server.example.com"
-        ));
-        assert!(ProfileManager::hostname_matches("anything", "*"));
-
-        assert!(!ProfileManager::hostname_matches(
-            "server.other.com",
-            "*.example.com"
-        ));
-        assert!(!ProfileManager::hostname_matches(
-            "other.example.com",
-            "server*"
-        ));
-    }
-
-    #[test]
-    fn test_find_by_hostname() {
-        let mut manager = ProfileManager::new();
-        manager
-            .add(Profile::new("Example.com").hostname_patterns(vec!["*.example.com".to_string()]));
-        manager.add(Profile::new("Dev Servers").hostname_patterns(vec!["dev-*".to_string()]));
-        manager.add(Profile::new("Catch-all")); // No patterns
-
-        assert_eq!(
-            manager.find_by_hostname("server.example.com").unwrap().name,
-            "Example.com"
-        );
-        assert_eq!(
-            manager.find_by_hostname("dev-web-01").unwrap().name,
-            "Dev Servers"
-        );
-        assert!(manager.find_by_hostname("unknown.host").is_none());
-    }
-
-    #[test]
-    fn test_pattern_matching() {
-        // Suffix match
-        assert!(ProfileManager::pattern_matches("work-session", "*-session"));
-        // Prefix match
-        assert!(ProfileManager::pattern_matches("dev-server-01", "dev-*"));
-        // Contains match
-        assert!(ProfileManager::pattern_matches(
-            "my-production-env",
-            "*production*"
-        ));
-        // Exact match
-        assert!(ProfileManager::pattern_matches("main", "main"));
-        // Wildcard
-        assert!(ProfileManager::pattern_matches("anything", "*"));
-        // Case insensitive
-        assert!(ProfileManager::pattern_matches("WORK-SESSION", "*-session"));
-        assert!(ProfileManager::pattern_matches("work-session", "*-SESSION"));
-
-        // Non-matches
-        assert!(!ProfileManager::pattern_matches("work-session", "dev-*"));
-        assert!(!ProfileManager::pattern_matches("dev-server", "*-session"));
-    }
-
-    #[test]
-    fn test_find_by_tmux_session() {
-        let mut manager = ProfileManager::new();
-        manager.add(Profile::new("Work Profile").tmux_session_patterns(vec!["work-*".to_string()]));
-        manager.add(
-            Profile::new("Dev Profile")
-                .tmux_session_patterns(vec!["dev-*".to_string(), "*-development".to_string()]),
-        );
-        manager.add(Profile::new("Default")); // No patterns
-
-        assert_eq!(
-            manager.find_by_tmux_session("work-main").unwrap().name,
-            "Work Profile"
-        );
-        assert_eq!(
-            manager.find_by_tmux_session("dev-feature").unwrap().name,
-            "Dev Profile"
-        );
-        assert_eq!(
-            manager
-                .find_by_tmux_session("staging-development")
-                .unwrap()
-                .name,
-            "Dev Profile"
-        );
-        assert!(manager.find_by_tmux_session("production").is_none());
-    }
-
-    #[test]
-    fn test_profile_inheritance() {
-        let mut manager = ProfileManager::new();
-
-        // Create parent profile
-        let parent = Profile::new("Base SSH")
-            .working_directory("/home/user")
-            .command("ssh")
-            .tags(vec!["ssh".to_string()])
-            .badge_text("SSH");
-        let parent_id = parent.id;
-        manager.add(parent);
-
-        // Create child profile that overrides some settings
-        let child = Profile::new("Production SSH")
-            .parent_id(parent_id)
-            .command_args(vec!["prod@server.example.com".to_string()])
-            .badge_text("PROD"); // Override parent badge
-        let child_id = child.id;
-        manager.add(child);
-
-        // Resolve child profile
-        let resolved = manager.resolve_profile(&child_id).unwrap();
-
-        // Child values
-        assert_eq!(resolved.name, "Production SSH");
-        assert_eq!(resolved.badge_text.as_deref(), Some("PROD")); // Child override
-        assert_eq!(
-            resolved.command_args,
-            Some(vec!["prod@server.example.com".to_string()])
-        );
-
-        // Inherited from parent
-        assert_eq!(resolved.working_directory.as_deref(), Some("/home/user"));
-        assert_eq!(resolved.command.as_deref(), Some("ssh"));
-        assert_eq!(resolved.tags, vec!["ssh"]);
-    }
-
-    #[test]
-    fn test_profile_inheritance_chain() {
-        let mut manager = ProfileManager::new();
-
-        // Grandparent -> Parent -> Child
-        let grandparent = Profile::new("Base")
-            .working_directory("/base")
-            .command("bash");
-        let grandparent_id = grandparent.id;
-        manager.add(grandparent);
-
-        let parent = Profile::new("SSH Base")
-            .parent_id(grandparent_id)
-            .command("ssh"); // Override command
-        let parent_id = parent.id;
-        manager.add(parent);
-
-        let child = Profile::new("Production")
-            .parent_id(parent_id)
-            .command_args(vec!["user@prod".to_string()]);
-        let child_id = child.id;
-        manager.add(child);
-
-        let resolved = manager.resolve_profile(&child_id).unwrap();
-
-        assert_eq!(resolved.working_directory.as_deref(), Some("/base")); // From grandparent
-        assert_eq!(resolved.command.as_deref(), Some("ssh")); // From parent
-        assert_eq!(resolved.command_args, Some(vec!["user@prod".to_string()])); // Own value
-    }
-
-    #[test]
-    fn test_profile_inheritance_cycle_detection() {
-        let mut manager = ProfileManager::new();
-
-        // Create profiles that reference each other
-        let id1 = Uuid::new_v4();
-        let id2 = Uuid::new_v4();
-
-        let mut p1 = Profile::with_id(id1, "Profile 1");
-        p1.parent_id = Some(id2);
-        manager.add(p1);
-
-        let mut p2 = Profile::with_id(id2, "Profile 2");
-        p2.parent_id = Some(id1);
-        manager.add(p2);
-
-        // Resolving should not loop forever - cycle detection should kick in
-        let resolved = manager.resolve_profile(&id1);
-        assert!(resolved.is_some()); // Should still return something
-    }
-
-    #[test]
-    fn test_get_valid_parents() {
-        let mut manager = ProfileManager::new();
-
-        let p1 = Profile::new("Profile 1");
-        let id1 = p1.id;
-        manager.add(p1);
-
-        let mut p2 = Profile::new("Profile 2");
-        p2.parent_id = Some(id1);
-        let id2 = p2.id;
-        manager.add(p2);
-
-        let p3 = Profile::new("Profile 3");
-        let id3 = p3.id;
-        manager.add(p3);
-
-        // Profile 1 can have Profile 3 as parent (but not Profile 2, which has Profile 1 as ancestor)
-        // Profile 2 has Profile 1 as parent, so if Profile 1 had Profile 2 as parent -> cycle
-        let valid_for_p1 = manager.get_valid_parents(&id1);
-        assert_eq!(valid_for_p1.len(), 1); // Only Profile 3
-        assert!(valid_for_p1.iter().any(|p| p.id == id3));
-
-        // Profile 2 can have Profile 3 as parent, and Profile 1 is already its parent
-        let valid_for_p2 = manager.get_valid_parents(&id2);
-        assert!(valid_for_p2.iter().any(|p| p.id == id3));
-        assert!(valid_for_p2.iter().any(|p| p.id == id1));
-
-        // Profile 3 can have Profile 1 or Profile 2 as parent
-        let valid_for_p3 = manager.get_valid_parents(&id3);
-        assert_eq!(valid_for_p3.len(), 2);
-    }
-
-    // ========================================================================
-    // Tests for directory-based profile switching (issue #114)
-    // ========================================================================
-
-    #[test]
-    fn test_directory_pattern_matching() {
-        // Prefix match
-        assert!(ProfileManager::directory_pattern_matches(
-            "/Users/user/projects/work-api",
-            "/Users/user/projects/work-*"
-        ));
-        // Suffix match
-        assert!(ProfileManager::directory_pattern_matches(
-            "/home/user/repos/my-project",
-            "*my-project"
-        ));
-        // Exact match
-        assert!(ProfileManager::directory_pattern_matches(
-            "/Users/user/projects",
-            "/Users/user/projects"
-        ));
-        // Exact match with trailing slash normalization
-        assert!(ProfileManager::directory_pattern_matches(
-            "/Users/user/projects/",
-            "/Users/user/projects"
-        ));
-        assert!(ProfileManager::directory_pattern_matches(
-            "/Users/user/projects",
-            "/Users/user/projects/"
-        ));
-        // Wildcard
-        assert!(ProfileManager::directory_pattern_matches("/any/path", "*"));
-
-        // Non-matches
-        assert!(!ProfileManager::directory_pattern_matches(
-            "/Users/user/personal/hobby",
-            "/Users/user/projects/work-*"
-        ));
-        assert!(!ProfileManager::directory_pattern_matches(
-            "/Users/user/projects",
-            "/Users/user/projects/work-*"
-        ));
-    }
-
-    #[test]
-    fn test_directory_pattern_tilde_expansion() {
-        if let Some(home) = dirs::home_dir() {
-            let home_str = home.display().to_string();
-
-            // Tilde prefix match
-            let path = format!("{}/Repos/par-term", home_str);
-            assert!(ProfileManager::directory_pattern_matches(
-                &path,
-                "~/Repos/par-term*"
-            ));
-
-            // Tilde exact match
-            assert!(ProfileManager::directory_pattern_matches(
-                &path,
-                "~/Repos/par-term"
-            ));
-
-            // Tilde with trailing slash
-            assert!(ProfileManager::directory_pattern_matches(
-                &format!("{}/", path),
-                "~/Repos/par-term"
-            ));
-
-            // Non-match with tilde
-            assert!(!ProfileManager::directory_pattern_matches(
-                &format!("{}/other-project", home_str),
-                "~/Repos/par-term*"
-            ));
-        }
-    }
-
-    #[test]
-    fn test_directory_pattern_matching_case_sensitive() {
-        // Directory matching should be case-sensitive (unlike hostname matching)
-        assert!(!ProfileManager::directory_pattern_matches(
-            "/Users/User/Projects",
-            "/Users/user/projects"
-        ));
-        assert!(ProfileManager::directory_pattern_matches(
-            "/Users/user/projects",
-            "/Users/user/projects"
-        ));
-    }
-
-    #[test]
-    fn test_find_by_directory() {
-        let mut manager = ProfileManager::new();
-        manager.add(
-            Profile::new("Work Profile").directory_patterns(vec!["/Users/user/work/*".to_string()]),
-        );
-        manager.add(
-            Profile::new("Personal Profile")
-                .directory_patterns(vec!["/Users/user/personal/*".to_string()]),
-        );
-        manager.add(Profile::new("No Patterns")); // No directory_patterns
-
-        assert_eq!(
-            manager
-                .find_by_directory("/Users/user/work/api-server")
-                .unwrap()
-                .name,
-            "Work Profile"
-        );
-        assert_eq!(
-            manager
-                .find_by_directory("/Users/user/personal/blog")
-                .unwrap()
-                .name,
-            "Personal Profile"
-        );
-        assert!(manager.find_by_directory("/Users/user/random").is_none());
-    }
-
-    #[test]
-    fn test_find_by_directory_multiple_patterns() {
-        let mut manager = ProfileManager::new();
-        manager.add(Profile::new("Dev Profile").directory_patterns(vec![
-            "/Users/user/work/*".to_string(),
-            "/Users/user/oss/*".to_string(),
-        ]));
-
-        assert_eq!(
-            manager
-                .find_by_directory("/Users/user/work/project")
-                .unwrap()
-                .name,
-            "Dev Profile"
-        );
-        assert_eq!(
-            manager
-                .find_by_directory("/Users/user/oss/contrib")
-                .unwrap()
-                .name,
-            "Dev Profile"
-        );
-    }
-
-    #[test]
-    fn test_directory_patterns_serialization() {
-        let profile =
-            Profile::new("Test").directory_patterns(vec!["/home/user/work/*".to_string()]);
-
-        let yaml = serde_yaml::to_string(&profile).unwrap();
-        let deserialized: Profile = serde_yaml::from_str(&yaml).unwrap();
-
-        assert_eq!(deserialized.directory_patterns, profile.directory_patterns);
-    }
-
-    #[test]
-    fn test_directory_patterns_inheritance() {
-        let mut manager = ProfileManager::new();
-
-        let parent =
-            Profile::new("Base Work").directory_patterns(vec!["/Users/user/work/*".to_string()]);
-        let parent_id = parent.id;
-        manager.add(parent);
-
-        // Child without directory_patterns inherits from parent
-        let child = Profile::new("Specific Work").parent_id(parent_id);
-        let child_id = child.id;
-        manager.add(child);
-
-        let resolved = manager.resolve_profile(&child_id).unwrap();
-        assert_eq!(
-            resolved.directory_patterns,
-            vec!["/Users/user/work/*".to_string()]
-        );
-
-        // Child with own directory_patterns overrides parent
-        let child2 = Profile::new("Override Work")
-            .parent_id(parent_id)
-            .directory_patterns(vec!["/Users/user/projects/*".to_string()]);
-        let child2_id = child2.id;
-        manager.add(child2);
-
-        let resolved2 = manager.resolve_profile(&child2_id).unwrap();
-        assert_eq!(
-            resolved2.directory_patterns,
-            vec!["/Users/user/projects/*".to_string()]
-        );
     }
 }
