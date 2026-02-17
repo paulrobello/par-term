@@ -1533,7 +1533,14 @@ impl WindowManager {
                         if let Some(pm) = tab.pane_manager_mut() {
                             let panes = pm.all_panes_mut();
                             for (index, pane) in panes.into_iter().enumerate() {
-                                if let Some(bg) = config.get_pane_background(index) {
+                                if let Some((image_path, mode, opacity)) =
+                                    config.get_pane_background(index)
+                                {
+                                    let bg = crate::pane::PaneBackground {
+                                        image_path: Some(image_path),
+                                        mode,
+                                        opacity,
+                                    };
                                     pane.set_background(bg);
                                 } else {
                                     // Clear pane background if no longer configured
