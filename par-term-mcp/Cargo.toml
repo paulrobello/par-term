@@ -1,0 +1,25 @@
+[package]
+name = "par-term-mcp"
+version = "0.1.0"
+edition = "2024"
+authors = ["Paul Robello <probello@gmail.com>"]
+description = "MCP (Model Context Protocol) stdio server for par-term terminal emulator"
+license = "MIT"
+repository = "https://github.com/paulrobello/par-term"
+homepage = "https://github.com/paulrobello/par-term"
+keywords = ["terminal", "mcp", "json-rpc", "stdio"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# JSON serialization for JSON-RPC protocol
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+
+# Logging
+log = "0.4.29"
+
+# Platform-specific directories for config path resolution
+dirs = "6.0"
+
+[dev-dependencies]
+tempfile = "3.25"
