@@ -147,6 +147,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | New tabs at end | ✅ `New Tabs Open at End` | ✅ | ✅ | - | - | Default behavior |
 | Inherit working directory | ✅ | ✅ `tab_inherit_cwd` | ✅ | - | - | - |
 | Max tabs limit | ❌ | ✅ `max_tabs` | ✅ | - | - | par-term exclusive |
+| Duplicate tab | ✅ | ✅ Context menu + `Cmd/Ctrl+Shift+D` | ✅ | - | - | Copies working directory and tab color |
 | Drag-and-drop tab reorder | ✅ | ✅ Drag tabs to reorder | ✅ | - | - | Visual ghost tab + insertion indicator |
 | Tab style (visual theme) | ✅ Light/Dark/Minimal/Compact | ✅ `tab_style` | ✅ | - | - | 5 presets: Dark/Light/Compact/Minimal/High Contrast |
 | HTML tab titles | ✅ `HTML Tab Titles` | ✅ `tab_html_titles` | ✅ | ⭐ | 🟡 | Limited tags: <b>, <i>, <u>, <span style=\"color\"> |
