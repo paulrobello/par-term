@@ -25,27 +25,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify no local path dependencies
+      - name: Verify par-term-emu-core-rust is not a path dependency
         run: |
-          echo "Checking for local path dependencies in Cargo.toml..."
+          echo "Checking for par-term-emu-core-rust path dependency..."
 
-          # Check specifically for par-term-emu-core-rust path dependency
           if grep -E 'par-term-emu-core-rust.*path\s*=' Cargo.toml; then
             echo "::error::Cargo.toml contains a local path dependency for par-term-emu-core-rust"
             echo "::error::Please update to use the published crates.io version before releasing"
             exit 1
           fi
 
-          # Check for any path dependencies (general check)
-          # Exclude [lib] and [[bin]] sections which use path for source files (ending in .rs")
-          if grep -E '^\s*path\s*=' Cargo.toml | grep -qv '\.rs"'; then
-            echo "::error::Cargo.toml contains local path dependencies"
-            echo "::error::All dependencies must use published versions for release"
-            grep -E '^\s*path\s*=' Cargo.toml | grep -v '\.rs"'
-            exit 1
-          fi
-
-          echo "✓ No local path dependencies found"
           echo "✓ Cargo.toml is ready for release"
 
   # Build Linux ARM64 using cross (parallel)
@@ -334,7 +323,7 @@ jobs:
   publish-crates:
     name: Publish to crates.io
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     needs: [build-linux-arm64, build-linux-x86_64, build-windows-x86_64, build-macos-x86_64, build-macos-arm64]
     steps:
       - uses: actions/checkout@v4
@@ -352,18 +341,108 @@ jobs:
       - name: Get version
         id: version
         run: |
-          CARGO_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
+          CARGO_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[] | select(.name == "par-term") | .version')
           echo "version=$CARGO_VERSION" >> "$GITHUB_OUTPUT"
           echo "Cargo.toml version: $CARGO_VERSION"
 
       - name: Run tests
         run: cargo test --verbose
 
-      - name: Dry run publish
-        run: cargo publish --dry-run
+      - name: Publish workspace subcrates (Layer 1 - no workspace deps)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          publish_if_needed() {
+            local crate=$1
+            local version
+            version=$(cargo metadata --format-version 1 --no-deps | jq -r --arg c "$crate" '.packages[] | select(.name == $c) | .version')
 
-      - name: Publish to crates.io
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || echo "Version may already exist on crates.io, continuing..."
+            local http_status
+            http_status=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://crates.io/api/v1/crates/$crate/$version" \
+              -H "User-Agent: par-term-ci-publish")
+
+            if [ "$http_status" = "200" ]; then
+              echo "✓ $crate $version already on crates.io, skipping"
+            else
+              echo "Publishing $crate $version..."
+              cargo publish -p "$crate" --token "$CARGO_REGISTRY_TOKEN"
+            fi
+          }
+
+          publish_if_needed par-term-acp
+          publish_if_needed par-term-config
+
+      - name: Wait for Layer 1 indexing
+        run: |
+          echo "Waiting 60s for crates.io to index Layer 1 crates..."
+          sleep 60
+
+      - name: Publish workspace subcrates (Layer 2 - depend on par-term-config)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          publish_if_needed() {
+            local crate=$1
+            local version
+            version=$(cargo metadata --format-version 1 --no-deps | jq -r --arg c "$crate" '.packages[] | select(.name == $c) | .version')
+
+            local http_status
+            http_status=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://crates.io/api/v1/crates/$crate/$version" \
+              -H "User-Agent: par-term-ci-publish")
+
+            if [ "$http_status" = "200" ]; then
+              echo "✓ $crate $version already on crates.io, skipping"
+            else
+              echo "Publishing $crate $version..."
+              cargo publish -p "$crate" --token "$CARGO_REGISTRY_TOKEN"
+            fi
+          }
+
+          publish_if_needed par-term-fonts
+          publish_if_needed par-term-terminal
+          publish_if_needed par-term-settings-ui
+
+      - name: Wait for Layer 2 indexing
+        run: |
+          echo "Waiting 60s for crates.io to index Layer 2 crates..."
+          sleep 60
+
+      - name: Publish workspace subcrates (Layer 3 - depend on par-term-fonts)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          publish_if_needed() {
+            local crate=$1
+            local version
+            version=$(cargo metadata --format-version 1 --no-deps | jq -r --arg c "$crate" '.packages[] | select(.name == $c) | .version')
+
+            local http_status
+            http_status=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://crates.io/api/v1/crates/$crate/$version" \
+              -H "User-Agent: par-term-ci-publish")
+
+            if [ "$http_status" = "200" ]; then
+              echo "✓ $crate $version already on crates.io, skipping"
+            else
+              echo "Publishing $crate $version..."
+              cargo publish -p "$crate" --token "$CARGO_REGISTRY_TOKEN"
+            fi
+          }
+
+          publish_if_needed par-term-render
+
+      - name: Wait for Layer 3 indexing
+        run: |
+          echo "Waiting 60s for crates.io to index Layer 3 crates..."
+          sleep 60
+
+      - name: Dry run publish par-term
+        run: cargo publish --dry-run -p par-term
+
+      - name: Publish par-term to crates.io
+        run: cargo publish -p par-term --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || echo "Version may already exist on crates.io, continuing..."
         continue-on-error: true
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
