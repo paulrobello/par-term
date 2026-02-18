@@ -241,7 +241,7 @@ impl SettingsUI {
 
         if let Some(error) = &self.cursor_shader_editor_error {
             let error_text = error.clone();
-            let shader_path = crate::config::Config::shader_path(&self.temp_cursor_shader);
+            let shader_path = par_term_config::Config::shader_path(&self.temp_cursor_shader);
             let full_error = format!("File: {}\n\n{}", shader_path.display(), error_text);
 
             ui.group(|ui| {
@@ -285,7 +285,7 @@ impl SettingsUI {
 
     /// Save cursor shader source to file
     fn save_cursor_shader_to_file(&mut self) {
-        let shader_path = crate::config::Config::shader_path(&self.temp_cursor_shader);
+        let shader_path = par_term_config::Config::shader_path(&self.temp_cursor_shader);
         match std::fs::write(&shader_path, &self.cursor_shader_editor_source) {
             Ok(()) => {
                 self.cursor_shader_editor_original = self.cursor_shader_editor_source.clone();

@@ -1,10 +1,10 @@
 use super::SettingsUI;
-use crate::config::{
+use arboard::Clipboard;
+use egui::Color32;
+use par_term_config::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, ShaderConfig,
     ShaderMetadata,
 };
-use arboard::Clipboard;
-use egui::Color32;
 use std::path::Path;
 
 /// Convert an absolute path to a path relative to the shaders directory if possible.
@@ -12,7 +12,7 @@ use std::path::Path;
 /// Otherwise, returns the original path unchanged.
 /// Always uses forward slashes for cross-platform compatibility.
 fn make_path_relative_to_shaders(absolute_path: &str) -> String {
-    let shaders_dir = crate::config::Config::shaders_dir();
+    let shaders_dir = par_term_config::Config::shaders_dir();
     let path = Path::new(absolute_path);
 
     // Try to make it relative to the shaders directory
@@ -265,7 +265,7 @@ pub fn show_background(
 
         // Show shader compilation error if any
         if let Some(error) = &settings.shader_editor_error {
-            let shader_path = crate::config::Config::shader_path(&settings.temp_custom_shader);
+            let shader_path = par_term_config::Config::shader_path(&settings.temp_custom_shader);
             let full_error = format!("File: {}\n\n{}", shader_path.display(), error);
             let error_display = error.clone();
 
@@ -518,7 +518,7 @@ pub fn show_background(
             );
             if edit_button.clicked() {
                 // Load shader source from file
-                let shader_path = crate::config::Config::shader_path(&settings.temp_custom_shader);
+                let shader_path = par_term_config::Config::shader_path(&settings.temp_custom_shader);
                 match std::fs::read_to_string(&shader_path) {
                     Ok(source) => {
                         settings.shader_editor_source = source.clone();
@@ -853,7 +853,7 @@ pub fn show_pane_backgrounds(
                     // Add new config if path is not empty
                     if !settings.temp_pane_bg_path.is_empty() {
                         settings.config.pane_backgrounds.push(
-                            crate::config::PaneBackgroundConfig {
+                            par_term_config::PaneBackgroundConfig {
                                 index,
                                 image: settings.temp_pane_bg_path.clone(),
                                 mode: settings.temp_pane_bg_mode,
@@ -970,7 +970,7 @@ pub fn show_cursor_shader(
 
         // Show cursor shader compilation error if any
         if let Some(error) = &settings.cursor_shader_editor_error {
-            let shader_path = crate::config::Config::shader_path(&settings.temp_cursor_shader);
+            let shader_path = par_term_config::Config::shader_path(&settings.temp_cursor_shader);
             let full_error = format!("File: {}\n\n{}", shader_path.display(), error);
             let error_display = error.clone();
 
@@ -1142,7 +1142,7 @@ pub fn show_cursor_shader(
                 ui.add_enabled(has_shader_path, egui::Button::new("Edit Cursor Shader..."));
             if edit_button.clicked() {
                 // Load shader source from file
-                let shader_path = crate::config::Config::shader_path(&settings.temp_cursor_shader);
+                let shader_path = par_term_config::Config::shader_path(&settings.temp_cursor_shader);
                 match std::fs::read_to_string(&shader_path) {
                     Ok(source) => {
                         settings.cursor_shader_editor_source = source.clone();
@@ -1212,7 +1212,7 @@ fn show_shader_metadata_and_settings(
 }
 
 /// Show shader metadata info (name, author, description, version)
-fn show_shader_metadata_info(ui: &mut egui::Ui, metadata: &crate::config::ShaderMetadata) {
+fn show_shader_metadata_info(ui: &mut egui::Ui, metadata: &par_term_config::ShaderMetadata) {
     egui::Grid::new("shader_metadata_grid")
         .num_columns(2)
         .spacing([10.0, 4.0])
@@ -1248,7 +1248,7 @@ fn show_per_shader_settings(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     shader_name: &str,
-    metadata: &Option<crate::config::ShaderMetadata>,
+    metadata: &Option<par_term_config::ShaderMetadata>,
     changes_this_frame: &mut bool,
 ) {
     // Get current override or create empty one for display
@@ -1494,10 +1494,10 @@ fn show_per_shader_settings(
 fn save_settings_to_shader_metadata(
     settings: &mut SettingsUI,
     shader_name: &str,
-    existing_metadata: &Option<crate::config::ShaderMetadata>,
+    existing_metadata: &Option<par_term_config::ShaderMetadata>,
 ) {
     // Get the shader file path
-    let shader_path = crate::config::Config::shader_path(shader_name);
+    let shader_path = par_term_config::Config::shader_path(shader_name);
 
     if !shader_path.exists() {
         log::error!(
@@ -1515,7 +1515,7 @@ fn save_settings_to_shader_metadata(
     let new_metadata = build_metadata_from_settings(settings, shader_name, existing_metadata);
 
     // Update the shader file
-    match crate::config::update_shader_metadata_file(&shader_path, &new_metadata) {
+    match par_term_config::update_shader_metadata_file(&shader_path, &new_metadata) {
         Ok(()) => {
             log::info!("Saved metadata to shader: {}", shader_path.display());
             // Invalidate the cache so the new metadata is picked up
@@ -2258,7 +2258,7 @@ fn save_cursor_settings_to_shader_metadata(
     existing_metadata: &Option<CursorShaderMetadata>,
 ) {
     // Get the shader file path
-    let shader_path = crate::config::Config::shader_path(shader_name);
+    let shader_path = par_term_config::Config::shader_path(shader_name);
 
     if !shader_path.exists() {
         log::error!(
@@ -2277,7 +2277,7 @@ fn save_cursor_settings_to_shader_metadata(
         build_cursor_metadata_from_settings(settings, shader_name, existing_metadata);
 
     // Update the shader file
-    match crate::config::update_cursor_shader_metadata_file(&shader_path, &new_metadata) {
+    match par_term_config::update_cursor_shader_metadata_file(&shader_path, &new_metadata) {
         Ok(()) => {
             log::info!("Saved metadata to cursor shader: {}", shader_path.display());
             // Invalidate the cache so the new metadata is picked up

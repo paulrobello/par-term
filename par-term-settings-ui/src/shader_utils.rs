@@ -5,7 +5,7 @@ use super::SettingsUI;
 impl SettingsUI {
     /// Scan the shaders folder and return a list of shader filenames.
     pub(super) fn scan_shaders_folder() -> Vec<String> {
-        let shaders_dir = crate::config::Config::shaders_dir();
+        let shaders_dir = par_term_config::Config::shaders_dir();
         let mut shaders = Vec::new();
 
         // Create the shaders directory if it doesn't exist
@@ -54,7 +54,7 @@ impl SettingsUI {
     /// Scan for cubemap prefixes in the textures/cubemaps folder.
     /// Returns relative paths like "textures/cubemaps/env-outside"
     pub(super) fn scan_cubemaps_folder() -> Vec<String> {
-        let cubemaps_dir = crate::config::Config::shaders_dir()
+        let cubemaps_dir = par_term_config::Config::shaders_dir()
             .join("textures")
             .join("cubemaps");
         let mut cubemaps = Vec::new();
@@ -177,7 +177,7 @@ impl SettingsUI {
         }
 
         // Load shader source from file
-        let shader_path = crate::config::Config::shader_path(&self.temp_custom_shader);
+        let shader_path = par_term_config::Config::shader_path(&self.temp_custom_shader);
         match std::fs::read_to_string(&shader_path) {
             Ok(source) => {
                 self.shader_editor_source = source.clone();

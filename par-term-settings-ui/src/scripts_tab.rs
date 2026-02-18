@@ -5,8 +5,8 @@
 
 use super::SettingsUI;
 use super::section::collapsing_section;
-use crate::config::automation::RestartPolicy;
-use crate::config::scripting::ScriptConfig;
+use par_term_config::automation::RestartPolicy;
+use par_term_config::scripting::ScriptConfig;
 use std::collections::HashSet;
 
 /// Show the scripts tab content.

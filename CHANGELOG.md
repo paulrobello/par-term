@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Moved `Cell` type to `par-term-config` as a shared type between terminal and renderer crates
   - Defined `SearchMatch` type in `par-term-terminal` for terminal search results
   - Main crate re-exports all types for backward compatibility
+- **Settings UI Extraction**: Completed extraction of settings UI into `par-term-settings-ui` workspace crate (#170)
+  - Moved all 28 settings tab modules, sidebar, section helpers, and shader utilities into `par-term-settings-ui`
+  - Moved `SettingsUI` struct, `SettingsWindowAction` enum, and all settings data types into the crate
+  - Moved arrangement data types (`WindowArrangement`, `ArrangementManager`, etc.) to `par-term-settings-ui`
+  - Used callback pattern for cross-crate operations (shader install, self-update, shell integration)
+  - Main crate re-exports all types for backward compatibility
 - **Cell Renderer Extraction**: Extracted GPU rendering engine into `par-term-render` workspace crate (#167)
   - Moved `CellRenderer`, `Renderer`, `GraphicsRenderer`, `CustomShaderRenderer`, `Scrollbar`, and `gpu_utils` into `par-term-render`
   - Moved all WGSL shaders (cell_bg, cell_text, sixel, scrollbar, background_image) into `par-term-render`

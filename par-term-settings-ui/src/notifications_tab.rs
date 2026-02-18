@@ -12,7 +12,7 @@
 
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
-use crate::config::AlertEvent;
+use par_term_config::AlertEvent;
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;

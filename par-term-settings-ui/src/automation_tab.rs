@@ -6,7 +6,7 @@
 
 use super::SettingsUI;
 use super::section::collapsing_section;
-use crate::config::automation::{
+use par_term_config::automation::{
     CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
 };
 use std::collections::HashSet;

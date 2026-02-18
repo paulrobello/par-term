@@ -9,8 +9,8 @@
 
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
-use crate::config::StatusBarPosition;
-use crate::status_bar::config::{StatusBarSection, StatusBarWidgetConfig, WidgetId};
+use par_term_config::StatusBarPosition;
+use par_term_config::{StatusBarSection, StatusBarWidgetConfig, WidgetId};
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;

@@ -1,6 +1,6 @@
 //! SSH settings tab for the settings UI.
 
-use crate::settings_ui::SettingsUI;
+use crate::SettingsUI;
 
 impl SettingsUI {
     /// Render the SSH settings tab.

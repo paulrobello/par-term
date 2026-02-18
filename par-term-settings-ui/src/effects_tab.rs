@@ -10,7 +10,7 @@
 //! - Inline image settings (Sixel, iTerm2, Kitty)
 //! - Cursor shader settings
 
-use crate::config::ImageScalingMode;
+use par_term_config::ImageScalingMode;
 use std::collections::HashSet;
 
 use super::SettingsUI;

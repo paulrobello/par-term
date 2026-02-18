@@ -9,8 +9,8 @@
 
 use super::SettingsUI;
 use super::section::collapsing_section;
-use crate::config::snippets::{SnippetConfig, SnippetLibrary};
-use crate::settings_ui::input_tab::{capture_key_combo, display_key_combo};
+use crate::input_tab::{capture_key_combo, display_key_combo};
+use par_term_config::snippets::{SnippetConfig, SnippetLibrary};
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -670,7 +670,7 @@ fn show_variables_reference_section(
             ui.label("Built-in variables available for use in snippets:");
             ui.add_space(4.0);
 
-            use crate::config::snippets::BuiltInVariable;
+            use par_term_config::snippets::BuiltInVariable;
 
             egui::Grid::new("snippet_variables_grid")
                 .num_columns(2)

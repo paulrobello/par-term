@@ -7,8 +7,8 @@
 
 use super::SettingsUI;
 use super::section::collapsing_section;
-use crate::config::snippets::CustomActionConfig;
-use crate::settings_ui::input_tab::capture_key_combo;
+use crate::input_tab::capture_key_combo;
+use par_term_config::snippets::CustomActionConfig;
 use std::collections::HashSet;
 
 /// Show the actions tab content.

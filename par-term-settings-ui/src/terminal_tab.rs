@@ -243,7 +243,7 @@ fn show_behavior_section(
             egui::ComboBox::from_id_salt("shell_exit_action")
                 .selected_text(settings.config.shell_exit_action.display_name())
                 .show_ui(ui, |ui| {
-                    for action in crate::config::ShellExitAction::all() {
+                    for action in par_term_config::ShellExitAction::all() {
                         if ui
                             .selectable_value(
                                 &mut settings.config.shell_exit_action,
@@ -332,7 +332,8 @@ fn show_behavior_section(
                         .on_hover_text("Restore the default list of ignored jobs")
                         .clicked()
                     {
-                        settings.config.jobs_to_ignore = crate::config::defaults::jobs_to_ignore();
+                        settings.config.jobs_to_ignore =
+                            par_term_config::defaults::jobs_to_ignore();
                         settings.has_changes = true;
                         *changes_this_frame = true;
                     }
@@ -356,34 +357,31 @@ fn show_unicode_section(
         ui.horizontal(|ui| {
             ui.label("Unicode version:");
             let version_text = match settings.config.unicode_version {
-                par_term_emu_core_rust::UnicodeVersion::Unicode9 => "9.0",
-                par_term_emu_core_rust::UnicodeVersion::Unicode10 => "10.0",
-                par_term_emu_core_rust::UnicodeVersion::Unicode11 => "11.0",
-                par_term_emu_core_rust::UnicodeVersion::Unicode12 => "12.0",
-                par_term_emu_core_rust::UnicodeVersion::Unicode13 => "13.0",
-                par_term_emu_core_rust::UnicodeVersion::Unicode14 => "14.0",
-                par_term_emu_core_rust::UnicodeVersion::Unicode15 => "15.0",
-                par_term_emu_core_rust::UnicodeVersion::Unicode15_1 => "15.1",
-                par_term_emu_core_rust::UnicodeVersion::Unicode16 => "16.0",
-                par_term_emu_core_rust::UnicodeVersion::Auto => "Auto (latest)",
+                par_term_config::UnicodeVersion::Unicode9 => "9.0",
+                par_term_config::UnicodeVersion::Unicode10 => "10.0",
+                par_term_config::UnicodeVersion::Unicode11 => "11.0",
+                par_term_config::UnicodeVersion::Unicode12 => "12.0",
+                par_term_config::UnicodeVersion::Unicode13 => "13.0",
+                par_term_config::UnicodeVersion::Unicode14 => "14.0",
+                par_term_config::UnicodeVersion::Unicode15 => "15.0",
+                par_term_config::UnicodeVersion::Unicode15_1 => "15.1",
+                par_term_config::UnicodeVersion::Unicode16 => "16.0",
+                par_term_config::UnicodeVersion::Auto => "Auto (latest)",
             };
             egui::ComboBox::from_id_salt("terminal_unicode_version")
                 .selected_text(version_text)
                 .show_ui(ui, |ui| {
                     let versions = [
-                        (
-                            par_term_emu_core_rust::UnicodeVersion::Auto,
-                            "Auto (latest)",
-                        ),
-                        (par_term_emu_core_rust::UnicodeVersion::Unicode16, "16.0"),
-                        (par_term_emu_core_rust::UnicodeVersion::Unicode15_1, "15.1"),
-                        (par_term_emu_core_rust::UnicodeVersion::Unicode15, "15.0"),
-                        (par_term_emu_core_rust::UnicodeVersion::Unicode14, "14.0"),
-                        (par_term_emu_core_rust::UnicodeVersion::Unicode13, "13.0"),
-                        (par_term_emu_core_rust::UnicodeVersion::Unicode12, "12.0"),
-                        (par_term_emu_core_rust::UnicodeVersion::Unicode11, "11.0"),
-                        (par_term_emu_core_rust::UnicodeVersion::Unicode10, "10.0"),
-                        (par_term_emu_core_rust::UnicodeVersion::Unicode9, "9.0"),
+                        (par_term_config::UnicodeVersion::Auto, "Auto (latest)"),
+                        (par_term_config::UnicodeVersion::Unicode16, "16.0"),
+                        (par_term_config::UnicodeVersion::Unicode15_1, "15.1"),
+                        (par_term_config::UnicodeVersion::Unicode15, "15.0"),
+                        (par_term_config::UnicodeVersion::Unicode14, "14.0"),
+                        (par_term_config::UnicodeVersion::Unicode13, "13.0"),
+                        (par_term_config::UnicodeVersion::Unicode12, "12.0"),
+                        (par_term_config::UnicodeVersion::Unicode11, "11.0"),
+                        (par_term_config::UnicodeVersion::Unicode10, "10.0"),
+                        (par_term_config::UnicodeVersion::Unicode9, "9.0"),
                     ];
                     for (value, label) in versions {
                         if ui
@@ -406,8 +404,8 @@ fn show_unicode_section(
         ui.horizontal(|ui| {
             ui.label("Ambiguous width:");
             let width_text = match settings.config.ambiguous_width {
-                par_term_emu_core_rust::AmbiguousWidth::Narrow => "Narrow (1 cell)",
-                par_term_emu_core_rust::AmbiguousWidth::Wide => "Wide (2 cells)",
+                par_term_config::AmbiguousWidth::Narrow => "Narrow (1 cell)",
+                par_term_config::AmbiguousWidth::Wide => "Wide (2 cells)",
             };
             egui::ComboBox::from_id_salt("terminal_ambiguous_width")
                 .selected_text(width_text)
@@ -415,7 +413,7 @@ fn show_unicode_section(
                     if ui
                         .selectable_value(
                             &mut settings.config.ambiguous_width,
-                            par_term_emu_core_rust::AmbiguousWidth::Narrow,
+                            par_term_config::AmbiguousWidth::Narrow,
                             "Narrow (1 cell)",
                         )
                         .changed()
@@ -426,7 +424,7 @@ fn show_unicode_section(
                     if ui
                         .selectable_value(
                             &mut settings.config.ambiguous_width,
-                            par_term_emu_core_rust::AmbiguousWidth::Wide,
+                            par_term_config::AmbiguousWidth::Wide,
                             "Wide (2 cells)",
                         )
                         .changed()
@@ -446,27 +444,21 @@ fn show_unicode_section(
         ui.horizontal(|ui| {
             ui.label("Normalization:");
             let norm_text = match settings.config.normalization_form {
-                par_term_emu_core_rust::NormalizationForm::None => "None",
-                par_term_emu_core_rust::NormalizationForm::NFC => "NFC (default)",
-                par_term_emu_core_rust::NormalizationForm::NFD => "NFD",
-                par_term_emu_core_rust::NormalizationForm::NFKC => "NFKC",
-                par_term_emu_core_rust::NormalizationForm::NFKD => "NFKD",
+                par_term_config::NormalizationForm::None => "None",
+                par_term_config::NormalizationForm::NFC => "NFC (default)",
+                par_term_config::NormalizationForm::NFD => "NFD",
+                par_term_config::NormalizationForm::NFKC => "NFKC",
+                par_term_config::NormalizationForm::NFKD => "NFKD",
             };
             egui::ComboBox::from_id_salt("terminal_normalization_form")
                 .selected_text(norm_text)
                 .show_ui(ui, |ui| {
                     let forms = [
-                        (
-                            par_term_emu_core_rust::NormalizationForm::NFC,
-                            "NFC (default)",
-                        ),
-                        (par_term_emu_core_rust::NormalizationForm::NFD, "NFD"),
-                        (par_term_emu_core_rust::NormalizationForm::NFKC, "NFKC"),
-                        (par_term_emu_core_rust::NormalizationForm::NFKD, "NFKD"),
-                        (
-                            par_term_emu_core_rust::NormalizationForm::None,
-                            "None (disabled)",
-                        ),
+                        (par_term_config::NormalizationForm::NFC, "NFC (default)"),
+                        (par_term_config::NormalizationForm::NFD, "NFD"),
+                        (par_term_config::NormalizationForm::NFKC, "NFKC"),
+                        (par_term_config::NormalizationForm::NFKD, "NFKD"),
+                        (par_term_config::NormalizationForm::None, "None (disabled)"),
                     ];
                     for (value, label) in forms {
                         if ui
@@ -603,7 +595,7 @@ fn show_shell_section(
             egui::ComboBox::from_id_salt("startup_directory_mode")
                 .selected_text(mode_text)
                 .show_ui(ui, |ui| {
-                    use crate::config::StartupDirectoryMode;
+                    use par_term_config::StartupDirectoryMode;
                     for mode in StartupDirectoryMode::all() {
                         if ui
                             .selectable_value(
@@ -628,7 +620,7 @@ fn show_shell_section(
         });
 
         // Custom directory path (only shown when mode is Custom)
-        if settings.config.startup_directory_mode == crate::config::StartupDirectoryMode::Custom {
+        if settings.config.startup_directory_mode == par_term_config::StartupDirectoryMode::Custom {
             ui.horizontal(|ui| {
                 ui.label("Custom directory:");
                 if ui
@@ -660,7 +652,8 @@ fn show_shell_section(
         }
 
         // Show last working directory info when in Previous mode
-        if settings.config.startup_directory_mode == crate::config::StartupDirectoryMode::Previous {
+        if settings.config.startup_directory_mode == par_term_config::StartupDirectoryMode::Previous
+        {
             if let Some(ref last_dir) = settings.config.last_working_directory {
                 ui.label(
                     egui::RichText::new(format!("Last session: {}", last_dir))
@@ -1256,7 +1249,7 @@ fn show_semantic_history_section(
                 egui::ComboBox::from_id_salt("semantic_history_editor_mode")
                     .selected_text(settings.config.semantic_history_editor_mode.display_name())
                     .show_ui(ui, |ui| {
-                        for mode in crate::config::SemanticHistoryEditorMode::all() {
+                        for mode in par_term_config::SemanticHistoryEditorMode::all() {
                             if ui
                                 .selectable_value(
                                     &mut settings.config.semantic_history_editor_mode,
@@ -1274,13 +1267,13 @@ fn show_semantic_history_section(
 
             // Show description based on selected mode
             let mode_description = match settings.config.semantic_history_editor_mode {
-                crate::config::SemanticHistoryEditorMode::Custom => {
+                par_term_config::SemanticHistoryEditorMode::Custom => {
                     "Use the custom editor command configured below"
                 }
-                crate::config::SemanticHistoryEditorMode::EnvironmentVariable => {
+                par_term_config::SemanticHistoryEditorMode::EnvironmentVariable => {
                     "Use the $EDITOR environment variable"
                 }
-                crate::config::SemanticHistoryEditorMode::SystemDefault => {
+                par_term_config::SemanticHistoryEditorMode::SystemDefault => {
                     "Use the system default application for each file type"
                 }
             };
@@ -1288,7 +1281,7 @@ fn show_semantic_history_section(
 
             // Only show custom editor command when mode is Custom
             if settings.config.semantic_history_editor_mode
-                == crate::config::SemanticHistoryEditorMode::Custom
+                == par_term_config::SemanticHistoryEditorMode::Custom
             {
                 ui.add_space(4.0);
 

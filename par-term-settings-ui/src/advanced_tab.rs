@@ -13,10 +13,10 @@
 
 use super::SettingsUI;
 use super::section::{INPUT_WIDTH, collapsing_section};
-use crate::config::{
+use crate::format_timestamp;
+use par_term_config::{
     Config, DownloadSaveLocation, LogLevel, SessionLogFormat, UpdateCheckFrequency,
 };
-use crate::update_checker::format_timestamp;
 use std::collections::HashSet;
 
 /// Show the advanced tab content.
@@ -352,9 +352,9 @@ fn import_preferences_from_url(
         return;
     }
 
-    let agent = crate::http::agent();
+    let agent = crate::http_agent();
     match agent.get(&url).call() {
-        Ok(response) => match response.into_body().read_to_string() {
+        Ok(response) => match response.into_string() {
             Ok(content) => {
                 apply_imported_config(settings, changes_this_frame, &content, mode);
             }
@@ -935,13 +935,13 @@ fn show_updates_section(
         if let Some(ref result) = settings.last_update_result {
             ui.add_space(4.0);
             match result {
-                crate::update_checker::UpdateCheckResult::UpToDate => {
+                crate::UpdateCheckResult::UpToDate => {
                     ui.label(
                         egui::RichText::new("You are running the latest version.")
                             .color(egui::Color32::from_rgb(100, 200, 100)),
                     );
                 }
-                crate::update_checker::UpdateCheckResult::UpdateAvailable(info) => {
+                crate::UpdateCheckResult::UpdateAvailable(info) => {
                     let version_str = info.version.strip_prefix('v').unwrap_or(&info.version);
                     ui.label(
                         egui::RichText::new(format!("Version {} is available!", version_str))
@@ -955,9 +955,9 @@ fn show_updates_section(
                     ui.add_space(4.0);
 
                     // Detect installation type to decide what button to show
-                    let installation = crate::self_updater::detect_installation();
+                    let installation = settings.installation_type;
                     match installation {
-                        crate::self_updater::InstallationType::Homebrew => {
+                        crate::InstallationType::Homebrew => {
                             ui.label(
                                 egui::RichText::new(
                                     "Update via Homebrew: brew upgrade --cask par-term",
@@ -965,7 +965,7 @@ fn show_updates_section(
                                 .color(egui::Color32::GRAY),
                             );
                         }
-                        crate::self_updater::InstallationType::CargoInstall => {
+                        crate::InstallationType::CargoInstall => {
                             ui.label(
                                 egui::RichText::new("Update via cargo: cargo install par-term")
                                     .color(egui::Color32::GRAY),
@@ -993,7 +993,7 @@ fn show_updates_section(
                         }
                     }
                 }
-                crate::update_checker::UpdateCheckResult::Error(e) => {
+                crate::UpdateCheckResult::Error(e) => {
                     ui.label(
                         egui::RichText::new(format!("Check failed: {}", e))
                             .color(egui::Color32::from_rgb(255, 100, 100)),
@@ -1171,7 +1171,7 @@ fn show_debug_logging_section(
             });
 
             ui.add_space(4.0);
-            let log_path = crate::debug::log_path();
+            let log_path = crate::log_path();
             ui.horizontal(|ui| {
                 ui.label("Log file:");
                 ui.label(

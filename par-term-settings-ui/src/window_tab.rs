@@ -12,7 +12,7 @@
 
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
-use crate::config::{
+use par_term_config::{
     DividerStyle, PaneTitlePosition, PowerPreference, TabBarMode, TabBarPosition, TabStyle,
     VsyncMode, WindowType,
 };
