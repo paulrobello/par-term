@@ -1,0 +1,24 @@
+[package]
+name = "par-term-ssh"
+version = "0.1.0"
+edition = "2024"
+authors = ["Paul Robello <probello@gmail.com>"]
+description = "SSH host management and discovery for par-term terminal emulator"
+license = "MIT"
+repository = "https://github.com/paulrobello/par-term"
+homepage = "https://github.com/paulrobello/par-term"
+keywords = ["terminal", "ssh", "mdns", "discovery"]
+categories = ["network-programming"]
+
+[dependencies]
+# Serialization
+serde = { version = "1.0.228", features = ["derive"] }
+
+# mDNS/Bonjour service discovery for SSH host auto-detection
+mdns-sd = "0.18"
+
+# Platform-specific directories (home dir for ~/.ssh)
+dirs = "6.0"
+
+# Logging
+log = "0.4.29"

@@ -1,14 +1,6 @@
-//! SSH subsystem for host management, discovery, and quick connect.
-//!
-//! Provides SSH config parsing, known_hosts scanning, shell history extraction,
-//! and mDNS/Bonjour discovery for SSH hosts.
+//! SSH subsystem re-exports from the `par-term-ssh` crate.
 
-pub mod config_parser;
-pub mod discovery;
-pub mod history;
-pub mod known_hosts;
-pub mod mdns;
-pub mod types;
+pub use par_term_ssh::*;
 
-pub use discovery::discover_local_hosts;
-pub use types::{SshHost, SshHostSource};
+// Re-export submodules for backward compatibility
+pub use par_term_ssh::mdns;
