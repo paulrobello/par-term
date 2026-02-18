@@ -2931,6 +2931,8 @@ impl WindowState {
                 // When no modal UI overlay is visible, filter out Tab key events to prevent
                 // egui's default focus navigation from stealing Tab/Shift+Tab from the terminal.
                 // Tab/Shift+Tab should only cycle focus between egui widgets when a modal is open.
+                // Note: Side panels (ai_inspector, profile drawer) are NOT modals — the terminal
+                // should still receive Tab/Shift+Tab when they are open.
                 let any_modal_visible = self.help_ui.visible
                     || self.clipboard_history_ui.visible
                     || self.command_history_ui.visible
@@ -2939,7 +2941,6 @@ impl WindowState {
                     || self.search_ui.visible
                     || self.tmux_session_picker_ui.visible
                     || self.ssh_connect_ui.is_visible()
-                    || self.ai_inspector.open
                     || self.quit_confirmation_ui.is_visible();
                 if !any_modal_visible {
                     raw_input.events.retain(|e| {
