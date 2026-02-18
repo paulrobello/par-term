@@ -11,14 +11,9 @@ impl TerminalManager {
         let term = terminal.lock();
         let graphics: Vec<_> = term.all_graphics().to_vec();
         if !graphics.is_empty() {
-            debug_info!(
-                "TERMINAL",
-                "Returning {} graphics from core library",
-                graphics.len()
-            );
+            log::debug!("Returning {} graphics from core library", graphics.len());
             for (i, g) in graphics.iter().enumerate() {
-                debug_trace!(
-                    "TERMINAL",
+                log::trace!(
                     "  [{}] protocol={:?}, pos=({},{}), size={}x{}",
                     i,
                     g.protocol,
@@ -62,10 +57,6 @@ impl TerminalManager {
     }
 
     /// Update animations and return true if any frames changed
-    ///
-    /// This should be called periodically (e.g., in the redraw loop) to advance
-    /// animation frames based on timing. Returns true if any animation advanced
-    /// to a new frame, indicating that a redraw is needed.
     pub fn update_animations(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -75,9 +66,6 @@ impl TerminalManager {
     }
 
     /// Get all graphics with current animation frames
-    ///
-    /// For animated graphics, returns the current frame based on animation state.
-    /// For static graphics, returns the original graphic unchanged.
     pub fn get_graphics_with_animations(&self) -> Vec<TerminalGraphic> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -85,19 +73,15 @@ impl TerminalManager {
 
         let mut graphics = Vec::new();
 
-        // First, collect all base graphics
         let base_graphics: Vec<_> = term.all_graphics().to_vec();
 
-        debug_log!(
-            "TERMINAL",
+        log::debug!(
             "get_graphics_with_animations() - base_graphics count: {}",
             base_graphics.len()
         );
 
-        // Then, for each graphic, check if it has an animation and get current frame
         for (idx, graphic) in base_graphics.iter().enumerate() {
-            debug_trace!(
-                "TERMINAL",
+            log::trace!(
                 "Processing graphic {} - pos=({},{}), size={}x{}, kitty_id={:?}",
                 idx,
                 graphic.position.0,
@@ -107,19 +91,16 @@ impl TerminalManager {
                 graphic.kitty_image_id
             );
 
-            // Check if this graphic has an active animation
             if let Some(image_id) = graphic.kitty_image_id
                 && let Some(anim) = term.graphics_store().get_animation(image_id)
                 && let Some(current_frame) = anim.current_frame()
             {
-                // Create a graphic from the current animation frame
                 let mut animated_graphic = graphic.clone();
                 animated_graphic.pixels = current_frame.pixels.clone();
                 animated_graphic.width = current_frame.width;
                 animated_graphic.height = current_frame.height;
 
-                debug_info!(
-                    "TERMINAL",
+                log::debug!(
                     "Using animated frame {} for image {}",
                     anim.current_frame,
                     image_id
@@ -128,12 +109,11 @@ impl TerminalManager {
                 graphics.push(animated_graphic);
                 continue;
             }
-            // Not animated or no current frame - use original graphic
-            debug_trace!("TERMINAL", "Using static graphic {}", idx);
+            log::trace!("Using static graphic {}", idx);
             graphics.push(graphic.clone());
         }
 
-        debug_log!("TERMINAL", "Returning {} graphics total", graphics.len());
+        log::debug!("Returning {} graphics total", graphics.len());
         graphics
     }
 }

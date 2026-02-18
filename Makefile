@@ -140,10 +140,10 @@ run-release-debug: release
 	@echo ""
 	RUST_LOG=debug DEBUG_LEVEL=3 ./target/release/par-term
 
-# Run all tests
+# Run all tests (workspace-wide)
 test:
 	@echo "Running tests..."
-	cargo test
+	cargo test --workspace
 
 # Run tests with output
 test-verbose:

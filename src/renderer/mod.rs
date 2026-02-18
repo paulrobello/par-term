@@ -9,8 +9,8 @@ use winit::window::Window;
 pub mod graphics;
 pub mod shaders;
 
-/// A visible separator mark: (screen_row, exit_code, custom_color_override)
-pub type SeparatorMark = (usize, Option<i32>, Option<(u8, u8, u8)>);
+// Re-export SeparatorMark from par-term-config
+pub use par_term_config::SeparatorMark;
 
 /// Compute which separator marks are visible in the current viewport.
 ///

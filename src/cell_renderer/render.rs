@@ -1,8 +1,8 @@
 use super::block_chars;
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, RowCacheEntry, TextInstance};
-use crate::renderer::SeparatorMark;
 use crate::text_shaper::ShapingOptions;
 use anyhow::Result;
+use par_term_config::SeparatorMark;
 
 impl CellRenderer {
     pub fn render(

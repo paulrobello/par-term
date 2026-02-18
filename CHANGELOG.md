@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Font Manager Extraction**: Extracted font management and text shaping into `par-term-fonts` workspace crate (#165)
+  - Moved `FontManager`, `FontData`, `TextShaper`, and fallback chain into `par-term-fonts`
+  - Main crate re-exports all types for backward compatibility
+  - Includes embedded DejaVu Sans Mono fallback font and integration tests
+- **Terminal Manager Extraction**: Extracted terminal manager into `par-term-terminal` workspace crate (#166)
+  - Moved `TerminalManager`, scrollback metadata, styled content, and all terminal submodules into `par-term-terminal`
+  - Moved `Cell` type to `par-term-config` as a shared type between terminal and renderer crates
+  - Defined `SearchMatch` type in `par-term-terminal` for terminal search results
+  - Main crate re-exports all types for backward compatibility
 - **Assistant Panel Rebrand**: Renamed "AI Inspector" to "Assistant" throughout the UI
   - Panel title, settings sidebar tab, settings checkboxes/tooltips, and log messages all updated
   - Internal code identifiers (`ai_inspector`) unchanged for backwards compatibility

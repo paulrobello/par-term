@@ -873,7 +873,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
     #[test]
     fn test_format_cursor_metadata_block() {
-        use crate::config::CursorShaderConfig;
+        use crate::CursorShaderConfig;
 
         let metadata = super::CursorShaderMetadata {
             name: Some("Test Cursor".to_string()),
