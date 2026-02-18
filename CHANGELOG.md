@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Refactor**: Extracted update system into new `par-term-update` workspace subcrate — moved ~1,170 lines from `src/manifest.rs`, `src/self_updater.rs`, `src/update_checker.rs` into dedicated crate; heavy deps (`zip`, `sha2`, `ureq`, `semver`, `chrono`) isolated from main crate; source files replaced with re-export shims (closes #179)
 - **Refactor**: Extracted input handler into new `par-term-input` workspace subcrate — moved ~505 lines from `src/input.rs` into dedicated crate with `par-term-config`, `arboard`, and `winit` dependencies; `src/input.rs` is now a thin re-export shim (closes #180)
 - **Refactor**: Extracted MCP stdio server into new `par-term-mcp` workspace subcrate — moved ~580 lines from `src/mcp_server.rs` into dedicated crate with only `serde`, `serde_json`, and `dirs` dependencies; zero internal crate dependencies make it independently publishable (closes #181)
+- **Refactor**: Moved `PaneId` and `TabId` type definitions into `par-term-config` for shared access across subcrates — `src/pane/types.rs` and `src/tab/mod.rs` now re-export from `par-term-config`; `src/tmux/sync.rs` imports directly from `par-term-config`, removing its internal crate coupling (closes #183)
 
 ---
 

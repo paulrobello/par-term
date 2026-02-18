@@ -40,12 +40,12 @@ pub use types::{
     CursorShaderMetadata, CursorStyle, DividerRect, DividerStyle, DownloadSaveLocation,
     DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState, IntegrationVersions,
     KeyBinding, LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode, PaneBackground,
-    PaneBackgroundConfig, PaneTitlePosition, PowerPreference, ProgressBarPosition,
+    PaneBackgroundConfig, PaneId, PaneTitlePosition, PowerPreference, ProgressBarPosition,
     ProgressBarStyle, SemanticHistoryEditorMode, SeparatorMark, SessionLogFormat, ShaderConfig,
     ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType, SmartSelectionPrecision,
     SmartSelectionRule, StartupDirectoryMode, StatusBarPosition, TabBarMode, TabBarPosition,
-    TabStyle, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
-    default_smart_selection_rules,
+    TabId, TabStyle, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode,
+    WindowType, default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
