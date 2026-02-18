@@ -3645,6 +3645,7 @@ dependencies = [
  "par-term-fonts",
  "par-term-render",
  "par-term-settings-ui",
+ "par-term-ssh",
  "par-term-terminal",
  "parking_lot",
  "raw-window-handle",
@@ -3794,6 +3795,16 @@ dependencies = [
  "tokio",
  "ureq",
  "uuid",
+]
+
+[[package]]
+name = "par-term-ssh"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "log",
+ "mdns-sd",
+ "serde",
 ]
 
 [[package]]
