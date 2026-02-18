@@ -12,7 +12,7 @@ categories = ["gui"]
 
 [dependencies]
 # Configuration system (internal)
-par-term-config = { path = "../par-term-config", features = ["wgpu-types"] }
+par-term-config = { path = "../par-term-config", version = "0.1.0", features = ["wgpu-types"] }
 
 # egui for UI
 egui = "0.33.3"

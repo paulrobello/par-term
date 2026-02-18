@@ -15,7 +15,7 @@ categories = ["command-line-utilities"]
 par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
 
 # Configuration (for Theme, Color, Cell types)
-par-term-config = { path = "../par-term-config" }
+par-term-config = { path = "../par-term-config", version = "0.1.0" }
 
 # Synchronization
 parking_lot = "0.12.5"

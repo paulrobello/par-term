@@ -27,7 +27,7 @@ unicode-segmentation = "1.12"
 lru = "0.16.3"
 
 # Configuration types (FontRange)
-par-term-config = { path = "../par-term-config" }
+par-term-config = { path = "../par-term-config", version = "0.1.0" }
 
 # Error handling
 anyhow = "1.0.101"
