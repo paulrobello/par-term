@@ -14,7 +14,7 @@
 //! 3. Receive notifications via the terminal's parser
 //! 4. Route input via `send-keys` commands written to the same PTY
 
-use super::types::{TmuxPaneId, TmuxSessionInfo, TmuxWindow, TmuxWindowId};
+use crate::types::{TmuxPaneId, TmuxSessionInfo, TmuxWindow, TmuxWindowId};
 use std::collections::HashMap;
 
 /// State of a tmux control mode session
@@ -254,9 +254,8 @@ impl TmuxSession {
             TmuxNotification::ControlModeStarted => {
                 // Received %begin - transition from Initiating to Detecting
                 if self.gateway_state == GatewayState::Initiating {
-                    crate::debug_info!(
-                        "TMUX",
-                        "Control mode started (%begin), transitioning to Detecting"
+                    log::info!(
+                        "[TMUX] Control mode started (%begin), transitioning to Detecting"
                     );
                     self.set_gateway_detecting();
                     return true;
@@ -268,9 +267,8 @@ impl TmuxSession {
                     self.gateway_state,
                     GatewayState::Initiating | GatewayState::Detecting
                 ) {
-                    crate::debug_info!(
-                        "TMUX",
-                        "Session started, transitioning to Connected: {}",
+                    log::info!(
+                        "[TMUX] Session started, transitioning to Connected: {}",
                         name
                     );
                     self.set_gateway_connected(name.clone());
@@ -280,32 +278,30 @@ impl TmuxSession {
             TmuxNotification::SessionEnded => {
                 // Only treat as session end if we were actually connected
                 if self.gateway_state == GatewayState::Connected {
-                    crate::debug_info!("TMUX", "Session ended while connected");
+                    log::info!("[TMUX] Session ended while connected");
                     self.set_gateway_ended();
                     return true;
                 } else if self.gateway_state == GatewayState::Detecting {
                     // Exit during detection - tmux started but session failed
-                    crate::debug_error!(
-                        "TMUX",
-                        "Session exit during detection - session creation failed"
+                    log::error!(
+                        "[TMUX] Session exit during detection - session creation failed"
                     );
                     self.set_gateway_ended();
                     return true;
                 } else if self.gateway_state == GatewayState::Initiating {
                     // Exit before %begin received - this is unusual but handle it
-                    crate::debug_error!(
-                        "TMUX",
-                        "Session exit before control mode started - tmux failed to start"
+                    log::error!(
+                        "[TMUX] Session exit before control mode started - tmux failed to start"
                     );
                     self.set_gateway_ended();
                     return true;
                 }
             }
             TmuxNotification::Error(msg) => {
-                crate::debug_error!("TMUX", "Gateway error: {}", msg);
+                log::error!("[TMUX] Gateway error: {}", msg);
                 // Only treat errors as fatal during early initiation (before %begin)
                 if self.gateway_state == GatewayState::Initiating {
-                    crate::debug_error!("TMUX", "Error during initiation - connection failed");
+                    log::error!("[TMUX] Error during initiation - connection failed");
                     self.set_gateway_ended();
                     return true;
                 }

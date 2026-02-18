@@ -6,8 +6,8 @@
 //! - Syncing layout changes
 //! - Routing input/output to correct panes
 
-use super::session::TmuxNotification;
-use super::types::{TmuxPaneId, TmuxWindowId};
+use crate::session::TmuxNotification;
+use crate::types::{TmuxPaneId, TmuxWindowId};
 use par_term_config::{PaneId, TabId};
 use std::collections::HashMap;
 

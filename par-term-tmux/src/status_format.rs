@@ -18,7 +18,7 @@
 //! tmux directly using `display-message -p '#{T:status-left}'` for the actual
 //! expanded tmux format strings.
 
-use super::TmuxSession;
+use crate::TmuxSession;
 use chrono::Local;
 
 /// Context for format string expansion.

@@ -4,8 +4,8 @@
 //! notification types. It converts core library notifications to the frontend's
 //! `TmuxNotification` enum and handles pane ID format conversion.
 
-use super::session::TmuxNotification;
-use super::types::{TmuxPaneId, TmuxWindowId};
+use crate::session::TmuxNotification;
+use crate::types::{TmuxPaneId, TmuxWindowId};
 
 /// Parsed ID with the prefix character stripped
 #[derive(Debug, Clone)]
@@ -173,16 +173,15 @@ impl ParserBridge {
 
             // Unknown notifications
             CoreNotification::Unknown { line } => {
-                crate::debug_trace!("TMUX", "Unknown notification: {}", line);
+                log::trace!("[TMUX] Unknown notification: {}", line);
                 None
             }
 
             // Terminal output (non-control mode data) - should not happen in gateway mode
             // but if it does, treat as error
             CoreNotification::TerminalOutput { data } => {
-                crate::debug_trace!(
-                    "TMUX",
-                    "Unexpected terminal output in control mode: {} bytes",
+                log::trace!(
+                    "[TMUX] Unexpected terminal output in control mode: {} bytes",
                     data.len()
                 );
                 None
