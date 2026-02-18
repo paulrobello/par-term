@@ -503,19 +503,10 @@ impl CustomShaderRenderer {
                 occlusion_query_set: None,
             });
 
-            // Set viewport to exclude right inset area (e.g., AI Inspector panel)
-            // This ensures the shader only renders to the terminal content area
-            if self.content_inset_right > 0.0 {
-                let available_width = (self.texture_width as f32 - self.content_inset_right).max(1.0);
-                render_pass.set_viewport(
-                    0.0, // x offset
-                    0.0, // y offset
-                    available_width,
-                    self.texture_height as f32,
-                    0.0, // min depth
-                    1.0, // max depth
-                );
-            }
+            // Note: We intentionally do NOT set a viewport here to exclude the panel area.
+            // The viewport approach doesn't work because fragCoord in WGSL is relative to
+            // the render target, not the viewport, causing UV coordinate mismatches.
+            // The opaque panel (PANEL_BG with alpha 255) covers any shader output under it.
 
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &self.bind_group, &[]);
