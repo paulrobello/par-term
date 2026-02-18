@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Refactor**: Collapsed `src/config/` re-export layer — replaced ~4,800 lines of duplicate code with a single `pub use par_term_config::*;`, eliminating all duplicate files (`types.rs`, `defaults.rs`, `snippets.rs`, `shader_config.rs`, `shader_metadata.rs`, `automation.rs`, `scripting.rs`, `watcher.rs`) from `src/config/` (closes #182)
 - **Refactor**: Extracted SSH subsystem into new `par-term-ssh` workspace subcrate — moved ~1,174 lines from `src/ssh/` into dedicated crate with `mdns-sd`, `serde`, and `dirs` dependencies; `src/ssh/mod.rs` is now a thin re-export shim (closes #176)
 - **Refactor**: Extracted keybinding system into new `par-term-keybindings` workspace subcrate — moved ~1,490 lines from `src/keybindings/` into dedicated crate with `par-term-config` and `winit` dependencies; `src/keybindings/mod.rs` is now a thin re-export shim (closes #177)
+- **Refactor**: Extracted scripting/observer system into new `par-term-scripting` workspace subcrate — moved ~877 lines from `src/scripting/` into dedicated crate with `par-term-config`, `par-term-emu-core-rust`, and `serde_json` dependencies; `src/scripting/mod.rs` is now a thin re-export shim (closes #178)
 
 ---
 
