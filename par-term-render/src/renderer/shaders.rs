@@ -31,7 +31,7 @@ pub(super) fn init_custom_shader(
         return (None, None);
     };
 
-    let path = crate::config::Config::shader_path(shader_path);
+    let path = par_term_config::Config::shader_path(shader_path);
     match CustomShaderRenderer::new(
         cell_renderer.device(),
         cell_renderer.queue(),
@@ -66,18 +66,16 @@ pub(super) fn init_custom_shader(
                 );
             }
 
-            crate::debug_info!(
-                "SHADER",
-                "Custom shader renderer initialized from: {} (use_bg_as_ch0={})",
+            log::info!(
+                "[SHADER] Custom shader renderer initialized from: {} (use_bg_as_ch0={})",
                 path.display(),
                 use_background_as_channel0
             );
             (Some(renderer), Some(shader_path.to_string()))
         }
         Err(e) => {
-            crate::debug_info!(
-                "SHADER",
-                "ERROR: Failed to load custom shader '{}': {}",
+            log::info!(
+                "[SHADER] ERROR: Failed to load custom shader '{}': {}",
                 path.display(),
                 e
             );
@@ -101,9 +99,8 @@ pub(super) fn init_cursor_shader(
     cursor_shader_animation_speed: f32,
     window_opacity: f32,
 ) -> (Option<CustomShaderRenderer>, Option<String>) {
-    debug_log!(
-        "cursor-shader",
-        "Init: enabled={}, path={:?}, animation={}, speed={}",
+    log::debug!(
+        "[cursor-shader] Init: enabled={}, path={:?}, animation={}, speed={}",
         cursor_shader_enabled,
         cursor_shader_path,
         cursor_shader_animation,
@@ -111,16 +108,16 @@ pub(super) fn init_cursor_shader(
     );
 
     if !cursor_shader_enabled {
-        debug_info!("cursor-shader", "Disabled by config");
+        log::info!("[cursor-shader] Disabled by config");
         return (None, None);
     }
 
     let Some(shader_path) = cursor_shader_path else {
-        debug_info!("cursor-shader", "Enabled but no path provided");
+        log::info!("[cursor-shader] Enabled but no path provided");
         return (None, None);
     };
 
-    let path = crate::config::Config::shader_path(shader_path);
+    let path = par_term_config::Config::shader_path(shader_path);
     let empty_channels: [Option<std::path::PathBuf>; 4] = [None, None, None, None];
 
     match CustomShaderRenderer::new(
@@ -142,9 +139,8 @@ pub(super) fn init_cursor_shader(
             let cell_h = cell_renderer.cell_height();
             renderer.update_cell_dimensions(cell_w, cell_h, window_padding);
             renderer.set_scale_factor(cell_renderer.scale_factor);
-            crate::debug_info!(
-                "SHADER",
-                "Cursor shader renderer initialized from: {} (cell={}x{}, padding={})",
+            log::info!(
+                "[SHADER] Cursor shader renderer initialized from: {} (cell={}x{}, padding={})",
                 path.display(),
                 cell_w,
                 cell_h,
@@ -153,9 +149,8 @@ pub(super) fn init_cursor_shader(
             (Some(renderer), Some(shader_path.to_string()))
         }
         Err(e) => {
-            crate::debug_info!(
-                "SHADER",
-                "ERROR: Failed to load cursor shader '{}': {}",
+            log::info!(
+                "[SHADER] ERROR: Failed to load cursor shader '{}': {}",
                 path.display(),
                 e
             );
@@ -314,9 +309,8 @@ impl Renderer {
         animation_enabled: bool,
         animation_speed: f32,
     ) -> Result<(), String> {
-        debug_log!(
-            "cursor-shader",
-            "Toggle: enabled={}, path={:?}, animation={}, speed={}, opacity={}",
+        log::debug!(
+            "[cursor-shader] Toggle: enabled={}, path={:?}, animation={}, speed={}, opacity={}",
             enabled,
             path,
             animation_enabled,
@@ -335,14 +329,11 @@ impl Renderer {
                     renderer.set_animation_speed(animation_speed);
                     renderer.set_opacity(window_opacity);
                     self.dirty = true;
-                    debug_info!(
-                        "cursor-shader",
-                        "Already loaded; updated animation/opacities"
-                    );
+                    log::info!("[cursor-shader] Already loaded; updated animation/opacities");
                     return Ok(());
                 }
 
-                let shader_path_full = crate::config::Config::shader_path(path);
+                let shader_path_full = par_term_config::Config::shader_path(path);
                 // Cursor shader doesn't use channel textures or cubemaps
                 let empty_channels: [Option<std::path::PathBuf>; 4] = [None, None, None, None];
                 match CustomShaderRenderer::new(
@@ -404,9 +395,8 @@ impl Renderer {
                                 );
                             }
                         }
-                        debug_info!(
-                            "cursor-shader",
-                            "Enabled at runtime: {}",
+                        log::info!(
+                            "[cursor-shader] Enabled at runtime: {}",
                             shader_path_full.display()
                         );
                         self.cursor_shader_renderer = Some(renderer);
@@ -420,16 +410,16 @@ impl Renderer {
                             shader_path_full.display(),
                             e
                         );
-                        debug_error!("cursor-shader", "{}", error_msg);
+                        log::error!("[cursor-shader] {}", error_msg);
                         Err(error_msg)
                     }
                 }
             }
             _ => {
                 if self.cursor_shader_renderer.is_some() {
-                    debug_info!("cursor-shader", "Disabled at runtime");
+                    log::info!("[cursor-shader] Disabled at runtime");
                 } else {
-                    debug_log!("cursor-shader", "Already disabled");
+                    log::debug!("[cursor-shader] Already disabled");
                 }
                 self.cursor_shader_renderer = None;
                 self.cursor_shader_path = None;
@@ -541,7 +531,7 @@ impl Renderer {
                     return Ok(());
                 }
 
-                let shader_path_full = crate::config::Config::shader_path(path);
+                let shader_path_full = par_term_config::Config::shader_path(path);
                 match CustomShaderRenderer::new(
                     self.cell_renderer.device(),
                     self.cell_renderer.queue(),
@@ -575,9 +565,8 @@ impl Renderer {
                             self.cell_renderer.solid_background_color(),
                             false,
                         );
-                        crate::debug_info!(
-                            "SHADER",
-                            "Custom shader enabled at runtime: {}",
+                        log::info!(
+                            "[SHADER] Custom shader enabled at runtime: {}",
                             shader_path_full.display()
                         );
                         self.custom_shader_renderer = Some(renderer);
@@ -595,14 +584,14 @@ impl Renderer {
                             shader_path_full.display(),
                             e
                         );
-                        crate::debug_info!("SHADER", "ERROR: {}", error_msg);
+                        log::info!("[SHADER] ERROR: {}", error_msg);
                         Err(error_msg)
                     }
                 }
             }
             _ => {
                 if self.custom_shader_renderer.is_some() {
-                    crate::debug_info!("SHADER", "Custom shader disabled at runtime");
+                    log::info!("[SHADER] Custom shader disabled at runtime");
                 }
                 self.custom_shader_renderer = None;
                 self.custom_shader_path = None;
@@ -714,17 +703,17 @@ impl Renderer {
     pub fn update_background_as_channel0_with_mode(
         &mut self,
         use_background: bool,
-        background_mode: crate::config::BackgroundMode,
+        background_mode: par_term_config::BackgroundMode,
         color: [u8; 3],
     ) {
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
             // Get the appropriate texture based on background mode
             let bg_texture = match background_mode {
-                crate::config::BackgroundMode::Default => {
+                par_term_config::BackgroundMode::Default => {
                     log::info!("update_background_as_channel0_with_mode: Default mode, no texture");
                     None
                 }
-                crate::config::BackgroundMode::Color => {
+                par_term_config::BackgroundMode::Color => {
                     // Create a solid color texture for the shader
                     log::info!(
                         "update_background_as_channel0_with_mode: Color mode, creating solid color texture RGB({},{},{})",
@@ -734,7 +723,7 @@ impl Renderer {
                     );
                     Some(self.cell_renderer.get_solid_color_as_channel_texture(color))
                 }
-                crate::config::BackgroundMode::Image => {
+                par_term_config::BackgroundMode::Image => {
                     // Use the existing background image texture
                     let tex = self.cell_renderer.get_background_as_channel_texture();
                     log::info!(

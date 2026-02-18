@@ -45,9 +45,8 @@ impl Renderer {
                 // This keeps the graphic at its original absolute position as scrollback grows
                 let absolute_row = scrollback_len.saturating_sub(graphic.scroll_offset_rows) + row;
 
-                debug_trace!(
-                    "RENDERER",
-                    "CALC: scrollback_len={}, row={}, scroll_offset_rows={}, absolute_row={}, view_start={}, screen_row={}",
+                log::trace!(
+                    "[RENDERER] CALC: scrollback_len={}, row={}, scroll_offset_rows={}, absolute_row={}, view_start={}, screen_row={}",
                     scrollback_len,
                     row,
                     graphic.scroll_offset_rows,
@@ -59,9 +58,8 @@ impl Renderer {
                 absolute_row as isize - view_start as isize
             };
 
-            debug_log!(
-                "RENDERER",
-                "Graphics update: id={}, protocol={:?}, pos=({},{}), screen_row={}, scrollback_row={:?}, scroll_offset_rows={}, size={}x{}, view=[{},{})",
+            log::debug!(
+                "[RENDERER] Graphics update: id={}, protocol={:?}, pos=({},{}), screen_row={}, scrollback_row={:?}, scroll_offset_rows={}, size={}x{}, view=[{},{})",
                 id,
                 graphic.protocol,
                 col,

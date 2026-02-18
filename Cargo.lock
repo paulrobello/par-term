@@ -3659,6 +3659,7 @@ dependencies = [
  "par-term-config",
  "par-term-emu-core-rust",
  "par-term-fonts",
+ "par-term-render",
  "par-term-terminal",
  "parking_lot",
  "raw-window-handle",
@@ -3759,6 +3760,28 @@ dependencies = [
  "rustybuzz",
  "swash",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "par-term-render"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "dirs",
+ "egui",
+ "egui-wgpu",
+ "half",
+ "image",
+ "log",
+ "naga",
+ "par-term-config",
+ "par-term-emu-core-rust",
+ "par-term-fonts",
+ "parking_lot",
+ "swash",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

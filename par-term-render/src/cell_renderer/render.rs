@@ -1,14 +1,14 @@
 use super::block_chars;
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, RowCacheEntry, TextInstance};
-use crate::text_shaper::ShapingOptions;
 use anyhow::Result;
 use par_term_config::SeparatorMark;
+use par_term_fonts::text_shaper::ShapingOptions;
 
 impl CellRenderer {
     pub fn render(
         &mut self,
         _show_scrollbar: bool,
-        pane_background: Option<&crate::pane::PaneBackground>,
+        pane_background: Option<&par_term_config::PaneBackground>,
     ) -> Result<wgpu::SurfaceTexture> {
         let output = self.surface.get_current_texture()?;
         let view = output
@@ -60,9 +60,8 @@ impl CellRenderer {
         } else if self.bg_is_solid_color {
             // Solid color mode: use clear color directly for proper window transparency
             // This works the same as Default mode - LoadOp::Clear sets alpha correctly
-            debug_info!(
-                "BACKGROUND",
-                "Solid color mode: RGB({:.3}, {:.3}, {:.3}) * opacity {:.3}",
+            log::info!(
+                "[BACKGROUND] Solid color mode: RGB({:.3}, {:.3}, {:.3}) * opacity {:.3}",
                 self.solid_bg_color[0],
                 self.solid_bg_color[1],
                 self.solid_bg_color[2],
@@ -200,9 +199,8 @@ impl CellRenderer {
 
             // Render background IMAGE (not solid color) via bg_image_pipeline at full opacity
             if render_background_image && let Some(ref bg_bind_group) = self.bg_image_bind_group {
-                debug_info!(
-                    "BACKGROUND",
-                    "render_to_texture: bg_image_pipeline (image, window_opacity={:.3} applied by shader)",
+                log::info!(
+                    "[BACKGROUND] render_to_texture: bg_image_pipeline (image, window_opacity={:.3} applied by shader)",
                     saved_window_opacity
                 );
                 render_pass.set_pipeline(&self.bg_image_pipeline);
@@ -479,9 +477,9 @@ impl CellRenderer {
                     // Handle unfocused cursor visibility
                     let has_cursor = if cursor_visible && !self.is_focused {
                         match self.unfocused_cursor_style {
-                            crate::config::UnfocusedCursorStyle::Hidden => false,
-                            crate::config::UnfocusedCursorStyle::Hollow
-                            | crate::config::UnfocusedCursorStyle::Same => true,
+                            par_term_config::UnfocusedCursorStyle::Hidden => false,
+                            par_term_config::UnfocusedCursorStyle::Hollow
+                            | par_term_config::UnfocusedCursorStyle::Same => true,
                         }
                     } else {
                         cursor_visible
@@ -513,7 +511,7 @@ impl CellRenderer {
                         // Check if we should render hollow cursor (unfocused hollow style)
                         let render_hollow = !self.is_focused
                             && self.unfocused_cursor_style
-                                == crate::config::UnfocusedCursorStyle::Hollow;
+                                == par_term_config::UnfocusedCursorStyle::Hollow;
 
                         match self.cursor_style {
                             CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
@@ -659,7 +657,7 @@ impl CellRenderer {
                         )
                         && (self.is_focused
                             || self.unfocused_cursor_style
-                                == crate::config::UnfocusedCursorStyle::Same)
+                                == par_term_config::UnfocusedCursorStyle::Same)
                 };
 
                 let mut current_col = 0usize;
@@ -1008,7 +1006,7 @@ impl CellRenderer {
         let cursor_visible = self.cursor_opacity > 0.0
             && !self.cursor_hidden_for_shader
             && (self.is_focused
-                || self.unfocused_cursor_style != crate::config::UnfocusedCursorStyle::Hidden);
+                || self.unfocused_cursor_style != par_term_config::UnfocusedCursorStyle::Hidden);
 
         // Calculate cursor pixel positions
         let cursor_col = self.cursor_pos.0;
@@ -1091,7 +1089,7 @@ impl CellRenderer {
         // Rendered when unfocused with hollow style and block cursor
         let render_hollow = cursor_visible
             && !self.is_focused
-            && self.unfocused_cursor_style == crate::config::UnfocusedCursorStyle::Hollow;
+            && self.unfocused_cursor_style == par_term_config::UnfocusedCursorStyle::Hollow;
 
         if render_hollow {
             use par_term_emu_core_rust::cursor::CursorStyle;
@@ -1259,7 +1257,7 @@ impl CellRenderer {
         clear_first: bool,
         skip_background_image: bool,
         separator_marks: &[SeparatorMark],
-        pane_background: Option<&crate::pane::PaneBackground>,
+        pane_background: Option<&par_term_config::PaneBackground>,
     ) -> Result<()> {
         // Build instance buffers for this pane's cells
         // Skip solid background fill if background (shader/image) was already rendered full-screen

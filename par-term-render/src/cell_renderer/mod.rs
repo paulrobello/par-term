@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use winit::window::Window;
 
-use crate::font_manager::FontManager;
 use crate::scrollbar::Scrollbar;
 use par_term_config::SeparatorMark;
+use par_term_fonts::font_manager::FontManager;
 
 pub mod atlas;
 pub mod background;
@@ -131,7 +131,7 @@ pub struct CellRenderer {
     /// Cursor boost glow color [R, G, B] as floats (0.0-1.0)
     pub(crate) cursor_boost_color: [f32; 3],
     /// Unfocused cursor style (hollow, same, hidden)
-    pub(crate) unfocused_cursor_style: crate::config::UnfocusedCursorStyle,
+    pub(crate) unfocused_cursor_style: par_term_config::UnfocusedCursorStyle,
     pub(crate) visual_bell_intensity: f32,
     pub(crate) window_opacity: f32,
     pub(crate) background_color: [f32; 4],
@@ -150,7 +150,7 @@ pub struct CellRenderer {
 
     // Background image
     pub(crate) bg_image_texture: Option<wgpu::Texture>,
-    pub(crate) bg_image_mode: crate::config::BackgroundImageMode,
+    pub(crate) bg_image_mode: par_term_config::BackgroundImageMode,
     pub(crate) bg_image_opacity: f32,
     pub(crate) bg_image_width: u32,
     pub(crate) bg_image_height: u32,
@@ -185,7 +185,7 @@ pub struct CellRenderer {
     /// Enable hinting for font rendering
     pub(crate) font_hinting: bool,
     /// Thin strokes mode for font rendering
-    pub(crate) font_thin_strokes: crate::config::ThinStrokesMode,
+    pub(crate) font_thin_strokes: par_term_config::ThinStrokesMode,
     /// Minimum contrast ratio for text against background (WCAG standard)
     /// 1.0 = disabled, 4.5 = WCAG AA, 7.0 = WCAG AAA
     pub(crate) minimum_contrast: f32,
@@ -224,7 +224,7 @@ impl CellRenderer {
         font_family_bold: Option<&str>,
         font_family_italic: Option<&str>,
         font_family_bold_italic: Option<&str>,
-        font_ranges: &[crate::config::FontRange],
+        font_ranges: &[par_term_config::FontRange],
         font_size: f32,
         cols: usize,
         rows: usize,
@@ -240,14 +240,14 @@ impl CellRenderer {
         enable_kerning: bool,
         font_antialias: bool,
         font_hinting: bool,
-        font_thin_strokes: crate::config::ThinStrokesMode,
+        font_thin_strokes: par_term_config::ThinStrokesMode,
         minimum_contrast: f32,
-        vsync_mode: crate::config::VsyncMode,
-        power_preference: crate::config::PowerPreference,
+        vsync_mode: par_term_config::VsyncMode,
+        power_preference: par_term_config::PowerPreference,
         window_opacity: f32,
         background_color: [u8; 3],
         background_image_path: Option<&str>,
-        background_image_mode: crate::config::BackgroundImageMode,
+        background_image_mode: par_term_config::BackgroundImageMode,
         background_image_opacity: f32,
     ) -> Result<Self> {
         // Platform-specific backend selection for better VM compatibility
@@ -502,7 +502,7 @@ impl CellRenderer {
             cursor_shadow_blur: 3.0,
             cursor_boost: 0.0,
             cursor_boost_color: [1.0, 1.0, 1.0],
-            unfocused_cursor_style: crate::config::UnfocusedCursorStyle::default(),
+            unfocused_cursor_style: par_term_config::UnfocusedCursorStyle::default(),
             visual_bell_intensity: 0.0,
             window_opacity,
             background_color: [
@@ -685,9 +685,8 @@ impl CellRenderer {
     /// Returns Some((cols, rows)) if grid size changed, None otherwise.
     pub fn set_content_inset_right(&mut self, inset: f32) -> Option<(usize, usize)> {
         if (self.content_inset_right - inset).abs() > f32::EPSILON {
-            crate::debug_info!(
-                "SCROLLBAR",
-                "set_content_inset_right: {:.1} -> {:.1} (physical px)",
+            log::info!(
+                "[SCROLLBAR] set_content_inset_right: {:.1} -> {:.1} (physical px)",
                 self.content_inset_right,
                 inset
             );
@@ -963,7 +962,7 @@ impl CellRenderer {
     }
 
     /// Update unfocused cursor style
-    pub fn update_unfocused_cursor_style(&mut self, style: crate::config::UnfocusedCursorStyle) {
+    pub fn update_unfocused_cursor_style(&mut self, style: par_term_config::UnfocusedCursorStyle) {
         self.unfocused_cursor_style = style;
         if !self.is_focused {
             self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
@@ -975,7 +974,7 @@ impl CellRenderer {
         scroll_offset: usize,
         visible_lines: usize,
         total_lines: usize,
-        marks: &[crate::scrollback_metadata::ScrollbackMark],
+        marks: &[par_term_config::ScrollbackMark],
     ) {
         let right_inset = self.content_inset_right + self.egui_right_inset;
         self.scrollbar.update(
@@ -1202,7 +1201,7 @@ impl CellRenderer {
         mouse_x: f32,
         mouse_y: f32,
         tolerance: f32,
-    ) -> Option<&crate::scrollback_metadata::ScrollbackMark> {
+    ) -> Option<&par_term_config::ScrollbackMark> {
         self.scrollbar.mark_at_position(mouse_x, mouse_y, tolerance)
     }
 
@@ -1238,7 +1237,7 @@ impl CellRenderer {
 
     /// Update thin strokes mode
     /// Returns true if the setting changed (requiring glyph cache clear)
-    pub fn update_font_thin_strokes(&mut self, mode: crate::config::ThinStrokesMode) -> bool {
+    pub fn update_font_thin_strokes(&mut self, mode: par_term_config::ThinStrokesMode) -> bool {
         if self.font_thin_strokes != mode {
             self.font_thin_strokes = mode;
             self.clear_glyph_cache();
@@ -1354,7 +1353,7 @@ impl CellRenderer {
 
     /// Check if thin strokes should be applied based on current mode and context
     pub(crate) fn should_use_thin_strokes(&self) -> bool {
-        use crate::config::ThinStrokesMode;
+        use par_term_config::ThinStrokesMode;
 
         // Check if we're on a Retina/HiDPI display (scale factor > 1.5)
         let is_retina = self.scale_factor > 1.5;
@@ -1380,7 +1379,7 @@ impl CellRenderer {
     }
 
     /// Check if a vsync mode is supported
-    pub fn is_vsync_mode_supported(&self, mode: crate::config::VsyncMode) -> bool {
+    pub fn is_vsync_mode_supported(&self, mode: par_term_config::VsyncMode) -> bool {
         self.supported_present_modes
             .contains(&mode.to_present_mode())
     }
@@ -1389,8 +1388,8 @@ impl CellRenderer {
     /// Also returns whether the mode was changed.
     pub fn update_vsync_mode(
         &mut self,
-        mode: crate::config::VsyncMode,
-    ) -> (crate::config::VsyncMode, bool) {
+        mode: par_term_config::VsyncMode,
+    ) -> (par_term_config::VsyncMode, bool) {
         let requested = mode.to_present_mode();
         let current = self.config.present_mode;
 
@@ -1414,12 +1413,12 @@ impl CellRenderer {
 
         // Convert back to VsyncMode for return
         let actual_vsync = match actual {
-            wgpu::PresentMode::Immediate => crate::config::VsyncMode::Immediate,
-            wgpu::PresentMode::Mailbox => crate::config::VsyncMode::Mailbox,
+            wgpu::PresentMode::Immediate => par_term_config::VsyncMode::Immediate,
+            wgpu::PresentMode::Mailbox => par_term_config::VsyncMode::Mailbox,
             wgpu::PresentMode::Fifo | wgpu::PresentMode::FifoRelaxed => {
-                crate::config::VsyncMode::Fifo
+                par_term_config::VsyncMode::Fifo
             }
-            _ => crate::config::VsyncMode::Fifo,
+            _ => par_term_config::VsyncMode::Fifo,
         };
 
         (actual_vsync, actual != current)
@@ -1427,14 +1426,14 @@ impl CellRenderer {
 
     /// Get the current vsync mode
     #[allow(dead_code)]
-    pub fn current_vsync_mode(&self) -> crate::config::VsyncMode {
+    pub fn current_vsync_mode(&self) -> par_term_config::VsyncMode {
         match self.config.present_mode {
-            wgpu::PresentMode::Immediate => crate::config::VsyncMode::Immediate,
-            wgpu::PresentMode::Mailbox => crate::config::VsyncMode::Mailbox,
+            wgpu::PresentMode::Immediate => par_term_config::VsyncMode::Immediate,
+            wgpu::PresentMode::Mailbox => par_term_config::VsyncMode::Mailbox,
             wgpu::PresentMode::Fifo | wgpu::PresentMode::FifoRelaxed => {
-                crate::config::VsyncMode::Fifo
+                par_term_config::VsyncMode::Fifo
             }
-            _ => crate::config::VsyncMode::Fifo,
+            _ => par_term_config::VsyncMode::Fifo,
         }
     }
 
