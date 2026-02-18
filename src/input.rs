@@ -210,7 +210,15 @@ impl InputHandler {
                             "\r"
                         }
                     }
-                    NamedKey::Tab => "\t",
+                    // Shift+Tab sends reverse-tab escape sequence (CSI Z)
+                    // Regular Tab sends HT (horizontal tab)
+                    NamedKey::Tab => {
+                        if shift {
+                            "\x1b[Z"
+                        } else {
+                            "\t"
+                        }
+                    }
                     NamedKey::Space => " ",
                     NamedKey::Backspace => "\x7f",
                     NamedKey::Escape => "\x1b",

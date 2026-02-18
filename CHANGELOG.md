@@ -41,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Shift+Tab Not Reaching Terminal**: Fixed Shift+Tab being intercepted instead of sent to terminal applications like Claude Code (#158)
+  - Input handler now sends standard `\x1b[Z` (CSI Z) reverse-tab escape sequence for Shift+Tab instead of plain `\t`
+  - Filtered egui's default Tab focus navigation from stealing Tab/Shift+Tab when no modal UI overlay is visible
+  - Side panels (Assistant, profile drawer) no longer block Tab passthrough to the terminal
 - **Assistant Panel Content Overflow**: Fixed long commands causing panel to expand beyond viewport
   - Added text wrapping to all chat message types (user, agent, thinking, tool calls, command suggestions, permissions, system messages)
   - Enforced hard maximum width constraint (50% of viewport) to prevent panel from taking over the window
