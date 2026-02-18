@@ -12,7 +12,15 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.17.0
+## What's New in 0.17.1
+
+### 🔧 Bug Fixes & Dependency Updates
+
+- **macOS Self-Update**: Auto-updater now removes macOS quarantine attributes (`xattr -cr`) from the downloaded `.app` bundle, preventing Gatekeeper from blocking the updated app on first launch
+- **Dependency Updates**: Updated `clap`, `libc`, `uuid`, `arboard`, `regex`, `zip`, `mdns-sd`, `ureq`, and 27 transitive dependencies to latest versions
+
+<details>
+<summary><strong>What's New in 0.17.0</strong></summary>
 
 ### 🤖 Assistant Panel (AI Integration)
 
@@ -87,6 +95,8 @@ Load team-shared profile definitions from remote URLs.
 - **Configurable Link Handler**: Custom command for opening URLs instead of system default browser
 - **Fast Window Shutdown**: Closing par-term is now visually instant instead of 8+ seconds
 - **Shift+Tab Fix**: Now correctly sends CSI Z to terminal applications
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.16.0</strong></summary>

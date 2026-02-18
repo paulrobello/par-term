@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.17.1] - 2026-02-18
+
 ### Changed
 
 - **Dependency Updates**: Updated multiple workspace dependencies to latest versions
@@ -25,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **macOS Self-Update Quarantine**: Auto-updater now runs `xattr -cr` on the .app bundle after extracting update zip to remove macOS quarantine attributes, preventing Gatekeeper from blocking the updated app on next launch
+- **CI Publishing**: Fixed publish workflow to publish all workspace subcrates in dependency order before the main crate, resolving "no matching package" errors for workspace path dependencies
 
 ---
 

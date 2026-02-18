@@ -295,11 +295,7 @@ fn install_macos_bundle(current_exe: &std::path::Path, zip_data: &[u8]) -> Resul
                 );
             }
             Err(e) => {
-                log::warn!(
-                    "Failed to run xattr -cr on {}: {}",
-                    app_root.display(),
-                    e
-                );
+                log::warn!("Failed to run xattr -cr on {}: {}", app_root.display(), e);
             }
         }
     }

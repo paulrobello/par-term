@@ -191,7 +191,8 @@ The macOS release asset is a zip archive containing a complete `.app` bundle. Th
 3. Opens the downloaded zip archive and locates the top-level `.app` directory within it
 4. Extracts all files from the archive into the existing `.app` bundle, overwriting existing files
 5. Preserves Unix file permissions from the archive entries
-6. Reports the install path and advises restarting
+6. Runs `xattr -cr` on the extracted `.app` bundle to remove macOS quarantine attributes, preventing Gatekeeper from blocking the updated app on first launch
+7. Reports the install path and advises restarting
 
 ### Linux and Windows Standalone Updates
 
@@ -253,6 +254,15 @@ Network connectivity issue or GitHub API rate limit. Try again later or check yo
 
 **"Failed to replace binary: Permission denied" error**:
 The running process does not have write access to its installation directory. On Linux, you may need to run the update with appropriate permissions if the binary is in a system directory.
+
+**Updated app is blocked by Gatekeeper / "app is damaged"**:
+macOS applies a quarantine attribute to files downloaded from the internet. When par-term updates itself, the updater strips this attribute by running `xattr -cr` on the new `.app` bundle. If you encounter this error after a manual installation or an interrupted update, remove the quarantine attribute manually:
+
+```bash
+xattr -cr /Applications/par-term.app
+```
+
+Then launch par-term normally. If the problem persists, verify that the binary is not corrupted by comparing its checksum against the release asset on the [GitHub releases page](https://github.com/paulrobello/par-term/releases).
 
 **Update installed but old version still running**:
 A restart is required after every update. Close and reopen par-term to use the new version.

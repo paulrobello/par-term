@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "par-term"
-version = "0.17.0"
+version = "0.17.1"
 edition = "2024"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Cross-platform GPU-accelerated terminal emulator with inline graphics support (Sixel, iTerm2, Kitty)"
