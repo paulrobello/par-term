@@ -6,6 +6,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde_json::Value;
 use tokio::process::Command;
@@ -89,8 +90,8 @@ pub struct Agent {
     pub client: Option<Arc<JsonRpcClient>>,
     /// Channel to send messages to the UI.
     ui_tx: mpsc::UnboundedSender<AgentMessage>,
-    /// Whether to automatically approve permission requests.
-    pub auto_approve: bool,
+    /// Whether to automatically approve permission requests (shared with message handler).
+    pub auto_approve: Arc<AtomicBool>,
     /// Paths considered safe for auto-approving writes.
     safe_paths: SafePaths,
     /// Path to the binary to use for MCP server (par-term executable).
@@ -118,7 +119,7 @@ impl Agent {
             child: None,
             client: None,
             ui_tx,
-            auto_approve: false,
+            auto_approve: Arc::new(AtomicBool::new(false)),
             safe_paths,
             mcp_server_bin,
         }
@@ -311,7 +312,7 @@ impl Agent {
         // 4. Spawn the message handler task.
         let ui_tx = self.ui_tx.clone();
         let handler_client = Arc::clone(&client);
-        let auto_approve = self.auto_approve;
+        let auto_approve = Arc::clone(&self.auto_approve);
         let safe_paths = self.safe_paths.clone();
         tokio::spawn(async move {
             handle_incoming_messages(incoming_rx, handler_client, ui_tx, auto_approve, safe_paths)
@@ -505,7 +506,7 @@ async fn handle_incoming_messages(
     mut incoming_rx: mpsc::UnboundedReceiver<super::jsonrpc::IncomingMessage>,
     client: Arc<JsonRpcClient>,
     ui_tx: mpsc::UnboundedSender<AgentMessage>,
-    auto_approve: bool,
+    auto_approve: Arc<AtomicBool>,
     safe_paths: SafePaths,
 ) {
     while let Some(msg) = incoming_rx.recv().await {
@@ -636,7 +637,7 @@ async fn handle_incoming_messages(
                                     );
                                 }
 
-                                if auto_approve || is_safe_fs_tool {
+                                if auto_approve.load(Ordering::Relaxed) || is_safe_fs_tool {
                                     // Auto-approve: pick the first "allow" option, or just
                                     // the first option available.
                                     let option_id = perm_params
@@ -1078,7 +1079,7 @@ mod tests {
         assert!(agent.session_id.is_none());
         assert!(agent.client.is_none());
         assert!(agent.child.is_none());
-        assert!(!agent.auto_approve);
+        assert!(!agent.auto_approve.load(Ordering::Relaxed));
     }
 
     #[test]

@@ -1377,8 +1377,10 @@ impl WindowManager {
                 }
                 .to_string();
                 window_state.runtime.spawn(async move {
-                    let mut agent = agent.lock().await;
-                    agent.auto_approve = auto_approve;
+                    let agent = agent.lock().await;
+                    agent
+                        .auto_approve
+                        .store(auto_approve, std::sync::atomic::Ordering::Relaxed);
                     if let Err(e) = agent.set_mode(&mode).await {
                         log::error!("ACP: failed to set mode '{mode}': {e}");
                     }

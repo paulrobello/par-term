@@ -1051,8 +1051,11 @@ impl WindowState {
             };
             let mcp_server_bin =
                 std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("par-term"));
-            let mut agent = Agent::new(agent_config.clone(), tx, safe_paths, mcp_server_bin);
-            agent.auto_approve = self.config.ai_inspector_auto_approve;
+            let agent = Agent::new(agent_config.clone(), tx, safe_paths, mcp_server_bin);
+            agent.auto_approve.store(
+                self.config.ai_inspector_auto_approve,
+                std::sync::atomic::Ordering::Relaxed,
+            );
             let agent = Arc::new(tokio::sync::Mutex::new(agent));
             self.agent = Some(agent.clone());
 
@@ -4119,8 +4122,10 @@ impl WindowState {
                 if let Some(agent) = &self.agent {
                     let agent = agent.clone();
                     self.runtime.spawn(async move {
-                        let mut agent = agent.lock().await;
-                        agent.auto_approve = is_yolo;
+                        let agent = agent.lock().await;
+                        agent
+                            .auto_approve
+                            .store(is_yolo, std::sync::atomic::Ordering::Relaxed);
                         if let Err(e) = agent.set_mode(&mode_id).await {
                             log::error!("ACP: failed to set mode '{mode_id}': {e}");
                         }
