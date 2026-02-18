@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Refactor**: Extracted keybinding system into new `par-term-keybindings` workspace subcrate — moved ~1,490 lines from `src/keybindings/` into dedicated crate with `par-term-config` and `winit` dependencies; `src/keybindings/mod.rs` is now a thin re-export shim (closes #177)
 - **Refactor**: Extracted scripting/observer system into new `par-term-scripting` workspace subcrate — moved ~877 lines from `src/scripting/` into dedicated crate with `par-term-config`, `par-term-emu-core-rust`, and `serde_json` dependencies; `src/scripting/mod.rs` is now a thin re-export shim (closes #178)
 - **Refactor**: Extracted update system into new `par-term-update` workspace subcrate — moved ~1,170 lines from `src/manifest.rs`, `src/self_updater.rs`, `src/update_checker.rs` into dedicated crate; heavy deps (`zip`, `sha2`, `ureq`, `semver`, `chrono`) isolated from main crate; source files replaced with re-export shims (closes #179)
+- **Refactor**: Extracted input handler into new `par-term-input` workspace subcrate — moved ~505 lines from `src/input.rs` into dedicated crate with `par-term-config`, `arboard`, and `winit` dependencies; `src/input.rs` is now a thin re-export shim (closes #180)
 
 ---
 

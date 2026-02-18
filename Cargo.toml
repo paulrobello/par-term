@@ -1,5 +1,5 @@
 [workspace]
-members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-keybindings", "par-term-render", "par-term-scripting", "par-term-settings-ui", "par-term-ssh", "par-term-terminal", "par-term-update"]
+members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input", "par-term-keybindings", "par-term-render", "par-term-scripting", "par-term-settings-ui", "par-term-ssh", "par-term-terminal", "par-term-update"]
 resolver = "2"
 
 [package]
@@ -43,6 +43,9 @@ par-term-render = { path = "par-term-render", version = "0.1.0" }
 
 # Settings UI (egui-based settings interface)
 par-term-settings-ui = { path = "par-term-settings-ui", version = "0.1.0" }
+
+# Input sequence generation (keyboard/mouse → VT escape sequences)
+par-term-input = { path = "par-term-input", version = "0.1.0" }
 
 # Keybinding system (key parsing, matching, registry)
 par-term-keybindings = { path = "par-term-keybindings", version = "0.1.0" }
