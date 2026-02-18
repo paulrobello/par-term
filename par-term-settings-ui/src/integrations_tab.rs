@@ -98,7 +98,7 @@ impl SettingsUI {
                 let detected_shell = self
                     .shell_integration_detected_shell_fn
                     .map(|f| f())
-                    .unwrap_or(ShellType::Unknown);
+                    .unwrap_or_else(ShellType::detect);
                 let is_installed = self
                     .shell_integration_is_installed_fn
                     .map(|f| f())

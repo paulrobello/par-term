@@ -106,7 +106,7 @@ impl WindowManager {
             start_time: None,
             command_sent: false,
             screenshot_taken: false,
-            update_checker: UpdateChecker::new(),
+            update_checker: UpdateChecker::new(env!("CARGO_PKG_VERSION")),
             next_update_check: None,
             last_update_result: None,
             arrangement_manager,
@@ -1279,6 +1279,17 @@ impl WindowManager {
         )) {
             Ok(mut settings_window) => {
                 log::info!("Opened settings window {:?}", settings_window.window_id());
+                // Set app version from main crate (env! expands to the correct version here)
+                settings_window.settings_ui.app_version = env!("CARGO_PKG_VERSION");
+                // Wire up shell integration fn pointers
+                settings_window
+                    .settings_ui
+                    .shell_integration_detected_shell_fn =
+                    Some(crate::shell_integration_installer::detected_shell);
+                settings_window
+                    .settings_ui
+                    .shell_integration_is_installed_fn =
+                    Some(crate::shell_integration_installer::is_installed);
                 // Sync last update check result to settings UI
                 settings_window.settings_ui.last_update_result = self
                     .last_update_result

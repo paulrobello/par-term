@@ -254,9 +254,7 @@ impl TmuxSession {
             TmuxNotification::ControlModeStarted => {
                 // Received %begin - transition from Initiating to Detecting
                 if self.gateway_state == GatewayState::Initiating {
-                    log::info!(
-                        "[TMUX] Control mode started (%begin), transitioning to Detecting"
-                    );
+                    log::info!("[TMUX] Control mode started (%begin), transitioning to Detecting");
                     self.set_gateway_detecting();
                     return true;
                 }
@@ -283,9 +281,7 @@ impl TmuxSession {
                     return true;
                 } else if self.gateway_state == GatewayState::Detecting {
                     // Exit during detection - tmux started but session failed
-                    log::error!(
-                        "[TMUX] Session exit during detection - session creation failed"
-                    );
+                    log::error!("[TMUX] Session exit during detection - session creation failed");
                     self.set_gateway_ended();
                     return true;
                 } else if self.gateway_state == GatewayState::Initiating {

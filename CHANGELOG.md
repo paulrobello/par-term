@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Quick Settings Shader Toggles**: Added BG Shader and Cursor Shader toggle checkboxes to the settings UI quick settings strip, allowing shader effects to be enabled/disabled without navigating to the shader configuration tab
+
+### Fixed
+
+- **Settings Sidebar Icons**: Fixed empty box rendering for several tab icons — AiInspector, StatusBar, Input, and Advanced tabs now display correctly using emoji characters in egui's supported Unicode range
+- **Shell Detection**: Improved `ShellType::detect()` with multi-strategy fallback — checks `$SHELL` env var first, then `dscl` on macOS (for app bundle launches where `$SHELL` is not set), then `/etc/passwd` on Unix systems
+- **Settings Version Display**: Fixed settings UI and update checker displaying subcrate version "0.1.0" instead of the actual application version; app version is now passed from the main crate via `SettingsUI.app_version` and `UpdateChecker::new(current_version)`
+- **Shell Integration Install/Uninstall**: Fixed Install and Uninstall buttons in the shell integration section doing nothing — wired `shell_integration_is_installed_fn` and action dispatch through `SettingsWindowAction::InstallShellIntegration` / `UninstallShellIntegration` to the actual installer
+
 ### Changed
 
 - **Refactor**: Collapsed `src/config/` re-export layer — replaced ~4,800 lines of duplicate code with a single `pub use par_term_config::*;`, eliminating all duplicate files (`types.rs`, `defaults.rs`, `snippets.rs`, `shader_config.rs`, `shader_metadata.rs`, `automation.rs`, `scripting.rs`, `watcher.rs`) from `src/config/` (closes #182)

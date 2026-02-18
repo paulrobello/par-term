@@ -555,6 +555,19 @@ impl SettingsWindow {
             return SettingsWindowAction::IdentifyPanes;
         }
 
+        // Check for shell integration install/uninstall actions
+        if let Some(action) = self.settings_ui.shell_integration_action.take() {
+            self.window.request_redraw();
+            return match action {
+                crate::settings_ui::integrations_tab::ShellIntegrationAction::Install => {
+                    SettingsWindowAction::InstallShellIntegration
+                }
+                crate::settings_ui::integrations_tab::ShellIntegrationAction::Uninstall => {
+                    SettingsWindowAction::UninstallShellIntegration
+                }
+            };
+        }
+
         // Determine action based on settings UI results
         if let Some(config) = config_to_save {
             return SettingsWindowAction::SaveConfig(config);

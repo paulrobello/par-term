@@ -9,4 +9,3 @@ pub mod http;
 pub mod manifest;
 pub mod self_updater;
 pub mod update_checker;
-

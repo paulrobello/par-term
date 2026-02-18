@@ -198,6 +198,30 @@ pub fn show(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &m
             }
         });
 
+        ui.separator();
+
+        // Background shader toggle
+        if ui
+            .checkbox(&mut settings.config.custom_shader_enabled, "BG Shader")
+            .on_hover_text("Enable background shader effect")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.separator();
+
+        // Cursor shader toggle
+        if ui
+            .checkbox(&mut settings.config.cursor_shader_enabled, "Cursor Shader")
+            .on_hover_text("Enable cursor shader effect")
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
         // Apply Font Changes button (only show if pending)
         if settings.font_pending_changes {
             ui.separator();

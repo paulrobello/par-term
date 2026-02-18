@@ -1311,6 +1311,36 @@ impl ApplicationHandler for WindowManager {
                             window_state.show_pane_indices(std::time::Duration::from_secs(3));
                         }
                     }
+                    SettingsWindowAction::InstallShellIntegration => {
+                        match crate::shell_integration_installer::install(None) {
+                            Ok(result) => {
+                                log::info!(
+                                    "Shell integration installed for {:?} at {:?}",
+                                    result.shell,
+                                    result.script_path
+                                );
+                                if let Some(sw) = &mut self.settings_window {
+                                    sw.request_redraw();
+                                }
+                            }
+                            Err(e) => {
+                                log::error!("Failed to install shell integration: {}", e);
+                            }
+                        }
+                    }
+                    SettingsWindowAction::UninstallShellIntegration => {
+                        match crate::shell_integration_installer::uninstall() {
+                            Ok(_) => {
+                                log::info!("Shell integration uninstalled");
+                                if let Some(sw) = &mut self.settings_window {
+                                    sw.request_redraw();
+                                }
+                            }
+                            Err(e) => {
+                                log::error!("Failed to uninstall shell integration: {}", e);
+                            }
+                        }
+                    }
                     SettingsWindowAction::None => {}
                 }
             }

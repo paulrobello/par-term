@@ -4,8 +4,8 @@
 //! It respects the configured check frequency (daily, weekly, monthly, or never)
 //! and can notify users when updates are available.
 
-use par_term_config::{Config, UpdateCheckFrequency};
 use chrono::{DateTime, Utc};
+use par_term_config::{Config, UpdateCheckFrequency};
 use semver::Version;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -47,6 +47,8 @@ pub enum UpdateCheckResult {
 
 /// Manages update checking with periodic checks while running
 pub struct UpdateChecker {
+    /// Current application version (set by main crate to avoid subcrate version mismatch)
+    current_version: &'static str,
     /// Last check result (shared for UI access)
     last_result: Arc<Mutex<Option<UpdateCheckResult>>>,
     /// Whether a check is currently in progress
@@ -57,16 +59,14 @@ pub struct UpdateChecker {
     min_check_interval: Duration,
 }
 
-impl Default for UpdateChecker {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl UpdateChecker {
-    /// Create a new update checker
-    pub fn new() -> Self {
+    /// Create a new update checker with the application version from the main crate.
+    ///
+    /// Pass `env!("CARGO_PKG_VERSION")` from the binary crate so the version
+    /// resolves to the app version rather than this subcrate's version.
+    pub fn new(current_version: &'static str) -> Self {
         Self {
+            current_version,
             last_result: Arc::new(Mutex::new(None)),
             check_in_progress: Arc::new(AtomicBool::new(false)),
             last_check_time: Arc::new(Mutex::new(None)),
@@ -175,8 +175,8 @@ impl UpdateChecker {
 
     /// Perform the actual HTTP request and version comparison
     fn perform_check(&self, config: &Config) -> UpdateCheckResult {
-        // Get current version
-        let current_version_str = env!("CARGO_PKG_VERSION");
+        // Get current version (set by main crate, not this subcrate's CARGO_PKG_VERSION)
+        let current_version_str = self.current_version;
         let current_version = match Version::parse(current_version_str) {
             Ok(v) => v,
             Err(e) => {
@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn test_should_check_never() {
-        let checker = UpdateChecker::new();
+        let checker = UpdateChecker::new("0.0.0");
         let config = Config {
             update_check_frequency: UpdateCheckFrequency::Never,
             ..Default::default()
@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn test_should_check_no_previous() {
-        let checker = UpdateChecker::new();
+        let checker = UpdateChecker::new("0.0.0");
         let config = Config {
             update_check_frequency: UpdateCheckFrequency::Weekly,
             last_update_check: None,
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_should_check_time_elapsed() {
-        let checker = UpdateChecker::new();
+        let checker = UpdateChecker::new("0.0.0");
         let mut config = Config {
             update_check_frequency: UpdateCheckFrequency::Daily,
             ..Default::default()

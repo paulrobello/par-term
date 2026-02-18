@@ -136,6 +136,10 @@ pub enum SettingsWindowAction {
     InstallUpdate(String),
     /// Flash pane indices on the terminal window
     IdentifyPanes,
+    /// Install shell integration for the detected shell
+    InstallShellIntegration,
+    /// Uninstall shell integration from all shells
+    UninstallShellIntegration,
 }
 
 /// Lightweight information about a saved arrangement (used by trait interface).
@@ -636,6 +640,9 @@ pub struct SettingsUI {
     pub arrangement_manager: ArrangementManager,
 
     // Callbacks for main-crate operations
+    /// Application version string (set by main crate via env!("CARGO_PKG_VERSION"))
+    pub app_version: &'static str,
+
     /// Detected installation type (set by main crate)
     pub installation_type: InstallationType,
 
@@ -852,6 +859,7 @@ impl SettingsUI {
             arrangement_rename_text: String::new(),
             pending_arrangement_actions: Vec::new(),
             arrangement_manager: ArrangementManager::new(),
+            app_version: "",
             installation_type: InstallationType::StandaloneBinary,
             shader_install_fn: None,
             shader_detect_modified_fn: None,
@@ -1105,7 +1113,7 @@ impl SettingsUI {
                     self.shader_status = Some(detail);
                     self.shader_error = None;
                     self.config.integration_versions.shaders_installed_version =
-                        Some(env!("CARGO_PKG_VERSION").to_string());
+                        Some(self.app_version.to_string());
                 }
                 Err(e) => {
                     self.shader_error = Some(e);

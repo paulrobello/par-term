@@ -862,7 +862,7 @@ fn show_updates_section(
     collapsing_section(ui, "Updates", "advanced_updates", true, collapsed, |ui| {
         ui.horizontal(|ui| {
             ui.label("Current version:");
-            ui.label(env!("CARGO_PKG_VERSION"));
+            ui.label(settings.app_version);
         });
 
         ui.add_space(8.0);

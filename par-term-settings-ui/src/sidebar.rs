@@ -61,12 +61,12 @@ impl SettingsTab {
         match self {
             Self::Appearance => "🎨",
             Self::Window => "🪟",
-            Self::Input => "⌨",
+            Self::Input => "⌨️",
             Self::Terminal => "📟",
             Self::Effects => "✨",
             Self::Badge => "🏷",
             Self::ProgressBar => "📊",
-            Self::StatusBar => "\u{2501}",
+            Self::StatusBar => "🖥",
             Self::Profiles => "👤",
             Self::Ssh => "🔗",
             Self::Notifications => "🔔",
@@ -76,8 +76,8 @@ impl SettingsTab {
             Self::Snippets => "📝",
             Self::Actions => "🚀",
             Self::Arrangements => "📐",
-            Self::AiInspector => "\u{2726}",
-            Self::Advanced => "⚙",
+            Self::AiInspector => "💬",
+            Self::Advanced => "⚙️",
         }
     }
 
