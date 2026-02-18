@@ -76,7 +76,7 @@ impl SettingsTab {
             Self::Snippets => "📝",
             Self::Actions => "🚀",
             Self::Arrangements => "📐",
-            Self::AiInspector => "🤖",
+            Self::AiInspector => "\u{2726}",
             Self::Advanced => "⚙",
         }
     }

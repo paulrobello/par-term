@@ -1306,25 +1306,22 @@ impl SettingsUI {
                         }),
                 )
                 .show(ctx, |ui| {
-                    let available_height = ui.available_height();
-                    let footer_height = 45.0;
+                    // Fixed header area (never scrolls)
+                    ui.heading("Terminal Settings");
+                    ui.horizontal(|ui| {
+                        ui.label("Quick search:");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.search_query)
+                                .hint_text("Type to filter settings"),
+                        );
+                    });
+                    ui.separator();
 
-                    egui::ScrollArea::vertical()
-                        .max_height(available_height - footer_height)
-                        .show(ui, |ui| {
-                            ui.heading("Terminal Settings");
-                            ui.horizontal(|ui| {
-                                ui.label("Quick search:");
-                                ui.add(
-                                    egui::TextEdit::singleline(&mut self.search_query)
-                                        .hint_text("Type to filter settings"),
-                                );
-                            });
-                            ui.separator();
+                    // Settings sections (sidebar + content) fill remaining space
+                    // Each has its own scroll area internally
+                    self.show_settings_sections(ui, &mut changes_this_frame);
 
-                            self.show_settings_sections(ui, &mut changes_this_frame);
-                        });
-
+                    // Footer
                     ui.separator();
                     ui.horizontal(|ui| {
                         if ui.button("Save").clicked() {
@@ -1446,25 +1443,22 @@ impl SettingsUI {
         egui::CentralPanel::default()
             .frame(Frame::central_panel(&ctx.style()).fill(solid_bg))
             .show(ctx, |ui| {
-                let available_height = ui.available_height();
-                let footer_height = 45.0;
+                // Fixed header area (never scrolls)
+                ui.heading("Terminal Settings");
+                ui.horizontal(|ui| {
+                    ui.label("Quick search:");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.search_query)
+                            .hint_text("Type to filter settings"),
+                    );
+                });
+                ui.separator();
 
-                egui::ScrollArea::vertical()
-                    .max_height(available_height - footer_height)
-                    .show(ui, |ui| {
-                        ui.heading("Terminal Settings");
-                        ui.horizontal(|ui| {
-                            ui.label("Quick search:");
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.search_query)
-                                    .hint_text("Type to filter settings"),
-                            );
-                        });
-                        ui.separator();
+                // Settings sections (sidebar + content) fill remaining space
+                // Each has its own scroll area internally
+                self.show_settings_sections(ui, &mut changes_this_frame);
 
-                        self.show_settings_sections(ui, &mut changes_this_frame);
-                    });
-
+                // Footer
                 ui.separator();
                 ui.horizontal(|ui| {
                     if ui.button("Save").clicked() {
@@ -1548,7 +1542,9 @@ impl SettingsUI {
         ui.separator();
 
         let available_width = ui.available_width();
-        let available_height = ui.available_height();
+        // Reserve space for the footer (separator + button row)
+        let footer_height = 45.0;
+        let available_height = (ui.available_height() - footer_height).max(100.0);
         let sidebar_width = 150.0;
         let content_width = (available_width - sidebar_width - 15.0).max(300.0);
 
@@ -1557,16 +1553,23 @@ impl SettingsUI {
             egui::vec2(available_width, available_height),
             layout,
             |ui| {
+                // Sidebar with its own scroll area
                 ui.allocate_ui_with_layout(
                     egui::vec2(sidebar_width, available_height),
                     egui::Layout::top_down(egui::Align::Min),
                     |ui| {
-                        sidebar::show(ui, &mut self.selected_tab, &self.search_query);
+                        egui::ScrollArea::vertical()
+                            .id_salt("settings_sidebar")
+                            .max_height(available_height)
+                            .show(ui, |ui| {
+                                sidebar::show(ui, &mut self.selected_tab, &self.search_query);
+                            });
                     },
                 );
 
                 ui.separator();
 
+                // Content area with its own scroll area
                 ui.allocate_ui_with_layout(
                     egui::vec2(content_width, available_height),
                     egui::Layout::top_down(egui::Align::Min),
