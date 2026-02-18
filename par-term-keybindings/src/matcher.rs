@@ -68,9 +68,9 @@ impl KeybindingMatcher {
     pub fn from_event_with_remapping(
         event: &KeyEvent,
         modifiers: &WinitModifiers,
-        remapping: &crate::config::ModifierRemapping,
+        remapping: &par_term_config::ModifierRemapping,
     ) -> Self {
-        use crate::config::ModifierTarget;
+        use par_term_config::ModifierTarget;
 
         // Start with the raw modifier state
         let mut ctrl = modifiers.state().control_key();
@@ -405,7 +405,7 @@ fn physical_key_matches_char(code: KeyCode, ch: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keybindings::parser::parse_key_combo;
+    use crate::parser::parse_key_combo;
 
     /// Test that Modifiers comparison works correctly for CmdOrCtrl
     #[test]

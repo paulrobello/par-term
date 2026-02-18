@@ -3643,6 +3643,7 @@ dependencies = [
  "par-term-config",
  "par-term-emu-core-rust",
  "par-term-fonts",
+ "par-term-keybindings",
  "par-term-render",
  "par-term-settings-ui",
  "par-term-ssh",
@@ -3746,6 +3747,15 @@ dependencies = [
  "rustybuzz",
  "swash",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "par-term-keybindings"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "par-term-config",
+ "winit",
 ]
 
 [[package]]
