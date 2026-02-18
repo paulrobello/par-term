@@ -155,6 +155,11 @@ pub struct CustomShaderRenderer {
     // ============ Progress bar state ============
     /// Progress bar data [state, percent, isActive, activeCount]
     pub(crate) progress_data: [f32; 4],
+
+    // ============ Content inset for panels ============
+    /// Right content inset in pixels (e.g., AI Inspector panel).
+    /// The shader renders to a viewport offset by this amount from the left.
+    pub(crate) content_inset_right: f32,
 }
 
 impl CustomShaderRenderer {
@@ -330,6 +335,7 @@ impl CustomShaderRenderer {
             background_channel_texture: None,
             background_color: [0.0, 0.0, 0.0, 0.0], // No solid background by default
             progress_data: [0.0, 0.0, 0.0, 0.0],
+            content_inset_right: 0.0,
         })
     }
 
@@ -497,6 +503,20 @@ impl CustomShaderRenderer {
                 occlusion_query_set: None,
             });
 
+            // Set viewport to exclude right inset area (e.g., AI Inspector panel)
+            // This ensures the shader only renders to the terminal content area
+            if self.content_inset_right > 0.0 {
+                let available_width = (self.texture_width as f32 - self.content_inset_right).max(1.0);
+                render_pass.set_viewport(
+                    0.0, // x offset
+                    0.0, // y offset
+                    available_width,
+                    self.texture_height as f32,
+                    0.0, // min depth
+                    1.0, // max depth
+                );
+            }
+
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &self.bind_group, &[]);
             render_pass.draw(0..4, 0..1);
@@ -554,8 +574,15 @@ impl CustomShaderRenderer {
             0.0 // Chain mode: shader detects this and preserves transparency info
         };
 
+        // Calculate effective resolution (excluding right inset for panels)
+        let effective_width = if self.content_inset_right > 0.0 {
+            (self.texture_width as f32 - self.content_inset_right).max(1.0)
+        } else {
+            self.texture_width as f32
+        };
+
         CustomShaderUniforms {
-            resolution: [self.texture_width as f32, self.texture_height as f32],
+            resolution: [effective_width, self.texture_height as f32],
             time,
             time_delta,
             mouse,
@@ -1037,5 +1064,13 @@ impl CustomShaderRenderer {
 
         log::info!("Custom shader reloaded successfully from source");
         Ok(())
+    }
+
+    /// Set the right content inset (e.g., AI Inspector panel).
+    ///
+    /// When non-zero, the shader will render to a viewport that excludes
+    /// the right inset area, ensuring effects don't appear under the panel.
+    pub fn set_content_inset_right(&mut self, inset: f32) {
+        self.content_inset_right = inset;
     }
 }

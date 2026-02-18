@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Background Shader Panel Inset**: Background shader now respects the agent panel width, rendering effects only in the visible terminal area instead of the full window
 - **Assistant Panel Content Overflow**: Fixed long commands causing panel to expand beyond viewport
   - Added text wrapping to all chat message types (user, agent, thinking, tool calls, command suggestions, permissions, system messages)
   - Enforced hard maximum width constraint (50% of viewport) to prevent panel from taking over the window

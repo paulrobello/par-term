@@ -2278,6 +2278,16 @@ impl Renderer {
     pub fn set_content_inset_right(&mut self, logical_inset: f32) -> Option<(usize, usize)> {
         let physical_inset = logical_inset * self.cell_renderer.scale_factor;
         let result = self.cell_renderer.set_content_inset_right(physical_inset);
+
+        // Also update custom shader renderer to exclude panel area from effects
+        if let Some(ref mut custom_shader) = self.custom_shader_renderer {
+            custom_shader.set_content_inset_right(physical_inset);
+        }
+        // Also update cursor shader renderer
+        if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
+            cursor_shader.set_content_inset_right(physical_inset);
+        }
+
         if result.is_some() {
             self.dirty = true;
         }
