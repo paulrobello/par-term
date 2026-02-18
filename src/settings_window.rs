@@ -3,63 +3,19 @@
 //! This module provides a standalone window for the settings UI,
 //! allowing users to configure the terminal while viewing terminal content.
 
-use crate::config::Config;
-use crate::profile::{Profile, ProfileId};
-use crate::settings_ui::{CursorShaderEditorResult, SettingsUI, ShaderEditorResult};
+use crate::settings_ui::{SettingsUI, UpdateCheckResult};
 use anyhow::{Context, Result};
+use par_term_config::Config;
+
+// Re-export SettingsWindowAction so the rest of the crate can use it via
+// `crate::settings_window::SettingsWindowAction` as before.
+pub use crate::settings_ui::SettingsWindowAction;
 use std::sync::Arc;
 use wgpu::SurfaceError;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
-
-/// Result of processing a settings window event
-#[derive(Debug, Clone)]
-pub enum SettingsWindowAction {
-    /// No action needed
-    None,
-    /// Close the settings window
-    Close,
-    /// Apply config changes to terminal windows (live update)
-    ApplyConfig(Config),
-    /// Save config to disk
-    SaveConfig(Config),
-    /// Apply background shader from editor
-    ApplyShader(ShaderEditorResult),
-    /// Apply cursor shader from editor
-    ApplyCursorShader(CursorShaderEditorResult),
-    /// Send a test notification to verify permissions
-    TestNotification,
-    /// Save profiles from inline editor to all windows
-    SaveProfiles(Vec<Profile>),
-    /// Open a profile in the focused terminal window
-    OpenProfile(ProfileId),
-    /// Start a coprocess by config index on the active tab
-    StartCoprocess(usize),
-    /// Stop a coprocess by config index on the active tab
-    StopCoprocess(usize),
-    /// Start a script by config index on the active tab
-    StartScript(usize),
-    /// Stop a script by config index on the active tab
-    StopScript(usize),
-    /// Open the debug log file in the system's default editor/viewer
-    OpenLogFile,
-    /// Save the current window layout as an arrangement
-    SaveArrangement(String),
-    /// Restore a saved window arrangement
-    RestoreArrangement(crate::arrangements::ArrangementId),
-    /// Delete a saved window arrangement
-    DeleteArrangement(crate::arrangements::ArrangementId),
-    /// Rename a saved window arrangement
-    RenameArrangement(crate::arrangements::ArrangementId, String),
-    /// User requested an immediate update check
-    ForceUpdateCheck,
-    /// User requested to install the available update
-    InstallUpdate(String),
-    /// Flash pane indices on the terminal window
-    IdentifyPanes,
-}
 
 /// Manages a separate settings window with its own egui context and wgpu renderer
 pub struct SettingsWindow {
@@ -527,7 +483,7 @@ impl SettingsWindow {
         if self.settings_ui.update_install_requested {
             self.settings_ui.update_install_requested = false;
             // Extract the version from the last_update_result
-            if let Some(crate::update_checker::UpdateCheckResult::UpdateAvailable(ref info)) =
+            if let Some(UpdateCheckResult::UpdateAvailable(ref info)) =
                 self.settings_ui.last_update_result
             {
                 let version = info
@@ -535,7 +491,17 @@ impl SettingsWindow {
                     .strip_prefix('v')
                     .unwrap_or(&info.version)
                     .to_string();
-                self.settings_ui.start_self_update(version.clone());
+                self.settings_ui
+                    .start_self_update_with(version.clone(), |v| {
+                        crate::self_updater::perform_update(v).map(|r| {
+                            crate::settings_ui::UpdateResult {
+                                old_version: r.old_version,
+                                new_version: r.new_version,
+                                install_path: r.install_path.display().to_string(),
+                                needs_restart: r.needs_restart,
+                            }
+                        })
+                    });
                 self.window.request_redraw();
                 return SettingsWindowAction::InstallUpdate(version);
             }

@@ -8,9 +8,7 @@ use arboard::Clipboard;
 use egui::{Color32, RichText, Ui};
 use std::collections::HashSet;
 
-use crate::config::{Config, ShellType};
-use crate::shader_installer;
-use crate::shell_integration_installer;
+use par_term_config::{Config, ShellType};
 
 use super::SettingsUI;
 use super::section::collapsing_section;
@@ -97,8 +95,14 @@ impl SettingsUI {
                 ui.add_space(8.0);
 
                 // Detect shell and installation status
-                let detected_shell = shell_integration_installer::detected_shell();
-                let is_installed = shell_integration_installer::is_installed();
+                let detected_shell = self
+                    .shell_integration_detected_shell_fn
+                    .map(|f| f())
+                    .unwrap_or(ShellType::Unknown);
+                let is_installed = self
+                    .shell_integration_is_installed_fn
+                    .map(|f| f())
+                    .unwrap_or(false);
 
                 // Status indicator
                 ui.horizontal(|ui| {
@@ -209,9 +213,14 @@ impl SettingsUI {
 
                 // Check installation status
                 let shaders_dir = Config::shaders_dir();
-                let has_shaders = shader_installer::has_shader_files(&shaders_dir);
+                let has_shaders = self
+                    .shader_has_files_fn
+                    .map(|f| f(&shaders_dir))
+                    .unwrap_or(false);
                 let shader_count = if has_shaders {
-                    shader_installer::count_shader_files(&shaders_dir)
+                    self.shader_count_files_fn
+                        .map(|f| f(&shaders_dir))
+                        .unwrap_or(0)
                 } else {
                     0
                 };
@@ -300,7 +309,9 @@ impl SettingsUI {
                             .clicked()
                         {
                             self.shader_overwrite_prompt_visible = false;
-                            self.start_shader_install(true);
+                            if let Some(install_fn) = self.shader_install_fn {
+                                self.start_shader_install_with(true, install_fn);
+                            }
                         }
                         if ui
                             .add(egui::Button::new("Skip modified"))
@@ -308,7 +319,9 @@ impl SettingsUI {
                             .clicked()
                         {
                             self.shader_overwrite_prompt_visible = false;
-                            self.start_shader_install(false);
+                            if let Some(install_fn) = self.shader_install_fn {
+                                self.start_shader_install_with(false, install_fn);
+                            }
                         }
                         if ui.button("Cancel").clicked() {
                             self.shader_overwrite_prompt_visible = false;
@@ -328,18 +341,26 @@ impl SettingsUI {
                         .on_hover_text("Download and install shader bundle from GitHub")
                         .clicked()
                     {
-                        match shader_installer::detect_modified_bundled_shaders() {
-                            Ok(conflicts) if !conflicts.is_empty() => {
-                                self.shader_conflicts = conflicts;
-                                self.shader_overwrite_prompt_visible = true;
+                        if let Some(detect_fn) = self.shader_detect_modified_fn {
+                            match detect_fn() {
+                                Ok(conflicts) if !conflicts.is_empty() => {
+                                    self.shader_conflicts = conflicts;
+                                    self.shader_overwrite_prompt_visible = true;
+                                }
+                                Ok(_) => {
+                                    if let Some(install_fn) = self.shader_install_fn {
+                                        self.start_shader_install_with(false, move |force| {
+                                            install_fn(force)
+                                        });
+                                    }
+                                }
+                                Err(e) => {
+                                    self.shader_error =
+                                        Some(format!("Failed to check existing shaders: {}", e));
+                                }
                             }
-                            Ok(_) => {
-                                self.start_shader_install(false);
-                            }
-                            Err(e) => {
-                                self.shader_error =
-                                    Some(format!("Failed to check existing shaders: {}", e));
-                            }
+                        } else {
+                            self.shader_error = Some("Shader installer not configured".to_string());
                         }
                     }
 
@@ -350,8 +371,9 @@ impl SettingsUI {
                                 "Remove all bundled shaders (keeps user-created shaders)",
                             )
                             .clicked()
+                        && let Some(uninstall_fn) = self.shader_uninstall_fn
                     {
-                        match shader_installer::uninstall_shaders(false) {
+                        match uninstall_fn(false) {
                             Ok(result) => {
                                 self.shader_error = None;
                                 self.shader_status = Some(format!(

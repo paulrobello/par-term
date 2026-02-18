@@ -10,6 +10,26 @@ use crate::config::{Config, resolve_shader_config};
 use crate::menu::{MenuAction, MenuManager};
 use crate::settings_window::{SettingsWindow, SettingsWindowAction};
 use crate::update_checker::{UpdateCheckResult, UpdateChecker};
+
+/// Convert a main-crate UpdateCheckResult to the settings-ui crate's type.
+fn to_settings_update_result(result: &UpdateCheckResult) -> crate::settings_ui::UpdateCheckResult {
+    match result {
+        UpdateCheckResult::UpToDate => crate::settings_ui::UpdateCheckResult::UpToDate,
+        UpdateCheckResult::UpdateAvailable(info) => {
+            crate::settings_ui::UpdateCheckResult::UpdateAvailable(
+                crate::settings_ui::UpdateCheckInfo {
+                    version: info.version.clone(),
+                    release_notes: info.release_notes.clone(),
+                    release_url: info.release_url.clone(),
+                    published_at: info.published_at.clone(),
+                },
+            )
+        }
+        UpdateCheckResult::Disabled => crate::settings_ui::UpdateCheckResult::Disabled,
+        UpdateCheckResult::Skipped => crate::settings_ui::UpdateCheckResult::Skipped,
+        UpdateCheckResult::Error(e) => crate::settings_ui::UpdateCheckResult::Error(e.clone()),
+    }
+}
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -302,7 +322,10 @@ impl WindowManager {
         self.force_update_check();
         // Sync the result to the settings window
         if let Some(settings_window) = &mut self.settings_window {
-            settings_window.settings_ui.last_update_result = self.last_update_result.clone();
+            settings_window.settings_ui.last_update_result = self
+                .last_update_result
+                .as_ref()
+                .map(to_settings_update_result);
             settings_window.request_redraw();
         }
     }
@@ -1257,7 +1280,10 @@ impl WindowManager {
             Ok(mut settings_window) => {
                 log::info!("Opened settings window {:?}", settings_window.window_id());
                 // Sync last update check result to settings UI
-                settings_window.settings_ui.last_update_result = self.last_update_result.clone();
+                settings_window.settings_ui.last_update_result = self
+                    .last_update_result
+                    .as_ref()
+                    .map(to_settings_update_result);
                 // Sync profiles from first window's profile manager
                 let profiles = self
                     .windows

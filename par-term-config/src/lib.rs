@@ -67,6 +67,9 @@ pub use shader_metadata::{
     parse_cursor_shader_metadata, parse_shader_metadata, update_cursor_shader_metadata_file,
     update_shader_metadata_file,
 };
+
+// Re-export par-term-emu-core-rust types used by settings UI
+pub use par_term_emu_core_rust::{AmbiguousWidth, NormalizationForm, UnicodeVersion};
 #[allow(unused_imports)]
 pub use types::KeyModifier;
 #[allow(unused_imports)]

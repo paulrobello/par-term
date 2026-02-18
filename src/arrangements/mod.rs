@@ -3,230 +3,23 @@
 //! Arrangements capture the positions, sizes, and tab CWDs of all windows
 //! so they can be restored later. Monitor-aware to handle external monitor
 //! disconnect/reconnect scenarios.
+//!
+//! Data types are defined in `par-term-settings-ui` and re-exported here.
 
 pub mod capture;
 pub mod restore;
 pub mod storage;
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use uuid::Uuid;
-
-/// Unique identifier for an arrangement
-pub type ArrangementId = Uuid;
-
-/// Information about a monitor at capture time
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MonitorInfo {
-    /// Monitor name (primary matching key, e.g. "DELL U2720Q")
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-
-    /// Monitor index (fallback matching)
-    #[serde(default)]
-    pub index: usize,
-
-    /// Monitor position in virtual screen coordinates
-    #[serde(default)]
-    pub position: (i32, i32),
-
-    /// Monitor size in physical pixels
-    #[serde(default)]
-    pub size: (u32, u32),
-}
-
-/// Snapshot of a single tab's state
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TabSnapshot {
-    /// Working directory (from Tab::get_cwd())
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
-
-    /// Tab title
-    #[serde(default)]
-    pub title: String,
-}
-
-/// Snapshot of a single window's state
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WindowSnapshot {
-    /// Monitor this window was on
-    pub monitor: MonitorInfo,
-
-    /// Position relative to monitor origin (portable across setups)
-    pub position_relative: (i32, i32),
-
-    /// Outer window size in physical pixels
-    pub size: (u32, u32),
-
-    /// Tabs in this window
-    pub tabs: Vec<TabSnapshot>,
-
-    /// Index of the active tab
-    #[serde(default)]
-    pub active_tab_index: usize,
-}
-
-/// A saved window arrangement
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WindowArrangement {
-    /// Unique identifier
-    pub id: ArrangementId,
-
-    /// Display name for the arrangement
-    pub name: String,
-
-    /// All monitors present at capture time
-    pub monitor_layout: Vec<MonitorInfo>,
-
-    /// All windows in this arrangement
-    pub windows: Vec<WindowSnapshot>,
-
-    /// ISO 8601 timestamp when the arrangement was created
-    #[serde(default)]
-    pub created_at: String,
-
-    /// Display order
-    #[serde(default)]
-    pub order: usize,
-}
-
-/// Manages a collection of saved window arrangements
-#[derive(Debug, Clone, Default)]
-pub struct ArrangementManager {
-    /// All arrangements indexed by ID
-    arrangements: HashMap<ArrangementId, WindowArrangement>,
-
-    /// Ordered list of arrangement IDs for display
-    order: Vec<ArrangementId>,
-}
-
-impl ArrangementManager {
-    /// Create a new empty arrangement manager
-    pub fn new() -> Self {
-        Self {
-            arrangements: HashMap::new(),
-            order: Vec::new(),
-        }
-    }
-
-    /// Create a manager from a list of arrangements
-    pub fn from_arrangements(arrangements: Vec<WindowArrangement>) -> Self {
-        let mut manager = Self::new();
-        for arrangement in arrangements {
-            manager.add(arrangement);
-        }
-        manager.sort_by_order();
-        manager
-    }
-
-    /// Add an arrangement to the manager
-    pub fn add(&mut self, arrangement: WindowArrangement) {
-        let id = arrangement.id;
-        if !self.order.contains(&id) {
-            self.order.push(id);
-        }
-        self.arrangements.insert(id, arrangement);
-    }
-
-    /// Get an arrangement by ID
-    pub fn get(&self, id: &ArrangementId) -> Option<&WindowArrangement> {
-        self.arrangements.get(id)
-    }
-
-    /// Get a mutable reference to an arrangement by ID
-    pub fn get_mut(&mut self, id: &ArrangementId) -> Option<&mut WindowArrangement> {
-        self.arrangements.get_mut(id)
-    }
-
-    /// Update an arrangement (replaces if exists)
-    pub fn update(&mut self, arrangement: WindowArrangement) {
-        let id = arrangement.id;
-        if self.arrangements.contains_key(&id) {
-            self.arrangements.insert(id, arrangement);
-        }
-    }
-
-    /// Remove an arrangement by ID
-    pub fn remove(&mut self, id: &ArrangementId) -> Option<WindowArrangement> {
-        self.order.retain(|aid| aid != id);
-        self.arrangements.remove(id)
-    }
-
-    /// Get all arrangements in display order
-    pub fn arrangements_ordered(&self) -> Vec<&WindowArrangement> {
-        self.order
-            .iter()
-            .filter_map(|id| self.arrangements.get(id))
-            .collect()
-    }
-
-    /// Get all arrangements as a vector (for serialization)
-    pub fn to_vec(&self) -> Vec<WindowArrangement> {
-        self.arrangements_ordered().into_iter().cloned().collect()
-    }
-
-    /// Get the number of arrangements
-    pub fn len(&self) -> usize {
-        self.arrangements.len()
-    }
-
-    /// Check if there are no arrangements
-    pub fn is_empty(&self) -> bool {
-        self.arrangements.is_empty()
-    }
-
-    /// Find an arrangement by name (case-insensitive)
-    pub fn find_by_name(&self, name: &str) -> Option<&WindowArrangement> {
-        let lower = name.to_lowercase();
-        self.arrangements
-            .values()
-            .find(|a| a.name.to_lowercase() == lower)
-    }
-
-    /// Move an arrangement earlier in the order (towards index 0)
-    pub fn move_up(&mut self, id: &ArrangementId) {
-        if let Some(pos) = self.order.iter().position(|aid| aid == id)
-            && pos > 0
-        {
-            self.order.swap(pos, pos - 1);
-            self.update_orders();
-        }
-    }
-
-    /// Move an arrangement later in the order (towards the end)
-    pub fn move_down(&mut self, id: &ArrangementId) {
-        if let Some(pos) = self.order.iter().position(|aid| aid == id)
-            && pos < self.order.len() - 1
-        {
-            self.order.swap(pos, pos + 1);
-            self.update_orders();
-        }
-    }
-
-    /// Sort arrangements by their order field
-    fn sort_by_order(&mut self) {
-        self.order.sort_by_key(|id| {
-            self.arrangements
-                .get(id)
-                .map(|a| a.order)
-                .unwrap_or(usize::MAX)
-        });
-    }
-
-    /// Update the order field of all arrangements to match their position
-    fn update_orders(&mut self) {
-        for (i, id) in self.order.iter().enumerate() {
-            if let Some(arrangement) = self.arrangements.get_mut(id) {
-                arrangement.order = i;
-            }
-        }
-    }
-}
+// Re-export all arrangement types from the settings-ui crate so the rest of the
+// main crate can continue using `crate::arrangements::*` unchanged.
+pub use par_term_settings_ui::arrangements::{
+    ArrangementId, ArrangementManager, MonitorInfo, TabSnapshot, WindowArrangement, WindowSnapshot,
+};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
 
     fn make_arrangement(name: &str, order: usize) -> WindowArrangement {
         WindowArrangement {

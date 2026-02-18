@@ -41,6 +41,9 @@ par-term-terminal = { path = "par-term-terminal" }
 # GPU-accelerated rendering engine
 par-term-render = { path = "par-term-render" }
 
+# Settings UI (egui-based settings interface)
+par-term-settings-ui = { path = "par-term-settings-ui" }
+
 # Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
 par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
 

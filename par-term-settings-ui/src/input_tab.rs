@@ -10,7 +10,7 @@
 
 use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
-use crate::config::{DroppedFileQuoteStyle, KeyBinding, ModifierTarget, OptionKeyMode};
+use par_term_config::{DroppedFileQuoteStyle, KeyBinding, ModifierTarget, OptionKeyMode};
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
@@ -845,7 +845,7 @@ fn show_word_selection_section(
                     .clicked()
                 {
                     settings.config.smart_selection_rules =
-                        crate::config::default_smart_selection_rules();
+                        par_term_config::default_smart_selection_rules();
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

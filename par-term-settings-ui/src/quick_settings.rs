@@ -4,8 +4,8 @@
 //! without navigating through the full settings UI.
 
 use super::SettingsUI;
-use crate::config::{BackgroundMode, CursorStyle, TabBarMode};
-use crate::themes::Theme;
+use par_term_config::Theme;
+use par_term_config::{BackgroundMode, CursorStyle, TabBarMode};
 
 /// Render the quick settings strip at the top of the settings UI.
 ///

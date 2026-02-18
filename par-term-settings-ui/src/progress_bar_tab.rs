@@ -97,7 +97,7 @@ fn show_general_section(
                 egui::ComboBox::from_id_salt("progress_bar_style")
                     .selected_text(settings.config.progress_bar_style.display_name())
                     .show_ui(ui, |ui| {
-                        for style in crate::config::ProgressBarStyle::all() {
+                        for style in par_term_config::ProgressBarStyle::all() {
                             if ui
                                 .selectable_value(
                                     &mut settings.config.progress_bar_style,
@@ -119,7 +119,7 @@ fn show_general_section(
                 egui::ComboBox::from_id_salt("progress_bar_position")
                     .selected_text(settings.config.progress_bar_position.display_name())
                     .show_ui(ui, |ui| {
-                        for position in crate::config::ProgressBarPosition::all() {
+                        for position in par_term_config::ProgressBarPosition::all() {
                             if ui
                                 .selectable_value(
                                     &mut settings.config.progress_bar_position,

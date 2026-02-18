@@ -7,9 +7,9 @@
 
 use super::SettingsUI;
 use super::section::collapsing_section;
-use crate::profile::DynamicProfileSource;
-use crate::profile::dynamic::ConflictResolution;
 use crate::profile_modal_ui::ProfileModalAction;
+use par_term_config::ConflictResolution;
+use par_term_config::DynamicProfileSource;
 use std::collections::HashSet;
 
 /// Show the profiles tab content.

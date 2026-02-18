@@ -11,8 +11,8 @@
 
 use super::SettingsUI;
 use super::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section, subsection_label};
-use crate::config::{CursorStyle, ThinStrokesMode, UnfocusedCursorStyle};
-use crate::themes::Theme;
+use par_term_config::Theme;
+use par_term_config::{CursorStyle, ThinStrokesMode, UnfocusedCursorStyle};
 use std::collections::HashSet;
 
 /// Show the appearance tab content.

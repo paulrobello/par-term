@@ -7,8 +7,8 @@
 
 use super::SettingsUI;
 use super::section::collapsing_section;
+use crate::SettingsWindowAction;
 use crate::arrangements::ArrangementManager;
-use crate::settings_window::SettingsWindowAction;
 use std::collections::HashSet;
 
 /// Show the arrangements tab content.

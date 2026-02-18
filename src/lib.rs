@@ -51,7 +51,7 @@ pub mod selection;
 pub mod self_updater;
 pub mod session;
 pub mod session_logger;
-pub mod settings_ui;
+pub use par_term_settings_ui as settings_ui;
 pub mod settings_window;
 pub mod shader_install_ui;
 pub mod shader_installer;

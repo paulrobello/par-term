@@ -53,6 +53,19 @@ image = "0.25.9"
 # Platform-specific directories
 dirs = "6.0"
 
+# HTTP client for URL imports
+ureq = { version = "2.12", features = ["native-tls"] }
+native-tls = "0.2"
+
+# YAML serialization for config import/export
+serde_yaml = "0.9"
+
+# Regex for trigger pattern validation
+regex = "1.11"
+
+# Clipboard support
+arboard = "3.4.1"
+
 [features]
 default = []
 wgpu = ["egui-wgpu", "egui-winit", "par-term-config/wgpu-types"]

@@ -67,7 +67,7 @@ impl SettingsUI {
             filename.push_str(".glsl");
         }
 
-        let shader_path = crate::config::Config::shaders_dir().join(&filename);
+        let shader_path = par_term_config::Config::shaders_dir().join(&filename);
 
         // Check if file already exists
         if shader_path.exists() {
@@ -157,7 +157,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             });
 
         if delete_shader {
-            let shader_path = crate::config::Config::shader_path(&shader_name);
+            let shader_path = par_term_config::Config::shader_path(&shader_name);
             match std::fs::remove_file(&shader_path) {
                 Ok(()) => {
                     log::info!("Deleted shader: {}", shader_path.display());
