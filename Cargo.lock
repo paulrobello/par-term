@@ -3651,6 +3651,7 @@ dependencies = [
  "par-term-settings-ui",
  "par-term-ssh",
  "par-term-terminal",
+ "par-term-tmux",
  "par-term-update",
  "parking_lot",
  "raw-window-handle",
@@ -3865,6 +3866,19 @@ dependencies = [
  "parking_lot",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "par-term-tmux"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hostname",
+ "log",
+ "par-term-config",
+ "par-term-emu-core-rust",
+ "regex",
+ "winit",
 ]
 
 [[package]]

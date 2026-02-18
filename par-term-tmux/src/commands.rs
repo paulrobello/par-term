@@ -4,7 +4,7 @@
 //! sent through control mode. Commands are formatted as newline-terminated
 //! strings.
 
-use super::types::{TmuxPaneId, TmuxWindowId};
+use crate::types::{TmuxPaneId, TmuxWindowId};
 
 /// A tmux command ready to be sent
 #[derive(Debug, Clone)]

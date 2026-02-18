@@ -1,6 +1,6 @@
 //! tmux Control Mode Integration
 //!
-//! This module provides integration with tmux's control mode (-CC flag),
+//! This crate provides integration with tmux's control mode (-CC flag),
 //! allowing par-term to:
 //! - Attach to existing tmux sessions
 //! - Display tmux panes natively using the split pane system

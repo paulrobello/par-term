@@ -1,0 +1,35 @@
+[package]
+name = "par-term-tmux"
+version = "0.1.0"
+edition = "2024"
+authors = ["Paul Robello <probello@gmail.com>"]
+description = "tmux control mode integration for par-term terminal emulator"
+license = "MIT"
+repository = "https://github.com/paulrobello/par-term"
+homepage = "https://github.com/paulrobello/par-term"
+keywords = ["terminal", "tmux", "control-mode", "multiplexer"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# Configuration (PaneId, TabId)
+par-term-config = { path = "../par-term-config", version = "0.1.0" }
+
+# Terminal emulator core (tmux control mode parser)
+par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
+
+# Window event types for prefix key handling
+winit = "0.30"
+
+# Date/time for status format
+chrono = "0.4.43"
+
+# Regex for sanitizing tmux output
+regex = "1.12.3"
+
+# Cross-platform hostname detection
+hostname = "0.4.2"
+
+# Logging
+log = "0.4.29"
+
+[dev-dependencies]

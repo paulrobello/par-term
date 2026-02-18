@@ -1,5 +1,5 @@
 [workspace]
-members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input", "par-term-keybindings", "par-term-mcp", "par-term-render", "par-term-scripting", "par-term-settings-ui", "par-term-ssh", "par-term-terminal", "par-term-update"]
+members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input", "par-term-keybindings", "par-term-mcp", "par-term-render", "par-term-scripting", "par-term-settings-ui", "par-term-ssh", "par-term-terminal", "par-term-tmux", "par-term-update"]
 resolver = "2"
 
 [package]
@@ -61,6 +61,9 @@ par-term-update = { path = "par-term-update", version = "0.1.0" }
 
 # MCP (Model Context Protocol) stdio server
 par-term-mcp = { path = "par-term-mcp", version = "0.1.0" }
+
+# tmux control mode integration
+par-term-tmux = { path = "par-term-tmux", version = "0.1.0" }
 
 # Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
 par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
