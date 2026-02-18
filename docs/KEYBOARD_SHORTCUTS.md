@@ -164,6 +164,7 @@ Vi-style keyboard-driven text selection. See [Copy Mode](COPY_MODE.md) for compl
 | `Cmd/Ctrl + Shift + U` | Toggle cursor shader |
 | `Cmd/Ctrl + Shift + P` | Toggle profile drawer |
 | `Cmd + Shift + S` (macOS) / `Ctrl + Shift + S` (Linux/Win) | SSH Quick Connect |
+| `Cmd + I` (macOS) / `Ctrl + Shift + I` (Linux/Win) | Toggle Assistant panel |
 | `Cmd/Ctrl + Alt + I` | Toggle broadcast input |
 | `Cmd/Ctrl + Alt + T` | Toggle tmux session picker |
 | `Ctrl + ,` | Cycle cursor style |
@@ -222,7 +223,8 @@ keybindings:
 - `toggle_background_shader`, `toggle_cursor_shader`
 - `toggle_broadcast_input`, `toggle_profile_drawer`
 - `toggle_tmux_session_picker`, `ssh_quick_connect`
-- `command_history_search`
+- `toggle_ai_inspector`, `command_history_search`
+- `reload_dynamic_profiles`
 
 **Terminal:**
 - `clear_scrollback`, `reload_config`

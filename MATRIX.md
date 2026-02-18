@@ -1093,12 +1093,12 @@ The following features are blocked by or significantly dependent on architectura
 | ~~**Instant Replay**~~ | ~~Core must implement terminal state snapshots or a dedicated replay buffer that records incremental changes.~~ | ✅ **Implemented in core v0.38+** — `SnapshotManager` with rolling buffer (4 MiB default budget, 30s snapshot interval, size-based eviction). `TerminalSnapshot` captures full terminal state (grids, scrollback, cursor, modes, zones). `ReplaySession` provides timeline navigation: `seek_to_timestamp()`, `step_forward()`/`step_backward()` (byte-granular), `previous_entry()`/`next_entry()`. Reconstruction via snapshot restore + input replay. `Terminal::capture_snapshot()` and `Terminal::restore_from_snapshot()` integration. Frontend replay UI pending. |
 | ~~**Advanced File Protocols**~~ | ~~Full iTerm2-style file upload/download via OSC 1337 `File=` requires core state machines.~~ | ✅ **Implemented in core v0.38+** — `FileTransferManager` with active transfer tracking and completed ring buffer (default 32 entries, 50MB max). Downloads (`inline=0`): base64 payload decoded, progress tracked, raw bytes stored for frontend retrieval via `take_completed_transfer(id)`. Multipart downloads: chunked transfers routed through manager with per-chunk progress events. Uploads: `RequestUpload=format=tgz` emits `UploadRequested` event; frontend responds via `send_upload_data()` or `cancel_upload()`. 5 new `TerminalEvent` variants (`FileTransferStarted`, `FileTransferProgress`, `FileTransferCompleted`, `FileTransferFailed`, `UploadRequested`). 9 new Terminal API methods. Full Python bindings and streaming protocol support (5 new protobuf messages). Frontend integration pending. |
 | ~~**Python / Scripting API**~~ | ~~Core requires extensibility hooks and a stable FFI-friendly representation of terminal state.~~ | ✅ **Implemented in core v0.37+** — `TerminalObserver` trait with deferred dispatch and category-specific callbacks (`on_zone_event`, `on_command_event`, `on_environment_event`, `on_screen_event`, `on_event`). C-compatible `SharedState`/`SharedCell` `#[repr(C)]` FFI types with full screen content. Python sync observer (`add_observer(callback, kinds)`) and async observer (`add_async_observer()` with `asyncio.Queue`). Subscription filtering via `TerminalEventKind`. Convenience wrappers: `on_command_complete()`, `on_zone_change()`, `on_cwd_change()`, `on_title_change()`, `on_bell()`. Observer panic isolation via `catch_unwind`. Frontend scripting manager pending. |
-| ~~**AI Terminal Inspection**~~ | ~~Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata.~~ | ✅ **Core implemented (v0.37+), frontend implemented (v0.16.0)** — Core: `get_semantic_snapshot(scope)` returns structured `SemanticSnapshot`. Frontend: DevTools-style right-side panel with 4 view modes, JSON export, ACP agent chat integration, auto-context feeding, terminal reflow. Settings UI tab with all config options. |
+| ~~**AI Terminal Inspection**~~ | ~~Core needs optimized APIs for high-performance extraction of the full buffer state and rich metadata.~~ | ✅ **Core implemented (v0.37+), frontend implemented (v0.17.0)** — Core: `get_semantic_snapshot(scope)` returns structured `SemanticSnapshot`. Frontend: DevTools-style right-side panel with 4 view modes, JSON export, ACP agent chat integration, auto-context feeding, terminal reflow. Settings UI tab with all config options. |
 | ~~**Contextual Awareness API**~~ | ~~Granular notification system for the frontend to observe internal state changes beyond simple screen updates.~~ | ✅ **Implemented in core v0.37+** — 6 new `TerminalEvent` variants: `ZoneOpened`/`ZoneClosed`/`ZoneScrolledOut` (zone lifecycle with monotonic IDs), `EnvironmentChanged` (CWD/hostname/username), `RemoteHostTransition` (OSC 7 + OSC 1337 multi-signal detection), `SubShellDetected` (prompt nesting heuristic). Full streaming protocol support (4 new EventType values, 6 proto messages). Python bindings with `poll_events()` dict conversion and subscription filtering. Frontend integration pending. |
 
 ---
 
-### Recently Completed (v0.16.0)
+### Recently Completed (v0.17.0)
 - ✅ **Assistant Panel** (formerly AI Inspector): DevTools-style right-side panel for terminal state inspection with ACP agent integration (#149)
   - 4 view modes (Cards/Timeline/Tree/List+Detail), configurable scope (Visible/Recent/Full)
   - JSON export (copy to clipboard / save to file)
@@ -1116,17 +1116,19 @@ The following features are blocked by or significantly dependent on architectura
   - Injects full shader reference into agent prompts: current state, available shaders, uniforms, GLSL template, debug file paths
   - Config file watcher monitors `config.yaml` for agent-applied changes and live-reloads shader settings
   - Enables agents to create, edit, debug, and apply custom shaders end-to-end
+- ✅ **Workspace Crate Extraction**: Modular crate architecture — par-term-fonts, par-term-terminal, par-term-render, par-term-settings-ui (#165, #166, #167, #170)
+- ✅ **File Transfer UI**: Native file dialogs and progress overlay for iTerm2 OSC 1337 transfers, shell utilities (pt-dl, pt-ul, pt-imgcat) (#154)
+- ✅ **Scripting Manager**: Python observer scripts with 12 event types, 9 command types, per-tab lifecycle, markdown panels (#150)
+- ✅ **Per-Pane Background Images**: Individual backgrounds per split pane with GPU texture caching and Settings UI (#148)
 - ✅ **Dynamic Profiles from Remote URLs**: Load team-shared profiles from remote URLs with auto-refresh, caching, conflict resolution, and Settings UI (#142)
-- ✅ **Status Bar**: Configurable status bar with 10 built-in widgets, drag-and-drop reordering, and background system monitoring (#133)
-- ✅ **SSH Host Profiles**: SSH config/known_hosts/history discovery, Quick Connect dialog (Cmd+Shift+S), and mDNS/Bonjour discovery (#134)
-- ✅ **Automatic SSH Profile Switching**: Hostname and command-based switching with auto-revert on disconnect
-- ✅ **Shell Selection Per Profile**: Configure specific shells (bash/zsh/fish/pwsh) and login shell mode independently for each profile (#128)
-- ✅ **Profile Selection on New Tab**: Split `+`/`▾` button on tab bar for quick profile launch; shortcut behavior toggle (#129)
-- ✅ **Remote Shell Integration Install**: Install integration on remote hosts via active PTY from Shell menu (#135)
-- ✅ **Native Application Menus**: Platform-aware settings access via Cmd+, (macOS) and Edit > Preferences (Windows/Linux) (#127)
+- ✅ **Auto Dark Mode**: Auto-switch terminal theme and tab style based on system appearance (#139, #141)
+- ✅ **macOS Target Space**: Open windows in a specific macOS Space via SkyLight Server APIs (#140)
+- ✅ **Configurable Link Handler**: Custom command for opening URLs instead of system default browser
+- ✅ **Duplicate Tab**: Right-click context menu option to duplicate any tab (#160)
+- ✅ **Fast Window Shutdown**: Instant visual close with parallel PTY cleanup (#146)
 
 ---
 
-*Updated: 2026-02-17 (Assistant panel rebrand, collapsible terminal capture, layout reorder; previously: ACP chat UI, 8 bundled agent configs, panel resize/drag fixes, dialog z-ordering #149)*
+*Updated: 2026-02-17 (v0.17.0 release — Assistant panel, ACP agents, workspace crate extraction, file transfers, scripting, per-pane backgrounds, dynamic profiles, auto dark mode)*
 *iTerm2 Version: Latest (from source)*
-*par-term Version: 0.16.0*
+*par-term Version: 0.17.0*

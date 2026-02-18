@@ -11,6 +11,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
 - [Reordering Tabs](#reordering-tabs)
   - [Drag-and-Drop Reordering](#drag-and-drop-reordering)
   - [Keyboard Reordering](#keyboard-reordering)
+- [Duplicating Tabs](#duplicating-tabs)
 - [Tab Bar](#tab-bar)
   - [Tab Bar Position](#tab-bar-position)
   - [Visibility Modes](#visibility-modes)
@@ -135,6 +136,22 @@ Click and drag any tab in the tab bar to move it to a new position:
 |--------|----------|
 | Move tab left | `Cmd+Shift+Left` (macOS) / `Ctrl+Shift+Left` |
 | Move tab right | `Cmd+Shift+Right` (macOS) / `Ctrl+Shift+Right` |
+
+## Duplicating Tabs
+
+Any tab can be duplicated via the context menu:
+
+1. **Right-click** on any tab in the tab bar to open the context menu
+2. Select **Duplicate Tab**
+3. A new tab opens immediately adjacent to the source tab
+
+**Behavior:**
+- The duplicated tab inherits the working directory of the source tab
+- Any custom tab color set on the source tab carries over to the new tab
+- Duplication works on any tab, not just the currently active tab
+- The new tab starts a fresh shell session in the inherited directory
+
+> **📝 Note:** The duplicated tab launches a new shell process. Running commands or session state from the original tab are not carried over.
 
 ## Tab Bar
 

@@ -12,9 +12,86 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.16.0
+## What's New in 0.17.0
 
-### 🌐 SSH Host Management
+### 🤖 Assistant Panel (AI Integration)
+
+DevTools-style right-side panel for terminal state inspection and ACP agent integration.
+
+- Toggle with `Cmd+I` (macOS) / `Ctrl+Shift+I` (other) or keybinding action
+- 4 view modes (Cards, Timeline, Tree, List+Detail) for browsing command history
+- ACP agent chat: connect to Claude Code and other ACP-compatible agents via JSON-RPC 2.0 over stdio
+- 8 bundled agent configs: Claude Code, Amp, Augment, GitHub Copilot, Docker, Gemini CLI, OpenAI, OpenHands
+- Agent command suggestions with Run (execute + notify) and Paste actions
+- Auto-context feeding: sends command results to connected agent on completion
+- Yolo mode: auto-approve all agent permission requests
+- Resizable panel with drag handle; terminal reflows columns when panel opens/closes/resizes
+
+### 🎨 Shader Assistant for ACP Agents
+
+Context-triggered shader expertise for ACP agents.
+
+- Auto-detects shader-related queries and active shader state
+- Injects full shader reference into agent prompts (current state, available shaders, uniforms, GLSL template)
+- Config file watcher for live-reloading agent-applied shader changes
+
+### 📂 Workspace Crate Extraction
+
+Major refactoring into modular workspace crates for maintainability.
+
+- **par-term-fonts**: Font management and text shaping
+- **par-term-terminal**: Terminal manager, scrollback, styled content
+- **par-term-render**: GPU rendering engine, shaders, cell renderer
+- **par-term-settings-ui**: Complete settings UI (28 tabs, sidebar, section helpers)
+- All types re-exported from main crate for backward compatibility
+
+### 📁 File Transfer UI
+
+Native file dialogs and progress overlay for iTerm2 OSC 1337 file transfers.
+
+- Native save dialog for downloads, file picker for uploads
+- Real-time egui progress overlay with progress bars
+- Desktop notifications for transfer lifecycle events
+- Shell integration utilities: `pt-dl`, `pt-ul`, `pt-imgcat` for remote file operations
+
+### 🐍 Scripting Manager
+
+Python scripts that react to terminal events via the observer API.
+
+- 12 event types (bell, cwd_changed, command_complete, etc.) and 9 command types
+- Per-tab script lifecycle with auto-start and restart policies
+- JSON protocol over stdin/stdout for bidirectional communication
+- Markdown panels: scripts can register custom UI panels in Settings
+
+### 🖼️ Per-Pane Background Images
+
+Individual background images for each split pane with GPU texture caching.
+
+- Per-pane image path, display mode (fit/fill/stretch/tile/center), and opacity
+- Settings UI with pane index selector, file picker, mode dropdown, opacity slider
+
+### 🌐 Dynamic Profiles from Remote URLs
+
+Load team-shared profile definitions from remote URLs.
+
+- Background auto-refresh with configurable timer and local cache
+- Conflict resolution: Local Wins or Remote Wins
+- Visual `[dynamic]` indicators; dynamic profiles are read-only
+
+### 🔧 Other Changes
+
+- **Duplicate Tab**: Right-click context menu option to duplicate any tab with same CWD and color
+- **Auto Dark Mode**: Auto-switch terminal theme based on system light/dark appearance
+- **Automatic Tab Style**: Tab bar style follows system theme with configurable light/dark mapping
+- **macOS Target Space**: Open windows in a specific macOS Space (virtual desktop)
+- **Configurable Link Handler**: Custom command for opening URLs instead of system default browser
+- **Fast Window Shutdown**: Closing par-term is now visually instant instead of 8+ seconds
+- **Shift+Tab Fix**: Now correctly sends CSI Z to terminal applications
+
+<details>
+<summary><strong>What's New in 0.16.0</strong></summary>
+
+#### 🌐 SSH Host Management
 
 Comprehensive SSH host profiles, quick connect, and auto-discovery.
 
@@ -22,43 +99,24 @@ Comprehensive SSH host profiles, quick connect, and auto-discovery.
 - SSH config parser (`~/.ssh/config`), known hosts parser, shell history scanner
 - mDNS/Bonjour SSH host discovery via `_ssh._tcp.local.` (opt-in)
 - SSH-specific profile fields: host, user, port, identity file, extra args
-- Profiles with `ssh_host` set launch SSH connections instead of shells
 - Automatic profile switching on SSH connection with auto-revert on disconnect
-- SSH settings tab in Settings UI
 
-### 📊 Status Bar
+#### 📊 Status Bar
 
 Configurable status bar with widget system and system monitoring.
 
 - 10 built-in widgets: clock, username@hostname, current directory, git branch, CPU/memory usage, network status, bell indicator, current command, custom text
-- Three-section layout (left/center/right) with configurable separator
 - Widget configurator in Settings UI with drag-and-drop reordering
-- System monitoring via background thread (CPU, memory, network)
-- Git branch/ahead/behind/dirty status with configurable polling
 - Auto-hide on fullscreen and/or mouse inactivity
-- Top or bottom positioning (stacks with tab bar)
 
-### ➕ Profile Selection on New Tab
+#### 🔧 Other Changes
 
-Split button on the tab bar for quick profile-based tab creation.
+- **Profile Selection on New Tab**: Split `+`/`▾` button on tab bar for quick profile launch
+- **Shell Selection Per Profile**: Configure specific shells per profile with platform-aware detection
+- **Navigate to Settings from Application Menu**: Platform-aware settings access
+- **Install Shell Integration on Remote Host**: Shell menu option with confirmation dialog
 
-- `+` button creates a default tab, `▾` chevron opens a profile dropdown
-- Chevron shows all profiles with icons; works in horizontal and vertical layouts
-- Config: `new_tab_shortcut_shows_profiles: true` makes Cmd+T show the profile picker
-
-### 🐚 Shell Selection Per Profile
-
-Configure a specific shell for each profile with platform-aware detection.
-
-- New `shell` and `login_shell` fields per profile
-- Shell dropdown in profile editor with all detected shells
-- Priority: profile `command` > profile `shell` > global `custom_shell` / `$SHELL`
-
-### 🔧 Other Changes
-
-- **Navigate to Settings from Application Menu**: macOS app menu with Settings... (Cmd+,), About, and standard items; Windows/Linux Edit > Preferences... (Ctrl+Shift+,)
-- **Install Shell Integration on Remote Host**: Shell menu option to install shell integration on remote hosts via SSH with confirmation dialog
-- **Core Library Update**: Updated par-term-emu-core-rust to latest version
+</details>
 
 <details>
 <summary><strong>What's New in 0.15.0</strong></summary>
@@ -570,6 +628,9 @@ Essential feature for emacs/vim users.
 - **[Command Separators](docs/COMMAND_SEPARATORS.md)** - Horizontal lines between shell commands with exit-code coloring.
 - **[SSH Host Management](docs/SSH.md)** - SSH quick connect, host discovery, and SSH profiles.
 - **[Status Bar](docs/STATUS_BAR.md)** - Configurable status bar with widgets and system monitoring.
+- **[Tabs](docs/TABS.md)** - Tab management, duplicate tab, and tab behavior.
+- **[Assistant Panel](docs/ASSISTANT_PANEL.md)** - AI agent integration with terminal state inspection.
+- **[File Transfers](docs/FILE_TRANSFERS.md)** - OSC 1337 file transfers with shell utilities.
 - **[Self-Update](docs/SELF_UPDATE.md)** - In-place update capability via CLI and Settings UI.
 - **[Debug Logging](docs/LOGGING.md)** - Configurable log levels and troubleshooting.
 

@@ -5,6 +5,7 @@ This document provides a high-level overview of the `par-term` architecture, det
 ## Table of Contents
 - [Overview](#overview)
 - [High-Level Architecture](#high-level-architecture)
+- [Workspace Crate Architecture](#workspace-crate-architecture)
 - [Core Components](#core-components)
   - [Application Logic](#application-logic)
   - [Terminal Emulation](#terminal-emulation)
@@ -33,7 +34,7 @@ The system is composed of three primary layers: the Application Layer (handling 
 
 ```mermaid
 graph TB
-    subgraph "Application Layer"
+    subgraph "Application Layer (par-term)"
         App[App Entry Point]
         WM[Window Manager]
         WS[Window State]
@@ -43,14 +44,15 @@ graph TB
         Menu[Native Menu]
         Input[Input Handler]
         Keybind[Keybinding Registry]
-        Config[Configuration]
-        SettingsWin[Settings Window]
+        Config[Configuration<br>par-term-config]
+        SettingsWin[Settings Window<br>par-term-settings-ui]
         Profile[Profile Manager]
         SSH[SSH Discovery]
         StatusBar[Status Bar]
+        ACP[ACP Agent<br>par-term-acp]
     end
 
-    subgraph "Emulation Layer"
+    subgraph "Emulation Layer (par-term-terminal)"
         Tab[Tab / Terminal Session]
         Pane[Pane / Split]
         TM[Terminal Manager]
@@ -59,7 +61,7 @@ graph TB
         Tmux[tmux Integration]
     end
 
-    subgraph "Presentation Layer"
+    subgraph "Presentation Layer (par-term-render, par-term-fonts)"
         Renderer[Master Renderer]
         CellRender[Cell Renderer]
         GraphicRender[Graphics Renderer]
@@ -108,6 +110,7 @@ graph TB
     style Profile fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style SSH fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
     style StatusBar fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style ACP fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
     style Tab fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Pane fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style TM fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
@@ -117,6 +120,59 @@ graph TB
     style PTY fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style GPU fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
 ```
+
+## Workspace Crate Architecture
+
+The par-term project uses a Cargo workspace to split functionality into focused crates, improving compile times, enforcing dependency boundaries, and enabling independent testing.
+
+```mermaid
+graph TD
+    Main[par-term<br>Main Binary]
+    ACP[par-term-acp<br>ACP Protocol & Agent Management]
+    Config[par-term-config<br>Configuration, Cell, ScrollbackMark]
+    Fonts[par-term-fonts<br>Font Management & Text Shaping]
+    Terminal[par-term-terminal<br>Terminal Manager & Scrollback]
+    Render[par-term-render<br>GPU Rendering Engine]
+    Settings[par-term-settings-ui<br>Settings Tabs & Sidebar]
+
+    Main --> ACP
+    Main --> Config
+    Main --> Fonts
+    Main --> Terminal
+    Main --> Render
+    Main --> Settings
+
+    Terminal --> Config
+    Render --> Config
+    Render --> Fonts
+    Settings --> Config
+    Settings --> Fonts
+    Settings --> Render
+
+    style Main fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style ACP fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style Config fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Fonts fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Terminal fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Render fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Settings fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+```
+
+### Crate Responsibilities
+
+| Crate | Description |
+|-------|-------------|
+| **par-term** | Main binary crate. Application entry point, window management, event loop, and orchestration. Re-exports key types from sub-crates for backward compatibility. |
+| **par-term-acp** | ACP (Agent Communication Protocol) implementation and agent lifecycle management. |
+| **par-term-config** | Configuration loading and serialization (`Config` struct), the `Cell` type, `ScrollbackMark`, and shared data types used across crates. |
+| **par-term-fonts** | Font discovery, loading, and fallback chain (`FontManager`, `FontData`). Text shaping via `TextShaper` (HarfBuzz/rustybuzz). |
+| **par-term-terminal** | Terminal session management (`TerminalManager`), scrollback buffer, styled content extraction, and PTY interaction wrappers. |
+| **par-term-render** | GPU rendering engine: cell renderer, graphics renderer (Sixel/iTerm2/Kitty), custom shader renderer, WGSL shaders, and glyph atlas management. |
+| **par-term-settings-ui** | All 28 settings tab modules (appearance, window, terminal, input, effects, notifications, integrations, advanced, etc.), sidebar navigation, and section helper utilities. |
+
+### Backward Compatibility
+
+All public types from workspace crates are re-exported from the main `par-term` crate. Existing code that imports from the top-level crate continues to work without modification.
 
 ## Core Components
 

@@ -19,6 +19,15 @@ par-term provides a profile system for saving and quickly launching terminal ses
   - [Auto-Switch Visual Application](#auto-switch-visual-application)
 - [Default Startup Directory](#default-startup-directory)
 - [Per-Profile Badge Configuration](#per-profile-badge-configuration)
+- [Dynamic Profiles](#dynamic-profiles)
+  - [Configuration](#configuration-1)
+  - [Background Refresh](#background-refresh)
+  - [Local Cache](#local-cache)
+  - [Conflict Resolution](#conflict-resolution)
+  - [Security](#security)
+  - [Visual Indicators](#visual-indicators)
+  - [Keybinding](#keybinding)
+  - [Dynamic Profiles Settings UI](#dynamic-profiles-settings-ui)
 - [Storage](#storage)
 - [Related Documentation](#related-documentation)
 
@@ -379,6 +388,117 @@ Profiles can override global badge settings for visual differentiation per envir
 2. Expand "Badge Appearance" section
 3. Check boxes to enable individual overrides
 4. Configure color, font, margins, and size as needed
+
+## Dynamic Profiles
+
+par-term can fetch profiles from remote URLs, enabling teams to share standardized terminal configurations. Dynamic profiles are read-only and update automatically in the background.
+
+```mermaid
+graph TD
+    Sources[Remote Sources]
+    Fetch[Background Fetch]
+    Cache[Local Cache]
+    Merge[Profile Merger]
+    Local[Local Profiles]
+    Combined[Combined Profile List]
+
+    Sources --> Fetch
+    Fetch --> Cache
+    Cache --> Merge
+    Local --> Merge
+    Merge --> Combined
+
+    style Sources fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Fetch fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Cache fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Merge fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style Local fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
+    style Combined fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+```
+
+### Configuration
+
+Dynamic profile sources are defined in `config.yaml` as an array:
+
+```yaml
+dynamic_profile_sources:
+  - url: "https://example.com/team-profiles.yaml"
+    headers:
+      Authorization: "Bearer <token>"
+    refresh_interval_minutes: 30
+    max_size_bytes: 1048576
+    conflict_resolution: "local_wins"
+  - url: "https://internal.corp/devops-profiles.yaml"
+    refresh_interval_minutes: 60
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `url` | string | (required) | URL to fetch profiles from |
+| `headers` | map | `{}` | Custom HTTP headers (e.g., auth tokens) |
+| `refresh_interval_minutes` | integer | `30` | How often to re-fetch the source |
+| `max_size_bytes` | integer | `1048576` | Maximum response size (1 MB default) |
+| `conflict_resolution` | string | `"local_wins"` | How to handle ID collisions with local profiles |
+
+### Background Refresh
+
+Dynamic profile sources refresh automatically on a configurable timer:
+
+- The default refresh interval is 30 minutes
+- Each source can have its own interval via `refresh_interval_minutes`
+- Refresh occurs in the background without blocking the UI
+- Failed fetches retain the previously cached version
+
+### Local Cache
+
+Fetched profiles are cached locally to provide offline access and faster startup:
+
+**Cache location:** `~/.config/par-term/cache/dynamic_profiles/`
+
+- Each source URL maps to a separate cache file
+- The cache is populated on first fetch and updated on each successful refresh
+- On startup, par-term loads from cache immediately and refreshes in the background
+
+### Conflict Resolution
+
+When a dynamic profile has the same ID as a local profile, the `conflict_resolution` setting determines which takes precedence:
+
+| Mode | Description |
+|------|-------------|
+| `local_wins` | Local profile takes precedence (default) |
+| `remote_wins` | Dynamic profile overrides the local one |
+
+### Security
+
+- **HTTPS enforcement**: When `headers` contain authentication tokens, par-term requires the URL to use HTTPS. HTTP URLs with auth headers are rejected at load time
+- **Size limits**: The `max_size_bytes` setting prevents downloading unexpectedly large payloads
+
+### Visual Indicators
+
+Dynamic profiles are visually distinguished throughout the interface:
+
+- A `[dynamic]` badge appears next to dynamic profile names in the profile modal and profile drawer
+- Dynamic profiles are read-only; edit and delete controls are disabled for them
+- The source URL is shown in the profile detail view
+
+### Keybinding
+
+Use the `reload_dynamic_profiles` action to manually trigger an immediate refresh of all dynamic profile sources:
+
+```yaml
+keybindings:
+  - key: "CmdOrCtrl+Shift+F5"
+    action: "reload_dynamic_profiles"
+```
+
+### Dynamic Profiles Settings UI
+
+Dynamic profile sources can be managed in **Settings > Profiles > Dynamic Sources**:
+
+- Add, edit, and remove remote source URLs
+- Configure per-source headers, refresh interval, and size limits
+- Set conflict resolution mode
+- View last fetch status and timestamp per source
 
 ## Storage
 

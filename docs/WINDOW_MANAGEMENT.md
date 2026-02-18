@@ -16,6 +16,9 @@ par-term provides extensive window management features including edge-anchored w
 - [Window Arrangements](#window-arrangements)
 - [Session Restore on Startup](#session-restore-on-startup)
 - [Status Bar](#status-bar)
+- [Auto Dark Mode](#auto-dark-mode)
+- [Automatic Tab Style](#automatic-tab-style)
+- [macOS Target Space](#macos-target-space)
 - [Configuration](#configuration)
 - [Related Documentation](#related-documentation)
 
@@ -338,6 +341,67 @@ status_bar_auto_hide_mouse: false
 ```
 
 **Settings UI:** Settings > Status Bar
+
+## Auto Dark Mode
+
+par-term can automatically switch between light and dark themes based on the operating system's appearance setting.
+
+**How it works:**
+1. On startup, par-term detects the current system theme (light or dark)
+2. While running, it monitors for OS theme change events
+3. When the system theme changes, par-term applies the corresponding theme automatically
+
+```yaml
+# Enable automatic theme switching (default: false)
+auto_dark_mode: false
+
+# Theme to use when system is in light mode
+light_theme: "Solarized Light"
+
+# Theme to use when system is in dark mode
+dark_theme: "par-dark"
+```
+
+**Settings UI:** Settings > Appearance > "Auto Dark Mode"
+
+When `auto_dark_mode` is enabled, the `light_theme` and `dark_theme` dropdowns appear for selecting the theme to use in each mode. When disabled, the global `theme` setting controls the active theme.
+
+## Automatic Tab Style
+
+The tab bar style can automatically switch along with the system theme when auto dark mode is active.
+
+```yaml
+# Tab style preset: "dark", "light", "compact", "minimal", "high_contrast", "automatic"
+tab_style: automatic
+
+# Tab style to use when system is in light mode
+light_tab_style: light
+
+# Tab style to use when system is in dark mode
+dark_tab_style: dark
+```
+
+When `tab_style` is set to `"automatic"`, par-term uses `light_tab_style` when the OS is in light mode and `dark_tab_style` when the OS is in dark mode. This pairs with [Auto Dark Mode](#auto-dark-mode) for a fully theme-aware interface.
+
+**Settings UI:** Settings > Window > Tab Bar > "Tab Style" (select "Automatic" from the dropdown)
+
+## macOS Target Space
+
+On macOS, par-term can open windows in a specific Mission Control Space (virtual desktop).
+
+```yaml
+# Target macOS Space for new windows (1-16, or null for default behavior)
+target_space: null
+```
+
+**Behavior:**
+- Set `target_space` to a number between 1 and 16 to assign new windows to that Space
+- Set to `null` (default) to let macOS place windows according to its standard rules
+- If the specified Space is unavailable (e.g., fewer Spaces configured than the target), par-term falls back gracefully to the current Space
+
+**Settings UI:** Settings > Window > Window Behavior (macOS only)
+
+> **📝 Note:** This setting only appears on macOS. It has no effect on Linux or Windows.
 
 ## Configuration
 

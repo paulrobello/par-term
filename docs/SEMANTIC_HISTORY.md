@@ -14,6 +14,7 @@ Click file paths in terminal output to open them directly in your editor. Semant
   - [Custom Editor Command](#custom-editor-command)
   - [System Default](#system-default)
 - [Configuration](#configuration)
+- [Link Handler](#link-handler)
 - [Settings UI](#settings-ui)
 - [Examples](#examples)
   - [Editor Command Examples](#editor-command-examples)
@@ -134,6 +135,36 @@ semantic_history_editor_mode: environment_variable
 # Supports {file}, {line}, {col} placeholders
 semantic_history_editor: "code -g {file}:{line}"
 ```
+
+## Link Handler
+
+By default, clicking a URL in the terminal opens it in the system's default browser. The `link_handler_command` option lets you override this behavior with a custom command.
+
+```yaml
+# Custom link handler command (empty string uses system default)
+link_handler_command: ""
+```
+
+The `{url}` placeholder in the command is replaced with the clicked URL at runtime.
+
+**Examples:**
+
+```yaml
+# Open links in Firefox
+link_handler_command: "firefox {url}"
+
+# Open links in a specific Chrome profile
+link_handler_command: "open -a \"Google Chrome\" {url}"
+
+# Open links in a private browsing window
+link_handler_command: "firefox --private-window {url}"
+```
+
+When `link_handler_command` is empty (the default), par-term falls back to the operating system's default browser.
+
+**Settings UI:** Settings > Terminal > Semantic History > "Link Handler Command"
+
+> **⚠️ Warning:** The Settings UI validates that the `{url}` placeholder is present in the command. A warning appears if the placeholder is missing, since the URL would not be passed to the handler.
 
 ## Settings UI
 
