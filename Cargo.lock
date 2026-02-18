@@ -3649,6 +3649,7 @@ dependencies = [
  "par-term-settings-ui",
  "par-term-ssh",
  "par-term-terminal",
+ "par-term-update",
  "parking_lot",
  "raw-window-handle",
  "regex",
@@ -3841,6 +3842,24 @@ dependencies = [
  "parking_lot",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "par-term-update"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "log",
+ "native-tls",
+ "par-term-config",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "ureq",
+ "zip",
 ]
 
 [[package]]
