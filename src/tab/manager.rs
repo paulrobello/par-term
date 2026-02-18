@@ -412,7 +412,7 @@ impl TabManager {
         }
     }
 
-    /// Duplicate the active tab (creates new tab with same working directory)
+    /// Duplicate the active tab (creates new tab with same working directory and color)
     ///
     /// # Arguments
     /// * `config` - Terminal configuration
@@ -424,32 +424,53 @@ impl TabManager {
         runtime: Arc<Runtime>,
         grid_size: Option<(usize, usize)>,
     ) -> Result<Option<TabId>> {
-        let working_dir = self.active_tab().and_then(|t| t.get_cwd());
-
-        if working_dir.is_some() || self.active_tab_id.is_some() {
-            let id = self.next_tab_id;
-            self.next_tab_id += 1;
-
-            // Tab number is based on current count, not unique ID
-            let tab_number = self.tabs.len() + 1;
-            let tab = Tab::new(id, tab_number, config, runtime, working_dir, grid_size)?;
-
-            // Insert after active tab
-            if let Some(active_id) = self.active_tab_id {
-                if let Some(idx) = self.tabs.iter().position(|t| t.id == active_id) {
-                    self.tabs.insert(idx + 1, tab);
-                } else {
-                    self.tabs.push(tab);
-                }
-            } else {
-                self.tabs.push(tab);
-            }
-
-            self.active_tab_id = Some(id);
-            Ok(Some(id))
+        if let Some(tab_id) = self.active_tab_id {
+            self.duplicate_tab_by_id(tab_id, config, runtime, grid_size)
         } else {
             Ok(None)
         }
+    }
+
+    /// Duplicate a specific tab by ID (creates new tab with same working directory and color)
+    ///
+    /// # Arguments
+    /// * `source_tab_id` - The ID of the tab to duplicate
+    /// * `config` - Terminal configuration
+    /// * `runtime` - Tokio runtime for async operations
+    /// * `grid_size` - Optional (cols, rows) override for initial terminal size
+    pub fn duplicate_tab_by_id(
+        &mut self,
+        source_tab_id: TabId,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        grid_size: Option<(usize, usize)>,
+    ) -> Result<Option<TabId>> {
+        // Gather properties from source tab
+        let source_idx = self.tabs.iter().position(|t| t.id == source_tab_id);
+        let source_idx = match source_idx {
+            Some(idx) => idx,
+            None => return Ok(None),
+        };
+        let working_dir = self.tabs[source_idx].get_cwd();
+        let custom_color = self.tabs[source_idx].custom_color;
+
+        let id = self.next_tab_id;
+        self.next_tab_id += 1;
+
+        // Tab number is based on current count, not unique ID
+        let tab_number = self.tabs.len() + 1;
+        let mut tab = Tab::new(id, tab_number, config, runtime, working_dir, grid_size)?;
+
+        // Copy tab color from source
+        if let Some(color) = custom_color {
+            tab.set_custom_color(color);
+        }
+
+        // Insert after source tab
+        self.tabs.insert(source_idx + 1, tab);
+
+        self.active_tab_id = Some(id);
+        Ok(Some(id))
     }
 
     /// Get index of active tab (0-based)
