@@ -100,6 +100,8 @@ jobs:
 
           publish_if_needed par-term-acp
           publish_if_needed par-term-config
+          publish_if_needed par-term-mcp
+          publish_if_needed par-term-ssh
 
       - name: Wait for Layer 1 indexing
         if: steps.check_version.outputs.exists == 'false'
@@ -131,8 +133,13 @@ jobs:
           }
 
           publish_if_needed par-term-fonts
-          publish_if_needed par-term-terminal
+          publish_if_needed par-term-input
+          publish_if_needed par-term-keybindings
+          publish_if_needed par-term-scripting
           publish_if_needed par-term-settings-ui
+          publish_if_needed par-term-terminal
+          publish_if_needed par-term-tmux
+          publish_if_needed par-term-update
 
       - name: Wait for Layer 2 indexing
         if: steps.check_version.outputs.exists == 'false'
