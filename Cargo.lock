@@ -3643,6 +3643,7 @@ dependencies = [
  "par-term-config",
  "par-term-emu-core-rust",
  "par-term-fonts",
+ "par-term-input",
  "par-term-keybindings",
  "par-term-render",
  "par-term-scripting",
@@ -3749,6 +3750,16 @@ dependencies = [
  "rustybuzz",
  "swash",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "par-term-input"
+version = "0.1.0"
+dependencies = [
+ "arboard",
+ "log",
+ "par-term-config",
+ "winit",
 ]
 
 [[package]]

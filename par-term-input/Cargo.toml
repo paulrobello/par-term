@@ -1,0 +1,24 @@
+[package]
+name = "par-term-input"
+version = "0.1.0"
+edition = "2024"
+authors = ["Paul Robello <probello@gmail.com>"]
+description = "Input sequence generation for par-term terminal emulator"
+license = "MIT"
+repository = "https://github.com/paulrobello/par-term"
+homepage = "https://github.com/paulrobello/par-term"
+keywords = ["terminal", "input", "keyboard", "escape-sequences"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# Configuration types (OptionKeyMode)
+par-term-config = { path = "../par-term-config", version = "0.1.0" }
+
+# Clipboard access
+arboard = "3.6.1"
+
+# Window and key event types
+winit = "0.30"
+
+# Logging
+log = "0.4.29"
