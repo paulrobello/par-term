@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Refactor**: Collapsed `src/config/` re-export layer — replaced ~4,800 lines of duplicate code with a single `pub use par_term_config::*;`, eliminating all duplicate files (`types.rs`, `defaults.rs`, `snippets.rs`, `shader_config.rs`, `shader_metadata.rs`, `automation.rs`, `scripting.rs`, `watcher.rs`) from `src/config/` (closes #182)
+
 ---
 
 ## [0.17.1] - 2026-02-18
