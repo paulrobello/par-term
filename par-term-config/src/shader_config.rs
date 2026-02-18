@@ -243,7 +243,7 @@ pub mod global_defaults {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::types::ShaderConfig;
+    use crate::ShaderConfig;
 
     fn make_test_config() -> Config {
         Config::default()

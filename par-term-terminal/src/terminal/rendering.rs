@@ -1,15 +1,8 @@
 use super::TerminalManager;
-use crate::cell_renderer::Cell;
-use crate::themes::Theme;
+use par_term_config::{Cell, Theme};
 
 impl TerminalManager {
     /// Get terminal grid with scrollback offset as Cell array for CellRenderer
-    ///
-    /// # Arguments
-    /// * `scroll_offset` - Number of lines to scroll back (0 = current view at bottom)
-    /// * `selection` - Optional selection range (start_col, start_row, end_col, end_row) in screen coordinates
-    /// * `rectangular` - Whether the selection is rectangular/block mode (default: false)
-    /// * `cursor` - Optional cursor (position, opacity) for smooth fade animations
     pub fn get_cells_with_scrollback(
         &self,
         scroll_offset: usize,
@@ -22,7 +15,6 @@ impl TerminalManager {
         let mut term = terminal.lock();
         let grid = term.active_grid();
 
-        // Don't pass cursor to cells - we'll render it separately as geometry
         let cursor_with_style = None;
 
         let rows = grid.rows();
@@ -70,10 +62,6 @@ impl TerminalManager {
         }
 
         // Apply trigger highlights on top of cell colors
-        // Note: highlight.row is a grid row (0-based in active screen),
-        // so convert to absolute row by adding scrollback_len.
-        // Note: col_start/col_end are grid column indices (converted from byte
-        // offsets in the core library's process_trigger_scans).
         let highlights = term.get_trigger_highlights();
         for highlight in &highlights {
             let abs_row = scrollback_len + highlight.row;
@@ -190,7 +178,6 @@ impl TerminalManager {
     ) -> bool {
         if let Some(((start_col, start_row), (end_col, end_row))) = selection {
             if rectangular {
-                // Rectangular selection: select cells within the column and row bounds
                 let min_col = start_col.min(end_col);
                 let max_col = start_col.max(end_col);
                 let min_row = start_row.min(end_row);
@@ -199,21 +186,15 @@ impl TerminalManager {
                 return col >= min_col && col <= max_col && row >= min_row && row <= max_row;
             }
 
-            // Normal line-based selection
-            // Single line selection
             if start_row == end_row {
                 return row == start_row && col >= start_col && col <= end_col;
             }
 
-            // Multi-line selection
             if row == start_row {
-                // First line - from start_col to end of line
                 return col >= start_col;
             } else if row == end_row {
-                // Last line - from start of line to end_col
                 return col <= end_col;
             } else if row > start_row && row < end_row {
-                // Middle lines - entire line selected
                 return true;
             }
         }
@@ -229,16 +210,13 @@ impl TerminalManager {
         use par_term_emu_core_rust::color::{Color as TermColor, NamedColor};
         use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 
-        // Debug: Log cells with non-default backgrounds OR reverse flag (likely status bar)
-        // This helps diagnose TMUX status bar background rendering issues
         let bg_rgb = term_cell.bg.to_rgb();
         let fg_rgb = term_cell.fg.to_rgb();
-        let has_colored_bg = bg_rgb != (0, 0, 0); // Not black background
+        let has_colored_bg = bg_rgb != (0, 0, 0);
         let has_reverse = term_cell.flags.reverse();
 
         if has_colored_bg || has_reverse {
-            debug_info!(
-                "TERMINAL",
+            log::debug!(
                 "Cell with colored BG or REVERSE: '{}' (U+{:04X}): fg={:?} (RGB:{},{},{}), bg={:?} (RGB:{},{},{}), reverse={}, flags={:?}",
                 if term_cell.c.is_control() {
                     '?'
@@ -280,11 +258,11 @@ impl TerminalManager {
                     NamedColor::BrightMagenta => theme.bright_magenta,
                     NamedColor::BrightCyan => theme.bright_cyan,
                     NamedColor::BrightWhite => theme.bright_white,
-                    _ => theme.foreground, // Other colors default to foreground
+                    _ => theme.foreground,
                 };
                 (theme_color.r, theme_color.g, theme_color.b)
             }
-            _ => term_cell.fg.to_rgb(), // Keep 256-color and RGB as-is
+            _ => term_cell.fg.to_rgb(),
         };
 
         let bg = match &term_cell.bg {
@@ -307,27 +285,21 @@ impl TerminalManager {
                     NamedColor::BrightMagenta => theme.bright_magenta,
                     NamedColor::BrightCyan => theme.bright_cyan,
                     NamedColor::BrightWhite => theme.bright_white,
-                    _ => theme.background, // Other colors default to background
+                    _ => theme.background,
                 };
                 (theme_color.r, theme_color.g, theme_color.b)
             }
-            _ => term_cell.bg.to_rgb(), // Keep 256-color and RGB as-is
+            _ => term_cell.bg.to_rgb(),
         };
 
-        // Check if cell has reverse video flag (SGR 7) - TMUX uses this for status bar
         let is_reverse = term_cell.flags.reverse();
 
-        // Blend colors for smooth cursor fade animation, or invert for selection/reverse
         let (fg_color, bg_color) = if let Some((opacity, style)) = cursor_info {
-            // Smooth cursor: blend between normal and inverted colors based on opacity and style
             let blend = |normal: u8, inverted: u8, opacity: f32| -> u8 {
                 (normal as f32 * (1.0 - opacity) + inverted as f32 * opacity) as u8
             };
 
-            // Color blending per cursor style (geometric beam/underline rendering
-            // is handled by CellRenderer::cursor_overlay in cell_renderer/mod.rs)
             match style {
-                // Block cursor: full inversion (default behavior)
                 TermCursorStyle::SteadyBlock | TermCursorStyle::BlinkingBlock => (
                     [
                         blend(fg.0, bg.0, opacity),
@@ -342,8 +314,6 @@ impl TerminalManager {
                         255,
                     ],
                 ),
-                // Beam and Underline: Use same inversion for now
-                // Proper implementation would draw thin lines in the renderer
                 TermCursorStyle::SteadyBar
                 | TermCursorStyle::BlinkingBar
                 | TermCursorStyle::SteadyUnderline
@@ -363,17 +333,11 @@ impl TerminalManager {
                 ),
             }
         } else if is_selected || is_reverse {
-            // Selection or Reverse video (SGR 7): invert colors
-            (
-                [bg.0, bg.1, bg.2, 255], // Swap: background becomes foreground
-                [fg.0, fg.1, fg.2, 255], // Swap: foreground becomes background
-            )
+            ([bg.0, bg.1, bg.2, 255], [fg.0, fg.1, fg.2, 255])
         } else {
-            // Normal cell
             ([fg.0, fg.1, fg.2, 255], [bg.0, bg.1, bg.2, 255])
         };
 
-        // Optimization: Avoid String allocation for cells without combining chars
         let grapheme = if term_cell.has_combining_chars() {
             term_cell.get_grapheme()
         } else {

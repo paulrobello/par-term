@@ -4,8 +4,8 @@ use std::sync::Arc;
 use winit::window::Window;
 
 use crate::font_manager::FontManager;
-use crate::renderer::SeparatorMark;
 use crate::scrollbar::Scrollbar;
+use par_term_config::SeparatorMark;
 
 pub mod atlas;
 pub mod background;

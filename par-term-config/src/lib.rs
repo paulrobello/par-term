@@ -12,6 +12,7 @@
 //! - Profile configuration types and manager
 
 pub mod automation;
+pub mod cell;
 pub mod config;
 pub mod defaults;
 pub mod profile;
@@ -27,20 +28,22 @@ mod types;
 pub mod watcher;
 
 // Re-export main types for convenience
+pub use cell::Cell;
 pub use config::{Config, substitute_variables};
 pub use themes::{Color, Theme};
 
 // Re-export config types
 pub use types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
-    CursorShaderMetadata, CursorStyle, DividerStyle, DownloadSaveLocation, DroppedFileQuoteStyle,
-    FontRange, ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
-    ModifierRemapping, ModifierTarget, OptionKeyMode, PaneBackgroundConfig, PaneTitlePosition,
-    PowerPreference, ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode,
-    SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction,
-    ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode,
-    StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, ThinStrokesMode, UnfocusedCursorStyle,
-    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
+    CursorShaderMetadata, CursorStyle, DividerRect, DividerStyle, DownloadSaveLocation,
+    DroppedFileQuoteStyle, FontRange, ImageScalingMode, InstallPromptState, IntegrationVersions,
+    KeyBinding, LogLevel, ModifierRemapping, ModifierTarget, OptionKeyMode, PaneBackground,
+    PaneBackgroundConfig, PaneTitlePosition, PowerPreference, ProgressBarPosition,
+    ProgressBarStyle, SemanticHistoryEditorMode, SeparatorMark, SessionLogFormat, ShaderConfig,
+    ShaderInstallPrompt, ShaderMetadata, ShellExitAction, ShellType, SmartSelectionPrecision,
+    SmartSelectionRule, StartupDirectoryMode, StatusBarPosition, TabBarMode, TabBarPosition,
+    TabStyle, ThinStrokesMode, UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};

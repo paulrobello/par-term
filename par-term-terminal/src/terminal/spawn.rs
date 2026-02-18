@@ -13,9 +13,6 @@ impl TerminalManager {
     }
 
     /// Spawn a custom shell command in the terminal
-    ///
-    /// # Arguments
-    /// * `command` - The shell command to execute (e.g., "/bin/zsh", "fish")
     #[allow(dead_code)]
     pub fn spawn_custom_shell(&mut self, command: &str) -> Result<()> {
         log::info!("Spawning custom shell: {}", command);
@@ -27,10 +24,6 @@ impl TerminalManager {
     }
 
     /// Spawn a custom shell with arguments
-    ///
-    /// # Arguments
-    /// * `command` - The shell command to execute
-    /// * `args` - Arguments to pass to the shell
     #[allow(dead_code)]
     pub fn spawn_custom_shell_with_args(&mut self, command: &str, args: &[String]) -> Result<()> {
         log::info!("Spawning custom shell: {} with args: {:?}", command, args);
@@ -42,10 +35,6 @@ impl TerminalManager {
     }
 
     /// Spawn shell with optional working directory and environment variables
-    ///
-    /// # Arguments
-    /// * `working_dir` - Optional working directory path
-    /// * `env_vars` - Optional environment variables to set
     #[allow(dead_code)]
     pub fn spawn_shell_with_dir(
         &mut self,
@@ -63,12 +52,6 @@ impl TerminalManager {
     }
 
     /// Spawn custom shell with args, optional working directory, and environment variables
-    ///
-    /// # Arguments
-    /// * `command` - The shell command to execute
-    /// * `args` - Arguments to pass to the shell
-    /// * `working_dir` - Optional working directory path
-    /// * `env_vars` - Optional environment variables to set
     pub fn spawn_custom_shell_with_dir(
         &mut self,
         command: &str,

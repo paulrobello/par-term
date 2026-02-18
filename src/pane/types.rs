@@ -81,68 +81,8 @@ impl PaneBounds {
     }
 }
 
-/// A divider rectangle between panes
-#[derive(Debug, Clone, Copy)]
-pub struct DividerRect {
-    /// X position in pixels
-    pub x: f32,
-    /// Y position in pixels
-    pub y: f32,
-    /// Width in pixels
-    pub width: f32,
-    /// Height in pixels
-    pub height: f32,
-    /// Whether this is a horizontal divider (vertical line)
-    pub is_horizontal: bool,
-}
-
-impl DividerRect {
-    /// Create a new divider rect
-    pub fn new(x: f32, y: f32, width: f32, height: f32, is_horizontal: bool) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-            is_horizontal,
-        }
-    }
-
-    /// Check if a point is inside the divider (with optional padding for easier grabbing)
-    pub fn contains(&self, px: f32, py: f32, padding: f32) -> bool {
-        px >= self.x - padding
-            && px < self.x + self.width + padding
-            && py >= self.y - padding
-            && py < self.y + self.height + padding
-    }
-}
-
-/// Per-pane background image configuration
-#[derive(Debug, Clone, Default)]
-pub struct PaneBackground {
-    /// Path to the background image (None = use global background)
-    pub image_path: Option<String>,
-    /// Display mode (fit/fill/stretch/tile/center)
-    pub mode: crate::config::BackgroundImageMode,
-    /// Opacity (0.0-1.0)
-    pub opacity: f32,
-}
-
-impl PaneBackground {
-    /// Create a new PaneBackground with default settings
-    pub fn new() -> Self {
-        Self {
-            image_path: None,
-            mode: crate::config::BackgroundImageMode::default(),
-            opacity: 1.0,
-        }
-    }
-
-    /// Returns true if this pane has a custom background image set
-    pub fn has_image(&self) -> bool {
-        self.image_path.is_some()
-    }
-}
+// Re-export rendering types from par-term-config
+pub use par_term_config::{DividerRect, PaneBackground};
 
 /// A single terminal pane with its own state
 pub struct Pane {

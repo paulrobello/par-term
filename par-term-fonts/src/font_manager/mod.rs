@@ -72,7 +72,7 @@ impl FontManager {
         bold_family: Option<&str>,
         italic_family: Option<&str>,
         bold_italic_family: Option<&str>,
-        font_ranges: &[crate::config::FontRange],
+        font_ranges: &[par_term_config::FontRange],
     ) -> Result<Self> {
         let mut font_db = Database::new();
 
@@ -189,7 +189,7 @@ impl FontManager {
     /// Load Unicode range-specific fonts.
     fn load_range_fonts(
         font_db: &mut Database,
-        font_ranges: &[crate::config::FontRange],
+        font_ranges: &[par_term_config::FontRange],
     ) -> Vec<UnicodeRangeFont> {
         let mut range_fonts = Vec::new();
         let mut next_font_index = 4; // After styled fonts (0-3)
@@ -599,5 +599,38 @@ impl FontManager {
             (false, true) if self.italic.is_some() => 2,
             _ => 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_embedded_font_loads() {
+        let fm = FontManager::new(None, None, None, None, &[]);
+        assert!(fm.is_ok(), "FontManager should load with embedded font");
+        let fm = fm.unwrap();
+        assert!(fm.font_count() >= 1, "Should have at least one font");
+    }
+
+    #[test]
+    fn test_primary_font_glyph_lookup() {
+        let fm = FontManager::new(None, None, None, None, &[]).unwrap();
+        // ASCII characters should be found in the embedded font
+        let result = fm.find_glyph('A', false, false);
+        assert!(result.is_some(), "Should find glyph for 'A'");
+        let (font_idx, glyph_id) = result.unwrap();
+        assert_eq!(font_idx, 0, "Should be in primary font");
+        assert!(glyph_id > 0, "Glyph ID should be nonzero");
+    }
+
+    #[test]
+    fn test_get_font_by_index() {
+        let fm = FontManager::new(None, None, None, None, &[]).unwrap();
+        assert!(
+            fm.get_font(0).is_some(),
+            "Primary font should exist at index 0"
+        );
     }
 }

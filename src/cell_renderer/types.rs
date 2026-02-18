@@ -27,37 +27,8 @@ pub(crate) struct TextInstance {
     pub is_colored: u32, // 1 for emoji/colored glyphs, 0 for regular text
 }
 
-/// A single terminal cell
-#[derive(Clone, Debug, PartialEq)]
-pub struct Cell {
-    pub grapheme: String,
-    pub fg_color: [u8; 4],
-    pub bg_color: [u8; 4],
-    pub bold: bool,
-    pub italic: bool,
-    pub underline: bool,
-    pub strikethrough: bool,
-    pub hyperlink_id: Option<u32>,
-    pub wide_char: bool,
-    pub wide_char_spacer: bool,
-}
-
-impl Default for Cell {
-    fn default() -> Self {
-        Self {
-            grapheme: " ".to_string(),
-            fg_color: [255, 255, 255, 255],
-            bg_color: [0, 0, 0, 0],
-            bold: false,
-            italic: false,
-            underline: false,
-            strikethrough: false,
-            hyperlink_id: None,
-            wide_char: false,
-            wide_char_spacer: false,
-        }
-    }
-}
+// Re-export Cell from par-term-config (shared type used by terminal and renderer)
+pub use par_term_config::Cell;
 
 /// Glyph info for atlas
 #[derive(Clone, Debug)]

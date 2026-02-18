@@ -1,7 +1,7 @@
 use crate::scrollback_metadata::{CommandSnapshot, ScrollbackMark, ScrollbackMetadata};
 use crate::styled_content::{StyledSegment, extract_styled_segments};
-use crate::themes::Theme;
 use anyhow::Result;
+use par_term_config::Theme;
 use par_term_emu_core_rust::pty_session::PtySession;
 use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
 use par_term_emu_core_rust::terminal::Terminal;
@@ -193,12 +193,6 @@ impl TerminalManager {
                 }
 
                 // Only pass history/exit info for CommandFinished events.
-                // Other markers (A, B, C) should NOT trigger the history or
-                // exit-code synthesis fallbacks inside apply_event — those
-                // fallbacks exist for shells that miss D markers entirely.
-                // Passing them for every event causes phantom commands that
-                // inflate last_recorded_history_len, preventing real D events
-                // from recording.
                 let is_finished = matches!(marker, Some(ShellIntegrationMarker::CommandFinished));
 
                 self.scrollback_metadata.apply_event(
@@ -214,11 +208,8 @@ impl TerminalManager {
                 );
 
                 // Feed command lifecycle into the core library's command history.
-                // This populates `get_command_history()` used by the AI Inspector.
                 match event_type.as_str() {
                     "command_executed" => {
-                        // Prefer the command text from the event (set by shell integration),
-                        // fall back to our grid-extracted captured text.
                         let cmd_text = event_command
                             .clone()
                             .or_else(|| self.captured_command_text.as_ref().map(|(_, t)| t.clone()))
@@ -234,10 +225,6 @@ impl TerminalManager {
                 }
             }
         }
-        // When no queued events, do nothing. With the event queue in place,
-        // all OSC 133 markers arrive as events. Running apply_event on every
-        // frame with the stale marker and shifting cursor position would create
-        // phantom commands that inflate last_recorded_history_len.
 
         drop(term);
         drop(terminal);
@@ -251,17 +238,6 @@ impl TerminalManager {
     }
 
     /// Extract command text from the terminal using absolute line positioning.
-    ///
-    /// `start_abs_line` is the absolute line (scrollback_len + grid_row) recorded
-    /// at CommandStart (B marker). `start_col` is the column after the prompt.
-    /// `current_scrollback_len` is the current scrollback length, used to determine
-    /// whether the command line is still in the visible grid or has scrolled into
-    /// the scrollback buffer.
-    ///
-    /// For fast commands (e.g., `ls`), by the time we detect the marker transition,
-    /// the command line may have scrolled into scrollback. This method handles both
-    /// cases by checking whether the absolute line falls within scrollback or the
-    /// visible grid.
     fn extract_command_text(
         term: &Terminal,
         start_abs_line: usize,
@@ -269,26 +245,20 @@ impl TerminalManager {
         current_scrollback_len: usize,
     ) -> String {
         let grid = term.active_grid();
-        // Read the command line, continuing only if the line is soft-wrapped
-        // (indicating a long command that wraps to the next line). Non-wrapped
-        // lines mark the end of the command — what follows is command output.
         let mut parts = Vec::new();
         for offset in 0..5 {
             let abs_line = start_abs_line + offset;
             let (text, is_wrapped) = if abs_line < current_scrollback_len {
-                // Line has scrolled into scrollback
                 let t = Self::scrollback_line_text(grid, abs_line);
                 let w = grid.is_scrollback_wrapped(abs_line);
                 (t, w)
             } else {
-                // Line is still in the visible grid
                 let grid_row = abs_line - current_scrollback_len;
                 let t = grid.row_text(grid_row);
                 let w = grid.is_line_wrapped(grid_row);
                 (t, w)
             };
             let trimmed = if offset == 0 {
-                // Skip prompt characters on the first line
                 text.chars()
                     .skip(start_col)
                     .collect::<String>()
@@ -300,7 +270,6 @@ impl TerminalManager {
             if !trimmed.is_empty() {
                 parts.push(trimmed);
             }
-            // Only continue to the next line if this line is soft-wrapped
             if !is_wrapped {
                 break;
             }
@@ -354,9 +323,6 @@ impl TerminalManager {
     }
 
     /// Set cell dimensions in pixels for sixel graphics scroll calculations
-    ///
-    /// This should be called when the renderer is initialized or cell size changes.
-    /// Default is (1, 2) for TUI half-block rendering.
     pub fn set_cell_dimensions(&self, width: u32, height: u32) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -366,7 +332,6 @@ impl TerminalManager {
 
     /// Write data to the PTY (send user input to shell)
     pub fn write(&self, data: &[u8]) -> Result<()> {
-        // Debug log to track what we're sending
         if !data.is_empty() {
             log::debug!(
                 "Writing to PTY: {:?} (bytes: {:?})",
@@ -390,9 +355,6 @@ impl TerminalManager {
     }
 
     /// Process raw data through the terminal emulator (for tmux output routing).
-    ///
-    /// This feeds data directly to the terminal parser without going through the PTY.
-    /// Used when receiving %output notifications from tmux control mode.
     pub fn process_data(&self, data: &[u8]) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -401,18 +363,15 @@ impl TerminalManager {
     }
 
     /// Paste text to the terminal with proper bracketed paste handling.
-    /// Converts `\n` to `\r` and wraps with bracketed paste sequences if mode is enabled.
     pub fn paste(&self, content: &str) -> Result<()> {
         if content.is_empty() {
             return Ok(());
         }
 
-        // Convert newlines to carriage returns for terminal
         let content = content.replace('\n', "\r");
 
         log::debug!("Pasting {} chars (bracketed paste check)", content.len());
 
-        // Query bracketed paste state and copy sequences (release lock before writing)
         let (start, end) = {
             let pty = self.pty_session.lock();
             let terminal = pty.terminal();
@@ -423,7 +382,6 @@ impl TerminalManager {
             )
         };
 
-        // Write to PTY: [start] + content + [end]
         let mut pty = self.pty_session.lock();
         if !start.is_empty() {
             log::debug!("Sending bracketed paste start sequence");
@@ -442,14 +400,11 @@ impl TerminalManager {
     }
 
     /// Paste text with a delay between lines.
-    /// Splits content on newlines and sends each line with a configurable delay,
-    /// useful for slow terminals or remote connections.
     pub async fn paste_with_delay(&self, content: &str, delay_ms: u64) -> Result<()> {
         if content.is_empty() {
             return Ok(());
         }
 
-        // Query bracketed paste state (release lock before async work)
         let (start, end) = {
             let pty = self.pty_session.lock();
             let terminal = pty.terminal();
@@ -460,21 +415,17 @@ impl TerminalManager {
             )
         };
 
-        // Send bracketed paste start
         if !start.is_empty() {
             let mut pty = self.pty_session.lock();
             pty.write(&start)
                 .map_err(|e| anyhow::anyhow!("Failed to write bracketed paste start: {}", e))?;
         }
 
-        // Split on newlines and send each line with delay
         let lines: Vec<&str> = content.split('\n').collect();
         let delay = tokio::time::Duration::from_millis(delay_ms);
 
         for (i, line) in lines.iter().enumerate() {
-            // Convert newline to carriage return for terminal
             let mut line_data = line.replace('\n', "\r");
-            // Add carriage return between lines (not after the last one if original didn't end with newline)
             if i < lines.len() - 1 {
                 line_data.push('\r');
             }
@@ -485,13 +436,11 @@ impl TerminalManager {
                     .map_err(|e| anyhow::anyhow!("Failed to write paste line: {}", e))?;
             }
 
-            // Delay between lines (not after the last line)
             if i < lines.len() - 1 {
                 tokio::time::sleep(delay).await;
             }
         }
 
-        // Send bracketed paste end
         if !end.is_empty() {
             let mut pty = self.pty_session.lock();
             pty.write(&end)
@@ -529,8 +478,6 @@ impl TerminalManager {
     }
 
     /// Resize the terminal with pixel dimensions
-    /// This sets both the character dimensions AND pixel dimensions in the PTY winsize struct,
-    /// which is required for applications like kitty icat that query pixel dimensions via TIOCGWINSZ
     pub fn resize_with_pixels(
         &mut self,
         cols: usize,
@@ -578,15 +525,8 @@ impl TerminalManager {
     }
 
     /// Check if there have been updates since last check
-    ///
-    /// This now properly delegates to the terminal's update tracking instead of
-    /// always returning true. The refresh task already tracks generation changes,
-    /// so this is mainly used as a fallback for edge cases.
     #[allow(dead_code)]
     pub fn has_updates(&self) -> bool {
-        // Delegate to the terminal's update generation tracking
-        // The refresh task already compares generations, so this fallback
-        // returns false to avoid redundant redraws
         false
     }
 
@@ -623,9 +563,6 @@ impl TerminalManager {
     }
 
     /// Get text of a line at an absolute index (scrollback + screen).
-    ///
-    /// Line 0 = oldest scrollback line.
-    /// Line `scrollback_len` = first visible screen row.
     pub fn line_text_at_absolute(&self, absolute_line: usize) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -646,8 +583,6 @@ impl TerminalManager {
     }
 
     /// Get all lines in a range as text (for search in copy mode).
-    ///
-    /// Returns `(line_text, absolute_line_index)` pairs.
     pub fn lines_text_range(&self, start: usize, end: usize) -> Vec<(String, usize)> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -677,10 +612,7 @@ impl TerminalManager {
     }
 
     /// Get all scrollback lines as Cell arrays.
-    ///
-    /// This ensures consistent handling of wide characters when searching,
-    /// by using the same cell-to-string conversion as visible content.
-    pub fn scrollback_as_cells(&self) -> Vec<Vec<crate::cell_renderer::Cell>> {
+    pub fn scrollback_as_cells(&self) -> Vec<Vec<par_term_config::Cell>> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let term = terminal.lock();
@@ -713,21 +645,14 @@ impl TerminalManager {
     }
 
     /// Clear scrollback buffer
-    ///
-    /// Removes all scrollback history while preserving the current screen content.
-    /// Uses CSI 3 J (ED 3) escape sequence which is the standard way to clear scrollback.
     pub fn clear_scrollback(&self) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let mut term = terminal.lock();
-        // CSI 3 J = ESC [ 3 J - Erase Scrollback (ED 3)
         term.process(b"\x1b[3J");
     }
 
     /// Clear scrollback metadata (prompt marks, command history, timestamps).
-    ///
-    /// Should be called alongside `clear_scrollback()` so that stale marks
-    /// don't persist on the scrollbar or as separator lines.
     pub fn clear_scrollback_metadata(&mut self) {
         self.scrollback_metadata.clear();
         self.last_shell_marker = None;
@@ -736,8 +661,6 @@ impl TerminalManager {
     }
 
     /// Search for text in the visible screen.
-    ///
-    /// Returns matches with row indices 0+ for visible screen rows.
     pub fn search(
         &self,
         query: &str,
@@ -750,8 +673,6 @@ impl TerminalManager {
     }
 
     /// Search for text in the scrollback buffer.
-    ///
-    /// Returns matches with negative row indices (e.g., -1 is the most recent scrollback line).
     pub fn search_scrollback(
         &self,
         query: &str,
@@ -765,11 +686,7 @@ impl TerminalManager {
     }
 
     /// Search for text in both visible screen and scrollback.
-    ///
-    /// Returns all matches with normalized row indices where:
-    /// - Row 0 is the oldest scrollback line
-    /// - Rows increase towards the current screen
-    pub fn search_all(&self, query: &str, case_sensitive: bool) -> Vec<crate::search::SearchMatch> {
+    pub fn search_all(&self, query: &str, case_sensitive: bool) -> Vec<crate::SearchMatch> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let term = terminal.lock();
@@ -777,31 +694,20 @@ impl TerminalManager {
         let scrollback_len = term.active_grid().scrollback_len();
         let mut results = Vec::new();
 
-        // Search scrollback (returns negative row indices)
         let scrollback_matches = term.search_scrollback(query, case_sensitive, None);
         for m in scrollback_matches {
-            // Convert negative row index to absolute line index
-            // -1 = most recent scrollback = scrollback_len - 1
-            // -(scrollback_len) = oldest scrollback = 0
-            let abs_line = scrollback_len as isize + m.row; // m.row is negative
+            let abs_line = scrollback_len as isize + m.row;
             if abs_line >= 0 {
-                results.push(crate::search::SearchMatch::new(
-                    abs_line as usize,
-                    m.col,
-                    m.length,
-                ));
+                results.push(crate::SearchMatch::new(abs_line as usize, m.col, m.length));
             }
         }
 
-        // Search visible screen (returns 0+ row indices)
         let screen_matches = term.search_text(query, case_sensitive);
         for m in screen_matches {
-            // Screen row 0 = scrollback_len in absolute terms
             let abs_line = scrollback_len + m.row as usize;
-            results.push(crate::search::SearchMatch::new(abs_line, m.col, m.length));
+            results.push(crate::SearchMatch::new(abs_line, m.col, m.length));
         }
 
-        // Sort by line, then by column
         results.sort_by(|a, b| a.line.cmp(&b.line).then_with(|| a.column.cmp(&b.column)));
 
         results
@@ -824,11 +730,6 @@ impl TerminalManager {
     }
 
     /// Take a screenshot of the terminal and save to file
-    ///
-    /// # Arguments
-    /// * `path` - Path to save the screenshot
-    /// * `format` - Screenshot format ("png", "jpeg", "svg", "html")
-    /// * `scrollback_lines` - Number of scrollback lines to include (0 for none)
     #[allow(dead_code)]
     pub fn screenshot_to_file(
         &self,
@@ -849,7 +750,6 @@ impl TerminalManager {
         let terminal = pty.terminal();
         let term = terminal.lock();
 
-        // Map format string to ImageFormat enum
         let image_format = match format.to_lowercase().as_str() {
             "png" => ImageFormat::Png,
             "jpeg" | "jpg" => ImageFormat::Jpeg,
@@ -860,13 +760,11 @@ impl TerminalManager {
             }
         };
 
-        // Create screenshot config
         let config = ScreenshotConfig {
             format: image_format,
             ..Default::default()
         };
 
-        // Call the core library's screenshot method
         term.screenshot_to_file(path, config, scrollback_lines)
             .map_err(|e| anyhow::anyhow!("Failed to save screenshot: {}", e))?;
 
@@ -897,7 +795,7 @@ impl TerminalManager {
 
         let content = match format.to_lowercase().as_str() {
             "json" => term.export_json(session),
-            _ => term.export_asciicast(session), // default to asciicast
+            _ => term.export_asciicast(session),
         };
 
         std::fs::write(path, content)?;
@@ -930,9 +828,6 @@ impl TerminalManager {
     }
 
     /// Get hostname from shell integration (OSC 7)
-    ///
-    /// Returns the hostname extracted from OSC 7 `file://hostname/path` format.
-    /// Returns None for localhost (implicit in `file:///path` format).
     pub fn shell_integration_hostname(&self) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -941,9 +836,6 @@ impl TerminalManager {
     }
 
     /// Get username from shell integration (OSC 7)
-    ///
-    /// Returns the username extracted from OSC 7 `file://user@hostname/path` format.
-    /// Returns None if no username was provided.
     pub fn shell_integration_username(&self) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -952,9 +844,6 @@ impl TerminalManager {
     }
 
     /// Poll CWD change events from terminal
-    ///
-    /// Returns all pending CwdChange events and removes them from the queue.
-    /// Each event contains: old_cwd, new_cwd, hostname, username, timestamp
     pub fn poll_cwd_events(&self) -> Vec<par_term_emu_core_rust::terminal::CwdChange> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -963,10 +852,6 @@ impl TerminalManager {
     }
 
     /// Poll trigger action results from the core terminal.
-    ///
-    /// Returns all pending ActionResult events and removes them from the queue.
-    /// Called by the event loop to dispatch frontend-handled trigger actions
-    /// (RunCommand, PlaySound, SendText).
     pub fn poll_action_results(&self) -> Vec<par_term_emu_core_rust::terminal::ActionResult> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -976,7 +861,6 @@ impl TerminalManager {
 
     // === File Transfer Methods ===
 
-    /// Get all active (in-progress) file transfers
     pub fn get_active_transfers(
         &self,
     ) -> Vec<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
@@ -986,7 +870,6 @@ impl TerminalManager {
         term.get_active_transfers()
     }
 
-    /// Get all completed file transfers (without removing them)
     pub fn get_completed_transfers(
         &self,
     ) -> Vec<par_term_emu_core_rust::terminal::file_transfer::FileTransfer> {
@@ -996,7 +879,6 @@ impl TerminalManager {
         term.get_completed_transfers()
     }
 
-    /// Take a completed transfer by ID, removing it from the manager
     pub fn take_completed_transfer(
         &self,
         id: u64,
@@ -1007,7 +889,6 @@ impl TerminalManager {
         term.take_completed_transfer(id)
     }
 
-    /// Cancel an active file transfer
     pub fn cancel_file_transfer(&self, id: u64) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1015,7 +896,6 @@ impl TerminalManager {
         term.cancel_file_transfer(id)
     }
 
-    /// Send data for an active upload (iTerm2 base64 format)
     pub fn send_upload_data(&self, data: &[u8]) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1023,7 +903,6 @@ impl TerminalManager {
         term.send_upload_data(data);
     }
 
-    /// Cancel the current upload (sends Ctrl-C)
     pub fn cancel_upload(&self) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1031,10 +910,6 @@ impl TerminalManager {
         term.cancel_upload();
     }
 
-    /// Poll for pending upload requests from the terminal.
-    ///
-    /// Drains UploadRequested events from the terminal event queue,
-    /// leaving other event types undisturbed.
     pub fn poll_upload_requests(&self) -> Vec<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1042,9 +917,6 @@ impl TerminalManager {
         term.poll_upload_requests()
     }
 
-    /// Get custom session variables set by trigger SetVariable actions.
-    ///
-    /// Returns a clone of the core terminal's custom variables HashMap.
     pub fn custom_session_variables(&self) -> std::collections::HashMap<String, String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1052,7 +924,6 @@ impl TerminalManager {
         term.session_variables().custom.clone()
     }
 
-    /// Get shell integration statistics
     pub fn shell_integration_stats(
         &self,
     ) -> par_term_emu_core_rust::terminal::ShellIntegrationStats {
@@ -1085,10 +956,7 @@ impl TerminalManager {
         term.set_cursor_style(style);
     }
 
-    /// Check if cursor is visible (controlled by DECTCEM escape sequence)
-    ///
-    /// TUI applications typically hide the cursor when entering alternate screen mode.
-    /// Returns false when the terminal has received CSI ?25l (hide cursor).
+    /// Check if cursor is visible
     pub fn is_cursor_visible(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1107,11 +975,7 @@ impl TerminalManager {
         )
     }
 
-    /// Check if alternate screen is active (used by TUI applications)
-    ///
-    /// When the alternate screen is active, text selection should typically be disabled
-    /// as the content is controlled by an application (vim, htop, etc.) rather than
-    /// being scrollback history.
+    /// Check if alternate screen is active
     pub fn is_alt_screen_active(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1119,12 +983,7 @@ impl TerminalManager {
         term.is_alt_screen_active()
     }
 
-    /// Get the modifyOtherKeys mode (XTerm extension for enhanced keyboard input)
-    ///
-    /// Returns:
-    /// - 0: Disabled (normal key handling)
-    /// - 1: Report modifiers for special keys only
-    /// - 2: Report modifiers for all keys
+    /// Get the modifyOtherKeys mode
     pub fn modify_other_keys_mode(&self) -> u8 {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1133,10 +992,6 @@ impl TerminalManager {
     }
 
     /// Check if application cursor key mode (DECCKM) is enabled.
-    ///
-    /// When enabled, arrow keys should send SS3 sequences (ESC O A/B/C/D)
-    /// instead of CSI sequences (ESC [ A/B/C/D).
-    /// Applications like `less` enable this mode for arrow key navigation.
     pub fn application_cursor(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1145,9 +1000,6 @@ impl TerminalManager {
     }
 
     /// Get the terminal title set by OSC 0, 1, or 2 sequences
-    ///
-    /// Returns the title string that applications have set via escape sequences.
-    /// Returns empty string if no title has been set.
     pub fn get_title(&self) -> String {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1156,12 +1008,6 @@ impl TerminalManager {
     }
 
     /// Get the current shell integration marker state
-    ///
-    /// Returns the marker indicating what phase of command execution we're in:
-    /// - PromptStart: Shell is at prompt, waiting for input
-    /// - CommandStart: User has started typing a command
-    /// - CommandExecuted: Command has been submitted and is running
-    /// - CommandFinished: Command has completed
     pub fn shell_integration_marker(
         &self,
     ) -> Option<par_term_emu_core_rust::shell_integration::ShellIntegrationMarker> {
@@ -1172,12 +1018,6 @@ impl TerminalManager {
     }
 
     /// Check if a command is currently running based on shell integration
-    ///
-    /// Returns true if the shell integration indicates a command is executing
-    /// (marker is CommandExecuted and no CommandFinished has been received).
-    ///
-    /// Note: This only works when shell integration is enabled (e.g., via iTerm2
-    /// shell integration scripts). Without shell integration, this always returns false.
     pub fn is_command_running(&self) -> bool {
         use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
 
@@ -1188,43 +1028,25 @@ impl TerminalManager {
     }
 
     /// Get the name of the currently running command (first word only)
-    ///
-    /// Returns the command name extracted from the shell integration command,
-    /// or None if no command is running or shell integration is not available.
     pub fn get_running_command_name(&self) -> Option<String> {
         if !self.is_command_running() {
             return None;
         }
 
         self.shell_integration_command().and_then(|cmd| {
-            // Extract just the command name (first word)
-            // Handle cases like "sudo vim file.txt" -> "sudo"
-            // or "./script.sh" -> "script.sh"
-            // or "/usr/bin/python" -> "python"
             let first_word = cmd.split_whitespace().next()?;
-
-            // Extract basename from path
             let name = std::path::Path::new(first_word)
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or(first_word);
-
             Some(name.to_string())
         })
     }
 
     /// Check if tab close should show a confirmation dialog
-    ///
-    /// Returns Some(command_name) if a confirmation should be shown,
-    /// or None if the tab can be closed immediately.
-    ///
-    /// A confirmation is shown when:
-    /// - A command is currently running (via shell integration)
-    /// - The command name is NOT in the jobs_to_ignore list
     pub fn should_confirm_close(&self, jobs_to_ignore: &[String]) -> Option<String> {
         let command_name = self.get_running_command_name()?;
 
-        // Check if this command is in the ignore list (case-insensitive)
         let command_lower = command_name.to_lowercase();
         for ignore in jobs_to_ignore {
             if ignore.to_lowercase() == command_lower {
@@ -1236,7 +1058,6 @@ impl TerminalManager {
     }
 
     /// Check if mouse motion events should be reported
-    /// Returns true if mode is ButtonEvent or AnyEvent
     pub fn should_report_mouse_motion(&self, button_pressed: bool) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1250,16 +1071,6 @@ impl TerminalManager {
     }
 
     /// Send a mouse event to the terminal and get the encoded bytes
-    ///
-    /// # Arguments
-    /// * `button` - Mouse button (0 = left, 1 = middle, 2 = right)
-    /// * `col` - Column position (0-indexed)
-    /// * `row` - Row position (0-indexed)
-    /// * `pressed` - true for press, false for release
-    /// * `modifiers` - Modifier keys bit mask
-    ///
-    /// # Returns
-    /// Encoded mouse event bytes to send to PTY, or empty vec if tracking is disabled
     pub fn encode_mouse_event(
         &self,
         button: u8,
@@ -1288,9 +1099,6 @@ impl TerminalManager {
     }
 
     /// Get the current generation number for dirty tracking
-    ///
-    /// The generation number increments whenever the terminal content changes.
-    /// This can be used to detect when a cached representation needs to be updated.
     pub fn update_generation(&self) -> u64 {
         let pty = self.pty_session.lock();
         pty.update_generation()
@@ -1326,7 +1134,7 @@ impl TerminalManager {
         term.named_progress_bars().clone()
     }
 
-    /// Check if any progress bar is currently active (either simple or named)
+    /// Check if any progress bar is currently active
     pub fn has_any_progress(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1340,18 +1148,6 @@ impl TerminalManager {
 // ========================================================================
 
 impl TerminalManager {
-    /// Set the answerback string sent in response to ENQ (0x05) control character
-    ///
-    /// The answerback string is sent back to the PTY when the terminal receives
-    /// an ENQ (enquiry, ASCII 0x05) character. This was historically used for
-    /// terminal identification in multi-terminal environments.
-    ///
-    /// # Security Note
-    /// Default is empty (disabled) for security. Setting this may expose
-    /// terminal identification information to applications.
-    ///
-    /// # Arguments
-    /// * `answerback` - The string to send, or None/empty to disable
     pub fn set_answerback_string(&self, answerback: Option<String>) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1359,15 +1155,6 @@ impl TerminalManager {
         term.set_answerback_string(answerback);
     }
 
-    /// Set the Unicode width configuration for character width calculations
-    ///
-    /// This affects how the terminal calculates character widths for cursor
-    /// positioning and text layout, particularly for:
-    /// - Emoji (different Unicode versions have different width assignments)
-    /// - East Asian Ambiguous characters (can be narrow or wide)
-    ///
-    /// # Arguments
-    /// * `config` - The width configuration to use
     pub fn set_width_config(&self, config: par_term_emu_core_rust::WidthConfig) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1375,13 +1162,6 @@ impl TerminalManager {
         term.set_width_config(config);
     }
 
-    /// Set the Unicode normalization form for text processing
-    ///
-    /// Controls how Unicode text is normalized before being stored in terminal cells.
-    /// NFC (default) composes characters where possible.
-    /// NFD decomposes (macOS HFS+ style).
-    /// NFKC/NFKD also resolve compatibility characters.
-    /// None disables normalization entirely.
     pub fn set_normalization_form(&self, form: par_term_emu_core_rust::NormalizationForm) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1389,13 +1169,6 @@ impl TerminalManager {
         term.set_normalization_form(form);
     }
 
-    /// Set a callback to receive raw PTY output data
-    ///
-    /// This is useful for session logging - the callback receives the raw bytes
-    /// from the PTY before they are processed by the terminal emulator.
-    ///
-    /// # Arguments
-    /// * `callback` - A function that takes a byte slice for each chunk of PTY output
     pub fn set_output_callback<F>(&self, callback: F)
     where
         F: Fn(&[u8]) + Send + Sync + 'static,
@@ -1404,10 +1177,6 @@ impl TerminalManager {
         pty.set_output_callback(std::sync::Arc::new(callback));
     }
 
-    /// Start recording the terminal session
-    ///
-    /// # Arguments
-    /// * `title` - Optional title for the recording session
     pub fn start_recording(&self, title: Option<String>) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1415,7 +1184,6 @@ impl TerminalManager {
         term.start_recording(title);
     }
 
-    /// Stop recording and return the recording session
     pub fn stop_recording(&self) -> Option<par_term_emu_core_rust::terminal::RecordingSession> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1423,7 +1191,6 @@ impl TerminalManager {
         term.stop_recording()
     }
 
-    /// Check if recording is active
     pub fn is_recording(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1431,7 +1198,6 @@ impl TerminalManager {
         term.is_recording()
     }
 
-    /// Export a recording session to asciicast format
     pub fn export_asciicast(
         &self,
         session: &par_term_emu_core_rust::terminal::RecordingSession,
@@ -1448,10 +1214,6 @@ impl TerminalManager {
 // ========================================================================
 
 impl TerminalManager {
-    /// Start a new coprocess via the PtySession's built-in coprocess manager.
-    ///
-    /// The coprocess receives terminal output on its stdin (if `copy_terminal_output` is true)
-    /// and its stdout is buffered for reading via `read_from_coprocess()`.
     pub fn start_coprocess(
         &self,
         config: par_term_emu_core_rust::coprocess::CoprocessConfig,
@@ -1460,7 +1222,6 @@ impl TerminalManager {
         pty.start_coprocess(config)
     }
 
-    /// Stop a coprocess by ID.
     pub fn stop_coprocess(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,
@@ -1469,7 +1230,6 @@ impl TerminalManager {
         pty.stop_coprocess(id)
     }
 
-    /// Check if a coprocess is still running.
     pub fn coprocess_status(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,
@@ -1478,7 +1238,6 @@ impl TerminalManager {
         pty.coprocess_status(id)
     }
 
-    /// Read buffered output from a coprocess (drains the buffer).
     pub fn read_from_coprocess(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,
@@ -1487,13 +1246,11 @@ impl TerminalManager {
         pty.read_from_coprocess(id)
     }
 
-    /// List all coprocess IDs.
     pub fn list_coprocesses(&self) -> Vec<par_term_emu_core_rust::coprocess::CoprocessId> {
         let pty = self.pty_session.lock();
         pty.list_coprocesses()
     }
 
-    /// Read buffered stderr output from a coprocess (drains the buffer).
     pub fn read_coprocess_errors(
         &self,
         id: par_term_emu_core_rust::coprocess::CoprocessId,
@@ -1508,13 +1265,6 @@ impl TerminalManager {
 // ========================================================================
 
 impl TerminalManager {
-    /// Enable or disable tmux control mode parsing.
-    ///
-    /// When enabled, incoming PTY data is parsed for tmux control protocol
-    /// messages. Regular terminal output within control mode is handled
-    /// via `%output` notifications.
-    ///
-    /// This is used for gateway mode where `tmux -CC` is run in the terminal.
     pub fn set_tmux_control_mode(&self, enabled: bool) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1522,7 +1272,6 @@ impl TerminalManager {
         term.set_tmux_control_mode(enabled);
     }
 
-    /// Check if tmux control mode is enabled.
     pub fn is_tmux_control_mode(&self) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1530,13 +1279,6 @@ impl TerminalManager {
         term.is_tmux_control_mode()
     }
 
-    /// Drain and return tmux control protocol notifications.
-    ///
-    /// This consumes all pending notifications from the terminal's tmux parser.
-    /// Call this in the event loop to process tmux events.
-    ///
-    /// Returns core library notification types. Use `ParserBridge::convert_all()`
-    /// to convert them to frontend notification types.
     pub fn drain_tmux_notifications(
         &self,
     ) -> Vec<par_term_emu_core_rust::tmux_control::TmuxNotification> {
@@ -1546,7 +1288,6 @@ impl TerminalManager {
         term.drain_tmux_notifications()
     }
 
-    /// Get a reference to pending tmux notifications without consuming them.
     pub fn tmux_notifications(
         &self,
     ) -> Vec<par_term_emu_core_rust::tmux_control::TmuxNotification> {
@@ -1563,21 +1304,16 @@ impl TerminalManager {
 
 impl TerminalManager {
     /// Sync trigger configs from Config into the core TriggerRegistry.
-    ///
-    /// Clears existing triggers and re-adds from config. Called on startup
-    /// and when settings are saved.
-    pub fn sync_triggers(&self, triggers: &[crate::config::automation::TriggerConfig]) {
+    pub fn sync_triggers(&self, triggers: &[par_term_config::TriggerConfig]) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let mut term = terminal.lock();
 
-        // Clear existing triggers by removing all
         let existing: Vec<u64> = term.list_triggers().iter().map(|t| t.id).collect();
         for id in existing {
             term.remove_trigger(id);
         }
 
-        // Add triggers from config
         for trigger_config in triggers {
             let actions: Vec<par_term_emu_core_rust::terminal::TriggerAction> = trigger_config
                 .actions
@@ -1613,12 +1349,6 @@ impl TerminalManager {
 // ========================================================================
 
 impl TerminalManager {
-    /// Register a terminal observer for push-based event delivery.
-    ///
-    /// The observer will receive `TerminalEvent` callbacks on the PTY reader
-    /// thread after each `process()` call. Use this to attach a
-    /// [`ScriptEventForwarder`](crate::scripting::observer::ScriptEventForwarder)
-    /// so that terminal events are forwarded to script sub-processes.
     pub fn add_observer(
         &self,
         observer: std::sync::Arc<dyn par_term_emu_core_rust::observer::TerminalObserver>,
@@ -1629,9 +1359,6 @@ impl TerminalManager {
         term.add_observer(observer)
     }
 
-    /// Remove a previously registered observer.
-    ///
-    /// Returns `true` if an observer with the given ID was found and removed.
     pub fn remove_observer(&self, id: par_term_emu_core_rust::observer::ObserverId) -> bool {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1644,9 +1371,7 @@ impl Drop for TerminalManager {
     fn drop(&mut self) {
         log::info!("Shutting down terminal manager");
 
-        // Explicitly clean up PTY session to ensure proper shutdown
         if let Some(mut pty) = self.pty_session.try_lock() {
-            // Kill any running process
             if pty.is_running() {
                 log::info!("Killing PTY process during shutdown");
                 if let Err(e) = pty.kill() {

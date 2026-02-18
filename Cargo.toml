@@ -1,5 +1,5 @@
 [workspace]
-members = ["par-term-acp", "par-term-config", "par-term-settings-ui"]
+members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-settings-ui", "par-term-terminal"]
 resolver = "2"
 
 [package]
@@ -31,6 +31,12 @@ par-term-acp = { path = "par-term-acp" }
 
 # Configuration system
 par-term-config = { path = "par-term-config", features = ["watcher", "wgpu-types"] }
+
+# Font management and text shaping
+par-term-fonts = { path = "par-term-fonts" }
+
+# Terminal manager (PTY, shell integration, scrollback)
+par-term-terminal = { path = "par-term-terminal" }
 
 # Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
 par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
