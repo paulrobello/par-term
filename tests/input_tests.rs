@@ -75,17 +75,97 @@ fn test_option_key_mode_serde() {
     }
 }
 
-// Note: Testing individual key mappings requires creating actual winit KeyEvent instances,
-// which have platform-specific fields that cannot be easily mocked.
-// The keyboard input logic is tested through integration tests and manual testing.
-//
-// Key mapping tests would verify:
-// - Character keys produce their ASCII values
-// - Named keys (Enter, Tab, Escape, etc.) produce correct escape sequences
-// - Arrow keys produce correct ANSI sequences (\x1b[A, \x1b[B, etc.)
-// - Function keys produce correct sequences
-// - Modifier keys (Ctrl, Alt) modify the output appropriately
-// - Released keys are ignored
-// - Option key modes (Normal, Meta, Esc) transform input correctly
-//
-// These mappings are implemented in src/input.rs and verified through runtime testing.
+// Key event tests using unsafe construction of winit KeyEvent
+// (platform_specific field is pub(crate) in winit, so we zero it for testing)
+
+use winit::event::{ElementState, KeyEvent, Modifiers};
+use winit::keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NamedKey, PhysicalKey};
+
+/// Construct a KeyEvent for testing. Uses mem::zeroed for the platform-specific field
+/// which is pub(crate) in winit and cannot be set from outside the crate.
+fn make_key_event(logical_key: Key, physical_key: PhysicalKey) -> KeyEvent {
+    unsafe {
+        let mut event: KeyEvent = std::mem::zeroed();
+        std::ptr::write(&mut event.physical_key, physical_key);
+        std::ptr::write(&mut event.logical_key, logical_key);
+        std::ptr::write(&mut event.text, None);
+        std::ptr::write(&mut event.location, KeyLocation::Standard);
+        std::ptr::write(&mut event.state, ElementState::Pressed);
+        std::ptr::write(&mut event.repeat, false);
+        event
+    }
+}
+
+#[test]
+fn test_tab_sends_horizontal_tab() {
+    let mut handler = InputHandler::new();
+    // No modifiers — plain Tab
+    handler.update_modifiers(Modifiers::default());
+
+    let event = make_key_event(Key::Named(NamedKey::Tab), PhysicalKey::Code(KeyCode::Tab));
+
+    let result = handler.handle_key_event(event);
+    assert_eq!(result, Some(vec![b'\t']), "Tab should send HT (0x09)");
+}
+
+#[test]
+fn test_shift_tab_sends_csi_z() {
+    let mut handler = InputHandler::new();
+    // Set Shift modifier
+    handler.update_modifiers(Modifiers::from(ModifiersState::SHIFT));
+
+    let event = make_key_event(Key::Named(NamedKey::Tab), PhysicalKey::Code(KeyCode::Tab));
+
+    let result = handler.handle_key_event(event);
+    assert_eq!(
+        result,
+        Some(b"\x1b[Z".to_vec()),
+        "Shift+Tab should send CSI Z (reverse tab / backtab)"
+    );
+}
+
+#[test]
+fn test_enter_sends_cr() {
+    let mut handler = InputHandler::new();
+    handler.update_modifiers(Modifiers::default());
+
+    let event = make_key_event(
+        Key::Named(NamedKey::Enter),
+        PhysicalKey::Code(KeyCode::Enter),
+    );
+
+    let result = handler.handle_key_event(event);
+    assert_eq!(result, Some(vec![b'\r']), "Enter should send CR (0x0d)");
+}
+
+#[test]
+fn test_shift_enter_sends_lf() {
+    let mut handler = InputHandler::new();
+    handler.update_modifiers(Modifiers::from(ModifiersState::SHIFT));
+
+    let event = make_key_event(
+        Key::Named(NamedKey::Enter),
+        PhysicalKey::Code(KeyCode::Enter),
+    );
+
+    let result = handler.handle_key_event(event);
+    assert_eq!(
+        result,
+        Some(vec![b'\n']),
+        "Shift+Enter should send LF (0x0a)"
+    );
+}
+
+#[test]
+fn test_escape_sends_escape() {
+    let mut handler = InputHandler::new();
+    handler.update_modifiers(Modifiers::default());
+
+    let event = make_key_event(
+        Key::Named(NamedKey::Escape),
+        PhysicalKey::Code(KeyCode::Escape),
+    );
+
+    let result = handler.handle_key_event(event);
+    assert_eq!(result, Some(vec![0x1b]), "Escape should send ESC (0x1b)");
+}
