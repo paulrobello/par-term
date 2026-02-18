@@ -196,6 +196,8 @@ pub struct AIInspectorPanel {
     /// Whether the pointer is hovering over the resize handle (persists between frames
     /// so `is_egui_using_pointer` can block the initial mouse press from reaching the terminal).
     hover_resize_handle: bool,
+    /// Maximum allowed width in pixels (computed from viewport * max_width_ratio).
+    max_width: f32,
 }
 
 impl AIInspectorPanel {
@@ -220,6 +222,7 @@ impl AIInspectorPanel {
             auto_approve: config.ai_inspector_auto_approve,
             rendered_width: 0.0,
             hover_resize_handle: false,
+            max_width: 0.0,
         }
     }
 
@@ -238,9 +241,16 @@ impl AIInspectorPanel {
     ///
     /// Uses the actual rendered width (which may exceed the configured `self.width`
     /// if content overflows) to ensure the terminal insets correctly.
+    /// Clamps to the maximum allowed width to prevent the panel from taking
+    /// over the entire window.
     pub fn consumed_width(&self) -> f32 {
         if self.open {
-            self.rendered_width.max(self.width)
+            let raw_width = self.rendered_width.max(self.width);
+            if self.max_width > 0.0 {
+                raw_width.min(self.max_width)
+            } else {
+                raw_width
+            }
         } else {
             0.0
         }
@@ -271,6 +281,7 @@ impl AIInspectorPanel {
 
         let viewport = ctx.input(|i| i.viewport_rect());
         let max_width = viewport.width() * self.max_width_ratio;
+        self.max_width = max_width;
         self.width = self.width.clamp(self.min_width, max_width);
 
         // --- Resize handle input (BEFORE panel rendering so width updates this frame) ---
@@ -570,14 +581,14 @@ impl AIInspectorPanel {
             self.rendered_width = area_response.response.rect.width();
         }
 
-        // --- Paint resize handle line (Order::Middle so Foreground dialogs render above) ---
+        // --- Paint resize handle line (Order::Background so modal dialogs render above) ---
         let line_color = if hover || self.resizing {
             Color32::from_gray(120)
         } else {
             Color32::from_gray(60)
         };
         let painter = ctx.layer_painter(egui::LayerId::new(
-            Order::Middle,
+            Order::Background,
             Id::new("ai_inspector_resize_line"),
         ));
         painter.line_segment(
@@ -1132,7 +1143,8 @@ impl AIInspectorPanel {
                         });
                         ui.add(
                             Label::new(RichText::new(text).color(Color32::from_gray(220)))
-                                .selectable(true),
+                                .selectable(true)
+                                .wrap(),
                         );
                     });
                     ui.add_space(4.0);
@@ -1152,7 +1164,8 @@ impl AIInspectorPanel {
                         );
                         ui.add(
                             Label::new(RichText::new(text).color(Color32::from_gray(210)))
-                                .selectable(true),
+                                .selectable(true)
+                                .wrap(),
                         );
                     });
                     ui.add_space(4.0);
@@ -1167,7 +1180,8 @@ impl AIInspectorPanel {
                                     .small()
                                     .italics(),
                             )
-                            .selectable(true),
+                            .selectable(true)
+                            .wrap(),
                         );
                     });
                     ui.add_space(2.0);
@@ -1194,7 +1208,8 @@ impl AIInspectorPanel {
                                     .small()
                                     .monospace(),
                             )
-                            .selectable(true),
+                            .selectable(true)
+                            .wrap(),
                         );
                     });
                     ui.add_space(2.0);
@@ -1217,7 +1232,8 @@ impl AIInspectorPanel {
                                     .color(Color32::from_gray(220))
                                     .monospace(),
                             )
-                            .selectable(true),
+                            .selectable(true)
+                            .wrap(),
                         );
                         ui.horizontal(|ui| {
                             if ui
@@ -1267,7 +1283,8 @@ impl AIInspectorPanel {
                                     .color(Color32::from_gray(180))
                                     .small(),
                             )
-                            .selectable(true),
+                            .selectable(true)
+                            .wrap(),
                         );
                         if !*resolved {
                             ui.add_space(4.0);
@@ -1313,7 +1330,8 @@ impl AIInspectorPanel {
                                     .small()
                                     .italics(),
                             )
-                            .selectable(true),
+                            .selectable(true)
+                            .wrap(),
                         );
                     });
                     ui.add_space(2.0);
@@ -1328,7 +1346,8 @@ impl AIInspectorPanel {
                                     .small()
                                     .italics(),
                             )
-                            .selectable(true),
+                            .selectable(true)
+                            .wrap(),
                         );
                     });
                     ui.add_space(2.0);
@@ -1357,7 +1376,8 @@ impl AIInspectorPanel {
                     });
                     ui.add(
                         Label::new(RichText::new(streaming).color(Color32::from_gray(190)))
-                            .selectable(true),
+                            .selectable(true)
+                            .wrap(),
                     );
                 });
             } else {

@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Assistant Panel Content Overflow**: Fixed long commands causing panel to expand beyond viewport
+  - Added text wrapping to all chat message types (user, agent, thinking, tool calls, command suggestions, permissions, system messages)
+  - Enforced hard maximum width constraint (50% of viewport) to prevent panel from taking over the window
+- **Assistant Panel Resize Line Z-Order**: Fixed resize line rendering above welcome modal and other dialogs
+  - Changed resize line layer from `Order::Middle` to `Order::Background` so modal dialogs always render on top
 - **Assistant Panel Resize**: Comprehensive fix for panel resize handle behavior
   - Eliminated 1-frame drag lag by moving resize handle input before panel rendering
   - Fixed resize handle jumping into the panel on drag start when content overflows configured width
