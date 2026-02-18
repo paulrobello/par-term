@@ -39,9 +39,8 @@ pub use traits::*;
 
 // Re-export types that settings consumers need
 pub use par_term_config::{
-    Config, Profile, ProfileId, ProfileManager, ProfileSource,
-    BackgroundImageMode, CursorShaderMetadataCache, ShaderMetadataCache,
-    Theme, VsyncMode,
+    BackgroundImageMode, Config, CursorShaderMetadataCache, Profile, ProfileId, ProfileManager,
+    ProfileSource, ShaderMetadataCache, Theme, VsyncMode,
 };
 
 /// Result of shader editor actions

@@ -2,8 +2,8 @@
 //!
 //! Profiles are stored in `~/.config/par-term/profiles.yaml`
 
-use par_term_config::{Profile, ProfileManager};
 use anyhow::{Context, Result};
+use par_term_config::{Profile, ProfileManager};
 use std::path::PathBuf;
 
 /// Get the default profiles file path
