@@ -574,15 +574,10 @@ impl CustomShaderRenderer {
             0.0 // Chain mode: shader detects this and preserves transparency info
         };
 
-        // Calculate effective resolution (excluding right inset for panels)
-        let effective_width = if self.content_inset_right > 0.0 {
-            (self.texture_width as f32 - self.content_inset_right).max(1.0)
-        } else {
-            self.texture_width as f32
-        };
-
+        // Resolution stays at full texture size for correct UV sampling
+        // The viewport (set in render) limits where output appears
         CustomShaderUniforms {
-            resolution: [effective_width, self.texture_height as f32],
+            resolution: [self.texture_width as f32, self.texture_height as f32],
             time,
             time_delta,
             mouse,
