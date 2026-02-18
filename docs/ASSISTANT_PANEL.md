@@ -166,7 +166,7 @@ Writes to the par-term configuration and shader directories are auto-approved be
 
 ### Auto-Context Feeding
 
-When `ai_inspector_auto_context` is enabled (default), par-term automatically sends command completion results to the connected agent. Each time a command finishes in the terminal, the agent receives a notification containing the command text, exit code, and recent terminal output. This allows the agent to stay aware of what is happening in the terminal without requiring you to copy-paste results manually.
+When `ai_inspector_auto_context` is enabled, par-term automatically sends command completion results to the connected agent. Each time a command finishes in the terminal, the agent receives a notification containing the command text, exit code, and recent terminal output. This allows the agent to stay aware of what is happening in the terminal without requiring you to copy-paste results manually.
 
 ### YOLO Mode
 
@@ -394,14 +394,14 @@ All Assistant Panel settings are available in the Settings UI under the **Assist
 |--------|------|---------|-------------|
 | `ai_inspector_enabled` | bool | `true` | Enable the Assistant Panel feature |
 | `ai_inspector_open_on_startup` | bool | `false` | Open the panel automatically when par-term starts |
-| `ai_inspector_width` | float | `300.0` | Default panel width in pixels |
+| `ai_inspector_width` | float | `317.0` | Default panel width in pixels |
 | `ai_inspector_default_scope` | string | `"visible"` | Default capture scope (`visible`, `recent_N`, `full`) |
-| `ai_inspector_view_mode` | string | `"cards"` | Default view mode (`cards`, `timeline`, `tree`, `list_detail`) |
+| `ai_inspector_view_mode` | string | `"tree"` | Default view mode (`cards`, `timeline`, `tree`, `list_detail`) |
 | `ai_inspector_live_update` | bool | `false` | Enable live auto-refresh of terminal capture |
 | `ai_inspector_show_zones` | bool | `true` | Show zone boundaries in the capture view |
 | `ai_inspector_agent` | string | `"claude.com"` | Default agent identity for auto-launch and Connect button |
 | `ai_inspector_auto_launch` | bool | `false` | Auto-connect to the configured agent when panel opens |
-| `ai_inspector_auto_context` | bool | `true` | Auto-send command results to the connected agent |
+| `ai_inspector_auto_context` | bool | `false` | Auto-send command results to the connected agent |
 | `ai_inspector_context_max_lines` | int | `200` | Maximum output lines sent per auto-context update |
 | `ai_inspector_auto_approve` | bool | `false` | Auto-approve all agent permission requests (YOLO mode) |
 | `ai_inspector_agent_terminal_access` | bool | `false` | Allow the agent to write directly to the terminal |
@@ -414,7 +414,7 @@ ai_inspector_enabled: true
 ai_inspector_width: 400.0
 ai_inspector_agent: "claude.com"
 ai_inspector_auto_launch: true
-ai_inspector_auto_context: true
+ai_inspector_auto_context: false
 ai_inspector_auto_approve: false
 ai_inspector_agent_terminal_access: false
 ```

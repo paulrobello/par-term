@@ -297,16 +297,16 @@ New fields in `Config` / `config.yaml`:
 ```yaml
 # AI Inspector - Panel
 ai_inspector_enabled: true            # Feature gate (shows/hides keybinding + status bar button)
-ai_inspector_width: 300               # Panel width in pixels
+ai_inspector_width: 317               # Panel width in pixels
 ai_inspector_default_scope: "visible" # visible | recent_10 | recent_25 | full
-ai_inspector_view_mode: "cards"       # cards | timeline | tree | list_detail
+ai_inspector_view_mode: "tree"        # cards | timeline | tree | list_detail
 ai_inspector_live_update: true        # Default to live mode vs paused
 ai_inspector_show_zones: true         # Zone content visible vs export-only mode
 
 # AI Inspector - Agent
 ai_inspector_agent: "claude.com"      # Selected agent identity (default: Claude Code)
 ai_inspector_auto_launch: true        # Auto-launch agent when panel opens
-ai_inspector_auto_context: true       # Auto-send terminal context on command completion
+ai_inspector_auto_context: false      # Auto-send terminal context on command completion
 ai_inspector_context_max_lines: 200   # Max output lines sent to agent per command
 ai_inspector_auto_approve: false      # Yolo mode — auto-approve all agent permission requests
 ```

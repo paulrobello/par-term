@@ -931,7 +931,7 @@ pub fn ai_inspector_enabled() -> bool {
 }
 
 pub fn ai_inspector_width() -> f32 {
-    300.0
+    317.0
 }
 
 pub fn ai_inspector_open_on_startup() -> bool {
@@ -943,7 +943,7 @@ pub fn ai_inspector_default_scope() -> String {
 }
 
 pub fn ai_inspector_view_mode() -> String {
-    "cards".to_string()
+    "tree".to_string()
 }
 
 pub fn ai_inspector_live_update() -> bool {
@@ -963,7 +963,7 @@ pub fn ai_inspector_auto_launch() -> bool {
 }
 
 pub fn ai_inspector_auto_context() -> bool {
-    true
+    false
 }
 
 pub fn ai_inspector_context_max_lines() -> usize {
