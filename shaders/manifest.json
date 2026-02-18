@@ -1,6 +1,6 @@
 {
-  "version": "0.6.0",
-  "generated": "2026-02-02T23:35:26.106195+00:00",
+  "version": "0.17.1",
+  "generated": "2026-02-18T23:31:08.964139+00:00",
   "files": [
     {
       "path": "animated-gradient-shader.glsl",
@@ -232,7 +232,7 @@
     },
     {
       "path": "rain.glsl",
-      "sha256": "d823161b4a4efa46125ef32d839ae4db0b82d7b7b7940d4340dd6285cdff3c4c",
+      "sha256": "0c061813ee31264cc7e24b4e2ac924ecffd3973976387f2b49f2bd95c5f0ba3d",
       "type": "shader",
       "category": "nature"
     },
