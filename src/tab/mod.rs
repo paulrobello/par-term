@@ -289,8 +289,8 @@ fn apply_login_shell_flag(_shell_args: &mut Option<Vec<String>>, _config: &Confi
     // No-op on Windows
 }
 
-/// Unique identifier for a tab
-pub type TabId = u64;
+// Re-export TabId from par-term-config for shared access across subcrates
+pub use par_term_config::TabId;
 
 /// A single terminal tab with its own state (supports split panes)
 pub struct Tab {

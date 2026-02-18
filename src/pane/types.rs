@@ -18,8 +18,8 @@ use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-/// Unique identifier for a pane
-pub type PaneId = u64;
+// Re-export PaneId from par-term-config for shared access across subcrates
+pub use par_term_config::PaneId;
 
 /// State for shell restart behavior
 #[derive(Debug, Clone)]

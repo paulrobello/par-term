@@ -1561,3 +1561,13 @@ impl DividerRect {
 
 /// Visible command separator mark: (row, col_offset, optional_color)
 pub type SeparatorMark = (usize, Option<i32>, Option<(u8, u8, u8)>);
+
+// ============================================================================
+// Shared ID Types
+// ============================================================================
+
+/// Unique identifier for a pane
+pub type PaneId = u64;
+
+/// Unique identifier for a tab
+pub type TabId = u64;

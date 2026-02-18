@@ -8,8 +8,7 @@
 
 use super::session::TmuxNotification;
 use super::types::{TmuxPaneId, TmuxWindowId};
-use crate::pane::PaneId;
-use crate::tab::TabId;
+use par_term_config::{PaneId, TabId};
 use std::collections::HashMap;
 
 /// Synchronizes state between tmux and par-term
