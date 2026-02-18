@@ -30,7 +30,7 @@ serde_json = "1.0.149"
 log = "0.4.29"
 
 # UUID for profile identifiers
-uuid = { version = "1.20", features = ["v4", "serde"] }
+uuid = { version = "1.21", features = ["v4", "serde"] }
 
 # Error handling
 anyhow = "1.0.101"
@@ -54,17 +54,16 @@ image = "0.25.9"
 dirs = "6.0"
 
 # HTTP client for URL imports
-ureq = { version = "2.12", features = ["native-tls"] }
-native-tls = "0.2"
+ureq = { version = "3.2.0", default-features = false, features = ["native-tls", "gzip"] }
 
 # YAML serialization for config import/export
 serde_yaml = "0.9"
 
 # Regex for trigger pattern validation
-regex = "1.11"
+regex = "1.12.3"
 
 # Clipboard support
-arboard = "3.4.1"
+arboard = "3.6.1"
 
 [features]
 default = []

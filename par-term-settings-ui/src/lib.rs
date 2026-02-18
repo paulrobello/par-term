@@ -271,11 +271,7 @@ pub fn log_path() -> std::path::PathBuf {
 
 /// Create a configured HTTP agent for URL fetching.
 pub fn http_agent() -> ureq::Agent {
-    ureq::AgentBuilder::new()
-        .tls_connector(std::sync::Arc::new(
-            native_tls::TlsConnector::new().expect("TLS connector"),
-        ))
-        .build()
+    ureq::Agent::new_with_defaults()
 }
 
 /// Settings UI manager using egui

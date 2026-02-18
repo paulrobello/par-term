@@ -275,6 +275,35 @@ fn install_macos_bundle(current_exe: &std::path::Path, zip_data: &[u8]) -> Resul
         }
     }
 
+    // Remove macOS quarantine attribute from downloaded files.
+    // Files downloaded from the internet get com.apple.quarantine set,
+    // which causes Gatekeeper to block the app on next launch.
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("xattr")
+            .args(["-cr", &app_root.to_string_lossy()])
+            .status();
+        match status {
+            Ok(s) if s.success() => {
+                log::info!("Removed quarantine attributes from {}", app_root.display());
+            }
+            Ok(s) => {
+                log::warn!(
+                    "xattr -cr exited with status {} for {}",
+                    s,
+                    app_root.display()
+                );
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to run xattr -cr on {}: {}",
+                    app_root.display(),
+                    e
+                );
+            }
+        }
+    }
+
     Ok(app_root.to_path_buf())
 }
 

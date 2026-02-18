@@ -354,9 +354,9 @@ fn import_preferences_from_url(
 
     let agent = crate::http_agent();
     match agent.get(&url).call() {
-        Ok(response) => match response.into_string() {
-            Ok(content) => {
-                apply_imported_config(settings, changes_this_frame, &content, mode);
+        Ok(response) => match response.into_body().read_to_string() {
+            Ok(body) => {
+                apply_imported_config(settings, changes_this_frame, &body, mode);
             }
             Err(e) => {
                 settings.import_export_status = Some(format!("Failed to read response: {}", e));

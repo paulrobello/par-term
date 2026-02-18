@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Dependency Updates**: Updated multiple workspace dependencies to latest versions
+  - `clap` 4.5.57 → 4.5.59 (patch)
+  - `libc` 0.2.181 → 0.2.182 (patch)
+  - `uuid` 1.20 → 1.21 (minor, across root, config, settings-ui)
+  - `arboard` 3.4.1 → 3.6.1 (minor, in settings-ui)
+  - `regex` 1.11 → 1.12.3 (minor, in settings-ui)
+  - `zip` 7.4.0 → 8.1.0 (major)
+  - `mdns-sd` 0.17 → 0.18 (major)
+  - `ureq` 2.12 → 3.2.0 (major, in settings-ui — aligned with root crate)
+  - 27 transitive dependencies also updated via `cargo update`
+
+### Fixed
+
+- **macOS Self-Update Quarantine**: Auto-updater now runs `xattr -cr` on the .app bundle after extracting update zip to remove macOS quarantine attributes, preventing Gatekeeper from blocking the updated app on next launch
+
+---
+
 ## [0.17.0] - 2026-02-17
 
 ### Added

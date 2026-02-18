@@ -18,7 +18,7 @@ serde_yaml = "0.9"
 toml = "0.8"
 
 # UUID for profile identifiers
-uuid = { version = "1.20", features = ["v4", "serde"] }
+uuid = { version = "1.21", features = ["v4", "serde"] }
 
 # Error handling
 anyhow = "1.0.101"
