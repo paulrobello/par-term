@@ -25,3 +25,4 @@ claude_scratch/
 .claude/ralph-state.json
 ralph-refactor.md
 settings.local.json.bak
+**/cc-ralph-loop-*.md
