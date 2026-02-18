@@ -2928,6 +2928,31 @@ impl WindowState {
                 // when egui overlays (profile modal, search, etc.) are active
                 raw_input.events.append(&mut self.pending_egui_events);
 
+                // When no modal UI overlay is visible, filter out Tab key events to prevent
+                // egui's default focus navigation from stealing Tab/Shift+Tab from the terminal.
+                // Tab/Shift+Tab should only cycle focus between egui widgets when a modal is open.
+                let any_modal_visible = self.help_ui.visible
+                    || self.clipboard_history_ui.visible
+                    || self.command_history_ui.visible
+                    || self.shader_install_ui.visible
+                    || self.integrations_ui.visible
+                    || self.search_ui.visible
+                    || self.tmux_session_picker_ui.visible
+                    || self.ssh_connect_ui.is_visible()
+                    || self.ai_inspector.open
+                    || self.quit_confirmation_ui.is_visible();
+                if !any_modal_visible {
+                    raw_input.events.retain(|e| {
+                        !matches!(
+                            e,
+                            egui::Event::Key {
+                                key: egui::Key::Tab,
+                                ..
+                            }
+                        )
+                    });
+                }
+
                 let egui_output = egui_ctx.run(raw_input, |ctx| {
                     // Show FPS overlay if enabled (top-right corner)
                     if show_fps {
