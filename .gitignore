@@ -22,3 +22,6 @@ log.txt
 .gemini-clipboard
 claude_scratch/
 .claude/settings.local.json.bak
+.claude/ralph-state.json
+ralph-refactor.md
+settings.local.json.bak
