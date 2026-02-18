@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Image Paste in Claude Code**: Fixed Cmd+V / menu Paste not forwarding to terminal when clipboard contains an image but no text — image-aware child processes (e.g., Claude Code) now receive Ctrl+V so they can handle image paste via their own clipboard access
 - **Settings Sidebar Icons**: Fixed empty box rendering for several tab icons — AiInspector, StatusBar, Input, and Advanced tabs now display correctly using emoji characters in egui's supported Unicode range
 - **Shell Detection**: Improved `ShellType::detect()` with multi-strategy fallback — checks `$SHELL` env var first, then `dscl` on macOS (for app bundle launches where `$SHELL` is not set), then `/etc/passwd` on Unix systems
 - **Settings Version Display**: Fixed settings UI and update checker displaying subcrate version "0.1.0" instead of the actual application version; app version is now passed from the main crate via `SettingsUI.app_version` and `UpdateChecker::new(current_version)`

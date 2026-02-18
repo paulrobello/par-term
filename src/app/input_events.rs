@@ -221,14 +221,30 @@ impl WindowState {
             };
 
             if is_paste {
-                if let Some(text) = self.input_handler.paste_from_clipboard()
-                    && let Some(tab) = self.tab_manager.active_tab()
-                {
-                    let terminal_clone = Arc::clone(&tab.terminal);
-                    self.runtime.spawn(async move {
-                        let term = terminal_clone.lock().await;
-                        let _ = term.paste(&text);
-                    });
+                if let Some(text) = self.input_handler.paste_from_clipboard() {
+                    log::debug!("Paste: got {} chars of text from clipboard", text.len());
+                    if let Some(tab) = self.tab_manager.active_tab() {
+                        let terminal_clone = Arc::clone(&tab.terminal);
+                        self.runtime.spawn(async move {
+                            let term = terminal_clone.lock().await;
+                            let _ = term.paste(&text);
+                        });
+                    }
+                } else if self.input_handler.clipboard_has_image() {
+                    // Clipboard has an image but no text — forward as Ctrl+V (0x16) so
+                    // image-aware child processes (e.g., Claude Code) can handle image paste
+                    log::debug!(
+                        "Paste: clipboard has image but no text, forwarding Ctrl+V to terminal"
+                    );
+                    if let Some(tab) = self.tab_manager.active_tab() {
+                        let terminal_clone = Arc::clone(&tab.terminal);
+                        self.runtime.spawn(async move {
+                            let term = terminal_clone.lock().await;
+                            let _ = term.write(b"\x16");
+                        });
+                    }
+                } else {
+                    log::debug!("Paste: clipboard has neither text nor image");
                 }
                 return;
             }

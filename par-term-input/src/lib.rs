@@ -431,8 +431,22 @@ impl InputHandler {
         }
     }
 
+    /// Check if clipboard contains an image (used when text paste returns None
+    /// to determine if we should forward the paste event to the terminal for
+    /// image-aware applications like Claude Code)
+    pub fn clipboard_has_image(&mut self) -> bool {
+        if let Some(ref mut clipboard) = self.clipboard {
+            let has_image = clipboard.get_image().is_ok();
+            log::debug!("Clipboard image check: {}", has_image);
+            has_image
+        } else {
+            false
+        }
+    }
+
     /// Copy text to clipboard
     pub fn copy_to_clipboard(&mut self, text: &str) -> Result<(), String> {
+        log::debug!("copy_to_clipboard: writing {} bytes", text.len());
         if let Some(ref mut clipboard) = self.clipboard {
             clipboard
                 .set_text(text.to_string())

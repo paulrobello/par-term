@@ -977,9 +977,20 @@ impl WindowManager {
                 }
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
-                    && let Some(text) = window_state.input_handler.paste_from_clipboard()
                 {
-                    window_state.paste_text(&text);
+                    if let Some(text) = window_state.input_handler.paste_from_clipboard() {
+                        window_state.paste_text(&text);
+                    } else if window_state.input_handler.clipboard_has_image() {
+                        // Clipboard has an image but no text — forward as Ctrl+V (0x16) so
+                        // image-aware child processes (e.g., Claude Code) can handle image paste
+                        if let Some(tab) = window_state.tab_manager.active_tab() {
+                            let terminal_clone = Arc::clone(&tab.terminal);
+                            window_state.runtime.spawn(async move {
+                                let term = terminal_clone.lock().await;
+                                let _ = term.write(b"\x16");
+                            });
+                        }
+                    }
                 }
             }
             MenuAction::SelectAll => {
