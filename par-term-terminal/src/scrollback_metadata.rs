@@ -4,6 +4,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use par_term_emu_core_rust::shell_integration::ShellIntegrationMarker;
 use par_term_emu_core_rust::terminal::CommandExecution;
 
+// Re-export ScrollbackMark from par-term-config (shared type used by both terminal and renderer)
+pub use par_term_config::ScrollbackMark;
+
 /// Maximum distance (in lines) between the A (PromptStart) and B (CommandStart)
 /// markers of the same prompt. Used both to suppress duplicate prompt_lines
 /// entries (B won't create one if A already recorded one nearby) and to snap
@@ -34,22 +37,6 @@ impl CommandSnapshot {
             duration_ms: command.duration_ms,
         }
     }
-}
-
-/// Public-facing metadata for a mark anchored to a scrollback line.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ScrollbackMark {
-    pub line: usize,
-    pub exit_code: Option<i32>,
-    pub start_time: Option<u64>,
-    pub duration_ms: Option<u64>,
-    pub command: Option<String>,
-    /// Custom color override (from trigger marks). When set, overrides exit_code-based coloring.
-    pub color: Option<(u8, u8, u8)>,
-    /// Trigger ID that created this mark (None for shell integration marks).
-    /// Used for deduplication: the same trigger matching the same physical line
-    /// across multiple scans produces marks at different absolute positions.
-    pub trigger_id: Option<u64>,
 }
 
 /// Metadata for displaying timing/command info for a specific line.

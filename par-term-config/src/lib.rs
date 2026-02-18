@@ -18,6 +18,7 @@ pub mod defaults;
 pub mod profile;
 pub mod profile_types;
 pub mod scripting;
+pub mod scrollback_mark;
 pub mod shader_config;
 pub mod shader_metadata;
 pub mod snippets;
@@ -30,6 +31,7 @@ pub mod watcher;
 // Re-export main types for convenience
 pub use cell::Cell;
 pub use config::{Config, substitute_variables};
+pub use scrollback_mark::ScrollbackMark;
 pub use themes::{Color, Theme};
 
 // Re-export config types

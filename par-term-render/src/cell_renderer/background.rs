@@ -133,7 +133,7 @@ impl CellRenderer {
     pub fn set_background_image(
         &mut self,
         path: Option<&str>,
-        mode: crate::config::BackgroundImageMode,
+        mode: par_term_config::BackgroundImageMode,
         opacity: f32,
     ) {
         self.bg_image_mode = mode;
@@ -232,9 +232,8 @@ impl CellRenderer {
     /// Uses Stretch mode for solid colors to fill the entire window.
     /// Transparency is controlled by window_opacity, not the texture alpha.
     pub fn create_solid_color_texture(&mut self, color: [u8; 3]) {
-        debug_info!(
-            "BACKGROUND",
-            "create_solid_color_texture: RGB({}, {}, {}) -> normalized ({:.3}, {:.3}, {:.3})",
+        log::info!(
+            "[BACKGROUND] create_solid_color_texture: RGB({}, {}, {}) -> normalized ({:.3}, {:.3}, {:.3})",
             color[0],
             color[1],
             color[2],
@@ -317,7 +316,7 @@ impl CellRenderer {
         self.bg_image_width = size;
         self.bg_image_height = size;
         // Use Stretch mode for solid colors to fill the window
-        self.bg_image_mode = crate::config::BackgroundImageMode::Stretch;
+        self.bg_image_mode = par_term_config::BackgroundImageMode::Stretch;
         // Use 1.0 as base opacity - window_opacity is applied in update_bg_image_uniforms()
         self.bg_image_opacity = 1.0;
         // Mark this as a solid color for tracking purposes
@@ -405,16 +404,15 @@ impl CellRenderer {
     /// instead of calling individual methods directly.
     pub fn set_background(
         &mut self,
-        mode: crate::config::BackgroundMode,
+        mode: par_term_config::BackgroundMode,
         color: [u8; 3],
         image_path: Option<&str>,
-        image_mode: crate::config::BackgroundImageMode,
+        image_mode: par_term_config::BackgroundImageMode,
         image_opacity: f32,
         image_enabled: bool,
     ) {
-        debug_info!(
-            "BACKGROUND",
-            "set_background: mode={:?}, color=RGB({}, {}, {}), image_path={:?}",
+        log::info!(
+            "[BACKGROUND] set_background: mode={:?}, color=RGB({}, {}, {}), image_path={:?}",
             mode,
             color[0],
             color[1],
@@ -422,7 +420,7 @@ impl CellRenderer {
             image_path
         );
         match mode {
-            crate::config::BackgroundMode::Default => {
+            par_term_config::BackgroundMode::Default => {
                 // Clear background texture - use theme default
                 self.bg_image_texture = None;
                 self.bg_image_bind_group = None;
@@ -430,11 +428,11 @@ impl CellRenderer {
                 self.bg_image_height = 0;
                 self.bg_is_solid_color = false;
             }
-            crate::config::BackgroundMode::Color => {
+            par_term_config::BackgroundMode::Color => {
                 // create_solid_color_texture sets bg_is_solid_color = true
                 self.create_solid_color_texture(color);
             }
-            crate::config::BackgroundMode::Image => {
+            par_term_config::BackgroundMode::Image => {
                 if image_enabled {
                     // set_background_image sets bg_is_solid_color = false
                     self.set_background_image(image_path, image_mode, image_opacity);
@@ -556,7 +554,7 @@ impl CellRenderer {
         pane_y: f32,
         pane_width: f32,
         pane_height: f32,
-        mode: crate::config::BackgroundImageMode,
+        mode: par_term_config::BackgroundImageMode,
         opacity: f32,
     ) -> (wgpu::BindGroup, wgpu::Buffer) {
         // Shader uniform struct layout (48 bytes):

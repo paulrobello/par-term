@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Moved `Cell` type to `par-term-config` as a shared type between terminal and renderer crates
   - Defined `SearchMatch` type in `par-term-terminal` for terminal search results
   - Main crate re-exports all types for backward compatibility
+- **Cell Renderer Extraction**: Extracted GPU rendering engine into `par-term-render` workspace crate (#167)
+  - Moved `CellRenderer`, `Renderer`, `GraphicsRenderer`, `CustomShaderRenderer`, `Scrollbar`, and `gpu_utils` into `par-term-render`
+  - Moved all WGSL shaders (cell_bg, cell_text, sixel, scrollbar, background_image) into `par-term-render`
+  - Moved `ScrollbackMark` to `par-term-config` as a shared type between terminal and renderer crates
+  - Main crate re-exports all types for backward compatibility
 - **Assistant Panel Rebrand**: Renamed "AI Inspector" to "Assistant" throughout the UI
   - Panel title, settings sidebar tab, settings checkboxes/tooltips, and log messages all updated
   - Internal code identifiers (`ai_inspector`) unchanged for backwards compatibility

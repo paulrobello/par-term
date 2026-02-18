@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn subpixel_mask_uses_rgba_stride() {
-        let data = std::fs::read("fonts/DejaVuSansMono.ttf").expect("font file");
+        let data = std::fs::read("../par-term-fonts/fonts/DejaVuSansMono.ttf").expect("font file");
         let font = swash::FontRef::from_index(&data, 0).expect("font ref");
         let mut context = ScaleContext::new();
         let glyph_id = font.charmap().map('a');

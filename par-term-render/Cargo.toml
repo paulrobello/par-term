@@ -1,0 +1,46 @@
+[package]
+name = "par-term-render"
+version = "0.1.0"
+edition = "2024"
+description = "GPU-accelerated rendering engine for par-term terminal emulator"
+license = "MIT"
+repository = "https://github.com/paulrobello/par-term"
+
+[dependencies]
+# Workspace crates
+par-term-config = { path = "../par-term-config", features = ["wgpu-types"] }
+par-term-fonts = { path = "../par-term-fonts" }
+
+# Terminal emulator core (for CursorStyle type)
+par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
+
+# GPU rendering
+winit = "0.30"
+wgpu = { version = "27", features = ["wgsl"] }
+bytemuck = { version = "1.25", features = ["derive"] }
+
+# Font rasterization (for glyph rendering)
+swash = "0.2.6"
+
+# GLSL to WGSL transpilation for custom shaders
+naga = { version = "27", features = ["glsl-in", "wgsl-out"] }
+
+# Image loading for background images and shader textures
+image = "0.25.9"
+
+# Half-precision float for HDR cubemap textures
+half = "2.7.1"
+
+# GUI overlay rendering (egui integration)
+egui = "0.33.3"
+egui-wgpu = "0.33.3"
+
+# Platform-specific directories (for shader paths)
+dirs = "6.0"
+
+# Error handling and logging
+anyhow = "1.0.101"
+log = "0.4.29"
+
+# Concurrency
+parking_lot = "0.12.5"

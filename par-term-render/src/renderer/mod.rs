@@ -1,6 +1,6 @@
-use super::cell_renderer::{Cell, CellRenderer, PaneViewport};
-use super::graphics_renderer::GraphicsRenderer;
+use crate::cell_renderer::{Cell, CellRenderer, PaneViewport};
 use crate::custom_shader_renderer::CustomShaderRenderer;
+use crate::graphics_renderer::GraphicsRenderer;
 use anyhow::Result;
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
@@ -21,7 +21,7 @@ pub use par_term_config::SeparatorMark;
 /// earliest screen row (from PromptStart) while inheriting exit code and color
 /// from whichever mark carries them.
 pub fn compute_visible_separator_marks(
-    marks: &[crate::scrollback_metadata::ScrollbackMark],
+    marks: &[par_term_config::ScrollbackMark],
     scrollback_len: usize,
     scroll_offset: usize,
     visible_lines: usize,
@@ -57,13 +57,13 @@ pub struct PaneRenderInfo<'a> {
     /// Whether this pane has a scrollbar visible
     pub show_scrollbar: bool,
     /// Scrollback marks for this pane
-    pub marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    pub marks: Vec<par_term_config::ScrollbackMark>,
     /// Scrollback length for this pane (needed for separator mark mapping)
     pub scrollback_len: usize,
     /// Current scroll offset for this pane (needed for separator mark mapping)
     pub scroll_offset: usize,
     /// Per-pane background image override (None = use global background)
-    pub background: Option<crate::pane::PaneBackground>,
+    pub background: Option<par_term_config::PaneBackground>,
 }
 
 /// Information needed to render a pane divider
@@ -83,7 +83,7 @@ pub struct DividerRenderInfo {
 
 impl DividerRenderInfo {
     /// Create from a DividerRect
-    pub fn from_rect(rect: &crate::pane::DividerRect, hovered: bool) -> Self {
+    pub fn from_rect(rect: &par_term_config::DividerRect, hovered: bool) -> Self {
         Self {
             x: rect.x,
             y: rect.y,
@@ -129,7 +129,7 @@ pub struct PaneDividerSettings {
     /// Width of focus indicator border in pixels
     pub focus_width: f32,
     /// Style of dividers (solid, double, dashed, shadow)
-    pub divider_style: crate::config::DividerStyle,
+    pub divider_style: par_term_config::DividerStyle,
 }
 
 impl Default for PaneDividerSettings {
@@ -140,7 +140,7 @@ impl Default for PaneDividerSettings {
             show_focus_indicator: true,
             focus_color: [0.4, 0.6, 1.0],
             focus_width: 2.0,
-            divider_style: crate::config::DividerStyle::default(),
+            divider_style: par_term_config::DividerStyle::default(),
         }
     }
 }
@@ -194,7 +194,7 @@ impl Renderer {
         font_family_bold: Option<&str>,
         font_family_italic: Option<&str>,
         font_family_bold_italic: Option<&str>,
-        font_ranges: &[crate::config::FontRange],
+        font_ranges: &[par_term_config::FontRange],
         font_size: f32,
         window_padding: f32,
         line_spacing: f32,
@@ -208,15 +208,15 @@ impl Renderer {
         enable_kerning: bool,
         font_antialias: bool,
         font_hinting: bool,
-        font_thin_strokes: crate::config::ThinStrokesMode,
+        font_thin_strokes: par_term_config::ThinStrokesMode,
         minimum_contrast: f32,
-        vsync_mode: crate::config::VsyncMode,
-        power_preference: crate::config::PowerPreference,
+        vsync_mode: par_term_config::VsyncMode,
+        power_preference: par_term_config::PowerPreference,
         window_opacity: f32,
         background_color: [u8; 3],
         background_image_path: Option<&str>,
         background_image_enabled: bool,
-        background_image_mode: crate::config::BackgroundImageMode,
+        background_image_mode: par_term_config::BackgroundImageMode,
         background_image_opacity: f32,
         custom_shader_path: Option<&str>,
         custom_shader_enabled: bool,
@@ -231,7 +231,7 @@ impl Renderer {
         // Use background image as iChannel0 for custom shaders
         use_background_as_channel0: bool,
         // Inline image scaling mode (nearest vs linear)
-        image_scaling_mode: crate::config::ImageScalingMode,
+        image_scaling_mode: par_term_config::ImageScalingMode,
         // Preserve aspect ratio when scaling inline images
         image_preserve_aspect_ratio: bool,
         // Cursor shader settings (separate from background shader)
@@ -256,7 +256,7 @@ impl Renderer {
         let font_size_pixels = (base_font_pixels * scale_factor as f32).max(1.0);
 
         // Preliminary font lookup to get metrics for accurate cell height
-        let font_manager = crate::font_manager::FontManager::new(
+        let font_manager = par_term_fonts::font_manager::FontManager::new(
             font_family,
             font_family_bold,
             font_family_italic,
@@ -409,9 +409,8 @@ impl Renderer {
             cs.set_scale_factor(scale);
         }
 
-        debug_info!(
-            "renderer",
-            "Renderer created: custom_shader_loaded={}, cursor_shader_loaded={}",
+        log::info!(
+            "[renderer] Renderer created: custom_shader_loaded={}, cursor_shader_loaded={}",
             initial_shader_path.is_some(),
             initial_cursor_shader_path.is_some()
         );
@@ -598,7 +597,7 @@ impl Renderer {
         scroll_offset: usize,
         visible_lines: usize,
         total_lines: usize,
-        marks: &[crate::scrollback_metadata::ScrollbackMark],
+        marks: &[par_term_config::ScrollbackMark],
     ) {
         self.cell_renderer
             .update_scrollbar(scroll_offset, visible_lines, total_lines, marks);
@@ -687,7 +686,7 @@ impl Renderer {
     }
 
     /// Update unfocused cursor style
-    pub fn update_unfocused_cursor_style(&mut self, style: crate::config::UnfocusedCursorStyle) {
+    pub fn update_unfocused_cursor_style(&mut self, style: par_term_config::UnfocusedCursorStyle) {
         self.cell_renderer.update_unfocused_cursor_style(style);
         self.dirty = true;
     }
@@ -751,7 +750,7 @@ impl Renderer {
     /// are disabled since TUI applications typically have their own cursor handling.
     pub fn set_cursor_shader_disabled_for_alt_screen(&mut self, disabled: bool) {
         if self.cursor_shader_disabled_for_alt_screen != disabled {
-            debug_log!("cursor-shader", "Alt-screen disable set to {}", disabled);
+            log::debug!("[cursor-shader] Alt-screen disable set to {}", disabled);
             self.cursor_shader_disabled_for_alt_screen = disabled;
         } else {
             self.cursor_shader_disabled_for_alt_screen = disabled;
@@ -797,7 +796,7 @@ impl Renderer {
         &mut self,
         enabled: bool,
         path: Option<&str>,
-        mode: crate::config::BackgroundImageMode,
+        mode: par_term_config::BackgroundImageMode,
         opacity: f32,
     ) {
         let path = if enabled { path } else { None };
@@ -814,10 +813,10 @@ impl Renderer {
     /// This unified method handles all background types and syncs with shaders.
     pub fn set_background(
         &mut self,
-        mode: crate::config::BackgroundMode,
+        mode: par_term_config::BackgroundMode,
         color: [u8; 3],
         image_path: Option<&str>,
-        image_mode: crate::config::BackgroundImageMode,
+        image_mode: par_term_config::BackgroundImageMode,
         image_opacity: f32,
         image_enabled: bool,
     ) {
@@ -834,8 +833,8 @@ impl Renderer {
         self.sync_background_texture_to_shader();
 
         // Sync background to shaders for proper compositing
-        let is_solid_color = matches!(mode, crate::config::BackgroundMode::Color);
-        let is_image_mode = matches!(mode, crate::config::BackgroundMode::Image);
+        let is_solid_color = matches!(mode, par_term_config::BackgroundMode::Color);
+        let is_image_mode = matches!(mode, par_term_config::BackgroundMode::Image);
         let normalized_color = [
             color[0] as f32 / 255.0,
             color[1] as f32 / 255.0,
@@ -920,7 +919,7 @@ impl Renderer {
     ///
     /// Recreates the GPU sampler and clears the texture cache so images
     /// are re-rendered with the new filter mode.
-    pub fn update_image_scaling_mode(&mut self, scaling_mode: crate::config::ImageScalingMode) {
+    pub fn update_image_scaling_mode(&mut self, scaling_mode: par_term_config::ImageScalingMode) {
         self.graphics_renderer
             .update_scaling_mode(self.cell_renderer.device(), scaling_mode);
         self.dirty = true;
@@ -955,7 +954,7 @@ impl Renderer {
         egui_data: Option<(egui::FullOutput, &egui::Context)>,
         force_egui_opaque: bool,
         show_scrollbar: bool,
-        pane_background: Option<&crate::pane::PaneBackground>,
+        pane_background: Option<&par_term_config::PaneBackground>,
     ) -> Result<bool> {
         // Custom shader animation forces continuous rendering
         let force_render = self.needs_continuous_render();
@@ -1096,9 +1095,8 @@ impl Renderer {
             + egui_render_time
             + present_time;
         if present_time.as_millis() > 10 || total.as_millis() > 10 {
-            crate::debug_info!(
-                "RENDER",
-                "RENDER_BREAKDOWN: CellRender={:.2}ms BgShader={:.2}ms CursorShader={:.2}ms Sixel={:.2}ms Egui={:.2}ms PRESENT={:.2}ms Total={:.2}ms",
+            log::info!(
+                "[RENDER] RENDER_BREAKDOWN: CellRender={:.2}ms BgShader={:.2}ms CursorShader={:.2}ms Sixel={:.2}ms Egui={:.2}ms PRESENT={:.2}ms Total={:.2}ms",
                 cell_render_time.as_secs_f64() * 1000.0,
                 custom_shader_time.as_secs_f64() * 1000.0,
                 cursor_shader_time.as_secs_f64() * 1000.0,
@@ -1457,7 +1455,7 @@ impl Renderer {
                 settings.divider_color
             };
 
-            use crate::config::DividerStyle;
+            use par_term_config::DividerStyle;
             match settings.divider_style {
                 DividerStyle::Solid => {
                     let x_ndc = divider.x / w * 2.0 - 1.0;
@@ -2367,7 +2365,7 @@ impl Renderer {
         mouse_x: f32,
         mouse_y: f32,
         tolerance: f32,
-    ) -> Option<&crate::scrollback_metadata::ScrollbackMark> {
+    ) -> Option<&par_term_config::ScrollbackMark> {
         self.cell_renderer
             .scrollbar_mark_at_position(mouse_x, mouse_y, tolerance)
     }
@@ -2400,7 +2398,7 @@ impl Renderer {
     }
 
     /// Check if a vsync mode is supported
-    pub fn is_vsync_mode_supported(&self, mode: crate::config::VsyncMode) -> bool {
+    pub fn is_vsync_mode_supported(&self, mode: par_term_config::VsyncMode) -> bool {
         self.cell_renderer.is_vsync_mode_supported(mode)
     }
 
@@ -2408,8 +2406,8 @@ impl Renderer {
     /// Also returns whether the mode was changed.
     pub fn update_vsync_mode(
         &mut self,
-        mode: crate::config::VsyncMode,
-    ) -> (crate::config::VsyncMode, bool) {
+        mode: par_term_config::VsyncMode,
+    ) -> (par_term_config::VsyncMode, bool) {
         let result = self.cell_renderer.update_vsync_mode(mode);
         if result.1 {
             self.dirty = true;
@@ -2419,7 +2417,7 @@ impl Renderer {
 
     /// Get the current vsync mode
     #[allow(dead_code)]
-    pub fn current_vsync_mode(&self) -> crate::config::VsyncMode {
+    pub fn current_vsync_mode(&self) -> par_term_config::VsyncMode {
         self.cell_renderer.current_vsync_mode()
     }
 
@@ -2452,7 +2450,7 @@ impl Renderer {
 
     /// Update thin strokes mode
     /// Returns true if the setting changed (requiring glyph cache clear)
-    pub fn update_font_thin_strokes(&mut self, mode: crate::config::ThinStrokesMode) -> bool {
+    pub fn update_font_thin_strokes(&mut self, mode: par_term_config::ThinStrokesMode) -> bool {
         let changed = self.cell_renderer.update_font_thin_strokes(mode);
         if changed {
             self.dirty = true;
@@ -2479,7 +2477,7 @@ impl Renderer {
         if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
             cursor_shader.set_animation_enabled(false);
         }
-        crate::debug_info!("SHADER", "Shader animations paused");
+        log::info!("[SHADER] Shader animations paused");
     }
 
     /// Resume shader animations (e.g., when window regains focus)
@@ -2496,9 +2494,8 @@ impl Renderer {
             cursor_shader.set_animation_enabled(cursor_shader_animation);
         }
         self.dirty = true;
-        crate::debug_info!(
-            "SHADER",
-            "Shader animations resumed (custom: {}, cursor: {})",
+        log::info!(
+            "[SHADER] Shader animations resumed (custom: {}, cursor: {})",
             custom_shader_animation,
             cursor_shader_animation
         );
