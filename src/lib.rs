@@ -30,7 +30,7 @@ pub mod macos_blur; // macOS window blur using private CGS API
 pub mod macos_metal; // macOS-specific CAMetalLayer configuration
 pub mod macos_space; // macOS Space (virtual desktop) targeting using private SLS API
 pub mod manifest;
-pub mod mcp_server;
+pub use par_term_mcp as mcp_server;
 pub mod menu;
 pub mod pane;
 pub mod paste_special_ui;

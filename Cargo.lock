@@ -3645,6 +3645,7 @@ dependencies = [
  "par-term-fonts",
  "par-term-input",
  "par-term-keybindings",
+ "par-term-mcp",
  "par-term-render",
  "par-term-scripting",
  "par-term-settings-ui",
@@ -3769,6 +3770,17 @@ dependencies = [
  "log",
  "par-term-config",
  "winit",
+]
+
+[[package]]
+name = "par-term-mcp"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "log",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
