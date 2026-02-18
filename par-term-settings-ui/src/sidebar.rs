@@ -243,6 +243,11 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "cursor boost",
             "boost",
             "glow",
+            // Font variants
+            "bold-italic",
+            "bold italic",
+            "font variant",
+            "variant",
         ],
         SettingsTab::Window => &[
             // Display
@@ -321,6 +326,9 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "auto tab style",
             "automatic tab",
             "system tab style",
+            // Tab bar layout
+            "tab bar position",
+            "tab bar width",
             // Split panes
             "panes",
             "split",
@@ -328,7 +336,10 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "divider width",
             "hit width",
             "pane padding",
+            "divider style",
             "focus indicator",
+            "focus indicator color",
+            "focus indicator width",
             "pane focus",
             "max panes",
             "min pane size",
@@ -339,7 +350,12 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "inactive pane",
             "pane opacity",
             "pane title",
+            "pane title height",
+            "pane title position",
+            "pane title color",
             "pane background",
+            // Performance extras
+            "latency",
         ],
         SettingsTab::Input => &[
             // Keyboard
@@ -395,6 +411,14 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "hotkey",
             "binding",
             "key",
+            // Copy mode
+            "copy mode",
+            "yank",
+            // Paste
+            "paste delay",
+            // Smart selection
+            "rules",
+            "smart selection rules",
         ],
         SettingsTab::Terminal => &[
             // Behavior
@@ -468,6 +492,27 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "marker",
             "mark",
             "tooltips",
+            "scrollbar width",
+            // Unicode extras
+            "normalization",
+            "text normalization",
+            "nfc",
+            "nfd",
+            // Command history
+            "command history",
+            "history entries",
+            "max history",
+            // Command separators
+            "command separator",
+            "separator",
+            "separator line",
+            "separator thickness",
+            "separator opacity",
+            "exit code",
+            // Session restore
+            "restore session",
+            "undo timeout",
+            "undo entries",
         ],
         SettingsTab::Effects => &[
             // Background
@@ -520,6 +565,21 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "pane image",
             "split background",
             "per pane",
+            // Hot reload extras
+            "hot reload delay",
+            "reload delay",
+            // Shader overrides
+            "per-shader",
+            "shader override",
+            "shader defaults",
+            // Cubemap extras
+            "cubemap enabled",
+            "enable cubemap",
+            // Per-pane extras
+            "identify panes",
+            // Background as texture
+            "background as ichannel",
+            "background as texture",
         ],
         SettingsTab::ProgressBar => &[
             "progress",
@@ -536,6 +596,7 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "bar style",
             "bar position",
             "bar color",
+            "opacity",
         ],
         SettingsTab::StatusBar => &[
             "status",
@@ -565,6 +626,25 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "left",
             "center",
             "right",
+            // Position and size
+            "position",
+            "height",
+            // Styling
+            "background",
+            "background color",
+            "background opacity",
+            "text color",
+            "foreground",
+            "font size",
+            // Auto-hide extras
+            "fullscreen",
+            "inactivity",
+            "inactivity timeout",
+            // Custom widgets
+            "custom text",
+            "custom widget",
+            // Time format
+            "strftime",
         ],
         SettingsTab::Badge => &[
             // General
@@ -627,6 +707,17 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "shared",
             "download",
             "sync",
+            // Profile management
+            "duplicate",
+            "default profile",
+            "set default",
+            // Dynamic profile extras
+            "conflict resolution",
+            "http headers",
+            "headers",
+            "max download",
+            "download size",
+            "fetch timeout",
         ],
         SettingsTab::Ssh => &[
             "ssh",
@@ -642,6 +733,11 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "profile switch",
             "hostname",
             "known hosts",
+            // Auto-switch extras
+            "revert profile",
+            "disconnect",
+            // mDNS extras
+            "scan timeout",
         ],
         SettingsTab::Notifications => &[
             // Bell
@@ -682,6 +778,16 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "ssh timeout",
             "connection timeout",
             "alert",
+            // Alert sound extras
+            "frequency",
+            "duration",
+            "sound file",
+            "custom sound",
+            // Anti-idle character
+            "character",
+            "ascii",
+            "nul",
+            "enq",
         ],
         SettingsTab::Integrations => &[
             "shell integration",
@@ -692,7 +798,13 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "shader bundle",
             "install",
             "uninstall",
+            "reinstall",
             "bundle",
+            "curl",
+            "manual",
+            "open folder",
+            "shaders folder",
+            "overwrite",
         ],
         SettingsTab::Automation => &[
             "trigger",
@@ -715,6 +827,16 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "subprocess",
             "auto start",
             "auto-start",
+            // Trigger action extras
+            "mark line",
+            "set variable",
+            "variable",
+            "foreground",
+            "foreground color",
+            // Coprocess extras
+            "restart",
+            "restart policy",
+            "restart delay",
         ],
         SettingsTab::Scripts => &[
             "script",
@@ -727,6 +849,18 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "external",
             "panel",
             "subscriptions",
+            // Script management
+            "script path",
+            "arguments",
+            "args",
+            "start",
+            "stop",
+            "auto-start",
+            "auto start",
+            "auto-launch",
+            "restart",
+            "restart policy",
+            "restart delay",
         ],
         SettingsTab::Snippets => &[
             "snippet",
@@ -742,6 +876,20 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "time",
             "hostname",
             "path",
+            // Snippet management
+            "title",
+            "name",
+            "content",
+            "body",
+            "description",
+            "category",
+            "auto-execute",
+            "auto execute",
+            "record",
+            // Import/export
+            "export",
+            "import",
+            "yaml",
         ],
         SettingsTab::Actions => &[
             "action",
@@ -753,6 +901,13 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "macro",
             "automation",
             "shortcut",
+            // Action details
+            "keybinding",
+            "binding",
+            "record",
+            "title",
+            "name",
+            "arguments",
         ],
         SettingsTab::Arrangements => &[
             "arrangement",
@@ -764,6 +919,14 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "monitor",
             "window layout",
             "auto-restore",
+            // Arrangement management
+            "rename",
+            "delete",
+            "reorder",
+            "move up",
+            "move down",
+            "overwrite",
+            "startup",
         ],
         SettingsTab::AiInspector => &[
             "ai",
@@ -796,6 +959,21 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "open",
             "width",
             "persist",
+            // Panel
+            "panel",
+            // Permissions
+            "permissions",
+            // Agent extras
+            "auto-send",
+            "auto send",
+            "max context",
+            "context lines",
+            "auto-launch",
+            "auto launch",
+            // View modes
+            "list",
+            "list detail",
+            "recent",
         ],
         SettingsTab::Advanced => &[
             // tmux
@@ -855,6 +1033,23 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "trace",
             "verbose",
             "diagnostics",
+            // Import/export preferences
+            "import",
+            "export",
+            "preferences",
+            "merge",
+            "url",
+            // Logging format extras
+            "plain",
+            "plain text",
+            // tmux status format
+            "left format",
+            "right format",
+            // Updates extras
+            "check now",
+            "daily",
+            "weekly",
+            "monthly",
         ],
     }
 }
