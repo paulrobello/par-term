@@ -46,6 +46,8 @@ pub enum TabBarAction {
     SetColor(TabId, [u8; 3]),
     /// Clear custom color for a tab (revert to default)
     ClearColor(TabId),
+    /// Duplicate a specific tab
+    Duplicate(TabId),
 }
 
 /// Tab bar UI state
@@ -1453,6 +1455,12 @@ impl TabBarUI {
                             );
                             response.clicked()
                         };
+
+                        // Duplicate Tab
+                        if menu_item(ui, "Duplicate Tab") {
+                            action = TabBarAction::Duplicate(tab_id);
+                            close_menu = true;
+                        }
 
                         // Close Tab
                         if menu_item(ui, "Close Tab") {

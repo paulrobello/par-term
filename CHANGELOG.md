@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Duplicate Tab Context Menu**: Added "Duplicate Tab" option to the tab right-click context menu (#160)
+  - Creates a new tab adjacent to the source tab with the same working directory and custom color
+  - Works on any tab via right-click, not just the active tab
+
 ### Changed
 
 - **Font Manager Extraction**: Extracted font management and text shaping into `par-term-fonts` workspace crate (#165)

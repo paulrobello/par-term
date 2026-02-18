@@ -576,6 +576,38 @@ impl WindowState {
         }
     }
 
+    /// Duplicate a specific tab by ID
+    pub fn duplicate_tab_by_id(&mut self, source_tab_id: crate::tab::TabId) {
+        let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
+
+        match self.tab_manager.duplicate_tab_by_id(
+            source_tab_id,
+            &self.config,
+            Arc::clone(&self.runtime),
+            grid_size,
+        ) {
+            Ok(Some(tab_id)) => {
+                if let Some(window) = &self.window
+                    && let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                {
+                    tab.start_refresh_task(
+                        Arc::clone(&self.runtime),
+                        Arc::clone(window),
+                        self.config.max_fps,
+                    );
+                }
+                self.needs_redraw = true;
+                self.request_redraw();
+            }
+            Ok(None) => {
+                log::debug!("Tab {} not found for duplication", source_tab_id);
+            }
+            Err(e) => {
+                log::error!("Failed to duplicate tab {}: {}", source_tab_id, e);
+            }
+        }
+    }
+
     /// Check if there are multiple tabs
     pub fn has_multiple_tabs(&self) -> bool {
         self.tab_manager.has_multiple_tabs()

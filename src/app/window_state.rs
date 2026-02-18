@@ -3778,6 +3778,12 @@ impl WindowState {
                     window.request_redraw();
                 }
             }
+            TabBarAction::Duplicate(id) => {
+                self.duplicate_tab_by_id(id);
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
             TabBarAction::None => {}
         }
 
