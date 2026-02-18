@@ -3645,6 +3645,7 @@ dependencies = [
  "par-term-fonts",
  "par-term-keybindings",
  "par-term-render",
+ "par-term-scripting",
  "par-term-settings-ui",
  "par-term-ssh",
  "par-term-terminal",
@@ -3778,6 +3779,17 @@ dependencies = [
  "swash",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "par-term-scripting"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "par-term-config",
+ "par-term-emu-core-rust",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

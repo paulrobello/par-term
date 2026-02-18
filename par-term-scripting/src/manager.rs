@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use super::process::ScriptProcess;
 use super::protocol::{ScriptCommand, ScriptEvent};
-use crate::config::scripting::ScriptConfig;
+use par_term_config::ScriptConfig;
 
 /// Unique identifier for a managed script process.
 pub type ScriptId = u64;

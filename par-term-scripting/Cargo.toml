@@ -1,0 +1,25 @@
+[package]
+name = "par-term-scripting"
+version = "0.1.0"
+edition = "2024"
+authors = ["Paul Robello <probello@gmail.com>"]
+description = "Scripting and observer system for par-term terminal emulator"
+license = "MIT"
+repository = "https://github.com/paulrobello/par-term"
+homepage = "https://github.com/paulrobello/par-term"
+keywords = ["terminal", "scripting", "observer"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# Configuration types (ScriptConfig)
+par-term-config = { path = "../par-term-config", version = "0.1.0" }
+
+# Terminal event observer trait
+par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
+
+# Serialization for JSON protocol
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+
+# Logging
+log = "0.4.29"
