@@ -26,6 +26,11 @@ pub mod symbol_ranges {
     pub const MISC_SYMBOLS_START: u32 = 0x2600;
     pub const MISC_SYMBOLS_END: u32 = 0x26FF;
 
+    /// Miscellaneous Technical (U+2300–U+23FF)
+    /// Contains media controls (⏩⏪⏸⏹⏺), hourglass (⌛), power symbols, etc.
+    pub const MISC_TECHNICAL_START: u32 = 0x2300;
+    pub const MISC_TECHNICAL_END: u32 = 0x23FF;
+
     /// Miscellaneous Symbols and Arrows (U+2B00–U+2BFF)
     /// Contains various arrows and stars like ⭐
     pub const MISC_SYMBOLS_ARROWS_START: u32 = 0x2B00;
@@ -43,13 +48,18 @@ pub mod symbol_ranges {
 pub fn should_render_as_symbol(ch: char) -> bool {
     let code = ch as u32;
 
-    // Dingbats (U+2700–U+27BF)
-    if (symbol_ranges::DINGBATS_START..=symbol_ranges::DINGBATS_END).contains(&code) {
+    // Miscellaneous Technical (U+2300–U+23FF)
+    if (symbol_ranges::MISC_TECHNICAL_START..=symbol_ranges::MISC_TECHNICAL_END).contains(&code) {
         return true;
     }
 
     // Miscellaneous Symbols (U+2600–U+26FF)
     if (symbol_ranges::MISC_SYMBOLS_START..=symbol_ranges::MISC_SYMBOLS_END).contains(&code) {
+        return true;
+    }
+
+    // Dingbats (U+2700–U+27BF)
+    if (symbol_ranges::DINGBATS_START..=symbol_ranges::DINGBATS_END).contains(&code) {
         return true;
     }
 
