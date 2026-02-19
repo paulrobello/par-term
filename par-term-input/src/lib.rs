@@ -446,7 +446,6 @@ impl InputHandler {
 
     /// Copy text to clipboard
     pub fn copy_to_clipboard(&mut self, text: &str) -> Result<(), String> {
-        log::debug!("copy_to_clipboard: writing {} bytes", text.len());
         if let Some(ref mut clipboard) = self.clipboard {
             clipboard
                 .set_text(text.to_string())

@@ -367,11 +367,16 @@ impl SettingsWindow {
         // Manually handle clipboard copy as a fallback for macOS menu accelerator issues.
         // In egui 0.33, copy commands are in platform_output.commands as OutputCommand::CopyText.
         for cmd in &egui_output.platform_output.commands {
-            if let egui::OutputCommand::CopyText(text) = cmd
-                && let Ok(mut clipboard) = arboard::Clipboard::new()
-                && let Err(e) = clipboard.set_text(text)
-            {
-                log::warn!("Settings window: failed to copy to clipboard: {}", e);
+            match cmd {
+                egui::OutputCommand::CopyText(text) => {
+                    if let Ok(mut clipboard) = arboard::Clipboard::new()
+                        && let Err(e) = clipboard.set_text(text)
+                    {
+                        log::warn!("Settings window: failed to copy to clipboard: {}", e);
+                    }
+                }
+                egui::OutputCommand::CopyImage(_) => {}
+                _ => {}
             }
         }
         self.egui_state

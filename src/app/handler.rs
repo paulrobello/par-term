@@ -406,29 +406,42 @@ impl WindowState {
 
             WindowEvent::MouseInput { button, state, .. } => {
                 use winit::event::ElementState;
-                // Track UI mouse consumption to prevent release events bleeding through
-                // when UI closes during a click (e.g., drawer toggle)
-                let ui_wants_pointer = any_ui_visible || self.is_egui_using_pointer();
 
-                if state == ElementState::Pressed {
-                    if ui_wants_pointer {
-                        self.ui_consumed_mouse_press = true;
-                        if let Some(window) = &self.window {
-                            window.request_redraw();
-                        }
-                    } else {
-                        self.ui_consumed_mouse_press = false;
-                        self.handle_mouse_button(button, state);
+                // Eat the first mouse press that brings the window into focus.
+                // Without this, the click is forwarded to the PTY where mouse-aware
+                // apps (tmux with `mouse on`) trigger a zero-char selection that
+                // clears the system clipboard — destroying any clipboard image.
+                if self.focus_click_pending && state == ElementState::Pressed {
+                    self.focus_click_pending = false;
+                    self.ui_consumed_mouse_press = true; // Also suppress the release
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
                     }
                 } else {
-                    // Release: block if we consumed the press OR if UI wants pointer
-                    if self.ui_consumed_mouse_press || ui_wants_pointer {
-                        self.ui_consumed_mouse_press = false;
-                        if let Some(window) = &self.window {
-                            window.request_redraw();
+                    // Track UI mouse consumption to prevent release events bleeding through
+                    // when UI closes during a click (e.g., drawer toggle)
+                    let ui_wants_pointer = any_ui_visible || self.is_egui_using_pointer();
+
+                    if state == ElementState::Pressed {
+                        if ui_wants_pointer {
+                            self.ui_consumed_mouse_press = true;
+                            if let Some(window) = &self.window {
+                                window.request_redraw();
+                            }
+                        } else {
+                            self.ui_consumed_mouse_press = false;
+                            self.handle_mouse_button(button, state);
                         }
                     } else {
-                        self.handle_mouse_button(button, state);
+                        // Release: block if we consumed the press OR if UI wants pointer
+                        if self.ui_consumed_mouse_press || ui_wants_pointer {
+                            self.ui_consumed_mouse_press = false;
+                            if let Some(window) = &self.window {
+                                window.request_redraw();
+                            }
+                        } else {
+                            self.handle_mouse_button(button, state);
+                        }
                     }
                 }
             }
@@ -733,6 +746,14 @@ impl WindowState {
             if focused { "focused" } else { "blurred" }
         );
 
+        // Suppress the first mouse click after gaining focus to prevent it from
+        // being forwarded to the PTY. Without this, clicking to focus sends a
+        // mouse event to tmux (or other mouse-aware apps), which can trigger a
+        // zero-char selection that clears the system clipboard.
+        if focused {
+            self.focus_click_pending = true;
+        }
+
         // Update renderer focus state for unfocused cursor styling
         if let Some(renderer) = &mut self.renderer {
             renderer.set_focused(focused);
@@ -757,6 +778,22 @@ impl WindowState {
         // This ensures par-term's size is respected even after other clients resize tmux
         if focused {
             self.notify_tmux_of_resize();
+        }
+
+        // Forward focus events to all PTYs that have focus tracking enabled (DECSET 1004)
+        // This is needed for applications like tmux that rely on focus events
+        for tab in self.tab_manager.tabs_mut() {
+            if let Ok(term) = tab.terminal.try_lock() {
+                term.report_focus_change(focused);
+            }
+            // Also forward to all panes if split panes are active
+            if let Some(pm) = &tab.pane_manager {
+                for pane in pm.all_panes() {
+                    if let Ok(term) = pane.terminal.try_lock() {
+                        term.report_focus_change(focused);
+                    }
+                }
+            }
         }
 
         // Handle refresh rate adjustment for all tabs

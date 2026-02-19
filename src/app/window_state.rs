@@ -246,6 +246,11 @@ pub struct WindowState {
     pub(crate) profiles_menu_needs_update: bool,
     /// Track if we blocked a mouse press for UI - also block the corresponding release
     pub(crate) ui_consumed_mouse_press: bool,
+    /// Eat the first mouse click after window focus to prevent forwarding to PTY.
+    /// Without this, clicking to focus the window sends a mouse event to tmux (or
+    /// other mouse-aware apps), which can trigger a zero-char selection that clears
+    /// the system clipboard — destroying any clipboard image.
+    pub(crate) focus_click_pending: bool,
 
     // Resize overlay state
     /// Whether the resize overlay is currently visible
@@ -436,6 +441,7 @@ impl WindowState {
             open_settings_profiles_tab: false,
             profiles_menu_needs_update: true, // Update menu on startup
             ui_consumed_mouse_press: false,
+            focus_click_pending: false,
 
             resize_overlay_visible: false,
             resize_overlay_hide_time: None,

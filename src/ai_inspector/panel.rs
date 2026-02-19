@@ -1539,7 +1539,7 @@ mod tests {
         assert!(!panel.open);
         assert_eq!(panel.width, 300.0);
         assert_eq!(panel.scope, SnapshotScope::Visible);
-        assert_eq!(panel.view_mode, ViewMode::Cards);
+        assert_eq!(panel.view_mode, ViewMode::Tree);
         assert!(!panel.live_update);
         assert!(panel.show_zones);
     }

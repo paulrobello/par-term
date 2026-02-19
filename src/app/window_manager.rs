@@ -953,27 +953,44 @@ impl WindowManager {
                 if let Some(sw) = &self.settings_window
                     && sw.is_focused()
                 {
-                    if let Ok(mut clipboard) = arboard::Clipboard::new()
-                        && let Ok(text) = clipboard.get_text()
-                        && let Some(sw) = &mut self.settings_window
-                    {
-                        sw.inject_paste(text);
+                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                        if let Ok(text) = clipboard.get_text() {
+                            if let Some(sw) = &mut self.settings_window {
+                                sw.inject_paste(text);
+                            }
+                            return;
+                        }
+                        // Clipboard has no text — check for image below.
+                        // Don't return early so the image-paste forwarding
+                        // code can send Ctrl+V to the terminal.
+                        if clipboard.get_image().is_err() {
+                            // Neither text nor image — nothing to paste
+                            return;
+                        }
+                    } else {
+                        return;
                     }
-                    return;
                 }
                 // If an egui overlay (profile modal, search, etc.) is active, inject into main egui
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                     && window_state.has_egui_overlay_visible()
                 {
-                    if let Ok(mut clipboard) = arboard::Clipboard::new()
-                        && let Ok(text) = clipboard.get_text()
-                    {
-                        window_state
-                            .pending_egui_events
-                            .push(egui::Event::Paste(text));
+                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                        if let Ok(text) = clipboard.get_text() {
+                            window_state
+                                .pending_egui_events
+                                .push(egui::Event::Paste(text));
+                            return;
+                        }
+                        // Clipboard has no text — fall through to check for image
+                        // so it can be forwarded to the terminal
+                        if clipboard.get_image().is_err() {
+                            return;
+                        }
+                    } else {
+                        return;
                     }
-                    return;
                 }
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)

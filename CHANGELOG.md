@@ -12,9 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Quick Settings Shader Toggles**: Added BG Shader and Cursor Shader toggle checkboxes to the settings UI quick settings strip, allowing shader effects to be enabled/disabled without navigating to the shader configuration tab
+- **Focus Event Forwarding**: Forward CSI focus-in/out sequences (`\x1b[I` / `\x1b[O`) to all PTYs that have DECSET 1004 focus tracking enabled, allowing applications like tmux to react to window focus changes
 
 ### Fixed
 
+- **Focus Click Clipboard Loss**: Suppress the first mouse click that focuses the window to prevent it from being forwarded to the PTY — without this, tmux (or other mouse-aware apps) would trigger a zero-char selection that clears the system clipboard, destroying any clipboard image
 - **Image Paste in Claude Code**: Fixed Cmd+V / menu Paste not forwarding to terminal when clipboard contains an image but no text — image-aware child processes (e.g., Claude Code) now receive Ctrl+V so they can handle image paste via their own clipboard access
 - **Settings Sidebar Icons**: Fixed empty box rendering for several tab icons — AiInspector, StatusBar, Input, and Advanced tabs now display correctly using emoji characters in egui's supported Unicode range
 - **Shell Detection**: Improved `ShellType::detect()` with multi-strategy fallback — checks `$SHELL` env var first, then `dscl` on macOS (for app bundle launches where `$SHELL` is not set), then `/etc/passwd` on Unix systems
@@ -23,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Assistant Panel Defaults**: Changed default panel width from 300px to 317px, default view mode from "cards" to "tree", and default auto-send context from enabled to disabled
+- **Assistant Panel Defaults**: Changed default view mode from "cards" to "tree" and default auto-send context from enabled to disabled
 - **Refactor**: Collapsed `src/config/` re-export layer — replaced ~4,800 lines of duplicate code with a single `pub use par_term_config::*;`, eliminating all duplicate files (`types.rs`, `defaults.rs`, `snippets.rs`, `shader_config.rs`, `shader_metadata.rs`, `automation.rs`, `scripting.rs`, `watcher.rs`) from `src/config/` (closes #182)
 - **Refactor**: Extracted SSH subsystem into new `par-term-ssh` workspace subcrate — moved ~1,174 lines from `src/ssh/` into dedicated crate with `mdns-sd`, `serde`, and `dirs` dependencies; `src/ssh/mod.rs` is now a thin re-export shim (closes #176)
 - **Refactor**: Extracted keybinding system into new `par-term-keybindings` workspace subcrate — moved ~1,490 lines from `src/keybindings/` into dedicated crate with `par-term-config` and `winit` dependencies; `src/keybindings/mod.rs` is now a thin re-export shim (closes #177)

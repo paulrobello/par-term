@@ -975,6 +975,32 @@ impl TerminalManager {
         )
     }
 
+    /// Send focus event to PTY if the application has enabled focus tracking (DECSET 1004).
+    /// Returns true if the event was sent.
+    pub fn report_focus_change(&self, focused: bool) -> bool {
+        let pty = self.pty_session.lock();
+        let terminal = pty.terminal();
+        let term = terminal.lock();
+        let data = if focused {
+            term.report_focus_in()
+        } else {
+            term.report_focus_out()
+        };
+        if !data.is_empty() {
+            drop(term);
+            drop(terminal);
+            drop(pty);
+            // Write the focus event sequence to PTY
+            if let Err(e) = self.write(&data) {
+                log::error!("Failed to write focus event to PTY: {}", e);
+                return false;
+            }
+            true
+        } else {
+            false
+        }
+    }
+
     /// Check if alternate screen is active
     pub fn is_alt_screen_active(&self) -> bool {
         let pty = self.pty_session.lock();

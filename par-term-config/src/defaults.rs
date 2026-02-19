@@ -931,7 +931,7 @@ pub fn ai_inspector_enabled() -> bool {
 }
 
 pub fn ai_inspector_width() -> f32 {
-    317.0
+    300.0
 }
 
 pub fn ai_inspector_open_on_startup() -> bool {
