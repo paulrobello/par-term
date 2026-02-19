@@ -336,6 +336,8 @@ pub struct SettingsUI {
 
     /// Search query used to filter settings sections
     pub search_query: String,
+    /// Whether to focus the search input on next frame
+    pub focus_search: bool,
 
     // Background shader editor state
     /// Whether the shader editor window is visible
@@ -731,6 +733,7 @@ impl SettingsUI {
             config,
             has_changes: false,
             search_query: String::new(),
+            focus_search: true,
             shader_editor_visible: false,
             shader_editor_source: String::new(),
             shader_editor_error: None,
@@ -1201,6 +1204,9 @@ impl SettingsUI {
     #[allow(dead_code)]
     pub fn toggle(&mut self) {
         self.visible = !self.visible;
+        if self.visible {
+            self.focus_search = true;
+        }
     }
 
     /// Get a reference to the working config (for live sync)
@@ -1314,10 +1320,14 @@ impl SettingsUI {
                     ui.heading("Terminal Settings");
                     ui.horizontal(|ui| {
                         ui.label("Quick search:");
-                        ui.add(
+                        let response = ui.add(
                             egui::TextEdit::singleline(&mut self.search_query)
                                 .hint_text("Type to filter settings"),
                         );
+                        if self.focus_search {
+                            self.focus_search = false;
+                            response.request_focus();
+                        }
                     });
                     ui.separator();
 
@@ -1451,10 +1461,14 @@ impl SettingsUI {
                 ui.heading("Terminal Settings");
                 ui.horizontal(|ui| {
                     ui.label("Quick search:");
-                    ui.add(
+                    let response = ui.add(
                         egui::TextEdit::singleline(&mut self.search_query)
                             .hint_text("Type to filter settings"),
                     );
+                    if self.focus_search {
+                        self.focus_search = false;
+                        response.request_focus();
+                    }
                 });
                 ui.separator();
 
