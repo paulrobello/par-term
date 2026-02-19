@@ -150,8 +150,8 @@ impl WindowState {
             return;
         };
 
-        // URL color: bright cyan (#4FC3F7) for visibility
-        let url_color = [79, 195, 247, 255];
+        let c = self.config.link_highlight_color;
+        let url_color = [c[0], c[1], c[2], 255];
 
         let scroll_offset = tab.scroll_state.offset;
 
@@ -168,7 +168,9 @@ impl WindowState {
                 let cell_idx = viewport_row * cols + col;
                 if cell_idx < cells.len() {
                     cells[cell_idx].fg_color = url_color;
-                    cells[cell_idx].underline = true; // Set for future underline rendering support
+                    if self.config.link_highlight_underline {
+                        cells[cell_idx].underline = true;
+                    }
                 }
             }
         }

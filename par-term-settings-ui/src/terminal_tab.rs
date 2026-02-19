@@ -1245,6 +1245,52 @@ fn show_semantic_history_section(
             ui.add_space(8.0);
 
             ui.horizontal(|ui| {
+                ui.label("Link highlight color:");
+                let mut color = settings.config.link_highlight_color;
+                if ui.color_edit_button_srgb(&mut color).changed() {
+                    settings.config.link_highlight_color = color;
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
+            if ui
+                .checkbox(
+                    &mut settings.config.link_highlight_underline,
+                    "Underline highlighted links",
+                )
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if settings.config.link_highlight_underline {
+                ui.horizontal(|ui| {
+                    ui.label("Underline style:");
+                    egui::ComboBox::from_id_salt("link_underline_style")
+                        .selected_text(settings.config.link_underline_style.display_name())
+                        .show_ui(ui, |ui| {
+                            for style in par_term_config::LinkUnderlineStyle::all() {
+                                if ui
+                                    .selectable_value(
+                                        &mut settings.config.link_underline_style,
+                                        *style,
+                                        style.display_name(),
+                                    )
+                                    .changed()
+                                {
+                                    settings.has_changes = true;
+                                    *changes_this_frame = true;
+                                }
+                            }
+                        });
+                });
+            }
+
+            ui.add_space(8.0);
+
+            ui.horizontal(|ui| {
                 ui.label("Editor mode:");
                 egui::ComboBox::from_id_salt("semantic_history_editor_mode")
                     .selected_text(settings.config.semantic_history_editor_mode.display_name())

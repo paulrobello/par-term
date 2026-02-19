@@ -201,6 +201,9 @@ pub struct CellRenderer {
     /// When true, text is always rendered at full opacity regardless of window transparency.
     pub(crate) keep_text_opaque: bool,
 
+    /// Style for link underlines (solid or stipple)
+    pub(crate) link_underline_style: par_term_config::LinkUnderlineStyle,
+
     // Command separator line settings
     /// Whether to render separator lines between commands
     pub(crate) command_separator_enabled: bool,
@@ -558,6 +561,7 @@ impl CellRenderer {
             solid_pixel_offset: (0, 0),
             transparency_affects_only_default_background: false,
             keep_text_opaque: true,
+            link_underline_style: par_term_config::LinkUnderlineStyle::default(),
             command_separator_enabled: false,
             command_separator_thickness: 1.0,
             command_separator_opacity: 0.4,
@@ -1031,6 +1035,13 @@ impl CellRenderer {
             );
             self.keep_text_opaque = value;
             // Mark all rows dirty to re-render with new text opacity behavior
+            self.dirty_rows.fill(true);
+        }
+    }
+
+    pub fn set_link_underline_style(&mut self, style: par_term_config::LinkUnderlineStyle) {
+        if self.link_underline_style != style {
+            self.link_underline_style = style;
             self.dirty_rows.fill(true);
         }
     }

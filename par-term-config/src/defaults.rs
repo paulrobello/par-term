@@ -108,6 +108,10 @@ pub fn command_separator_color() -> [u8; 3] {
     [128, 128, 128] // Medium gray
 }
 
+pub fn link_highlight_color() -> [u8; 3] {
+    [79, 195, 247] // Bright cyan (#4FC3F7)
+}
+
 pub fn paste_delay_ms() -> u64 {
     0 // No delay by default
 }

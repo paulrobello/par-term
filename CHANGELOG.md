@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Configurable Link Highlight Color**: Link highlight color for detected URLs and file paths is now configurable via `link_highlight_color` setting (default: bright cyan `#4FC3F7`), with a color picker in Settings > Terminal > Semantic History
+- **Link Underline Rendering**: Detected URLs and file paths now render with visible underlines in the GPU text pipeline (previously the underline flag was set but never drawn)
+- **Link Underline Toggle**: Added `link_highlight_underline` setting to enable/disable underlines on highlighted links (default: enabled)
+- **Stipple Underline Style**: Added `link_underline_style` setting with Solid and Stipple (dotted) options — Stipple is the default, matching iTerm2's link underline aesthetic
+
+### Fixed
+
+- **Settings Sidebar Icon**: Fixed Input tab (⌨️) showing an empty box due to trailing Unicode variation selector (U+FE0F) that egui cannot render
+
 ---
 
 ## [0.18.0] - 2026-02-18

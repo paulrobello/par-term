@@ -1035,6 +1035,32 @@ impl SemanticHistoryEditorMode {
     }
 }
 
+/// Style for link highlight underlines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LinkUnderlineStyle {
+    /// Solid continuous underline
+    Solid,
+    /// Dotted/stipple underline (alternating pixels)
+    #[default]
+    Stipple,
+}
+
+impl LinkUnderlineStyle {
+    /// Display name for UI
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            LinkUnderlineStyle::Solid => "Solid",
+            LinkUnderlineStyle::Stipple => "Stipple",
+        }
+    }
+
+    /// All available styles for UI iteration
+    pub fn all() -> &'static [LinkUnderlineStyle] {
+        &[LinkUnderlineStyle::Solid, LinkUnderlineStyle::Stipple]
+    }
+}
+
 // ============================================================================
 // Per-Shader Configuration Types
 // ============================================================================

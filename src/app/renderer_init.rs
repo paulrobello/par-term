@@ -85,6 +85,7 @@ pub(crate) struct RendererInitParams {
     pub cursor_shader_color: [u8; 3],
     pub transparency_affects_only_default_background: bool,
     pub keep_text_opaque: bool,
+    pub link_underline_style: par_term_config::LinkUnderlineStyle,
     // Cursor enhancements
     pub cursor_guide_enabled: bool,
     pub cursor_guide_color: [u8; 4],
@@ -212,6 +213,7 @@ impl RendererInitParams {
             transparency_affects_only_default_background: config
                 .transparency_affects_only_default_background,
             keep_text_opaque: config.keep_text_opaque,
+            link_underline_style: config.link_underline_style,
             cursor_guide_enabled: config.cursor_guide_enabled,
             cursor_guide_color: config.cursor_guide_color,
             cursor_shadow_enabled: config.cursor_shadow_enabled,
@@ -285,6 +287,7 @@ impl RendererInitParams {
             self.transparency_affects_only_default_background,
         );
         renderer.set_keep_text_opaque(self.keep_text_opaque);
+        renderer.set_link_underline_style(self.link_underline_style);
 
         // Apply background mode (Default, Color, or Image)
         // This must be called after renderer creation to properly set up solid color mode

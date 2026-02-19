@@ -744,6 +744,11 @@ impl Renderer {
         self.dirty = true;
     }
 
+    pub fn set_link_underline_style(&mut self, style: par_term_config::LinkUnderlineStyle) {
+        self.cell_renderer.set_link_underline_style(style);
+        self.dirty = true;
+    }
+
     /// Set whether cursor shader should be disabled due to alt screen being active
     ///
     /// When alt screen is active (e.g., vim, htop, less), cursor shader effects

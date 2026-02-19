@@ -878,6 +878,18 @@ pub struct Config {
     #[serde(default = "crate::defaults::semantic_history_editor")]
     pub semantic_history_editor: String,
 
+    /// Color for highlighted links (URLs and file paths) [R, G, B] (0-255)
+    #[serde(default = "crate::defaults::link_highlight_color")]
+    pub link_highlight_color: [u8; 3],
+
+    /// Underline highlighted links (URLs and file paths)
+    #[serde(default = "crate::defaults::bool_true")]
+    pub link_highlight_underline: bool,
+
+    /// Style for link highlight underlines (solid or stipple)
+    #[serde(default)]
+    pub link_underline_style: crate::types::LinkUnderlineStyle,
+
     /// Custom command to open URLs. When set, used instead of system default browser.
     ///
     /// Use `{url}` as placeholder for the URL.
@@ -1941,6 +1953,9 @@ impl Default for Config {
             semantic_history_enabled: crate::defaults::bool_true(),
             semantic_history_editor_mode: SemanticHistoryEditorMode::default(),
             semantic_history_editor: crate::defaults::semantic_history_editor(),
+            link_highlight_color: crate::defaults::link_highlight_color(),
+            link_highlight_underline: crate::defaults::bool_true(),
+            link_underline_style: crate::types::LinkUnderlineStyle::default(),
             link_handler_command: String::new(),
             scrollbar_position: crate::defaults::scrollbar_position(),
             scrollbar_width: crate::defaults::scrollbar_width(),

@@ -1472,6 +1472,11 @@ impl WindowManager {
                     window_state.needs_redraw = true;
                 }
 
+                if changes.link_underline_style {
+                    renderer.set_link_underline_style(config.link_underline_style);
+                    window_state.needs_redraw = true;
+                }
+
                 // Update vsync mode if changed
                 if changes.vsync_mode {
                     let (actual_mode, _changed) = renderer.update_vsync_mode(config.vsync_mode);

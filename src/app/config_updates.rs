@@ -93,6 +93,7 @@ pub(crate) struct ConfigChanges {
     // Transparency mode
     pub transparency_mode: bool,
     pub keep_text_opaque: bool,
+    pub link_underline_style: bool,
 
     // Blur settings (macOS only)
     pub blur: bool,
@@ -240,6 +241,7 @@ impl ConfigChanges {
             transparency_mode: new.transparency_affects_only_default_background
                 != old.transparency_affects_only_default_background,
             keep_text_opaque: new.keep_text_opaque != old.keep_text_opaque,
+            link_underline_style: new.link_underline_style != old.link_underline_style,
 
             blur: new.blur_enabled != old.blur_enabled || new.blur_radius != old.blur_radius,
 
