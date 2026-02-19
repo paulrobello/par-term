@@ -2,8 +2,10 @@
 //!
 //! Provides a modal dialog for creating, editing, and managing profiles.
 
+use crate::section::collapsing_section;
 use crate::shell_detection;
 use par_term_config::{Profile, ProfileId, ProfileManager};
+use std::collections::HashSet;
 
 /// Curated emoji presets organized by category for the profile icon picker
 const EMOJI_PRESETS: &[(&str, &[&str])] = &[
@@ -104,10 +106,6 @@ pub struct ProfileModalUI {
     temp_badge_right_margin: Option<f32>,
     temp_badge_max_width: Option<f32>,
     temp_badge_max_height: Option<f32>,
-    /// Whether badge settings section is expanded
-    badge_section_expanded: bool,
-    /// Whether SSH settings section is expanded
-    ssh_section_expanded: bool,
     // SSH temp fields
     temp_ssh_host: String,
     temp_ssh_user: String,
@@ -156,8 +154,6 @@ impl ProfileModalUI {
             temp_badge_right_margin: None,
             temp_badge_max_width: None,
             temp_badge_max_height: None,
-            badge_section_expanded: false,
-            ssh_section_expanded: false,
             temp_ssh_host: String::new(),
             temp_ssh_user: String::new(),
             temp_ssh_port: String::new(),
@@ -511,11 +507,15 @@ impl ProfileModalUI {
     /// Used inside the settings window's Profiles tab to embed the profile
     /// management UI directly. Returns `ProfileModalAction` to communicate
     /// save/cancel/open-profile requests to the caller.
-    pub fn show_inline(&mut self, ui: &mut egui::Ui) -> ProfileModalAction {
+    pub fn show_inline(
+        &mut self,
+        ui: &mut egui::Ui,
+        collapsed: &mut HashSet<String>,
+    ) -> ProfileModalAction {
         let action = match &self.mode.clone() {
             ModalMode::List => self.render_list_view(ui),
             ModalMode::Edit(_) | ModalMode::Create => {
-                self.render_edit_view(ui);
+                self.render_edit_view(ui, collapsed);
                 ProfileModalAction::None
             }
         };
@@ -567,7 +567,8 @@ impl ProfileModalUI {
                     action = self.render_list_view(ui);
                 }
                 ModalMode::Edit(_) | ModalMode::Create => {
-                    self.render_edit_view(ui);
+                    let mut modal_collapsed = HashSet::new();
+                    self.render_edit_view(ui, &mut modal_collapsed);
                 }
             });
 
@@ -755,7 +756,7 @@ impl ProfileModalUI {
     }
 
     /// Render the edit/create view
-    pub(crate) fn render_edit_view(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn render_edit_view(&mut self, ui: &mut egui::Ui, collapsed: &mut HashSet<String>) {
         // Check if the profile being edited is a dynamic profile
         let is_dynamic_profile = self
             .editing_id
@@ -1078,14 +1079,7 @@ impl ProfileModalUI {
 
                 // Badge Appearance section (collapsible)
                 ui.add_space(8.0);
-                egui::CollapsingHeader::new(
-                    egui::RichText::new("Badge Appearance")
-                        .strong()
-                        .color(egui::Color32::LIGHT_BLUE),
-                )
-                .default_open(self.badge_section_expanded)
-                .show(ui, |ui| {
-                    self.badge_section_expanded = true;
+                collapsing_section(ui, "Badge Appearance", "profile_badge_appearance", false, collapsed, |ui| {
                     egui::Grid::new("profile_form_badge_appearance")
                         .num_columns(2)
                         .spacing([10.0, 8.0])
@@ -1292,14 +1286,7 @@ impl ProfileModalUI {
 
                 // SSH Connection section
                 ui.add_space(8.0);
-                egui::CollapsingHeader::new(
-                    egui::RichText::new("SSH Connection")
-                        .strong()
-                        .color(egui::Color32::LIGHT_BLUE),
-                )
-                .default_open(self.ssh_section_expanded)
-                .show(ui, |ui| {
-                    self.ssh_section_expanded = true;
+                collapsing_section(ui, "SSH Connection", "profile_ssh_connection", false, collapsed, |ui| {
                     ui.horizontal(|ui| {
                         ui.label("Host:");
                         ui.text_edit_singleline(&mut self.temp_ssh_host);

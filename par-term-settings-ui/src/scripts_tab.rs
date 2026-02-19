@@ -4,7 +4,7 @@
 //! via JSON protocol and can send commands back.
 
 use super::SettingsUI;
-use super::section::collapsing_section;
+use super::section::{collapsing_section, collapsing_section_with_state};
 use par_term_config::automation::RestartPolicy;
 use par_term_config::scripting::ScriptConfig;
 use std::collections::HashSet;
@@ -51,13 +51,13 @@ fn show_scripts_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    collapsing_section_with_state(
         ui,
         "Observer Scripts",
         "scripts_list",
         true,
         collapsed,
-        |ui| {
+        |ui, collapsed| {
             ui.label(
                 "Define external scripts that receive terminal events and can send commands back.",
             );
@@ -262,17 +262,13 @@ fn show_scripts_section(
 
                     // Panel viewer (collapsible)
                     if let Some(Some((title, content))) = settings.script_panels.get(i) {
-                        ui.indent(format!("script_panel_{}", i), |ui| {
-                            egui::CollapsingHeader::new(
-                                egui::RichText::new(format!("Panel: {}", title))
-                                    .small()
-                                    .color(egui::Color32::from_rgb(180, 140, 220)),
-                            )
-                            .id_salt(format!("script_panel_header_{}", i))
-                            .default_open(false)
-                            .show(ui, |ui| {
+                        let panel_title = format!("Panel: {}", title);
+                        let panel_id = format!("script_panel_{}", i);
+                        let panel_scroll_id = format!("script_panel_scroll_{}", i);
+                        ui.indent(&panel_id, |ui| {
+                            collapsing_section(ui, &panel_title, &panel_id, false, collapsed, |ui| {
                                 egui::ScrollArea::vertical()
-                                    .id_salt(format!("script_panel_scroll_{}", i))
+                                    .id_salt(&panel_scroll_id)
                                     .max_height(200.0)
                                     .show(ui, |ui| {
                                         ui.label(

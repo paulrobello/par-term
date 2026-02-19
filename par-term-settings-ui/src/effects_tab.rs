@@ -14,13 +14,14 @@ use par_term_config::ImageScalingMode;
 use std::collections::HashSet;
 
 use super::SettingsUI;
+use super::section::collapsing_section;
 
 /// Show the effects tab content.
 pub fn show(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
-    _collapsed: &mut HashSet<String>,
+    collapsed: &mut HashSet<String>,
 ) {
     let query = settings.search_query.trim().to_lowercase();
 
@@ -44,7 +45,7 @@ pub fn show(
         ],
     ) {
         // Delegate to the existing background_tab implementation
-        super::background_tab::show_background(ui, settings, changes_this_frame);
+        super::background_tab::show_background(ui, settings, changes_this_frame, collapsed);
     }
 
     // Per-Pane Background section
@@ -59,7 +60,7 @@ pub fn show(
             "per pane",
         ],
     ) {
-        super::background_tab::show_pane_backgrounds(ui, settings, changes_this_frame);
+        super::background_tab::show_pane_backgrounds(ui, settings, changes_this_frame, collapsed);
     }
 
     // Inline Images section (Sixel, iTerm2, Kitty)
@@ -79,7 +80,7 @@ pub fn show(
             "linear",
         ],
     ) {
-        show_inline_images(ui, settings, changes_this_frame);
+        show_inline_images(ui, settings, changes_this_frame, collapsed);
     }
 
     // Cursor Shader section
@@ -96,15 +97,18 @@ pub fn show(
         ],
     ) {
         // Delegate to the existing cursor shader implementation
-        super::background_tab::show_cursor_shader(ui, settings, changes_this_frame);
+        super::background_tab::show_cursor_shader(ui, settings, changes_this_frame, collapsed);
     }
 }
 
 /// Show inline image settings (Sixel, iTerm2, Kitty protocols).
-fn show_inline_images(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this_frame: &mut bool) {
-    egui::CollapsingHeader::new("Inline Images (Sixel, iTerm2, Kitty)")
-        .default_open(true)
-        .show(ui, |ui| {
+fn show_inline_images(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(ui, "Inline Images (Sixel, iTerm2, Kitty)", "inline_images", true, collapsed, |ui| {
             ui.label("Settings for inline graphics rendered in the terminal.");
             ui.add_space(4.0);
 

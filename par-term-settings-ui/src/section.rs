@@ -154,6 +154,36 @@ pub fn collapsing_section<R>(
     response
 }
 
+/// Like [`collapsing_section`] but passes `collapsed_sections` into the content
+/// closure so nested collapsible sections can also use persistent state tracking.
+pub fn collapsing_section_with_state<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    id: &str,
+    default_open: bool,
+    collapsed_sections: &mut HashSet<String>,
+    add_contents: impl FnOnce(&mut egui::Ui, &mut HashSet<String>) -> R,
+) -> egui::CollapsingResponse<R> {
+    let is_toggled = collapsed_sections.contains(id);
+    let should_be_open = is_toggled != default_open;
+    let id_owned = id.to_string();
+
+    let response = egui::CollapsingHeader::new(title)
+        .id_salt(id)
+        .default_open(should_be_open)
+        .show(ui, |ui| add_contents(ui, collapsed_sections));
+
+    if response.header_response.clicked() {
+        if collapsed_sections.contains(&id_owned) {
+            collapsed_sections.remove(&id_owned);
+        } else {
+            collapsed_sections.insert(id_owned);
+        }
+    }
+
+    response
+}
+
 /// Helper to show a section heading with consistent styling.
 pub fn section_heading(ui: &mut egui::Ui, title: &str) {
     ui.add_space(8.0);

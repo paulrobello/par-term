@@ -6,7 +6,7 @@
 //! - Dynamic profile sources management
 
 use super::SettingsUI;
-use super::section::collapsing_section;
+use super::section::{collapsing_section, collapsing_section_with_state};
 use crate::profile_modal_ui::ProfileModalAction;
 use par_term_config::ConflictResolution;
 use par_term_config::DynamicProfileSource;
@@ -85,15 +85,15 @@ fn show_management_section(
     settings: &mut SettingsUI,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    collapsing_section_with_state(
         ui,
         "Profile Management",
         "profiles_management",
         true,
         collapsed,
-        |ui| {
+        |ui, collapsed| {
             // Render the profile list/edit UI inline
-            let action = settings.profile_modal_ui.show_inline(ui);
+            let action = settings.profile_modal_ui.show_inline(ui, collapsed);
 
             // Handle returned actions
             match action {
@@ -159,13 +159,13 @@ fn show_dynamic_sources_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(
+    collapsing_section_with_state(
         ui,
         "Dynamic Profile Sources",
         "profiles_dynamic_sources",
         true,
         collapsed,
-        |ui| {
+        |ui, collapsed| {
             ui.label(
                 egui::RichText::new(
                     "Fetch profile definitions from remote URLs for team-shared configurations.",
@@ -195,7 +195,7 @@ fn show_dynamic_sources_section(
 
                 if is_editing {
                     // Show inline edit form
-                    show_dynamic_source_edit_form(ui, settings, changes_this_frame, Some(i));
+                    show_dynamic_source_edit_form(ui, settings, changes_this_frame, Some(i), collapsed);
                 } else {
                     let source = &settings.config.dynamic_profile_sources[i];
 
@@ -289,7 +289,7 @@ fn show_dynamic_sources_section(
             let is_adding = settings.dynamic_source_editing.is_some()
                 && settings.dynamic_source_editing.unwrap() >= source_count;
             if is_adding {
-                show_dynamic_source_edit_form(ui, settings, changes_this_frame, None);
+                show_dynamic_source_edit_form(ui, settings, changes_this_frame, None, collapsed);
             } else if settings.dynamic_source_editing.is_none()
                 && ui.button("+ Add Source").clicked()
             {
@@ -311,6 +311,7 @@ fn show_dynamic_source_edit_form(
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
     edit_index: Option<usize>,
+    collapsed: &mut HashSet<String>,
 ) {
     ui.separator();
 
@@ -434,10 +435,8 @@ fn show_dynamic_source_edit_form(
                 } else {
                     "HTTP Headers".to_string()
                 };
-                egui::CollapsingHeader::new(egui::RichText::new(&header_label).strong())
-                    .id_salt("dynamic_source_headers")
-                    .default_open(header_count > 0)
-                    .show(ui, |ui| {
+                let http_default_open = header_count > 0;
+                collapsing_section(ui, &header_label, "dynamic_source_headers", http_default_open, collapsed, |ui| {
                         ui.label(
                             egui::RichText::new(
                                 "Custom headers sent with each fetch request (e.g., Authorization).",

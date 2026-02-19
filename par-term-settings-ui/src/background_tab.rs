@@ -1,10 +1,12 @@
 use super::SettingsUI;
+use super::section::{collapsing_section, collapsing_section_with_state};
 use arboard::Clipboard;
 use egui::Color32;
 use par_term_config::{
     BackgroundImageMode, BackgroundMode, CursorShaderConfig, CursorShaderMetadata, ShaderConfig,
     ShaderMetadata,
 };
+use std::collections::HashSet;
 use std::path::Path;
 
 /// Convert an absolute path to a path relative to the shaders directory if possible.
@@ -30,10 +32,9 @@ pub fn show_background(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    egui::CollapsingHeader::new("Background & Effects")
-        .default_open(true)
-        .show(ui, |ui| {
+    collapsing_section_with_state(ui, "Background & Effects", "background_effects", true, collapsed, |ui, collapsed| {
         // Background mode selector
         ui.horizontal(|ui| {
             ui.label("Background mode:");
@@ -303,7 +304,7 @@ pub fn show_background(
 
         // Show shader metadata and per-shader settings if a shader is selected
         if !settings.temp_custom_shader.is_empty() {
-            show_shader_metadata_and_settings(ui, settings, changes_this_frame);
+            show_shader_metadata_and_settings(ui, settings, changes_this_frame, collapsed);
         }
 
         if ui
@@ -695,14 +696,14 @@ pub fn show_background(
     });
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn show_pane_backgrounds(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    egui::CollapsingHeader::new("Per-Pane Background")
-        .default_open(false)
-        .show(ui, |ui| {
+    collapsing_section(ui, "Per-Pane Background", "per_pane_background", false, collapsed, |ui| {
             ui.label("Override the global background for individual split panes.");
             ui.add_space(4.0);
 
@@ -915,10 +916,9 @@ pub fn show_cursor_shader(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
-    egui::CollapsingHeader::new("Cursor Shader")
-        .default_open(true)
-        .show(ui, |ui| {
+    collapsing_section_with_state(ui, "Cursor Shader", "cursor_shader", true, collapsed, |ui, collapsed| {
         ui.label("Apply shader effects to cursor (trails, glow, etc.)");
         ui.add_space(4.0);
 
@@ -1027,7 +1027,7 @@ pub fn show_cursor_shader(
 
         // Show cursor shader metadata and per-shader settings if a shader is selected
         if !settings.temp_cursor_shader.is_empty() {
-            show_cursor_shader_metadata_and_settings(ui, settings, changes_this_frame);
+            show_cursor_shader_metadata_and_settings(ui, settings, changes_this_frame, collapsed);
         }
 
         if ui
@@ -1190,6 +1190,7 @@ fn show_shader_metadata_and_settings(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     let shader_name = settings.temp_custom_shader.clone();
 
@@ -1208,12 +1209,7 @@ fn show_shader_metadata_and_settings(
         format!("Shader Settings: {}", shader_name)
     };
 
-    egui::CollapsingHeader::new(header_text)
-        .id_salt("shader_settings")
-        .default_open(settings.shader_settings_expanded)
-        .show(ui, |ui| {
-            settings.shader_settings_expanded = true;
-
+    collapsing_section_with_state(ui, &header_text, "shader_settings", true, collapsed, |ui, collapsed| {
             // Show metadata if available
             if let Some(ref meta) = metadata {
                 show_shader_metadata_info(ui, meta);
@@ -1226,7 +1222,7 @@ fn show_shader_metadata_and_settings(
             ui.label("Per-shader overrides (takes precedence over global settings):");
             ui.add_space(4.0);
 
-            show_per_shader_settings(ui, settings, &shader_name, &metadata, changes_this_frame);
+            show_per_shader_settings(ui, settings, &shader_name, &metadata, changes_this_frame, collapsed);
         });
 }
 
@@ -1269,6 +1265,7 @@ fn show_per_shader_settings(
     shader_name: &str,
     metadata: &Option<par_term_config::ShaderMetadata>,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     // Get current override or create empty one for display
     let has_override = settings.config.shader_configs.contains_key(shader_name);
@@ -1463,10 +1460,7 @@ fn show_per_shader_settings(
     // Show channel texture overrides in a sub-collapsible
     ui.add_space(4.0);
     let meta_defaults_for_channels = meta_defaults.clone();
-    egui::CollapsingHeader::new("Channel Textures")
-        .id_salt("per_shader_channels")
-        .default_open(false)
-        .show(ui, |ui| {
+    collapsing_section(ui, "Channel Textures", "per_shader_channels", false, collapsed, |ui| {
             show_per_shader_channel_settings(
                 ui,
                 settings,
@@ -2015,6 +2009,7 @@ fn show_cursor_shader_metadata_and_settings(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
 ) {
     let shader_name = settings.temp_cursor_shader.clone();
 
@@ -2036,12 +2031,7 @@ fn show_cursor_shader_metadata_and_settings(
         format!("Cursor Shader Settings: {}", shader_name)
     };
 
-    egui::CollapsingHeader::new(header_text)
-        .id_salt("cursor_shader_settings")
-        .default_open(settings.cursor_shader_settings_expanded)
-        .show(ui, |ui| {
-            settings.cursor_shader_settings_expanded = true;
-
+    collapsing_section(ui, &header_text, "cursor_shader_settings", true, collapsed, |ui| {
             // Show metadata if available
             if let Some(ref meta) = metadata {
                 show_cursor_shader_metadata_info(ui, meta);

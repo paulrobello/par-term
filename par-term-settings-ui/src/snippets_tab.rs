@@ -8,7 +8,7 @@
 //! - Import/export functionality
 
 use super::SettingsUI;
-use super::section::collapsing_section;
+use super::section::{collapsing_section, collapsing_section_with_state};
 use crate::input_tab::{capture_key_combo, display_key_combo};
 use par_term_config::snippets::{SnippetConfig, SnippetLibrary};
 use std::collections::HashMap;
@@ -81,7 +81,7 @@ fn show_snippets_section(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Snippets", "snippets_list", true, collapsed, |ui| {
+    collapsing_section_with_state(ui, "Snippets", "snippets_list", true, collapsed, |ui, collapsed| {
         ui.label("Saved text blocks for quick insertion. Supports variable substitution.");
         ui.add_space(4.0);
 
@@ -126,7 +126,7 @@ fn show_snippets_section(
 
                 if is_editing {
                     // Show inline edit form for this snippet
-                    show_snippet_edit_form(ui, settings, changes_this_frame, Some(i));
+                    show_snippet_edit_form(ui, settings, changes_this_frame, Some(i), collapsed);
                 } else {
                     // Show snippet summary row
                     ui.horizontal(|ui| {
@@ -223,7 +223,7 @@ fn show_snippets_section(
 
         // Add new snippet button or form
         if settings.adding_new_snippet {
-            show_snippet_edit_form(ui, settings, changes_this_frame, None);
+            show_snippet_edit_form(ui, settings, changes_this_frame, None, collapsed);
         } else {
             ui.horizontal(|ui| {
                 if ui.button("+ Add Snippet").clicked() {
@@ -269,6 +269,7 @@ fn show_snippet_edit_form(
     settings: &mut SettingsUI,
     changes_this_frame: &mut bool,
     edit_index: Option<usize>,
+    collapsed: &mut HashSet<String>,
 ) {
     ui.separator();
 
@@ -457,9 +458,7 @@ fn show_snippet_edit_form(
                 "Custom Variables".to_string()
             };
             ui.add_space(4.0);
-            egui::CollapsingHeader::new(egui::RichText::new(&header_text).strong())
-                .id_salt("snippet_custom_variables")
-                .show(ui, |ui| {
+            collapsing_section(ui, &header_text, "snippet_custom_variables", true, collapsed, |ui| {
                     let mut delete_var_index: Option<usize> = None;
 
                     if !settings.temp_snippet_variables.is_empty() {
