@@ -4658,8 +4658,13 @@ impl Drop for WindowState {
         let t0 = std::time::Instant::now();
         log::info!("Shutting down window (fast path)");
 
-        // Save command history before shutdown (fast)
-        self.command_history.save();
+        // Signal status bar polling threads to stop immediately.
+        // They check the flag every 50ms, so by the time the auto-drop
+        // calls join() later, the threads will already be exiting.
+        self.status_bar_ui.signal_shutdown();
+
+        // Save command history on a background thread (serializes in-memory, writes async)
+        self.command_history.save_background();
 
         // Set shutdown flag
         self.is_shutting_down = true;
@@ -4686,19 +4691,19 @@ impl Drop for WindowState {
             t0.elapsed().as_secs_f64() * 1000.0
         );
 
-        // Collect terminal Arcs from all tabs and panes BEFORE setting shutdown_fast.
-        // Cloning the Arc keeps TerminalManager alive even after Tab/Pane is dropped.
-        // We'll drop these clones on background threads where PtySession::drop runs.
+        // Collect terminal Arcs and session loggers from all tabs and panes
+        // BEFORE setting shutdown_fast. Cloning the Arc keeps TerminalManager
+        // alive even after Tab/Pane is dropped. Session loggers are collected
+        // so they can be stopped on a background thread instead of blocking.
         let mut terminal_arcs = Vec::new();
+        let mut session_loggers = Vec::new();
 
         for tab in &mut tabs {
             // Stop refresh tasks (fast - just aborts tokio tasks)
             tab.stop_refresh_task();
 
-            // Stop session logger
-            if let Some(ref mut logger) = *tab.session_logger.lock() {
-                let _ = logger.stop();
-            }
+            // Collect session logger for background stop
+            session_loggers.push(Arc::clone(&tab.session_logger));
 
             // Clone terminal Arc before we mark shutdown_fast
             terminal_arcs.push(Arc::clone(&tab.terminal));
@@ -4707,9 +4712,7 @@ impl Drop for WindowState {
             if let Some(ref mut pm) = tab.pane_manager {
                 for pane in pm.all_panes_mut() {
                     pane.stop_refresh_task();
-                    if let Some(ref mut logger) = *pane.session_logger.lock() {
-                        let _ = logger.stop();
-                    }
+                    session_loggers.push(Arc::clone(&pane.session_logger));
                     terminal_arcs.push(Arc::clone(&pane.terminal));
                     pane.shutdown_fast = true;
                 }
@@ -4739,6 +4742,20 @@ impl Drop for WindowState {
             "Tabs dropped (+{:.1}ms)",
             t0.elapsed().as_secs_f64() * 1000.0
         );
+
+        // Fire-and-forget: stop session loggers on a background thread.
+        // Each logger.stop() flushes buffered I/O which can block.
+        if !session_loggers.is_empty() {
+            let _ = std::thread::Builder::new()
+                .name("logger-cleanup".into())
+                .spawn(move || {
+                    for logger_arc in session_loggers {
+                        if let Some(ref mut logger) = *logger_arc.lock() {
+                            let _ = logger.stop();
+                        }
+                    }
+                });
+        }
 
         // Fire-and-forget: drop the cloned terminal Arcs on background threads.
         // When our clone is the last reference, TerminalManager::drop runs,

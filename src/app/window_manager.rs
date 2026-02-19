@@ -702,12 +702,13 @@ impl WindowManager {
 
     /// Close a specific window
     pub fn close_window(&mut self, window_id: WindowId) {
-        // Save session state before removing the last window (while data is still available)
+        // Save session state before removing the last window (while data is still available).
+        // Capture happens synchronously (fast, in-memory), disk write is on a background thread.
         if self.config.restore_session
             && self.windows.len() == 1
             && self.windows.contains_key(&window_id)
         {
-            self.save_session_state();
+            self.save_session_state_background();
         }
 
         if let Some(window_state) = self.windows.remove(&window_id) {
@@ -737,12 +738,17 @@ impl WindowManager {
         }
     }
 
-    /// Save the current session state to disk for later restore
-    pub(crate) fn save_session_state(&self) {
+    /// Save session state on a background thread to avoid blocking the main thread.
+    /// Captures state synchronously (fast, in-memory) then spawns disk I/O.
+    fn save_session_state_background(&self) {
         let state = crate::session::capture::capture_session(&self.windows);
-        if let Err(e) = crate::session::storage::save_session(&state) {
-            log::error!("Failed to save session state: {}", e);
-        }
+        let _ = std::thread::Builder::new()
+            .name("session-save".into())
+            .spawn(move || {
+                if let Err(e) = crate::session::storage::save_session(&state) {
+                    log::error!("Failed to save session state: {}", e);
+                }
+            });
     }
 
     /// Restore windows from the last saved session

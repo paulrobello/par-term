@@ -977,8 +977,8 @@ impl CellRenderer {
                         - underline_thickness;
                     let ndc_y = 1.0 - (y0 / self.config.height as f32 * 2.0);
                     let ndc_h = underline_thickness / self.config.height as f32 * 2.0;
-                    let is_stipple = self.link_underline_style
-                        == par_term_config::LinkUnderlineStyle::Stipple;
+                    let is_stipple =
+                        self.link_underline_style == par_term_config::LinkUnderlineStyle::Stipple;
                     // Stipple: 2px on, 2px off pattern
                     let stipple_on = 2.0_f32;
                     let stipple_off = 2.0_f32;
@@ -1007,20 +1007,12 @@ impl CellRenderer {
                         if is_stipple {
                             // Emit alternating dot segments across the cell width
                             let mut px = 0.0;
-                            while px < self.cell_width
-                                && row_text.len() < self.cols * 2
-                            {
+                            while px < self.cell_width && row_text.len() < self.cols * 2 {
                                 let seg_w = stipple_on.min(self.cell_width - px);
                                 let x = cell_x0 + px;
                                 row_text.push(TextInstance {
-                                    position: [
-                                        x / self.config.width as f32 * 2.0 - 1.0,
-                                        ndc_y,
-                                    ],
-                                    size: [
-                                        seg_w / self.config.width as f32 * 2.0,
-                                        ndc_h,
-                                    ],
+                                    position: [x / self.config.width as f32 * 2.0 - 1.0, ndc_y],
+                                    size: [seg_w / self.config.width as f32 * 2.0, ndc_h],
                                     tex_offset,
                                     tex_size,
                                     color: fg,
@@ -1030,14 +1022,8 @@ impl CellRenderer {
                             }
                         } else {
                             row_text.push(TextInstance {
-                                position: [
-                                    cell_x0 / self.config.width as f32 * 2.0 - 1.0,
-                                    ndc_y,
-                                ],
-                                size: [
-                                    self.cell_width / self.config.width as f32 * 2.0,
-                                    ndc_h,
-                                ],
+                                position: [cell_x0 / self.config.width as f32 * 2.0 - 1.0, ndc_y],
+                                size: [self.cell_width / self.config.width as f32 * 2.0, ndc_h],
                                 tex_offset,
                                 tex_size,
                                 color: fg,

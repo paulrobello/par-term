@@ -1600,14 +1600,6 @@ impl ApplicationHandler for WindowManager {
             .map(|(id, _)| *id)
             .collect();
 
-        // Save session state before closing if all windows are about to close
-        if self.config.restore_session
-            && !shutting_down.is_empty()
-            && shutting_down.len() == self.windows.len()
-        {
-            self.save_session_state();
-        }
-
         for window_id in shutting_down {
             self.close_window(window_id);
         }

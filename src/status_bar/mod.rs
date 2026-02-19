@@ -76,7 +76,11 @@ impl GitBranchPoller {
                     let dir = cwd.lock().clone();
                     let result = dir.map(|d| poll_git_status(&d)).unwrap_or_default();
                     *status.lock() = result;
-                    std::thread::sleep(interval);
+                    // Sleep in short increments so stop() returns quickly
+                    let deadline = Instant::now() + interval;
+                    while Instant::now() < deadline && running.load(Ordering::Relaxed) {
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
                 }
             })
             .expect("Failed to spawn git branch poller thread");
@@ -84,9 +88,14 @@ impl GitBranchPoller {
         *self.thread.lock() = Some(handle);
     }
 
-    /// Stop the background polling thread.
-    fn stop(&self) {
+    /// Signal the background thread to stop without waiting for it to finish.
+    fn signal_stop(&self) {
         self.running.store(false, Ordering::SeqCst);
+    }
+
+    /// Stop the background polling thread and wait for it to finish.
+    fn stop(&self) {
+        self.signal_stop();
         if let Some(handle) = self.thread.lock().take() {
             let _ = handle.join();
         }
@@ -198,6 +207,13 @@ impl StatusBarUI {
             visible: true,
             last_valid_time_format: "%H:%M:%S".to_string(),
         }
+    }
+
+    /// Signal all background threads to stop without waiting.
+    /// Call early during shutdown so threads have time to notice before the Drop join.
+    pub fn signal_shutdown(&self) {
+        self.system_monitor.signal_stop();
+        self.git_poller.signal_stop();
     }
 
     /// Compute the effective height consumed by the status bar.

@@ -121,7 +121,11 @@ impl SystemMonitor {
                         d.last_update = Some(Instant::now());
                     }
 
-                    std::thread::sleep(interval);
+                    // Sleep in short increments so stop() returns quickly
+                    let deadline = Instant::now() + interval;
+                    while Instant::now() < deadline && running.load(Ordering::Relaxed) {
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
                 }
             })
             .expect("failed to spawn sysmon thread");
@@ -129,9 +133,14 @@ impl SystemMonitor {
         *self.thread.lock() = Some(handle);
     }
 
-    /// Stop the polling thread.
-    pub fn stop(&self) {
+    /// Signal the polling thread to stop without waiting for it to finish.
+    pub fn signal_stop(&self) {
         self.running.store(false, Ordering::SeqCst);
+    }
+
+    /// Stop the polling thread and wait for it to finish.
+    pub fn stop(&self) {
+        self.signal_stop();
         if let Some(handle) = self.thread.lock().take() {
             let _ = handle.join();
         }

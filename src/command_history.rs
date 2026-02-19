@@ -108,6 +108,39 @@ impl CommandHistory {
         }
     }
 
+    /// Serialize history and spawn a background thread to write it to disk.
+    /// Used during shutdown to avoid blocking the main thread.
+    pub fn save_background(&mut self) {
+        if !self.dirty {
+            return;
+        }
+        let file = CommandHistoryFile {
+            commands: self.entries.iter().cloned().collect(),
+        };
+        self.dirty = false;
+        let path = self.path.clone();
+        let _ = std::thread::Builder::new()
+            .name("cmd-history-save".into())
+            .spawn(move || {
+                if let Some(parent) = path.parent()
+                    && let Err(e) = fs::create_dir_all(parent)
+                {
+                    log::error!("Failed to create command history directory: {}", e);
+                    return;
+                }
+                match serde_yaml::to_string(&file) {
+                    Ok(yaml) => {
+                        if let Err(e) = fs::write(&path, yaml) {
+                            log::error!("Failed to write command history: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to serialize command history: {}", e);
+                    }
+                }
+            });
+    }
+
     /// Add a command to history, deduplicating by command text.
     /// If the command already exists, it is moved to the front with updated metadata.
     pub fn add(&mut self, command: String, exit_code: Option<i32>, duration_ms: Option<u64>) {
