@@ -1,6 +1,6 @@
 [package]
 name = "par-term-mcp"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "MCP (Model Context Protocol) stdio server for par-term terminal emulator"
