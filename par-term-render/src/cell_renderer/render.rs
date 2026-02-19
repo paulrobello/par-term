@@ -865,12 +865,18 @@ impl CellRenderer {
 
                         if let Some((font_idx, glyph_id)) = glyph_result {
                             let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
+                            // Check if this character should be rendered as a monochrome symbol
+                            // (dingbats, etc.) rather than colorful emoji
+                            let force_monochrome =
+                                chars.len() == 1 && super::atlas::should_render_as_symbol(*ch);
                             let info = if self.glyph_cache.contains_key(&cache_key) {
                                 // Move to front of LRU
                                 self.lru_remove(cache_key);
                                 self.lru_push_front(cache_key);
                                 self.glyph_cache.get(&cache_key).unwrap().clone()
-                            } else if let Some(raster) = self.rasterize_glyph(font_idx, glyph_id) {
+                            } else if let Some(raster) =
+                                self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
+                            {
                                 let info = self.upload_glyph(cache_key, &raster);
                                 self.glyph_cache.insert(cache_key, info.clone());
                                 self.lru_push_front(cache_key);
@@ -1723,11 +1729,17 @@ impl CellRenderer {
 
                 if let Some((font_idx, glyph_id)) = glyph_result {
                     let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
+                    // Check if this character should be rendered as a monochrome symbol
+                    // (dingbats, etc.) rather than colorful emoji
+                    let force_monochrome =
+                        chars.len() == 1 && super::atlas::should_render_as_symbol(ch);
                     let info = if self.glyph_cache.contains_key(&cache_key) {
                         self.lru_remove(cache_key);
                         self.lru_push_front(cache_key);
                         self.glyph_cache.get(&cache_key).unwrap().clone()
-                    } else if let Some(raster) = self.rasterize_glyph(font_idx, glyph_id) {
+                    } else if let Some(raster) =
+                        self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
+                    {
                         let info = self.upload_glyph(cache_key, &raster);
                         self.glyph_cache.insert(cache_key, info.clone());
                         self.lru_push_front(cache_key);
