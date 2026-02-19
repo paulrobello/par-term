@@ -113,6 +113,45 @@ Location (XDG-compliant): `~/.config/par-term/config.yaml` (Linux/macOS), `%APPD
 
 See `src/config.rs` for all available settings and defaults.
 
+## Sub-Crate Dependency Graph (for version bumps)
+
+When bumping sub-crate versions for crates.io publishing, bump in dependency order. Update both the crate's own `version` field and any `version = "..."` in dependents' `Cargo.toml` references.
+
+```
+Layer 0 — No internal deps (bump in any order):
+  par-term-acp
+  par-term-ssh
+  par-term-mcp
+
+Layer 1 — Foundation (bump before anything that depends on it):
+  par-term-config
+    └── depends on: (none, only external par-term-emu-core-rust)
+
+Layer 2 — Depend on par-term-config only (bump after Layer 1):
+  par-term-fonts        → par-term-config
+  par-term-input        → par-term-config
+  par-term-keybindings  → par-term-config
+  par-term-scripting    → par-term-config
+  par-term-settings-ui  → par-term-config
+  par-term-terminal     → par-term-config
+  par-term-tmux         → par-term-config
+  par-term-update       → par-term-config
+
+Layer 3 — Depend on Layer 2 crates (bump after Layer 2):
+  par-term-render       → par-term-config, par-term-fonts
+
+Layer 4 — Root crate (bump last):
+  par-term              → all of the above
+```
+
+**Quick bump checklist:**
+1. Bump `par-term-config` version + update refs in all Layer 2/3 crates
+2. Bump Layer 0 crate versions
+3. Bump Layer 2 crate versions
+4. Bump `par-term-render` version + update its `par-term-fonts` ref
+5. Update all version refs in root `Cargo.toml`
+6. Run `cargo check` to verify
+
 ## Common Development Workflows
 
 ### Adding a New Configuration Option
