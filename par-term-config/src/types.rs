@@ -354,10 +354,10 @@ impl TabBarPosition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TabBarMode {
-    /// Always show tab bar
-    Always,
-    /// Show tab bar only when there are multiple tabs (default)
+    /// Always show tab bar (default)
     #[default]
+    Always,
+    /// Show tab bar only when there are multiple tabs
     WhenMultiple,
     /// Never show tab bar
     Never,

@@ -16,11 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pane Background Darken Slider**: Added a darken control (0.0–1.0) for per-pane custom background images, allowing backgrounds to be dimmed independently from opacity — darken reduces RGB towards black while opacity controls transparency
 - **Real-Time Pane Background Preview**: Per-pane background settings (image, mode, opacity, darken) now apply instantly as values change — removed the manual "Apply to pane" button
 - **Hide Window Padding on Split**: New `hide_window_padding_on_split` option (default: enabled) automatically removes window padding when panes are split — since each pane has its own padding, the outer window padding is redundant and wastes space
+- **New Tab Menu as Dropdown**: The new tab profile menu now appears as a dropdown in the top-right corner instead of a centered dialog
+- **Assistant Panel Toggle in New Tab Menu**: Added an "Assistant Panel" toggle item to the new tab dropdown menu (visible when `ai_inspector_enabled` is true)
 
 ### Changed
 
 - **Default Window Padding**: Changed default `window_padding` from 10.0 to 0.0
 - **Default Font Hinting**: Changed default `font_hinting` from true to false for a softer, more natural appearance
+- **Default Tab Bar Mode**: Changed default `tab_bar_mode` from `when_multiple` to `always` so the tab bar is visible by default even with a single tab
 
 ### Fixed
 

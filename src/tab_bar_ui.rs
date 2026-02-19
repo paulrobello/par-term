@@ -48,6 +48,8 @@ pub enum TabBarAction {
     ClearColor(TabId),
     /// Duplicate a specific tab
     Duplicate(TabId),
+    /// Toggle the AI assistant panel
+    ToggleAssistantPanel,
 }
 
 /// Tab bar UI state
@@ -381,7 +383,7 @@ impl TabBarUI {
         }
 
         // Render new-tab profile menu if open
-        let menu_action = self.render_new_tab_profile_menu(ctx, profiles);
+        let menu_action = self.render_new_tab_profile_menu(ctx, profiles, config);
         if menu_action != TabBarAction::None {
             action = menu_action;
         }
@@ -514,7 +516,7 @@ impl TabBarUI {
         }
 
         // Render new-tab profile menu if open
-        let menu_action = self.render_new_tab_profile_menu(ctx, profiles);
+        let menu_action = self.render_new_tab_profile_menu(ctx, profiles, config);
         if menu_action != TabBarAction::None {
             action = menu_action;
         }
@@ -1424,6 +1426,7 @@ impl TabBarUI {
         &mut self,
         ctx: &egui::Context,
         profiles: &crate::profile::ProfileManager,
+        config: &Config,
     ) -> TabBarAction {
         let mut action = TabBarAction::None;
 
@@ -1442,7 +1445,7 @@ impl TabBarUI {
             .resizable(false)
             .order(egui::Order::Foreground)
             .fixed_size(egui::vec2(200.0, 0.0))
-            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-4.0, 4.0))
             .open(&mut open)
             .show(ctx, |ui| {
                 // "Default" entry — always first
@@ -1462,6 +1465,19 @@ impl TabBarUI {
                     let label = format!("{} {}", icon, profile.name);
                     if ui.selectable_label(false, &label).clicked() {
                         action = TabBarAction::NewTabWithProfile(profile.id);
+                        self.show_new_tab_profile_menu = false;
+                    }
+                }
+
+                // Assistant panel toggle (only when enabled in config)
+                if config.ai_inspector_enabled {
+                    ui.separator();
+                    if ui
+                        .selectable_label(false, "  Assistant Panel")
+                        .on_hover_text("Toggle the AI assistant panel")
+                        .clicked()
+                    {
+                        action = TabBarAction::ToggleAssistantPanel;
                         self.show_new_tab_profile_menu = false;
                     }
                 }
