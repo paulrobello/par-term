@@ -30,7 +30,7 @@ exclude = [
 par-term-acp = { path = "par-term-acp", version = "0.1.0" }
 
 # Configuration system
-par-term-config = { path = "par-term-config", version = "0.1.0", features = ["watcher", "wgpu-types"] }
+par-term-config = { path = "par-term-config", version = "0.1.1", features = ["watcher", "wgpu-types"] }
 
 # Font management and text shaping
 par-term-fonts = { path = "par-term-fonts", version = "0.1.0" }

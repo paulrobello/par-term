@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration types (OptionKeyMode)
-par-term-config = { path = "../par-term-config", version = "0.1.0" }
+par-term-config = { path = "../par-term-config", version = "0.1.1" }
 
 # Clipboard access
 arboard = "3.6.1"
