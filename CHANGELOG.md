@@ -16,8 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Real-Time Pane Background Preview**: Per-pane background settings (image, mode, opacity, darken) now apply instantly as values change — removed the manual "Apply to pane" button
 - **Hide Window Padding on Split**: New `hide_window_padding_on_split` option (default: enabled) automatically removes window padding when panes are split — since each pane has its own padding, the outer window padding is redundant and wastes space
 
+### Changed
+
+- **Default Window Padding**: Changed default `window_padding` from 10.0 to 0.0
+
 ### Fixed
 
+- **Live Window Padding Updates**: Window padding changes in the settings UI now take effect immediately without requiring an app restart — the renderer, graphics, and shader sub-renderers are all updated live and terminals are resized to match the new grid dimensions
 - **Settings Collapsible Section Persistence**: Fixed 14 collapsible sections across 6 settings UI files (Effects, Profiles, Scripts, Snippets) that lost their expanded/collapsed state when reopening the settings window or restarting the app — all sections now use the persistent `collapsing_section` helper that saves state to config
 - **Split Pane Mouse Event Routing**: Fixed mouse events (click, motion, scroll) being sent to the tab's legacy terminal instead of the focused pane's terminal in split pane mode — tmux pane resize and other mouse-aware applications inside split panes now work correctly
 - **Split Pane Focus and Divider Resize**: Fixed regression where clicking on pane dividers or other panes was consumed by the focused pane's terminal mouse tracking, preventing pane focus switching and divider drag-to-resize — added bounds checking so only clicks inside the focused pane are forwarded to its terminal

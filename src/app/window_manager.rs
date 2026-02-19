@@ -1826,6 +1826,34 @@ impl WindowManager {
                 window.request_redraw();
             }
 
+            // Apply window padding changes live without full renderer rebuild
+            if changes.padding {
+                if let Some(renderer) = &mut window_state.renderer {
+                    if let Some((new_cols, new_rows)) =
+                        renderer.update_window_padding(config.window_padding)
+                    {
+                        let cell_width = renderer.cell_width();
+                        let cell_height = renderer.cell_height();
+                        let width_px = (new_cols as f32 * cell_width) as usize;
+                        let height_px = (new_rows as f32 * cell_height) as usize;
+
+                        for tab in window_state.tab_manager.tabs_mut() {
+                            if let Ok(mut term) = tab.terminal.try_lock() {
+                                term.set_cell_dimensions(
+                                    cell_width as u32,
+                                    cell_height as u32,
+                                );
+                                let _ = term.resize_with_pixels(
+                                    new_cols, new_rows, width_px, height_px,
+                                );
+                            }
+                            tab.cache.cells = None;
+                        }
+                    }
+                    window_state.needs_redraw = true;
+                }
+            }
+
             // Queue font rebuild if needed
             if changes.font {
                 window_state.pending_font_rebuild = true;

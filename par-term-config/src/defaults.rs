@@ -61,7 +61,7 @@ pub fn max_fps() -> u32 {
 }
 
 pub fn window_padding() -> f32 {
-    10.0
+    0.0
 }
 
 pub fn login_shell() -> bool {
