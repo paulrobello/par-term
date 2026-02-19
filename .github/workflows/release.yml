@@ -27,15 +27,22 @@ jobs:
 
       - name: Verify par-term-emu-core-rust is not a path dependency
         run: |
-          echo "Checking for par-term-emu-core-rust path dependency..."
+          echo "Checking for par-term-emu-core-rust path dependency in all Cargo.toml files..."
 
-          if grep -E 'par-term-emu-core-rust.*path\s*=' Cargo.toml; then
-            echo "::error::Cargo.toml contains a local path dependency for par-term-emu-core-rust"
+          FOUND=0
+          for toml in Cargo.toml par-term-*/Cargo.toml; do
+            if grep -E 'par-term-emu-core-rust.*path\s*=' "$toml"; then
+              echo "::error::$toml contains a local path dependency for par-term-emu-core-rust"
+              FOUND=1
+            fi
+          done
+
+          if [ "$FOUND" -eq 1 ]; then
             echo "::error::Please update to use the published crates.io version before releasing"
             exit 1
           fi
 
-          echo "✓ Cargo.toml is ready for release"
+          echo "✓ All Cargo.toml files are ready for release"
 
   # Build Linux ARM64 using cross (parallel)
   build-linux-arm64:
@@ -319,12 +326,12 @@ jobs:
           path: release-binaries/par-term-macos-aarch64.zip
           retention-days: 1
 
-  # Publish to crates.io (after all builds complete)
+  # Publish to crates.io (runs parallel with builds — no build artifacts needed)
   publish-crates:
     name: Publish to crates.io
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: [build-linux-arm64, build-linux-x86_64, build-windows-x86_64, build-macos-x86_64, build-macos-arm64]
+    timeout-minutes: 20
+    needs: [preflight-checks]
     steps:
       - uses: actions/checkout@v4
 
@@ -338,24 +345,50 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libgtk-3-dev libxdo-dev
 
-      - name: Get version
+      - name: Get version and build version map
         id: version
         run: |
           CARGO_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[] | select(.name == "par-term") | .version')
           echo "version=$CARGO_VERSION" >> "$GITHUB_OUTPUT"
           echo "Cargo.toml version: $CARGO_VERSION"
 
+          # Build version map once for all publish steps
+          cargo metadata --format-version 1 --no-deps | jq -r '.packages[] | "\(.name)=\(.version)"' > /tmp/crate-versions.txt
+          echo "Crate versions:"
+          cat /tmp/crate-versions.txt
+
       - name: Run tests
         run: cargo test --verbose
 
-      - name: Publish workspace subcrates (Layer 1 - no workspace deps)
+      - name: Publish all crates in dependency order
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
+          get_version() {
+            grep "^${1}=" /tmp/crate-versions.txt | cut -d= -f2
+          }
+
+          wait_for_crate() {
+            local crate=$1 version=$2
+            echo "Waiting for $crate $version to be indexed..."
+            for i in $(seq 1 24); do
+              local http_status
+              http_status=$(curl -s -o /dev/null -w "%{http_code}" \
+                "https://crates.io/api/v1/crates/$crate/$version" \
+                -H "User-Agent: par-term-ci-publish")
+              if [ "$http_status" = "200" ]; then
+                echo "✓ $crate $version indexed after $((i * 5))s"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "⚠ $crate $version not indexed after 120s, proceeding anyway"
+          }
+
           publish_if_needed() {
             local crate=$1
             local version
-            version=$(cargo metadata --format-version 1 --no-deps | jq -r --arg c "$crate" '.packages[] | select(.name == $c) | .version')
+            version=$(get_version "$crate")
 
             local http_status
             http_status=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -366,42 +399,28 @@ jobs:
               echo "✓ $crate $version already on crates.io, skipping"
             else
               echo "Publishing $crate $version..."
-              cargo publish -p "$crate" --token "$CARGO_REGISTRY_TOKEN"
+              cargo publish -p "$crate" --no-verify --token "$CARGO_REGISTRY_TOKEN"
+              PUBLISHED_CRATES+=("$crate=$version")
             fi
           }
 
+          PUBLISHED_CRATES=()
+
+          # Layer 0+1: no workspace deps
+          echo "=== Layer 0+1: Independent crates ==="
           publish_if_needed par-term-acp
           publish_if_needed par-term-config
           publish_if_needed par-term-mcp
           publish_if_needed par-term-ssh
 
-      - name: Wait for Layer 1 indexing
-        run: |
-          echo "Waiting 60s for crates.io to index Layer 1 crates..."
-          sleep 60
+          # Wait only for crates that were actually published
+          for entry in "${PUBLISHED_CRATES[@]}"; do
+            wait_for_crate "${entry%%=*}" "${entry#*=}"
+          done
+          PUBLISHED_CRATES=()
 
-      - name: Publish workspace subcrates (Layer 2 - depend on par-term-config)
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          publish_if_needed() {
-            local crate=$1
-            local version
-            version=$(cargo metadata --format-version 1 --no-deps | jq -r --arg c "$crate" '.packages[] | select(.name == $c) | .version')
-
-            local http_status
-            http_status=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://crates.io/api/v1/crates/$crate/$version" \
-              -H "User-Agent: par-term-ci-publish")
-
-            if [ "$http_status" = "200" ]; then
-              echo "✓ $crate $version already on crates.io, skipping"
-            else
-              echo "Publishing $crate $version..."
-              cargo publish -p "$crate" --token "$CARGO_REGISTRY_TOKEN"
-            fi
-          }
-
+          # Layer 2: depend on par-term-config
+          echo "=== Layer 2: Config-dependent crates ==="
           publish_if_needed par-term-fonts
           publish_if_needed par-term-input
           publish_if_needed par-term-keybindings
@@ -411,48 +430,22 @@ jobs:
           publish_if_needed par-term-tmux
           publish_if_needed par-term-update
 
-      - name: Wait for Layer 2 indexing
-        run: |
-          echo "Waiting 60s for crates.io to index Layer 2 crates..."
-          sleep 60
+          for entry in "${PUBLISHED_CRATES[@]}"; do
+            wait_for_crate "${entry%%=*}" "${entry#*=}"
+          done
+          PUBLISHED_CRATES=()
 
-      - name: Publish workspace subcrates (Layer 3 - depend on par-term-fonts)
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          publish_if_needed() {
-            local crate=$1
-            local version
-            version=$(cargo metadata --format-version 1 --no-deps | jq -r --arg c "$crate" '.packages[] | select(.name == $c) | .version')
-
-            local http_status
-            http_status=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://crates.io/api/v1/crates/$crate/$version" \
-              -H "User-Agent: par-term-ci-publish")
-
-            if [ "$http_status" = "200" ]; then
-              echo "✓ $crate $version already on crates.io, skipping"
-            else
-              echo "Publishing $crate $version..."
-              cargo publish -p "$crate" --token "$CARGO_REGISTRY_TOKEN"
-            fi
-          }
-
+          # Layer 3: depend on par-term-fonts
+          echo "=== Layer 3: Render crate ==="
           publish_if_needed par-term-render
 
-      - name: Wait for Layer 3 indexing
-        run: |
-          echo "Waiting 60s for crates.io to index Layer 3 crates..."
-          sleep 60
+          for entry in "${PUBLISHED_CRATES[@]}"; do
+            wait_for_crate "${entry%%=*}" "${entry#*=}"
+          done
 
-      - name: Dry run publish par-term
-        run: cargo publish --dry-run -p par-term
-
-      - name: Publish par-term to crates.io
-        run: cargo publish -p par-term --token ${{ secrets.CARGO_REGISTRY_TOKEN }} || echo "Version may already exist on crates.io, continuing..."
-        continue-on-error: true
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          # Layer 4: root crate
+          echo "=== Layer 4: Root crate ==="
+          publish_if_needed par-term
 
       - name: Discord notification
         if: success()
@@ -476,15 +469,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-
       - name: Get version
         id: get_version
         run: |
-          version=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[] | select(.name == "par-term") | .version')
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Package version: $version"
 
