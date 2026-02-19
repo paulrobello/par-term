@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Inactive Tab Outline-Only Mode**: New `tab_inactive_outline_only` option renders inactive tabs with just a border stroke and no background fill — hovered inactive tabs brighten the outline for visual feedback
+- **Pane Background Darken Slider**: Added a darken control (0.0–1.0) for per-pane custom background images, allowing backgrounds to be dimmed independently from opacity — darken reduces RGB towards black while opacity controls transparency
+- **Real-Time Pane Background Preview**: Per-pane background settings (image, mode, opacity, darken) now apply instantly as values change — removed the manual "Apply to pane" button
+
+### Fixed
+
+- **Split Pane Mouse Event Routing**: Fixed mouse events (click, motion, scroll) being sent to the tab's legacy terminal instead of the focused pane's terminal in split pane mode — tmux pane resize and other mouse-aware applications inside split panes now work correctly
+- **Split Pane Focus and Divider Resize**: Fixed regression where clicking on pane dividers or other panes was consumed by the focused pane's terminal mouse tracking, preventing pane focus switching and divider drag-to-resize — added bounds checking so only clicks inside the focused pane are forwarded to its terminal
+
 ---
 
 ## [0.19.0] - 2026-02-19

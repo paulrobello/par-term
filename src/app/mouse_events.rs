@@ -10,6 +10,9 @@ impl WindowState {
     ///
     /// Returns true if event was consumed by terminal (mouse tracking enabled or alt screen active),
     /// false otherwise. When on alt screen, we don't want local text selection.
+    ///
+    /// In split pane mode, this routes events to the focused pane's terminal with
+    /// pane-relative cell coordinates.
     pub(crate) fn try_send_mouse_event(&self, button: u8, pressed: bool) -> bool {
         let tab = if let Some(t) = self.tab_manager.active_tab() {
             t
@@ -18,11 +21,31 @@ impl WindowState {
         };
 
         let mouse_position = tab.mouse.position;
-        let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1) else {
-            return false;
-        };
 
-        let Ok(term) = tab.terminal.try_lock() else {
+        // Get the correct terminal and cell coordinates based on whether split panes exist
+        let (terminal_arc, col, row) =
+            if let Some(ref pm) = tab.pane_manager
+                && let Some(focused_pane) = pm.focused_pane()
+            {
+                // Split pane mode: use focused pane's terminal with pane-relative coordinates
+                let Some((col, row)) = self.pixel_to_pane_cell(
+                    mouse_position.0,
+                    mouse_position.1,
+                    &focused_pane.bounds,
+                ) else {
+                    return false;
+                };
+                (Arc::clone(&focused_pane.terminal), col, row)
+            } else {
+                // Single pane: use tab's terminal with global coordinates
+                let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
+                else {
+                    return false;
+                };
+                (Arc::clone(&tab.terminal), col, row)
+            };
+
+        let Ok(term) = terminal_arc.try_lock() else {
             return false;
         };
 
@@ -37,7 +60,7 @@ impl WindowState {
 
             if !encoded.is_empty() {
                 // Send to PTY using async lock to ensure write completes
-                let terminal_clone = Arc::clone(&tab.terminal);
+                let terminal_clone = Arc::clone(&terminal_arc);
                 let runtime = Arc::clone(&self.runtime);
                 runtime.spawn(async move {
                     let t = terminal_clone.lock().await;
@@ -627,35 +650,62 @@ impl WindowState {
 
         // --- 3. Mouse Motion Reporting ---
         // Forward motion events to PTY if requested by terminal app (e.g., mouse tracking in vim)
-        if let Some((col, row)) = self.pixel_to_cell(position.0, position.1) {
-            let should_report = self.tab_manager.active_tab().is_some_and(|tab| {
-                tab.terminal
+        // In split pane mode, only forward when mouse is inside the focused pane's bounds.
+        // Clicks outside the focused pane (on dividers or other panes) must fall through
+        // to divider drag and hover handlers.
+        if let Some(tab) = self.tab_manager.active_tab() {
+            let resolved = if let Some(ref pm) = tab.pane_manager
+                && let Some(focused_pane) = pm.focused_pane()
+            {
+                // Split pane mode: only report motion inside the focused pane
+                self.pixel_to_pane_cell(position.0, position.1, &focused_pane.bounds)
+                    .map(|(col, row)| {
+                        (
+                            Arc::clone(&focused_pane.terminal),
+                            col,
+                            row,
+                            tab.mouse.button_pressed,
+                        )
+                    })
+            } else {
+                // Single pane mode: use tab's terminal with global coordinates
+                self.pixel_to_cell(position.0, position.1).map(|(col, row)| {
+                    (
+                        Arc::clone(&tab.terminal),
+                        col,
+                        row,
+                        tab.mouse.button_pressed,
+                    )
+                })
+            };
+
+            if let Some((terminal_arc, col, row, button_pressed)) = resolved {
+                let should_report = terminal_arc
                     .try_lock()
                     .ok()
-                    .is_some_and(|term| term.should_report_mouse_motion(tab.mouse.button_pressed))
-            });
+                    .is_some_and(|term| term.should_report_mouse_motion(button_pressed));
 
-            if should_report
-                && let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_lock()
-            {
-                // Encode button+motion (button 32 marker)
-                let button = if tab.mouse.button_pressed {
-                    32 // Motion while button pressed
-                } else {
-                    35 // Motion without button pressed
-                };
+                if should_report
+                    && let Ok(term) = terminal_arc.try_lock()
+                {
+                    // Encode button+motion (button 32 marker)
+                    let button = if button_pressed {
+                        32 // Motion while button pressed
+                    } else {
+                        35 // Motion without button pressed
+                    };
 
-                let encoded = term.encode_mouse_event(button, col, row, true, 0);
-                if !encoded.is_empty() {
-                    let terminal_clone = Arc::clone(&tab.terminal);
-                    let runtime = Arc::clone(&self.runtime);
-                    runtime.spawn(async move {
-                        let t = terminal_clone.lock().await;
-                        let _ = t.write(&encoded);
-                    });
+                    let encoded = term.encode_mouse_event(button, col, row, true, 0);
+                    if !encoded.is_empty() {
+                        let terminal_clone = Arc::clone(&terminal_arc);
+                        let runtime = Arc::clone(&self.runtime);
+                        runtime.spawn(async move {
+                            let t = terminal_clone.lock().await;
+                            let _ = t.write(&encoded);
+                        });
+                    }
+                    return; // Exit early: terminal app is handling mouse motion
                 }
-                return; // Exit early: terminal app is handling mouse motion
             }
         }
 
@@ -820,30 +870,64 @@ impl WindowState {
         // --- 1. Mouse Tracking Protocol ---
         // Check if the terminal application (e.g., vim, htop) has requested mouse tracking.
         // If enabled, we forward wheel events to the PTY instead of scrolling locally.
-        let is_mouse_tracking = self.tab_manager.active_tab().is_some_and(|tab| {
-            tab.terminal
-                .try_lock()
-                .ok()
-                .is_some_and(|term| term.is_mouse_tracking_enabled())
-        });
+        // In split pane mode, check and route to the focused pane's terminal.
+        let (terminal_for_tracking, is_mouse_tracking) = if let Some(tab) =
+            self.tab_manager.active_tab()
+        {
+            if let Some(ref pm) = tab.pane_manager
+                && let Some(focused_pane) = pm.focused_pane()
+            {
+                let tracking = focused_pane
+                    .terminal
+                    .try_lock()
+                    .ok()
+                    .is_some_and(|term| term.is_mouse_tracking_enabled());
+                (Some(Arc::clone(&focused_pane.terminal)), tracking)
+            } else {
+                let tracking = tab
+                    .terminal
+                    .try_lock()
+                    .ok()
+                    .is_some_and(|term| term.is_mouse_tracking_enabled());
+                (Some(Arc::clone(&tab.terminal)), tracking)
+            }
+        } else {
+            (None, false)
+        };
 
-        if is_mouse_tracking {
+        if is_mouse_tracking
+            && let Some(terminal_arc) = terminal_for_tracking
+        {
             // Calculate scroll amounts based on delta type (Line vs Pixel)
             let (scroll_x, scroll_y) = match delta {
                 MouseScrollDelta::LineDelta(x, y) => (x as i32, y as i32),
-                MouseScrollDelta::PixelDelta(pos) => ((pos.x / 20.0) as i32, (pos.y / 20.0) as i32),
+                MouseScrollDelta::PixelDelta(pos) => {
+                    ((pos.x / 20.0) as i32, (pos.y / 20.0) as i32)
+                }
             };
 
-            // Get mouse position and terminal from active tab
+            // Get mouse position from active tab
             let mouse_position = self
                 .tab_manager
                 .active_tab()
                 .map(|t| t.mouse.position)
                 .unwrap_or((0.0, 0.0));
 
-            // Map pixel position to terminal cell coordinates
-            if let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1) {
-                let mut all_encoded = Vec::new();
+            // Map pixel position to cell coordinates (pane-relative if split panes exist)
+            // For scroll events, fall back to (0, 0) if outside pane bounds — scroll
+            // should still reach the focused pane even when mouse drifts onto a divider.
+            let (col, row) = if let Some(tab) = self.tab_manager.active_tab()
+                && let Some(ref pm) = tab.pane_manager
+                && let Some(focused_pane) = pm.focused_pane()
+            {
+                self.pixel_to_pane_cell(mouse_position.0, mouse_position.1, &focused_pane.bounds)
+                    .unwrap_or((0, 0))
+            } else {
+                self.pixel_to_cell(mouse_position.0, mouse_position.1)
+                    .unwrap_or((0, 0))
+            };
+
+            let mut all_encoded = Vec::new();
 
                 // --- 1a. Vertical scroll events ---
                 // XTerm mouse protocol buttons: 64 = scroll up, 65 = scroll down
@@ -852,9 +936,7 @@ impl WindowState {
                     // Limit burst to 10 events to avoid flooding the PTY
                     let count = scroll_y.unsigned_abs().min(10);
 
-                    if let Some(tab) = self.tab_manager.active_tab()
-                        && let Ok(term) = tab.terminal.try_lock()
-                    {
+                    if let Ok(term) = terminal_arc.try_lock() {
                         for _ in 0..count {
                             let encoded = term.encode_mouse_event(button, col, row, true, 0);
                             if !encoded.is_empty() {
@@ -871,9 +953,7 @@ impl WindowState {
                     // Limit burst to 10 events to avoid flooding the PTY
                     let count = scroll_x.unsigned_abs().min(10);
 
-                    if let Some(tab) = self.tab_manager.active_tab()
-                        && let Ok(term) = tab.terminal.try_lock()
-                    {
+                    if let Ok(term) = terminal_arc.try_lock() {
                         for _ in 0..count {
                             let encoded = term.encode_mouse_event(button, col, row, true, 0);
                             if !encoded.is_empty() {
@@ -884,17 +964,14 @@ impl WindowState {
                 }
 
                 // Send all encoded events to terminal
-                if !all_encoded.is_empty()
-                    && let Some(tab) = self.tab_manager.active_tab()
-                {
-                    let terminal_clone = Arc::clone(&tab.terminal);
+                if !all_encoded.is_empty() {
+                    let terminal_clone = Arc::clone(&terminal_arc);
                     let runtime = Arc::clone(&self.runtime);
                     runtime.spawn(async move {
                         let t = terminal_clone.lock().await;
                         let _ = t.write(&all_encoded);
                     });
                 }
-            }
             return; // Exit early: terminal app handled the input
         }
 
@@ -992,6 +1069,56 @@ impl WindowState {
         } else {
             None
         }
+    }
+
+    /// Convert pixel coordinates to cell coordinates relative to a specific pane
+    ///
+    /// Accounts for pane bounds, pane padding, and pane title bar offset.
+    /// Returns None if the pixel coordinates are outside the pane's bounds
+    /// or if the renderer is not available.
+    pub(crate) fn pixel_to_pane_cell(
+        &self,
+        x: f64,
+        y: f64,
+        pane_bounds: &crate::pane::PaneBounds,
+    ) -> Option<(usize, usize)> {
+        let renderer = self.renderer.as_ref()?;
+
+        // Check if the point is inside the pane's bounds
+        let bx = pane_bounds.x as f64;
+        let by = pane_bounds.y as f64;
+        let bw = pane_bounds.width as f64;
+        let bh = pane_bounds.height as f64;
+        if x < bx || x >= bx + bw || y < by || y >= by + bh {
+            return None;
+        }
+
+        let cell_width = renderer.cell_width() as f64;
+        let cell_height = renderer.cell_height() as f64;
+
+        // Calculate physical pane padding (config is logical, scale for DPI)
+        let scale = renderer.scale_factor() as f64;
+        let pane_padding = if self.is_gateway_active() {
+            0.0
+        } else {
+            self.config.pane_padding as f64 * scale
+        };
+
+        // Account for pane title bar if enabled
+        let title_offset = if self.config.show_pane_titles {
+            self.config.pane_title_height as f64 * scale
+        } else {
+            0.0
+        };
+
+        // Convert to pane-local coordinates
+        let local_x = (x - bx - pane_padding).max(0.0);
+        let local_y = (y - by - pane_padding - title_offset).max(0.0);
+
+        let col = (local_x / cell_width) as usize;
+        let row = (local_y / cell_height) as usize;
+
+        Some((col, row))
     }
 
     /// Handle a file being dropped into the terminal window.

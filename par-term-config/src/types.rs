@@ -248,6 +248,9 @@ pub struct PaneBackgroundConfig {
     /// Opacity
     #[serde(default = "crate::defaults::background_image_opacity")]
     pub opacity: f32,
+    /// Darken amount (0.0 = no darkening, 1.0 = fully black)
+    #[serde(default = "crate::defaults::pane_background_darken")]
+    pub darken: f32,
 }
 
 /// Tab visual style preset
@@ -1596,6 +1599,8 @@ pub struct PaneBackground {
     pub mode: BackgroundImageMode,
     /// Opacity (0.0-1.0)
     pub opacity: f32,
+    /// Darken amount (0.0 = no darkening, 1.0 = fully black)
+    pub darken: f32,
 }
 
 impl PaneBackground {
@@ -1605,6 +1610,7 @@ impl PaneBackground {
             image_path: None,
             mode: BackgroundImageMode::default(),
             opacity: 1.0,
+            darken: 0.0,
         }
     }
 

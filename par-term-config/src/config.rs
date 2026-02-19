@@ -1211,6 +1211,12 @@ pub struct Config {
     #[serde(default = "crate::defaults::tab_border_width")]
     pub tab_border_width: f32,
 
+    /// Render inactive tabs as outline only (no fill)
+    /// When true, inactive tabs show only a border stroke with no background fill.
+    /// Hovered inactive tabs brighten the outline instead of filling.
+    #[serde(default = "crate::defaults::bool_false")]
+    pub tab_inactive_outline_only: bool,
+
     // ========================================================================
     // Split Pane Settings
     // ========================================================================
@@ -2020,6 +2026,7 @@ impl Default for Config {
             tab_html_titles: crate::defaults::tab_html_titles(),
             tab_border_color: crate::defaults::tab_border_color(),
             tab_border_width: crate::defaults::tab_border_width(),
+            tab_inactive_outline_only: crate::defaults::bool_false(),
             // Split panes
             pane_divider_width: crate::defaults::pane_divider_width(),
             pane_divider_hit_width: crate::defaults::pane_divider_hit_width(),
@@ -2169,6 +2176,7 @@ impl Config {
                 self.tab_active_indicator = crate::defaults::tab_active_indicator();
                 self.tab_border_color = crate::defaults::tab_border_color();
                 self.tab_border_width = crate::defaults::tab_border_width();
+                self.tab_inactive_outline_only = false;
                 self.tab_bar_height = crate::defaults::tab_bar_height();
             }
             TabStyle::Light => {
@@ -2181,6 +2189,7 @@ impl Config {
                 self.tab_active_indicator = [50, 120, 220];
                 self.tab_border_color = [200, 200, 200];
                 self.tab_border_width = 1.0;
+                self.tab_inactive_outline_only = false;
                 self.tab_bar_height = crate::defaults::tab_bar_height();
             }
             TabStyle::Compact => {
@@ -2194,6 +2203,7 @@ impl Config {
                 self.tab_active_indicator = [80, 140, 240];
                 self.tab_border_color = [60, 60, 60];
                 self.tab_border_width = 0.5;
+                self.tab_inactive_outline_only = false;
                 self.tab_bar_height = 22.0;
             }
             TabStyle::Minimal => {
@@ -2207,6 +2217,7 @@ impl Config {
                 self.tab_active_indicator = [100, 150, 255];
                 self.tab_border_color = [30, 30, 30]; // No visible border
                 self.tab_border_width = 0.0;
+                self.tab_inactive_outline_only = false;
                 self.tab_bar_height = 26.0;
             }
             TabStyle::HighContrast => {
@@ -2220,6 +2231,7 @@ impl Config {
                 self.tab_active_indicator = [255, 255, 0];
                 self.tab_border_color = [255, 255, 255];
                 self.tab_border_width = 2.0;
+                self.tab_inactive_outline_only = false;
                 self.tab_bar_height = 30.0;
             }
             TabStyle::Automatic => {
@@ -2984,12 +2996,15 @@ impl Config {
     }
 
     /// Get per-pane background config for a given pane index, if configured
-    /// Returns (image_path, mode, opacity) tuple for easy conversion to runtime type
-    pub fn get_pane_background(&self, index: usize) -> Option<(String, BackgroundImageMode, f32)> {
+    /// Returns (image_path, mode, opacity, darken) tuple for easy conversion to runtime type
+    pub fn get_pane_background(
+        &self,
+        index: usize,
+    ) -> Option<(String, BackgroundImageMode, f32, f32)> {
         self.pane_backgrounds
             .iter()
             .find(|pb| pb.index == index)
-            .map(|pb| (pb.image.clone(), pb.mode, pb.opacity))
+            .map(|pb| (pb.image.clone(), pb.mode, pb.opacity, pb.darken))
     }
 
     /// Load the last working directory from state file

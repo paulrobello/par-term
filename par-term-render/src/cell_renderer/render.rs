@@ -30,6 +30,7 @@ impl CellRenderer {
                             self.config.height as f32,
                             pane_bg.mode,
                             pane_bg.opacity,
+                            pane_bg.darken,
                         )
                     })
                 } else {
@@ -1363,6 +1364,7 @@ impl CellRenderer {
                     viewport.height,
                     pane_bg.mode,
                     pane_bg.opacity,
+                    pane_bg.darken,
                 )
             })
         } else {

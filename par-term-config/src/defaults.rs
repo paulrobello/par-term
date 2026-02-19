@@ -176,6 +176,10 @@ pub fn background_image_opacity() -> f32 {
     1.0 // Fully opaque by default
 }
 
+pub fn pane_background_darken() -> f32 {
+    0.0 // No darkening by default
+}
+
 pub fn background_color() -> [u8; 3] {
     [30, 30, 30] // Dark gray
 }

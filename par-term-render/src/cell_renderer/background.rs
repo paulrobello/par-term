@@ -99,6 +99,7 @@ impl CellRenderer {
         //   opacity: f32             @ offset 20 (4 bytes)
         //   pane_offset: vec2<f32>   @ offset 24 (8 bytes) - (0,0) for global
         //   surface_size: vec2<f32>  @ offset 32 (8 bytes) - same as window_size for global
+        //   darken: f32              @ offset 40 (4 bytes) - 0.0 for global
         let mut data = [0u8; 48];
 
         let w = self.config.width as f32;
@@ -125,6 +126,9 @@ impl CellRenderer {
         // surface_size (vec2<f32>) - same as window_size for global
         data[32..36].copy_from_slice(&w.to_le_bytes());
         data[36..40].copy_from_slice(&h.to_le_bytes());
+
+        // darken (f32) - 0.0 for global background (no darkening)
+        // bytes 40..44 are already zeros
 
         self.queue
             .write_buffer(&self.bg_image_uniform_buffer, 0, &data);
@@ -556,6 +560,7 @@ impl CellRenderer {
         pane_height: f32,
         mode: par_term_config::BackgroundImageMode,
         opacity: f32,
+        darken: f32,
     ) -> (wgpu::BindGroup, wgpu::Buffer) {
         // Shader uniform struct layout (48 bytes):
         //   image_size: vec2<f32>    @ offset 0  (8 bytes)
@@ -564,6 +569,7 @@ impl CellRenderer {
         //   opacity: f32             @ offset 20 (4 bytes)
         //   pane_offset: vec2<f32>   @ offset 24 (8 bytes) - pane position in window
         //   surface_size: vec2<f32>  @ offset 32 (8 bytes) - window dimensions
+        //   darken: f32              @ offset 40 (4 bytes)
         let mut data = [0u8; 48];
         // image_size (vec2<f32>)
         data[0..4].copy_from_slice(&(entry.width as f32).to_le_bytes());
@@ -584,6 +590,8 @@ impl CellRenderer {
         let surface_h = self.config.height as f32;
         data[32..36].copy_from_slice(&surface_w.to_le_bytes());
         data[36..40].copy_from_slice(&surface_h.to_le_bytes());
+        // darken (f32)
+        data[40..44].copy_from_slice(&darken.to_le_bytes());
 
         let uniform_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("pane bg uniform buffer"),

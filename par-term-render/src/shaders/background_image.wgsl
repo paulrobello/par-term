@@ -13,6 +13,8 @@ struct Uniforms {
     pane_offset: vec2<f32>,
     // Surface (window) size in pixels (same as window_size for global)
     surface_size: vec2<f32>,
+    // Darken amount (0.0 = no darkening, 1.0 = fully black)
+    darken: f32,
 }
 
 struct VertexOutput {
@@ -121,7 +123,10 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
     let color = textureSample(bg_texture, bg_sampler, tex_coord);
 
+    // Apply darken (reduce RGB towards black) then opacity
+    let darkened_rgb = color.rgb * (1.0 - uniforms.darken);
+
     // Apply opacity and output premultiplied colors for PreMultiplied composite alpha mode
     let final_alpha = color.a * uniforms.opacity;
-    return vec4<f32>(color.rgb * final_alpha, final_alpha);
+    return vec4<f32>(darkened_rgb * final_alpha, final_alpha);
 }

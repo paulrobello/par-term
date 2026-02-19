@@ -314,6 +314,8 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "tab border",
             "tab color",
             "inactive tab",
+            "outline only",
+            "outline tab",
             "dimming",
             "dim inactive",
             "tab background",
@@ -571,6 +573,8 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "pane image",
             "split background",
             "per pane",
+            "darken",
+            "pane darken",
             // Hot reload extras
             "hot reload delay",
             "reload delay",

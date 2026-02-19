@@ -553,7 +553,12 @@ impl TabBarUI {
             255
         };
 
-        let bg_color = if let Some(custom) = custom_color {
+        // Whether this inactive tab should render as outline-only (no fill)
+        let outline_only = config.tab_inactive_outline_only && !is_active;
+
+        let bg_color = if outline_only {
+            egui::Color32::TRANSPARENT
+        } else if let Some(custom) = custom_color {
             if is_active {
                 egui::Color32::from_rgba_unmultiplied(custom[0], custom[1], custom[2], 255)
             } else if is_hovered {
@@ -593,6 +598,31 @@ impl TabBarUI {
         if ui.is_rect_visible(tab_rect) {
             ui.painter()
                 .rect_filled(tab_draw_rect, tab_rounding, bg_color);
+
+            // Draw outline border for outline-only inactive tabs (brighten on hover)
+            if outline_only {
+                let base = if let Some(custom) = custom_color {
+                    custom
+                } else {
+                    config.tab_border_color
+                };
+                let c = if is_hovered {
+                    let brighten = |v: u8| v.saturating_add(60);
+                    [brighten(base[0]), brighten(base[1]), brighten(base[2])]
+                } else {
+                    base
+                };
+                let border_width = config.tab_border_width.max(1.0);
+                ui.painter().rect_stroke(
+                    tab_draw_rect,
+                    tab_rounding,
+                    egui::Stroke::new(
+                        border_width,
+                        egui::Color32::from_rgb(c[0], c[1], c[2]),
+                    ),
+                    egui::StrokeKind::Middle,
+                );
+            }
 
             // Active indicator: left edge bar instead of bottom underline
             if is_active {
@@ -880,9 +910,14 @@ impl TabBarUI {
             255
         };
 
+        // Whether this inactive tab should render as outline-only (no fill)
+        let outline_only = config.tab_inactive_outline_only && !is_active;
+
         // Tab background color with opacity
         // Custom color overrides config colors for inactive/active background
-        let bg_color = if let Some(custom) = custom_color {
+        let bg_color = if outline_only {
+            egui::Color32::TRANSPARENT
+        } else if let Some(custom) = custom_color {
             // Use custom color with appropriate opacity/brightness adjustment
             if is_active {
                 egui::Color32::from_rgba_unmultiplied(custom[0], custom[1], custom[2], 255)
@@ -933,7 +968,8 @@ impl TabBarUI {
 
             // Draw border around tab
             // Active tabs get a highlighted border using the indicator color
-            if config.tab_border_width > 0.0 || is_active {
+            // Outline-only inactive tabs always get a border (brightened on hover)
+            if config.tab_border_width > 0.0 || is_active || outline_only {
                 let (border_color, border_width) = if is_active {
                     // Active tab: use indicator color and slightly thicker border
                     let c = if let Some(custom) = custom_color {
@@ -944,6 +980,20 @@ impl TabBarUI {
                         config.tab_active_indicator
                     };
                     (c, config.tab_border_width.max(1.5))
+                } else if outline_only {
+                    // Outline-only inactive tab: use border color, brighten on hover
+                    let base = if let Some(custom) = custom_color {
+                        custom
+                    } else {
+                        config.tab_border_color
+                    };
+                    let c = if is_hovered {
+                        let brighten = |v: u8| v.saturating_add(60);
+                        [brighten(base[0]), brighten(base[1]), brighten(base[2])]
+                    } else {
+                        base
+                    };
+                    (c, config.tab_border_width.max(1.0))
                 } else {
                     // Inactive tabs: use normal border color
                     (config.tab_border_color, config.tab_border_width)

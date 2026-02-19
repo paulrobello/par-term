@@ -1177,6 +1177,18 @@ fn show_tab_bar_appearance_section(
                 }
             });
 
+            if ui
+                .checkbox(
+                    &mut settings.config.tab_inactive_outline_only,
+                    "Inactive tabs outline only",
+                )
+                .on_hover_text("Render inactive tabs with just an outline border and no fill")
+                .changed()
+            {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
             ui.add_space(8.0);
             ui.label(egui::RichText::new("Inactive Tab Dimming").strong());
 
