@@ -1969,6 +1969,8 @@ impl Renderer {
                     self.cell_renderer.font_manager.find_glyph(ch, false, false)
                 {
                     let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
+                    // Check if this character should be rendered as a monochrome symbol
+                    let force_monochrome = crate::cell_renderer::atlas::should_render_as_symbol(ch);
                     let info = if self.cell_renderer.glyph_cache.contains_key(&cache_key) {
                         self.cell_renderer.lru_remove(cache_key);
                         self.cell_renderer.lru_push_front(cache_key);
@@ -1978,7 +1980,8 @@ impl Renderer {
                             .unwrap()
                             .clone()
                     } else if let Some(raster) =
-                        self.cell_renderer.rasterize_glyph(font_idx, glyph_id)
+                        self.cell_renderer
+                            .rasterize_glyph(font_idx, glyph_id, force_monochrome)
                     {
                         let info = self.cell_renderer.upload_glyph(cache_key, &raster);
                         self.cell_renderer

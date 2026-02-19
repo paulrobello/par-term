@@ -11,6 +11,58 @@ pub(crate) struct RasterizedGlyph {
     pub is_colored: bool,
 }
 
+/// Unicode ranges for symbols that should render monochromatically.
+/// These characters have emoji default presentation but are commonly used
+/// as symbols in terminal contexts (spinners, decorations, etc.) and should
+/// use the terminal foreground color rather than colorful emoji rendering.
+pub mod symbol_ranges {
+    /// Dingbats block (U+2700–U+27BF)
+    /// Contains asterisks, stars, sparkles, arrows, etc.
+    pub const DINGBATS_START: u32 = 0x2700;
+    pub const DINGBATS_END: u32 = 0x27BF;
+
+    /// Miscellaneous Symbols (U+2600–U+26FF)
+    /// Contains weather, zodiac, chess, etc.
+    pub const MISC_SYMBOLS_START: u32 = 0x2600;
+    pub const MISC_SYMBOLS_END: u32 = 0x26FF;
+
+    /// Miscellaneous Symbols and Arrows (U+2B00–U+2BFF)
+    /// Contains various arrows and stars like ⭐
+    pub const MISC_SYMBOLS_ARROWS_START: u32 = 0x2B00;
+    pub const MISC_SYMBOLS_ARROWS_END: u32 = 0x2BFF;
+}
+
+/// Check if a character should be rendered as a monochrome symbol.
+///
+/// Returns true for characters that:
+/// 1. Are in symbol/dingbat Unicode ranges
+/// 2. Have emoji default presentation but are commonly used as symbols
+///
+/// These characters should use the terminal foreground color rather than
+/// colorful emoji bitmaps, even if the emoji font provides a colored glyph.
+pub fn should_render_as_symbol(ch: char) -> bool {
+    let code = ch as u32;
+
+    // Dingbats (U+2700–U+27BF)
+    if (symbol_ranges::DINGBATS_START..=symbol_ranges::DINGBATS_END).contains(&code) {
+        return true;
+    }
+
+    // Miscellaneous Symbols (U+2600–U+26FF)
+    if (symbol_ranges::MISC_SYMBOLS_START..=symbol_ranges::MISC_SYMBOLS_END).contains(&code) {
+        return true;
+    }
+
+    // Miscellaneous Symbols and Arrows (U+2B00–U+2BFF)
+    if (symbol_ranges::MISC_SYMBOLS_ARROWS_START..=symbol_ranges::MISC_SYMBOLS_ARROWS_END)
+        .contains(&code)
+    {
+        return true;
+    }
+
+    false
+}
+
 impl CellRenderer {
     pub fn clear_glyph_cache(&mut self) {
         self.glyph_cache.clear();
@@ -60,6 +112,7 @@ impl CellRenderer {
         &self,
         font_idx: usize,
         glyph_id: u16,
+        force_monochrome: bool,
     ) -> Option<RasterizedGlyph> {
         let font = self.font_manager.get_font(font_idx)?;
         // Use swash to rasterize
@@ -89,19 +142,43 @@ impl CellRenderer {
             Format::Alpha
         };
 
-        // Try color sources first so emoji fonts (Apple Color Emoji,
-        // Noto Color Emoji) render as colored bitmaps. Regular text fonts
-        // have no color data so will fall through to Outline automatically.
-        let image = Render::new(&[
-            swash::scale::Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
-            swash::scale::Source::ColorOutline(0),
-            swash::scale::Source::Outline,
-        ])
-        .format(render_format)
-        .render(&mut scaler, glyph_id)?;
+        // For symbol characters (dingbats, etc.), prefer outline rendering to get
+        // monochrome glyphs that use the terminal foreground color. For emoji,
+        // prefer color bitmaps for proper colorful rendering.
+        let sources = if force_monochrome {
+            // Symbol character: try outline first, fall back to color if unavailable
+            // This ensures dingbats like ✳ ✴ ❇ render as monochrome symbols
+            // with the terminal foreground color, not as colorful emoji.
+            [
+                swash::scale::Source::Outline,
+                swash::scale::Source::ColorOutline(0),
+                swash::scale::Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
+            ]
+        } else {
+            // Regular emoji: prefer color sources for colorful rendering
+            [
+                swash::scale::Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
+                swash::scale::Source::ColorOutline(0),
+                swash::scale::Source::Outline,
+            ]
+        };
+
+        let image = Render::new(&sources)
+            .format(render_format)
+            .render(&mut scaler, glyph_id)?;
 
         let (pixels, is_colored) = match image.content {
-            Content::Color => (image.data.clone(), true),
+            Content::Color => {
+                // If this is a symbol character that should be monochrome,
+                // convert the color image to a monochrome alpha mask using
+                // luminance as the alpha channel.
+                if force_monochrome {
+                    let pixels = convert_color_to_alpha_mask(&image);
+                    (pixels, false)
+                } else {
+                    (image.data.clone(), true)
+                }
+            }
             Content::Mask => {
                 let mut pixels = Vec::with_capacity(image.data.len() * 4);
                 for &mask in &image.data {
@@ -231,6 +308,38 @@ fn convert_subpixel_mask_to_rgba(image: &swash::scale::image::Image) -> Vec<u8> 
     pixels
 }
 
+/// Convert a color RGBA image to a monochrome alpha mask.
+///
+/// This is used when a symbol character (like dingbats ✳ ✴ ❇) is rendered
+/// from a color emoji font but should be displayed as a monochrome glyph
+/// using the terminal foreground color.
+///
+/// The alpha channel is derived from the luminance of the original color,
+/// preserving the shape while discarding the color information.
+fn convert_color_to_alpha_mask(image: &swash::scale::image::Image) -> Vec<u8> {
+    let width = image.placement.width as usize;
+    let height = image.placement.height as usize;
+    let mut pixels = Vec::with_capacity(width * height * 4);
+
+    // Color emoji images are typically RGBA (4 bytes per pixel)
+    for chunk in image.data.chunks_exact(4) {
+        let r = chunk[0];
+        let g = chunk[1];
+        let b = chunk[2];
+        let a = chunk[3];
+
+        // Use luminance as alpha, multiplied by original alpha
+        // This preserves the shape of colored emoji while making them monochrome
+        let luminance = ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u8;
+        // Blend luminance with original alpha
+        let alpha = ((luminance as u32 * a as u32) / 255) as u8;
+
+        pixels.extend_from_slice(&[255, 255, 255, alpha]);
+    }
+
+    pixels
+}
+
 #[cfg(test)]
 mod tests {
     use super::convert_subpixel_mask_to_rgba;
@@ -289,5 +398,81 @@ mod tests {
         }
 
         assert_eq!(converted, expected);
+    }
+
+    use super::should_render_as_symbol;
+
+    #[test]
+    fn test_dingbats_are_symbols() {
+        // Dingbats block (U+2700-U+27BF)
+        assert!(
+            should_render_as_symbol('\u{2733}'),
+            "✳ EIGHT SPOKED ASTERISK"
+        );
+        assert!(
+            should_render_as_symbol('\u{2734}'),
+            "✴ EIGHT POINTED BLACK STAR"
+        );
+        assert!(should_render_as_symbol('\u{2747}'), "❇ SPARKLE");
+        assert!(should_render_as_symbol('\u{2744}'), "❄ SNOWFLAKE");
+        assert!(should_render_as_symbol('\u{2702}'), "✂ SCISSORS");
+        assert!(should_render_as_symbol('\u{2714}'), "✔ HEAVY CHECK MARK");
+        assert!(
+            should_render_as_symbol('\u{2716}'),
+            "✖ HEAVY MULTIPLICATION X"
+        );
+        assert!(should_render_as_symbol('\u{2728}'), "✨ SPARKLES");
+    }
+
+    #[test]
+    fn test_misc_symbols_are_symbols() {
+        // Miscellaneous Symbols block (U+2600-U+26FF)
+        assert!(should_render_as_symbol('\u{2600}'), "☀ SUN");
+        assert!(should_render_as_symbol('\u{2601}'), "☁ CLOUD");
+        assert!(should_render_as_symbol('\u{263A}'), "☺ SMILING FACE");
+        assert!(should_render_as_symbol('\u{2665}'), "♥ BLACK HEART SUIT");
+        assert!(should_render_as_symbol('\u{2660}'), "♠ BLACK SPADE SUIT");
+    }
+
+    #[test]
+    fn test_misc_symbols_arrows_are_symbols() {
+        // Miscellaneous Symbols and Arrows block (U+2B00-U+2BFF)
+        assert!(should_render_as_symbol('\u{2B50}'), "⭐ WHITE MEDIUM STAR");
+        assert!(should_render_as_symbol('\u{2B55}'), "⭕ HEAVY LARGE CIRCLE");
+    }
+
+    #[test]
+    fn test_regular_emoji_not_symbols() {
+        // Full emoji characters (outside symbol ranges) should NOT be treated as symbols
+        // They should render as colorful emoji
+        assert!(
+            !should_render_as_symbol('\u{1F600}'),
+            "😀 GRINNING FACE should not be a symbol"
+        );
+        assert!(
+            !should_render_as_symbol('\u{1F389}'),
+            "🎉 PARTY POPPER should not be a symbol"
+        );
+        assert!(
+            !should_render_as_symbol('\u{1F44D}'),
+            "👍 THUMBS UP should not be a symbol"
+        );
+    }
+
+    #[test]
+    fn test_regular_chars_not_symbols() {
+        // Regular text characters should NOT be treated as symbols
+        assert!(
+            !should_render_as_symbol('A'),
+            "Letter A should not be a symbol"
+        );
+        assert!(
+            !should_render_as_symbol('*'),
+            "Asterisk should not be a symbol (it's ASCII)"
+        );
+        assert!(
+            !should_render_as_symbol('1'),
+            "Digit 1 should not be a symbol"
+        );
     }
 }
