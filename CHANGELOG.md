@@ -15,10 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Link Underline Rendering**: Detected URLs and file paths now render with visible underlines in the GPU text pipeline (previously the underline flag was set but never drawn)
 - **Link Underline Toggle**: Added `link_highlight_underline` setting to enable/disable underlines on highlighted links (default: enabled)
 - **Stipple Underline Style**: Added `link_underline_style` setting with Solid and Stipple (dotted) options — Stipple is the default, matching iTerm2's link underline aesthetic
+- **Settings Search Auto-Focus**: The quick search input in the settings UI now receives focus automatically when the window opens, allowing immediate keyboard-driven filtering
 
 ### Fixed
 
 - **Settings Sidebar Icon**: Fixed Input tab (⌨️) showing an empty box due to trailing Unicode variation selector (U+FE0F) that egui cannot render
+- **Miscellaneous Technical Symbol Rendering**: Fixed media control characters (⏺ ⏹ ⏸ ⏩ ⏪ etc., U+2300–U+23FF) rendering as colored emoji instead of monochrome symbols — extends the dingbat monochrome fix to cover the entire Miscellaneous Technical block
+- **Crate Package Size**: Fixed crates.io publish failure by excluding non-essential files (shader textures, gallery images, macOS .icns, design docs) — reduced package from 24.7MiB to 3.9MiB
 
 ---
 
