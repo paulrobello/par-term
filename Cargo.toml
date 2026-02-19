@@ -22,7 +22,17 @@ exclude = [
     "test_*.rs",
     ".github/",
     ".gitignore",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "GEMINI.md",
+    "AGENTS.md",
+    "MATRIX.md",
+    "PANES.md",
+    "agents/",
+    "gh-pages/",
+    "shaders/textures/",
+    "assets/par-term.icns",
+    "docs/plans/",
+    ".claude/",
 ]
 
 [dependencies]
