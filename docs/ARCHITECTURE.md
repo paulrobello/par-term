@@ -129,11 +129,18 @@ The par-term project uses a Cargo workspace to split functionality into focused 
 graph TD
     Main[par-term<br>Main Binary]
     ACP[par-term-acp<br>ACP Protocol & Agent Management]
-    Config[par-term-config<br>Configuration, Cell, ScrollbackMark]
+    Config[par-term-config<br>Configuration, Cell, ScrollbackMark, PaneId, TabId]
     Fonts[par-term-fonts<br>Font Management & Text Shaping]
     Terminal[par-term-terminal<br>Terminal Manager & Scrollback]
     Render[par-term-render<br>GPU Rendering Engine]
     Settings[par-term-settings-ui<br>Settings Tabs & Sidebar]
+    Input[par-term-input<br>Input Sequence Generation]
+    Keybind[par-term-keybindings<br>Keybinding Registry & Matching]
+    Scripting[par-term-scripting<br>Observer & Scripting System]
+    Update[par-term-update<br>Self-Update & Update Checker]
+    MCP[par-term-mcp<br>MCP Stdio Server]
+    SSH[par-term-ssh<br>SSH Host Discovery]
+    Tmux[par-term-tmux<br>tmux Control Mode]
 
     Main --> ACP
     Main --> Config
@@ -141,6 +148,13 @@ graph TD
     Main --> Terminal
     Main --> Render
     Main --> Settings
+    Main --> Input
+    Main --> Keybind
+    Main --> Scripting
+    Main --> Update
+    Main --> MCP
+    Main --> SSH
+    Main --> Tmux
 
     Terminal --> Config
     Render --> Config
@@ -148,6 +162,11 @@ graph TD
     Settings --> Config
     Settings --> Fonts
     Settings --> Render
+    Input --> Config
+    Keybind --> Config
+    Scripting --> Config
+    Tmux --> Config
+    Tmux --> Terminal
 
     style Main fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
     style ACP fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
@@ -156,6 +175,13 @@ graph TD
     style Terminal fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
     style Render fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
     style Settings fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Input fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Keybind fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Scripting fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Update fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style MCP fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style SSH fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
+    style Tmux fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
 ```
 
 ### Crate Responsibilities
@@ -164,11 +190,18 @@ graph TD
 |-------|-------------|
 | **par-term** | Main binary crate. Application entry point, window management, event loop, and orchestration. Re-exports key types from sub-crates for backward compatibility. |
 | **par-term-acp** | ACP (Agent Communication Protocol) implementation and agent lifecycle management. |
-| **par-term-config** | Configuration loading and serialization (`Config` struct), the `Cell` type, `ScrollbackMark`, and shared data types used across crates. |
+| **par-term-config** | Configuration loading and serialization (`Config` struct), shared types (`Cell`, `ScrollbackMark`, `PaneId`, `TabId`), and configuration file watching. |
 | **par-term-fonts** | Font discovery, loading, and fallback chain (`FontManager`, `FontData`). Text shaping via `TextShaper` (HarfBuzz/rustybuzz). |
 | **par-term-terminal** | Terminal session management (`TerminalManager`), scrollback buffer, styled content extraction, and PTY interaction wrappers. |
 | **par-term-render** | GPU rendering engine: cell renderer, graphics renderer (Sixel/iTerm2/Kitty), custom shader renderer, WGSL shaders, and glyph atlas management. |
 | **par-term-settings-ui** | All 28 settings tab modules (appearance, window, terminal, input, effects, notifications, integrations, advanced, etc.), sidebar navigation, and section helper utilities. |
+| **par-term-input** | Input sequence generation — translates keyboard/mouse events into VT escape sequences for terminal input. |
+| **par-term-keybindings** | Keybinding parsing, matching, and registry with platform-aware modifier handling (`CmdOrCtrl`). |
+| **par-term-scripting** | Observer pattern and scripting system for event-driven automation. |
+| **par-term-update** | Self-update system and update checker with manifest parsing and version comparison. |
+| **par-term-mcp** | MCP (Model Context Protocol) stdio server for AI agent integration. Independently publishable with zero internal crate dependencies. |
+| **par-term-ssh** | SSH host discovery via config parsing, known hosts scanning, history scanning, and mDNS/Bonjour discovery. |
+| **par-term-tmux** | tmux control mode integration — session lifecycle, bidirectional state sync, and control protocol command builders. |
 
 ### Backward Compatibility
 
@@ -181,13 +214,16 @@ All public types from workspace crates are re-exported from the main `par-term` 
 *   **App (`src/app/mod.rs`)**: The entry point that initializes configuration and runs the event loop via `winit`.
 *   **WindowManager (`src/app/window_manager.rs`)**: Coordinates multiple terminal windows, handles native menu events, manages the standalone settings window, and applies configuration changes across all windows.
 *   **WindowState (`src/app/window_state.rs`)**: Per-window state containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches.
-*   **Input Handler (`src/input.rs`)**: Translates OS window events (keyboard, mouse) into terminal input sequences or application commands (e.g., shortcuts for copy/paste).
-*   **Keybindings (`src/keybindings/`)**: Configurable keyboard shortcut system with key combo parsing, platform-aware modifier handling (`CmdOrCtrl`), and action registry.
+*   **Input Handler (`par-term-input`)**: Translates OS window events (keyboard, mouse) into terminal input sequences or application commands (e.g., shortcuts for copy/paste).
+*   **Keybindings (`par-term-keybindings`)**: Configurable keyboard shortcut system with key combo parsing, platform-aware modifier handling (`CmdOrCtrl`), and action registry.
 *   **Menu (`src/menu/mod.rs`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).
-*   **Configuration (`src/config/mod.rs`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`). Includes shader metadata caching (`shader_metadata.rs`, `shader_config.rs`).
+*   **Configuration (`par-term-config`)**: Manages settings loaded from YAML files, handling platform-specific paths (`%APPDATA%` vs `~/.config`). Includes shader metadata caching and file watching.
 *   **Settings Window (`src/settings_window.rs`)**: Standalone egui window for configuration, separate from the main terminal window for better usability.
-*   **Settings UI (`src/settings_ui/mod.rs`)**: egui-based settings interface with consolidated tabs: Appearance, Window, Terminal, Input, Effects, Notifications, Integrations, and Advanced.
+*   **Settings UI (`par-term-settings-ui`)**: egui-based settings interface with consolidated tabs: Appearance, Window, Terminal, Input, Effects, Notifications, Integrations, and Advanced.
 *   **Profile Manager (`src/profile/`)**: iTerm2-style profile system for saving terminal session configurations (working directory, custom commands, tab names). Profiles stored in `~/.config/par-term/profiles.yaml`.
+*   **Scripting (`par-term-scripting`)**: Observer pattern implementation for event-driven automation and shell integration callbacks.
+*   **Update System (`par-term-update`)**: Self-update mechanism with manifest parsing, version comparison, and download/extraction logic.
+*   **MCP Server (`par-term-mcp`)**: Model Context Protocol stdio server for AI agent integration.
 
 ### Terminal Emulation
 
@@ -209,13 +245,13 @@ All public types from workspace crates are re-exported from the main `par-term` 
 *   **PaneManager (`src/pane/manager.rs`)**: Coordinates pane operations within a tab, managing split creation, resizing, and navigation.
 *   **Pane (`src/pane/types.rs`)**: Represents a single terminal pane with its own state. Uses a tree structure (`PaneNode`) for nested splits.
 
-### tmux Integration
+### tmux Integration (`par-term-tmux`)
 
-*   **TmuxSession (`src/tmux/session.rs`)**: Lifecycle and state management for tmux control mode connections.
-*   **TmuxSync (`src/tmux/sync.rs`)**: Bidirectional state synchronization between par-term and tmux.
-*   **TmuxCommand (`src/tmux/commands.rs`)**: Command builders for the tmux control protocol.
-*   **ParserBridge (`src/tmux/parser_bridge.rs`)**: Bridges the core library's control mode parser with par-term's pane system.
-*   **Types (`src/tmux/types.rs`)**: Core data types including `TmuxWindow`, `TmuxPane`, `TmuxLayout`.
+*   **TmuxSession**: Lifecycle and state management for tmux control mode connections.
+*   **TmuxSync**: Bidirectional state synchronization between par-term and tmux.
+*   **TmuxCommand**: Command builders for the tmux control protocol.
+*   **ParserBridge**: Bridges the core library's control mode parser with par-term's pane system.
+*   **Types**: Core data types including `TmuxWindow`, `TmuxPane`, `TmuxLayout`.
 
 ### Rendering Engine
 
@@ -237,19 +273,19 @@ All public types from workspace crates are re-exported from the main `par-term` 
 
 *   **Search (`src/search/`)**: Terminal search functionality with regex support, debounced search, and match highlighting. Includes egui-based search bar overlay.
 *   **Session Logger (`src/session_logger.rs`)**: Records terminal sessions to files for replay or audit.
-*   **Update Checker (`src/update_checker.rs`)**: Checks for new versions of par-term.
+*   **Update Checker (`par-term-update`)**: Checks for new versions of par-term.
 *   **Smart Selection (`src/smart_selection.rs`)**: Intelligent text selection with word/path/URL detection.
 *   **Paste Transform (`src/paste_transform.rs`)**: Transforms pasted content (bracketed paste, newline handling).
 *   **Shell Integration Installer (`src/shell_integration_installer.rs`)**: Installs shell integration scripts for enhanced features.
 *   **Shader Installer (`src/shader_installer.rs`)**: Manages installation of custom shaders from the shader gallery.
 
-### SSH System
+### SSH System (`par-term-ssh`)
 
-*   **SSH Config Parser (`src/ssh/config_parser.rs`)**: Parses `~/.ssh/config` for host entries with wildcard filtering, multi-host blocks, and ProxyJump support.
-*   **Known Hosts Parser (`src/ssh/known_hosts.rs`)**: Extracts previously-connected hosts from `~/.ssh/known_hosts` with hashed entry skipping and bracketed `[host]:port` support.
-*   **History Scanner (`src/ssh/history_scanner.rs`)**: Scans bash/zsh/fish history files for previously-used SSH connections.
-*   **mDNS Discovery (`src/ssh/mdns.rs`)**: Discovers SSH services on the local network via `_ssh._tcp.local.` Bonjour/mDNS browsing (opt-in).
-*   **Discovery Aggregator (`src/ssh/discovery.rs`)**: Combines hosts from all sources with deduplication.
+*   **SSH Config Parser**: Parses `~/.ssh/config` for host entries with wildcard filtering, multi-host blocks, and ProxyJump support.
+*   **Known Hosts Parser**: Extracts previously-connected hosts from `~/.ssh/known_hosts` with hashed entry skipping and bracketed `[host]:port` support.
+*   **History Scanner**: Scans bash/zsh/fish history files for previously-used SSH connections.
+*   **mDNS Discovery**: Discovers SSH services on the local network via `_ssh._tcp.local.` Bonjour/mDNS browsing (opt-in).
+*   **Discovery Aggregator**: Combines hosts from all sources with deduplication.
 *   **Quick Connect UI (`src/ssh_connect_ui.rs`)**: egui dialog with fuzzy search, keyboard navigation, and source grouping.
 
 ### Status Bar

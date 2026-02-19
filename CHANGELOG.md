@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.18.0] - 2026-02-18
+
 ### Added
 
 - **Quick Settings Shader Toggles**: Added BG Shader and Cursor Shader toggle checkboxes to the settings UI quick settings strip, allowing shader effects to be enabled/disabled without navigating to the shader configuration tab
