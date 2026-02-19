@@ -12,34 +12,46 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.18.0
+## What's New in 0.19.0
 
 ### ✨ New Features
 
-- **Quick Settings Shader Toggles**: BG Shader and Cursor Shader toggle checkboxes in the settings UI quick settings strip, allowing shader effects to be enabled/disabled without navigating to the shader configuration tab
-- **Focus Event Forwarding**: Forward CSI focus-in/out sequences (`\x1b[I` / `\x1b[O`) to all PTYs that have DECSET 1004 focus tracking enabled, allowing applications like tmux to react to window focus changes
+- **Configurable Link Highlight Color**: Link highlight color for detected URLs and file paths is now configurable via `link_highlight_color` setting (default: bright cyan `#4FC3F7`), with a color picker in Settings > Terminal > Semantic History
+- **Link Underline Rendering**: Detected URLs and file paths now render with visible underlines in the GPU text pipeline (previously the underline flag was set but never drawn)
+- **Link Underline Toggle**: Added `link_highlight_underline` setting to enable/disable underlines on highlighted links (default: enabled)
+- **Stipple Underline Style**: Added `link_underline_style` setting with Solid and Stipple (dotted) options — Stipple is the default, matching iTerm2's link underline aesthetic
+- **Settings Search Auto-Focus**: The quick search input in the settings UI now receives focus automatically when the window opens, allowing immediate keyboard-driven filtering
 
 ### 🐛 Bug Fixes
 
-- **Dingbat/Symbol Monochrome Rendering**: Fixed dingbat characters (✳ ✴ ❇, etc.) rendering as colorful emoji instead of monochrome symbols using the terminal foreground color — characters in the Dingbats (U+2700-U+27BF), Miscellaneous Symbols (U+2600-U+26FF), and Miscellaneous Symbols and Arrows (U+2B00-U+2BFF) blocks now consistently render as text-colored symbols, fixing spinner animation inconsistencies in Claude Code
-- **Focus Click Clipboard Loss**: Suppress the first mouse click that focuses the window to prevent it from being forwarded to the PTY — without this, tmux (or other mouse-aware apps) would trigger a zero-char selection that clears the system clipboard
-- **Image Paste in Claude Code**: Fixed Cmd+V / menu Paste not forwarding to terminal when clipboard contains an image but no text — image-aware child processes now receive Ctrl+V so they can handle image paste via their own clipboard access
-- **Settings Sidebar Icons**: Fixed empty box rendering for several tab icons — AiInspector, StatusBar, Input, and Advanced tabs now display correctly using emoji characters in egui's supported Unicode range
-- **Shell Detection**: Improved `ShellType::detect()` with multi-strategy fallback — checks `$SHELL` env var first, then `dscl` on macOS, then `/etc/passwd` on Unix systems
-- **Settings Version Display**: Fixed settings UI and update checker displaying subcrate version "0.1.0" instead of the actual application version
-- **Shell Integration Install/Uninstall**: Fixed Install and Uninstall buttons in the shell integration section — now wired through to the actual installer
+- **Fast Window Shutdown**: Fixed slow app close (beachball on macOS) that scaled with number of open tabs — moved all blocking disk I/O (session save, command history, session loggers) to background threads, replaced long-sleeping status bar polling threads with 50ms interruptible loops, and signal pollers to stop at the start of shutdown so joins complete instantly
+- **Settings Sidebar Icon**: Fixed Input tab (⌨️) showing an empty box due to trailing Unicode variation selector (U+FE0F) that egui cannot render
+- **Miscellaneous Technical Symbol Rendering**: Fixed media control characters (⏺ ⏹ ⏸ ⏩ ⏪ etc., U+2300–U+23FF) rendering as colored emoji instead of monochrome symbols — extends the dingbat monochrome fix to cover the entire Miscellaneous Technical block
+- **Crate Package Size**: Fixed crates.io publish failure by excluding non-essential files (shader textures, gallery images, macOS .icns, design docs) — reduced package from 24.7MiB to 3.9MiB
+
+<details>
+<summary><strong>What's New in 0.18.0</strong></summary>
+
+### ✨ New Features
+
+- **Quick Settings Shader Toggles**: BG Shader and Cursor Shader toggle checkboxes in the settings UI quick settings strip
+- **Focus Event Forwarding**: Forward CSI focus-in/out sequences to PTYs with DECSET 1004 focus tracking enabled
+
+### 🐛 Bug Fixes
+
+- **Dingbat/Symbol Monochrome Rendering**: Fixed dingbat characters rendering as colorful emoji instead of monochrome symbols
+- **Focus Click Clipboard Loss**: Suppress first mouse click that focuses the window to prevent clipboard clearing
+- **Image Paste in Claude Code**: Fixed Cmd+V not forwarding to terminal when clipboard contains an image but no text
+- **Settings Sidebar Icons**: Fixed empty box rendering for several tab icons
+- **Shell Detection**: Improved `ShellType::detect()` with multi-strategy fallback
+- **Settings Version Display**: Fixed settings UI displaying subcrate version instead of app version
+- **Shell Integration Install/Uninstall**: Fixed Install and Uninstall buttons not working
 
 ### 🏗️ Architecture
 
 - **Workspace Crate Extraction**: Extracted 8 modules into dedicated workspace subcrates for maintainability
-  - **par-term-config**: Configuration system with watcher and type definitions
-  - **par-term-ssh**: SSH host management and discovery
-  - **par-term-keybindings**: Keybinding parsing, matching, and registry
-  - **par-term-scripting**: Scripting and observer system
-  - **par-term-update**: Self-update and update-check system
-  - **par-term-input**: Input sequence generation (keyboard/mouse → VT escape sequences)
-  - **par-term-mcp**: MCP (Model Context Protocol) stdio server
-  - **par-term-tmux**: tmux control mode integration
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.17.1</strong></summary>

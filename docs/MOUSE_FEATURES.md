@@ -141,7 +141,8 @@ Hold `Cmd` (macOS) or `Ctrl` (Windows/Linux) and click a detected file path to o
 - Paths with line numbers: `./src/main.rs:42` or `./src/main.rs:42:10`
 
 **Visual Feedback:**
-- Detected paths are highlighted in bright cyan with an underline
+- Detected paths are highlighted with a configurable color (default: bright cyan) and optional underline
+- Underline style (solid or stipple) and visibility are configurable
 - Cursor changes to hand pointer on hover
 
 **Editor Selection:**

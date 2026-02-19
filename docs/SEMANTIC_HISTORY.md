@@ -60,7 +60,7 @@ graph TD
 
 ### Path Detection
 
-Semantic history scans terminal output for file path patterns. Detected paths are highlighted in **bright cyan** with an underline to indicate they are clickable.
+Semantic history scans terminal output for file path patterns. Detected paths are highlighted with a configurable color (default: bright cyan `#4FC3F7`) and an optional underline to indicate they are clickable. The highlight color, underline visibility, and underline style (solid or stipple) are all configurable.
 
 Paths are detected when they start with:
 - `./` (current directory)
@@ -134,6 +134,15 @@ semantic_history_editor_mode: environment_variable
 # Custom editor command (only used with "custom" mode)
 # Supports {file}, {line}, {col} placeholders
 semantic_history_editor: "code -g {file}:{line}"
+
+# Link highlight color (default: bright cyan #4FC3F7)
+link_highlight_color: "#4FC3F7"
+
+# Show underlines on highlighted links (default: true)
+link_highlight_underline: true
+
+# Underline style: solid or stipple (default: stipple)
+link_underline_style: stipple
 ```
 
 ## Link Handler
@@ -173,6 +182,9 @@ Semantic history is configured in **Settings > Terminal > Semantic History**:
 - **Enable toggle** - Turn file path detection on or off
 - **Editor mode dropdown** - Select between Environment Variable, Custom, or System Default
 - **Custom editor command** - Text field for the editor command (shown only in Custom mode)
+- **Link highlight color** - Color picker for the highlight color applied to detected paths and URLs
+- **Link highlight underline** - Toggle underlines on highlighted links
+- **Link underline style** - Choose between Solid and Stipple (dotted) underline styles
 
 ## Examples
 

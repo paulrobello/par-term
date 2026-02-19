@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.19.0] - 2026-02-19
+
 ### Added
 
 - **Configurable Link Highlight Color**: Link highlight color for detected URLs and file paths is now configurable via `link_highlight_color` setting (default: bright cyan `#4FC3F7`), with a color picker in Settings > Terminal > Semantic History

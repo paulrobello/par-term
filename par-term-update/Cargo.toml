@@ -1,6 +1,6 @@
 [package]
 name = "par-term-update"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Self-update and update-check system for par-term terminal emulator"
@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration types (Config, UpdateCheckFrequency)
-par-term-config = { path = "../par-term-config", version = "0.1.1" }
+par-term-config = { path = "../par-term-config", version = "0.2.0" }
 
 # HTTP client for downloading updates and checking releases
 ureq = { version = "3.2.0", default-features = false, features = ["native-tls", "gzip"] }
