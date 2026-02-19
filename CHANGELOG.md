@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Dingbat/Symbol Monochrome Rendering**: Fixed dingbat characters (✳ ✴ ❇, etc.) rendering as colorful emoji instead of monochrome symbols using the terminal foreground color — characters in the Dingbats (U+2700-U+27BF), Miscellaneous Symbols (U+2600-U+26FF), and Miscellaneous Symbols and Arrows (U+2B00-U+2BFF) blocks now consistently render as text-colored symbols, fixing spinner animation inconsistencies in Claude Code (#194)
 - **Focus Click Clipboard Loss**: Suppress the first mouse click that focuses the window to prevent it from being forwarded to the PTY — without this, tmux (or other mouse-aware apps) would trigger a zero-char selection that clears the system clipboard, destroying any clipboard image
 - **Image Paste in Claude Code**: Fixed Cmd+V / menu Paste not forwarding to terminal when clipboard contains an image but no text — image-aware child processes (e.g., Claude Code) now receive Ctrl+V so they can handle image paste via their own clipboard access
 - **Settings Sidebar Icons**: Fixed empty box rendering for several tab icons — AiInspector, StatusBar, Input, and Advanced tabs now display correctly using emoji characters in egui's supported Unicode range
