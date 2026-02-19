@@ -640,11 +640,20 @@ impl WindowState {
                 )) = bounds_info
                     && let Some(pm) = tab.pane_manager_mut()
                 {
-                    let content_width = size.width as f32 - padding * 2.0 - content_inset_right;
-                    let content_height =
-                        size.height as f32 - content_offset_y - padding - status_bar_height;
+                    // Tmux layouts always have multiple panes; hide window padding if configured
+                    let effective_padding = if self.config.hide_window_padding_on_split {
+                        0.0
+                    } else {
+                        padding
+                    };
+                    let content_width =
+                        size.width as f32 - effective_padding * 2.0 - content_inset_right;
+                    let content_height = size.height as f32
+                        - content_offset_y
+                        - effective_padding
+                        - status_bar_height;
                     let bounds = crate::pane::PaneBounds::new(
-                        padding,
+                        effective_padding,
                         content_offset_y,
                         content_width,
                         content_height,
@@ -655,7 +664,7 @@ impl WindowState {
                         "Set pane manager bounds: {}x{} at ({}, {})",
                         content_width,
                         content_height,
-                        padding,
+                        effective_padding,
                         content_offset_y
                     );
                 }

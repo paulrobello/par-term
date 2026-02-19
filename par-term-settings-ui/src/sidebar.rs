@@ -257,6 +257,7 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "columns",
             "rows",
             "padding",
+            "hide padding on split",
             "allow title change",
             // Transparency
             "opacity",

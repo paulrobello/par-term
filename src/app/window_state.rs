@@ -3398,15 +3398,25 @@ impl WindowState {
             let pane_0_bg: Option<crate::pane::PaneBackground> = None;
 
             let render_result = if has_pane_manager {
+                // When splits are active and hide_window_padding_on_split is enabled,
+                // use 0 padding so panes extend to the window edges
+                let effective_padding = if pane_count > 1
+                    && self.config.hide_window_padding_on_split
+                {
+                    0.0
+                } else {
+                    sizing.padding
+                };
+
                 // Render panes from pane manager - inline data gathering to avoid borrow conflicts
                 let content_width = sizing.size.width as f32
-                    - sizing.padding * 2.0
+                    - effective_padding * 2.0
                     - sizing.content_offset_x
                     - sizing.content_inset_right;
                 let content_height = sizing.size.height as f32
                     - sizing.content_offset_y
                     - sizing.content_inset_bottom
-                    - sizing.padding
+                    - effective_padding
                     - sizing.status_bar_height;
 
                 // Gather all necessary data upfront while we can borrow tab_manager
@@ -3422,7 +3432,7 @@ impl WindowState {
                         if let Some(pm) = &mut tab.pane_manager {
                             // Update bounds
                             let bounds = crate::pane::PaneBounds::new(
-                                sizing.padding + sizing.content_offset_x,
+                                effective_padding + sizing.content_offset_x,
                                 sizing.content_offset_y,
                                 content_width,
                                 content_height,

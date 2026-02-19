@@ -235,6 +235,11 @@ pub struct Config {
     #[serde(default = "crate::defaults::window_padding")]
     pub window_padding: f32,
 
+    /// Automatically hide window padding when panes are split
+    /// When true (default), window padding becomes 0 when the active tab has multiple panes
+    #[serde(default = "crate::defaults::bool_true")]
+    pub hide_window_padding_on_split: bool,
+
     /// Window opacity/transparency (0.0 = fully transparent, 1.0 = fully opaque)
     #[serde(default = "crate::defaults::window_opacity")]
     pub window_opacity: f32,
@@ -1892,6 +1897,7 @@ impl Default for Config {
             maximize_throughput: crate::defaults::maximize_throughput(),
             throughput_render_interval_ms: crate::defaults::throughput_render_interval_ms(),
             window_padding: crate::defaults::window_padding(),
+            hide_window_padding_on_split: crate::defaults::bool_true(),
             window_opacity: crate::defaults::window_opacity(),
             window_always_on_top: crate::defaults::bool_false(),
             window_decorations: crate::defaults::bool_true(),

@@ -303,6 +303,20 @@ fn show_display_section(
                 *changes_this_frame = true;
             }
         });
+
+        if ui
+            .checkbox(
+                &mut settings.config.hide_window_padding_on_split,
+                "Hide padding on split",
+            )
+            .on_hover_text(
+                "Automatically remove window padding when panes are split (panes have their own padding)",
+            )
+            .changed()
+        {
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
     });
 }
 

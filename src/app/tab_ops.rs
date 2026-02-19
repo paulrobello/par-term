@@ -665,14 +665,22 @@ impl WindowState {
             if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) =
                 bounds_info
             {
+                // After split there will be multiple panes, so use 0 padding if configured
+                let effective_padding = if self.config.hide_window_padding_on_split {
+                    0.0
+                } else {
+                    padding
+                };
                 // Scale status_bar_height from logical to physical pixels
                 let physical_status_bar_height =
                     (status_bar_height + custom_status_bar_height) * scale;
-                let content_width = size.width as f32 - padding * 2.0;
-                let content_height =
-                    size.height as f32 - content_offset_y - padding - physical_status_bar_height;
+                let content_width = size.width as f32 - effective_padding * 2.0;
+                let content_height = size.height as f32
+                    - content_offset_y
+                    - effective_padding
+                    - physical_status_bar_height;
                 let bounds = crate::pane::PaneBounds::new(
-                    padding,
+                    effective_padding,
                     content_offset_y,
                     content_width,
                     content_height,
@@ -744,14 +752,22 @@ impl WindowState {
             if let Some((size, padding, content_offset_y, cell_width, cell_height, scale)) =
                 bounds_info
             {
+                // After split there will be multiple panes, so use 0 padding if configured
+                let effective_padding = if self.config.hide_window_padding_on_split {
+                    0.0
+                } else {
+                    padding
+                };
                 // Scale status_bar_height from logical to physical pixels
                 let physical_status_bar_height =
                     (status_bar_height + custom_status_bar_height) * scale;
-                let content_width = size.width as f32 - padding * 2.0;
-                let content_height =
-                    size.height as f32 - content_offset_y - padding - physical_status_bar_height;
+                let content_width = size.width as f32 - effective_padding * 2.0;
+                let content_height = size.height as f32
+                    - content_offset_y
+                    - effective_padding
+                    - physical_status_bar_height;
                 let bounds = crate::pane::PaneBounds::new(
-                    padding,
+                    effective_padding,
                     content_offset_y,
                     content_width,
                     content_height,

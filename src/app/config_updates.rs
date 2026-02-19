@@ -233,7 +233,8 @@ impl ConfigChanges {
                 || new.font_hinting != old.font_hinting
                 || new.font_thin_strokes != old.font_thin_strokes
                 || (new.minimum_contrast - old.minimum_contrast).abs() > f32::EPSILON,
-            padding: (new.window_padding - old.window_padding).abs() > f32::EPSILON,
+            padding: (new.window_padding - old.window_padding).abs() > f32::EPSILON
+                || new.hide_window_padding_on_split != old.hide_window_padding_on_split,
 
             shader_hot_reload: new.shader_hot_reload != old.shader_hot_reload,
             shader_hot_reload_delay: new.shader_hot_reload_delay != old.shader_hot_reload_delay,
