@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Default Window Padding**: Changed default `window_padding` from 10.0 to 0.0
+- **Default Font Hinting**: Changed default `font_hinting` from true to false for a softer, more natural appearance
 
 ### Fixed
 
