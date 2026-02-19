@@ -484,7 +484,7 @@ jobs:
       - name: Get version
         id: get_version
         run: |
-          version=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[0].version')
+          version=$(cargo metadata --format-version 1 --no-deps | jq -r '.packages[] | select(.name == "par-term") | .version')
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Package version: $version"
 
