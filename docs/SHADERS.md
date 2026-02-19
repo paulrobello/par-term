@@ -1,6 +1,6 @@
 # Included Shaders
 
-Par-term includes 49 ready-to-use GLSL shaders (37 background + 12 cursor). This document lists all available shaders organized by category.
+Par-term includes 50 ready-to-use GLSL shaders (38 background + 12 cursor). This document lists all available shaders organized by category.
 
 **[View Shader Gallery with Screenshots](https://paulrobello.github.io/par-term/)**
 
@@ -33,6 +33,7 @@ Background shaders are full-screen post-processing effects applied to the termin
 | `galaxy.glsl` | Swirling galaxy background animation with cosmic dust |
 | `clouds.glsl` | Animated procedural clouds with blue sky gradient |
 | `rain.glsl` | Rain on glass effect with fog and water droplets (Heartfelt port). **Example of:** [`iChannel0`](CUSTOM_SHADERS.md#texture-channel-uniforms) usage. |
+| `rain-glass.glsl` | Rain on glass with procedural dark nebula background — no texture needed. Configurable color palette and noise settings. |
 | `just-snow.glsl` | Falling snow particles overlay |
 | `fireworks.glsl` | Fireworks particle explosion animation |
 | `fireworks-rockets.glsl` | Fireworks with rocket trails before explosion |

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Rain Glass Shader**: New `rain-glass.glsl` background shader — rain on glass with a procedural dark nebula background that requires no texture. Configurable color palette, noise parameters, and fog settings via `#define` knobs at the top of the file
 - **Inactive Tab Outline-Only Mode**: New `tab_inactive_outline_only` option renders inactive tabs with just a border stroke and no background fill — hovered inactive tabs brighten the outline for visual feedback
 - **Pane Background Darken Slider**: Added a darken control (0.0–1.0) for per-pane custom background images, allowing backgrounds to be dimmed independently from opacity — darken reduces RGB towards black while opacity controls transparency
 - **Real-Time Pane Background Preview**: Per-pane background settings (image, mode, opacity, darken) now apply instantly as values change — removed the manual "Apply to pane" button
