@@ -875,6 +875,20 @@ impl WindowManager {
                         tab.restore_pane_layout(layout, &self.config, Arc::clone(&self.runtime));
                     }
                 }
+
+                // Restore user titles and custom colors
+                for (tab_idx, session_tab) in session_window.tabs.iter().enumerate() {
+                    if let Some(tab) = tabs.get_mut(tab_idx) {
+                        if let Some(ref user_title) = session_tab.user_title {
+                            tab.title = user_title.clone();
+                            tab.user_named = true;
+                            tab.has_default_title = false;
+                        }
+                        if let Some(color) = session_tab.custom_color {
+                            tab.set_custom_color(color);
+                        }
+                    }
+                }
             }
         }
 
@@ -2829,6 +2843,23 @@ impl WindowManager {
                 &tab_cwds,
                 window_snapshot.active_tab_index,
             );
+
+            // Restore user titles and custom colors from arrangement
+            if let Some((_window_id, window_state)) = self.windows.iter_mut().last() {
+                let tabs = window_state.tab_manager.tabs_mut();
+                for (tab_idx, snapshot) in window_snapshot.tabs.iter().enumerate() {
+                    if let Some(tab) = tabs.get_mut(tab_idx) {
+                        if let Some(ref user_title) = snapshot.user_title {
+                            tab.title = user_title.clone();
+                            tab.user_named = true;
+                            tab.has_default_title = false;
+                        }
+                        if let Some(color) = snapshot.custom_color {
+                            tab.set_custom_color(color);
+                        }
+                    }
+                }
+            }
         }
 
         // If no windows were created (e.g., empty arrangement), create one default window

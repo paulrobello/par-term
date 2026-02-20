@@ -34,6 +34,12 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
                 SessionTab {
                     cwd: tab.get_cwd(),
                     title: tab.title.clone(),
+                    custom_color: tab.custom_color,
+                    user_title: if tab.user_named {
+                        Some(tab.title.clone())
+                    } else {
+                        None
+                    },
                     pane_layout,
                 }
             })

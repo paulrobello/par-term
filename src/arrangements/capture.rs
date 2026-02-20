@@ -80,6 +80,12 @@ pub fn capture_arrangement(
             .map(|tab| TabSnapshot {
                 cwd: tab.get_cwd(),
                 title: tab.title.clone(),
+                custom_color: tab.custom_color,
+                user_title: if tab.user_named {
+                    Some(tab.title.clone())
+                } else {
+                    None
+                },
             })
             .collect();
 

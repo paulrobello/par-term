@@ -146,6 +146,8 @@ mod tests {
                 tabs: vec![TabSnapshot {
                     cwd: Some("/home/user/work".to_string()),
                     title: "work".to_string(),
+                    custom_color: None,
+                    user_title: None,
                 }],
                 active_tab_index: 0,
             }],

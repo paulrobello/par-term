@@ -291,6 +291,29 @@ graph LR
 
 When disabled (the default), inactive tabs render with a dimmed background fill matching their assigned tab color. When enabled, inactive tabs show only the border stroke, and hovered inactive tabs increase the outline brightness instead of adding a fill.
 
+## Tab Title Mode
+
+Control how tab titles are automatically updated:
+
+| Mode | Description |
+|------|-------------|
+| `auto` | OSC title first, then working directory from shell integration, then keep default "Tab N" (default) |
+| `osc_only` | Only update from explicit OSC escape sequences; never auto-set from CWD |
+
+```yaml
+tab_title_mode: auto
+```
+
+**Settings UI:** Settings > Window > Tab Bar > "Tab title mode"
+
+### Renaming Tabs
+
+Right-click any tab and select **Rename Tab** to set a custom name. Manually named tabs are static — they are never auto-updated regardless of the title mode setting.
+
+To revert a renamed tab to automatic title updates, right-click and rename with a blank name.
+
+**Session persistence:** User-set tab names and custom colors are preserved across session save/restore and in window arrangements.
+
 ## Tab Appearance
 
 Customize the visual style of tabs:
@@ -330,6 +353,9 @@ tab_bar_position: top
 
 # Tab bar visibility: "always", "when_multiple", "never"
 tab_bar_mode: "always"
+
+# Tab title mode: "auto", "osc_only"
+tab_title_mode: auto
 
 # Tab style preset: "dark", "light", "compact", "minimal", "high_contrast"
 tab_style: dark

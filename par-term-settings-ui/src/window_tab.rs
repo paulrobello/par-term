@@ -14,7 +14,7 @@ use super::SettingsUI;
 use super::section::{SLIDER_WIDTH, collapsing_section};
 use par_term_config::{
     DividerStyle, PaneTitlePosition, PowerPreference, TabBarMode, TabBarPosition, TabStyle,
-    VsyncMode, WindowType,
+    TabTitleMode, VsyncMode, WindowType,
 };
 use std::collections::HashSet;
 
@@ -958,6 +958,36 @@ fn show_tab_bar_section(
                     1 => TabBarMode::WhenMultiple,
                     2 => TabBarMode::Never,
                     _ => TabBarMode::WhenMultiple,
+                };
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        });
+
+        ui.horizontal(|ui| {
+            ui.label("Tab title mode:");
+            let current = match settings.config.tab_title_mode {
+                TabTitleMode::Auto => 0,
+                TabTitleMode::OscOnly => 1,
+            };
+            let mut selected = current;
+            egui::ComboBox::from_id_salt("window_tab_title_mode")
+                .selected_text(match current {
+                    0 => "Auto (OSC + CWD)",
+                    1 => "OSC only",
+                    _ => "Unknown",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut selected, 0, "Auto (OSC + CWD)")
+                        .on_hover_text("Use OSC title, fall back to working directory");
+                    ui.selectable_value(&mut selected, 1, "OSC only")
+                        .on_hover_text("Only use titles set by OSC escape sequences");
+                });
+            if selected != current {
+                settings.config.tab_title_mode = match selected {
+                    0 => TabTitleMode::Auto,
+                    1 => TabTitleMode::OscOnly,
+                    _ => TabTitleMode::Auto,
                 };
                 settings.has_changes = true;
                 *changes_this_frame = true;

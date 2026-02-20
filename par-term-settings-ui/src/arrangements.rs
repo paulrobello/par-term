@@ -41,6 +41,14 @@ pub struct TabSnapshot {
     /// Tab title
     #[serde(default)]
     pub title: String,
+
+    /// Custom tab color
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_color: Option<[u8; 3]>,
+
+    /// User-set tab title
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_title: Option<String>,
 }
 
 /// Snapshot of a single window's state

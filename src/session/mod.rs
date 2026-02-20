@@ -39,6 +39,12 @@ pub struct SessionTab {
     pub cwd: Option<String>,
     /// Tab title
     pub title: String,
+    /// Custom tab color (only saved when user set a color)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_color: Option<[u8; 3]>,
+    /// User-set tab title (present only when user manually named the tab)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_title: Option<String>,
     /// Pane layout tree (None = single pane, use cwd above)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pane_layout: Option<SessionPaneNode>,

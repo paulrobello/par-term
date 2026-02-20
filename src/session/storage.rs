@@ -97,6 +97,8 @@ mod tests {
                 tabs: vec![SessionTab {
                     cwd: Some("/home/user/work".to_string()),
                     title: "work".to_string(),
+                    custom_color: None,
+                    user_title: None,
                     pane_layout: None,
                 }],
                 active_tab_index: 0,
@@ -173,6 +175,8 @@ mod tests {
                 tabs: vec![SessionTab {
                     cwd: Some("/home/user".to_string()),
                     title: "dev".to_string(),
+                    custom_color: None,
+                    user_title: None,
                     pane_layout: Some(SessionPaneNode::Split {
                         direction: SplitDirection::Vertical,
                         ratio: 0.5,

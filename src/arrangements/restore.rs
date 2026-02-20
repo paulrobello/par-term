@@ -172,10 +172,14 @@ mod tests {
                     TabSnapshot {
                         cwd: Some("/home/user".to_string()),
                         title: "tab1".to_string(),
+                        custom_color: None,
+                        user_title: None,
                     },
                     TabSnapshot {
                         cwd: None,
                         title: "tab2".to_string(),
+                        custom_color: None,
+                        user_title: None,
                     },
                 ],
                 active_tab_index: 0,

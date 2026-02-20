@@ -3908,11 +3908,15 @@ impl WindowState {
             TabBarAction::RenameTab(id, name) => {
                 if let Some(tab) = self.tab_manager.get_tab_mut(id) {
                     if name.is_empty() {
-                        // Clear user name — revert to auto title
+                        // Blank name: revert to auto title mode
                         tab.user_named = false;
+                        tab.has_default_title = true;
+                        // Trigger immediate title update
+                        tab.update_title(self.config.tab_title_mode);
                     } else {
                         tab.title = name;
                         tab.user_named = true;
+                        tab.has_default_title = false;
                     }
                 }
                 if let Some(window) = &self.window {
