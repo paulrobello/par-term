@@ -453,6 +453,7 @@ impl TabManager {
         };
         let working_dir = self.tabs[source_idx].get_cwd();
         let custom_color = self.tabs[source_idx].custom_color;
+        let custom_icon = self.tabs[source_idx].custom_icon.clone();
 
         let id = self.next_tab_id;
         self.next_tab_id += 1;
@@ -465,6 +466,9 @@ impl TabManager {
         if let Some(color) = custom_color {
             tab.set_custom_color(color);
         }
+
+        // Copy custom icon from source
+        tab.custom_icon = custom_icon;
 
         // Insert after source tab
         self.tabs.insert(source_idx + 1, tab);

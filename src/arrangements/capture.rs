@@ -86,6 +86,7 @@ pub fn capture_arrangement(
                 } else {
                     None
                 },
+                custom_icon: tab.custom_icon.clone(),
             })
             .collect();
 

@@ -99,6 +99,7 @@ mod tests {
                     title: "work".to_string(),
                     custom_color: None,
                     user_title: None,
+                    custom_icon: None,
                     pane_layout: None,
                 }],
                 active_tab_index: 0,
@@ -177,6 +178,7 @@ mod tests {
                     title: "dev".to_string(),
                     custom_color: None,
                     user_title: None,
+                    custom_icon: None,
                     pane_layout: Some(SessionPaneNode::Split {
                         direction: SplitDirection::Vertical,
                         ratio: 0.5,

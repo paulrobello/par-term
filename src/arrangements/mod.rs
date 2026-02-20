@@ -121,6 +121,7 @@ mod tests {
                     title: "bash".to_string(),
                     custom_color: None,
                     user_title: None,
+                    custom_icon: None,
                 }],
                 active_tab_index: 0,
             }],

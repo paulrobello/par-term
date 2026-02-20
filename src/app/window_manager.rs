@@ -887,6 +887,9 @@ impl WindowManager {
                         if let Some(color) = session_tab.custom_color {
                             tab.set_custom_color(color);
                         }
+                        if let Some(ref icon) = session_tab.custom_icon {
+                            tab.custom_icon = Some(icon.clone());
+                        }
                     }
                 }
             }
@@ -2856,6 +2859,9 @@ impl WindowManager {
                         }
                         if let Some(color) = snapshot.custom_color {
                             tab.set_custom_color(color);
+                        }
+                        if let Some(ref icon) = snapshot.custom_icon {
+                            tab.custom_icon = Some(icon.clone());
                         }
                     }
                 }

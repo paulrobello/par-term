@@ -40,6 +40,7 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
                     } else {
                         None
                     },
+                    custom_icon: tab.custom_icon.clone(),
                     pane_layout,
                 }
             })

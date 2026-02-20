@@ -49,6 +49,10 @@ pub struct TabSnapshot {
     /// User-set tab title
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_title: Option<String>,
+
+    /// Custom icon set by user
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_icon: Option<String>,
 }
 
 /// Snapshot of a single window's state
@@ -330,6 +334,9 @@ mod tests {
                 tabs: vec![TabSnapshot {
                     cwd: Some("/home/user".to_string()),
                     title: "bash".to_string(),
+                    custom_color: None,
+                    user_title: None,
+                    custom_icon: None,
                 }],
                 active_tab_index: 0,
             }],

@@ -45,6 +45,9 @@ pub struct SessionTab {
     /// User-set tab title (present only when user manually named the tab)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_title: Option<String>,
+    /// Custom icon set by user (persists across sessions)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_icon: Option<String>,
     /// Pane layout tree (None = single pane, use cwd above)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pane_layout: Option<SessionPaneNode>,
