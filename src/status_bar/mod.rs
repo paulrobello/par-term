@@ -19,6 +19,13 @@ use config::StatusBarSection;
 use system_monitor::SystemMonitor;
 use widgets::{WidgetContext, sorted_widgets_for_section, widget_text};
 
+/// Actions that the status bar can request from the window.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StatusBarAction {
+    /// User clicked the update-available widget.
+    ShowUpdateDialog,
+}
+
 /// Snapshot of git repository status.
 #[derive(Debug, Clone, Default)]
 pub struct GitStatus {
@@ -293,16 +300,17 @@ impl StatusBarUI {
 
     /// Render the status bar.
     ///
-    /// Returns the height consumed by the status bar (0 if hidden).
+    /// Returns the height consumed by the status bar (0 if hidden) and an
+    /// optional action requested by the user (e.g. clicking the update widget).
     pub fn render(
         &mut self,
         ctx: &egui::Context,
         config: &Config,
         session_vars: &SessionVariables,
         is_fullscreen: bool,
-    ) -> f32 {
+    ) -> (f32, Option<StatusBarAction>) {
         if !config.status_bar_enabled || self.should_hide(config, is_fullscreen) {
-            return 0.0;
+            return (0.0, None);
         }
 
         // Update git poller cwd from active tab's path
@@ -383,10 +391,12 @@ impl StatusBarUI {
                 .monospace()
         };
 
+        let mut action: Option<StatusBarAction> = None;
+
         egui::Area::new(egui::Id::new("status_bar"))
             .fixed_pos(bar_pos)
             .order(egui::Order::Background)
-            .interactable(false)
+            .interactable(true)
             .show(ctx, |ui| {
                 // Constrain the outer UI so the frame cannot grow beyond the
                 // intended total width (content + margins).
@@ -466,7 +476,24 @@ impl StatusBarUI {
                                             ui.label(make_sep(separator));
                                         }
                                         first = false;
-                                        ui.label(make_rich_text(&text));
+                                        if w.id == config::WidgetId::UpdateAvailable {
+                                            let update_text = egui::RichText::new(&text)
+                                                .color(egui::Color32::from_rgb(255, 200, 50))
+                                                .size(font_size)
+                                                .monospace();
+                                            if ui
+                                                .add(
+                                                    egui::Label::new(update_text)
+                                                        .sense(egui::Sense::click()),
+                                                )
+                                                .clicked()
+                                            {
+                                                action =
+                                                    Some(StatusBarAction::ShowUpdateDialog);
+                                            }
+                                        } else {
+                                            ui.label(make_rich_text(&text));
+                                        }
                                     }
                                 },
                             );
@@ -475,7 +502,7 @@ impl StatusBarUI {
                 });
             });
 
-        bar_height
+        (bar_height, action)
     }
 }
 

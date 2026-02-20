@@ -314,6 +314,9 @@ pub struct WindowState {
     // File transfer state
     /// File transfer UI state (active transfers, pending saves/uploads, dialog state)
     pub(crate) file_transfer_state: crate::app::file_transfers::FileTransferState,
+
+    /// Whether to show the update dialog overlay (set when user clicks the update widget)
+    pub(crate) show_update_dialog: bool,
 }
 
 /// Extract an `f32` from a JSON value that may be an integer or float.
@@ -472,6 +475,8 @@ impl WindowState {
             copy_mode: crate::copy_mode::CopyModeState::new(),
 
             file_transfer_state: crate::app::file_transfers::FileTransferState::default(),
+
+            show_update_dialog: false,
         }
     }
 
@@ -3189,12 +3194,17 @@ impl WindowState {
 
                     // Render custom status bar
                     if let Some(ref session_vars) = status_bar_session_vars {
-                        self.status_bar_ui.render(
+                        let (_bar_height, status_bar_action) = self.status_bar_ui.render(
                             ctx,
                             &self.config,
                             session_vars,
                             self.is_fullscreen,
                         );
+                        if status_bar_action
+                            == Some(crate::status_bar::StatusBarAction::ShowUpdateDialog)
+                        {
+                            self.show_update_dialog = true;
+                        }
                     }
 
                     // Settings are now handled by standalone SettingsWindow only
