@@ -33,7 +33,7 @@ Background shaders are full-screen post-processing effects applied to the termin
 | `galaxy.glsl` | Swirling galaxy background animation with cosmic dust |
 | `clouds.glsl` | Animated procedural clouds with blue sky gradient |
 | `rain.glsl` | Rain on glass effect with fog and water droplets (Heartfelt port). **Example of:** [`iChannel0`](CUSTOM_SHADERS.md#texture-channel-uniforms) usage. |
-| `rain-glass.glsl` | Rain on glass with procedural dark nebula background — no texture needed. Configurable color palette and noise settings. |
+| `rain-glass.glsl` | Rain on glass with a procedural dark nebula background — no texture required. Configurable color palette, noise parameters, and fog settings via `#define` knobs at the top of the file. |
 | `just-snow.glsl` | Falling snow particles overlay |
 | `fireworks.glsl` | Fireworks particle explosion animation |
 | `fireworks-rockets.glsl` | Fireworks with rocket trails before explosion |

@@ -18,6 +18,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
   - [Tab Style Variants](#tab-style-variants)
   - [Tab Stretch](#tab-stretch)
   - [HTML Titles](#html-titles)
+  - [Inactive Tab Outline-Only Mode](#inactive-tab-outline-only-mode)
 - [Tab Appearance](#tab-appearance)
 - [Configuration](#configuration)
 - [Related Documentation](#related-documentation)
@@ -69,11 +70,11 @@ The new tab button (`+`) on the tab bar is a split button:
 - **Left portion** (`+`): Creates a default tab (existing behavior)
 - **Right portion** (`▾`): Opens a profile dropdown menu
 
-The dropdown shows:
+The dropdown appears anchored to the top-right corner of the window and shows:
 1. **Default** — creates a tab using global terminal config
 2. All user profiles listed in order with their icons
 
-Click a profile to open a new tab with that profile's settings (working directory, shell, command, tab name, etc.).
+Click a profile to open a new tab with that profile's settings (working directory, shell, command, tab name, etc.). Press `Escape` or click outside the dropdown to dismiss it.
 
 > **📝 Note:** The chevron only appears when one or more profiles exist. Works in both horizontal and vertical tab bar layouts.
 
@@ -188,12 +189,12 @@ Control when the tab bar appears:
 
 | Mode | Description |
 |------|-------------|
-| `always` | Tab bar always visible |
-| `when_multiple` | Show only when 2+ tabs exist (default) |
+| `always` | Tab bar always visible (default) |
+| `when_multiple` | Show only when 2+ tabs exist |
 | `never` | Tab bar never shown |
 
 ```yaml
-tab_bar_visibility: "when_multiple"
+tab_bar_mode: "always"
 ```
 
 ### Tab Style Variants
@@ -265,6 +266,31 @@ tab_html_titles: true
 
 > **⚠️ Note:** When `tab_html_titles` is disabled, HTML tags are stripped from titles.
 
+### Inactive Tab Outline-Only Mode
+
+The `tab_inactive_outline_only` option renders inactive tabs with just a border stroke and no background fill. This produces a cleaner, more minimal look where only the active tab has a solid background. Hovered inactive tabs brighten the outline for visual feedback.
+
+```yaml
+tab_inactive_outline_only: true  # default: false
+```
+
+**Settings UI:** Settings > Window > Tab Bar > "Inactive tabs outline only"
+
+```mermaid
+graph LR
+    Active["Active Tab<br/>(solid fill)"]
+    Inactive1["Inactive Tab<br/>(outline only)"]
+    Inactive2["Inactive Tab<br/>(outline only)"]
+    Hovered["Hovered Tab<br/>(bright outline)"]
+
+    style Active fill:#0d47a1,stroke:#2196f3,stroke-width:3px,color:#ffffff
+    style Inactive1 fill:#1E1E1E,stroke:#78909c,stroke-width:2px,color:#B0B0B0
+    style Inactive2 fill:#1E1E1E,stroke:#78909c,stroke-width:2px,color:#B0B0B0
+    style Hovered fill:#1E1E1E,stroke:#E0E0E0,stroke-width:3px,color:#ffffff
+```
+
+When disabled (the default), inactive tabs render with a dimmed background fill matching their assigned tab color. When enabled, inactive tabs show only the border stroke, and hovered inactive tabs increase the outline brightness instead of adding a fill.
+
 ## Tab Appearance
 
 Customize the visual style of tabs:
@@ -303,7 +329,7 @@ Complete tab configuration reference:
 tab_bar_position: top
 
 # Tab bar visibility: "always", "when_multiple", "never"
-tab_bar_visibility: "when_multiple"
+tab_bar_mode: "always"
 
 # Tab style preset: "dark", "light", "compact", "minimal", "high_contrast"
 tab_style: dark
@@ -316,6 +342,9 @@ tab_bar_width: 160.0  # Sidebar width for left position
 # Tab colors
 tab_active_color: "blue"
 tab_inactive_color: "gray"
+
+# Inactive tab outline-only rendering (no background fill)
+tab_inactive_outline_only: false
 
 # Tab sizing
 tab_stretch_to_fill: true

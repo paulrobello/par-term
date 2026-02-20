@@ -27,7 +27,7 @@ The status bar displays contextual information at the top or bottom of the termi
 graph LR
     Left["Left Section\nUser@Host │ Directory │ Git Branch"]
     Center["Center Section\nCurrent Command"]
-    Right["Right Section\nBell │ Clock"]
+    Right["Right Section\nBell │ ⬆ Update │ Clock"]
 
     Left --- Center --- Right
 
@@ -48,7 +48,7 @@ status_bar_enabled: true
 
 ## Built-in Widgets
 
-par-term includes 10 built-in widgets:
+par-term includes 11 built-in widgets:
 
 | Widget | Description | Default Section | Default State |
 |--------|-------------|-----------------|---------------|
@@ -60,6 +60,7 @@ par-term includes 10 built-in widgets:
 | **Memory Usage** | Used/total memory (e.g., "4.0 GB / 16.0 GB") | Right | Disabled |
 | **Network Status** | Receive/transmit rates (KB/s, MB/s, GB/s) | Right | Disabled |
 | **Bell Indicator** | Terminal bell count (shown when > 0) | Right | Enabled |
+| **UpdateAvailable** | Yellow up-arrow with available version (e.g., "⬆ v0.20.0") | Right | Enabled |
 | **Current Command** | Currently executing shell command | Center | Enabled |
 | **Custom Text** | User-defined text with variable interpolation | Configurable | User-created |
 
@@ -104,6 +105,14 @@ System monitoring widgets are **disabled by default** to avoid unnecessary resou
 
 When any system widget is enabled, a background monitoring thread starts polling at the configured interval.
 
+### UpdateAvailable
+
+Displays a yellow up-arrow icon followed by the available version number when a newer version of par-term is detected.
+
+**Example output:** `⬆ v0.20.0`
+
+The widget auto-hides when no update is available, so it only appears when there is something to act on. Clicking the widget opens the update dialog overlay, which provides options to install the update or dismiss the notification.
+
 ## Layout
 
 ### Three-Section Layout
@@ -122,7 +131,7 @@ Widgets within each section are separated by a configurable separator character 
 |---------|-------------------|
 | **Left** | User@Hostname, Current Directory, Git Branch |
 | **Center** | Current Command |
-| **Right** | CPU (off), Memory (off), Network (off), Bell, Clock |
+| **Right** | CPU (off), Memory (off), Network (off), Bell, UpdateAvailable, Clock |
 
 Widgets can be moved between sections and reordered via the Settings UI.
 
@@ -299,10 +308,14 @@ status_bar_widgets:
     enabled: true
     section: right
     order: 3
-  - id: Clock
+  - id: UpdateAvailable
     enabled: true
     section: right
     order: 4
+  - id: Clock
+    enabled: true
+    section: right
+    order: 5
 ```
 
 ## Settings UI

@@ -3274,25 +3274,25 @@ impl WindowState {
                     // Render update dialog overlay
                     if self.show_update_dialog {
                         // Poll for update install completion
-                        if let Some(ref rx) = self.update_install_receiver {
-                            if let Ok(result) = rx.try_recv() {
-                                match result {
-                                    Ok(update_result) => {
-                                        self.update_install_status = Some(format!(
-                                            "Updated to v{}! Restart par-term to use the new version.",
-                                            update_result.new_version
-                                        ));
-                                        self.update_installing = false;
-                                        self.status_bar_ui.update_available_version = None;
-                                    }
-                                    Err(e) => {
-                                        self.update_install_status =
-                                            Some(format!("Update failed: {}", e));
-                                        self.update_installing = false;
-                                    }
+                        if let Some(ref rx) = self.update_install_receiver
+                            && let Ok(result) = rx.try_recv()
+                        {
+                            match result {
+                                Ok(update_result) => {
+                                    self.update_install_status = Some(format!(
+                                        "Updated to v{}! Restart par-term to use the new version.",
+                                        update_result.new_version
+                                    ));
+                                    self.update_installing = false;
+                                    self.status_bar_ui.update_available_version = None;
                                 }
-                                self.update_install_receiver = None;
+                                Err(e) => {
+                                    self.update_install_status =
+                                        Some(format!("Update failed: {}", e));
+                                    self.update_installing = false;
+                                }
                             }
+                            self.update_install_receiver = None;
                         }
 
                         if let Some(ref update_result) = self.last_update_result {

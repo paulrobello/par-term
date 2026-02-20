@@ -57,12 +57,10 @@ impl WindowState {
             .tab_manager
             .active_tab()
             .is_some_and(|t| t.mouse.hovered_url.is_some());
-        if had_hovered_url {
-            if let Some(window) = &self.window {
-                window.set_cursor(winit::window::CursorIcon::Text);
-                let title = self.format_title(&self.config.window_title);
-                window.set_title(&title);
-            }
+        if had_hovered_url && let Some(window) = &self.window {
+            window.set_cursor(winit::window::CursorIcon::Text);
+            let title = self.format_title(&self.config.window_title);
+            window.set_title(&title);
         }
 
         // Clear and rebuild detected URLs

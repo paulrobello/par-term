@@ -1,6 +1,6 @@
 [package]
 name = "par-term-tmux"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "tmux control mode integration for par-term terminal emulator"
@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration (PaneId, TabId)
-par-term-config = { path = "../par-term-config", version = "0.2.0" }
+par-term-config = { path = "../par-term-config", version = "0.3.0" }
 
 # Terminal emulator core (tmux control mode parser)
 par-term-emu-core-rust = { version = "0.39.1", default-features = false, features = ["rust-only"] }

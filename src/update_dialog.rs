@@ -56,17 +56,17 @@ pub fn render(
                 ui.add_space(12.0);
 
                 // Release notes
-                if let Some(ref notes) = info.release_notes {
-                    if !notes.is_empty() {
-                        ui.label(egui::RichText::new("Release Notes").strong());
-                        ui.add_space(4.0);
-                        egui::ScrollArea::vertical()
-                            .max_height(200.0)
-                            .show(ui, |ui| {
-                                ui.label(notes);
-                            });
-                        ui.add_space(8.0);
-                    }
+                if let Some(ref notes) = info.release_notes
+                    && !notes.is_empty()
+                {
+                    ui.label(egui::RichText::new("Release Notes").strong());
+                    ui.add_space(4.0);
+                    egui::ScrollArea::vertical()
+                        .max_height(200.0)
+                        .show(ui, |ui| {
+                            ui.label(notes);
+                        });
+                    ui.add_space(8.0);
                 }
 
                 // Release URL link

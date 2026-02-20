@@ -70,7 +70,7 @@ impl WidgetId {
             WidgetId::Clock => "\u{1f551}",            // clock emoji
             WidgetId::UsernameHostname => "\u{1f464}", // bust in silhouette
             WidgetId::CurrentDirectory => "\u{1f4c2}", // open file folder
-            WidgetId::GitBranch => "\u{1f500}",         // twisted rightwards arrows (branch)
+            WidgetId::GitBranch => "\u{1f500}",        // twisted rightwards arrows (branch)
             WidgetId::CpuUsage => "\u{1f4bb}",         // laptop
             WidgetId::MemoryUsage => "\u{1f4be}",      // floppy disk
             WidgetId::NetworkStatus => "\u{1f310}",    // globe with meridians

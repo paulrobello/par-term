@@ -1,6 +1,6 @@
 [package]
 name = "par-term-input"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 authors = ["Paul Robello <probello@gmail.com>"]
 description = "Input sequence generation for par-term terminal emulator"
@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Configuration types (OptionKeyMode)
-par-term-config = { path = "../par-term-config", version = "0.2.0" }
+par-term-config = { path = "../par-term-config", version = "0.3.0" }
 
 # Clipboard access
 arboard = "3.6.1"

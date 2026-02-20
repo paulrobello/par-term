@@ -11,6 +11,7 @@ par-term provides extensive window management features including edge-anchored w
 - [Prompt on Quit](#prompt-on-quit)
 - [Pane Title Bars](#pane-title-bars)
 - [Pane Divider Styles](#pane-divider-styles)
+- [Window Padding](#window-padding)
 - [Transparency](#transparency)
 - [Fullscreen](#fullscreen)
 - [Window Arrangements](#window-arrangements)
@@ -221,6 +222,28 @@ pane_divider_style: solid  # solid, double, dashed, shadow
 
 > **📝 Note:** The Double style renders proper double lines when divider width >= 4px. At smaller widths, it renders a centered thin line to visually differentiate from Solid.
 
+## Window Padding
+
+Window padding adds space between the terminal content and the window edges.
+
+```yaml
+window_padding: 0.0  # Padding in pixels (default: 0.0)
+```
+
+Changes to window padding in the Settings UI take effect immediately without requiring an app restart. The terminal grid recalculates to fit the new padding, and pane sizes adjust accordingly.
+
+### Hide Window Padding on Split
+
+When panes are split, each pane maintains its own internal padding. The outer window padding becomes redundant and wastes screen space. The `hide_window_padding_on_split` option automatically sets the effective window padding to zero whenever the active tab contains multiple panes.
+
+```yaml
+hide_window_padding_on_split: true  # default: enabled
+```
+
+When the last split is closed and only a single pane remains, the configured window padding is restored.
+
+**Settings UI:** Settings > Window > Display > "Hide padding on split"
+
 ## Transparency
 
 ### Window Opacity
@@ -424,7 +447,8 @@ show_window_number: false
 window_opacity: 1.0
 transparency_affects_only_default_background: true
 keep_text_opaque: true
-window_padding: 5.0  # Padding in pixels
+window_padding: 0.0  # Padding in pixels
+hide_window_padding_on_split: true  # Remove window padding when panes are split
 
 # macOS blur
 blur_enabled: false

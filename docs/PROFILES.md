@@ -19,6 +19,11 @@ par-term provides a profile system for saving and quickly launching terminal ses
   - [Auto-Switch Visual Application](#auto-switch-visual-application)
 - [Default Startup Directory](#default-startup-directory)
 - [Per-Profile Badge Configuration](#per-profile-badge-configuration)
+- [Per-Pane Background Settings](#per-pane-background-settings)
+  - [Available Controls](#available-controls)
+  - [Darken Control](#darken-control)
+  - [Real-Time Preview](#real-time-preview)
+  - [Settings UI](#settings-ui-1)
 - [Dynamic Profiles](#dynamic-profiles)
   - [Configuration](#configuration-1)
   - [Background Refresh](#background-refresh)
@@ -388,6 +393,65 @@ Profiles can override global badge settings for visual differentiation per envir
 2. Expand "Badge Appearance" section
 3. Check boxes to enable individual overrides
 4. Configure color, font, margins, and size as needed
+
+## Per-Pane Background Settings
+
+When using split panes, each pane can have its own custom background image that overrides the global background. Per-pane backgrounds support independent image selection, display mode, opacity, and darkening control.
+
+### Available Controls
+
+| Setting | Description | Range |
+|---------|-------------|-------|
+| **Background Image** | Custom image path for this pane | — |
+| **Display Mode** | How the image fills the pane (fit, fill, stretch, tile, center) | — |
+| **Opacity** | Transparency of the background image | 0.0–1.0 |
+| **Darken** | Darkens the background by reducing RGB towards black, independent of opacity | 0.0–1.0 |
+
+### Darken Control
+
+The darken slider (0.0–1.0) reduces the RGB values of the background image towards black while leaving opacity unchanged. This allows you to dim a bright background without affecting its transparency level:
+
+- **0.0** — No darkening applied (full brightness)
+- **0.5** — Background is 50% darkened (RGB values reduced by half)
+- **1.0** — Fully darkened to black
+
+For example, a background with `opacity: 0.8` and `darken: 0.5` will be 80% opaque and 50% darker than the original image.
+
+### Real-Time Preview
+
+Per-pane background settings apply instantly as values change. Adjusting the image, mode, opacity, or darken level immediately updates the preview in the terminal. No manual "Apply" button is required — changes take effect in real-time.
+
+### Example: Production vs. Development Panes
+
+```yaml
+pane_backgrounds:
+  # Left pane: production environment with dim red overlay
+  - index: 0
+    image: "~/images/prod-bg.png"
+    mode: fill
+    opacity: 0.7
+    darken: 0.3
+
+  # Right pane: development environment with bright blue overlay
+  - index: 1
+    image: "~/images/dev-bg.png"
+    mode: fit
+    opacity: 0.6
+    darken: 0.0
+```
+
+### Settings UI
+
+Access per-pane background settings in **Settings > Appearance > Background**:
+
+1. Click on a split pane in the preview (if using split panes)
+2. Configure the following for the selected pane:
+   - **Image**: Browse to and select a custom background image, or leave empty to use the global background
+   - **Mode**: Choose how the image fills the pane
+   - **Opacity**: Adjust the transparency slider (0.0–1.0)
+   - **Darken**: Adjust the darkening slider (0.0–1.0)
+
+Changes apply immediately to the terminal without requiring manual confirmation.
 
 ## Dynamic Profiles
 

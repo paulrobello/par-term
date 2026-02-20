@@ -63,7 +63,9 @@ graph LR
 | macOS | `Cmd+I` |
 | Linux / Windows | `Ctrl+Shift+I` |
 
-You can also toggle the panel using the keybinding action `toggle_ai_inspector` in your keybindings configuration. Press `Escape` while the panel is focused to close it, or click the **X** button in the panel title bar.
+You can also toggle the panel using the keybinding action `toggle_ai_inspector` in your keybindings configuration. When `ai_inspector_enabled` is true, the new tab dropdown menu includes an **Assistant Panel** toggle item, providing an additional way to open and close the panel.
+
+Press `Escape` while the panel is focused to close it, or click the **X** button in the panel title bar.
 
 When the `ai_inspector_auto_launch` configuration option is enabled, the configured agent connects automatically each time the panel opens.
 

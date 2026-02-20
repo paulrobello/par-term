@@ -10,6 +10,11 @@ par-term can check for new releases and update itself in-place, eliminating the 
   - [Skip Version](#skip-version)
 - [CLI Usage](#cli-usage)
 - [Settings UI](#settings-ui)
+- [Update Dialog](#update-dialog)
+  - [Opening the Dialog](#opening-the-dialog)
+  - [Dialog Layout](#dialog-layout)
+  - [Actions](#actions)
+  - [Installation-Type Awareness](#installation-type-awareness)
 - [Installation Type Detection](#installation-type-detection)
   - [Homebrew](#homebrew)
   - [Cargo Install](#cargo-install)
@@ -79,11 +84,12 @@ The checker uses semantic versioning (semver) to compare versions. A version is 
 
 ### Check Frequency
 
-Four frequency options are available:
+Five frequency options are available:
 
 | Frequency | Interval | Description |
 |-----------|----------|-------------|
 | **Never** | Disabled | No automatic checks |
+| **Hourly** | 1 hour | Check every hour, aligned with the GitHub API rate limit window |
 | **Daily** | 24 hours | Check once per day |
 | **Weekly** | 7 days | Check once per week (default) |
 | **Monthly** | 30 days | Check once per month |
@@ -126,7 +132,7 @@ The CLI workflow:
 
 The Settings window provides graphical controls for update management under **Advanced > Updates**.
 
-**Update frequency dropdown**: Select how often par-term checks for updates (Never, Daily, Weekly, Monthly).
+**Update frequency dropdown**: Select how often par-term checks for updates (Never, Hourly, Daily, Weekly, Monthly).
 
 **Last checked timestamp**: Shows when the last update check occurred.
 
@@ -140,6 +146,68 @@ The Settings window provides graphical controls for update management under **Ad
 **Install Update button**: When an update is available and the installation type supports in-place updates (macOS app bundle or standalone binary), an "Install Update" button appears. Clicking it downloads and installs the update with a progress indication. The button is disabled while installation is in progress.
 
 For Homebrew and cargo installations, the Settings UI displays the appropriate upgrade command instead of an install button.
+
+## Update Dialog
+
+The update dialog is a modal overlay that provides detailed information about an available update and lets the user take action directly.
+
+### Opening the Dialog
+
+When an update is available, the status bar displays an update widget. Clicking this widget opens the update dialog overlay. The dialog appears centered over the terminal content with a semi-transparent backdrop.
+
+### Dialog Layout
+
+The dialog presents the following information:
+
+- **Version comparison**: Shows the current running version and the available version side by side
+- **Release notes**: A scrollable area displaying the release notes from the GitHub release. Long release notes are fully accessible by scrolling within the dialog
+- **GitHub release link**: A clickable link to the full release page on GitHub for reviewing the complete changelog, assets, and discussion
+
+```mermaid
+graph TD
+    StatusBar["Status Bar: Update Widget"]
+    Dialog["Update Dialog Overlay"]
+    Versions["Current Version → Available Version"]
+    Notes["Release Notes (scrollable)"]
+    Link["GitHub Release Link"]
+    Actions["Install | Skip | Dismiss"]
+
+    StatusBar -- Click --> Dialog
+    Dialog --> Versions
+    Dialog --> Notes
+    Dialog --> Link
+    Dialog --> Actions
+
+    style StatusBar fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Dialog fill:#1a1a2e,stroke:#e94560,stroke-width:3px,color:#ffffff
+    style Versions fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Notes fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Link fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Actions fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+```
+
+### Actions
+
+The dialog provides three action buttons:
+
+| Button | Behavior |
+|--------|----------|
+| **Install** | Downloads and installs the update in-place. Available for standalone and app bundle installations. Disabled while installation is in progress |
+| **Skip** | Records the available version as skipped. The dialog closes and no further notifications appear for this version until a newer release supersedes it |
+| **Dismiss** | Closes the dialog without taking action. The update widget remains in the status bar and the dialog can be reopened at any time |
+
+### Installation-Type Awareness
+
+The dialog adapts its content based on how par-term was installed:
+
+| Installation Type | Dialog Behavior |
+|-------------------|-----------------|
+| **Standalone binary** | Shows the Install button for in-place binary replacement |
+| **macOS app bundle** | Shows the Install button for in-place bundle extraction |
+| **Homebrew** | Replaces the Install button with the recommended command: `brew upgrade --cask par-term` |
+| **Cargo** | Replaces the Install button with the recommended command: `cargo install par-term` |
+
+For managed installations (Homebrew and Cargo), the dialog displays the package manager command that the user can copy and run in their shell. The Skip and Dismiss buttons remain available regardless of installation type.
 
 ## Installation Type Detection
 
@@ -214,7 +282,7 @@ On Windows, the running executable cannot be deleted or overwritten directly. Du
 The following `config.yaml` options control update behavior:
 
 ```yaml
-# How often to check for updates: never, daily, weekly, monthly
+# How often to check for updates: never, hourly, daily, weekly, monthly
 update_check_frequency: weekly
 
 # Timestamp of the last update check (managed automatically)

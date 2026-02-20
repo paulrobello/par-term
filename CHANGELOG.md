@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.20.0] - 2026-02-20
+
 ### Added
 
 - **Hourly Update Check Frequency**: New `Hourly` option for `update_check_frequency` — checks GitHub for new releases every hour (aligned with the existing 1-hour rate limit). Available in Settings > Advanced > Updates

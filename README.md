@@ -12,22 +12,50 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.19.0
+## What's New in 0.20.0
 
 ### ✨ New Features
 
-- **Configurable Link Highlight Color**: Link highlight color for detected URLs and file paths is now configurable via `link_highlight_color` setting (default: bright cyan `#4FC3F7`), with a color picker in Settings > Terminal > Semantic History
-- **Link Underline Rendering**: Detected URLs and file paths now render with visible underlines in the GPU text pipeline (previously the underline flag was set but never drawn)
-- **Link Underline Toggle**: Added `link_highlight_underline` setting to enable/disable underlines on highlighted links (default: enabled)
-- **Stipple Underline Style**: Added `link_underline_style` setting with Solid and Stipple (dotted) options — Stipple is the default, matching iTerm2's link underline aesthetic
-- **Settings Search Auto-Focus**: The quick search input in the settings UI now receives focus automatically when the window opens, allowing immediate keyboard-driven filtering
+- **Status Bar Update Widget**: New `UpdateAvailable` widget that displays when a new version is detected — clicking it opens an update dialog with version info, release notes, and install/skip/dismiss actions
+- **Hourly Update Check**: New `Hourly` option for `update_check_frequency` — checks GitHub every hour for new releases
+- **Rain Glass Shader**: New `rain-glass.glsl` background shader — rain on glass with a procedural dark nebula background that requires no texture
+- **Inactive Tab Outline-Only Mode**: New `tab_inactive_outline_only` option renders inactive tabs with just a border stroke
+- **Pane Background Darken Slider**: Added a darken control (0.0–1.0) for per-pane custom background images
+- **Hide Window Padding on Split**: New `hide_window_padding_on_split` option automatically removes window padding when panes are split
+- **New Tab Menu as Dropdown**: The new tab profile menu now appears as a dropdown in the top-right corner
+- **File Transfer Progress Overlay**: Upload/download progress bars in a bottom-right egui overlay
 
 ### 🐛 Bug Fixes
 
-- **Fast Window Shutdown**: Fixed slow app close (beachball on macOS) that scaled with number of open tabs — moved all blocking disk I/O (session save, command history, session loggers) to background threads, replaced long-sleeping status bar polling threads with 50ms interruptible loops, and signal pollers to stop at the start of shutdown so joins complete instantly
-- **Settings Sidebar Icon**: Fixed Input tab (⌨️) showing an empty box due to trailing Unicode variation selector (U+FE0F) that egui cannot render
-- **Miscellaneous Technical Symbol Rendering**: Fixed media control characters (⏺ ⏹ ⏸ ⏩ ⏪ etc., U+2300–U+23FF) rendering as colored emoji instead of monochrome symbols — extends the dingbat monochrome fix to cover the entire Miscellaneous Technical block
-- **Crate Package Size**: Fixed crates.io publish failure by excluding non-essential files (shader textures, gallery images, macOS .icns, design docs) — reduced package from 24.7MiB to 3.9MiB
+- **Inline Image Display**: Fixed inline images not rendering for files larger than ~750 KB (core library OSC buffer limit increased to 128 MB)
+- **Upload Over SSH**: Fixed uploads hanging indefinitely over SSH — resolved response_buffer deadlock
+- **Live Window Padding Updates**: Padding changes now take effect immediately without restart
+- **Settings Collapsible Section Persistence**: Fixed 14 sections losing expanded/collapsed state
+- **Split Pane Mouse Event Routing**: Fixed mouse events being sent to wrong terminal in split pane mode
+- **Split Pane Focus and Divider Resize**: Fixed pane focus switching and divider drag-to-resize regression
+
+### 🔧 Changed
+
+- Default `window_padding` changed from 10.0 to 0.0
+- Default `font_hinting` changed from true to false
+- Default `tab_bar_mode` changed from `when_multiple` to `always`
+
+<details>
+<summary><strong>What's New in 0.19.0</strong></summary>
+
+### ✨ New Features
+
+- **Configurable Link Highlight Color**: Link highlight color for detected URLs and file paths is now configurable via `link_highlight_color` setting
+- **Link Underline Rendering**: Detected URLs and file paths now render with visible underlines in the GPU text pipeline
+- **Stipple Underline Style**: Added `link_underline_style` setting with Solid and Stipple options
+
+### 🐛 Bug Fixes
+
+- **Fast Window Shutdown**: Fixed slow app close (beachball on macOS) that scaled with number of open tabs
+- **Settings Sidebar Icon**: Fixed Input tab (⌨️) showing an empty box
+- **Crate Package Size**: Reduced package from 24.7MiB to 3.9MiB
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.18.0</strong></summary>
