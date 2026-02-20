@@ -1626,14 +1626,12 @@ impl TabBarUI {
                                 };
                                 let picker_btn = ui.button(picker_label);
                                 egui::Popup::from_toggle_button_response(&picker_btn)
-                                    .close_behavior(
-                                        egui::PopupCloseBehavior::CloseOnClickOutside,
-                                    )
+                                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                     .show(|ui| {
                                         ui.set_min_width(280.0);
-                                        egui::ScrollArea::vertical()
-                                            .max_height(300.0)
-                                            .show(ui, |ui| {
+                                        egui::ScrollArea::vertical().max_height(300.0).show(
+                                            ui,
+                                            |ui| {
                                                 for (category, icons) in
                                                     crate::settings_ui::nerd_font::NERD_FONT_PRESETS
                                                 {
@@ -1652,12 +1650,8 @@ impl TabBarUI {
                                                                 )
                                                                 .frame(false),
                                                             );
-                                                            if btn
-                                                                .on_hover_text(*label)
-                                                                .clicked()
-                                                            {
-                                                                self.icon_buffer =
-                                                                    icon.to_string();
+                                                            if btn.on_hover_text(*label).clicked() {
+                                                                self.icon_buffer = icon.to_string();
                                                                 egui::Popup::close_all(ui.ctx());
                                                             }
                                                         }
@@ -1669,7 +1663,8 @@ impl TabBarUI {
                                                     self.icon_buffer.clear();
                                                     egui::Popup::close_all(ui.ctx());
                                                 }
-                                            });
+                                            },
+                                        );
                                     });
                             });
                             // Submit on Enter
@@ -1687,11 +1682,12 @@ impl TabBarUI {
                         }
 
                         // Clear Icon (only show when tab has a custom icon)
-                        if self.context_menu_icon.is_some() && !self.picking_icon {
-                            if menu_item(ui, "Clear Icon") {
-                                action = TabBarAction::SetTabIcon(tab_id, None);
-                                close_menu = true;
-                            }
+                        if self.context_menu_icon.is_some()
+                            && !self.picking_icon
+                            && menu_item(ui, "Clear Icon")
+                        {
+                            action = TabBarAction::SetTabIcon(tab_id, None);
+                            close_menu = true;
                         }
 
                         // Duplicate Tab
