@@ -9,9 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Tab Title Mode**: New `tab_title_mode` config option (`auto` / `osc_only`) controls how tab titles are automatically updated — `auto` (default) uses OSC title then falls back to CWD from shell integration, `osc_only` only updates from explicit OSC escape sequences and never auto-sets from the working directory. Available in Settings > Window > Tab Bar
+- **Rename Tab**: Right-click any tab and select "Rename Tab" to set a custom name — manually named tabs are static and never auto-updated regardless of the title mode setting. Enter a blank name to revert to automatic title behavior
+- **Session Persistence for Tab Names and Colors**: User-set tab names and custom tab colors are now preserved across session save/restore and in window arrangements
+
 ### Fixed
 
 - **Tab Bar First Tab Border Clipping**: Fixed the left border of the first tab being slightly cropped in the horizontal tab bar by adding left padding before tab content
+- **Progress Bar Overlapping Tab Bar**: Fixed progress bars rendering on top of the tab bar — progress bars now respect the tab bar position and render below a top tab bar or above a bottom tab bar
+- **Vertically Squashed Ballot Box and Dingbat Glyphs**: Fixed checkbox characters (☐☑☒) and check marks (✓✔) appearing vertically compressed compared to other terminals — Miscellaneous Symbols and Dingbats Unicode ranges now get snap-to-cell-boundaries treatment to prevent scale compression from pixel rounding
 
 ---
 
