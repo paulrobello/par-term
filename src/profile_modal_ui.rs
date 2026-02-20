@@ -5,42 +5,7 @@
 use crate::profile::{Profile, ProfileId, ProfileManager};
 use crate::shell_detection;
 
-/// Curated emoji presets organized by category for the profile icon picker
-const EMOJI_PRESETS: &[(&str, &[&str])] = &[
-    (
-        "Terminal",
-        &["💻", "🖥️", "⌨️", "🐚", "📟", "🔲", "▶️", "⬛"],
-    ),
-    (
-        "Dev & Tools",
-        &["🔧", "🛠️", "⚙️", "🔨", "🧰", "📐", "🔬", "🧪"],
-    ),
-    (
-        "Files & Data",
-        &["📁", "📂", "📄", "📊", "💾", "🗄️", "📦", "🗃️"],
-    ),
-    (
-        "Network & Cloud",
-        &["🌐", "☁️", "📡", "🔗", "🌍", "📶", "🛰️", "🌎"],
-    ),
-    (
-        "Security",
-        &["🔒", "🔑", "🛡️", "🔐", "🚨", "⚠️", "🔓", "🧱"],
-    ),
-    (
-        "Status & Alerts",
-        &["✅", "❌", "⚡", "🔔", "💡", "🚀", "🎯", "🔥"],
-    ),
-    (
-        "Containers & Infra",
-        &["🐳", "🐧", "🏗️", "📀", "🧊", "📋", "🔄", "🏠"],
-    ),
-    (
-        "People & Roles",
-        &["👤", "👨‍💻", "👩‍💻", "🤖", "👥", "🧑‍🔧", "🧑‍🏫", "👷"],
-    ),
-    ("Misc", &["🎨", "📝", "🏷️", "⭐", "💎", "🌈", "🎮", "🎵"]),
-];
+use crate::settings_ui::nerd_font::NERD_FONT_PRESETS;
 
 /// Actions that can be triggered from the profile modal
 #[derive(Debug, Clone, PartialEq)]
@@ -812,7 +777,7 @@ impl ProfileModalUI {
                         ui.horizontal(|ui| {
                             ui.text_edit_singleline(&mut self.temp_icon);
                             let picker_label = if self.temp_icon.is_empty() {
-                                "😀"
+                                "\u{ea7b}" // Nerd Font file icon
                             } else {
                                 &self.temp_icon
                             };
@@ -826,22 +791,28 @@ impl ProfileModalUI {
                                     egui::ScrollArea::vertical()
                                         .max_height(300.0)
                                         .show(ui, |ui| {
-                                            for (category, emojis) in EMOJI_PRESETS {
+                                            for (category, icons) in NERD_FONT_PRESETS {
                                                 ui.label(
                                                     egui::RichText::new(*category)
                                                         .small()
                                                         .strong(),
                                                 );
                                                 ui.horizontal_wrapped(|ui| {
-                                                    for emoji in *emojis {
+                                                    for (icon, label) in *icons {
                                                         let btn = ui.add_sized(
                                                             [28.0, 28.0],
-                                                            egui::Button::new(*emoji)
-                                                                .frame(false),
+                                                            egui::Button::new(
+                                                                egui::RichText::new(*icon)
+                                                                    .size(16.0),
+                                                            )
+                                                            .frame(false),
                                                         );
-                                                        if btn.clicked() {
+                                                        if btn
+                                                            .on_hover_text(*label)
+                                                            .clicked()
+                                                        {
                                                             self.temp_icon =
-                                                                emoji.to_string();
+                                                                icon.to_string();
                                                             egui::Popup::close_all(
                                                                 ui.ctx(),
                                                             );
