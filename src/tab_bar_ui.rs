@@ -1645,7 +1645,8 @@ impl TabBarUI {
                     });
             });
 
-        // Close menu if clicked outside (but not on the same frame it was opened)
+        // Close menu if clicked outside (but not on the same frame it was opened,
+        // and not when we just activated rename mode)
         let current_frame = ctx.cumulative_frame_nr();
         if current_frame > self.context_menu_opened_frame
             && ctx.input(|i| i.pointer.any_click())
@@ -1653,6 +1654,7 @@ impl TabBarUI {
             // Only close if no action was taken (let button clicks register)
             && !close_menu
             && action == TabBarAction::None
+            && !self.renaming_tab
         {
             close_menu = true;
         }
