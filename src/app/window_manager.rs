@@ -30,6 +30,16 @@ fn to_settings_update_result(result: &UpdateCheckResult) -> crate::settings_ui::
         UpdateCheckResult::Error(e) => crate::settings_ui::UpdateCheckResult::Error(e.clone()),
     }
 }
+
+/// Extract the available version string from an update result (None if not available).
+fn update_available_version(result: &UpdateCheckResult) -> Option<String> {
+    match result {
+        UpdateCheckResult::UpdateAvailable(info) => {
+            Some(info.version.strip_prefix('v').unwrap_or(&info.version).to_string())
+        }
+        _ => None,
+    }
+}
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -230,6 +240,12 @@ impl WindowManager {
 
             self.last_update_result = Some(result);
 
+            // Sync update version to status bar widgets
+            let version = self.last_update_result.as_ref().and_then(update_available_version);
+            for ws in self.windows.values_mut() {
+                ws.status_bar_ui.update_available_version = version.clone();
+            }
+
             // Save config with updated timestamp if check was successful
             if config_changed {
                 self.config.last_update_check = Some(current_timestamp());
@@ -307,6 +323,12 @@ impl WindowManager {
         }
 
         self.last_update_result = Some(result);
+
+        // Sync update version to status bar widgets
+        let version = self.last_update_result.as_ref().and_then(update_available_version);
+        for ws in self.windows.values_mut() {
+            ws.status_bar_ui.update_available_version = version.clone();
+        }
 
         // Save config with updated timestamp
         if should_save {
@@ -573,6 +595,11 @@ impl WindowManager {
 
                 self.windows.insert(window_id, window_state);
                 self.pending_window_count += 1;
+
+                // Sync existing update state to new window's status bar
+                if let Some(ws) = self.windows.get_mut(&window_id) {
+                    ws.status_bar_ui.update_available_version = self.last_update_result.as_ref().and_then(update_available_version);
+                }
 
                 // Set start time on first window creation (for CLI timers)
                 if self.start_time.is_none() {
@@ -2657,6 +2684,11 @@ impl WindowManager {
 
                 self.windows.insert(window_id, window_state);
                 self.pending_window_count += 1;
+
+                // Sync existing update state to new window's status bar
+                if let Some(ws) = self.windows.get_mut(&window_id) {
+                    ws.status_bar_ui.update_available_version = self.last_update_result.as_ref().and_then(update_available_version);
+                }
 
                 if self.start_time.is_none() {
                     self.start_time = Some(Instant::now());
