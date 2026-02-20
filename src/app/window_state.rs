@@ -322,6 +322,14 @@ pub struct WindowState {
     pub(crate) last_update_result: Option<crate::update_checker::UpdateCheckResult>,
     /// Detected installation type
     pub(crate) installation_type: par_term_settings_ui::InstallationType,
+
+    /// Whether an update install is in progress (from the update dialog)
+    pub(crate) update_installing: bool,
+    /// Status message from the update install
+    pub(crate) update_install_status: Option<String>,
+    /// Channel receiver for async update install result
+    pub(crate) update_install_receiver:
+        Option<std::sync::mpsc::Receiver<Result<crate::self_updater::UpdateResult, String>>>,
 }
 
 /// Extract an `f32` from a JSON value that may be an integer or float.
@@ -485,6 +493,10 @@ impl WindowState {
 
             last_update_result: None,
             installation_type: par_term_settings_ui::InstallationType::StandaloneBinary,
+
+            update_installing: false,
+            update_install_status: None,
+            update_install_receiver: None,
         }
     }
 
@@ -3261,26 +3273,66 @@ impl WindowState {
 
                     // Render update dialog overlay
                     if self.show_update_dialog {
+                        // Poll for update install completion
+                        if let Some(ref rx) = self.update_install_receiver {
+                            if let Ok(result) = rx.try_recv() {
+                                match result {
+                                    Ok(update_result) => {
+                                        self.update_install_status = Some(format!(
+                                            "Updated to v{}! Restart par-term to use the new version.",
+                                            update_result.new_version
+                                        ));
+                                        self.update_installing = false;
+                                        self.status_bar_ui.update_available_version = None;
+                                    }
+                                    Err(e) => {
+                                        self.update_install_status =
+                                            Some(format!("Update failed: {}", e));
+                                        self.update_installing = false;
+                                    }
+                                }
+                                self.update_install_receiver = None;
+                            }
+                        }
+
                         if let Some(ref update_result) = self.last_update_result {
                             let dialog_action = crate::update_dialog::render(
                                 ctx,
                                 update_result,
                                 env!("CARGO_PKG_VERSION"),
                                 self.installation_type,
+                                self.update_installing,
+                                self.update_install_status.as_deref(),
                             );
                             match dialog_action {
                                 crate::update_dialog::UpdateDialogAction::Dismiss => {
-                                    self.show_update_dialog = false;
+                                    if !self.update_installing {
+                                        self.show_update_dialog = false;
+                                        self.update_install_status = None;
+                                    }
                                 }
                                 crate::update_dialog::UpdateDialogAction::SkipVersion(v) => {
                                     self.config.skipped_version = Some(v);
                                     self.show_update_dialog = false;
                                     self.status_bar_ui.update_available_version = None;
+                                    self.update_install_status = None;
                                     let _ = self.config.save();
                                 }
-                                crate::update_dialog::UpdateDialogAction::InstallUpdate(_v) => {
-                                    // Install handling will be added in Task 7
-                                    self.show_update_dialog = false;
+                                crate::update_dialog::UpdateDialogAction::InstallUpdate(v) => {
+                                    if !self.update_installing {
+                                        self.update_installing = true;
+                                        self.update_install_status =
+                                            Some("Downloading update...".to_string());
+                                        let (tx, rx) = std::sync::mpsc::channel();
+                                        self.update_install_receiver = Some(rx);
+                                        let version = v.clone();
+                                        std::thread::spawn(move || {
+                                            let result =
+                                                crate::self_updater::perform_update(&version);
+                                            let _ = tx.send(result);
+                                        });
+                                    }
+                                    // Don't close dialog while installing
                                 }
                                 crate::update_dialog::UpdateDialogAction::None => {}
                             }

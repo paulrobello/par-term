@@ -21,11 +21,16 @@ pub enum UpdateDialogAction {
 /// Render the update dialog overlay.
 ///
 /// Call this when `show_update_dialog` is true. Returns the user's action.
+///
+/// When `installing` is true, the Install button is disabled and shows "Installing...".
+/// The `install_status` message (if any) is displayed below the buttons.
 pub fn render(
     ctx: &egui::Context,
     update_result: &UpdateCheckResult,
     current_version: &str,
     installation_type: par_term_settings_ui::InstallationType,
+    installing: bool,
+    install_status: Option<&str>,
 ) -> UpdateDialogAction {
     let mut action = UpdateDialogAction::None;
 
@@ -87,7 +92,12 @@ pub fn render(
                     }
                     _ => {
                         // Standalone/Bundle - show Install button
-                        if ui
+                        if installing {
+                            let button = egui::Button::new(
+                                egui::RichText::new("Installing...").strong(),
+                            );
+                            ui.add_enabled(false, button);
+                        } else if ui
                             .button(egui::RichText::new("Install Update").strong())
                             .clicked()
                         {
@@ -98,16 +108,33 @@ pub fn render(
                     }
                 }
 
+                // Show install status message
+                if let Some(status) = install_status {
+                    ui.add_space(4.0);
+                    let color = if status.starts_with("Update failed") {
+                        egui::Color32::from_rgb(255, 100, 100)
+                    } else if status.starts_with("Updated to") {
+                        egui::Color32::from_rgb(100, 255, 100)
+                    } else {
+                        egui::Color32::YELLOW
+                    };
+                    ui.label(egui::RichText::new(status).color(color));
+                    ui.add_space(4.0);
+                }
+
                 // Bottom buttons
                 ui.separator();
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Skip This Version").clicked() {
-                        action = UpdateDialogAction::SkipVersion(version_str.to_string());
-                    }
-                    if ui.button("Dismiss").clicked() {
-                        action = UpdateDialogAction::Dismiss;
-                    }
+                    // Disable Skip and Dismiss while installing
+                    ui.add_enabled_ui(!installing, |ui| {
+                        if ui.button("Skip This Version").clicked() {
+                            action = UpdateDialogAction::SkipVersion(version_str.to_string());
+                        }
+                        if ui.button("Dismiss").clicked() {
+                            action = UpdateDialogAction::Dismiss;
+                        }
+                    });
                 });
             });
         });
