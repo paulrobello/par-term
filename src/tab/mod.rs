@@ -350,6 +350,8 @@ pub struct Tab {
     pub auto_applied_dir_profile_id: Option<crate::profile::ProfileId>,
     /// Icon from auto-applied profile (displayed in tab bar)
     pub profile_icon: Option<String>,
+    /// Custom icon set by user via context menu (takes precedence over profile_icon)
+    pub custom_icon: Option<String>,
     /// Original tab title saved before auto-profile override (restored when profile clears)
     pub pre_profile_title: Option<String>,
     /// Badge text override from auto-applied profile (overrides global badge_format)
@@ -559,6 +561,7 @@ impl Tab {
             auto_applied_profile_id: None,
             auto_applied_dir_profile_id: None,
             profile_icon: None,
+            custom_icon: None,
             pre_profile_title: None,
             badge_override: None,
             coprocess_ids,
@@ -787,6 +790,7 @@ impl Tab {
             auto_applied_profile_id: None,
             auto_applied_dir_profile_id: None,
             profile_icon: None,
+            custom_icon: None,
             pre_profile_title: None,
             badge_override: None,
             coprocess_ids,
@@ -1502,6 +1506,7 @@ impl Tab {
             auto_applied_profile_id: None,
             auto_applied_dir_profile_id: None,
             profile_icon: None,
+            custom_icon: None,
             pre_profile_title: None,
             badge_override: None,
             coprocess_ids: Vec::new(),
