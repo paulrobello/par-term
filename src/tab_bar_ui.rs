@@ -225,6 +225,8 @@ impl TabBarUI {
 
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
+                // Small left padding so the first tab's border isn't clipped by the panel edge
+                ui.add_space(2.0);
 
                 if needs_scroll {
                     // Left scroll button

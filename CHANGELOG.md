@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Tab Bar First Tab Border Clipping**: Fixed the left border of the first tab being slightly cropped in the horizontal tab bar by adding left padding before tab content
+
 ---
 
 ## [0.20.0] - 2026-02-20
