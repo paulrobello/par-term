@@ -1627,7 +1627,8 @@ impl TabBarUI {
                                 } else {
                                     &self.icon_buffer
                                 };
-                                let picker_btn = ui.button(picker_label);
+                                let picker_btn =
+                                    ui.button(picker_label).on_hover_text("Icon picker");
                                 egui::Popup::from_toggle_button_response(&picker_btn)
                                     .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                     .show(|ui| {
@@ -1777,19 +1778,14 @@ impl TabBarUI {
             // Only close if no action was taken (let button clicks register)
             && !close_menu
             && action == TabBarAction::None
+            // Don't close while icon picker is active — the popup opens on a
+            // separate egui layer so clicks inside it appear "outside" this area
+            && !self.picking_icon
         {
             // If renaming, submit the current buffer on click-away
             if self.renaming_tab {
                 let name = self.rename_buffer.trim().to_string();
                 action = TabBarAction::RenameTab(tab_id, name);
-            }
-            // If picking icon, submit the current buffer on click-away
-            if self.picking_icon {
-                let icon = self.icon_buffer.trim().to_string();
-                action = TabBarAction::SetTabIcon(
-                    tab_id,
-                    if icon.is_empty() { None } else { Some(icon) },
-                );
             }
             close_menu = true;
         }
