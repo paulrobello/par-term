@@ -2823,14 +2823,15 @@ impl WindowState {
             }
 
             // Update animations and request redraw if frames changed
+            // Use try_lock() to avoid blocking the event loop when PTY reader holds the lock
             let anim_start = std::time::Instant::now();
-            if let Some(tab) = self.tab_manager.active_tab() {
-                let terminal = tab.terminal.blocking_lock();
-                if terminal.update_animations() {
-                    // Animation frame changed - request continuous redraws while animations are playing
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+            if let Some(tab) = self.tab_manager.active_tab()
+                && let Ok(terminal) = tab.terminal.try_lock()
+                && terminal.update_animations()
+            {
+                // Animation frame changed - request continuous redraws while animations are playing
+                if let Some(window) = &self.window {
+                    window.request_redraw();
                 }
             }
             let debug_anim_time = anim_start.elapsed();
@@ -2838,9 +2839,11 @@ impl WindowState {
             // Update graphics from terminal (pass scroll_offset for view adjustment)
             // Include both current screen graphics and scrollback graphics
             // Use get_graphics_with_animations() to get current animation frames
+            // Use try_lock() to avoid blocking the event loop when PTY reader holds the lock
             let graphics_start = std::time::Instant::now();
-            if let Some(tab) = self.tab_manager.active_tab() {
-                let terminal = tab.terminal.blocking_lock();
+            if let Some(tab) = self.tab_manager.active_tab()
+                && let Ok(terminal) = tab.terminal.try_lock()
+            {
                 let mut graphics = terminal.get_graphics_with_animations();
                 let scrollback_len = terminal.scrollback_len();
 
