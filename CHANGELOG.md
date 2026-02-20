@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Progress Bar Overlapping Tab Bar**: Fixed progress bars rendering on top of the tab bar — progress bars now respect the tab bar position and render below a top tab bar or above a bottom tab bar
 - **Vertically Squashed Ballot Box and Dingbat Glyphs**: Fixed checkbox characters (☐☑☒) and check marks (✓✔) appearing vertically compressed compared to other terminals — Miscellaneous Symbols and Dingbats Unicode ranges now get snap-to-cell-boundaries treatment to prevent scale compression from pixel rounding
 - **Vertically Squished Geometric Shapes**: Fixed geometric shape characters (◼ ■ ▪ ◾ ▬ ▮) rendering as short rectangles instead of proper squares — these now use pixel-perfect geometric rendering with aspect-ratio preservation, using cell width as the base dimension and centering vertically in the cell
+- **Clipboard Image Lost on Single Click**: Fixed single-clicking in the terminal overwriting clipboard images with whitespace — added a 4-pixel drag threshold before initiating text selection so trackpad micro-movements during taps no longer create accidental selections that auto-copy over existing clipboard content
 
 ---
 

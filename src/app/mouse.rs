@@ -12,6 +12,7 @@ pub struct MouseState {
     pub last_click_time: Option<Instant>, // Time of last mouse click
     pub click_count: u32,     // Number of sequential clicks (1 = single, 2 = double, 3 = triple)
     pub click_position: Option<(usize, usize)>, // Position of last click in cell coordinates
+    pub click_pixel_position: Option<(f64, f64)>, // Position of last click in pixels (for drag threshold)
     pub detected_urls: Vec<url_detection::DetectedUrl>, // URLs detected in visible terminal area
     pub hovered_url: Option<String>, // URL currently under mouse cursor
 
@@ -37,6 +38,7 @@ impl MouseState {
             last_click_time: None,
             click_count: 0,
             click_position: None,
+            click_pixel_position: None,
             detected_urls: Vec::new(),
             hovered_url: None,
             dragging_divider: None,

@@ -393,6 +393,7 @@ impl WindowState {
                             tab.mouse.click_count = new_click_count;
                             tab.mouse.last_click_time = Some(now);
                             tab.mouse.click_position = Some((col, row));
+                            tab.mouse.click_pixel_position = Some(mouse_position);
                         }
 
                         // Apply immediate selection based on click count
@@ -789,7 +790,14 @@ impl WindowState {
         });
 
         // Get mouse state for selection logic
-        let (button_pressed, click_count, is_selecting, click_position, selection_mode) = self
+        let (
+            button_pressed,
+            click_count,
+            is_selecting,
+            click_position,
+            click_pixel_position,
+            selection_mode,
+        ) = self
             .tab_manager
             .active_tab()
             .map(|t| {
@@ -798,21 +806,34 @@ impl WindowState {
                     t.mouse.click_count,
                     t.mouse.is_selecting,
                     t.mouse.click_position,
+                    t.mouse.click_pixel_position,
                     t.mouse.selection.as_ref().map(|s| s.mode),
                 )
             })
-            .unwrap_or((false, 0, false, None, None));
+            .unwrap_or((false, 0, false, None, None, None));
 
         if let Some((col, row)) = self.pixel_to_cell(position.0, position.1)
             && button_pressed
             && !alt_screen_active
         {
+            // Minimum pixel distance before a click becomes a drag selection.
+            // Prevents accidental micro-drags (e.g. trackpad taps) from creating
+            // tiny selections that overwrite clipboard content (including images).
+            const DRAG_THRESHOLD_PX: f64 = 4.0;
+
+            let past_drag_threshold = click_pixel_position.is_some_and(|(cx, cy)| {
+                let dx = position.0 - cx;
+                let dy = position.1 - cy;
+                (dx * dx + dy * dy) >= DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX
+            });
+
             if click_count == 1
                 && !is_selecting
                 && let Some(click_pos) = click_position
                 && click_pos != (col, row)
+                && past_drag_threshold
             {
-                // Initial drag move: Start selection if we've moved past the click threshold
+                // Initial drag move: Start selection if we've moved past the pixel drag threshold
                 // Option+Cmd (Alt+Super) triggers Rectangular/Block selection mode (matches iTerm2)
                 // Option alone is for cursor positioning, not selection
                 let mode = if self.input_handler.modifiers.state().alt_key()
