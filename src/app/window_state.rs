@@ -3950,6 +3950,14 @@ impl WindowState {
                     window.request_redraw();
                 }
             }
+            TabBarAction::SetTabIcon(tab_id, icon) => {
+                if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
+                    tab.custom_icon = icon;
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
             TabBarAction::None => {}
         }
 

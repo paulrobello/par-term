@@ -50,6 +50,8 @@ pub enum TabBarAction {
     Duplicate(TabId),
     /// Rename a specific tab
     RenameTab(TabId, String),
+    /// Set custom icon for a tab (None = clear)
+    SetTabIcon(TabId, Option<String>),
     /// Toggle the AI assistant panel
     ToggleAssistantPanel,
 }
@@ -90,6 +92,12 @@ pub struct TabBarUI {
     rename_buffer: String,
     /// Title of the tab in the context menu (for rename pre-fill)
     context_menu_title: String,
+    /// Whether the icon picker is active in the context menu
+    picking_icon: bool,
+    /// Buffer for the icon text field in the context menu
+    icon_buffer: String,
+    /// Current custom icon of the tab in the context menu (for "Clear Icon" visibility)
+    context_menu_icon: Option<String>,
     /// Horizontal scroll offset for tabs (in pixels)
     scroll_offset: f32,
     /// Whether the new-tab profile popup is open
@@ -117,6 +125,9 @@ impl TabBarUI {
             rename_activated_frame: 0,
             rename_buffer: String::new(),
             context_menu_title: String::new(),
+            picking_icon: false,
+            icon_buffer: String::new(),
+            context_menu_icon: None,
             scroll_offset: 0.0,
             show_new_tab_profile_menu: false,
         }
@@ -274,6 +285,7 @@ impl TabBarUI {
                                         index,
                                         &tab.title,
                                         tab.custom_icon.as_deref().or(tab.profile_icon.as_deref()),
+                                        tab.custom_icon.as_deref(),
                                         is_active,
                                         tab.has_activity,
                                         is_bell_active,
@@ -317,6 +329,7 @@ impl TabBarUI {
                             index,
                             &tab.title,
                             tab.custom_icon.as_deref().or(tab.profile_icon.as_deref()),
+                            tab.custom_icon.as_deref(),
                             is_active,
                             tab.has_activity,
                             is_bell_active,
@@ -447,6 +460,7 @@ impl TabBarUI {
                                     index,
                                     &tab.title,
                                     tab.custom_icon.as_deref().or(tab.profile_icon.as_deref()),
+                                    tab.custom_icon.as_deref(),
                                     is_active,
                                     tab.has_activity,
                                     is_bell_active,
@@ -549,6 +563,7 @@ impl TabBarUI {
         _index: usize,
         title: &str,
         profile_icon: Option<&str>,
+        custom_icon: Option<&str>,
         is_active: bool,
         has_activity: bool,
         is_bell_active: bool,
@@ -789,6 +804,9 @@ impl TabBarUI {
             self.editing_color = custom_color.unwrap_or([100, 100, 100]);
             self.context_menu_tab = Some(id);
             self.context_menu_title = title.to_string();
+            self.context_menu_icon = custom_icon.map(|s| s.to_string());
+            self.icon_buffer = custom_icon.unwrap_or("").to_string();
+            self.picking_icon = false;
             if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
                 self.context_menu_pos = pos;
             }
@@ -901,6 +919,7 @@ impl TabBarUI {
         index: usize,
         title: &str,
         profile_icon: Option<&str>,
+        custom_icon: Option<&str>,
         is_active: bool,
         has_activity: bool,
         is_bell_active: bool,
@@ -1233,6 +1252,9 @@ impl TabBarUI {
             self.editing_color = custom_color.unwrap_or([100, 100, 100]);
             self.context_menu_tab = Some(id);
             self.context_menu_title = title.to_string();
+            self.context_menu_icon = custom_icon.map(|s| s.to_string());
+            self.icon_buffer = custom_icon.unwrap_or("").to_string();
+            self.picking_icon = false;
             // Store click position for menu placement
             if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
                 self.context_menu_pos = pos;
@@ -1510,10 +1532,12 @@ impl TabBarUI {
         let mut action = TabBarAction::None;
         let mut close_menu = false;
 
-        // Handle Escape: cancel rename if active, otherwise close menu
+        // Handle Escape: cancel rename/icon picker if active, otherwise close menu
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             if self.renaming_tab {
                 self.renaming_tab = false;
+            } else if self.picking_icon {
+                self.picking_icon = false;
             } else {
                 close_menu = true;
             }
@@ -1575,6 +1599,99 @@ impl TabBarUI {
                             self.renaming_tab = true;
                             self.rename_activated_frame = ui.ctx().cumulative_frame_nr();
                             self.rename_buffer = self.context_menu_title.clone();
+                        }
+
+                        ui.add_space(4.0);
+                        ui.separator();
+                        ui.add_space(4.0);
+
+                        // Tab Icon section
+                        if self.picking_icon {
+                            ui.horizontal(|ui| {
+                                ui.add_space(8.0);
+                                ui.label("Icon:");
+                                let response = ui.add(
+                                    egui::TextEdit::singleline(&mut self.icon_buffer)
+                                        .desired_width(60.0)
+                                        .hint_text("Icon"),
+                                );
+                                if !response.has_focus() {
+                                    response.request_focus();
+                                }
+                                // Nerd Font picker button
+                                let picker_label = if self.icon_buffer.is_empty() {
+                                    "\u{ea7b}"
+                                } else {
+                                    &self.icon_buffer
+                                };
+                                let picker_btn = ui.button(picker_label);
+                                egui::Popup::from_toggle_button_response(&picker_btn)
+                                    .close_behavior(
+                                        egui::PopupCloseBehavior::CloseOnClickOutside,
+                                    )
+                                    .show(|ui| {
+                                        ui.set_min_width(280.0);
+                                        egui::ScrollArea::vertical()
+                                            .max_height(300.0)
+                                            .show(ui, |ui| {
+                                                for (category, icons) in
+                                                    crate::settings_ui::nerd_font::NERD_FONT_PRESETS
+                                                {
+                                                    ui.label(
+                                                        egui::RichText::new(*category)
+                                                            .small()
+                                                            .strong(),
+                                                    );
+                                                    ui.horizontal_wrapped(|ui| {
+                                                        for (icon, label) in *icons {
+                                                            let btn = ui.add_sized(
+                                                                [28.0, 28.0],
+                                                                egui::Button::new(
+                                                                    egui::RichText::new(*icon)
+                                                                        .size(16.0),
+                                                                )
+                                                                .frame(false),
+                                                            );
+                                                            if btn
+                                                                .on_hover_text(*label)
+                                                                .clicked()
+                                                            {
+                                                                self.icon_buffer =
+                                                                    icon.to_string();
+                                                                egui::Popup::close_all(ui.ctx());
+                                                            }
+                                                        }
+                                                    });
+                                                    ui.add_space(2.0);
+                                                }
+                                                ui.add_space(4.0);
+                                                if ui.button("Clear icon").clicked() {
+                                                    self.icon_buffer.clear();
+                                                    egui::Popup::close_all(ui.ctx());
+                                                }
+                                            });
+                                    });
+                            });
+                            // Submit on Enter
+                            if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                let icon = self.icon_buffer.trim().to_string();
+                                action = TabBarAction::SetTabIcon(
+                                    tab_id,
+                                    if icon.is_empty() { None } else { Some(icon) },
+                                );
+                                self.picking_icon = false;
+                                close_menu = true;
+                            }
+                        } else if menu_item(ui, "Set Icon") {
+                            self.picking_icon = true;
+                        }
+
+                        // Clear Icon (only show when tab has a custom icon)
+                        if self.context_menu_icon.is_some() && !self.picking_icon {
+                            if menu_item(ui, "Clear Icon") {
+                                action = TabBarAction::SetTabIcon(tab_id, None);
+                                close_menu = true;
+                            }
                         }
 
                         // Duplicate Tab
@@ -1672,6 +1789,7 @@ impl TabBarUI {
         if close_menu {
             self.context_menu_tab = None;
             self.renaming_tab = false;
+            self.picking_icon = false;
         }
 
         action
