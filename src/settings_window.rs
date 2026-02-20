@@ -150,6 +150,7 @@ impl SettingsWindow {
         // Initialize egui
         let scale_factor = window.scale_factor() as f32;
         let egui_ctx = egui::Context::default();
+        crate::settings_ui::nerd_font::configure_nerd_font(&egui_ctx);
         let egui_state = egui_winit::State::new(
             egui_ctx.clone(),
             egui::ViewportId::ROOT,

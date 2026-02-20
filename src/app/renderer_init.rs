@@ -391,6 +391,7 @@ impl WindowState {
 
         let scale_factor = window.scale_factor() as f32;
         let egui_ctx = egui::Context::default();
+        crate::settings_ui::nerd_font::configure_nerd_font(&egui_ctx);
 
         if let Some(memory) = previous_memory {
             egui_ctx.memory_mut(|mem| *mem = memory);
