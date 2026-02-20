@@ -823,26 +823,26 @@ impl Tab {
             if !osc_title.is_empty() {
                 self.title = osc_title;
                 self.has_default_title = false;
-            } else if title_mode == par_term_config::TabTitleMode::Auto {
-                if let Some(cwd) = term.shell_integration_cwd() {
-                    // Abbreviate home directory to ~
-                    let abbreviated = if let Some(home) = dirs::home_dir() {
-                        cwd.replace(&home.to_string_lossy().to_string(), "~")
-                    } else {
-                        cwd
-                    };
-                    // Use just the last component for brevity
-                    if let Some(last) = abbreviated.rsplit('/').next() {
-                        if !last.is_empty() {
-                            self.title = last.to_string();
-                        } else {
-                            self.title = abbreviated;
-                        }
+            } else if title_mode == par_term_config::TabTitleMode::Auto
+                && let Some(cwd) = term.shell_integration_cwd()
+            {
+                // Abbreviate home directory to ~
+                let abbreviated = if let Some(home) = dirs::home_dir() {
+                    cwd.replace(&home.to_string_lossy().to_string(), "~")
+                } else {
+                    cwd
+                };
+                // Use just the last component for brevity
+                if let Some(last) = abbreviated.rsplit('/').next() {
+                    if !last.is_empty() {
+                        self.title = last.to_string();
                     } else {
                         self.title = abbreviated;
                     }
-                    self.has_default_title = false;
+                } else {
+                    self.title = abbreviated;
                 }
+                self.has_default_title = false;
             }
             // Otherwise keep the existing title (e.g., "Tab N")
         }

@@ -13,8 +13,8 @@ use crate::types::{
     ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat,
     ShaderConfig, ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode,
     StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
-    UnfocusedCursorStyle,
-    UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
+    UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
+    default_smart_selection_rules,
 };
 
 use anyhow::Result;
