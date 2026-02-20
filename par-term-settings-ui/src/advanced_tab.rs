@@ -876,6 +876,7 @@ fn show_updates_section(
                 .show_ui(ui, |ui| {
                     for freq in [
                         UpdateCheckFrequency::Never,
+                        UpdateCheckFrequency::Hourly,
                         UpdateCheckFrequency::Daily,
                         UpdateCheckFrequency::Weekly,
                         UpdateCheckFrequency::Monthly,

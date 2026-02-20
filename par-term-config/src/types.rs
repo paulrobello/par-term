@@ -864,6 +864,8 @@ impl ShellType {
 pub enum UpdateCheckFrequency {
     /// Never check for updates
     Never,
+    /// Check once per hour
+    Hourly,
     /// Check once per day (default)
     #[default]
     Daily,
@@ -878,6 +880,7 @@ impl UpdateCheckFrequency {
     pub fn as_seconds(&self) -> Option<u64> {
         match self {
             UpdateCheckFrequency::Never => None,
+            UpdateCheckFrequency::Hourly => Some(3600),
             UpdateCheckFrequency::Daily => Some(24 * 60 * 60), // 86400
             UpdateCheckFrequency::Weekly => Some(7 * 24 * 60 * 60), // 604800
             UpdateCheckFrequency::Monthly => Some(30 * 24 * 60 * 60), // 2592000
@@ -888,6 +891,7 @@ impl UpdateCheckFrequency {
     pub fn display_name(&self) -> &'static str {
         match self {
             UpdateCheckFrequency::Never => "Never",
+            UpdateCheckFrequency::Hourly => "Hourly",
             UpdateCheckFrequency::Daily => "Daily",
             UpdateCheckFrequency::Weekly => "Weekly",
             UpdateCheckFrequency::Monthly => "Monthly",

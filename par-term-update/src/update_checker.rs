@@ -346,6 +346,7 @@ mod tests {
     #[test]
     fn test_update_check_frequency_seconds() {
         assert_eq!(UpdateCheckFrequency::Never.as_seconds(), None);
+        assert_eq!(UpdateCheckFrequency::Hourly.as_seconds(), Some(3600));
         assert_eq!(UpdateCheckFrequency::Daily.as_seconds(), Some(86400));
         assert_eq!(UpdateCheckFrequency::Weekly.as_seconds(), Some(604800));
         assert_eq!(UpdateCheckFrequency::Monthly.as_seconds(), Some(2592000));

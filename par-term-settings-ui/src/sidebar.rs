@@ -1028,6 +1028,7 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "check",
             "release",
             "update check",
+            "hourly",
             "skipped version",
             // File Transfers
             "download",
