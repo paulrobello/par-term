@@ -154,6 +154,66 @@ mod tests {
     }
 
     #[test]
+    fn test_roundtrip_preserves_custom_tab_properties() {
+        let temp = tempdir().unwrap();
+        let path = temp.path().join("session.yaml");
+
+        let state = SessionState {
+            saved_at: "2025-01-01T00:00:00Z".to_string(),
+            windows: vec![SessionWindow {
+                position: (0, 0),
+                size: (1920, 1080),
+                tabs: vec![
+                    SessionTab {
+                        cwd: Some("/home/user".to_string()),
+                        title: "My Custom Tab".to_string(),
+                        custom_color: Some([255, 128, 0]),
+                        user_title: Some("My Custom Tab".to_string()),
+                        custom_icon: Some("🔥".to_string()),
+                        pane_layout: None,
+                    },
+                    SessionTab {
+                        cwd: Some("/tmp".to_string()),
+                        title: "Tab 2".to_string(),
+                        custom_color: None,
+                        user_title: None,
+                        custom_icon: Some("📁".to_string()),
+                        pane_layout: None,
+                    },
+                    SessionTab {
+                        cwd: None,
+                        title: "Colored Only".to_string(),
+                        custom_color: Some([0, 200, 100]),
+                        user_title: None,
+                        custom_icon: None,
+                        pane_layout: None,
+                    },
+                ],
+                active_tab_index: 1,
+            }],
+        };
+
+        save_session_to(&state, path.clone()).unwrap();
+        let loaded = load_session_from(path).unwrap().unwrap();
+        let tabs = &loaded.windows[0].tabs;
+
+        // Tab 0: all custom properties set
+        assert_eq!(tabs[0].custom_color, Some([255, 128, 0]));
+        assert_eq!(tabs[0].user_title, Some("My Custom Tab".to_string()));
+        assert_eq!(tabs[0].custom_icon, Some("🔥".to_string()));
+
+        // Tab 1: only custom icon
+        assert_eq!(tabs[1].custom_color, None);
+        assert_eq!(tabs[1].user_title, None);
+        assert_eq!(tabs[1].custom_icon, Some("📁".to_string()));
+
+        // Tab 2: only custom color
+        assert_eq!(tabs[2].custom_color, Some([0, 200, 100]));
+        assert_eq!(tabs[2].user_title, None);
+        assert_eq!(tabs[2].custom_icon, None);
+    }
+
+    #[test]
     fn test_save_creates_parent_directory() {
         let temp = tempdir().unwrap();
         let path = temp.path().join("nested").join("dir").join("session.yaml");

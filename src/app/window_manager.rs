@@ -856,7 +856,7 @@ impl WindowManager {
                 .map(|tab| crate::session::restore::validate_cwd(&tab.cwd))
                 .collect();
 
-            self.create_window_with_overrides(
+            let created_window_id = self.create_window_with_overrides(
                 event_loop,
                 session_window.position,
                 session_window.size,
@@ -864,9 +864,10 @@ impl WindowManager {
                 session_window.active_tab_index,
             );
 
-            // Restore pane layouts for tabs that had splits
-            // Find the window we just created (it's the most recently added one)
-            if let Some((_window_id, window_state)) = self.windows.iter_mut().last() {
+            // Restore pane layouts, user titles, custom colors, and icons
+            if let Some(window_id) = created_window_id
+                && let Some(window_state) = self.windows.get_mut(&window_id)
+            {
                 let tabs = window_state.tab_manager.tabs_mut();
                 for (tab_idx, session_tab) in session_window.tabs.iter().enumerate() {
                     if let Some(ref layout) = session_tab.pane_layout
@@ -876,7 +877,7 @@ impl WindowManager {
                     }
                 }
 
-                // Restore user titles and custom colors
+                // Restore user titles, custom colors, and icons
                 for (tab_idx, session_tab) in session_window.tabs.iter().enumerate() {
                     if let Some(tab) = tabs.get_mut(tab_idx) {
                         if let Some(ref user_title) = session_tab.user_title {
@@ -2615,7 +2616,7 @@ impl WindowManager {
         size: (u32, u32),
         tab_cwds: &[Option<String>],
         active_tab_index: usize,
-    ) {
+    ) -> Option<WindowId> {
         use winit::window::Window;
 
         // Reload config from disk to pick up any changes
@@ -2667,7 +2668,7 @@ impl WindowManager {
                 let runtime = Arc::clone(&self.runtime);
                 if let Err(e) = runtime.block_on(window_state.initialize_async(window)) {
                     log::error!("Failed to initialize arranged window: {}", e);
-                    return;
+                    return None;
                 }
 
                 // Initialize menu for first window or attach to additional
@@ -2766,9 +2767,12 @@ impl WindowManager {
                     size.1,
                     tab_cwds.len().max(1),
                 );
+
+                Some(window_id)
             }
             Err(e) => {
                 log::error!("Failed to create arranged window: {}", e);
+                None
             }
         }
     }
@@ -2841,7 +2845,7 @@ impl WindowManager {
             };
 
             let tab_cwds = arrangements::restore::tab_cwds(&arrangement, i);
-            self.create_window_with_overrides(
+            let created_window_id = self.create_window_with_overrides(
                 event_loop,
                 (x, y),
                 (w, h),
@@ -2849,8 +2853,10 @@ impl WindowManager {
                 window_snapshot.active_tab_index,
             );
 
-            // Restore user titles and custom colors from arrangement
-            if let Some((_window_id, window_state)) = self.windows.iter_mut().last() {
+            // Restore user titles, custom colors, and icons from arrangement
+            if let Some(window_id) = created_window_id
+                && let Some(window_state) = self.windows.get_mut(&window_id)
+            {
                 let tabs = window_state.tab_manager.tabs_mut();
                 for (tab_idx, snapshot) in window_snapshot.tabs.iter().enumerate() {
                     if let Some(tab) = tabs.get_mut(tab_idx) {

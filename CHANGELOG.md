@@ -20,15 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Status Bar Skip Updates When Hidden**: When the status bar is enabled but hidden (fullscreen auto-hide or mouse inactivity timeout), per-frame widget updates, session variable capture, and rendering are now skipped — background polling threads continue so data is fresh when the bar reappears
+- **Inactive Tab Refresh Throttling**: Inactive tabs now poll for terminal updates at a reduced rate, lowering CPU usage when many background tabs are open
 
 ### Fixed
 
+- **Layout Restore Tab Properties for Multi-Window**: Fixed arrangement and session restore applying custom tab colors, icons, and user titles to the wrong window in multi-window layouts — replaced non-deterministic `HashMap::last()` lookup with the exact `WindowId` returned from window creation
 - **Input Lag During Heavy Terminal Output**: Fixed periodic ~1-second input freezes when multiple tabs produce heavy output (e.g., tmux sessions with active redraws) — replaced `blocking_lock()` with `try_lock()` for animation and graphics updates in the render path so the event loop is never blocked by PTY reader lock contention
 - **Tab Bar Rounded Corner Stroke Thickness**: Fixed the border stroke on tab rounded corners appearing thinner than straight edges — switched from `StrokeKind::Middle` to `StrokeKind::Inside` so the full stroke width renders consistently on both curves and straight segments
 - **Scrollbar Overlapping Terminal Content**: Fixed the scrollbar rendering on top of terminal text instead of reserving its own space — the terminal grid now subtracts the scrollbar width from available columns so content stops before the scrollbar
 - **Tab Bar First Tab Border Clipping**: Fixed the left border of the first tab being slightly cropped in the horizontal tab bar by adding left padding before tab content
 - **Progress Bar Overlapping Tab Bar**: Fixed progress bars rendering on top of the tab bar — progress bars now respect the tab bar position and render below a top tab bar or above a bottom tab bar
 - **Vertically Squashed Ballot Box and Dingbat Glyphs**: Fixed checkbox characters (☐☑☒) and check marks (✓✔) appearing vertically compressed compared to other terminals — Miscellaneous Symbols and Dingbats Unicode ranges now get snap-to-cell-boundaries treatment to prevent scale compression from pixel rounding
+- **Vertically Squished Geometric Shapes**: Fixed geometric shape characters (◼ ■ ▪ ◾ ▬ ▮) rendering as short rectangles instead of proper squares — these now use pixel-perfect geometric rendering with aspect-ratio preservation, using cell width as the base dimension and centering vertically in the cell
 
 ---
 
