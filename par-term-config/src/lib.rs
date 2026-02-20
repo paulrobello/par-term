@@ -44,7 +44,7 @@ pub use types::{
     ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode, SeparatorMark,
     SessionLogFormat, ShaderConfig, ShaderInstallPrompt, ShaderMetadata, ShellExitAction,
     ShellType, SmartSelectionPrecision, SmartSelectionRule, StartupDirectoryMode,
-    StatusBarPosition, TabBarMode, TabBarPosition, TabId, TabStyle, ThinStrokesMode,
+    StatusBarPosition, TabBarMode, TabBarPosition, TabId, TabStyle, TabTitleMode, ThinStrokesMode,
     UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
     default_smart_selection_rules,
 };

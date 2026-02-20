@@ -320,6 +320,8 @@ pub struct Tab {
     pub custom_color: Option<[u8; 3]>,
     /// Whether the tab has its default "Tab N" title (not set by OSC, CWD, or user)
     pub has_default_title: bool,
+    /// Whether the user has manually named this tab (makes title static)
+    pub user_named: bool,
     /// Last time terminal output (activity) was detected
     pub last_activity_time: std::time::Instant,
     /// Last terminal update generation seen (to detect new output)
@@ -542,6 +544,7 @@ impl Tab {
             working_directory: working_directory.or_else(|| config.working_directory.clone()),
             custom_color: None,
             has_default_title: true,
+            user_named: false,
             last_activity_time: std::time::Instant::now(),
             last_seen_generation: 0,
             anti_idle_last_activity: std::time::Instant::now(),
@@ -769,6 +772,7 @@ impl Tab {
             working_directory,
             custom_color: None,
             has_default_title: false, // Profile-created tabs have explicit names
+            user_named: profile.tab_name.is_some(),
             last_activity_time: std::time::Instant::now(),
             last_seen_generation: 0,
             anti_idle_last_activity: std::time::Instant::now(),
@@ -808,30 +812,37 @@ impl Tab {
     }
 
     /// Update tab title from terminal OSC sequences
-    pub fn update_title(&mut self) {
+    /// Update tab title from terminal OSC sequences
+    pub fn update_title(&mut self, title_mode: par_term_config::TabTitleMode) {
+        // User-named tabs are static — never auto-update
+        if self.user_named {
+            return;
+        }
         if let Ok(term) = self.terminal.try_lock() {
             let osc_title = term.get_title();
             if !osc_title.is_empty() {
                 self.title = osc_title;
                 self.has_default_title = false;
-            } else if let Some(cwd) = term.shell_integration_cwd() {
-                // Abbreviate home directory to ~
-                let abbreviated = if let Some(home) = dirs::home_dir() {
-                    cwd.replace(&home.to_string_lossy().to_string(), "~")
-                } else {
-                    cwd
-                };
-                // Use just the last component for brevity
-                if let Some(last) = abbreviated.rsplit('/').next() {
-                    if !last.is_empty() {
-                        self.title = last.to_string();
+            } else if title_mode == par_term_config::TabTitleMode::Auto {
+                if let Some(cwd) = term.shell_integration_cwd() {
+                    // Abbreviate home directory to ~
+                    let abbreviated = if let Some(home) = dirs::home_dir() {
+                        cwd.replace(&home.to_string_lossy().to_string(), "~")
+                    } else {
+                        cwd
+                    };
+                    // Use just the last component for brevity
+                    if let Some(last) = abbreviated.rsplit('/').next() {
+                        if !last.is_empty() {
+                            self.title = last.to_string();
+                        } else {
+                            self.title = abbreviated;
+                        }
                     } else {
                         self.title = abbreviated;
                     }
-                } else {
-                    self.title = abbreviated;
+                    self.has_default_title = false;
                 }
-                self.has_default_title = false;
             }
             // Otherwise keep the existing title (e.g., "Tab N")
         }
@@ -1476,6 +1487,7 @@ impl Tab {
             working_directory: None,
             custom_color: None,
             has_default_title: true,
+            user_named: false,
             last_activity_time: std::time::Instant::now(),
             last_seen_generation: 0,
             anti_idle_last_activity: std::time::Instant::now(),

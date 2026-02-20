@@ -406,9 +406,9 @@ impl TabManager {
     }
 
     /// Update titles for all tabs
-    pub fn update_all_titles(&mut self) {
+    pub fn update_all_titles(&mut self, title_mode: par_term_config::TabTitleMode) {
         for tab in &mut self.tabs {
-            tab.update_title();
+            tab.update_title(title_mode);
         }
     }
 

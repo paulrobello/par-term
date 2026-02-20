@@ -2079,7 +2079,7 @@ impl WindowState {
         };
 
         // Update tab titles from terminal OSC sequences
-        self.tab_manager.update_all_titles();
+        self.tab_manager.update_all_titles(self.config.tab_title_mode);
 
         // Rebuild renderer if font-related settings changed
         if self.pending_font_rebuild {
