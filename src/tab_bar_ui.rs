@@ -1547,12 +1547,12 @@ impl TabBarUI {
                                         .desired_width(140.0)
                                         .hint_text("Tab name"),
                                 );
-                                // Auto-focus on first frame
-                                response.request_focus();
+                                // Auto-focus when first shown
+                                if !response.has_focus() {
+                                    response.request_focus();
+                                }
                                 // Submit on Enter
-                                if response.lost_focus()
-                                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                                {
+                                if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                                     let name = self.rename_buffer.trim().to_string();
                                     action = TabBarAction::RenameTab(tab_id, name);
                                     self.renaming_tab = false;
@@ -1645,8 +1645,7 @@ impl TabBarUI {
                     });
             });
 
-        // Close menu if clicked outside (but not on the same frame it was opened,
-        // and not when we just activated rename mode)
+        // Close menu if clicked outside (but not on the same frame it was opened)
         let current_frame = ctx.cumulative_frame_nr();
         if current_frame > self.context_menu_opened_frame
             && ctx.input(|i| i.pointer.any_click())
@@ -1654,8 +1653,12 @@ impl TabBarUI {
             // Only close if no action was taken (let button clicks register)
             && !close_menu
             && action == TabBarAction::None
-            && !self.renaming_tab
         {
+            // If renaming, submit the current buffer on click-away
+            if self.renaming_tab {
+                let name = self.rename_buffer.trim().to_string();
+                action = TabBarAction::RenameTab(tab_id, name);
+            }
             close_menu = true;
         }
 
