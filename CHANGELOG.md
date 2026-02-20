@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Inline Image Display (pt-imgcat)**: Fixed inline images not rendering for files larger than ~750 KB — updated core library to v0.39.1 which increases the OSC buffer limit from 1 MB to 128 MB
+- **Inline Image Double-Scroll**: Fixed partially-scrolled inline images being positioned above the viewport — the renderer now adjusts the y position by `scroll_offset_rows` so the visible portion starts at the correct screen row instead of at the original (negative) position
+- **Upload Over SSH (pt-ul)**: Fixed uploads hanging indefinitely over SSH — resolved response_buffer deadlock by using background thread with chunked PTY writes; fixed archive format (now sends proper tar.gz instead of raw base64); added progress bar overlay for upload tracking
 - **Remote Shell Install Dialog**: Fixed Install button and Copy button not working — Install now uses `paste_text()` (same code path as Cmd+V) which correctly forwards commands through SSH sessions via bracketed paste mode; added Copy Command button with clipboard feedback; added Enter/Escape key support
 - **Stale URL Hover State**: Fixed mouse cursor and title bar showing file info for content that has scrolled off screen — `detect_urls()` now clears hover state and resets cursor/title on every content rebuild
 - **Dialog Input Passthrough**: Fixed mouse and keyboard events leaking through to the terminal when the remote shell install, quit confirmation, or SSH connect dialogs were visible

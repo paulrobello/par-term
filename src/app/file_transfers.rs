@@ -5,7 +5,9 @@
 //! renders an egui progress overlay for active transfers.
 
 use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use par_term_emu_core_rust::terminal::file_transfer::{
     FileTransfer, TransferDirection, TransferStatus,
@@ -13,6 +15,10 @@ use par_term_emu_core_rust::terminal::file_transfer::{
 
 use super::window_state::WindowState;
 use crate::config::DownloadSaveLocation;
+
+/// Chunk size for writing upload data to the PTY.
+/// Matches typical macOS PTY buffer size for efficient writes.
+const UPLOAD_CHUNK_SIZE: usize = 65536;
 
 /// UI-friendly information about an active file transfer
 #[derive(Debug, Clone)]
@@ -52,8 +58,28 @@ pub(crate) struct PendingUpload {
     pub format: String,
 }
 
+/// Tracks a background upload being written to the PTY in chunks.
+pub(crate) struct ActiveUpload {
+    /// Unique identifier
+    pub id: u64,
+    /// Display filename
+    pub filename: String,
+    /// Original file size (for user-facing display)
+    pub file_size: usize,
+    /// Total bytes to write to the PTY (base64-encoded size)
+    pub total_wire_bytes: usize,
+    /// Bytes written to the PTY so far (updated atomically by writer thread)
+    pub bytes_written: Arc<AtomicUsize>,
+    /// Whether the write has finished (success or error)
+    pub completed: Arc<AtomicBool>,
+    /// Error message if the write failed
+    pub error: Arc<std::sync::Mutex<Option<String>>>,
+    /// When the upload started (unix millis)
+    pub started_at: u64,
+}
+
 /// Tracks all file transfer UI state
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub(crate) struct FileTransferState {
     /// Currently active transfers (for overlay display)
     pub active_transfers: Vec<TransferInfo>,
@@ -61,6 +87,8 @@ pub(crate) struct FileTransferState {
     pub pending_saves: VecDeque<PendingSave>,
     /// Upload requests waiting for the file picker
     pub pending_uploads: VecDeque<PendingUpload>,
+    /// Background uploads being written to the PTY
+    pub active_uploads: Vec<ActiveUpload>,
     /// Whether a modal dialog (save/open) is currently showing
     pub dialog_open: bool,
     /// When the last transfer completed (for auto-hiding the overlay)
@@ -103,6 +131,13 @@ fn transfer_to_info(ft: &FileTransfer) -> TransferInfo {
     }
 }
 
+fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
 impl WindowState {
     /// Poll terminal for file transfer events each frame.
     ///
@@ -111,6 +146,7 @@ impl WindowState {
     /// - Collect completed downloads for save dialogs
     /// - Collect upload requests for file pickers
     /// - Notify on failures
+    /// - Track background upload progress
     /// - Process pending save/upload dialogs
     pub(crate) fn check_file_transfers(&mut self) {
         let tab = if let Some(t) = self.tab_manager.active_tab() {
@@ -210,13 +246,74 @@ impl WindowState {
             }
         }
 
-        // 5. Process pending save dialogs (outside the terminal lock)
+        // 5. Track background upload progress
+        self.poll_active_uploads();
+
+        // 6. Process pending save dialogs (outside the terminal lock)
         if !self.file_transfer_state.dialog_open {
             if let Some(pending) = self.file_transfer_state.pending_saves.pop_front() {
                 self.process_save_dialog(pending);
             } else if let Some(pending) = self.file_transfer_state.pending_uploads.pop_front() {
                 self.process_upload_dialog(pending);
             }
+        }
+    }
+
+    /// Check background upload threads for progress and completion.
+    fn poll_active_uploads(&mut self) {
+        // Collect completed uploads and their results
+        let mut completed_info: Vec<(String, Option<String>)> = Vec::new();
+        self.file_transfer_state
+            .active_uploads
+            .retain(|upload| {
+                if upload.completed.load(Ordering::Relaxed) {
+                    let error = upload.error.lock().unwrap().take();
+                    completed_info.push((upload.filename.clone(), error));
+                    false
+                } else {
+                    true
+                }
+            });
+
+        // Notify for completed uploads
+        for (filename, error) in completed_info {
+            if let Some(e) = error {
+                self.deliver_notification("Upload Failed", &e);
+            } else {
+                self.deliver_notification(
+                    "Upload Complete",
+                    &format!("Uploaded {}", filename),
+                );
+            }
+            self.file_transfer_state.last_completion_time = Some(std::time::Instant::now());
+        }
+
+        // Add active upload progress to the transfer overlay
+        for upload in &self.file_transfer_state.active_uploads {
+            let wire_written = upload.bytes_written.load(Ordering::Relaxed);
+            // Map wire bytes back to file-size proportion for display
+            let bytes_transferred = if upload.total_wire_bytes > 0 {
+                ((wire_written as f64 / upload.total_wire_bytes as f64) * upload.file_size as f64)
+                    as usize
+            } else {
+                0
+            };
+
+            self.file_transfer_state
+                .active_transfers
+                .push(TransferInfo {
+                    id: upload.id,
+                    filename: upload.filename.clone(),
+                    direction: TransferDirection::Upload,
+                    bytes_transferred,
+                    total_bytes: Some(upload.file_size),
+                    started_at: upload.started_at,
+                });
+        }
+
+        // Keep requesting redraws while uploads are active
+        if !self.file_transfer_state.active_uploads.is_empty() {
+            self.request_redraw();
         }
     }
 
@@ -280,6 +377,11 @@ impl WindowState {
     }
 
     /// Show a native file picker for an upload request, read the file, and send data.
+    ///
+    /// Creates a tar.gz archive of the selected file, base64-encodes it, and spawns
+    /// a background thread to write the data to the PTY in chunks. This avoids both:
+    /// - The response_buffer deadlock (reader thread blocked waiting for PTY input)
+    /// - UI freezing from large synchronous PTY writes
     fn process_upload_dialog(&mut self, _pending: PendingUpload) {
         self.file_transfer_state.dialog_open = true;
 
@@ -290,7 +392,8 @@ impl WindowState {
         if let Some(path) = result {
             match std::fs::read(&path) {
                 Ok(data) => {
-                    let size_str = format_bytes(data.len());
+                    let file_size = data.len();
+                    let size_str = format_bytes(file_size);
                     let filename = path
                         .file_name()
                         .map(|n| n.to_string_lossy().to_string())
@@ -303,21 +406,85 @@ impl WindowState {
                         size_str
                     );
 
-                    // Send the upload data to the terminal
-                    if let Some(tab) = self.tab_manager.active_tab() {
-                        if let Ok(term) = tab.terminal.try_lock() {
-                            term.send_upload_data(&data);
-                            self.deliver_notification(
-                                "Upload Sent",
-                                &format!("Uploaded {} ({})", filename, size_str),
+                    // Create tar.gz archive (iTerm2 tgz format)
+                    let tgz_data = match create_tgz_archive(&path, &data) {
+                        Ok(d) => d,
+                        Err(e) => {
+                            crate::debug_info!(
+                                "FILE_TRANSFER",
+                                "Failed to create tar.gz archive: {}",
+                                e
                             );
-                        } else {
                             self.deliver_notification(
                                 "Upload Failed",
-                                "Could not lock terminal to send upload data",
+                                &format!("Failed to create archive: {}", e),
                             );
+                            self.cancel_upload_direct();
+                            return;
                         }
+                    };
+
+                    // Base64 encode and format as single line + newline
+                    use base64::Engine;
+                    let encoded =
+                        base64::engine::general_purpose::STANDARD.encode(&tgz_data);
+                    let response = format!("{}\n", encoded);
+                    let total_wire_bytes = response.len();
+
+                    // Set up shared progress tracking
+                    let bytes_written = Arc::new(AtomicUsize::new(0));
+                    let completed = Arc::new(AtomicBool::new(false));
+                    let error: Arc<std::sync::Mutex<Option<String>>> =
+                        Arc::new(std::sync::Mutex::new(None));
+                    let upload_id = now_millis();
+
+                    self.file_transfer_state.active_uploads.push(ActiveUpload {
+                        id: upload_id,
+                        filename: filename.clone(),
+                        file_size,
+                        total_wire_bytes,
+                        bytes_written: Arc::clone(&bytes_written),
+                        completed: Arc::clone(&completed),
+                        error: Arc::clone(&error),
+                        started_at: upload_id,
+                    });
+
+                    // Spawn background thread to write in chunks without blocking UI
+                    if let Some(tab) = self.tab_manager.active_tab() {
+                        let terminal_arc = Arc::clone(&tab.terminal);
+                        let response_bytes = response.into_bytes();
+
+                        std::thread::Builder::new()
+                            .name(format!("upload-{}", filename))
+                            .spawn(move || {
+                                let mut offset = 0;
+                                while offset < response_bytes.len() {
+                                    let end = (offset + UPLOAD_CHUNK_SIZE)
+                                        .min(response_bytes.len());
+                                    let chunk = &response_bytes[offset..end];
+
+                                    let term = terminal_arc.blocking_lock();
+                                    match term.write(chunk) {
+                                        Ok(()) => {
+                                            drop(term);
+                                            offset = end;
+                                            bytes_written.store(offset, Ordering::Relaxed);
+                                        }
+                                        Err(e) => {
+                                            drop(term);
+                                            *error.lock().unwrap() =
+                                                Some(format!("PTY write failed: {}", e));
+                                            completed.store(true, Ordering::Relaxed);
+                                            return;
+                                        }
+                                    }
+                                }
+                                completed.store(true, Ordering::Relaxed);
+                            })
+                            .ok();
                     }
+
+                    self.request_redraw();
                 }
                 Err(e) => {
                     crate::debug_info!("FILE_TRANSFER", "Failed to read upload file: {}", e);
@@ -325,22 +492,20 @@ impl WindowState {
                         "Upload Failed",
                         &format!("Failed to read file: {}", e),
                     );
-                    // Cancel the upload since we can't send data
-                    if let Some(tab) = self.tab_manager.active_tab()
-                        && let Ok(term) = tab.terminal.try_lock()
-                    {
-                        term.cancel_upload();
-                    }
+                    self.cancel_upload_direct();
                 }
             }
         } else {
             crate::debug_info!("FILE_TRANSFER", "Upload file picker cancelled");
-            // Cancel the upload since user cancelled the picker
-            if let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_lock()
-            {
-                term.cancel_upload();
-            }
+            self.cancel_upload_direct();
+        }
+    }
+
+    /// Cancel an upload by writing abort directly to the PTY.
+    fn cancel_upload_direct(&self) {
+        if let Some(tab) = self.tab_manager.active_tab() {
+            let term = tab.terminal.blocking_lock();
+            let _ = term.write(b"abort\n");
         }
     }
 
@@ -375,6 +540,37 @@ impl WindowState {
             }
         }
     }
+}
+
+/// Create a tar.gz archive containing a single file.
+///
+/// Returns the compressed archive bytes suitable for base64-encoding
+/// and sending as an iTerm2 upload response.
+fn create_tgz_archive(path: &Path, data: &[u8]) -> std::io::Result<Vec<u8>> {
+    let filename = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy();
+
+    let compressed = Vec::new();
+    let encoder = flate2::write::GzEncoder::new(compressed, flate2::Compression::default());
+    let mut archive = tar::Builder::new(encoder);
+
+    let mut header = tar::Header::new_gnu();
+    header.set_size(data.len() as u64);
+    header.set_mode(0o644);
+    header.set_mtime(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+    );
+    header.set_cksum();
+
+    archive.append_data(&mut header, &*filename, data)?;
+
+    let encoder = archive.into_inner()?;
+    encoder.finish()
 }
 
 /// Render the file transfer progress overlay using egui.

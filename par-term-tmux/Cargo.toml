@@ -15,7 +15,7 @@ categories = ["command-line-utilities"]
 par-term-config = { path = "../par-term-config", version = "0.2.0" }
 
 # Terminal emulator core (tmux control mode parser)
-par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.39.1", default-features = false, features = ["rust-only"] }
 
 # Window event types for prefix key handling
 winit = "0.30"

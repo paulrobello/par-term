@@ -357,11 +357,16 @@ impl GraphicsRenderer {
             // Check if texture exists
             if let Some(tex_info) = self.texture_cache.get(&id) {
                 // Calculate screen position (normalized 0-1, origin top-left)
+                // When scroll_offset_rows > 0, the image is partially scrolled off the top.
+                // Advance the y position by scroll_offset_rows so the visible portion
+                // starts at the correct screen row instead of above the viewport.
+                let adjusted_row = row + scroll_offset_rows as isize;
                 let x =
                     (self.window_padding + self.content_offset_x + col as f32 * self.cell_width)
                         / window_width;
                 let y =
-                    (self.window_padding + self.content_offset_y + row as f32 * self.cell_height)
+                    (self.window_padding + self.content_offset_y
+                        + adjusted_row as f32 * self.cell_height)
                         / window_height;
 
                 // Calculate texture V offset for scrolled graphics

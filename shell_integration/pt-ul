@@ -63,8 +63,8 @@ _pt_print_osc
 printf '1337;RequestUpload=format=tgz'
 _pt_print_st
 
-# Read response - terminal sends base64 data terminated by newline
-# The response format is: filename\nbase64data
+# Read response - terminal sends base64-encoded tar.gz data on a single line
+# Format: base64(tar.gz) + newline, or "abort" if user cancelled
 _response=""
 while IFS= read -r _line; do
     _response="$_line"

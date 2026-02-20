@@ -76,7 +76,7 @@ par-term-mcp = { path = "par-term-mcp", version = "0.1.1" }
 par-term-tmux = { path = "par-term-tmux", version = "0.1.2" }
 
 # Terminal emulator core (with OSC 7/1337 hostname/cwd events, RemoteHost, and OSC 934 named progress bars)
-par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.39.1", default-features = false, features = ["rust-only"] }
 
 # Window management and rendering
 winit = "0.30"
@@ -156,6 +156,8 @@ sha2 = "0.10.9"
 # Badge system
 hostname = "0.4.2"  # Cross-platform hostname detection
 base64 = "0.22.1"   # Base64 decoding for OSC 1337 SetBadgeFormat
+flate2 = "1.1.9"    # Gzip compression for upload tar.gz archives
+tar = "0.4.44"      # Tar archive creation for upload (iTerm2 tgz format)
 lru = "0.16.3"
 fuzzy-matcher = "0.3.7"  # Fuzzy string matching for command history search
 sysinfo = "0.37.2"  # Cross-platform CPU/memory/network monitoring for status bar

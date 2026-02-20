@@ -12,7 +12,7 @@ par-term-config = { path = "../par-term-config", version = "0.2.0", features = [
 par-term-fonts = { path = "../par-term-fonts", version = "0.1.2" }
 
 # Terminal emulator core (for CursorStyle type)
-par-term-emu-core-rust = { version = "0.39.0", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.39.1", default-features = false, features = ["rust-only"] }
 
 # GPU rendering
 winit = "0.30"
