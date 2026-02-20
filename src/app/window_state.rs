@@ -3905,6 +3905,20 @@ impl WindowState {
                     window.request_redraw();
                 }
             }
+            TabBarAction::RenameTab(id, name) => {
+                if let Some(tab) = self.tab_manager.get_tab_mut(id) {
+                    if name.is_empty() {
+                        // Clear user name — revert to auto title
+                        tab.user_named = false;
+                    } else {
+                        tab.title = name;
+                        tab.user_named = true;
+                    }
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
             TabBarAction::Duplicate(id) => {
                 self.duplicate_tab_by_id(id);
                 if let Some(window) = &self.window {

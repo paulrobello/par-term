@@ -48,6 +48,8 @@ pub enum TabBarAction {
     ClearColor(TabId),
     /// Duplicate a specific tab
     Duplicate(TabId),
+    /// Rename a specific tab
+    RenameTab(TabId, String),
     /// Toggle the AI assistant panel
     ToggleAssistantPanel,
 }
@@ -80,6 +82,12 @@ pub struct TabBarUI {
     context_menu_opened_frame: u64,
     /// Color being edited in the color picker (for the context menu)
     editing_color: [u8; 3],
+    /// Whether the rename text field is active in the context menu
+    renaming_tab: bool,
+    /// Buffer for the rename text field
+    rename_buffer: String,
+    /// Title of the tab in the context menu (for rename pre-fill)
+    context_menu_title: String,
     /// Horizontal scroll offset for tabs (in pixels)
     scroll_offset: f32,
     /// Whether the new-tab profile popup is open
@@ -103,6 +111,9 @@ impl TabBarUI {
             context_menu_pos: egui::Pos2::ZERO,
             context_menu_opened_frame: 0,
             editing_color: [100, 100, 100],
+            renaming_tab: false,
+            rename_buffer: String::new(),
+            context_menu_title: String::new(),
             scroll_offset: 0.0,
             show_new_tab_profile_menu: false,
         }
@@ -774,6 +785,7 @@ impl TabBarUI {
         if tab_response.secondary_clicked() {
             self.editing_color = custom_color.unwrap_or([100, 100, 100]);
             self.context_menu_tab = Some(id);
+            self.context_menu_title = title.to_string();
             if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
                 self.context_menu_pos = pos;
             }
@@ -1217,6 +1229,7 @@ impl TabBarUI {
             // Initialize editing color from custom color or a default
             self.editing_color = custom_color.unwrap_or([100, 100, 100]);
             self.context_menu_tab = Some(id);
+            self.context_menu_title = title.to_string();
             // Store click position for menu placement
             if let Some(pos) = ui.ctx().input(|i| i.pointer.interact_pos()) {
                 self.context_menu_pos = pos;
@@ -1494,9 +1507,13 @@ impl TabBarUI {
         let mut action = TabBarAction::None;
         let mut close_menu = false;
 
-        // Close on Escape
+        // Handle Escape: cancel rename if active, otherwise close menu
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            close_menu = true;
+            if self.renaming_tab {
+                self.renaming_tab = false;
+            } else {
+                close_menu = true;
+            }
         }
 
         let area_response = egui::Area::new(egui::Id::new("tab_context_menu"))
@@ -1520,6 +1537,41 @@ impl TabBarUI {
                             );
                             response.clicked()
                         };
+
+                        // Rename Tab
+                        if self.renaming_tab {
+                            ui.horizontal(|ui| {
+                                ui.add_space(8.0);
+                                let response = ui.add(
+                                    egui::TextEdit::singleline(&mut self.rename_buffer)
+                                        .desired_width(140.0)
+                                        .hint_text("Tab name"),
+                                );
+                                // Auto-focus on first frame
+                                response.request_focus();
+                                // Submit on Enter
+                                if response.lost_focus()
+                                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                {
+                                    let name = self.rename_buffer.trim().to_string();
+                                    action = TabBarAction::RenameTab(tab_id, name);
+                                    self.renaming_tab = false;
+                                    close_menu = true;
+                                }
+                            });
+                            ui.horizontal(|ui| {
+                                ui.add_space(8.0);
+                                ui.label(
+                                    egui::RichText::new("Leave blank to use auto title")
+                                        .weak()
+                                        .small(),
+                                );
+                            });
+                            ui.add_space(2.0);
+                        } else if menu_item(ui, "Rename Tab") {
+                            self.renaming_tab = true;
+                            self.rename_buffer = self.context_menu_title.clone();
+                        }
 
                         // Duplicate Tab
                         if menu_item(ui, "Duplicate Tab") {
@@ -1608,6 +1660,7 @@ impl TabBarUI {
         // Close menu if action taken or cancelled
         if close_menu {
             self.context_menu_tab = None;
+            self.renaming_tab = false;
         }
 
         action
