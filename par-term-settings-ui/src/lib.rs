@@ -32,6 +32,9 @@ pub mod shell_detection;
 pub mod profile_modal_ui;
 pub use profile_modal_ui::{ProfileModalAction, ProfileModalUI};
 
+// Nerd Font integration (font loading + icon presets)
+pub mod nerd_font;
+
 // Reorganized settings tabs
 pub mod actions_tab;
 pub mod advanced_tab;
