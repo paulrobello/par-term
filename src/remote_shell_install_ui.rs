@@ -22,6 +22,8 @@ pub enum RemoteShellInstallAction {
 pub struct RemoteShellInstallUI {
     /// Whether the dialog is visible
     visible: bool,
+    /// Brief flash message after copy
+    copy_feedback: Option<std::time::Instant>,
 }
 
 impl Default for RemoteShellInstallUI {
@@ -33,7 +35,10 @@ impl Default for RemoteShellInstallUI {
 impl RemoteShellInstallUI {
     /// Create a new remote shell install UI
     pub fn new() -> Self {
-        Self { visible: false }
+        Self {
+            visible: false,
+            copy_feedback: None,
+        }
     }
 
     /// Check if the dialog is currently visible
@@ -44,11 +49,13 @@ impl RemoteShellInstallUI {
     /// Show the confirmation dialog
     pub fn show_dialog(&mut self) {
         self.visible = true;
+        self.copy_feedback = None;
     }
 
     /// Hide the dialog
     fn hide(&mut self) {
         self.visible = false;
+        self.copy_feedback = None;
     }
 
     /// Get the install command string
@@ -64,6 +71,9 @@ impl RemoteShellInstallUI {
 
         let mut action = RemoteShellInstallAction::None;
         let command = Self::install_command();
+
+        // Request continuous repaints while dialog is visible to ensure clicks are processed
+        ctx.request_repaint();
 
         egui::Window::new("Install Shell Integration on Remote Host")
             .collapsible(false)
@@ -98,6 +108,25 @@ impl RemoteShellInstallUI {
                             );
                         });
 
+                    ui.add_space(4.0);
+
+                    // Copy button on its own line
+                    let copy_label = if self
+                        .copy_feedback
+                        .is_some_and(|t| t.elapsed().as_millis() < 1500)
+                    {
+                        "Copied!"
+                    } else {
+                        "Copy Command"
+                    };
+                    if ui
+                        .button(egui::RichText::new(copy_label).size(12.0))
+                        .clicked()
+                    {
+                        ctx.copy_text(command.clone());
+                        self.copy_feedback = Some(std::time::Instant::now());
+                    }
+
                     ui.add_space(10.0);
 
                     // Warning
@@ -113,12 +142,7 @@ impl RemoteShellInstallUI {
 
                     // Buttons
                     ui.horizontal(|ui| {
-                        let install_button = egui::Button::new(
-                            egui::RichText::new("Install").color(egui::Color32::WHITE),
-                        )
-                        .fill(egui::Color32::from_rgb(50, 120, 50));
-
-                        if ui.add(install_button).clicked() {
+                        if ui.button("Install").clicked() {
                             action = RemoteShellInstallAction::Install;
                         }
 
@@ -137,7 +161,12 @@ impl RemoteShellInstallUI {
             action = RemoteShellInstallAction::Cancel;
         }
 
-        // Hide dialog on any action
+        // Handle enter key to confirm install
+        if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
+            action = RemoteShellInstallAction::Install;
+        }
+
+        // Hide dialog on any action (except None)
         if !matches!(action, RemoteShellInstallAction::None) {
             self.hide();
         }

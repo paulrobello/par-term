@@ -1832,6 +1832,9 @@ impl WindowState {
             || self.command_history_ui.visible
             || self.shader_install_ui.visible
             || self.integrations_ui.visible
+            || self.remote_shell_install_ui.is_visible()
+            || self.quit_confirmation_ui.is_visible()
+            || self.ssh_connect_ui.is_visible()
             || self.ai_inspector.open
     }
 
@@ -1845,6 +1848,9 @@ impl WindowState {
             || self.command_history_ui.visible
             || self.shader_install_ui.visible
             || self.integrations_ui.visible
+            || self.remote_shell_install_ui.is_visible()
+            || self.quit_confirmation_ui.is_visible()
+            || self.ssh_connect_ui.is_visible()
             || self.ai_inspector.open;
         if !any_ui_visible {
             return false;
@@ -2947,7 +2953,8 @@ impl WindowState {
                     || self.search_ui.visible
                     || self.tmux_session_picker_ui.visible
                     || self.ssh_connect_ui.is_visible()
-                    || self.quit_confirmation_ui.is_visible();
+                    || self.quit_confirmation_ui.is_visible()
+                    || self.remote_shell_install_ui.is_visible();
                 if !any_modal_visible {
                     raw_input.events.retain(|e| {
                         !matches!(
@@ -3896,16 +3903,20 @@ impl WindowState {
         // Handle remote shell integration install action
         match pending_remote_install_action {
             RemoteShellInstallAction::Install => {
-                // Send the install command to the active terminal
+                // Send the install command via paste_text() which uses the same
+                // code path as Cmd+V paste — handles bracketed paste mode and
+                // correctly forwards through SSH sessions.
                 let command = RemoteShellInstallUI::install_command();
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
-                {
-                    let _ = term.write_str(&format!("{}\r", command));
+                // paste_text appends \r internally via term.paste()
+                self.paste_text(&format!("{}\n", command));
+                if let Some(window) = &self.window {
+                    window.request_redraw();
                 }
             }
             RemoteShellInstallAction::Cancel => {
-                // Nothing to do - dialog already hidden
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
             }
             RemoteShellInstallAction::None => {}
         }

@@ -20,7 +20,9 @@ impl WindowState {
             || self.command_history_ui.visible
             || self.search_ui.visible
             || self.tmux_session_picker_ui.visible
-            || self.ssh_connect_ui.is_visible();
+            || self.ssh_connect_ui.is_visible()
+            || self.remote_shell_install_ui.is_visible()
+            || self.quit_confirmation_ui.is_visible();
 
         // When UI panels are visible, block ALL keys from going to terminal
         // except for UI control keys (Escape handled by egui, F1/F2/F3 for toggles)

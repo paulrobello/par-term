@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Remote Shell Install Dialog**: Fixed Install button and Copy button not working — Install now uses `paste_text()` (same code path as Cmd+V) which correctly forwards commands through SSH sessions via bracketed paste mode; added Copy Command button with clipboard feedback; added Enter/Escape key support
+- **Stale URL Hover State**: Fixed mouse cursor and title bar showing file info for content that has scrolled off screen — `detect_urls()` now clears hover state and resets cursor/title on every content rebuild
+- **Dialog Input Passthrough**: Fixed mouse and keyboard events leaking through to the terminal when the remote shell install, quit confirmation, or SSH connect dialogs were visible
 - **Live Window Padding Updates**: Window padding changes in the settings UI now take effect immediately without requiring an app restart — the renderer, graphics, and shader sub-renderers are all updated live and terminals are resized to match the new grid dimensions
 - **Settings Collapsible Section Persistence**: Fixed 14 collapsible sections across 6 settings UI files (Effects, Profiles, Scripts, Snippets) that lost their expanded/collapsed state when reopening the settings window or restarting the app — all sections now use the persistent `collapsing_section` helper that saves state to config
 - **Split Pane Mouse Event Routing**: Fixed mouse events (click, motion, scroll) being sent to the tab's legacy terminal instead of the focused pane's terminal in split pane mode — tmux pane resize and other mouse-aware applications inside split panes now work correctly

@@ -50,9 +50,25 @@ impl WindowState {
             }
         };
 
+        // Check if hover state needs to be cleared before taking mutable borrow.
+        // This resets the pointer cursor and title bar file info when content changes
+        // so they don't persist for files that have scrolled off screen.
+        let had_hovered_url = self
+            .tab_manager
+            .active_tab()
+            .is_some_and(|t| t.mouse.hovered_url.is_some());
+        if had_hovered_url {
+            if let Some(window) = &self.window {
+                window.set_cursor(winit::window::CursorIcon::Text);
+                let title = self.format_title(&self.config.window_title);
+                window.set_title(&title);
+            }
+        }
+
         // Clear and rebuild detected URLs
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             tab.mouse.detected_urls.clear();
+            tab.mouse.hovered_url = None;
 
             // Extract text from each visible line and detect URLs
             for row in 0..rows {

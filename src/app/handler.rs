@@ -194,7 +194,10 @@ impl WindowState {
             || self.clipboard_history_ui.visible
             || self.command_history_ui.visible
             || self.shader_install_ui.visible
-            || self.integrations_ui.visible;
+            || self.integrations_ui.visible
+            || self.remote_shell_install_ui.is_visible()
+            || self.quit_confirmation_ui.is_visible()
+            || self.ssh_connect_ui.is_visible();
         if egui_consumed
             && !any_ui_visible
             && let WindowEvent::KeyboardInput {
@@ -937,6 +940,9 @@ impl WindowState {
                     || self.search_ui.visible
                     || self.shader_install_ui.visible
                     || self.integrations_ui.visible
+                    || self.remote_shell_install_ui.is_visible()
+                    || self.quit_confirmation_ui.is_visible()
+                    || self.ssh_connect_ui.is_visible()
                     || self.resize_overlay_visible;
 
                 // Delay unless bypass conditions met
