@@ -718,7 +718,8 @@ impl CellRenderer {
         let available_width = (width as f32
             - self.window_padding * 2.0
             - self.content_offset_x
-            - self.content_inset_right)
+            - self.content_inset_right
+            - self.scrollbar.width())
             .max(0.0);
         let available_height = (height as f32
             - self.window_padding * 2.0

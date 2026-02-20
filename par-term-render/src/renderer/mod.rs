@@ -291,8 +291,9 @@ impl Renderer {
         let window_padding = window_padding * scale;
         let scrollbar_width = scrollbar_width * scale;
 
-        // Calculate available space after padding (padding on all sides)
-        let available_width = (size.width as f32 - window_padding * 2.0).max(0.0);
+        // Calculate available space after padding and scrollbar
+        let available_width =
+            (size.width as f32 - window_padding * 2.0 - scrollbar_width).max(0.0);
         let available_height = (size.height as f32 - window_padding * 2.0).max(0.0);
 
         // Calculate terminal dimensions based on font size in pixels and spacing

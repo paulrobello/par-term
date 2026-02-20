@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Scrollbar Overlapping Terminal Content**: Fixed the scrollbar rendering on top of terminal text instead of reserving its own space — the terminal grid now subtracts the scrollbar width from available columns so content stops before the scrollbar
 - **Tab Bar First Tab Border Clipping**: Fixed the left border of the first tab being slightly cropped in the horizontal tab bar by adding left padding before tab content
 - **Progress Bar Overlapping Tab Bar**: Fixed progress bars rendering on top of the tab bar — progress bars now respect the tab bar position and render below a top tab bar or above a bottom tab bar
 - **Vertically Squashed Ballot Box and Dingbat Glyphs**: Fixed checkbox characters (☐☑☒) and check marks (✓✔) appearing vertically compressed compared to other terminals — Miscellaneous Symbols and Dingbats Unicode ranges now get snap-to-cell-boundaries treatment to prevent scale compression from pixel rounding
