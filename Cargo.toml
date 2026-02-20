@@ -102,6 +102,7 @@ uuid = { version = "1.21", features = ["v4", "serde"] }
 
 # Error handling
 anyhow = "1.0.101"
+thiserror = "2"
 
 # Logging
 log = "0.4.29"

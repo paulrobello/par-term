@@ -38,6 +38,7 @@ pub mod paste_transform;
 pub mod profile;
 pub mod profile_drawer_ui;
 pub mod profile_modal_ui;
+pub mod prettifier;
 pub mod progress_bar;
 pub mod quit_confirmation_ui;
 pub mod remote_shell_install_ui;

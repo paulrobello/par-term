@@ -1,0 +1,12 @@
+//! Content Prettifier framework.
+//!
+//! Detects structured content in terminal output (Markdown, JSON, YAML, diffs, etc.)
+//! and renders it in a rich, human-readable form. Built on a pluggable trait-based
+//! architecture where `ContentDetector` identifies formats and `ContentRenderer`
+//! handles display.
+
+pub mod traits;
+pub mod types;
+
+pub use traits::*;
+pub use types::*;
