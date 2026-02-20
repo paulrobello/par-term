@@ -594,6 +594,25 @@ fn show_performance_section(
                 }
             });
 
+            ui.horizontal(|ui| {
+                ui.label("Inactive Tab FPS:");
+                if ui
+                    .add_sized(
+                        [SLIDER_WIDTH, SLIDER_HEIGHT],
+                        egui::Slider::new(&mut settings.config.inactive_tab_fps, 1..=30),
+                    )
+                    .on_hover_text(
+                        "Refresh rate for non-visible tabs. Lower values reduce CPU usage\n\
+                         from mutex polling when many tabs are open.\n\
+                         Only needs to be high enough to detect activity, bells, and shell exit.",
+                    )
+                    .changed()
+                {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+            });
+
             ui.add_space(8.0);
             ui.label(egui::RichText::new("Flicker Reduction").strong());
 

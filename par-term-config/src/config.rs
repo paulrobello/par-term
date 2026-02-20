@@ -1413,6 +1413,13 @@ pub struct Config {
     #[serde(default = "crate::defaults::unfocused_fps")]
     pub unfocused_fps: u32,
 
+    /// Target FPS for inactive (non-visible) tabs
+    /// Inactive tabs only need enough polling to detect activity, bells, and shell exit.
+    /// Lower values significantly reduce CPU from mutex contention with many tabs open.
+    /// Default: 2 (500ms interval)
+    #[serde(default = "crate::defaults::inactive_tab_fps")]
+    pub inactive_tab_fps: u32,
+
     // ========================================================================
     // Shader Hot Reload
     // ========================================================================
@@ -2076,6 +2083,7 @@ impl Default for Config {
             pause_shaders_on_blur: crate::defaults::bool_true(),
             pause_refresh_on_blur: crate::defaults::bool_false(),
             unfocused_fps: crate::defaults::unfocused_fps(),
+            inactive_tab_fps: crate::defaults::inactive_tab_fps(),
             shader_hot_reload: crate::defaults::bool_false(),
             shader_hot_reload_delay: crate::defaults::shader_hot_reload_delay(),
             shader_configs: HashMap::new(),

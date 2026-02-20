@@ -22,6 +22,7 @@ use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
 use par_term_emu_core_rust::coprocess::CoprocessId;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -373,6 +374,9 @@ pub struct Tab {
     pub pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
     /// Whether current profile was auto-applied due to SSH hostname detection
     pub ssh_auto_switched: bool,
+    /// Whether this tab is the currently active (visible) tab.
+    /// Used by the refresh task to dynamically choose polling interval.
+    pub is_active: Arc<AtomicBool>,
     /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
     pub(crate) shutdown_fast: bool,
 }
@@ -572,6 +576,7 @@ impl Tab {
             trigger_marks: Vec::new(),
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
+            is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
         })
     }
@@ -801,6 +806,7 @@ impl Tab {
             trigger_marks: Vec::new(),
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
+            is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
         })
     }
@@ -1011,19 +1017,24 @@ impl Tab {
         &mut self,
         runtime: Arc<Runtime>,
         window: Arc<winit::window::Window>,
-        max_fps: u32,
+        active_fps: u32,
+        inactive_fps: u32,
     ) {
         let terminal_clone = Arc::clone(&self.terminal);
-        let refresh_interval_ms = 1000 / max_fps.max(1);
+        let is_active = Arc::clone(&self.is_active);
+        let active_interval_ms = (1000 / active_fps.max(1)) as u64;
+        let inactive_interval_ms = (1000 / inactive_fps.max(1)) as u64;
 
         let handle = runtime.spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(
-                refresh_interval_ms as u64,
-            ));
             let mut last_gen = 0;
 
             loop {
-                interval.tick().await;
+                let interval_ms = if is_active.load(Ordering::Relaxed) {
+                    active_interval_ms
+                } else {
+                    inactive_interval_ms
+                };
+                tokio::time::sleep(tokio::time::Duration::from_millis(interval_ms)).await;
 
                 let should_redraw = if let Ok(term) = terminal_clone.try_lock() {
                     let current_gen = term.update_generation();
@@ -1517,6 +1528,7 @@ impl Tab {
             trigger_marks: Vec::new(),
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
+            is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
         }
     }

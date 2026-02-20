@@ -408,6 +408,7 @@ impl WindowState {
                             std::sync::Arc::clone(&self.runtime),
                             std::sync::Arc::clone(window),
                             self.config.max_fps,
+                            self.config.inactive_tab_fps,
                         );
                     }
 
@@ -984,6 +985,7 @@ impl WindowState {
                                     std::sync::Arc::clone(&self.runtime),
                                     std::sync::Arc::clone(window),
                                     self.config.max_fps,
+                                    self.config.inactive_tab_fps,
                                 );
                             }
 
@@ -1294,6 +1296,7 @@ impl WindowState {
                                     std::sync::Arc::clone(&self.runtime),
                                     std::sync::Arc::clone(window),
                                     self.config.max_fps,
+                                    self.config.inactive_tab_fps,
                                 );
                             }
 

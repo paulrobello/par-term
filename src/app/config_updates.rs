@@ -43,6 +43,7 @@ pub(crate) struct ConfigChanges {
     pub lock_window_size: bool,
     pub show_window_number: bool,
     pub max_fps: bool,
+    pub inactive_tab_fps: bool,
     pub vsync_mode: bool,
 
     // Cursor appearance
@@ -182,6 +183,7 @@ impl ConfigChanges {
             lock_window_size: new.lock_window_size != old.lock_window_size,
             show_window_number: new.show_window_number != old.show_window_number,
             max_fps: new.max_fps != old.max_fps,
+            inactive_tab_fps: new.inactive_tab_fps != old.inactive_tab_fps,
             vsync_mode: new.vsync_mode != old.vsync_mode,
 
             cursor_style: new.cursor_style != old.cursor_style,

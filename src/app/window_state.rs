@@ -885,6 +885,7 @@ impl WindowState {
                 Arc::clone(&self.runtime),
                 Arc::clone(&window),
                 self.config.max_fps,
+                self.config.inactive_tab_fps,
             );
         }
 

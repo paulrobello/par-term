@@ -248,6 +248,10 @@ pub fn unfocused_fps() -> u32 {
     30 // Reduced FPS when window is not focused
 }
 
+pub fn inactive_tab_fps() -> u32 {
+    2 // Very low FPS for inactive (non-visible) tabs - just enough for activity detection
+}
+
 /// Default for reduce_flicker option
 pub fn reduce_flicker() -> bool {
     true

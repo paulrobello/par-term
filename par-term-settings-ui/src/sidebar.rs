@@ -274,6 +274,8 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "power",
             "gpu",
             "unfocused",
+            "inactive tab",
+            "inactive tab fps",
             "pause shaders",
             "reduce flicker",
             "flicker",

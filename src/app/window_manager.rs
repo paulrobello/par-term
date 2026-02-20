@@ -1944,8 +1944,8 @@ impl WindowManager {
                 window_state.reinit_shader_watcher();
             }
 
-            // Restart refresh tasks when max_fps changes
-            if changes.max_fps
+            // Restart refresh tasks when max_fps or inactive_tab_fps changes
+            if (changes.max_fps || changes.inactive_tab_fps)
                 && let Some(window) = &window_state.window
             {
                 for tab in window_state.tab_manager.tabs_mut() {
@@ -1954,6 +1954,7 @@ impl WindowManager {
                         Arc::clone(&window_state.runtime),
                         Arc::clone(window),
                         config.max_fps,
+                        config.inactive_tab_fps,
                     );
                 }
                 log::info!("Restarted refresh tasks with max_fps={}", config.max_fps);
@@ -2731,6 +2732,7 @@ impl WindowManager {
                             Arc::clone(&self.runtime),
                             Arc::clone(win),
                             self.config.max_fps,
+                            self.config.inactive_tab_fps,
                         );
                     }
                 }

@@ -96,8 +96,10 @@ fn test_tab_bar_should_show_never() {
 #[test]
 fn test_tab_bar_height_when_hidden() {
     let tab_bar = TabBarUI::new();
-    let mut config = Config::default();
-    config.tab_bar_mode = TabBarMode::WhenMultiple;
+    let config = Config {
+        tab_bar_mode: TabBarMode::WhenMultiple,
+        ..Config::default()
+    };
 
     // When tab bar shouldn't show, height should be 0
     // With WhenMultiple mode and 1 tab
@@ -300,8 +302,10 @@ fn test_tab_bar_uses_config_height() {
 #[test]
 fn test_tab_bar_height_zero_when_hidden() {
     let tab_bar = TabBarUI::new();
-    let mut config = Config::default();
-    config.tab_bar_mode = TabBarMode::WhenMultiple;
+    let config = Config {
+        tab_bar_mode: TabBarMode::WhenMultiple,
+        ..Config::default()
+    };
 
     // With WhenMultiple mode and only 1 tab, height should be 0
     let height = tab_bar.get_height(1, &config);

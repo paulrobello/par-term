@@ -113,6 +113,7 @@ impl WindowState {
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
                         self.config.max_fps,
+                        self.config.inactive_tab_fps,
                     );
 
                     // Resize terminal to match current renderer dimensions
@@ -373,6 +374,7 @@ impl WindowState {
                     Arc::clone(&self.runtime),
                     Arc::clone(window),
                     self.config.max_fps,
+                    self.config.inactive_tab_fps,
                 );
 
                 // Invalidate cell cache so content is re-rendered
@@ -429,6 +431,7 @@ impl WindowState {
                             Arc::clone(&self.runtime),
                             Arc::clone(window),
                             self.config.max_fps,
+                            self.config.inactive_tab_fps,
                         );
 
                         if let Some(renderer) = &self.renderer
@@ -562,6 +565,7 @@ impl WindowState {
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
                         self.config.max_fps,
+                        self.config.inactive_tab_fps,
                     );
                 }
                 self.needs_redraw = true;
@@ -594,6 +598,7 @@ impl WindowState {
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
                         self.config.max_fps,
+                        self.config.inactive_tab_fps,
                     );
                 }
                 self.needs_redraw = true;
@@ -981,6 +986,7 @@ impl WindowState {
                         Arc::clone(&self.runtime),
                         Arc::clone(window),
                         self.config.max_fps,
+                        self.config.inactive_tab_fps,
                     );
 
                     // Resize terminal to match current renderer dimensions

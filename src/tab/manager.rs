@@ -27,6 +27,27 @@ impl TabManager {
         }
     }
 
+    /// Set the active tab, flipping is_active flags on old and new tabs
+    fn set_active_tab(&mut self, id: Option<TabId>) {
+        // Deactivate old tab
+        if let Some(old_id) = self.active_tab_id
+            && let Some(old_tab) = self.tabs.iter().find(|t| t.id == old_id)
+        {
+            old_tab
+                .is_active
+                .store(false, std::sync::atomic::Ordering::Relaxed);
+        }
+        // Activate new tab
+        if let Some(new_id) = id
+            && let Some(new_tab) = self.tabs.iter().find(|t| t.id == new_id)
+        {
+            new_tab
+                .is_active
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        self.active_tab_id = id;
+    }
+
     /// Create a new tab and return its ID
     ///
     /// # Arguments
@@ -60,7 +81,7 @@ impl TabManager {
         self.tabs.push(tab);
 
         // Always switch to the new tab
-        self.active_tab_id = Some(id);
+        self.set_active_tab(Some(id));
 
         log::info!("Created new tab {} (total: {})", id, self.tabs.len());
 
@@ -85,7 +106,7 @@ impl TabManager {
         self.tabs.push(tab);
 
         // Always switch to the new tab
-        self.active_tab_id = Some(id);
+        self.set_active_tab(Some(id));
 
         log::info!(
             "Created new tab {} with cwd (total: {})",
@@ -119,7 +140,7 @@ impl TabManager {
         self.tabs.push(tab);
 
         // Always switch to the new tab
-        self.active_tab_id = Some(id);
+        self.set_active_tab(Some(id));
 
         log::info!(
             "Created new tab {} from profile '{}' (total: {})",
@@ -144,13 +165,14 @@ impl TabManager {
 
             // If we closed the active tab, switch to another
             if self.active_tab_id == Some(id) {
-                self.active_tab_id = if self.tabs.is_empty() {
+                let new_id = if self.tabs.is_empty() {
                     None
                 } else {
                     // Prefer the tab at the same index (or previous if at end)
                     let new_idx = idx.min(self.tabs.len().saturating_sub(1));
                     Some(self.tabs[new_idx].id)
                 };
+                self.set_active_tab(new_id);
             }
 
             // Renumber tabs that still have default titles
@@ -175,12 +197,13 @@ impl TabManager {
 
         // If we removed the active tab, switch to another
         if self.active_tab_id == Some(id) {
-            self.active_tab_id = if self.tabs.is_empty() {
+            let new_id = if self.tabs.is_empty() {
                 None
             } else {
                 let new_idx = idx.min(self.tabs.len().saturating_sub(1));
                 Some(self.tabs[new_idx].id)
             };
+            self.set_active_tab(new_id);
         }
 
         self.renumber_default_tabs();
@@ -195,7 +218,7 @@ impl TabManager {
         let clamped = index.min(self.tabs.len());
         let id = tab.id;
         self.tabs.insert(clamped, tab);
-        self.active_tab_id = Some(id);
+        self.set_active_tab(Some(id));
         self.renumber_default_tabs();
         log::info!(
             "Inserted tab {} at index {} (total: {})",
@@ -231,7 +254,7 @@ impl TabManager {
             if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) {
                 tab.has_activity = false;
             }
-            self.active_tab_id = Some(id);
+            self.set_active_tab(Some(id));
             log::debug!("Switched to tab {}", id);
         }
     }
@@ -379,7 +402,7 @@ impl TabManager {
     /// This is used during fast shutdown to extract tabs so their terminals
     /// can be dropped on background threads in parallel.
     pub fn drain_tabs(&mut self) -> Vec<Tab> {
-        self.active_tab_id = None;
+        self.set_active_tab(None);
         std::mem::take(&mut self.tabs)
     }
 
@@ -473,7 +496,7 @@ impl TabManager {
         // Insert after source tab
         self.tabs.insert(source_idx + 1, tab);
 
-        self.active_tab_id = Some(id);
+        self.set_active_tab(Some(id));
         Ok(Some(id))
     }
 

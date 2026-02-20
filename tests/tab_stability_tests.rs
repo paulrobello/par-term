@@ -43,8 +43,10 @@ fn test_tab_bar_height_affects_content_area() {
     // When the tab bar is visible, it should reduce the available content area
     // This test verifies the expected height values
     let tab_bar = TabBarUI::new();
-    let mut config = Config::default();
-    config.tab_bar_mode = TabBarMode::WhenMultiple;
+    let config = Config {
+        tab_bar_mode: TabBarMode::WhenMultiple,
+        ..Config::default()
+    };
 
     // With WhenMultiple mode
     // 1 tab: no bar, height = 0
@@ -63,8 +65,10 @@ fn test_tab_bar_height_affects_content_area() {
 #[test]
 fn test_tab_bar_height_zero_tabs() {
     let tab_bar = TabBarUI::new();
-    let mut config = Config::default();
-    config.tab_bar_mode = TabBarMode::WhenMultiple;
+    let config = Config {
+        tab_bar_mode: TabBarMode::WhenMultiple,
+        ..Config::default()
+    };
 
     // Edge case: 0 tabs should also hide the bar with WhenMultiple mode
     let height = tab_bar.get_height(0, &config);
@@ -330,8 +334,10 @@ fn test_mouse_event_timing_documented() {
 
     // Verify that we can detect when mouse is in tab bar area via height
     let tab_bar = TabBarUI::new();
-    let mut config = Config::default();
-    config.tab_bar_mode = TabBarMode::WhenMultiple;
+    let config = Config {
+        tab_bar_mode: TabBarMode::WhenMultiple,
+        ..Config::default()
+    };
 
     // When 1 tab (WhenMultiple mode): no tab bar, clicks at y=0 go to terminal
     let height_1 = tab_bar.get_height(1, &config);

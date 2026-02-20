@@ -810,7 +810,7 @@ impl WindowState {
             };
             for tab in self.tab_manager.tabs_mut() {
                 tab.stop_refresh_task();
-                tab.start_refresh_task(Arc::clone(&self.runtime), Arc::clone(window), fps);
+                tab.start_refresh_task(Arc::clone(&self.runtime), Arc::clone(window), fps, self.config.inactive_tab_fps);
             }
             log::info!(
                 "Adjusted refresh rate to {} FPS ({})",
