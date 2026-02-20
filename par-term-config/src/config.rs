@@ -2196,7 +2196,6 @@ impl Config {
                 self.tab_active_indicator = crate::defaults::tab_active_indicator();
                 self.tab_border_color = crate::defaults::tab_border_color();
                 self.tab_border_width = crate::defaults::tab_border_width();
-                self.tab_inactive_outline_only = false;
                 self.tab_bar_height = crate::defaults::tab_bar_height();
             }
             TabStyle::Light => {
@@ -2209,7 +2208,6 @@ impl Config {
                 self.tab_active_indicator = [50, 120, 220];
                 self.tab_border_color = [200, 200, 200];
                 self.tab_border_width = 1.0;
-                self.tab_inactive_outline_only = false;
                 self.tab_bar_height = crate::defaults::tab_bar_height();
             }
             TabStyle::Compact => {
@@ -2223,7 +2221,6 @@ impl Config {
                 self.tab_active_indicator = [80, 140, 240];
                 self.tab_border_color = [60, 60, 60];
                 self.tab_border_width = 0.5;
-                self.tab_inactive_outline_only = false;
                 self.tab_bar_height = 22.0;
             }
             TabStyle::Minimal => {
@@ -2237,7 +2234,6 @@ impl Config {
                 self.tab_active_indicator = [100, 150, 255];
                 self.tab_border_color = [30, 30, 30]; // No visible border
                 self.tab_border_width = 0.0;
-                self.tab_inactive_outline_only = false;
                 self.tab_bar_height = 26.0;
             }
             TabStyle::HighContrast => {
@@ -2251,7 +2247,6 @@ impl Config {
                 self.tab_active_indicator = [255, 255, 0];
                 self.tab_border_color = [255, 255, 255];
                 self.tab_border_width = 2.0;
-                self.tab_inactive_outline_only = false;
                 self.tab_bar_height = 30.0;
             }
             TabStyle::Automatic => {

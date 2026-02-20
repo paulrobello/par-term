@@ -280,7 +280,7 @@ fn test_should_render_geometrically_values() {
 
     assert!(!should_render_geometrically(BlockCharType::None));
     assert!(!should_render_geometrically(BlockCharType::Shade));
-    assert!(!should_render_geometrically(BlockCharType::Geometric));
+    assert!(should_render_geometrically(BlockCharType::Geometric));
     assert!(!should_render_geometrically(BlockCharType::Powerline));
     assert!(!should_render_geometrically(BlockCharType::Braille));
 }

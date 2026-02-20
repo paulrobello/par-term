@@ -716,7 +716,14 @@ impl WindowState {
     }
 
     /// Initialize the window asynchronously
-    pub(crate) async fn initialize_async(&mut self, window: Window) -> Result<()> {
+    ///
+    /// `first_tab_cwd` - Optional working directory for the first tab.
+    /// Used by arrangement restore to set the CWD before the shell spawns.
+    pub(crate) async fn initialize_async(
+        &mut self,
+        window: Window,
+        first_tab_cwd: Option<String>,
+    ) -> Result<()> {
         use crate::app::renderer_init::RendererInitParams;
 
         // Enable IME (Input Method Editor) to receive all character events including Space
@@ -855,10 +862,10 @@ impl WindowState {
             renderer_cols,
             renderer_rows
         );
-        let tab_id = self.tab_manager.new_tab(
+        let tab_id = self.tab_manager.new_tab_with_cwd(
             &self.config,
             Arc::clone(&self.runtime),
-            false,                                // First tab doesn't inherit cwd
+            first_tab_cwd,
             Some((renderer_cols, renderer_rows)), // Pass correct grid size
         )?;
 

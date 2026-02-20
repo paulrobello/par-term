@@ -535,7 +535,7 @@ impl WindowManager {
 
                 // Initialize async components using the shared runtime
                 let runtime = Arc::clone(&self.runtime);
-                if let Err(e) = runtime.block_on(window_state.initialize_async(window)) {
+                if let Err(e) = runtime.block_on(window_state.initialize_async(window, None)) {
                     log::error!("Failed to initialize window: {}", e);
                     return;
                 }
@@ -2665,8 +2665,14 @@ impl WindowManager {
                     WindowState::new(self.config.clone(), Arc::clone(&self.runtime));
                 window_state.window_index = window_number;
 
+                // Extract the first tab's CWD to pass during initialization
+                // (the shell must be spawned in the correct directory)
+                let first_tab_cwd = tab_cwds.first().and_then(|c| c.clone());
+
                 let runtime = Arc::clone(&self.runtime);
-                if let Err(e) = runtime.block_on(window_state.initialize_async(window)) {
+                if let Err(e) =
+                    runtime.block_on(window_state.initialize_async(window, first_tab_cwd))
+                {
                     log::error!("Failed to initialize arranged window: {}", e);
                     return None;
                 }
@@ -2700,15 +2706,7 @@ impl WindowManager {
                     ));
                 }
 
-                // Create additional tabs with specific CWDs
-                // First tab is already created by WindowState::new, so set its CWD
-                if let Some(first_cwd) = tab_cwds.first().and_then(|c| c.as_ref())
-                    && let Some(tab) = window_state.tab_manager.active_tab_mut()
-                {
-                    tab.working_directory = Some(first_cwd.clone());
-                }
-
-                // Create remaining tabs
+                // Create remaining tabs (first tab was already created with CWD)
                 let grid_size = window_state.renderer.as_ref().map(|r| r.grid_size());
                 for cwd in tab_cwds.iter().skip(1) {
                     if let Err(e) = window_state.tab_manager.new_tab_with_cwd(
