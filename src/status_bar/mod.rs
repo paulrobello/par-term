@@ -238,7 +238,7 @@ impl StatusBarUI {
     }
 
     /// Determine whether the status bar should be hidden right now.
-    fn should_hide(&self, config: &Config, is_fullscreen: bool) -> bool {
+    pub fn should_hide(&self, config: &Config, is_fullscreen: bool) -> bool {
         if !config.status_bar_enabled {
             return true;
         }

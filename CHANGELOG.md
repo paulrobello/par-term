@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Rename Tab**: Right-click any tab and select "Rename Tab" to set a custom name — manually named tabs are static and never auto-updated regardless of the title mode setting. Enter a blank name to revert to automatic title behavior
 - **Session Persistence for Tab Names and Colors**: User-set tab names and custom tab colors are now preserved across session save/restore and in window arrangements
 
+### Changed
+
+- **Status Bar Skip Updates When Hidden**: When the status bar is enabled but hidden (fullscreen auto-hide or mouse inactivity timeout), per-frame widget updates, session variable capture, and rendering are now skipped — background polling threads continue so data is fresh when the bar reappears
+
 ### Fixed
 
 - **Tab Bar Rounded Corner Stroke Thickness**: Fixed the border stroke on tab rounded corners appearing thinner than straight edges — switched from `StrokeKind::Middle` to `StrokeKind::Inside` so the full stroke width renders consistently on both curves and straight segments
