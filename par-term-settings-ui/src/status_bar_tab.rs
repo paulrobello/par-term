@@ -97,6 +97,7 @@ pub fn show(
             "center",
             "right",
             "custom",
+            "update",
         ],
     ) {
         show_widgets_section(ui, settings, changes_this_frame, collapsed);

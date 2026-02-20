@@ -2260,6 +2260,9 @@ impl Config {
             // Merge in any new default keybindings that don't exist in user's config
             config.merge_default_keybindings();
 
+            // Merge in any new default status bar widgets that don't exist in user's config
+            config.merge_default_widgets();
+
             // Generate keybindings for snippets and actions
             config.generate_snippet_action_keybindings();
 
@@ -2319,6 +2322,38 @@ impl Config {
         if added_count > 0 {
             log::info!(
                 "Merged {} new default keybinding(s) into user config",
+                added_count
+            );
+        }
+    }
+
+    /// Merge default status bar widgets into the user's config.
+    /// Only adds widgets whose `WidgetId` doesn't already exist in the user's widget list.
+    /// This ensures new built-in widgets are available to existing users.
+    fn merge_default_widgets(&mut self) {
+        let default_widgets = crate::status_bar::default_widgets();
+
+        let existing_ids: std::collections::HashSet<crate::status_bar::WidgetId> = self
+            .status_bar_widgets
+            .iter()
+            .map(|w| w.id.clone())
+            .collect();
+
+        let mut added_count = 0;
+        for default_widget in default_widgets {
+            if !existing_ids.contains(&default_widget.id) {
+                log::info!(
+                    "Adding new default status bar widget: {:?}",
+                    default_widget.id
+                );
+                self.status_bar_widgets.push(default_widget);
+                added_count += 1;
+            }
+        }
+
+        if added_count > 0 {
+            log::info!(
+                "Merged {} new default status bar widget(s) into user config",
                 added_count
             );
         }
