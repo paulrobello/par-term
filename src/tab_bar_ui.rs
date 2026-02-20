@@ -635,7 +635,7 @@ impl TabBarUI {
                     tab_draw_rect,
                     tab_rounding,
                     egui::Stroke::new(border_width, egui::Color32::from_rgb(c[0], c[1], c[2])),
-                    egui::StrokeKind::Middle,
+                    egui::StrokeKind::Inside,
                 );
             }
 
@@ -1027,7 +1027,7 @@ impl TabBarUI {
                                 border_color[2],
                             ),
                         ),
-                        egui::StrokeKind::Middle,
+                        egui::StrokeKind::Inside,
                     );
                 }
             }

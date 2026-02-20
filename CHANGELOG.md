@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tab Bar Rounded Corner Stroke Thickness**: Fixed the border stroke on tab rounded corners appearing thinner than straight edges — switched from `StrokeKind::Middle` to `StrokeKind::Inside` so the full stroke width renders consistently on both curves and straight segments
 - **Scrollbar Overlapping Terminal Content**: Fixed the scrollbar rendering on top of terminal text instead of reserving its own space — the terminal grid now subtracts the scrollbar width from available columns so content stops before the scrollbar
 - **Tab Bar First Tab Border Clipping**: Fixed the left border of the first tab being slightly cropped in the horizontal tab bar by adding left padding before tab content
 - **Progress Bar Overlapping Tab Bar**: Fixed progress bars rendering on top of the tab bar — progress bars now respect the tab bar position and render below a top tab bar or above a bottom tab bar
