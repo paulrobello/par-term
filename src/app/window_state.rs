@@ -1876,7 +1876,8 @@ impl WindowState {
             || self.remote_shell_install_ui.is_visible()
             || self.quit_confirmation_ui.is_visible()
             || self.ssh_connect_ui.is_visible()
-            || self.ai_inspector.open;
+            || self.ai_inspector.open
+            || self.tab_bar_ui.is_renaming();
         if !any_ui_visible {
             return false;
         }

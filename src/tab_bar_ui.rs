@@ -1694,6 +1694,11 @@ impl TabBarUI {
     pub fn is_context_menu_open(&self) -> bool {
         self.context_menu_tab.is_some()
     }
+
+    /// Check if the tab rename text field is active
+    pub fn is_renaming(&self) -> bool {
+        self.renaming_tab && self.context_menu_tab.is_some()
+    }
 }
 
 fn truncate_plain(title: &str, max_len: usize) -> String {
