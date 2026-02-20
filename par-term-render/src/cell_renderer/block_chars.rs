@@ -170,7 +170,10 @@ pub fn should_snap_to_boundaries(char_type: BlockCharType) -> bool {
 pub fn should_render_geometrically(char_type: BlockCharType) -> bool {
     matches!(
         char_type,
-        BlockCharType::SolidBlock | BlockCharType::PartialBlock | BlockCharType::BoxDrawing
+        BlockCharType::SolidBlock
+            | BlockCharType::PartialBlock
+            | BlockCharType::BoxDrawing
+            | BlockCharType::Geometric
     )
 }
 
@@ -1160,6 +1163,85 @@ pub fn get_geometric_block(ch: char) -> Option<GeometricBlock> {
     }
 }
 
+/// Get pixel-perfect rectangle for geometric shape characters (U+25A0–U+25FF).
+///
+/// Unlike block elements which fill the cell, geometric shapes like squares
+/// preserve their aspect ratio by using `cell_w` as the base dimension and
+/// centering vertically within the cell. Returns `None` for outline/hollow
+/// shapes, circles, triangles, and other characters that can't be represented
+/// as simple filled rectangles — those fall through to font rendering.
+pub fn get_geometric_shape_rect(
+    ch: char,
+    cell_x: f32,
+    cell_y: f32,
+    cell_w: f32,
+    cell_h: f32,
+) -> Option<PixelRect> {
+    match ch {
+        // ■ U+25A0 BLACK SQUARE — full cell width square
+        '\u{25A0}' => {
+            let size = cell_w;
+            Some(PixelRect {
+                x: cell_x,
+                y: cell_y + (cell_h - size) / 2.0,
+                width: size,
+                height: size,
+            })
+        }
+        // ▪ U+25AA BLACK SMALL SQUARE — 0.5× cell width
+        '\u{25AA}' => {
+            let size = cell_w * 0.5;
+            Some(PixelRect {
+                x: cell_x + (cell_w - size) / 2.0,
+                y: cell_y + (cell_h - size) / 2.0,
+                width: size,
+                height: size,
+            })
+        }
+        // ▬ U+25AC BLACK RECTANGLE — horizontal rectangle, full width, 1/3 height
+        '\u{25AC}' => {
+            let h = cell_h * 0.33;
+            Some(PixelRect {
+                x: cell_x,
+                y: cell_y + (cell_h - h) / 2.0,
+                width: cell_w,
+                height: h,
+            })
+        }
+        // ▮ U+25AE BLACK VERTICAL RECTANGLE — half width, full height
+        '\u{25AE}' => {
+            let w = cell_w * 0.5;
+            Some(PixelRect {
+                x: cell_x + (cell_w - w) / 2.0,
+                y: cell_y,
+                width: w,
+                height: cell_h,
+            })
+        }
+        // ◼ U+25FC BLACK MEDIUM SQUARE — 0.75× cell width
+        '\u{25FC}' => {
+            let size = cell_w * 0.75;
+            Some(PixelRect {
+                x: cell_x + (cell_w - size) / 2.0,
+                y: cell_y + (cell_h - size) / 2.0,
+                width: size,
+                height: size,
+            })
+        }
+        // ◾ U+25FE BLACK MEDIUM SMALL SQUARE — 0.625× cell width
+        '\u{25FE}' => {
+            let size = cell_w * 0.625;
+            Some(PixelRect {
+                x: cell_x + (cell_w - size) / 2.0,
+                y: cell_y + (cell_h - size) / 2.0,
+                width: size,
+                height: size,
+            })
+        }
+        _ => None,
+    }
+}
+
 /// Calculate snapped glyph bounds for block characters
 ///
 /// This function adjusts glyph position and size to align with cell boundaries,
@@ -1334,10 +1416,10 @@ mod tests {
         assert!(should_render_geometrically(BlockCharType::SolidBlock));
         assert!(should_render_geometrically(BlockCharType::PartialBlock));
         assert!(should_render_geometrically(BlockCharType::BoxDrawing));
+        assert!(should_render_geometrically(BlockCharType::Geometric));
 
         assert!(!should_render_geometrically(BlockCharType::None));
         assert!(!should_render_geometrically(BlockCharType::Shade));
-        assert!(!should_render_geometrically(BlockCharType::Geometric));
         assert!(!should_render_geometrically(BlockCharType::Powerline));
         assert!(!should_render_geometrically(BlockCharType::Braille));
     }
@@ -1504,5 +1586,68 @@ mod tests {
 
         // Height should snap to middle
         assert!((top + h - 30.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_geometric_shape_rect_black_square() {
+        // ■ U+25A0 — full cell_w square, centered vertically
+        let rect = get_geometric_shape_rect('\u{25A0}', 10.0, 20.0, 8.0, 16.0).unwrap();
+        assert_eq!(rect.x, 10.0);
+        assert_eq!(rect.y, 24.0); // 20 + (16 - 8) / 2
+        assert_eq!(rect.width, 8.0);
+        assert_eq!(rect.height, 8.0);
+    }
+
+    #[test]
+    fn test_geometric_shape_rect_medium_square() {
+        // ◼ U+25FC — 0.75× cell_w square, centered
+        let rect = get_geometric_shape_rect('\u{25FC}', 10.0, 20.0, 8.0, 16.0).unwrap();
+        let size = 8.0 * 0.75; // 6.0
+        assert_eq!(rect.x, 10.0 + (8.0 - size) / 2.0);
+        assert_eq!(rect.y, 20.0 + (16.0 - size) / 2.0);
+        assert_eq!(rect.width, size);
+        assert_eq!(rect.height, size);
+    }
+
+    #[test]
+    fn test_geometric_shape_rect_small_square() {
+        // ▪ U+25AA — 0.5× cell_w square, centered
+        let rect = get_geometric_shape_rect('\u{25AA}', 10.0, 20.0, 8.0, 16.0).unwrap();
+        let size = 8.0 * 0.5; // 4.0
+        assert_eq!(rect.x, 10.0 + (8.0 - size) / 2.0);
+        assert_eq!(rect.y, 20.0 + (16.0 - size) / 2.0);
+        assert_eq!(rect.width, size);
+        assert_eq!(rect.height, size);
+    }
+
+    #[test]
+    fn test_geometric_shape_rect_rectangle() {
+        // ▬ U+25AC — horizontal rectangle, full width, 0.33 height
+        let rect = get_geometric_shape_rect('\u{25AC}', 10.0, 20.0, 8.0, 16.0).unwrap();
+        let h = 16.0 * 0.33;
+        assert_eq!(rect.x, 10.0);
+        assert!((rect.y - (20.0 + (16.0 - h) / 2.0)).abs() < 0.01);
+        assert_eq!(rect.width, 8.0);
+        assert!((rect.height - h).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_geometric_shape_rect_vertical_rectangle() {
+        // ▮ U+25AE — vertical rectangle, 0.5 width, full height
+        let rect = get_geometric_shape_rect('\u{25AE}', 10.0, 20.0, 8.0, 16.0).unwrap();
+        let w = 8.0 * 0.5;
+        assert_eq!(rect.x, 10.0 + (8.0 - w) / 2.0);
+        assert_eq!(rect.y, 20.0);
+        assert_eq!(rect.width, w);
+        assert_eq!(rect.height, 16.0);
+    }
+
+    #[test]
+    fn test_geometric_shape_rect_outline_returns_none() {
+        // Outline/hollow shapes should return None (use font rendering)
+        assert!(get_geometric_shape_rect('\u{25A1}', 0.0, 0.0, 8.0, 16.0).is_none()); // □
+        assert!(get_geometric_shape_rect('\u{25AB}', 0.0, 0.0, 8.0, 16.0).is_none()); // ▫
+        assert!(get_geometric_shape_rect('\u{25FB}', 0.0, 0.0, 8.0, 16.0).is_none()); // ◻
+        assert!(get_geometric_shape_rect('\u{25FD}', 0.0, 0.0, 8.0, 16.0).is_none()); // ◽
     }
 }

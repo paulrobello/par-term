@@ -853,6 +853,33 @@ impl CellRenderer {
                                 current_col += 1;
                                 continue;
                             }
+
+                            // Try geometric shape (aspect-ratio-aware squares, rectangles)
+                            if let Some(rect) = block_chars::get_geometric_shape_rect(
+                                *ch, x0, y0, char_w, self.cell_height,
+                            ) {
+                                row_text.push(TextInstance {
+                                    position: [
+                                        rect.x / self.config.width as f32 * 2.0 - 1.0,
+                                        1.0 - (rect.y / self.config.height as f32 * 2.0),
+                                    ],
+                                    size: [
+                                        rect.width / self.config.width as f32 * 2.0,
+                                        rect.height / self.config.height as f32 * 2.0,
+                                    ],
+                                    tex_offset: [
+                                        self.solid_pixel_offset.0 as f32 / 2048.0,
+                                        self.solid_pixel_offset.1 as f32 / 2048.0,
+                                    ],
+                                    tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
+                                    color: render_fg_color,
+                                    is_colored: 0,
+                                });
+
+                                x_offset += self.cell_width;
+                                current_col += 1;
+                                continue;
+                            }
                         }
 
                         // Use grapheme-aware glyph lookup for multi-character sequences
