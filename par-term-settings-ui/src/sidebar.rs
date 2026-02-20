@@ -77,7 +77,7 @@ impl SettingsTab {
             Self::Actions => "🚀",
             Self::Arrangements => "📐",
             Self::AiInspector => "💬",
-            Self::Advanced => "⚙️",
+            Self::Advanced => "⚙",
         }
     }
 
