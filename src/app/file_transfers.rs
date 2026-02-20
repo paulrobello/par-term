@@ -20,6 +20,13 @@ use crate::config::DownloadSaveLocation;
 /// Matches typical macOS PTY buffer size for efficient writes.
 const UPLOAD_CHUNK_SIZE: usize = 65536;
 
+/// How long to show the overlay before opening the save dialog (ms).
+/// Gives the egui overlay time to render before the blocking dialog steals focus.
+const SAVE_DIALOG_DELAY_MS: u64 = 750;
+
+/// How long to show completed transfers in the overlay (seconds).
+const RECENT_TRANSFER_DISPLAY_SECS: u64 = 3;
+
 /// UI-friendly information about an active file transfer
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -78,14 +85,18 @@ pub(crate) struct ActiveUpload {
     pub started_at: u64,
 }
 
-/// A recently-completed download shown briefly in the overlay.
-pub(crate) struct RecentDownload {
+/// A recently-completed transfer shown briefly in the overlay.
+/// Covers both uploads and downloads that completed too fast for
+/// the active_transfers polling to catch.
+pub(crate) struct RecentTransfer {
     /// Display filename
     pub filename: String,
     /// File size in bytes
     pub size: usize,
-    /// When the download was received
-    pub received_at: std::time::Instant,
+    /// Transfer direction
+    pub direction: TransferDirection,
+    /// When the transfer completed
+    pub completed_at: std::time::Instant,
 }
 
 /// Tracks all file transfer UI state
@@ -99,8 +110,8 @@ pub(crate) struct FileTransferState {
     pub pending_uploads: VecDeque<PendingUpload>,
     /// Background uploads being written to the PTY
     pub active_uploads: Vec<ActiveUpload>,
-    /// Recently completed downloads (shown briefly in overlay)
-    pub recent_downloads: Vec<RecentDownload>,
+    /// Recently completed transfers (shown briefly in overlay)
+    pub recent_transfers: Vec<RecentTransfer>,
     /// Whether a modal dialog (save/open) is currently showing
     pub dialog_open: bool,
     /// When the last transfer completed (for auto-hiding the overlay)
@@ -167,11 +178,17 @@ impl WindowState {
             return;
         };
 
+        // Always clear active_transfers before rebuilding — this must happen outside
+        // the try_lock block so it's reset even when the terminal is locked by the
+        // upload thread. poll_active_uploads will re-add upload entries below.
+        self.file_transfer_state.active_transfers.clear();
+
         if let Ok(term) = tab.terminal.try_lock() {
-            // 1. Update active transfers for overlay
+            // 1. Update active transfers for overlay (terminal-side transfers like downloads)
             let active = term.get_active_transfers();
-            self.file_transfer_state.active_transfers =
-                active.iter().map(transfer_to_info).collect();
+            self.file_transfer_state
+                .active_transfers
+                .extend(active.iter().map(transfer_to_info));
 
             // 2. Check for completed downloads
             let completed = term.get_completed_transfers();
@@ -212,10 +229,11 @@ impl WindowState {
                             filename: filename.clone(),
                             data: ft.data,
                         });
-                    self.file_transfer_state.recent_downloads.push(RecentDownload {
+                    self.file_transfer_state.recent_transfers.push(RecentTransfer {
                         filename: filename.clone(),
                         size,
-                        received_at: std::time::Instant::now(),
+                        direction: TransferDirection::Download,
+                        completed_at: std::time::Instant::now(),
                     });
                     self.file_transfer_state.last_completion_time = Some(std::time::Instant::now());
                     self.deliver_notification(
@@ -268,21 +286,40 @@ impl WindowState {
             }
         }
 
-        // 5. Expire old recent downloads (shown for 3 seconds)
+        // 5. Expire old recent transfers
         self.file_transfer_state
-            .recent_downloads
-            .retain(|dl| dl.received_at.elapsed() < std::time::Duration::from_secs(3));
-        if !self.file_transfer_state.recent_downloads.is_empty() {
+            .recent_transfers
+            .retain(|t| t.completed_at.elapsed() < std::time::Duration::from_secs(RECENT_TRANSFER_DISPLAY_SECS));
+        if !self.file_transfer_state.recent_transfers.is_empty() {
             self.request_redraw();
         }
 
         // 6. Track background upload progress
         self.poll_active_uploads();
 
-        // 7. Process pending save dialogs (outside the terminal lock)
+        // 7. Process pending save/upload dialogs (outside the terminal lock)
+        // Delay save dialogs briefly so the transfer overlay has time to render
+        // before the blocking native dialog steals focus.
         if !self.file_transfer_state.dialog_open {
-            if let Some(pending) = self.file_transfer_state.pending_saves.pop_front() {
-                self.process_save_dialog(pending);
+            let save_ready = self.file_transfer_state.pending_saves.front().is_some()
+                && self.file_transfer_state.last_completion_time.is_some_and(|t| {
+                    t.elapsed() >= std::time::Duration::from_millis(SAVE_DIALOG_DELAY_MS)
+                });
+
+            if save_ready {
+                if let Some(pending) = self.file_transfer_state.pending_saves.pop_front() {
+                    self.process_save_dialog(pending);
+                    // Refresh recent transfer timers so overlay stays visible
+                    // after the blocking dialog returns
+                    let now = std::time::Instant::now();
+                    for t in &mut self.file_transfer_state.recent_transfers {
+                        t.completed_at = now;
+                    }
+                    self.file_transfer_state.last_completion_time = Some(now);
+                }
+            } else if self.file_transfer_state.pending_saves.front().is_some() {
+                // Keep redrawing while waiting for the delay
+                self.request_redraw();
             } else if let Some(pending) = self.file_transfer_state.pending_uploads.pop_front() {
                 self.process_upload_dialog(pending);
             }
@@ -292,27 +329,33 @@ impl WindowState {
     /// Check background upload threads for progress and completion.
     fn poll_active_uploads(&mut self) {
         // Collect completed uploads and their results
-        let mut completed_info: Vec<(String, Option<String>)> = Vec::new();
+        let mut completed_info: Vec<(String, usize, Option<String>)> = Vec::new();
         self.file_transfer_state
             .active_uploads
             .retain(|upload| {
                 if upload.completed.load(Ordering::Relaxed) {
                     let error = upload.error.lock().unwrap().take();
-                    completed_info.push((upload.filename.clone(), error));
+                    completed_info.push((upload.filename.clone(), upload.file_size, error));
                     false
                 } else {
                     true
                 }
             });
 
-        // Notify for completed uploads
-        for (filename, error) in completed_info {
+        // Notify for completed uploads and add to recent transfers
+        for (filename, file_size, error) in completed_info {
             if let Some(e) = error {
                 self.deliver_notification("Upload Failed", &e);
             } else {
+                self.file_transfer_state.recent_transfers.push(RecentTransfer {
+                    filename: filename.clone(),
+                    size: file_size,
+                    direction: TransferDirection::Upload,
+                    completed_at: std::time::Instant::now(),
+                });
                 self.deliver_notification(
                     "Upload Complete",
-                    &format!("Uploaded {}", filename),
+                    &format!("Uploaded {} ({})", filename, format_bytes(file_size)),
                 );
             }
             self.file_transfer_state.last_completion_time = Some(std::time::Instant::now());
@@ -341,10 +384,8 @@ impl WindowState {
                 });
         }
 
-        // Keep requesting redraws while uploads are active
-        if !self.file_transfer_state.active_uploads.is_empty() {
-            self.request_redraw();
-        }
+        // Redraws during active uploads are managed by about_to_wait's
+        // file transfer progress section (section 8) for proper scheduling.
     }
 
     /// Show a native save dialog for a completed download and write the file.
@@ -609,23 +650,18 @@ fn create_tgz_archive(path: &Path, data: &[u8]) -> std::io::Result<Vec<u8>> {
 /// from inside the `egui_ctx.run()` closure where `self` is already borrowed.
 ///
 /// Shows a semi-transparent window anchored at the bottom-right with
-/// progress bars for each active transfer. Auto-hides 2 seconds after
-/// the last transfer completes.
+/// progress bars for each active transfer. Auto-hides after transfers complete.
 pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui::Context) {
     let has_active = !state.active_transfers.is_empty();
     let has_pending = !state.pending_saves.is_empty() || !state.pending_uploads.is_empty();
-    let has_recent_downloads = !state.recent_downloads.is_empty();
+    let has_recent = !state.recent_transfers.is_empty();
 
-    // Check if we should still show the overlay (2s after last completion)
-    let show_completion = state
-        .last_completion_time
-        .is_some_and(|last| last.elapsed() < std::time::Duration::from_secs(2));
-
-    if !has_active && !has_pending && !has_recent_downloads && !show_completion {
+    if !has_active && !has_pending && !has_recent {
         return;
     }
 
     egui::Window::new("File Transfers")
+        .id(egui::Id::new("file_transfer_overlay_window"))
         .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-10.0, -10.0))
         .order(egui::Order::Foreground)
         .resizable(false)
@@ -633,31 +669,29 @@ pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui
         .title_bar(true)
         .frame(
             egui::Frame::window(&ctx.style())
-                .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 220)),
+                .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 80, 240))
+                .stroke(egui::Stroke::new(2.0, egui::Color32::from_rgb(100, 200, 255))),
         )
         .show(ctx, |ui| {
             ui.set_min_width(250.0);
 
-            if state.active_transfers.is_empty()
-                && state.pending_saves.is_empty()
-                && state.pending_uploads.is_empty()
-                && state.recent_downloads.is_empty()
-            {
-                ui.label("All transfers complete");
-                return;
-            }
+            // Show recently-completed transfers with full progress bar
+            for t in &state.recent_transfers {
+                let direction_icon = match t.direction {
+                    TransferDirection::Download => "\u{2B07}", // down arrow
+                    TransferDirection::Upload => "\u{2B06}",   // up arrow
+                };
 
-            // Show recently-completed downloads with full progress bar
-            for dl in &state.recent_downloads {
                 ui.horizontal(|ui| {
-                    ui.label("\u{2B07}"); // down arrow
-                    ui.label(&dl.filename);
+                    ui.label(direction_icon);
+                    ui.label(&t.filename);
                 });
-                let size_text = format!("{} \u{2714}", format_bytes(dl.size)); // checkmark
+                let size_text = format!("{} \u{2714}", format_bytes(t.size)); // checkmark
                 ui.add(egui::ProgressBar::new(1.0).text(size_text).animate(false));
                 ui.add_space(4.0);
             }
 
+            // Show active in-progress transfers
             for info in &state.active_transfers {
                 let direction_icon = match info.direction {
                     TransferDirection::Download => "\u{2B07}", // down arrow
@@ -709,8 +743,8 @@ pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui
             }
         });
 
-    // Request redraw while overlay is visible so animations work
-    if has_active || has_recent_downloads {
+    // Request redraw while overlay is visible so it updates and auto-hides
+    if has_active || has_recent {
         ctx.request_repaint();
     }
 }

@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hide Window Padding on Split**: New `hide_window_padding_on_split` option (default: enabled) automatically removes window padding when panes are split — since each pane has its own padding, the outer window padding is redundant and wastes space
 - **New Tab Menu as Dropdown**: The new tab profile menu now appears as a dropdown in the top-right corner instead of a centered dialog
 - **Assistant Panel Toggle in New Tab Menu**: Added an "Assistant Panel" toggle item to the new tab dropdown menu (visible when `ai_inspector_enabled` is true)
-- **Download Progress Overlay**: pt-dl downloads now show a completed progress bar with filename and size in the transfer overlay for 3 seconds after receiving, with a "Download Received" notification
+- **File Transfer Progress Overlay**: Upload progress bar showing filename, bytes transferred, and completion status in a bottom-right egui overlay — downloads show a completed progress bar for 3 seconds after receiving, with direction-specific notifications for both uploads and downloads
 
 ### Changed
 
@@ -30,7 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Inline Image Display (pt-imgcat)**: Fixed inline images not rendering for files larger than ~750 KB — updated core library to v0.39.1 which increases the OSC buffer limit from 1 MB to 128 MB
 - **Inline Image Double-Scroll**: Fixed partially-scrolled inline images being positioned above the viewport — the renderer now adjusts the y position by `scroll_offset_rows` so the visible portion starts at the correct screen row instead of at the original (negative) position
-- **Upload Over SSH (pt-ul)**: Fixed uploads hanging indefinitely over SSH — resolved response_buffer deadlock by using background thread with chunked PTY writes; fixed archive format (now sends proper tar.gz instead of raw base64); added progress bar overlay for upload tracking
+- **Upload Over SSH (pt-ul)**: Fixed uploads hanging indefinitely over SSH — resolved response_buffer deadlock by using background thread with chunked PTY writes; fixed archive format (now sends proper tar.gz instead of raw base64)
+- **Render During Active Uploads**: Fixed terminal rendering being completely blocked during file uploads — the render pipeline returned early when `try_lock()` failed (upload thread held the terminal lock), now falls back to cached cells so the egui overlay (including file transfer progress) can render
 - **Remote Shell Install Dialog**: Fixed Install button and Copy button not working — Install now uses `paste_text()` (same code path as Cmd+V) which correctly forwards commands through SSH sessions via bracketed paste mode; added Copy Command button with clipboard feedback; added Enter/Escape key support
 - **Stale URL Hover State**: Fixed mouse cursor and title bar showing file info for content that has scrolled off screen — `detect_urls()` now clears hover state and resets cursor/title on every content rebuild
 - **Dialog Input Passthrough**: Fixed mouse and keyboard events leaking through to the terminal when the remote shell install, quit confirmation, or SSH connect dialogs were visible

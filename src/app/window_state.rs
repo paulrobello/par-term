@@ -2272,8 +2272,12 @@ impl WindowState {
             let is_alt_screen = term.is_alt_screen_active();
 
             (cells, current_cursor_pos, cursor_style, is_alt_screen)
+        } else if let Some(cached) = cache_cells {
+            // Terminal locked (e.g., upload in progress), use cached cells so the
+            // rest of the render pipeline (including file transfer overlay) can proceed.
+            (cached, cache_cursor_pos, None, false)
         } else {
-            return; // Terminal locked, skip this frame
+            return; // Terminal locked and no cache available, skip this frame
         };
 
         // Ensure cursor visibility flag for cell renderer reflects current config every frame

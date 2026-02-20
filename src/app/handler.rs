@@ -1186,7 +1186,22 @@ impl WindowState {
             }
         }
 
-        // 8. Anti-idle Keep-alive
+        // 8. File Transfer Progress
+        // Ensure rendering during active file transfers so the progress overlay
+        // updates. Uses 1-second interval since progress doesn't need smooth animation.
+        // Bypasses render delays (flicker/throughput) for responsive UI feedback.
+        let has_active_file_transfers = !self.file_transfer_state.active_uploads.is_empty()
+            || !self.file_transfer_state.recent_transfers.is_empty();
+        if has_active_file_transfers {
+            self.needs_redraw = true;
+            // Schedule 1 FPS rendering for progress bar updates
+            let next_frame = now + std::time::Duration::from_secs(1);
+            if next_frame < next_wake {
+                next_wake = next_frame;
+            }
+        }
+
+        // 9. Anti-idle Keep-alive
         // Periodically send keep-alive codes to prevent SSH/connection timeouts.
         if let Some(next_anti_idle) = self.handle_anti_idle(now)
             && next_anti_idle < next_wake
@@ -1196,17 +1211,25 @@ impl WindowState {
 
         // --- TRIGGER REDRAW ---
         // Request a redraw if any of the logic above determined an update is due.
-        // Respect combined delay (throughput mode OR flicker reduction).
+        // Respect combined delay (throughput mode OR flicker reduction),
+        // but bypass delays for active file transfers that need UI feedback.
         if self.needs_redraw
-            && !should_delay_render
+            && (!should_delay_render || has_active_file_transfers)
             && let Some(window) = &self.window
         {
             window.request_redraw();
             self.needs_redraw = false;
         }
 
-        // Set the calculated sleep interval
-        event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
+        // Set the calculated sleep interval.
+        // Use Poll mode during active file transfers — WaitUntil prevents
+        // RedrawRequested events from being delivered on macOS when PTY data
+        // events keep the event loop busy.
+        if has_active_file_transfers {
+            event_loop.set_control_flow(ControlFlow::Poll);
+        } else {
+            event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
+        }
     }
 }
 
