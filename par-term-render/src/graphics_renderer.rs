@@ -364,10 +364,10 @@ impl GraphicsRenderer {
                 let x =
                     (self.window_padding + self.content_offset_x + col as f32 * self.cell_width)
                         / window_width;
-                let y =
-                    (self.window_padding + self.content_offset_y
-                        + adjusted_row as f32 * self.cell_height)
-                        / window_height;
+                let y = (self.window_padding
+                    + self.content_offset_y
+                    + adjusted_row as f32 * self.cell_height)
+                    / window_height;
 
                 // Calculate texture V offset for scrolled graphics
                 // scroll_offset_rows = terminal rows scrolled off top

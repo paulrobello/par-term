@@ -488,8 +488,7 @@ impl StatusBarUI {
                                                 )
                                                 .clicked()
                                             {
-                                                action =
-                                                    Some(StatusBarAction::ShowUpdateDialog);
+                                                action = Some(StatusBarAction::ShowUpdateDialog);
                                             }
                                         } else {
                                             ui.label(make_rich_text(&text));

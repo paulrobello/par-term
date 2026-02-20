@@ -23,27 +23,23 @@ impl WindowState {
         let mouse_position = tab.mouse.position;
 
         // Get the correct terminal and cell coordinates based on whether split panes exist
-        let (terminal_arc, col, row) =
-            if let Some(ref pm) = tab.pane_manager
-                && let Some(focused_pane) = pm.focused_pane()
-            {
-                // Split pane mode: use focused pane's terminal with pane-relative coordinates
-                let Some((col, row)) = self.pixel_to_pane_cell(
-                    mouse_position.0,
-                    mouse_position.1,
-                    &focused_pane.bounds,
-                ) else {
-                    return false;
-                };
-                (Arc::clone(&focused_pane.terminal), col, row)
-            } else {
-                // Single pane: use tab's terminal with global coordinates
-                let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
-                else {
-                    return false;
-                };
-                (Arc::clone(&tab.terminal), col, row)
+        let (terminal_arc, col, row) = if let Some(ref pm) = tab.pane_manager
+            && let Some(focused_pane) = pm.focused_pane()
+        {
+            // Split pane mode: use focused pane's terminal with pane-relative coordinates
+            let Some((col, row)) =
+                self.pixel_to_pane_cell(mouse_position.0, mouse_position.1, &focused_pane.bounds)
+            else {
+                return false;
             };
+            (Arc::clone(&focused_pane.terminal), col, row)
+        } else {
+            // Single pane: use tab's terminal with global coordinates
+            let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1) else {
+                return false;
+            };
+            (Arc::clone(&tab.terminal), col, row)
+        };
 
         let Ok(term) = terminal_arc.try_lock() else {
             return false;
@@ -669,14 +665,15 @@ impl WindowState {
                     })
             } else {
                 // Single pane mode: use tab's terminal with global coordinates
-                self.pixel_to_cell(position.0, position.1).map(|(col, row)| {
-                    (
-                        Arc::clone(&tab.terminal),
-                        col,
-                        row,
-                        tab.mouse.button_pressed,
-                    )
-                })
+                self.pixel_to_cell(position.0, position.1)
+                    .map(|(col, row)| {
+                        (
+                            Arc::clone(&tab.terminal),
+                            col,
+                            row,
+                            tab.mouse.button_pressed,
+                        )
+                    })
             };
 
             if let Some((terminal_arc, col, row, button_pressed)) = resolved {
@@ -685,9 +682,7 @@ impl WindowState {
                     .ok()
                     .is_some_and(|term| term.should_report_mouse_motion(button_pressed));
 
-                if should_report
-                    && let Ok(term) = terminal_arc.try_lock()
-                {
+                if should_report && let Ok(term) = terminal_arc.try_lock() {
                     // Encode button+motion (button 32 marker)
                     let button = if button_pressed {
                         32 // Motion while button pressed
@@ -871,39 +866,34 @@ impl WindowState {
         // Check if the terminal application (e.g., vim, htop) has requested mouse tracking.
         // If enabled, we forward wheel events to the PTY instead of scrolling locally.
         // In split pane mode, check and route to the focused pane's terminal.
-        let (terminal_for_tracking, is_mouse_tracking) = if let Some(tab) =
-            self.tab_manager.active_tab()
-        {
-            if let Some(ref pm) = tab.pane_manager
-                && let Some(focused_pane) = pm.focused_pane()
-            {
-                let tracking = focused_pane
-                    .terminal
-                    .try_lock()
-                    .ok()
-                    .is_some_and(|term| term.is_mouse_tracking_enabled());
-                (Some(Arc::clone(&focused_pane.terminal)), tracking)
+        let (terminal_for_tracking, is_mouse_tracking) =
+            if let Some(tab) = self.tab_manager.active_tab() {
+                if let Some(ref pm) = tab.pane_manager
+                    && let Some(focused_pane) = pm.focused_pane()
+                {
+                    let tracking = focused_pane
+                        .terminal
+                        .try_lock()
+                        .ok()
+                        .is_some_and(|term| term.is_mouse_tracking_enabled());
+                    (Some(Arc::clone(&focused_pane.terminal)), tracking)
+                } else {
+                    let tracking = tab
+                        .terminal
+                        .try_lock()
+                        .ok()
+                        .is_some_and(|term| term.is_mouse_tracking_enabled());
+                    (Some(Arc::clone(&tab.terminal)), tracking)
+                }
             } else {
-                let tracking = tab
-                    .terminal
-                    .try_lock()
-                    .ok()
-                    .is_some_and(|term| term.is_mouse_tracking_enabled());
-                (Some(Arc::clone(&tab.terminal)), tracking)
-            }
-        } else {
-            (None, false)
-        };
+                (None, false)
+            };
 
-        if is_mouse_tracking
-            && let Some(terminal_arc) = terminal_for_tracking
-        {
+        if is_mouse_tracking && let Some(terminal_arc) = terminal_for_tracking {
             // Calculate scroll amounts based on delta type (Line vs Pixel)
             let (scroll_x, scroll_y) = match delta {
                 MouseScrollDelta::LineDelta(x, y) => (x as i32, y as i32),
-                MouseScrollDelta::PixelDelta(pos) => {
-                    ((pos.x / 20.0) as i32, (pos.y / 20.0) as i32)
-                }
+                MouseScrollDelta::PixelDelta(pos) => ((pos.x / 20.0) as i32, (pos.y / 20.0) as i32),
             };
 
             // Get mouse position from active tab
@@ -929,49 +919,49 @@ impl WindowState {
 
             let mut all_encoded = Vec::new();
 
-                // --- 1a. Vertical scroll events ---
-                // XTerm mouse protocol buttons: 64 = scroll up, 65 = scroll down
-                if scroll_y != 0 {
-                    let button = if scroll_y > 0 { 64 } else { 65 };
-                    // Limit burst to 10 events to avoid flooding the PTY
-                    let count = scroll_y.unsigned_abs().min(10);
+            // --- 1a. Vertical scroll events ---
+            // XTerm mouse protocol buttons: 64 = scroll up, 65 = scroll down
+            if scroll_y != 0 {
+                let button = if scroll_y > 0 { 64 } else { 65 };
+                // Limit burst to 10 events to avoid flooding the PTY
+                let count = scroll_y.unsigned_abs().min(10);
 
-                    if let Ok(term) = terminal_arc.try_lock() {
-                        for _ in 0..count {
-                            let encoded = term.encode_mouse_event(button, col, row, true, 0);
-                            if !encoded.is_empty() {
-                                all_encoded.extend(encoded);
-                            }
+                if let Ok(term) = terminal_arc.try_lock() {
+                    for _ in 0..count {
+                        let encoded = term.encode_mouse_event(button, col, row, true, 0);
+                        if !encoded.is_empty() {
+                            all_encoded.extend(encoded);
                         }
                     }
                 }
+            }
 
-                // --- 1b. Horizontal scroll events (if enabled) ---
-                // XTerm mouse protocol buttons: 66 = scroll left, 67 = scroll right
-                if self.config.report_horizontal_scroll && scroll_x != 0 {
-                    let button = if scroll_x > 0 { 67 } else { 66 };
-                    // Limit burst to 10 events to avoid flooding the PTY
-                    let count = scroll_x.unsigned_abs().min(10);
+            // --- 1b. Horizontal scroll events (if enabled) ---
+            // XTerm mouse protocol buttons: 66 = scroll left, 67 = scroll right
+            if self.config.report_horizontal_scroll && scroll_x != 0 {
+                let button = if scroll_x > 0 { 67 } else { 66 };
+                // Limit burst to 10 events to avoid flooding the PTY
+                let count = scroll_x.unsigned_abs().min(10);
 
-                    if let Ok(term) = terminal_arc.try_lock() {
-                        for _ in 0..count {
-                            let encoded = term.encode_mouse_event(button, col, row, true, 0);
-                            if !encoded.is_empty() {
-                                all_encoded.extend(encoded);
-                            }
+                if let Ok(term) = terminal_arc.try_lock() {
+                    for _ in 0..count {
+                        let encoded = term.encode_mouse_event(button, col, row, true, 0);
+                        if !encoded.is_empty() {
+                            all_encoded.extend(encoded);
                         }
                     }
                 }
+            }
 
-                // Send all encoded events to terminal
-                if !all_encoded.is_empty() {
-                    let terminal_clone = Arc::clone(&terminal_arc);
-                    let runtime = Arc::clone(&self.runtime);
-                    runtime.spawn(async move {
-                        let t = terminal_clone.lock().await;
-                        let _ = t.write(&all_encoded);
-                    });
-                }
+            // Send all encoded events to terminal
+            if !all_encoded.is_empty() {
+                let terminal_clone = Arc::clone(&terminal_arc);
+                let runtime = Arc::clone(&self.runtime);
+                runtime.spawn(async move {
+                    let t = terminal_clone.lock().await;
+                    let _ = t.write(&all_encoded);
+                });
+            }
             return; // Exit early: terminal app handled the input
         }
 

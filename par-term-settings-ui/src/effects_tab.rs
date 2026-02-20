@@ -108,7 +108,13 @@ fn show_inline_images(
     changes_this_frame: &mut bool,
     collapsed: &mut HashSet<String>,
 ) {
-    collapsing_section(ui, "Inline Images (Sixel, iTerm2, Kitty)", "inline_images", true, collapsed, |ui| {
+    collapsing_section(
+        ui,
+        "Inline Images (Sixel, iTerm2, Kitty)",
+        "inline_images",
+        true,
+        collapsed,
+        |ui| {
             ui.label("Settings for inline graphics rendered in the terminal.");
             ui.add_space(4.0);
 
@@ -146,7 +152,8 @@ fn show_inline_images(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-        });
+        },
+    );
 }
 
 fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {

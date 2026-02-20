@@ -266,19 +266,26 @@ fn show_scripts_section(
                         let panel_id = format!("script_panel_{}", i);
                         let panel_scroll_id = format!("script_panel_scroll_{}", i);
                         ui.indent(&panel_id, |ui| {
-                            collapsing_section(ui, &panel_title, &panel_id, false, collapsed, |ui| {
-                                egui::ScrollArea::vertical()
-                                    .id_salt(&panel_scroll_id)
-                                    .max_height(200.0)
-                                    .show(ui, |ui| {
-                                        ui.label(
-                                            egui::RichText::new(content)
-                                                .monospace()
-                                                .small()
-                                                .color(egui::Color32::from_rgb(200, 200, 200)),
-                                        );
-                                    });
-                            });
+                            collapsing_section(
+                                ui,
+                                &panel_title,
+                                &panel_id,
+                                false,
+                                collapsed,
+                                |ui| {
+                                    egui::ScrollArea::vertical()
+                                        .id_salt(&panel_scroll_id)
+                                        .max_height(200.0)
+                                        .show(ui, |ui| {
+                                            ui.label(
+                                                egui::RichText::new(content)
+                                                    .monospace()
+                                                    .small()
+                                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                                            );
+                                        });
+                                },
+                            );
                         });
                     }
 

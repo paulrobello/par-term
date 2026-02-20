@@ -195,7 +195,13 @@ fn show_dynamic_sources_section(
 
                 if is_editing {
                     // Show inline edit form
-                    show_dynamic_source_edit_form(ui, settings, changes_this_frame, Some(i), collapsed);
+                    show_dynamic_source_edit_form(
+                        ui,
+                        settings,
+                        changes_this_frame,
+                        Some(i),
+                        collapsed,
+                    );
                 } else {
                     let source = &settings.config.dynamic_profile_sources[i];
 

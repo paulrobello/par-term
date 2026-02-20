@@ -34,9 +34,12 @@ fn to_settings_update_result(result: &UpdateCheckResult) -> crate::settings_ui::
 /// Extract the available version string from an update result (None if not available).
 fn update_available_version(result: &UpdateCheckResult) -> Option<String> {
     match result {
-        UpdateCheckResult::UpdateAvailable(info) => {
-            Some(info.version.strip_prefix('v').unwrap_or(&info.version).to_string())
-        }
+        UpdateCheckResult::UpdateAvailable(info) => Some(
+            info.version
+                .strip_prefix('v')
+                .unwrap_or(&info.version)
+                .to_string(),
+        ),
         _ => None,
     }
 }
@@ -241,7 +244,10 @@ impl WindowManager {
             self.last_update_result = Some(result);
 
             // Sync update version to status bar widgets
-            let version = self.last_update_result.as_ref().and_then(update_available_version);
+            let version = self
+                .last_update_result
+                .as_ref()
+                .and_then(update_available_version);
             let result_clone = self.last_update_result.clone();
             for ws in self.windows.values_mut() {
                 ws.status_bar_ui.update_available_version = version.clone();
@@ -327,7 +333,10 @@ impl WindowManager {
         self.last_update_result = Some(result);
 
         // Sync update version and full result to status bar widgets and update dialog
-        let version = self.last_update_result.as_ref().and_then(update_available_version);
+        let version = self
+            .last_update_result
+            .as_ref()
+            .and_then(update_available_version);
         let result_clone = self.last_update_result.clone();
         for ws in self.windows.values_mut() {
             ws.status_bar_ui.update_available_version = version.clone();
@@ -620,7 +629,10 @@ impl WindowManager {
                 self.pending_window_count += 1;
 
                 // Sync existing update state to new window's status bar and dialog
-                let update_version = self.last_update_result.as_ref().and_then(update_available_version);
+                let update_version = self
+                    .last_update_result
+                    .as_ref()
+                    .and_then(update_available_version);
                 let update_result_clone = self.last_update_result.clone();
                 let install_type = self.detect_installation_type();
                 if let Some(ws) = self.windows.get_mut(&window_id) {
@@ -1894,13 +1906,9 @@ impl WindowManager {
 
                         for tab in window_state.tab_manager.tabs_mut() {
                             if let Ok(mut term) = tab.terminal.try_lock() {
-                                term.set_cell_dimensions(
-                                    cell_width as u32,
-                                    cell_height as u32,
-                                );
-                                let _ = term.resize_with_pixels(
-                                    new_cols, new_rows, width_px, height_px,
-                                );
+                                term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                                let _ = term
+                                    .resize_with_pixels(new_cols, new_rows, width_px, height_px);
                             }
                             tab.cache.cells = None;
                         }
@@ -2714,7 +2722,10 @@ impl WindowManager {
                 self.pending_window_count += 1;
 
                 // Sync existing update state to new window's status bar and dialog
-                let update_version = self.last_update_result.as_ref().and_then(update_available_version);
+                let update_version = self
+                    .last_update_result
+                    .as_ref()
+                    .and_then(update_available_version);
                 let update_result_clone = self.last_update_result.clone();
                 let install_type = self.detect_installation_type();
                 if let Some(ws) = self.windows.get_mut(&window_id) {

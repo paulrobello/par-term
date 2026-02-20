@@ -77,8 +77,7 @@ pub fn render(
                 match installation_type {
                     par_term_settings_ui::InstallationType::Homebrew => {
                         ui.label(
-                            egui::RichText::new("Update via Homebrew:")
-                                .color(egui::Color32::GRAY),
+                            egui::RichText::new("Update via Homebrew:").color(egui::Color32::GRAY),
                         );
                         ui.code("brew upgrade --cask par-term");
                         ui.add_space(8.0);
@@ -93,16 +92,14 @@ pub fn render(
                     _ => {
                         // Standalone/Bundle - show Install button
                         if installing {
-                            let button = egui::Button::new(
-                                egui::RichText::new("Installing...").strong(),
-                            );
+                            let button =
+                                egui::Button::new(egui::RichText::new("Installing...").strong());
                             ui.add_enabled(false, button);
                         } else if ui
                             .button(egui::RichText::new("Install Update").strong())
                             .clicked()
                         {
-                            action =
-                                UpdateDialogAction::InstallUpdate(version_str.to_string());
+                            action = UpdateDialogAction::InstallUpdate(version_str.to_string());
                         }
                         ui.add_space(8.0);
                     }

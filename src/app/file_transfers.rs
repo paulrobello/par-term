@@ -6,8 +6,8 @@
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use par_term_emu_core_rust::terminal::file_transfer::{
     FileTransfer, TransferDirection, TransferStatus,
@@ -229,12 +229,14 @@ impl WindowState {
                             filename: filename.clone(),
                             data: ft.data,
                         });
-                    self.file_transfer_state.recent_transfers.push(RecentTransfer {
-                        filename: filename.clone(),
-                        size,
-                        direction: TransferDirection::Download,
-                        completed_at: std::time::Instant::now(),
-                    });
+                    self.file_transfer_state
+                        .recent_transfers
+                        .push(RecentTransfer {
+                            filename: filename.clone(),
+                            size,
+                            direction: TransferDirection::Download,
+                            completed_at: std::time::Instant::now(),
+                        });
                     self.file_transfer_state.last_completion_time = Some(std::time::Instant::now());
                     self.deliver_notification(
                         "Download Received",
@@ -287,9 +289,9 @@ impl WindowState {
         }
 
         // 5. Expire old recent transfers
-        self.file_transfer_state
-            .recent_transfers
-            .retain(|t| t.completed_at.elapsed() < std::time::Duration::from_secs(RECENT_TRANSFER_DISPLAY_SECS));
+        self.file_transfer_state.recent_transfers.retain(|t| {
+            t.completed_at.elapsed() < std::time::Duration::from_secs(RECENT_TRANSFER_DISPLAY_SECS)
+        });
         if !self.file_transfer_state.recent_transfers.is_empty() {
             self.request_redraw();
         }
@@ -302,9 +304,12 @@ impl WindowState {
         // before the blocking native dialog steals focus.
         if !self.file_transfer_state.dialog_open {
             let save_ready = self.file_transfer_state.pending_saves.front().is_some()
-                && self.file_transfer_state.last_completion_time.is_some_and(|t| {
-                    t.elapsed() >= std::time::Duration::from_millis(SAVE_DIALOG_DELAY_MS)
-                });
+                && self
+                    .file_transfer_state
+                    .last_completion_time
+                    .is_some_and(|t| {
+                        t.elapsed() >= std::time::Duration::from_millis(SAVE_DIALOG_DELAY_MS)
+                    });
 
             if save_ready {
                 if let Some(pending) = self.file_transfer_state.pending_saves.pop_front() {
@@ -330,29 +335,29 @@ impl WindowState {
     fn poll_active_uploads(&mut self) {
         // Collect completed uploads and their results
         let mut completed_info: Vec<(String, usize, Option<String>)> = Vec::new();
-        self.file_transfer_state
-            .active_uploads
-            .retain(|upload| {
-                if upload.completed.load(Ordering::Relaxed) {
-                    let error = upload.error.lock().unwrap().take();
-                    completed_info.push((upload.filename.clone(), upload.file_size, error));
-                    false
-                } else {
-                    true
-                }
-            });
+        self.file_transfer_state.active_uploads.retain(|upload| {
+            if upload.completed.load(Ordering::Relaxed) {
+                let error = upload.error.lock().unwrap().take();
+                completed_info.push((upload.filename.clone(), upload.file_size, error));
+                false
+            } else {
+                true
+            }
+        });
 
         // Notify for completed uploads and add to recent transfers
         for (filename, file_size, error) in completed_info {
             if let Some(e) = error {
                 self.deliver_notification("Upload Failed", &e);
             } else {
-                self.file_transfer_state.recent_transfers.push(RecentTransfer {
-                    filename: filename.clone(),
-                    size: file_size,
-                    direction: TransferDirection::Upload,
-                    completed_at: std::time::Instant::now(),
-                });
+                self.file_transfer_state
+                    .recent_transfers
+                    .push(RecentTransfer {
+                        filename: filename.clone(),
+                        size: file_size,
+                        direction: TransferDirection::Upload,
+                        completed_at: std::time::Instant::now(),
+                    });
                 self.deliver_notification(
                     "Upload Complete",
                     &format!("Uploaded {} ({})", filename, format_bytes(file_size)),
@@ -497,8 +502,7 @@ impl WindowState {
 
                     // Base64 encode and format as single line + newline
                     use base64::Engine;
-                    let encoded =
-                        base64::engine::general_purpose::STANDARD.encode(&tgz_data);
+                    let encoded = base64::engine::general_purpose::STANDARD.encode(&tgz_data);
                     let response = format!("{}\n", encoded);
                     let total_wire_bytes = response.len();
 
@@ -530,8 +534,8 @@ impl WindowState {
                             .spawn(move || {
                                 let mut offset = 0;
                                 while offset < response_bytes.len() {
-                                    let end = (offset + UPLOAD_CHUNK_SIZE)
-                                        .min(response_bytes.len());
+                                    let end =
+                                        (offset + UPLOAD_CHUNK_SIZE).min(response_bytes.len());
                                     let chunk = &response_bytes[offset..end];
 
                                     let term = terminal_arc.blocking_lock();
@@ -618,10 +622,7 @@ impl WindowState {
 /// Returns the compressed archive bytes suitable for base64-encoding
 /// and sending as an iTerm2 upload response.
 fn create_tgz_archive(path: &Path, data: &[u8]) -> std::io::Result<Vec<u8>> {
-    let filename = path
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy();
+    let filename = path.file_name().unwrap_or_default().to_string_lossy();
 
     let compressed = Vec::new();
     let encoder = flate2::write::GzEncoder::new(compressed, flate2::Compression::default());
@@ -670,7 +671,10 @@ pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui
         .frame(
             egui::Frame::window(&ctx.style())
                 .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 80, 240))
-                .stroke(egui::Stroke::new(2.0, egui::Color32::from_rgb(100, 200, 255))),
+                .stroke(egui::Stroke::new(
+                    2.0,
+                    egui::Color32::from_rgb(100, 200, 255),
+                )),
         )
         .show(ctx, |ui| {
             ui.set_min_width(250.0);
