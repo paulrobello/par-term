@@ -3352,12 +3352,22 @@ impl WindowState {
 
                     // Render progress bar overlay
                     if let (Some(snap), Some(size)) = (&progress_snapshot, window_size_for_badge) {
+                        let tab_count = self.tab_manager.tab_count();
+                        let tb_height =
+                            self.tab_bar_ui.get_height(tab_count, &self.config);
+                        let (top_inset, bottom_inset) = match self.config.tab_bar_position {
+                            par_term_config::TabBarPosition::Top => (tb_height, 0.0),
+                            par_term_config::TabBarPosition::Bottom => (0.0, tb_height),
+                            par_term_config::TabBarPosition::Left => (0.0, 0.0),
+                        };
                         render_progress_bars(
                             ctx,
                             snap,
                             &self.config,
                             size.width as f32,
                             size.height as f32,
+                            top_inset,
+                            bottom_inset,
                         );
                     }
 

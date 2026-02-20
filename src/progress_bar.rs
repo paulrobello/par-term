@@ -28,12 +28,17 @@ impl ProgressBarSnapshot {
 }
 
 /// Render progress bar overlays using egui.
+///
+/// `top_inset` and `bottom_inset` specify reserved UI areas (e.g. tab bar, status bar)
+/// that progress bars should not overlap with.
 pub fn render_progress_bars(
     ctx: &egui::Context,
     snapshot: &ProgressBarSnapshot,
     config: &Config,
     window_width: f32,
     window_height: f32,
+    top_inset: f32,
+    bottom_inset: f32,
 ) {
     if !config.progress_bar_enabled || !snapshot.has_active() {
         return;
@@ -42,10 +47,10 @@ pub fn render_progress_bars(
     let bar_height = config.progress_bar_height;
     let alpha = (config.progress_bar_opacity * 255.0) as u8;
 
-    // Calculate Y position based on config
+    // Calculate Y position based on config, respecting UI insets
     let base_y = match config.progress_bar_position {
-        ProgressBarPosition::Top => 0.0,
-        ProgressBarPosition::Bottom => window_height - bar_height,
+        ProgressBarPosition::Top => top_inset,
+        ProgressBarPosition::Bottom => window_height - bar_height - bottom_inset,
     };
 
     // Collect all active bars: simple bar first, then named bars sorted by ID
@@ -81,7 +86,7 @@ pub fn render_progress_bars(
     let total_height = bar_height * bars.len() as f32;
     let stacked_y = match config.progress_bar_position {
         ProgressBarPosition::Top => base_y,
-        ProgressBarPosition::Bottom => window_height - total_height,
+        ProgressBarPosition::Bottom => window_height - total_height - bottom_inset,
     };
 
     egui::Area::new(egui::Id::new("progress_bar_overlay"))
