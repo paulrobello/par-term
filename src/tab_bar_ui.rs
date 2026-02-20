@@ -94,6 +94,8 @@ pub struct TabBarUI {
     context_menu_title: String,
     /// Whether the icon picker is active in the context menu
     picking_icon: bool,
+    /// Frame when icon picker mode was activated (to ignore the activating click)
+    icon_activated_frame: u64,
     /// Buffer for the icon text field in the context menu
     icon_buffer: String,
     /// Current custom icon of the tab in the context menu (for "Clear Icon" visibility)
@@ -126,6 +128,7 @@ impl TabBarUI {
             rename_buffer: String::new(),
             context_menu_title: String::new(),
             picking_icon: false,
+            icon_activated_frame: 0,
             icon_buffer: String::new(),
             context_menu_icon: None,
             scroll_offset: 0.0,
@@ -1679,6 +1682,7 @@ impl TabBarUI {
                             }
                         } else if menu_item(ui, "Set Icon") {
                             self.picking_icon = true;
+                            self.icon_activated_frame = ui.ctx().cumulative_frame_nr();
                         }
 
                         // Clear Icon (only show when tab has a custom icon)
@@ -1762,11 +1766,12 @@ impl TabBarUI {
                     });
             });
 
-        // Close menu if clicked outside (but not on the same frame it was opened
-        // or the same frame rename mode was activated)
+        // Close menu if clicked outside (but not on the same frame it was opened,
+        // rename mode was activated, or icon picker mode was activated)
         let current_frame = ctx.cumulative_frame_nr();
         if current_frame > self.context_menu_opened_frame
             && current_frame > self.rename_activated_frame
+            && current_frame > self.icon_activated_frame
             && ctx.input(|i| i.pointer.any_click())
             && !area_response.response.hovered()
             // Only close if no action was taken (let button clicks register)
@@ -1777,6 +1782,14 @@ impl TabBarUI {
             if self.renaming_tab {
                 let name = self.rename_buffer.trim().to_string();
                 action = TabBarAction::RenameTab(tab_id, name);
+            }
+            // If picking icon, submit the current buffer on click-away
+            if self.picking_icon {
+                let icon = self.icon_buffer.trim().to_string();
+                action = TabBarAction::SetTabIcon(
+                    tab_id,
+                    if icon.is_empty() { None } else { Some(icon) },
+                );
             }
             close_menu = true;
         }
