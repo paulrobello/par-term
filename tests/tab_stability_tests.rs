@@ -31,7 +31,7 @@
 //! Mouse events in the tab bar area are handled before setting terminal button state,
 //! and window redraws are requested to ensure egui processes the events.
 
-use par_term::config::Config;
+use par_term::config::{Config, TabBarMode};
 use par_term::tab_bar_ui::{TabBarAction, TabBarUI};
 
 // ============================================================================
@@ -43,9 +43,10 @@ fn test_tab_bar_height_affects_content_area() {
     // When the tab bar is visible, it should reduce the available content area
     // This test verifies the expected height values
     let tab_bar = TabBarUI::new();
-    let config = Config::default();
+    let mut config = Config::default();
+    config.tab_bar_mode = TabBarMode::WhenMultiple;
 
-    // With default config (WhenMultiple mode)
+    // With WhenMultiple mode
     // 1 tab: no bar, height = 0
     let height_1_tab = tab_bar.get_height(1, &config);
     assert_eq!(height_1_tab, 0.0, "Single tab should hide tab bar");
@@ -62,9 +63,10 @@ fn test_tab_bar_height_affects_content_area() {
 #[test]
 fn test_tab_bar_height_zero_tabs() {
     let tab_bar = TabBarUI::new();
-    let config = Config::default();
+    let mut config = Config::default();
+    config.tab_bar_mode = TabBarMode::WhenMultiple;
 
-    // Edge case: 0 tabs should also hide the bar
+    // Edge case: 0 tabs should also hide the bar with WhenMultiple mode
     let height = tab_bar.get_height(0, &config);
     assert_eq!(height, 0.0, "Zero tabs should hide tab bar");
 }
@@ -328,9 +330,10 @@ fn test_mouse_event_timing_documented() {
 
     // Verify that we can detect when mouse is in tab bar area via height
     let tab_bar = TabBarUI::new();
-    let config = Config::default();
+    let mut config = Config::default();
+    config.tab_bar_mode = TabBarMode::WhenMultiple;
 
-    // When 1 tab: no tab bar, clicks at y=0 go to terminal
+    // When 1 tab (WhenMultiple mode): no tab bar, clicks at y=0 go to terminal
     let height_1 = tab_bar.get_height(1, &config);
     assert_eq!(height_1, 0.0, "No tab bar with 1 tab");
 

@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hourly Update Check Frequency**: New `Hourly` option for `update_check_frequency` — checks GitHub for new releases every hour (aligned with the existing 1-hour rate limit). Available in Settings > Advanced > Updates
+- **Status Bar Update Widget**: New `UpdateAvailable` status bar widget that appears in the right section when a new version is detected — displays an up-arrow with the available version (e.g., "⬆ v0.20.0") in a highlighted yellow color. Enabled by default and auto-hides when no update is available
+- **Clickable Update Notification**: Clicking the status bar update widget opens a dedicated update dialog overlay showing version info, release notes, GitHub release link, and install/skip/dismiss actions — installation-type-aware (shows package manager commands for Homebrew/Cargo installs, or an Install button for standalone/bundle installs)
 - **Rain Glass Shader**: New `rain-glass.glsl` background shader — rain on glass with a procedural dark nebula background that requires no texture. Configurable color palette, noise parameters, and fog settings via `#define` knobs at the top of the file
 - **Inactive Tab Outline-Only Mode**: New `tab_inactive_outline_only` option renders inactive tabs with just a border stroke and no background fill — hovered inactive tabs brighten the outline for visual feedback
 - **Pane Background Darken Slider**: Added a darken control (0.0–1.0) for per-pane custom background images, allowing backgrounds to be dimmed independently from opacity — darken reduces RGB towards black while opacity controls transparency
