@@ -40,6 +40,8 @@ pub enum WidgetId {
     BellIndicator,
     /// Currently running command name
     CurrentCommand,
+    /// Update available notification
+    UpdateAvailable,
     /// Custom widget (user-defined via format string)
     Custom(String),
 }
@@ -57,6 +59,7 @@ impl WidgetId {
             WidgetId::NetworkStatus => "Network Status",
             WidgetId::BellIndicator => "Bell Indicator",
             WidgetId::CurrentCommand => "Current Command",
+            WidgetId::UpdateAvailable => "Update Available",
             WidgetId::Custom(name) => name.as_str(),
         }
     }
@@ -73,6 +76,7 @@ impl WidgetId {
             WidgetId::NetworkStatus => "\u{1f310}",    // globe with meridians
             WidgetId::BellIndicator => "\u{1f514}",    // bell
             WidgetId::CurrentCommand => "\u{25b6}",    // play button
+            WidgetId::UpdateAvailable => "\u{2b06}",   // upwards arrow
             WidgetId::Custom(_) => "\u{2699}",         // gear
         }
     }
@@ -177,6 +181,13 @@ pub fn default_widgets() -> Vec<StatusBarWidgetConfig> {
             enabled: true,
             section: StatusBarSection::Right,
             order: 4,
+            format: None,
+        },
+        StatusBarWidgetConfig {
+            id: WidgetId::UpdateAvailable,
+            enabled: true,
+            section: StatusBarSection::Right,
+            order: 5,
             format: None,
         },
     ]
