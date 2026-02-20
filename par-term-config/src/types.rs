@@ -363,6 +363,17 @@ pub enum TabBarMode {
     Never,
 }
 
+/// Controls how tab titles are automatically updated
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TabTitleMode {
+    /// OSC title first, then CWD from shell integration, then keep default
+    #[default]
+    Auto,
+    /// Only update from explicit OSC escape sequences; never auto-set from CWD
+    OscOnly,
+}
+
 /// Status bar position
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]

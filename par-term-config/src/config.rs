@@ -12,7 +12,8 @@ use crate::types::{
     ModifierRemapping, OptionKeyMode, PaneBackgroundConfig, PaneTitlePosition, PowerPreference,
     ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat,
     ShaderConfig, ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode,
-    StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, ThinStrokesMode, UnfocusedCursorStyle,
+    StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
+    UnfocusedCursorStyle,
     UpdateCheckFrequency, VsyncMode, WindowType, default_smart_selection_rules,
 };
 
@@ -1096,6 +1097,10 @@ pub struct Config {
     #[serde(default)]
     pub tab_bar_mode: TabBarMode,
 
+    /// Controls how tab titles are automatically updated (auto or osc_only)
+    #[serde(default)]
+    pub tab_title_mode: TabTitleMode,
+
     /// Tab bar height in pixels
     #[serde(default = "crate::defaults::tab_bar_height")]
     pub tab_bar_height: f32,
@@ -2005,6 +2010,7 @@ impl Default for Config {
             light_tab_style: crate::defaults::light_tab_style(),
             dark_tab_style: crate::defaults::dark_tab_style(),
             tab_bar_mode: TabBarMode::default(),
+            tab_title_mode: TabTitleMode::default(),
             tab_bar_height: crate::defaults::tab_bar_height(),
             tab_bar_position: TabBarPosition::default(),
             tab_bar_width: crate::defaults::tab_bar_width(),
