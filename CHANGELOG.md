@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hide Window Padding on Split**: New `hide_window_padding_on_split` option (default: enabled) automatically removes window padding when panes are split — since each pane has its own padding, the outer window padding is redundant and wastes space
 - **New Tab Menu as Dropdown**: The new tab profile menu now appears as a dropdown in the top-right corner instead of a centered dialog
 - **Assistant Panel Toggle in New Tab Menu**: Added an "Assistant Panel" toggle item to the new tab dropdown menu (visible when `ai_inspector_enabled` is true)
+- **Download Progress Overlay**: pt-dl downloads now show a completed progress bar with filename and size in the transfer overlay for 3 seconds after receiving, with a "Download Received" notification
 
 ### Changed
 
