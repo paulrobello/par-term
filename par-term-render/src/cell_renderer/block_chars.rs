@@ -27,6 +27,14 @@ pub mod ranges {
     /// Braille Patterns (U+2800–U+28FF)
     pub const BRAILLE_START: u32 = 0x2800;
     pub const BRAILLE_END: u32 = 0x28FF;
+
+    /// Miscellaneous Symbols (U+2600–U+26FF) — includes ballot boxes (☐☑☒)
+    pub const MISC_SYMBOLS_START: u32 = 0x2600;
+    pub const MISC_SYMBOLS_END: u32 = 0x26FF;
+
+    /// Dingbats (U+2700–U+27BF) — includes check marks (✓✔✗✘)
+    pub const DINGBATS_START: u32 = 0x2700;
+    pub const DINGBATS_END: u32 = 0x27BF;
 }
 
 /// 7-position grid system for box drawing (normalized 0.0-1.0)
@@ -83,6 +91,8 @@ pub enum BlockCharType {
     Powerline,
     /// Braille patterns - use font glyph
     Braille,
+    /// Miscellaneous symbols (ballot boxes, check marks, etc.) - snap to boundaries
+    Symbol,
 }
 
 /// Classify a character for rendering optimization
@@ -114,6 +124,16 @@ pub fn classify_char(ch: char) -> BlockCharType {
         return BlockCharType::Braille;
     }
 
+    // Miscellaneous Symbols (ballot boxes, etc.)
+    if (ranges::MISC_SYMBOLS_START..=ranges::MISC_SYMBOLS_END).contains(&code) {
+        return BlockCharType::Symbol;
+    }
+
+    // Dingbats (check marks, etc.)
+    if (ranges::DINGBATS_START..=ranges::DINGBATS_END).contains(&code) {
+        return BlockCharType::Symbol;
+    }
+
     BlockCharType::None
 }
 
@@ -142,6 +162,7 @@ pub fn should_snap_to_boundaries(char_type: BlockCharType) -> bool {
             | BlockCharType::PartialBlock
             | BlockCharType::Geometric
             | BlockCharType::Powerline
+            | BlockCharType::Symbol
     )
 }
 
