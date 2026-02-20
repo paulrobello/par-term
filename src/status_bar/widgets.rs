@@ -27,6 +27,8 @@ pub struct WidgetContext {
     pub git_show_status: bool,
     /// Time format string (chrono strftime syntax)
     pub time_format: String,
+    /// Available update version string (e.g., "0.20.0"), None if up-to-date
+    pub update_available_version: Option<String>,
 }
 
 /// Generate display text for a single widget.
@@ -88,6 +90,13 @@ pub fn widget_text(id: &WidgetId, ctx: &WidgetContext, format_override: Option<&
             }
         }
         WidgetId::CurrentCommand => ctx.session_vars.current_command.clone().unwrap_or_default(),
+        WidgetId::UpdateAvailable => {
+            if let Some(ref version) = ctx.update_available_version {
+                format!("\u{2b06} v{}", version)
+            } else {
+                String::new()
+            }
+        }
         WidgetId::Custom(_) => String::new(),
     }
 }
@@ -196,6 +205,7 @@ mod tests {
             git_dirty: true,
             git_show_status: true,
             time_format: "%H:%M:%S".to_string(),
+            update_available_version: None,
         }
     }
 

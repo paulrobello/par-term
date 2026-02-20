@@ -195,6 +195,8 @@ pub struct StatusBarUI {
     visible: bool,
     /// Last valid time format string (for fallback when user is mid-edit).
     last_valid_time_format: String,
+    /// Available update version (set by WindowManager when update is detected)
+    pub update_available_version: Option<String>,
 }
 
 impl StatusBarUI {
@@ -206,6 +208,7 @@ impl StatusBarUI {
             last_mouse_activity: Instant::now(),
             visible: true,
             last_valid_time_format: "%H:%M:%S".to_string(),
+            update_available_version: None,
         }
     }
 
@@ -332,6 +335,7 @@ impl StatusBarUI {
             git_dirty: git_status.dirty,
             git_show_status: config.status_bar_git_show_status,
             time_format: self.last_valid_time_format.clone(),
+            update_available_version: self.update_available_version.clone(),
         };
 
         let bar_height = config.status_bar_height;
