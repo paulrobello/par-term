@@ -317,6 +317,11 @@ pub struct WindowState {
 
     /// Whether to show the update dialog overlay (set when user clicks the update widget)
     pub(crate) show_update_dialog: bool,
+
+    /// Last update check result (for update dialog)
+    pub(crate) last_update_result: Option<crate::update_checker::UpdateCheckResult>,
+    /// Detected installation type
+    pub(crate) installation_type: par_term_settings_ui::InstallationType,
 }
 
 /// Extract an `f32` from a JSON value that may be an integer or float.
@@ -477,6 +482,9 @@ impl WindowState {
             file_transfer_state: crate::app::file_transfers::FileTransferState::default(),
 
             show_update_dialog: false,
+
+            last_update_result: None,
+            installation_type: par_term_settings_ui::InstallationType::StandaloneBinary,
         }
     }
 
@@ -3250,6 +3258,37 @@ impl WindowState {
 
                     // Show SSH Quick Connect dialog if visible
                     pending_ssh_connect_action = self.ssh_connect_ui.show(ctx);
+
+                    // Render update dialog overlay
+                    if self.show_update_dialog {
+                        if let Some(ref update_result) = self.last_update_result {
+                            let dialog_action = crate::update_dialog::render(
+                                ctx,
+                                update_result,
+                                env!("CARGO_PKG_VERSION"),
+                                self.installation_type,
+                            );
+                            match dialog_action {
+                                crate::update_dialog::UpdateDialogAction::Dismiss => {
+                                    self.show_update_dialog = false;
+                                }
+                                crate::update_dialog::UpdateDialogAction::SkipVersion(v) => {
+                                    self.config.skipped_version = Some(v);
+                                    self.show_update_dialog = false;
+                                    self.status_bar_ui.update_available_version = None;
+                                    let _ = self.config.save();
+                                }
+                                crate::update_dialog::UpdateDialogAction::InstallUpdate(_v) => {
+                                    // Install handling will be added in Task 7
+                                    self.show_update_dialog = false;
+                                }
+                                crate::update_dialog::UpdateDialogAction::None => {}
+                            }
+                        } else {
+                            // No update result, close dialog
+                            self.show_update_dialog = false;
+                        }
+                    }
 
                     // Render profile drawer (right side panel)
                     pending_profile_drawer_action = self.profile_drawer_ui.render(

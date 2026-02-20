@@ -242,8 +242,10 @@ impl WindowManager {
 
             // Sync update version to status bar widgets
             let version = self.last_update_result.as_ref().and_then(update_available_version);
+            let result_clone = self.last_update_result.clone();
             for ws in self.windows.values_mut() {
                 ws.status_bar_ui.update_available_version = version.clone();
+                ws.last_update_result = result_clone.clone();
             }
 
             // Save config with updated timestamp if check was successful
@@ -324,10 +326,12 @@ impl WindowManager {
 
         self.last_update_result = Some(result);
 
-        // Sync update version to status bar widgets
+        // Sync update version and full result to status bar widgets and update dialog
         let version = self.last_update_result.as_ref().and_then(update_available_version);
+        let result_clone = self.last_update_result.clone();
         for ws in self.windows.values_mut() {
             ws.status_bar_ui.update_available_version = version.clone();
+            ws.last_update_result = result_clone.clone();
         }
 
         // Save config with updated timestamp
@@ -349,6 +353,25 @@ impl WindowManager {
                 .as_ref()
                 .map(to_settings_update_result);
             settings_window.request_redraw();
+        }
+    }
+
+    /// Detect the installation type and convert to the settings-ui enum.
+    fn detect_installation_type(&self) -> par_term_settings_ui::InstallationType {
+        let install = crate::self_updater::detect_installation();
+        match install {
+            crate::self_updater::InstallationType::Homebrew => {
+                par_term_settings_ui::InstallationType::Homebrew
+            }
+            crate::self_updater::InstallationType::CargoInstall => {
+                par_term_settings_ui::InstallationType::CargoInstall
+            }
+            crate::self_updater::InstallationType::MacOSBundle => {
+                par_term_settings_ui::InstallationType::MacOSBundle
+            }
+            crate::self_updater::InstallationType::StandaloneBinary => {
+                par_term_settings_ui::InstallationType::StandaloneBinary
+            }
         }
     }
 
@@ -596,9 +619,14 @@ impl WindowManager {
                 self.windows.insert(window_id, window_state);
                 self.pending_window_count += 1;
 
-                // Sync existing update state to new window's status bar
+                // Sync existing update state to new window's status bar and dialog
+                let update_version = self.last_update_result.as_ref().and_then(update_available_version);
+                let update_result_clone = self.last_update_result.clone();
+                let install_type = self.detect_installation_type();
                 if let Some(ws) = self.windows.get_mut(&window_id) {
-                    ws.status_bar_ui.update_available_version = self.last_update_result.as_ref().and_then(update_available_version);
+                    ws.status_bar_ui.update_available_version = update_version;
+                    ws.last_update_result = update_result_clone;
+                    ws.installation_type = install_type;
                 }
 
                 // Set start time on first window creation (for CLI timers)
@@ -2685,9 +2713,14 @@ impl WindowManager {
                 self.windows.insert(window_id, window_state);
                 self.pending_window_count += 1;
 
-                // Sync existing update state to new window's status bar
+                // Sync existing update state to new window's status bar and dialog
+                let update_version = self.last_update_result.as_ref().and_then(update_available_version);
+                let update_result_clone = self.last_update_result.clone();
+                let install_type = self.detect_installation_type();
                 if let Some(ws) = self.windows.get_mut(&window_id) {
-                    ws.status_bar_ui.update_available_version = self.last_update_result.as_ref().and_then(update_available_version);
+                    ws.status_bar_ui.update_available_version = update_version;
+                    ws.last_update_result = update_result_clone;
+                    ws.installation_type = install_type;
                 }
 
                 if self.start_time.is_none() {
