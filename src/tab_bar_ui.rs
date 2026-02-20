@@ -84,6 +84,8 @@ pub struct TabBarUI {
     editing_color: [u8; 3],
     /// Whether the rename text field is active in the context menu
     renaming_tab: bool,
+    /// Frame when rename mode was activated (to ignore the activating click)
+    rename_activated_frame: u64,
     /// Buffer for the rename text field
     rename_buffer: String,
     /// Title of the tab in the context menu (for rename pre-fill)
@@ -112,6 +114,7 @@ impl TabBarUI {
             context_menu_opened_frame: 0,
             editing_color: [100, 100, 100],
             renaming_tab: false,
+            rename_activated_frame: 0,
             rename_buffer: String::new(),
             context_menu_title: String::new(),
             scroll_offset: 0.0,
@@ -1570,6 +1573,7 @@ impl TabBarUI {
                             ui.add_space(2.0);
                         } else if menu_item(ui, "Rename Tab") {
                             self.renaming_tab = true;
+                            self.rename_activated_frame = ui.ctx().cumulative_frame_nr();
                             self.rename_buffer = self.context_menu_title.clone();
                         }
 
@@ -1645,9 +1649,11 @@ impl TabBarUI {
                     });
             });
 
-        // Close menu if clicked outside (but not on the same frame it was opened)
+        // Close menu if clicked outside (but not on the same frame it was opened
+        // or the same frame rename mode was activated)
         let current_frame = ctx.cumulative_frame_nr();
         if current_frame > self.context_menu_opened_frame
+            && current_frame > self.rename_activated_frame
             && ctx.input(|i| i.pointer.any_click())
             && !area_response.response.hovered()
             // Only close if no action was taken (let button clicks register)
