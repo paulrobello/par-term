@@ -3,6 +3,8 @@
 //! This module provides configuration loading, saving, and default values
 //! for the terminal emulator.
 
+pub mod prettifier;
+
 use crate::snippets::{CustomActionConfig, SnippetConfig};
 use crate::themes::Theme;
 use crate::types::{
@@ -1801,6 +1803,18 @@ pub struct Config {
     pub actions: Vec<CustomActionConfig>,
 
     // ========================================================================
+    // Content Prettifier
+    // ========================================================================
+    /// Master switch for the content prettifier system.
+    /// When false, no detection or rendering occurs.
+    #[serde(default = "crate::defaults::bool_true")]
+    pub enable_prettifier: bool,
+
+    /// Detailed prettifier configuration.
+    #[serde(default)]
+    pub content_prettifier: prettifier::PrettifierYamlConfig,
+
+    // ========================================================================
     // UI State (persisted across sessions)
     // ========================================================================
     /// Settings window section IDs that have been toggled from their default collapse state.
@@ -2208,6 +2222,9 @@ impl Default for Config {
             scripts: Vec::new(),
             snippets: Vec::new(),
             actions: Vec::new(),
+            // Content Prettifier
+            enable_prettifier: crate::defaults::bool_true(),
+            content_prettifier: prettifier::PrettifierYamlConfig::default(),
             collapsed_settings_sections: Vec::new(),
             dynamic_profile_sources: Vec::new(),
             // AI Inspector

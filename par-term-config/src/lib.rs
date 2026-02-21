@@ -69,6 +69,11 @@ pub use shader_metadata::{
     update_shader_metadata_file,
 };
 
+// Prettifier config types
+pub use config::prettifier::{
+    PrettifierConfigOverride, PrettifierYamlConfig, ResolvedPrettifierConfig,
+    resolve_prettifier_config,
+};
 // Re-export par-term-emu-core-rust types used by settings UI
 pub use par_term_emu_core_rust::{AmbiguousWidth, NormalizationForm, UnicodeVersion};
 #[allow(unused_imports)]

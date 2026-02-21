@@ -36,14 +36,16 @@ impl RendererRegistry {
     ///
     /// Maintains descending sort by priority.
     pub fn register_detector(&mut self, priority: i32, detector: Box<dyn ContentDetector>) {
-        let idx = self
-            .detectors
-            .partition_point(|(p, _)| *p > priority);
+        let idx = self.detectors.partition_point(|(p, _)| *p > priority);
         self.detectors.insert(idx, (priority, detector));
     }
 
     /// Register a renderer for a format ID.
-    pub fn register_renderer(&mut self, format_id: impl Into<String>, renderer: Box<dyn ContentRenderer>) {
+    pub fn register_renderer(
+        &mut self,
+        format_id: impl Into<String>,
+        renderer: Box<dyn ContentRenderer>,
+    ) {
         self.renderers.insert(format_id.into(), renderer);
     }
 
@@ -116,8 +118,8 @@ impl RendererRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::prettifier::types::*;
     use crate::prettifier::traits::*;
+    use crate::prettifier::types::*;
     use std::time::SystemTime;
 
     /// Minimal detector for testing.
@@ -197,15 +199,33 @@ mod tests {
     #[test]
     fn test_priority_ordering() {
         let mut reg = RendererRegistry::new(0.5);
-        reg.register_detector(10, Box::new(MockDetector {
-            id: "low", name: "Low", quick: true, confidence: Some(0.7),
-        }));
-        reg.register_detector(50, Box::new(MockDetector {
-            id: "high", name: "High", quick: true, confidence: Some(0.7),
-        }));
-        reg.register_detector(30, Box::new(MockDetector {
-            id: "mid", name: "Mid", quick: true, confidence: Some(0.7),
-        }));
+        reg.register_detector(
+            10,
+            Box::new(MockDetector {
+                id: "low",
+                name: "Low",
+                quick: true,
+                confidence: Some(0.7),
+            }),
+        );
+        reg.register_detector(
+            50,
+            Box::new(MockDetector {
+                id: "high",
+                name: "High",
+                quick: true,
+                confidence: Some(0.7),
+            }),
+        );
+        reg.register_detector(
+            30,
+            Box::new(MockDetector {
+                id: "mid",
+                name: "Mid",
+                quick: true,
+                confidence: Some(0.7),
+            }),
+        );
 
         // With equal confidence, priority wins (high is checked first, keeps it).
         let result = reg.detect(&make_block(&["test"])).unwrap();
@@ -215,12 +235,24 @@ mod tests {
     #[test]
     fn test_quick_match_filtering() {
         let mut reg = RendererRegistry::new(0.5);
-        reg.register_detector(10, Box::new(MockDetector {
-            id: "skipped", name: "Skipped", quick: false, confidence: Some(0.9),
-        }));
-        reg.register_detector(5, Box::new(MockDetector {
-            id: "passes", name: "Passes", quick: true, confidence: Some(0.6),
-        }));
+        reg.register_detector(
+            10,
+            Box::new(MockDetector {
+                id: "skipped",
+                name: "Skipped",
+                quick: false,
+                confidence: Some(0.9),
+            }),
+        );
+        reg.register_detector(
+            5,
+            Box::new(MockDetector {
+                id: "passes",
+                name: "Passes",
+                quick: true,
+                confidence: Some(0.6),
+            }),
+        );
 
         let result = reg.detect(&make_block(&["test"])).unwrap();
         // The higher-confidence detector is skipped by quick_match.
@@ -230,12 +262,24 @@ mod tests {
     #[test]
     fn test_highest_confidence_wins() {
         let mut reg = RendererRegistry::new(0.5);
-        reg.register_detector(50, Box::new(MockDetector {
-            id: "lower", name: "Lower", quick: true, confidence: Some(0.6),
-        }));
-        reg.register_detector(10, Box::new(MockDetector {
-            id: "higher", name: "Higher", quick: true, confidence: Some(0.9),
-        }));
+        reg.register_detector(
+            50,
+            Box::new(MockDetector {
+                id: "lower",
+                name: "Lower",
+                quick: true,
+                confidence: Some(0.6),
+            }),
+        );
+        reg.register_detector(
+            10,
+            Box::new(MockDetector {
+                id: "higher",
+                name: "Higher",
+                quick: true,
+                confidence: Some(0.9),
+            }),
+        );
 
         let result = reg.detect(&make_block(&["test"])).unwrap();
         assert_eq!(result.format_id, "higher");
@@ -244,9 +288,15 @@ mod tests {
     #[test]
     fn test_threshold_filtering() {
         let mut reg = RendererRegistry::new(0.8);
-        reg.register_detector(10, Box::new(MockDetector {
-            id: "weak", name: "Weak", quick: true, confidence: Some(0.5),
-        }));
+        reg.register_detector(
+            10,
+            Box::new(MockDetector {
+                id: "weak",
+                name: "Weak",
+                quick: true,
+                confidence: Some(0.5),
+            }),
+        );
 
         assert!(reg.detect(&make_block(&["test"])).is_none());
     }
@@ -254,8 +304,20 @@ mod tests {
     #[test]
     fn test_registered_formats() {
         let mut reg = RendererRegistry::new(0.5);
-        reg.register_renderer("md", Box::new(MockRenderer { id: "md", name: "Markdown" }));
-        reg.register_renderer("json", Box::new(MockRenderer { id: "json", name: "JSON" }));
+        reg.register_renderer(
+            "md",
+            Box::new(MockRenderer {
+                id: "md",
+                name: "Markdown",
+            }),
+        );
+        reg.register_renderer(
+            "json",
+            Box::new(MockRenderer {
+                id: "json",
+                name: "JSON",
+            }),
+        );
 
         let mut formats = reg.registered_formats();
         formats.sort_by_key(|(id, _)| id.to_string());
@@ -267,7 +329,13 @@ mod tests {
     #[test]
     fn test_get_renderer() {
         let mut reg = RendererRegistry::new(0.5);
-        reg.register_renderer("md", Box::new(MockRenderer { id: "md", name: "Markdown" }));
+        reg.register_renderer(
+            "md",
+            Box::new(MockRenderer {
+                id: "md",
+                name: "Markdown",
+            }),
+        );
 
         assert!(reg.get_renderer("md").is_some());
         assert_eq!(reg.get_renderer("md").unwrap().display_name(), "Markdown");
@@ -286,18 +354,42 @@ mod tests {
     #[test]
     fn test_sorted_insertion() {
         let mut reg = RendererRegistry::new(0.5);
-        reg.register_detector(20, Box::new(MockDetector {
-            id: "b", name: "B", quick: true, confidence: None,
-        }));
-        reg.register_detector(50, Box::new(MockDetector {
-            id: "a", name: "A", quick: true, confidence: None,
-        }));
-        reg.register_detector(30, Box::new(MockDetector {
-            id: "c", name: "C", quick: true, confidence: None,
-        }));
-        reg.register_detector(50, Box::new(MockDetector {
-            id: "d", name: "D", quick: true, confidence: None,
-        }));
+        reg.register_detector(
+            20,
+            Box::new(MockDetector {
+                id: "b",
+                name: "B",
+                quick: true,
+                confidence: None,
+            }),
+        );
+        reg.register_detector(
+            50,
+            Box::new(MockDetector {
+                id: "a",
+                name: "A",
+                quick: true,
+                confidence: None,
+            }),
+        );
+        reg.register_detector(
+            30,
+            Box::new(MockDetector {
+                id: "c",
+                name: "C",
+                quick: true,
+                confidence: None,
+            }),
+        );
+        reg.register_detector(
+            50,
+            Box::new(MockDetector {
+                id: "d",
+                name: "D",
+                quick: true,
+                confidence: None,
+            }),
+        );
 
         let priorities: Vec<i32> = reg.detectors.iter().map(|(p, _)| *p).collect();
         assert_eq!(priorities, vec![50, 50, 30, 20]);
@@ -307,9 +399,15 @@ mod tests {
     #[test]
     fn test_detect_returns_none_when_all_fail() {
         let mut reg = RendererRegistry::new(0.5);
-        reg.register_detector(10, Box::new(MockDetector {
-            id: "none", name: "None", quick: true, confidence: None,
-        }));
+        reg.register_detector(
+            10,
+            Box::new(MockDetector {
+                id: "none",
+                name: "None",
+                quick: true,
+                confidence: None,
+            }),
+        );
 
         assert!(reg.detect(&make_block(&["test"])).is_none());
     }

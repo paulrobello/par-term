@@ -173,13 +173,14 @@ impl StyledLine {
                 italic: false,
                 underline: false,
                 strikethrough: false,
+                link_url: None,
             }],
         }
     }
 }
 
 /// A segment of styled text within a line.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct StyledSegment {
     /// The text content.
     pub text: String,
@@ -195,6 +196,8 @@ pub struct StyledSegment {
     pub underline: bool,
     /// Whether this segment has strikethrough.
     pub strikethrough: bool,
+    /// Optional OSC 8 hyperlink URL.
+    pub link_url: Option<String>,
 }
 
 /// Maps a rendered line index back to its source line index.

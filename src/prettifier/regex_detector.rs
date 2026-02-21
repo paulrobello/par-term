@@ -93,18 +93,20 @@ impl RegexDetector {
     /// Extract the text to match against for a given rule scope.
     ///
     /// Returns `None` for `PrecedingCommand` scope when no command is available.
-    fn text_for_scope<'a>(&self, content: &'a ContentBlock, scope: &RuleScope) -> Option<Vec<&'a str>> {
+    fn text_for_scope<'a>(
+        &self,
+        content: &'a ContentBlock,
+        scope: &RuleScope,
+    ) -> Option<Vec<&'a str>> {
         match scope {
             RuleScope::AnyLine => Some(content.lines.iter().map(|s| s.as_str()).collect()),
             RuleScope::FirstLines(n) => Some(content.first_lines(*n)),
             RuleScope::LastLines(n) => Some(content.last_lines(*n)),
             RuleScope::FullBlock => None, // Handled specially — match against joined text.
-            RuleScope::PrecedingCommand => {
-                content
-                    .preceding_command
-                    .as_ref()
-                    .map(|cmd| vec![cmd.as_str()])
-            }
+            RuleScope::PrecedingCommand => content
+                .preceding_command
+                .as_ref()
+                .map(|cmd| vec![cmd.as_str()]),
         }
     }
 
@@ -117,18 +119,14 @@ impl RegexDetector {
                 let full = content.full_text();
                 rule.pattern.is_match(&full)
             }
-            RuleScope::PrecedingCommand => {
-                match &content.preceding_command {
-                    Some(cmd) => rule.pattern.is_match(cmd),
-                    None => false,
-                }
-            }
-            scope => {
-                match self.text_for_scope(content, scope) {
-                    Some(lines) => lines.iter().any(|line| rule.pattern.is_match(line)),
-                    None => false,
-                }
-            }
+            RuleScope::PrecedingCommand => match &content.preceding_command {
+                Some(cmd) => rule.pattern.is_match(cmd),
+                None => false,
+            },
+            scope => match self.text_for_scope(content, scope) {
+                Some(lines) => lines.iter().any(|line| rule.pattern.is_match(line)),
+                None => false,
+            },
         }
     }
 }

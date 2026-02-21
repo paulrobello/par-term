@@ -1,15 +1,20 @@
 //! Prettifier pipeline: boundary detection → format detection → rendering.
 //!
 //! `PrettifierPipeline` wires together a `BoundaryDetector`, a `RendererRegistry`,
-//! and block tracking into a single flow. Terminal output lines are fed in, content
-//! blocks are emitted at boundaries, detected, rendered, and stored for display.
+//! a `RenderCache`, and block tracking into a single flow. Terminal output lines are
+//! fed in, content blocks are emitted at boundaries, detected, rendered, and stored
+//! for display. Each `PrettifiedBlock` wraps a `DualViewBuffer` for efficient
+//! source/rendered toggling and copy operations.
 
 use super::boundary::{BoundaryConfig, BoundaryDetector, DetectionScope};
+use super::buffer::DualViewBuffer;
+use super::cache::RenderCache;
 use super::registry::RendererRegistry;
 use super::traits::RendererConfig;
-use super::types::{
-    ContentBlock, DetectionResult, DetectionSource, RenderedContent, ViewMode,
-};
+use super::types::{ContentBlock, DetectionResult, DetectionSource, ViewMode};
+
+/// Default maximum number of entries in the render cache.
+const DEFAULT_CACHE_SIZE: usize = 64;
 
 /// Configuration for the `PrettifierPipeline`.
 #[derive(Debug, Clone)]
@@ -42,18 +47,33 @@ impl Default for PrettifierConfig {
 }
 
 /// A content block that has been through the detection and rendering pipeline.
+///
+/// Wraps a `DualViewBuffer` for source/rendered dual-view management.
 #[derive(Debug)]
 pub struct PrettifiedBlock {
-    /// The original content block.
-    pub content: ContentBlock,
+    /// Dual-view buffer managing source + rendered content.
+    pub buffer: DualViewBuffer,
     /// The detection result that matched this block.
     pub detection: DetectionResult,
-    /// The rendered output (None if rendering failed).
-    pub rendered: Option<RenderedContent>,
-    /// Current view mode (rendered vs source).
-    pub view_mode: ViewMode,
     /// Unique identifier for this block within the session.
     pub block_id: u64,
+}
+
+impl PrettifiedBlock {
+    /// Get the original content block.
+    pub fn content(&self) -> &ContentBlock {
+        self.buffer.source()
+    }
+
+    /// Get the current view mode.
+    pub fn view_mode(&self) -> ViewMode {
+        *self.buffer.view_mode()
+    }
+
+    /// Whether rendered content is available.
+    pub fn has_rendered(&self) -> bool {
+        self.buffer.rendered().is_some()
+    }
 }
 
 /// Orchestrates boundary detection, format detection, and rendering.
@@ -72,6 +92,8 @@ pub struct PrettifierPipeline {
     next_block_id: u64,
     /// Terminal environment for renderers.
     renderer_config: RendererConfig,
+    /// Cache of rendered content to avoid re-rendering unchanged blocks.
+    render_cache: RenderCache,
 }
 
 impl PrettifierPipeline {
@@ -98,6 +120,7 @@ impl PrettifierPipeline {
             session_override: None,
             next_block_id: 0,
             renderer_config,
+            render_cache: RenderCache::new(DEFAULT_CACHE_SIZE),
         }
     }
 
@@ -149,15 +172,17 @@ impl PrettifierPipeline {
             source: DetectionSource::TriggerInvoked,
         };
 
-        let rendered = self.render_block(&content, format_id);
+        let mut buffer = DualViewBuffer::new(content);
+        let terminal_width = self.renderer_config.terminal_width;
+
+        self.render_into_buffer(&mut buffer, format_id, terminal_width);
+
         let block_id = self.next_block_id;
         self.next_block_id += 1;
 
         self.active_blocks.push(PrettifiedBlock {
-            content,
+            buffer,
             detection,
-            rendered,
-            view_mode: ViewMode::Rendered,
             block_id,
         });
     }
@@ -169,11 +194,12 @@ impl PrettifierPipeline {
 
     /// Toggle the view mode for a specific block.
     pub fn toggle_block(&mut self, block_id: u64) {
-        if let Some(block) = self.active_blocks.iter_mut().find(|b| b.block_id == block_id) {
-            block.view_mode = match block.view_mode {
-                ViewMode::Rendered => ViewMode::Source,
-                ViewMode::Source => ViewMode::Rendered,
-            };
+        if let Some(block) = self
+            .active_blocks
+            .iter_mut()
+            .find(|b| b.block_id == block_id)
+        {
+            block.buffer.toggle_view();
         }
     }
 
@@ -187,7 +213,8 @@ impl PrettifierPipeline {
     /// A block covers row `r` if `start_row <= r < end_row`.
     pub fn block_at_row(&self, row: usize) -> Option<&PrettifiedBlock> {
         self.active_blocks.iter().find(|b| {
-            row >= b.content.start_row && row < b.content.end_row
+            let content = b.content();
+            row >= content.start_row && row < content.end_row
         })
     }
 
@@ -197,33 +224,88 @@ impl PrettifierPipeline {
     }
 
     /// Update the renderer config (e.g., on terminal resize or theme change).
+    ///
+    /// When the terminal width changes, marks all blocks as needing re-render.
     pub fn update_renderer_config(&mut self, config: RendererConfig) {
         self.renderer_config = config;
+    }
+
+    /// Re-render all blocks that need it (e.g., after a terminal width change).
+    pub fn re_render_if_needed(&mut self) {
+        let terminal_width = self.renderer_config.terminal_width;
+
+        for block in &mut self.active_blocks {
+            if block.buffer.needs_render(terminal_width) {
+                let format_id = block.detection.format_id.clone();
+                let content_hash = block.buffer.content_hash();
+
+                // Check cache first.
+                if let Some(cached) = self.render_cache.get(content_hash, terminal_width) {
+                    block.buffer.set_rendered(cached.clone(), terminal_width);
+                } else if let Some(renderer) = self.registry.get_renderer(&format_id)
+                    && let Ok(rendered) =
+                        renderer.render(block.buffer.source(), &self.renderer_config)
+                {
+                    self.render_cache.put(
+                        content_hash,
+                        terminal_width,
+                        &format_id,
+                        rendered.clone(),
+                    );
+                    block.buffer.set_rendered(rendered, terminal_width);
+                }
+            }
+        }
+    }
+
+    /// Get a reference to the render cache (for diagnostics).
+    pub fn render_cache(&self) -> &RenderCache {
+        &self.render_cache
     }
 
     /// Detect format and render a content block, storing it as a `PrettifiedBlock`.
     fn handle_block(&mut self, content: ContentBlock) {
         if let Some(detection) = self.registry.detect(&content) {
-            let rendered = self.render_block(&content, &detection.format_id);
+            let format_id = detection.format_id.clone();
+            let mut buffer = DualViewBuffer::new(content);
+            let terminal_width = self.renderer_config.terminal_width;
+
+            self.render_into_buffer(&mut buffer, &format_id, terminal_width);
+
             let block_id = self.next_block_id;
             self.next_block_id += 1;
 
             self.active_blocks.push(PrettifiedBlock {
-                content,
+                buffer,
                 detection,
-                rendered,
-                view_mode: ViewMode::Rendered,
                 block_id,
             });
         }
     }
 
-    /// Attempt to render a content block with the renderer for `format_id`.
-    ///
-    /// Returns `None` if no renderer is registered or rendering fails.
-    fn render_block(&self, content: &ContentBlock, format_id: &str) -> Option<RenderedContent> {
-        let renderer = self.registry.get_renderer(format_id)?;
-        renderer.render(content, &self.renderer_config).ok()
+    /// Render content into a `DualViewBuffer`, using the cache when possible.
+    fn render_into_buffer(
+        &mut self,
+        buffer: &mut DualViewBuffer,
+        format_id: &str,
+        terminal_width: usize,
+    ) {
+        let content_hash = buffer.content_hash();
+
+        // Check cache first.
+        if let Some(cached) = self.render_cache.get(content_hash, terminal_width) {
+            buffer.set_rendered(cached.clone(), terminal_width);
+            return;
+        }
+
+        // Render and cache.
+        if let Some(renderer) = self.registry.get_renderer(format_id)
+            && let Ok(rendered) = renderer.render(buffer.source(), &self.renderer_config)
+        {
+            self.render_cache
+                .put(content_hash, terminal_width, format_id, rendered.clone());
+            buffer.set_rendered(rendered, terminal_width);
+        }
     }
 }
 
@@ -323,7 +405,13 @@ mod tests {
 
     fn test_registry(confidence: f32) -> RendererRegistry {
         let mut reg = RendererRegistry::new(confidence);
-        reg.register_detector(10, Box::new(AlwaysDetector { id: "test", confidence: 0.8 }));
+        reg.register_detector(
+            10,
+            Box::new(AlwaysDetector {
+                id: "test",
+                confidence: 0.8,
+            }),
+        );
         reg.register_renderer("test", Box::new(OkRenderer { id: "test" }));
         reg
     }
@@ -357,8 +445,8 @@ mod tests {
         assert_eq!(pipeline.active_blocks().len(), 1);
         let block = &pipeline.active_blocks()[0];
         assert_eq!(block.detection.format_id, "test");
-        assert!(block.rendered.is_some());
-        assert_eq!(block.view_mode, ViewMode::Rendered);
+        assert!(block.has_rendered());
+        assert_eq!(block.view_mode(), ViewMode::Rendered);
         assert_eq!(block.block_id, 0);
     }
 
@@ -380,7 +468,7 @@ mod tests {
         let block = &pipeline.active_blocks()[0];
         assert_eq!(block.detection.source, DetectionSource::TriggerInvoked);
         assert!((block.detection.confidence - 1.0).abs() < f32::EPSILON);
-        assert!(block.rendered.is_some());
+        assert!(block.has_rendered());
     }
 
     #[test]
@@ -408,11 +496,11 @@ mod tests {
         };
         pipeline.trigger_prettify("test", content);
 
-        assert_eq!(pipeline.active_blocks()[0].view_mode, ViewMode::Rendered);
+        assert_eq!(pipeline.active_blocks()[0].view_mode(), ViewMode::Rendered);
         pipeline.toggle_block(0);
-        assert_eq!(pipeline.active_blocks()[0].view_mode, ViewMode::Source);
+        assert_eq!(pipeline.active_blocks()[0].view_mode(), ViewMode::Source);
         pipeline.toggle_block(0);
-        assert_eq!(pipeline.active_blocks()[0].view_mode, ViewMode::Rendered);
+        assert_eq!(pipeline.active_blocks()[0].view_mode(), ViewMode::Rendered);
 
         // Toggling a non-existent block is a no-op.
         pipeline.toggle_block(999);
@@ -424,11 +512,8 @@ mod tests {
             enabled: false,
             ..PrettifierConfig::default()
         };
-        let mut pipeline = PrettifierPipeline::new(
-            config,
-            test_registry(0.5),
-            RendererConfig::default(),
-        );
+        let mut pipeline =
+            PrettifierPipeline::new(config, test_registry(0.5), RendererConfig::default());
 
         assert!(!pipeline.is_enabled());
 
@@ -452,11 +537,8 @@ mod tests {
             detection_scope: DetectionScope::All,
             ..PrettifierConfig::default()
         };
-        let mut pipeline = PrettifierPipeline::new(
-            config,
-            test_registry(0.5),
-            RendererConfig::default(),
-        );
+        let mut pipeline =
+            PrettifierPipeline::new(config, test_registry(0.5), RendererConfig::default());
 
         pipeline.process_output("# Hello", 0);
         pipeline.process_output("world", 1);
@@ -492,24 +574,33 @@ mod tests {
             detection_scope: DetectionScope::CommandOutput,
             ..PrettifierConfig::default()
         };
-        let mut pipeline = PrettifierPipeline::new(
-            config,
-            test_registry(0.5),
-            RendererConfig::default(),
-        );
+        let mut pipeline =
+            PrettifierPipeline::new(config, test_registry(0.5), RendererConfig::default());
 
         pipeline.on_command_start("echo hello");
         pipeline.process_output("hello", 0);
         pipeline.on_command_end();
 
         assert_eq!(pipeline.active_blocks().len(), 1);
-        assert_eq!(pipeline.active_blocks()[0].content.preceding_command.as_deref(), Some("echo hello"));
+        assert_eq!(
+            pipeline.active_blocks()[0]
+                .content()
+                .preceding_command
+                .as_deref(),
+            Some("echo hello")
+        );
     }
 
     #[test]
     fn test_render_failure_stores_none() {
         let mut reg = RendererRegistry::new(0.5);
-        reg.register_detector(10, Box::new(AlwaysDetector { id: "fail", confidence: 0.8 }));
+        reg.register_detector(
+            10,
+            Box::new(AlwaysDetector {
+                id: "fail",
+                confidence: 0.8,
+            }),
+        );
         reg.register_renderer("fail", Box::new(FailRenderer));
 
         let mut pipeline = PrettifierPipeline::new(
@@ -531,7 +622,7 @@ mod tests {
         pipeline.trigger_prettify("fail", content);
 
         assert_eq!(pipeline.active_blocks().len(), 1);
-        assert!(pipeline.active_blocks()[0].rendered.is_none());
+        assert!(!pipeline.active_blocks()[0].has_rendered());
     }
 
     #[test]
@@ -549,7 +640,11 @@ mod tests {
             pipeline.trigger_prettify("test", content);
         }
 
-        let ids: Vec<u64> = pipeline.active_blocks().iter().map(|b| b.block_id).collect();
+        let ids: Vec<u64> = pipeline
+            .active_blocks()
+            .iter()
+            .map(|b| b.block_id)
+            .collect();
         assert_eq!(ids, vec![0, 1, 2]);
     }
 
@@ -562,5 +657,73 @@ mod tests {
         assert_eq!(config.max_scan_lines, 500);
         assert_eq!(config.debounce_ms, 100);
         assert_eq!(config.detection_scope, DetectionScope::All);
+    }
+
+    #[test]
+    fn test_render_cache_hit() {
+        let mut pipeline = test_pipeline();
+
+        // Render the same content twice — second time should be a cache hit.
+        let content1 = ContentBlock {
+            lines: vec!["same content".to_string()],
+            preceding_command: None,
+            start_row: 0,
+            end_row: 1,
+            timestamp: SystemTime::now(),
+        };
+        let content2 = ContentBlock {
+            lines: vec!["same content".to_string()],
+            preceding_command: None,
+            start_row: 10,
+            end_row: 11,
+            timestamp: SystemTime::now(),
+        };
+
+        pipeline.trigger_prettify("test", content1);
+        pipeline.trigger_prettify("test", content2);
+
+        assert_eq!(pipeline.active_blocks().len(), 2);
+        assert!(pipeline.active_blocks()[0].has_rendered());
+        assert!(pipeline.active_blocks()[1].has_rendered());
+
+        // Cache should have registered a hit.
+        let stats = pipeline.render_cache().stats();
+        assert!(stats.hit_count >= 1);
+    }
+
+    #[test]
+    fn test_source_text_available_via_buffer() {
+        let mut pipeline = test_pipeline();
+
+        let content = ContentBlock {
+            lines: vec!["original text".to_string()],
+            preceding_command: None,
+            start_row: 0,
+            end_row: 1,
+            timestamp: SystemTime::now(),
+        };
+        pipeline.trigger_prettify("test", content);
+
+        let block = &pipeline.active_blocks()[0];
+        assert_eq!(block.buffer.source_text(), "original text");
+    }
+
+    #[test]
+    fn test_display_lines_via_buffer() {
+        let mut pipeline = test_pipeline();
+
+        let content = ContentBlock {
+            lines: vec!["raw".to_string()],
+            preceding_command: None,
+            start_row: 0,
+            end_row: 1,
+            timestamp: SystemTime::now(),
+        };
+        pipeline.trigger_prettify("test", content);
+
+        let block = &pipeline.active_blocks()[0];
+        // In rendered mode, should show rendered content.
+        let lines = block.buffer.display_lines();
+        assert_eq!(lines[0].segments[0].text, "rendered");
     }
 }

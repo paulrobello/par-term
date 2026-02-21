@@ -529,6 +529,19 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "restore session",
             "undo timeout",
             "undo entries",
+            // Content Prettifier
+            "prettifier",
+            "prettify",
+            "content",
+            "detect",
+            "render",
+            "markdown",
+            "json",
+            "yaml",
+            "diagram",
+            "confidence",
+            "detection",
+            "claude code",
         ],
         SettingsTab::Effects => &[
             // Background
