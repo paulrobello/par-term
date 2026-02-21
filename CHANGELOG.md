@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.21.0] - 2026-02-20
+
 ### Added
 
 - **Nerd Font Icons for Profile Picker**: Replaced emoji presets in the profile icon picker with ~120 curated [Nerd Font](https://www.nerdfonts.com/) icons across 10 categories (Terminal, Dev & Tools, Files & Data, Network & Cloud, Security, Git & VCS, Containers & Infra, OS & Platforms, Status & Alerts, People & Misc) — icons render reliably in egui and show descriptive tooltips on hover

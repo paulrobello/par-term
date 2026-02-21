@@ -9,7 +9,7 @@ par-term provides a profile system for saving and quickly launching terminal ses
   - [Settings UI](#settings-ui)
   - [Profile Drawer](#profile-drawer)
 - [Creating Profiles](#creating-profiles)
-  - [Profile Emoji Picker](#profile-emoji-picker)
+  - [Profile Icon Picker](#profile-icon-picker)
 - [Using Profiles](#using-profiles)
 - [Auto-Switching](#auto-switching)
   - [Directory-Based Profile Switching](#directory-based-profile-switching)
@@ -72,7 +72,7 @@ Each profile can customize the following:
 | Setting | Description | Required |
 |---------|-------------|----------|
 | **Name** | Display name for the profile | Yes |
-| **Icon** | Emoji or icon identifier | No |
+| **Icon** | Nerd Font icon or custom text identifier | No |
 | **Working Directory** | Initial directory for the session | No |
 | **Command** | Custom command (instead of default shell) | No |
 | **Command Arguments** | Arguments for the custom command | No |
@@ -148,32 +148,33 @@ flowchart LR
 3. Click **+ New Profile**
 4. Fill in the profile settings:
    - **Name** (required): Give your profile a descriptive name
-   - **Icon**: Add an emoji for visual identification
+   - **Icon**: Add a Nerd Font icon for visual identification
    - **Working Directory**: Set the starting directory
    - **Command**: Override the default shell (optional)
    - **Arguments**: Space-separated command arguments
    - **Tab Name**: Custom tab title (optional)
-5. Optionally click the emoji picker button to choose a profile icon
+5. Optionally click the icon picker button to choose a Nerd Font icon
 6. Click **Save Profile**
 7. Click **Save** to persist changes
 
-### Profile Emoji Picker
+### Profile Icon Picker
 
-The profile icon field includes an emoji picker popup with a curated grid of ~70 terminal-relevant emojis organized in 9 categories:
+The profile icon field includes an icon picker popup with ~120 curated Nerd Font icons organized in 10 categories. Nerd Font icons render reliably in the egui-based settings UI and each icon shows a descriptive tooltip on hover.
 
-| Category | Examples |
-|----------|----------|
-| Terminal | `💻`, `🖥️`, `⌨️` |
-| Dev & Tools | `🔧`, `🛠️`, `⚙️` |
-| Files & Data | `📁`, `📄`, `💾` |
-| Network & Cloud | `🌐`, `☁️`, `🔗` |
-| Security | `🔒`, `🔑`, `🛡️` |
-| Status & Alerts | `✅`, `⚠️`, `❌` |
-| Containers & Infra | `🐳`, `📦`, `🏗️` |
-| People & Roles | `👤`, `👥`, `🧑‍💻` |
-| Misc | `⭐`, `🎯`, `🚀` |
+| Category | Description | Example Icons |
+|----------|-------------|---------------|
+| Terminal | Shells and terminal emulators | Terminal, Bash, PowerShell, tmux, Prompt |
+| Dev & Tools | Languages and development tools | Code, GitHub, Python, Rust, Node.js, Vim |
+| Files & Data | Files, folders, and storage | File, Folder, Database, Save, Package |
+| Network & Cloud | Networking and cloud services | Globe, WiFi, Cloud, Server, SSH, AWS |
+| Security | Locks, keys, and access control | Lock, Shield, Key, Eye, Warning |
+| Git & VCS | Version control systems | Branch, Merge, Commit, GitHub, GitLab |
+| Containers & Infra | Containers and infrastructure | Docker, Kubernetes, CPU, Gear, Memory |
+| OS & Platforms | Operating systems and platforms | Apple, Windows, Linux, Homebrew |
+| Status & Alerts | Status indicators and signals | Check, Bolt, Rocket, Fire, Star |
+| People & Misc | People and miscellaneous symbols | User, Robot, Gamepad, Music, Bookmark |
 
-Click any emoji to set it as the profile icon, or type a custom emoji directly in the text field. Use the "Clear icon" button to remove the current icon.
+Click any icon to set it as the profile icon, or type a custom value directly in the text field. Use the "Clear icon" button to remove the current icon.
 
 **Example Profiles:**
 

@@ -12,33 +12,45 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.20.0
+## What's New in 0.21.0
 
 ### ✨ New Features
 
-- **Status Bar Update Widget**: New `UpdateAvailable` widget that displays when a new version is detected — clicking it opens an update dialog with version info, release notes, and install/skip/dismiss actions
-- **Hourly Update Check**: New `Hourly` option for `update_check_frequency` — checks GitHub every hour for new releases
-- **Rain Glass Shader**: New `rain-glass.glsl` background shader — rain on glass with a procedural dark nebula background that requires no texture
-- **Inactive Tab Outline-Only Mode**: New `tab_inactive_outline_only` option renders inactive tabs with just a border stroke
-- **Pane Background Darken Slider**: Added a darken control (0.0–1.0) for per-pane custom background images
-- **Hide Window Padding on Split**: New `hide_window_padding_on_split` option automatically removes window padding when panes are split
-- **New Tab Menu as Dropdown**: The new tab profile menu now appears as a dropdown in the top-right corner
-- **File Transfer Progress Overlay**: Upload/download progress bars in a bottom-right egui overlay
+- **Nerd Font Icons for Profile Picker**: Replaced emoji presets with ~120 curated Nerd Font icons across 10 categories with descriptive tooltips
+- **Tab Icon via Context Menu**: Right-click any tab to pick a custom icon from the Nerd Font grid — persists across sessions, layouts, and tab duplication
+- **Tab Title Mode**: New `tab_title_mode` config option (`auto` / `osc_only`) controls automatic tab title updates
+- **Rename Tab**: Right-click any tab to set a custom static name — enter blank to revert to automatic behavior
+- **Session Persistence for Tab Names and Colors**: User-set tab names and custom tab colors preserved across save/restore
+
+### ⚡ Performance
+
+- **Major Idle CPU Reduction**: Reduced idle CPU from ~103% to ~18-25% via conditional dirty tracking, fast render path, adaptive polling backoff, and macOS event loop sleep fix
+- **Idle Wakeup Cadence Decoupled from FPS**: Focused idle windows no longer wake at render cadence — dedicated focused/unfocused caps reduce unnecessary CPU usage
+- **Status Bar Skip Updates When Hidden**: Per-frame widget updates skipped when bar is hidden
+- **Inactive Tab Refresh Throttling**: Inactive tabs poll at reduced rate
 
 ### 🐛 Bug Fixes
 
-- **Inline Image Display**: Fixed inline images not rendering for files larger than ~750 KB (core library OSC buffer limit increased to 128 MB)
-- **Upload Over SSH**: Fixed uploads hanging indefinitely over SSH — resolved response_buffer deadlock
-- **Live Window Padding Updates**: Padding changes now take effect immediately without restart
-- **Settings Collapsible Section Persistence**: Fixed 14 sections losing expanded/collapsed state
-- **Split Pane Mouse Event Routing**: Fixed mouse events being sent to wrong terminal in split pane mode
-- **Split Pane Focus and Divider Resize**: Fixed pane focus switching and divider drag-to-resize regression
+- **Layout Restore Tab Properties for Multi-Window**: Fixed tab colors/icons/titles applying to wrong window in multi-window layouts
+- **Input Lag During Heavy Terminal Output**: Fixed ~1-second input freezes with multiple active tabs
+- **Scrollbar Overlapping Terminal Content**: Terminal grid now reserves scrollbar width
+- **Geometric Shape / Ballot Box / Dingbat Rendering**: Fixed vertically squished geometric shapes and ballot box characters
+- **Clipboard Image Lost on Single Click**: Added drag threshold to prevent accidental selection overwriting clipboard
+- **Settings Close Reverting Live-Previewed Config**: Fixed settings window reverting in-memory config changes on close
+- **Tab Bar Rendering**: Fixed first tab border clipping, progress bar overlap, and rounded corner stroke thickness
 
-### 🔧 Changed
+<details>
+<summary><strong>What's New in 0.20.0</strong></summary>
 
-- Default `window_padding` changed from 10.0 to 0.0
-- Default `font_hinting` changed from true to false
-- Default `tab_bar_mode` changed from `when_multiple` to `always`
+- **Status Bar Update Widget**: New `UpdateAvailable` widget with clickable update dialog
+- **Rain Glass Shader**: New `rain-glass.glsl` background shader
+- **Inactive Tab Outline-Only Mode**: New `tab_inactive_outline_only` option
+- **File Transfer Progress Overlay**: Upload/download progress bars in bottom-right overlay
+- **Inline Image Display Fix**: Fixed images >750 KB not rendering
+- **Upload Over SSH Fix**: Fixed uploads hanging indefinitely
+- Default `window_padding` → 0.0, `font_hinting` → false, `tab_bar_mode` → `always`
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.19.0</strong></summary>

@@ -14,7 +14,7 @@ pub struct MouseState {
     pub click_position: Option<(usize, usize)>, // Position of last click in cell coordinates
     pub click_pixel_position: Option<(f64, f64)>, // Position of last click in pixels (for drag threshold)
     pub detected_urls: Vec<url_detection::DetectedUrl>, // URLs detected in visible terminal area
-    pub hovered_url: Option<String>, // URL currently under mouse cursor
+    pub hovered_url: Option<String>,              // URL currently under mouse cursor
 
     // Divider drag state
     pub dragging_divider: Option<usize>, // Index of divider being dragged

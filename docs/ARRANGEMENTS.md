@@ -35,6 +35,7 @@ Window arrangements capture the full state of your workspace and allow you to re
 - All open windows and their positions and sizes
 - The monitor each window belongs to
 - All tabs within each window and their working directories
+- Per-tab customizations: user-set tab names, custom tab colors, and custom tab icons
 - The active (focused) tab index in each window
 
 ```mermaid
@@ -46,11 +47,13 @@ graph TD
     Capture --> Windows[Window Positions & Sizes]
     Capture --> Monitors[Monitor Layout]
     Capture --> Tabs[Tab CWDs & Titles]
+    Capture --> Props[Tab Colors, Icons & Names]
     Capture --> Active[Active Tab Indices]
 
     Windows --> Storage
     Monitors --> Storage
     Tabs --> Storage
+    Props --> Storage
     Active --> Storage
 
     Storage --> Mapping[Monitor Mapping]
@@ -63,6 +66,7 @@ graph TD
     style Windows fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Monitors fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Tabs fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Props fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Active fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Mapping fill:#4a148c,stroke:#9c27b0,stroke-width:2px,color:#ffffff
     style Clamping fill:#880e4f,stroke:#c2185b,stroke-width:2px,color:#ffffff
@@ -101,7 +105,9 @@ When saving an arrangement with a name that already exists (matched case-insensi
 
 ## Restoring Arrangements
 
-Restoring an arrangement closes all current windows and recreates the saved layout. Each window is placed on the correct monitor with its saved position, size, tabs, and active tab index.
+Restoring an arrangement closes all current windows and recreates the saved layout. Each window is placed on the correct monitor with its saved position, size, tabs, and active tab index. Per-tab customizations -- user-set names, custom colors, and custom icons -- are faithfully reapplied to the correct tabs in each window.
+
+In multi-window layouts, par-term uses the exact `WindowId` returned from each window creation to apply tab properties, ensuring that custom colors, icons, and user titles are never misapplied to the wrong window.
 
 > **Warning:** Restoring an arrangement replaces all current windows. Any unsaved state in open terminals is lost.
 
@@ -267,8 +273,14 @@ Example structure:
       tabs:
         - cwd: "/home/user/projects"
           title: "zsh"
+          user_title: "Editor"
+          custom_color: [255, 165, 0, 255]
+          custom_icon: "rocket"
         - cwd: "/home/user/logs"
           title: "zsh"
+          user_title: null
+          custom_color: null
+          custom_icon: null
       active_tab_index: 0
   created_at: "2026-01-15T10:30:00Z"
   order: 0
@@ -312,14 +324,14 @@ graph TD
 **Key types in `src/arrangements/mod.rs`:**
 
 - `MonitorInfo`: Captures monitor name, index, position, and size at save time
-- `TabSnapshot`: Stores a tab's working directory and title
+- `TabSnapshot`: Stores a tab's working directory, title, and optional per-tab customizations (user-set name, custom color, custom icon)
 - `WindowSnapshot`: Stores a window's monitor, relative position, size, tabs, and active tab index
 - `WindowArrangement`: A named collection of window snapshots with monitor layout and metadata
 - `ArrangementManager`: Manages the collection of saved arrangements with ordering, lookup by name, and CRUD operations
 
-**Capture flow** (`src/arrangements/capture.rs`): Enumerates all monitors via the winit event loop, iterates over all open windows, determines each window's monitor, computes the position relative to the monitor origin, and collects tab CWDs and titles.
+**Capture flow** (`src/arrangements/capture.rs`): Enumerates all monitors via the winit event loop, iterates over all open windows, determines each window's monitor, computes the position relative to the monitor origin, and collects tab CWDs, titles, and per-tab customizations (user-set names, custom colors, and custom icons).
 
-**Restore flow** (`src/arrangements/restore.rs`): Builds a monitor mapping from saved monitors to available monitors, converts relative positions back to absolute coordinates on the matched monitor, and clamps positions to ensure visibility.
+**Restore flow** (`src/arrangements/restore.rs`): Builds a monitor mapping from saved monitors to available monitors, converts relative positions back to absolute coordinates on the matched monitor, clamps positions to ensure visibility, and applies per-tab customizations using the exact `WindowId` from each created window to guarantee correct assignment in multi-window layouts.
 
 **Storage** (`src/arrangements/storage.rs`): Serializes and deserializes arrangements to/from YAML using serde. Handles missing files (returns empty manager), empty files, and corrupt files (returns error). Automatically creates parent directories on save.
 

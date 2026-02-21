@@ -60,6 +60,8 @@ When a tab closes, par-term captures its metadata (working directory, title, pos
 **Restored tab state:**
 - Original tab position in the tab bar
 - Tab title and custom color
+- User-set tab name (if the tab was manually renamed)
+- Custom tab icon (if set via context menu)
 - Working directory
 - Split pane layout (if the tab had split panes)
 
@@ -98,6 +100,9 @@ Automatically save the current session state on clean exit and restore it when p
 
 - Open windows with their positions and sizes
 - All tabs in each window with their working directories
+- User-set tab names (`user_title`) -- when a tab has been manually renamed, the custom name is preserved and restored
+- Custom tab colors -- any per-tab color set by the user is saved as an RGB value and restored
+- Custom tab icons -- icons assigned via the tab context menu are persisted and restored
 - Split pane trees with split ratios
 - Active tab index per window
 

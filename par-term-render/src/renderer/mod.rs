@@ -983,8 +983,7 @@ impl Renderer {
         // This skips expensive shader passes, sixel uploads, etc.
         if !self.dirty && !force_render {
             if let Some((egui_output, egui_ctx)) = egui_data {
-                let surface_texture =
-                    self.cell_renderer.render(show_scrollbar, pane_background)?;
+                let surface_texture = self.cell_renderer.render(show_scrollbar, pane_background)?;
                 self.cell_renderer
                     .render_overlays(&surface_texture, show_scrollbar)?;
                 self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;

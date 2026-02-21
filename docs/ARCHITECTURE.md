@@ -16,6 +16,13 @@ This document provides a high-level overview of the `par-term` architecture, det
   - [Additional Features](#additional-features)
 - [Data Flow](#data-flow)
 - [Threading Model](#threading-model)
+- [Performance Optimizations](#performance-optimizations)
+  - [Conditional Dirty Tracking](#conditional-dirty-tracking)
+  - [Fast Render Path](#fast-render-path)
+  - [Adaptive Polling with Exponential Backoff](#adaptive-polling-with-exponential-backoff)
+  - [Event Loop Sleep on macOS](#event-loop-sleep-on-macos)
+  - [Status Bar Skip Updates When Hidden](#status-bar-skip-updates-when-hidden)
+  - [Inactive Tab Refresh Throttling](#inactive-tab-refresh-throttling)
 - [Related Documentation](#related-documentation)
 
 ## Overview
@@ -340,6 +347,77 @@ sequenceDiagram
     *   Managing clipboard synchronization.
 
 Access to shared resources (like the Terminal state) is managed via `parking_lot::Mutex` to prevent contention and ensure safety.
+
+## Performance Optimizations
+
+`par-term` employs several techniques to minimize CPU and GPU usage when the terminal is idle, reducing power consumption and freeing resources for other applications.
+
+```mermaid
+graph TD
+    subgraph "Input Path"
+        PTY[PTY Output]
+        Poll[Tab Refresh Task]
+        Backoff[Exponential Backoff<br>16ms to 250ms]
+    end
+
+    subgraph "Dirty Tracking"
+        Update[Renderer update_* Methods]
+        Changed{Data Changed?}
+        Dirty[Set dirty = true]
+        Skip[Skip, dirty unchanged]
+    end
+
+    subgraph "Render Path"
+        DirtyCheck{Renderer Dirty?}
+        FastPath[Fast Path<br>Cached Buffers + egui]
+        FullRender[Full Render<br>Shader Passes + Textures]
+    end
+
+    PTY --> Poll
+    Poll --> Backoff
+    Poll --> Update
+    Update --> Changed
+    Changed -- Yes --> Dirty
+    Changed -- No --> Skip
+    Dirty --> DirtyCheck
+    DirtyCheck -- No --> FastPath
+    DirtyCheck -- Yes --> FullRender
+
+    style PTY fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Poll fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Backoff fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style Update fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style Changed fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style Dirty fill:#b71c1c,stroke:#f44336,stroke-width:2px,color:#ffffff
+    style Skip fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style DirtyCheck fill:#ff6f00,stroke:#ffa726,stroke-width:2px,color:#ffffff
+    style FastPath fill:#1b5e20,stroke:#4caf50,stroke-width:2px,color:#ffffff
+    style FullRender fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+```
+
+### Conditional Dirty Tracking
+
+The renderer's `update_*` methods (`update_cells`, `update_cursor`, `clear_cursor`, `update_scrollbar`, `set_separator_marks`, `set_cursor_hidden_for_shader`, `set_focused`) return a `bool` indicating whether data actually changed. The outer `Renderer` wrapper only sets `dirty = true` when the inner method reports a change. This prevents unnecessary GPU re-renders when the terminal content is static, which is the common case for an idle terminal displaying a prompt.
+
+### Fast Render Path
+
+When the renderer is not dirty and no custom shader animation is active, the single-pane `render()` method uses a fast path that renders cells from cached GPU buffers plus the egui overlay. This skips expensive operations including shader passes, Sixel texture uploads, and cursor shader rendering. The fast path significantly reduces GPU workload during idle periods while still allowing the egui overlay (tab bar, search bar, status bar) to update independently.
+
+### Adaptive Polling with Exponential Backoff
+
+Tab and pane refresh tasks use exponential backoff when the terminal is idle. Starting at 16ms, the polling interval doubles on each consecutive idle poll (16 -> 32 -> 64 -> 128 -> 250ms max). The interval resets to 16ms immediately when new data arrives from the PTY. This reduces idle wakeups from approximately 62.5/s to approximately 4/s, substantially lowering CPU usage for terminals sitting at a shell prompt.
+
+### Event Loop Sleep on macOS
+
+An explicit `thread::sleep` in the `about_to_wait` handler prevents the macOS event loop from spinning at approximately 250K iterations/sec. This spin occurs despite using `ControlFlow::WaitUntil` due to interactions between CVDisplayLink and NSRunLoop on macOS. The sleep duration is capped at the frame interval when no redraw is needed, ensuring the loop remains responsive to incoming events while avoiding unnecessary CPU burn.
+
+### Status Bar Skip Updates When Hidden
+
+When the status bar is enabled but hidden (fullscreen auto-hide or mouse inactivity timeout), per-frame widget updates, session variable capture, and rendering are skipped entirely. This avoids the cost of polling system metrics (CPU, memory, network) and running egui layout calculations for a UI element that is not visible.
+
+### Inactive Tab Refresh Throttling
+
+Inactive tabs poll for terminal updates at a reduced rate configured by the `inactive_tab_fps` setting. This allows background tabs to continue processing PTY output (preventing buffer stalls) while consuming far less CPU than the active tab's full refresh rate.
 
 ## Related Documentation
 

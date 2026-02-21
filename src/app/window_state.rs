@@ -2936,7 +2936,9 @@ impl WindowState {
 
             // Capture session variables for status bar rendering (skip if bar is hidden)
             let status_bar_session_vars = if self.config.status_bar_enabled
-                && !self.status_bar_ui.should_hide(&self.config, self.is_fullscreen)
+                && !self
+                    .status_bar_ui
+                    .should_hide(&self.config, self.is_fullscreen)
             {
                 Some(self.badge_state.variables.read().clone())
             } else {

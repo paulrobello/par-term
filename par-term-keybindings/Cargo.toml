@@ -12,7 +12,7 @@ categories = ["gui"]
 
 [dependencies]
 # Configuration types (KeyBinding, ModifierRemapping)
-par-term-config = { path = "../par-term-config", version = "0.3.0" }
+par-term-config = { path = "../par-term-config", version = "0.4.0" }
 
 # Window and input event types
 winit = "0.30"

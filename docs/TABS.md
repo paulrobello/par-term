@@ -12,6 +12,7 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
   - [Drag-and-Drop Reordering](#drag-and-drop-reordering)
   - [Keyboard Reordering](#keyboard-reordering)
 - [Duplicating Tabs](#duplicating-tabs)
+- [Tab Icons](#tab-icons)
 - [Tab Bar](#tab-bar)
   - [Tab Bar Position](#tab-bar-position)
   - [Visibility Modes](#visibility-modes)
@@ -19,7 +20,11 @@ par-term provides a multi-tab interface for managing multiple terminal sessions 
   - [Tab Stretch](#tab-stretch)
   - [HTML Titles](#html-titles)
   - [Inactive Tab Outline-Only Mode](#inactive-tab-outline-only-mode)
+- [Tab Title Mode](#tab-title-mode)
+  - [Renaming Tabs](#renaming-tabs)
+  - [Session Persistence for Tab Names and Colors](#session-persistence-for-tab-names-and-colors)
 - [Tab Appearance](#tab-appearance)
+- [Known Fixes](#known-fixes)
 - [Configuration](#configuration)
 - [Related Documentation](#related-documentation)
 
@@ -41,6 +46,7 @@ graph TD
     TabBar --> Visibility[Visibility Mode]
     TabBar --> Stretch[Tab Stretch]
     TabBar --> Colors[Tab Colors]
+    TabBar --> Icons[Tab Icons]
     TabBar --> HTML[HTML Titles]
 
     style TabManager fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
@@ -50,6 +56,7 @@ graph TD
     style Visibility fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Stretch fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style Colors fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+    style Icons fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
     style HTML fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
 ```
 
@@ -149,10 +156,48 @@ Any tab can be duplicated via the context menu:
 **Behavior:**
 - The duplicated tab inherits the working directory of the source tab
 - Any custom tab color set on the source tab carries over to the new tab
+- Any custom tab icon set on the source tab carries over to the new tab
 - Duplication works on any tab, not just the currently active tab
 - The new tab starts a fresh shell session in the inherited directory
 
 > **📝 Note:** The duplicated tab launches a new shell process. Running commands or session state from the original tab are not carried over.
+
+## Tab Icons
+
+Custom icons can be assigned to individual tabs for quick visual identification.
+
+**Setting an Icon:**
+
+1. **Right-click** on any tab in the tab bar to open the context menu
+2. Select **Set Icon**
+3. Choose an icon from the Nerd Font grid, or type any character or emoji into the text field
+
+**Clearing an Icon:**
+
+Right-click the tab and select **Clear Icon** to remove the custom icon and revert to the profile-assigned icon (if any) or no icon.
+
+**Icon Precedence:**
+
+```mermaid
+graph LR
+    Custom[Custom Icon<br/>via context menu]
+    Profile[Profile Icon<br/>from profile config]
+    None[No Icon]
+
+    Custom -->|if cleared| Profile
+    Profile -->|if none set| None
+
+    style Custom fill:#e65100,stroke:#ff9800,stroke-width:3px,color:#ffffff
+    style Profile fill:#0d47a1,stroke:#2196f3,stroke-width:2px,color:#ffffff
+    style None fill:#37474f,stroke:#78909c,stroke-width:2px,color:#ffffff
+```
+
+A custom icon set via the context menu takes precedence over any profile-assigned icon. When the custom icon is cleared, the tab falls back to the profile icon or displays no icon.
+
+**Persistence:**
+- Custom icons persist across session save/restore
+- Custom icons are preserved in saved window arrangements (layouts)
+- Custom icons carry over when duplicating a tab
 
 ## Tab Bar
 
@@ -312,7 +357,15 @@ Right-click any tab and select **Rename Tab** to set a custom name. Manually nam
 
 To revert a renamed tab to automatic title updates, right-click and rename with a blank name.
 
-**Session persistence:** User-set tab names and custom colors are preserved across session save/restore and in window arrangements.
+### Session Persistence for Tab Names and Colors
+
+User-set tab names and custom tab colors are preserved across:
+
+- **Session save/restore** -- closing and reopening par-term restores custom names and colors
+- **Window arrangements** -- saved layouts retain per-tab names and colors
+- **Tab duplication** -- duplicated tabs inherit the source tab's custom name and color
+
+This persistence also applies to custom tab icons (see [Tab Icons](#tab-icons)).
 
 ## Tab Appearance
 
@@ -342,6 +395,14 @@ tab_stretch_to_fill: true
 tab_min_width: 120.0
 tab_html_titles: true
 ```
+
+## Known Fixes
+
+The following tab bar rendering issues have been resolved:
+
+- **Rounded Corner Stroke Thickness** -- Tab bar rounded corners now render with consistent stroke thickness, eliminating visual artifacts at corner boundaries
+- **First Tab Border Clipping** -- The leftmost tab no longer clips its left border against the tab bar edge
+- **Progress Bar Overlapping Tab Bar** -- Terminal progress bars no longer visually overlap or bleed into the tab bar region
 
 ## Configuration
 

@@ -856,7 +856,11 @@ impl CellRenderer {
 
                             // Try geometric shape (aspect-ratio-aware squares, rectangles)
                             if let Some(rect) = block_chars::get_geometric_shape_rect(
-                                *ch, x0, y0, char_w, self.cell_height,
+                                *ch,
+                                x0,
+                                y0,
+                                char_w,
+                                self.cell_height,
                             ) {
                                 row_text.push(TextInstance {
                                     position: [
