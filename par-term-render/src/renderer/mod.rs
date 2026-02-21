@@ -2299,6 +2299,9 @@ impl Renderer {
         let result = self.cell_renderer.set_content_inset_bottom(physical_inset);
         if result.is_some() {
             self.dirty = true;
+            // Invalidate the scrollbar cache — the track height depends on
+            // the bottom inset, so the scrollbar must be repositioned.
+            self.last_scrollbar_state = (usize::MAX, 0, 0);
         }
         result
     }
@@ -2320,6 +2323,12 @@ impl Renderer {
 
         if result.is_some() {
             self.dirty = true;
+            // Invalidate the scrollbar cache so the next update_scrollbar()
+            // repositions the scrollbar at the new right inset. Without this,
+            // the cache guard sees the same (scroll_offset, visible_lines,
+            // total_lines) tuple and skips the GPU upload, leaving the
+            // scrollbar stuck at the old position.
+            self.last_scrollbar_state = (usize::MAX, 0, 0);
         }
         result
     }
