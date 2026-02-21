@@ -1443,23 +1443,25 @@ impl WindowManager {
     /// Close the settings window
     pub fn close_settings_window(&mut self) {
         if let Some(settings_window) = self.settings_window.take() {
-            // Persist collapsed section states without saving any unsaved preference changes.
-            // Read the on-disk config and update only the collapsed sections field.
+            // Persist collapsed section states AND current live-preview config.
+            //
+            // The settings window sends ApplyConfig every frame, updating both
+            // `self.config` and all `window_state.config` with live-preview values.
+            // We save `self.config` (not loading from disk) so the config file matches
+            // the in-memory state. Previously, loading from disk and saving collapsed
+            // sections triggered the config file watcher, which reloaded stale disk
+            // values and reverted any live-preview changes (like tab_inactive_outline_only).
             let collapsed = settings_window.settings_ui.collapsed_sections_snapshot();
             if !collapsed.is_empty() || !self.config.collapsed_settings_sections.is_empty() {
-                match Config::load() {
-                    Ok(mut disk_config) => {
-                        disk_config.collapsed_settings_sections = collapsed.clone();
-                        if let Err(e) = disk_config.save() {
-                            log::error!("Failed to persist settings section states: {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Failed to load config for section state save: {}", e);
-                    }
+                self.config.collapsed_settings_sections = collapsed.clone();
+                for window_state in self.windows.values_mut() {
+                    window_state.config.collapsed_settings_sections = collapsed.clone();
                 }
-                // Keep the in-memory config in sync too
-                self.config.collapsed_settings_sections = collapsed;
+            }
+            // Save the in-memory config which includes both collapsed sections and
+            // any live-preview changes from the settings window.
+            if let Err(e) = self.config.save() {
+                log::error!("Failed to persist config on settings window close: {}", e);
             }
             log::info!("Closed settings window");
         }
