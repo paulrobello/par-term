@@ -24,6 +24,43 @@ pub struct ThemeColors {
     pub palette: [[u8; 3]; 16],
 }
 
+impl Default for ThemeColors {
+    /// Standard VGA palette.
+    fn default() -> Self {
+        Self {
+            fg: [192, 192, 192],
+            bg: [0, 0, 0],
+            palette: [
+                [0, 0, 0],       // 0  Black
+                [170, 0, 0],     // 1  Red
+                [0, 170, 0],     // 2  Green
+                [170, 85, 0],    // 3  Yellow (brown)
+                [0, 0, 170],     // 4  Blue
+                [170, 0, 170],   // 5  Magenta
+                [0, 170, 170],   // 6  Cyan
+                [192, 192, 192], // 7  White (light grey)
+                [85, 85, 85],    // 8  Bright black (dark grey)
+                [255, 85, 85],   // 9  Bright red
+                [85, 255, 85],   // 10 Bright green
+                [255, 255, 85],  // 11 Bright yellow
+                [85, 85, 255],   // 12 Bright blue
+                [255, 85, 255],  // 13 Bright magenta
+                [85, 255, 255],  // 14 Bright cyan
+                [255, 255, 255], // 15 Bright white
+            ],
+        }
+    }
+}
+
+impl Default for RendererConfig {
+    fn default() -> Self {
+        Self {
+            terminal_width: 80,
+            theme_colors: ThemeColors::default(),
+        }
+    }
+}
+
 /// Errors that can occur during content rendering.
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
