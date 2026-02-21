@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Cancel Button During Streaming**: Added a red "Cancel" button next to the spinner when the agent is streaming/thinking — invokes `Agent::cancel()` to stop the current prompt and adds a "Cancelled." system message to the chat
+- **Multi-line Chat Input**: Changed the assistant panel chat input from single-line to multi-line — Enter sends, Shift+Enter inserts a newline, and the input area grows dynamically up to 6 rows
+- **Clear Conversation Button**: Added a "C" button next to the send button to clear all chat messages without disconnecting from the agent
+- **Auto-Approval Chat Notifications**: Auto-approved tool calls (read-only tools, safe path writes, YOLO mode) now show as "Auto-approved: ..." entries in the chat history so users have visibility into what the agent is doing
+- **Shell Detection in Snapshots**: Terminal state snapshots now populate the shell field from the `$SHELL` environment variable instead of leaving it blank
+
+### Fixed
+
+- **UTF-8 Panic in Command Truncation**: Fixed potential panic when truncating command text containing multi-byte UTF-8 characters (emoji, CJK, accented characters) — added char-boundary-aware `truncate_chars()` helper used in Timeline, Tree, and List Detail views
+- **Escape Key Closes Panel During Input**: Fixed Escape key unconditionally closing the assistant panel even when typing in the chat input or when a dropdown is open — Escape now only closes the panel when no widget has focus
+- **Error Status Missing Details**: `AgentStatus::Error` now displays the error message inline (e.g., "Error: Agent handshake timed out") with a hover tooltip, instead of showing just "Error"
+- **Agent Selector Not Tracking Selection**: Fixed the multi-agent dropdown always displaying the first agent's name regardless of selection — added persistent `selected_agent_index` so the Connect button and dropdown stay in sync
+- **New Tab Button Clipped Off Right Edge**: Fixed the new-tab split button ([+][▾]) being pushed off the right side of the window — the tab bar width budget was missing the 2px left padding and double-counting the gap before the button, causing ~6px overflow
+
 ---
 
 ## [0.21.0] - 2026-02-20

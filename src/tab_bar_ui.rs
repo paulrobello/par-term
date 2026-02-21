@@ -189,11 +189,15 @@ impl TabBarUI {
 
         // Layout constants
         let tab_spacing = 4.0;
+        let left_padding = 2.0;
+        // Show the chevron dropdown when there's menu content:
+        // profiles to pick from, or the AI assistant toggle.
+        let show_chevron = !profiles.is_empty() || config.ai_inspector_enabled;
         let new_tab_btn_width = 28.0
-            + if profiles.is_empty() {
-                0.0
-            } else {
+            + if show_chevron {
                 CHEVRON_RESERVED
+            } else {
+                0.0
             };
         let scroll_btn_width = 24.0;
 
@@ -217,8 +221,10 @@ impl TabBarUI {
                 0.0
             };
 
-            // Available width for tabs (without scroll buttons initially)
-            let base_tabs_area_width = total_bar_width - new_tab_btn_width - tab_spacing;
+            // Available width for tabs (without scroll buttons initially).
+            // Budget: left_padding + tabs + tab_spacing (cursor gap) + new_tab_btn_width = total
+            let base_tabs_area_width =
+                total_bar_width - new_tab_btn_width - tab_spacing - left_padding;
 
             // Determine if scrolling is needed
             let needs_scroll = tab_count > 0 && min_total_tabs_width > base_tabs_area_width;
@@ -254,7 +260,7 @@ impl TabBarUI {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(tab_spacing, 0.0);
                 // Small left padding so the first tab's border isn't clipped by the panel edge
-                ui.add_space(2.0);
+                ui.add_space(left_padding);
 
                 if needs_scroll {
                     // Left scroll button
@@ -350,7 +356,8 @@ impl TabBarUI {
                 }
 
                 // New tab split button: [+][▾]
-                ui.add_space(tab_spacing);
+                // The 4px gap from the last widget's cursor advance provides the
+                // natural spacing between tabs and the button.
 
                 // Use zero spacing between + and ▾ so they render as one split button
                 let prev_spacing = ui.spacing().item_spacing.x;
@@ -372,8 +379,8 @@ impl TabBarUI {
                     plus_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
                 }
 
-                // "▾" chevron — opens profile dropdown (only when profiles exist)
-                if !profiles.is_empty() {
+                // "▾" chevron — opens dropdown (profiles and/or assistant toggle)
+                if show_chevron {
                     let chevron_btn = ui.add(
                         egui::Button::new("⏷")
                             .min_size(egui::vec2(14.0, config.tab_bar_height - 4.0))
@@ -485,10 +492,12 @@ impl TabBarUI {
                                 // Zero spacing between + and ▾
                                 ui.spacing_mut().item_spacing.x = 0.0;
 
-                                let chevron_space = if profiles.is_empty() {
-                                    0.0
-                                } else {
+                                let show_chevron_v =
+                                    !profiles.is_empty() || config.ai_inspector_enabled;
+                                let chevron_space = if show_chevron_v {
                                     CHEVRON_RESERVED
+                                } else {
+                                    0.0
                                 };
                                 let plus_btn = ui.add(
                                     egui::Button::new("+")
@@ -508,7 +517,7 @@ impl TabBarUI {
                                     plus_btn.on_hover_text("New Tab (Ctrl+Shift+T)");
                                 }
 
-                                if !profiles.is_empty() {
+                                if show_chevron_v {
                                     let chevron_btn = ui.add(
                                         egui::Button::new("⏷")
                                             .min_size(egui::vec2(14.0, tab_height - 4.0))
