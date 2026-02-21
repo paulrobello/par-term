@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Code Block Rendering in Chat**: Agent messages containing fenced code blocks (``` ) now render with a distinct dark background, border, language tag label, and monospace font instead of plain text — also applies to streaming text as it arrives
+- **Cancel Queued Messages**: User messages waiting to be sent (queued behind an in-progress prompt) now show a "(queued)" label and red "Cancel" button to abort the send before it reaches the agent
 - **Cancel Button During Streaming**: Added a red "Cancel" button next to the spinner when the agent is streaming/thinking — invokes `Agent::cancel()` to stop the current prompt and adds a "Cancelled." system message to the chat
 - **Multi-line Chat Input**: Changed the assistant panel chat input from single-line to multi-line — Enter sends, Shift+Enter inserts a newline, and the input area grows dynamically up to 6 rows
 - **Clear Conversation Button**: Added a "C" button next to the send button to clear all chat messages without disconnecting from the agent
@@ -19,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **ACP Agent Connection in App Bundle**: Fixed agent connection failures when running from macOS app bundle — the login shell didn't have nvm/homebrew in PATH. Now resolves the full shell PATH via interactive login shell and passes it to the agent process
+- **Nested Claude Code Session Blocking**: Fixed agent handshake timeout caused by `CLAUDECODE` environment variable leaking into the spawned agent process, which refused to start as a "nested session"
+- **Assistant Panel Input Pushed Off-Screen**: Fixed the chat input and controls being invisible because `egui::Area` reported near-infinite available height — added `set_max_height` constraint so the scroll area doesn't consume all space
 - **UTF-8 Panic in Command Truncation**: Fixed potential panic when truncating command text containing multi-byte UTF-8 characters (emoji, CJK, accented characters) — added char-boundary-aware `truncate_chars()` helper used in Timeline, Tree, and List Detail views
 - **Escape Key Closes Panel During Input**: Fixed Escape key unconditionally closing the assistant panel even when typing in the chat input or when a dropdown is open — Escape now only closes the panel when no widget has focus
 - **Error Status Missing Details**: `AgentStatus::Error` now displays the error message inline (e.g., "Error: Agent handshake timed out") with a hover tooltip, instead of showing just "Error"

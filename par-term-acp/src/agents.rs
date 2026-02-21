@@ -82,19 +82,62 @@ impl AgentConfig {
 
 /// Check whether a binary name exists in any directory on `PATH`.
 fn binary_in_path(binary: &str) -> bool {
+    resolve_binary_in_path(binary).is_some()
+}
+
+/// Resolve a binary name to its absolute path by searching `PATH`.
+///
+/// Returns `None` if the binary is not found or PATH is not set.
+pub fn resolve_binary_in_path(binary: &str) -> Option<std::path::PathBuf> {
+    resolve_binary_in_path_str(binary, &std::env::var("PATH").ok()?)
+}
+
+/// Resolve a binary name to its absolute path by searching the given PATH string.
+pub fn resolve_binary_in_path_str(binary: &str, path_var: &str) -> Option<std::path::PathBuf> {
     if binary.is_empty() {
-        return false;
+        return None;
     }
-    let Ok(paths) = std::env::var("PATH") else {
-        return false;
-    };
-    for dir in std::env::split_paths(&paths) {
+    // If it's already an absolute path, just check it exists.
+    let path = std::path::Path::new(binary);
+    if path.is_absolute() {
+        return if path.is_file() { Some(path.to_path_buf()) } else { None };
+    }
+    for dir in std::env::split_paths(path_var) {
         let candidate = dir.join(binary);
         if candidate.is_file() {
-            return true;
+            return Some(candidate);
         }
     }
-    false
+    None
+}
+
+/// Get the full PATH from the user's login interactive shell.
+///
+/// This is necessary because app-bundle launches (Finder, Dock, Spotlight)
+/// start with a minimal environment.  The user's shell profile (`.bashrc`,
+/// `.zshrc`) often configures PATH inside an interactive-only guard
+/// (`case $- in *i*) ...`), so a non-interactive login shell (`-lc`) won't
+/// pick up tools installed via nvm, homebrew, etc.
+///
+/// We spawn `$SHELL -lic 'printf "%s" "$PATH"'` which is both login (`-l`)
+/// and interactive (`-i`), causing all profile files to be sourced.  Because
+/// stdio is piped (no tty), readline does not emit control sequences.
+pub fn resolve_shell_path() -> Option<String> {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let output = std::process::Command::new(&shell)
+        .args(["-lic", r#"printf "%s" "$PATH""#])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    if output.status.success() {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !path.is_empty() {
+            return Some(path);
+        }
+    }
+    None
 }
 
 /// Discover available agents from bundled and user config directories.

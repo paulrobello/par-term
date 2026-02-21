@@ -6,7 +6,7 @@
 
 use egui::{Color32, Context, CursorIcon, Frame, Id, Key, Label, Order, Pos2, RichText, Stroke};
 
-use crate::ai_inspector::chat::{ChatMessage, ChatState};
+use crate::ai_inspector::chat::{parse_text_segments, ChatMessage, ChatState, TextSegment};
 use crate::ai_inspector::snapshot::{CommandEntry, SnapshotData, SnapshotScope};
 use crate::config::Config;
 use par_term_acp::{AgentConfig, AgentStatus};
@@ -85,6 +85,8 @@ pub enum InspectorAction {
     SetAgentMode(String),
     /// Cancel the current agent prompt.
     CancelPrompt,
+    /// Cancel the most recent queued (unsent) user prompt.
+    CancelQueuedPrompt,
     /// Clear all chat messages.
     ClearChat,
 }
@@ -154,6 +156,12 @@ const SYSTEM_MSG_COLOR: Color32 = Color32::from_gray(110);
 
 /// Command suggestion background.
 const CMD_SUGGEST_BG: Color32 = Color32::from_rgb(40, 45, 30);
+
+/// Code block background.
+const CODE_BLOCK_BG: Color32 = Color32::from_rgb(18, 18, 24);
+
+/// Code block language tag color.
+const CODE_LANG_COLOR: Color32 = Color32::from_gray(90);
 
 /// Connected status color.
 const AGENT_CONNECTED: Color32 = Color32::from_rgb(76, 175, 80);
@@ -357,11 +365,16 @@ impl AIInspectorPanel {
                     .inner_margin(8.0);
 
                 panel_frame.show(ui, |ui| {
+                    let panel_inner_height = (viewport.height() - 18.0).max(0.0);
                     ui.set_min_width(inner_width);
                     ui.set_max_width(inner_width);
-                    // Force panel to fill viewport height so bottom elements stay pinned.
-                    // Subtract frame inner_margin (8*2) + stroke (1*2) = 18px.
-                    ui.set_min_height((viewport.height() - 18.0).max(0.0));
+                    // Constrain both min AND max height so that
+                    // ui.available_height() returns a finite value.
+                    // Without set_max_height, Areas report near-infinite
+                    // available space which pushes pinned-bottom elements
+                    // off-screen.
+                    ui.set_min_height(panel_inner_height);
+                    ui.set_max_height(panel_inner_height);
 
                     // === Title bar ===
                     ui.horizontal(|ui| {
@@ -1145,7 +1158,7 @@ impl AIInspectorPanel {
 
         for msg in &chat.messages {
             match msg {
-                ChatMessage::User(text) => {
+                ChatMessage::User { text, pending } => {
                     let frame = Frame::new()
                         .fill(USER_MSG_BG)
                         .corner_radius(4.0)
@@ -1159,6 +1172,30 @@ impl AIInspectorPanel {
                                     .small()
                                     .strong(),
                             );
+                            if *pending {
+                                ui.label(
+                                    RichText::new("(queued)")
+                                        .color(Color32::from_gray(100))
+                                        .small()
+                                        .italics(),
+                                );
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui
+                                            .button(
+                                                RichText::new("Cancel")
+                                                    .small()
+                                                    .color(Color32::from_rgb(255, 100, 100)),
+                                            )
+                                            .on_hover_text("Cancel this queued message")
+                                            .clicked()
+                                        {
+                                            action = InspectorAction::CancelQueuedPrompt;
+                                        }
+                                    },
+                                );
+                            }
                         });
                         ui.add(
                             Label::new(RichText::new(text).color(Color32::from_gray(220)))
@@ -1181,11 +1218,7 @@ impl AIInspectorPanel {
                                 .small()
                                 .strong(),
                         );
-                        ui.add(
-                            Label::new(RichText::new(text).color(Color32::from_gray(210)))
-                                .selectable(true)
-                                .wrap(),
-                        );
+                        Self::render_rich_text(ui, text);
                     });
                     ui.add_space(4.0);
                 }
@@ -1406,11 +1439,7 @@ impl AIInspectorPanel {
                             }
                         });
                     });
-                    ui.add(
-                        Label::new(RichText::new(streaming).color(Color32::from_gray(190)))
-                            .selectable(true)
-                            .wrap(),
-                    );
+                    Self::render_rich_text(ui, streaming);
                 });
             } else {
                 ui.horizontal(|ui| {
@@ -1439,6 +1468,49 @@ impl AIInspectorPanel {
         }
 
         action
+    }
+
+    /// Render agent text with code block formatting.
+    ///
+    /// Parses the text into plain text and fenced code block segments, rendering
+    /// code blocks with a distinct background and monospace font.
+    fn render_rich_text(ui: &mut egui::Ui, text: &str) {
+        let segments = parse_text_segments(text);
+        for segment in &segments {
+            match segment {
+                TextSegment::Plain(t) => {
+                    if !t.is_empty() {
+                        ui.add(
+                            Label::new(RichText::new(t).color(Color32::from_gray(210)))
+                                .selectable(true)
+                                .wrap(),
+                        );
+                    }
+                }
+                TextSegment::CodeBlock { lang, code } => {
+                    let code_frame = Frame::new()
+                        .fill(CODE_BLOCK_BG)
+                        .corner_radius(3.0)
+                        .inner_margin(6.0)
+                        .stroke(Stroke::new(1.0, Color32::from_gray(40)));
+                    code_frame.show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        if !lang.is_empty() {
+                            ui.label(RichText::new(lang.as_str()).color(CODE_LANG_COLOR).small());
+                        }
+                        ui.add(
+                            Label::new(
+                                RichText::new(code.as_str())
+                                    .color(Color32::from_gray(200))
+                                    .monospace(),
+                            )
+                            .selectable(true)
+                            .wrap(),
+                        );
+                    });
+                }
+            }
+        }
     }
 
     /// Render the chat text input and send/clear buttons.

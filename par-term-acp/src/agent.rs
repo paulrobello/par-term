@@ -12,7 +12,7 @@ use serde_json::Value;
 use tokio::process::Command;
 use tokio::sync::mpsc;
 
-use super::agents::AgentConfig;
+use super::agents::{AgentConfig, resolve_binary_in_path, resolve_shell_path};
 use super::jsonrpc::{JsonRpcClient, RpcError};
 use super::protocol::{
     ClientCapabilities, ClientInfo, ConfigUpdateParams, ContentBlock, FsFindParams,
@@ -62,6 +62,8 @@ pub enum AgentMessage {
     },
     /// The agent finished processing a prompt (flush pending text).
     PromptComplete,
+    /// The agent has started processing a prompt (lock acquired, about to send).
+    PromptStarted,
     /// The agent wants to update config settings.
     ConfigUpdate {
         updates: std::collections::HashMap<String, serde_json::Value>,
@@ -138,7 +140,7 @@ impl Agent {
         capabilities: ClientCapabilities,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Resolve the run command for the current platform.
-        let run_command = self
+        let run_command_template = self
             .config
             .run_command_for_platform()
             .ok_or("No run command for current platform")?
@@ -146,25 +148,74 @@ impl Agent {
 
         self.set_status(AgentStatus::Connecting);
 
-        // Spawn via login shell so the user's full PATH is available
-        // (nvm, homebrew, etc. are often configured in .bash_profile /
-        // .zprofile / .profile). We intentionally do NOT use interactive
+        // Resolve the full PATH from the user's interactive login shell.
+        //
+        // When par-term is launched as a macOS app bundle (Finder/Dock/
+        // Spotlight) the process inherits a minimal environment — tools
+        // installed via nvm, homebrew, etc. won't be in PATH.  We spawn a
+        // quick `$SHELL -lic 'printf "%s" "$PATH"'` to discover the PATH
+        // the user would have in an interactive terminal, then pass that to
+        // the agent child process.  This also covers shebangs like
+        // `#!/usr/bin/env node` that need the runtime binary in PATH.
+        let shell_path = resolve_shell_path();
+        let run_command = if resolve_binary_in_path(&run_command_template).is_none() {
+            // Binary not in process PATH — try resolving with shell PATH.
+            if let Some(ref sp) = shell_path {
+                let mut tokens = run_command_template.split_whitespace();
+                if let Some(binary) = tokens.next() {
+                    if let Some(abs) = super::agents::resolve_binary_in_path_str(binary, sp) {
+                        log::info!(
+                            "ACP: resolved '{binary}' to '{}'",
+                            abs.display()
+                        );
+                        let rest: String = tokens.collect::<Vec<_>>().join(" ");
+                        if rest.is_empty() {
+                            abs.to_string_lossy().to_string()
+                        } else {
+                            format!("{} {rest}", abs.to_string_lossy())
+                        }
+                    } else {
+                        run_command_template.clone()
+                    }
+                } else {
+                    run_command_template.clone()
+                }
+            } else {
+                run_command_template.clone()
+            }
+        } else {
+            run_command_template.clone()
+        };
+
+        // Spawn via login shell.  We intentionally do NOT use interactive
         // mode (-i) because it causes the shell to emit terminal control
         // sequences (e.g. [?1034h) to stdout, which corrupts the JSON-RPC
-        // stream and causes handshake timeouts.
+        // stream.  Instead we pass the resolved shell PATH as an env var so
+        // the child has access to nvm, homebrew, etc.
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
         log::info!(
             "ACP: spawning agent '{}' via {shell} -lc '{run_command}' in cwd={cwd}",
             self.config.identity,
         );
-        let mut child = match Command::new(&shell)
-            .arg("-lc")
+        let mut cmd = Command::new(&shell);
+        cmd.arg("-lc")
             .arg(&run_command)
             .current_dir(cwd)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
+            .stderr(std::process::Stdio::piped());
+
+        // If we resolved a richer PATH from the shell, inject it so that
+        // shebangs (#!/usr/bin/env node) and other runtime deps are found.
+        if let Some(ref sp) = shell_path {
+            cmd.env("PATH", sp);
+        }
+
+        // Ensure the agent doesn't think it's running inside another Claude
+        // Code session (which would block session creation).
+        cmd.env_remove("CLAUDECODE");
+
+        let mut child = match cmd.spawn()
         {
             Ok(child) => child,
             Err(e) => {
@@ -271,8 +322,15 @@ impl Agent {
             cwd: cwd.to_string(),
             mcp_servers: Some(vec![mcp_server]),
         };
+        log::info!(
+            "ACP: sending session/new (cwd={cwd}, mcp_server_bin={})",
+            self.mcp_server_bin.display()
+        );
+        // Session creation can take a while — the agent may need to start MCP
+        // servers, load CLAUDE.md, and initialize its workspace.
+        const SESSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
         let session_response = match tokio::time::timeout(
-            HANDSHAKE_TIMEOUT,
+            SESSION_TIMEOUT,
             client.request("session/new", Some(serde_json::to_value(&session_params)?)),
         )
         .await

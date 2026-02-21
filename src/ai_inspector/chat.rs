@@ -9,8 +9,9 @@ use par_term_acp::SessionUpdate;
 /// A message in the chat history.
 #[derive(Debug, Clone)]
 pub enum ChatMessage {
-    /// A message sent by the user.
-    User(String),
+    /// A message sent by the user. `pending` is true while the prompt is
+    /// queued (waiting for the agent lock) and false once sending has begun.
+    User { text: String, pending: bool },
     /// A completed response from the agent.
     Agent(String),
     /// The agent's internal reasoning / chain-of-thought.
@@ -180,9 +181,36 @@ impl ChatState {
     /// Add a user message to the conversation.
     ///
     /// Flushes any pending agent text first so messages stay interleaved.
+    /// The message starts as `pending: true` (queued, not yet sent).
     pub fn add_user_message(&mut self, text: String) {
         self.flush_agent_message();
-        self.messages.push(ChatMessage::User(text));
+        self.messages
+            .push(ChatMessage::User { text, pending: true });
+    }
+
+    /// Mark the oldest pending user message as sent (no longer cancellable).
+    pub fn mark_oldest_pending_sent(&mut self) {
+        for msg in &mut self.messages {
+            if let ChatMessage::User { pending, .. } = msg
+                && *pending
+            {
+                *pending = false;
+                return;
+            }
+        }
+    }
+
+    /// Cancel and remove the most recent pending user message.
+    ///
+    /// Returns `true` if a message was removed.
+    pub fn cancel_last_pending(&mut self) -> bool {
+        for i in (0..self.messages.len()).rev() {
+            if let ChatMessage::User { pending: true, .. } = &self.messages[i] {
+                self.messages.remove(i);
+                return true;
+            }
+        }
+        false
     }
 
     /// Add a system message to the conversation.
@@ -207,6 +235,70 @@ impl ChatState {
         self.streaming = false;
         // Don't reset system_prompt_sent — the agent already has it
     }
+}
+
+/// A segment of agent message text for rendering.
+#[derive(Debug, PartialEq)]
+pub enum TextSegment {
+    /// Regular (non-code) text.
+    Plain(String),
+    /// A fenced code block with optional language tag.
+    CodeBlock { lang: String, code: String },
+}
+
+/// Parse agent message text into alternating plain-text and code-block segments.
+///
+/// Recognises fenced code blocks delimited by triple backticks, with an
+/// optional language tag on the opening fence. Unclosed code blocks are
+/// treated as extending to the end of the text.
+pub fn parse_text_segments(text: &str) -> Vec<TextSegment> {
+    let mut segments = Vec::new();
+    let mut plain_lines: Vec<&str> = Vec::new();
+    let mut in_block = false;
+    let mut block_lang = String::new();
+    let mut code_lines: Vec<&str> = Vec::new();
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            if in_block {
+                // End of code block
+                let code = code_lines.join("\n");
+                segments.push(TextSegment::CodeBlock {
+                    lang: std::mem::take(&mut block_lang),
+                    code,
+                });
+                code_lines.clear();
+                in_block = false;
+            } else {
+                // Flush accumulated plain text
+                if !plain_lines.is_empty() {
+                    segments.push(TextSegment::Plain(plain_lines.join("\n")));
+                    plain_lines.clear();
+                }
+                // Start code block — extract language tag
+                block_lang = trimmed.trim_start_matches('`').trim().to_string();
+                in_block = true;
+            }
+        } else if in_block {
+            code_lines.push(line);
+        } else {
+            plain_lines.push(line);
+        }
+    }
+
+    // Flush remaining content
+    if in_block {
+        let code = code_lines.join("\n");
+        segments.push(TextSegment::CodeBlock {
+            lang: block_lang,
+            code,
+        });
+    } else if !plain_lines.is_empty() {
+        segments.push(TextSegment::Plain(plain_lines.join("\n")));
+    }
+
+    segments
 }
 
 /// Extract shell commands from fenced code blocks in text.
@@ -475,7 +567,7 @@ mod tests {
         state.add_auto_approved("read file".to_string());
         assert_eq!(state.messages.len(), 4);
 
-        assert!(matches!(&state.messages[0], ChatMessage::User(t) if t == "test"));
+        assert!(matches!(&state.messages[0], ChatMessage::User { text, .. } if text == "test"));
         assert!(matches!(&state.messages[1], ChatMessage::System(t) if t == "system"));
         assert!(
             matches!(&state.messages[2], ChatMessage::CommandSuggestion(t) if t == "cargo test")
@@ -537,6 +629,143 @@ mod tests {
         assert!(matches!(&state.messages[0], ChatMessage::Agent(_)));
         assert!(
             matches!(&state.messages[1], ChatMessage::CommandSuggestion(cmd) if cmd == "cargo test")
+        );
+    }
+
+    #[test]
+    fn test_user_message_starts_pending() {
+        let mut state = ChatState::new();
+        state.add_user_message("hello".to_string());
+        assert!(matches!(
+            &state.messages[0],
+            ChatMessage::User {
+                pending: true,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_mark_oldest_pending_sent() {
+        let mut state = ChatState::new();
+        state.add_user_message("first".to_string());
+        state.add_user_message("second".to_string());
+        state.mark_oldest_pending_sent();
+        assert!(matches!(
+            &state.messages[0],
+            ChatMessage::User {
+                pending: false,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &state.messages[1],
+            ChatMessage::User {
+                pending: true,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_cancel_last_pending() {
+        let mut state = ChatState::new();
+        state.add_user_message("first".to_string());
+        state.add_user_message("second".to_string());
+        assert!(state.cancel_last_pending());
+        assert_eq!(state.messages.len(), 1);
+        assert!(matches!(
+            &state.messages[0],
+            ChatMessage::User { text, .. } if text == "first"
+        ));
+    }
+
+    #[test]
+    fn test_cancel_last_pending_empty() {
+        let mut state = ChatState::new();
+        assert!(!state.cancel_last_pending());
+    }
+
+    #[test]
+    fn test_cancel_last_pending_none_pending() {
+        let mut state = ChatState::new();
+        state.add_user_message("sent".to_string());
+        state.mark_oldest_pending_sent();
+        assert!(!state.cancel_last_pending());
+    }
+
+    #[test]
+    fn test_parse_text_segments_plain_only() {
+        let segments = parse_text_segments("Hello world\nSecond line");
+        assert_eq!(
+            segments,
+            vec![TextSegment::Plain("Hello world\nSecond line".to_string())]
+        );
+    }
+
+    #[test]
+    fn test_parse_text_segments_code_block() {
+        let text = "Before\n```rust\nfn main() {}\n```\nAfter";
+        let segments = parse_text_segments(text);
+        assert_eq!(
+            segments,
+            vec![
+                TextSegment::Plain("Before".to_string()),
+                TextSegment::CodeBlock {
+                    lang: "rust".to_string(),
+                    code: "fn main() {}".to_string(),
+                },
+                TextSegment::Plain("After".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_text_segments_multiple_blocks() {
+        let text = "Text\n```bash\necho hi\n```\nMiddle\n```python\nprint(1)\n```\nEnd";
+        let segments = parse_text_segments(text);
+        assert_eq!(segments.len(), 5);
+        assert!(matches!(&segments[0], TextSegment::Plain(t) if t == "Text"));
+        assert!(
+            matches!(&segments[1], TextSegment::CodeBlock { lang, code } if lang == "bash" && code == "echo hi")
+        );
+        assert!(matches!(&segments[2], TextSegment::Plain(t) if t == "Middle"));
+        assert!(
+            matches!(&segments[3], TextSegment::CodeBlock { lang, code } if lang == "python" && code == "print(1)")
+        );
+        assert!(matches!(&segments[4], TextSegment::Plain(t) if t == "End"));
+    }
+
+    #[test]
+    fn test_parse_text_segments_unclosed_block() {
+        let text = "Before\n```rust\nfn main() {}";
+        let segments = parse_text_segments(text);
+        assert_eq!(
+            segments,
+            vec![
+                TextSegment::Plain("Before".to_string()),
+                TextSegment::CodeBlock {
+                    lang: "rust".to_string(),
+                    code: "fn main() {}".to_string(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_text_segments_bare_block() {
+        let text = "Before\n```\nsome text\n```\nAfter";
+        let segments = parse_text_segments(text);
+        assert_eq!(
+            segments,
+            vec![
+                TextSegment::Plain("Before".to_string()),
+                TextSegment::CodeBlock {
+                    lang: String::new(),
+                    code: "some text".to_string(),
+                },
+                TextSegment::Plain("After".to_string()),
+            ]
         );
     }
 }

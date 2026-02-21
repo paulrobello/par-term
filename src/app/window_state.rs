@@ -156,6 +156,9 @@ pub struct WindowState {
     /// while waiting for the prompt response, but the agent's tool calls
     /// (e.g. `fs/readTextFile`) need us to respond via this same client.
     pub(crate) agent_client: Option<Arc<par_term_acp::JsonRpcClient>>,
+    /// Handles for queued send tasks (waiting on agent lock).
+    /// Used to abort queued sends when the user cancels a pending message.
+    pub(crate) pending_send_handles: Vec<tokio::task::JoinHandle<()>>,
     /// Available agent configs
     pub(crate) available_agents: Vec<AgentConfig>,
     /// Shader install prompt UI
@@ -415,6 +418,7 @@ impl WindowState {
             agent_tx: None,
             agent: None,
             agent_client: None,
+            pending_send_handles: Vec::new(),
             available_agents,
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
@@ -2595,6 +2599,14 @@ impl WindowState {
                             });
                         self.needs_redraw = true;
                     }
+                    AgentMessage::PromptStarted => {
+                        self.ai_inspector.chat.mark_oldest_pending_sent();
+                        // Remove the corresponding handle (first in queue).
+                        if !self.pending_send_handles.is_empty() {
+                            self.pending_send_handles.remove(0);
+                        }
+                        self.needs_redraw = true;
+                    }
                     AgentMessage::PromptComplete => {
                         self.ai_inspector.chat.flush_agent_message();
                         self.needs_redraw = true;
@@ -4242,11 +4254,16 @@ impl WindowState {
                 self.agent_rx = None;
                 self.agent_tx = None;
                 self.agent_client = None;
+                // Abort any queued send tasks.
+                for handle in self.pending_send_handles.drain(..) {
+                    handle.abort();
+                }
                 self.ai_inspector.agent_status = AgentStatus::Disconnected;
                 self.needs_redraw = true;
             }
             InspectorAction::SendPrompt(text) => {
                 self.ai_inspector.chat.add_user_message(text.clone());
+                self.ai_inspector.chat.streaming = true;
                 if let Some(agent) = &self.agent {
                     let agent = agent.clone();
                     // Build the prompt with optional system guidance and shader context.
@@ -4275,8 +4292,13 @@ impl WindowState {
 
                     let content = vec![par_term_acp::ContentBlock::Text { text: prompt_text }];
                     let tx = self.agent_tx.clone();
-                    self.runtime.spawn(async move {
+                    let handle = self.runtime.spawn(async move {
                         let agent = agent.lock().await;
+                        // Signal that we've acquired the lock — the prompt
+                        // is no longer cancellable.
+                        if let Some(ref tx) = tx {
+                            let _ = tx.send(AgentMessage::PromptStarted);
+                        }
                         let _ = agent.send_prompt(content).await;
                         // Signal the UI to flush the agent text buffer so
                         // command suggestions are extracted.
@@ -4284,6 +4306,7 @@ impl WindowState {
                             let _ = tx.send(AgentMessage::PromptComplete);
                         }
                     });
+                    self.pending_send_handles.push(handle);
                 }
                 self.needs_redraw = true;
             }
@@ -4376,6 +4399,18 @@ impl WindowState {
                 self.ai_inspector
                     .chat
                     .add_system_message("Cancelled.".to_string());
+                self.needs_redraw = true;
+            }
+            InspectorAction::CancelQueuedPrompt => {
+                if self.ai_inspector.chat.cancel_last_pending() {
+                    // Abort the most recent queued send task.
+                    if let Some(handle) = self.pending_send_handles.pop() {
+                        handle.abort();
+                    }
+                    self.ai_inspector
+                        .chat
+                        .add_system_message("Queued message cancelled.".to_string());
+                }
                 self.needs_redraw = true;
             }
             InspectorAction::ClearChat => {
