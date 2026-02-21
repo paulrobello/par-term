@@ -1026,13 +1026,21 @@ impl Tab {
         let inactive_interval_ms = (1000 / inactive_fps.max(1)) as u64;
 
         let handle = runtime.spawn(async move {
-            let mut last_gen = 0;
+            let mut last_gen = 0u64;
+            let mut idle_streak = 0u32;
+            const MAX_IDLE_INTERVAL_MS: u64 = 250;
 
             loop {
-                let interval_ms = if is_active.load(Ordering::Relaxed) {
+                let base_interval_ms = if is_active.load(Ordering::Relaxed) {
                     active_interval_ms
                 } else {
                     inactive_interval_ms
+                };
+                // Exponential backoff: double interval for each consecutive idle poll
+                let interval_ms = if idle_streak > 0 {
+                    (base_interval_ms << idle_streak.min(4)).min(MAX_IDLE_INTERVAL_MS)
+                } else {
+                    base_interval_ms
                 };
                 tokio::time::sleep(tokio::time::Duration::from_millis(interval_ms)).await;
 
@@ -1042,14 +1050,17 @@ impl Tab {
                         last_gen = current_gen;
                         true
                     } else {
-                        term.has_updates()
+                        false
                     }
                 } else {
                     false
                 };
 
                 if should_redraw {
+                    idle_streak = 0;
                     window.request_redraw();
+                } else {
+                    idle_streak = idle_streak.saturating_add(1);
                 }
             }
         });

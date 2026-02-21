@@ -1228,6 +1228,16 @@ impl WindowState {
         if has_active_file_transfers {
             event_loop.set_control_flow(ControlFlow::Poll);
         } else {
+            // On macOS, ControlFlow::WaitUntil doesn't always prevent the event loop
+            // from spinning (CVDisplayLink and NSRunLoop interactions). Add an explicit
+            // sleep when no render is needed to guarantee low CPU usage when idle.
+            if !self.needs_redraw {
+                let sleep_until = next_wake.min(now + frame_interval);
+                let sleep_dur = sleep_until.saturating_duration_since(now);
+                if sleep_dur > std::time::Duration::from_millis(1) {
+                    std::thread::sleep(sleep_dur);
+                }
+            }
             event_loop.set_control_flow(ControlFlow::WaitUntil(next_wake));
         }
     }

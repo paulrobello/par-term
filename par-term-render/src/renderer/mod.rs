@@ -176,6 +176,9 @@ pub struct Renderer {
     // Dirty flag for optimization - only render when content has changed
     pub(crate) dirty: bool,
 
+    // Cached scrollbar state to avoid redundant GPU uploads
+    pub(crate) last_scrollbar_state: (usize, usize, usize),
+
     // Skip cursor shader when alt screen is active (TUI apps like vim, htop)
     pub(crate) cursor_shader_disabled_for_alt_screen: bool,
 
@@ -426,6 +429,7 @@ impl Renderer {
             cursor_shader_path: initial_cursor_shader_path,
             size,
             dirty: true, // Start dirty to ensure initial render
+            last_scrollbar_state: (usize::MAX, 0, 0), // Force first update
             cursor_shader_disabled_for_alt_screen: false,
             debug_text: None,
         })
@@ -557,8 +561,9 @@ impl Renderer {
 
     /// Update the terminal cells
     pub fn update_cells(&mut self, cells: &[Cell]) {
-        self.cell_renderer.update_cells(cells);
-        self.dirty = true; // Mark dirty when cells change
+        if self.cell_renderer.update_cells(cells) {
+            self.dirty = true;
+        }
     }
 
     /// Clear all cells in the renderer.
@@ -575,14 +580,16 @@ impl Renderer {
         opacity: f32,
         style: par_term_emu_core_rust::cursor::CursorStyle,
     ) {
-        self.cell_renderer.update_cursor(position, opacity, style);
-        self.dirty = true;
+        if self.cell_renderer.update_cursor(position, opacity, style) {
+            self.dirty = true;
+        }
     }
 
     /// Clear cursor (hide it)
     pub fn clear_cursor(&mut self) {
-        self.cell_renderer.clear_cursor();
-        self.dirty = true;
+        if self.cell_renderer.clear_cursor() {
+            self.dirty = true;
+        }
     }
 
     /// Update scrollbar state
@@ -599,9 +606,14 @@ impl Renderer {
         total_lines: usize,
         marks: &[par_term_config::ScrollbackMark],
     ) {
+        let new_state = (scroll_offset, visible_lines, total_lines);
+        if new_state == self.last_scrollbar_state {
+            return;
+        }
+        self.last_scrollbar_state = new_state;
         self.cell_renderer
             .update_scrollbar(scroll_offset, visible_lines, total_lines, marks);
-        self.dirty = true; // Mark dirty when scrollbar changes
+        self.dirty = true;
     }
 
     /// Set the visual bell flash intensity
@@ -646,14 +658,16 @@ impl Renderer {
 
     /// Set whether cursor should be hidden when cursor shader is active
     pub fn set_cursor_hidden_for_shader(&mut self, hidden: bool) {
-        self.cell_renderer.set_cursor_hidden_for_shader(hidden);
-        self.dirty = true;
+        if self.cell_renderer.set_cursor_hidden_for_shader(hidden) {
+            self.dirty = true;
+        }
     }
 
     /// Set window focus state (affects unfocused cursor rendering)
     pub fn set_focused(&mut self, focused: bool) {
-        self.cell_renderer.set_focused(focused);
-        self.dirty = true;
+        if self.cell_renderer.set_focused(focused) {
+            self.dirty = true;
+        }
     }
 
     /// Update cursor guide settings
@@ -714,8 +728,9 @@ impl Renderer {
 
     /// Set the visible separator marks for the current frame (single-pane path)
     pub fn set_separator_marks(&mut self, marks: Vec<SeparatorMark>) {
-        self.cell_renderer.set_separator_marks(marks);
-        self.dirty = true;
+        if self.cell_renderer.set_separator_marks(marks) {
+            self.dirty = true;
+        }
     }
 
     /// Set whether transparency affects only default background cells.
@@ -964,8 +979,18 @@ impl Renderer {
         // Custom shader animation forces continuous rendering
         let force_render = self.needs_continuous_render();
 
-        if !self.dirty && egui_data.is_none() && !force_render {
-            // Skip rendering if nothing has changed
+        // Fast path: when nothing changed, render cells from cached buffers + egui overlay
+        // This skips expensive shader passes, sixel uploads, etc.
+        if !self.dirty && !force_render {
+            if let Some((egui_output, egui_ctx)) = egui_data {
+                let surface_texture =
+                    self.cell_renderer.render(show_scrollbar, pane_background)?;
+                self.cell_renderer
+                    .render_overlays(&surface_texture, show_scrollbar)?;
+                self.render_egui(&surface_texture, egui_output, egui_ctx, force_egui_opaque)?;
+                surface_texture.present();
+                return Ok(true);
+            }
             return Ok(false);
         }
 
@@ -1139,7 +1164,7 @@ impl Renderer {
     ) -> Result<bool> {
         // Check if we need to render
         let force_render = self.needs_continuous_render();
-        if !self.dirty && egui_data.is_none() && !force_render {
+        if !self.dirty && !force_render && egui_data.is_none() {
             return Ok(false);
         }
 
@@ -1272,7 +1297,7 @@ impl Renderer {
     ) -> Result<bool> {
         // Check if we need to render
         let force_render = self.needs_continuous_render();
-        if !self.dirty && egui_data.is_none() && !force_render {
+        if !self.dirty && !force_render && egui_data.is_none() {
             return Ok(false);
         }
 

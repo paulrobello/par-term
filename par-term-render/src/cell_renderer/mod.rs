@@ -775,7 +775,9 @@ impl CellRenderer {
         ];
     }
 
-    pub fn update_cells(&mut self, new_cells: &[Cell]) {
+    /// Update cells. Returns `true` if any row actually changed.
+    pub fn update_cells(&mut self, new_cells: &[Cell]) -> bool {
+        let mut changed = false;
         for row in 0..self.rows {
             let start = row * self.cols;
             let end = (row + 1) * self.cols;
@@ -784,9 +786,11 @@ impl CellRenderer {
                 if row_slice != &self.cells[start..end] {
                     self.cells[start..end].clone_from_slice(row_slice);
                     self.dirty_rows[row] = true;
+                    changed = true;
                 }
             }
         }
+        changed
     }
 
     /// Clear all cells and mark all rows as dirty.
@@ -799,12 +803,13 @@ impl CellRenderer {
         }
     }
 
+    /// Update cursor position, opacity and style. Returns `true` if anything changed.
     pub fn update_cursor(
         &mut self,
         pos: (usize, usize),
         opacity: f32,
         style: par_term_emu_core_rust::cursor::CursorStyle,
-    ) {
+    ) -> bool {
         if self.cursor_pos != pos || self.cursor_opacity != opacity || self.cursor_style != style {
             self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
             self.cursor_pos = pos;
@@ -872,11 +877,13 @@ impl CellRenderer {
             } else {
                 None
             };
+            return true;
         }
+        false
     }
 
-    pub fn clear_cursor(&mut self) {
-        self.update_cursor(self.cursor_pos, 0.0, self.cursor_style);
+    pub fn clear_cursor(&mut self) -> bool {
+        self.update_cursor(self.cursor_pos, 0.0, self.cursor_style)
     }
 
     /// Update cursor color
@@ -901,20 +908,26 @@ impl CellRenderer {
         self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
     }
 
-    /// Set whether cursor should be hidden when cursor shader is active
-    pub fn set_cursor_hidden_for_shader(&mut self, hidden: bool) {
+    /// Set whether cursor should be hidden when cursor shader is active.
+    /// Returns `true` if the value changed.
+    pub fn set_cursor_hidden_for_shader(&mut self, hidden: bool) -> bool {
         if self.cursor_hidden_for_shader != hidden {
             self.cursor_hidden_for_shader = hidden;
             self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+            return true;
         }
+        false
     }
 
-    /// Set window focus state (affects unfocused cursor rendering)
-    pub fn set_focused(&mut self, focused: bool) {
+    /// Set window focus state (affects unfocused cursor rendering).
+    /// Returns `true` if the value changed.
+    pub fn set_focused(&mut self, focused: bool) -> bool {
         if self.is_focused != focused {
             self.is_focused = focused;
             self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+            return true;
         }
+        false
     }
 
     /// Update cursor guide settings
@@ -1067,9 +1080,14 @@ impl CellRenderer {
         ];
     }
 
-    /// Set the visible separator marks for the current frame
-    pub fn set_separator_marks(&mut self, marks: Vec<SeparatorMark>) {
-        self.visible_separator_marks = marks;
+    /// Set the visible separator marks for the current frame.
+    /// Returns `true` if the marks changed.
+    pub fn set_separator_marks(&mut self, marks: Vec<SeparatorMark>) -> bool {
+        if self.visible_separator_marks != marks {
+            self.visible_separator_marks = marks;
+            return true;
+        }
+        false
     }
 
     /// Compute separator color based on exit code and settings
