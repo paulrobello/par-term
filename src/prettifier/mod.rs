@@ -6,11 +6,15 @@
 //! handles display.
 
 pub mod boundary;
+pub mod pipeline;
 pub mod regex_detector;
+pub mod registry;
 pub mod traits;
 pub mod types;
 
 pub use boundary::*;
+pub use pipeline::*;
 pub use regex_detector::*;
+pub use registry::*;
 pub use traits::*;
 pub use types::*;
