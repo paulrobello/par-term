@@ -199,6 +199,14 @@ impl ChatState {
     pub fn add_auto_approved(&mut self, description: String) {
         self.messages.push(ChatMessage::AutoApproved(description));
     }
+
+    /// Clear all chat messages and reset streaming state.
+    pub fn clear(&mut self) {
+        self.messages.clear();
+        self.agent_text_buffer.clear();
+        self.streaming = false;
+        // Don't reset system_prompt_sent — the agent already has it
+    }
 }
 
 /// Extract shell commands from fenced code blocks in text.

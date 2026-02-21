@@ -118,11 +118,13 @@ impl SnapshotData {
 
         let (cursor_col, cursor_row) = terminal.cursor_position();
 
+        let shell = std::env::var("SHELL").ok();
+
         let environment = EnvironmentInfo {
             hostname: terminal.shell_integration_hostname(),
             username: terminal.shell_integration_username(),
             cwd,
-            shell: None,
+            shell,
         };
 
         let (cols, rows) = terminal.dimensions();

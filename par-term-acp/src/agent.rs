@@ -70,6 +70,8 @@ pub enum AgentMessage {
     /// The ACP client is ready — carry the `Arc<JsonRpcClient>` so the UI
     /// can send responses without locking the agent mutex.
     ClientReady(Arc<JsonRpcClient>),
+    /// A tool call was automatically approved (for UI feedback).
+    AutoApproved(String),
 }
 
 // ---------------------------------------------------------------------------
@@ -655,6 +657,15 @@ async fn handle_incoming_messages(
                                         "ACP: auto-approving tool={tool_name} id={request_id} \
                                          chosen_option={option_id:?}"
                                     );
+
+                                    // Notify the UI about the auto-approval
+                                    let description = perm_params
+                                        .tool_call
+                                        .get("title")
+                                        .and_then(|t| t.as_str())
+                                        .unwrap_or(tool_name)
+                                        .to_string();
+                                    let _ = ui_tx.send(AgentMessage::AutoApproved(description));
 
                                     let outcome = RequestPermissionResponse {
                                         outcome: PermissionOutcome {

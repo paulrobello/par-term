@@ -83,6 +83,10 @@ pub enum InspectorAction {
     },
     /// Set the agent's session mode (e.g. "bypassPermissions").
     SetAgentMode(String),
+    /// Cancel the current agent prompt.
+    CancelPrompt,
+    /// Clear all chat messages.
+    ClearChat,
 }
 
 /// Predefined scope options for the dropdown.
@@ -198,6 +202,8 @@ pub struct AIInspectorPanel {
     hover_resize_handle: bool,
     /// Maximum allowed width in pixels (computed from viewport * max_width_ratio).
     max_width: f32,
+    /// Selected agent index for the multi-agent dropdown.
+    selected_agent_index: usize,
 }
 
 impl AIInspectorPanel {
@@ -223,6 +229,7 @@ impl AIInspectorPanel {
             rendered_width: 0.0,
             hover_resize_handle: false,
             max_width: 0.0,
+            selected_agent_index: 0,
         }
     }
 
@@ -273,8 +280,13 @@ impl AIInspectorPanel {
             return InspectorAction::None;
         }
 
-        // Handle Escape key to close
-        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+        // Handle Escape key to close — but only when no text input or popup has focus
+        let any_text_focused = ctx.memory(|m| m.focused().is_some()) && {
+            // Check if the focused widget is a text edit (chat input)
+            let focus_id = ctx.memory(|m| m.focused());
+            focus_id.is_some()
+        };
+        if ctx.input(|i| i.key_pressed(Key::Escape)) && !any_text_focused {
             self.open = false;
             return InspectorAction::Close;
         }
@@ -475,9 +487,14 @@ impl AIInspectorPanel {
                     ui.add_space(4.0);
 
                     // Reserve space for pinned bottom elements:
-                    // chat input ~30, checkbox ~22, action bar ~30, separators+spacing ~20
+                    // chat input ~34-80 (multiline), checkbox ~22, action bar ~30, separators+spacing ~20
+                    let input_lines = if self.agent_status == AgentStatus::Connected {
+                        self.chat.input.lines().count().clamp(1, 6) as f32
+                    } else {
+                        0.0
+                    };
                     let bottom_reserve = if self.agent_status == AgentStatus::Connected {
-                        102.0
+                        90.0 + (input_lines - 1.0).max(0.0) * 14.0
                     } else {
                         36.0
                     };
@@ -828,12 +845,9 @@ impl AIInspectorPanel {
                 };
                 ui.label(icon);
 
-                // Command text (truncated to fit)
+                // Command text (truncated to fit, char-boundary-safe)
                 let cmd_display = if cmd.command.len() > max_cmd_chars {
-                    format!(
-                        "{}...",
-                        &cmd.command[..max_cmd_chars.min(cmd.command.len())]
-                    )
+                    format!("{}...", truncate_chars(&cmd.command, max_cmd_chars))
                 } else {
                     cmd.command.clone()
                 };
@@ -868,7 +882,7 @@ impl AIInspectorPanel {
 
         for (i, cmd) in commands.iter().enumerate() {
             let header_text = if cmd.command.len() > max_chars {
-                format!("{}...", &cmd.command[..max_chars.min(cmd.command.len())])
+                format!("{}...", truncate_chars(&cmd.command, max_chars))
             } else {
                 cmd.command.clone()
             };
@@ -964,12 +978,9 @@ impl AIInspectorPanel {
                 };
                 ui.label(icon);
 
-                // Command text (truncated to fit)
+                // Command text (truncated to fit, char-boundary-safe)
                 let cmd_display = if cmd.command.len() > max_cmd_chars {
-                    format!(
-                        "{}...",
-                        &cmd.command[..max_cmd_chars.min(cmd.command.len())]
-                    )
+                    format!("{}...", truncate_chars(&cmd.command, max_cmd_chars))
                 } else {
                     cmd.command.clone()
                 };
@@ -1023,14 +1034,21 @@ impl AIInspectorPanel {
 
         ui.horizontal(|ui| {
             // Status indicator
-            let (status_icon, status_color, status_text) = match self.agent_status {
-                AgentStatus::Connected => ("*", AGENT_CONNECTED, "Connected"),
-                AgentStatus::Connecting => ("o", Color32::from_rgb(255, 193, 7), "Connecting..."),
-                AgentStatus::Disconnected => ("o", AGENT_DISCONNECTED, "Disconnected"),
-                AgentStatus::Error(_) => ("*", EXIT_FAILURE, "Error"),
+            let (status_icon, status_color, status_text) = match &self.agent_status {
+                AgentStatus::Connected => ("*", AGENT_CONNECTED, "Connected".to_string()),
+                AgentStatus::Connecting => (
+                    "o",
+                    Color32::from_rgb(255, 193, 7),
+                    "Connecting...".to_string(),
+                ),
+                AgentStatus::Disconnected => ("o", AGENT_DISCONNECTED, "Disconnected".to_string()),
+                AgentStatus::Error(msg) => ("*", EXIT_FAILURE, format!("Error: {msg}")),
             };
             ui.label(RichText::new(status_icon).color(status_color).small());
-            ui.label(RichText::new(status_text).color(status_color).small());
+            let status_response = ui.label(RichText::new(&status_text).color(status_color).small());
+            if let AgentStatus::Error(msg) = &self.agent_status {
+                status_response.on_hover_text(msg);
+            }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 match self.agent_status {
@@ -1045,8 +1063,9 @@ impl AIInspectorPanel {
                     }
                     AgentStatus::Disconnected | AgentStatus::Error(_) => {
                         if !available_agents.is_empty() {
-                            // Connect button for first agent (most common case)
-                            let agent = &available_agents[0];
+                            // Clamp selected index to valid range
+                            let idx = self.selected_agent_index.min(available_agents.len() - 1);
+                            let agent = &available_agents[idx];
                             if ui
                                 .button(RichText::new("Connect").small())
                                 .on_hover_text(format!("Connect to {}", agent.name))
@@ -1057,15 +1076,15 @@ impl AIInspectorPanel {
 
                             // Agent selector dropdown (if multiple)
                             if available_agents.len() > 1 {
+                                let selected_name = &available_agents[idx].short_name;
                                 egui::ComboBox::from_id_salt("agent_selector")
-                                    .selected_text(&available_agents[0].short_name)
+                                    .selected_text(selected_name)
                                     .width(80.0)
                                     .show_ui(ui, |ui| {
-                                        for agent in available_agents {
-                                            if ui.selectable_label(false, &agent.name).clicked() {
-                                                action = InspectorAction::ConnectAgent(
-                                                    agent.identity.clone(),
-                                                );
+                                        for (i, agent) in available_agents.iter().enumerate() {
+                                            if ui.selectable_label(i == idx, &agent.name).clicked()
+                                            {
+                                                self.selected_agent_index = i;
                                             }
                                         }
                                     });
@@ -1373,6 +1392,19 @@ impl AIInspectorPanel {
                                 .strong(),
                         );
                         ui.spinner();
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui
+                                .button(
+                                    RichText::new("Cancel")
+                                        .small()
+                                        .color(Color32::from_rgb(255, 100, 100)),
+                                )
+                                .on_hover_text("Cancel current prompt")
+                                .clicked()
+                            {
+                                action = InspectorAction::CancelPrompt;
+                            }
+                        });
                     });
                     ui.add(
                         Label::new(RichText::new(streaming).color(Color32::from_gray(190)))
@@ -1389,6 +1421,19 @@ impl AIInspectorPanel {
                             .small()
                             .italics(),
                     );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(
+                                RichText::new("Cancel")
+                                    .small()
+                                    .color(Color32::from_rgb(255, 100, 100)),
+                            )
+                            .on_hover_text("Cancel current prompt")
+                            .clicked()
+                        {
+                            action = InspectorAction::CancelPrompt;
+                        }
+                    });
                 });
             }
         }
@@ -1396,35 +1441,71 @@ impl AIInspectorPanel {
         action
     }
 
-    /// Render the chat text input and send button.
+    /// Render the chat text input and send/clear buttons.
+    ///
+    /// Multiline: Enter sends, Shift+Enter inserts a newline.
     fn render_chat_input(&mut self, ui: &mut egui::Ui) -> InspectorAction {
         let mut action = InspectorAction::None;
 
+        // Determine input height based on line count (min 1 row, max 6 rows)
+        let line_count = self.chat.input.lines().count().clamp(1, 6);
+        let input_height = 20.0 + (line_count as f32 - 1.0) * 14.0;
+
+        let button_width = 60.0; // space for Send + Clear buttons
+        let input_width = ui.available_width() - button_width;
+
+        // Check for Enter (without Shift) before rendering the TextEdit,
+        // since egui may consume the key event.
+        let enter_pressed = ui.input(|i| {
+            i.key_pressed(Key::Enter)
+                && !i.modifiers.shift
+                && !i.modifiers.ctrl
+                && !i.modifiers.command
+        });
+
         ui.horizontal(|ui| {
-            let input_width = ui.available_width() - 40.0;
             let response = ui.add_sized(
-                [input_width, 24.0],
-                egui::TextEdit::singleline(&mut self.chat.input)
-                    .hint_text("Message agent...")
-                    .desired_width(input_width),
+                [input_width, input_height],
+                egui::TextEdit::multiline(&mut self.chat.input)
+                    .hint_text("Message... (Shift+Enter for newline)")
+                    .desired_width(input_width)
+                    .desired_rows(line_count),
             );
 
-            // Send on Enter
-            let enter_pressed = response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+            let is_focused = response.has_focus();
+            let should_send = is_focused && enter_pressed;
 
-            let send_clicked = ui
-                .button(RichText::new(">").size(14.0))
-                .on_hover_text("Send message (Enter)")
-                .clicked();
+            ui.vertical(|ui| {
+                let send_clicked = ui
+                    .button(RichText::new(">").size(14.0))
+                    .on_hover_text("Send message (Enter)")
+                    .clicked();
 
-            if (enter_pressed || send_clicked) && !self.chat.input.trim().is_empty() {
-                let text = self.chat.input.trim().to_string();
-                self.chat.input.clear();
-                action = InspectorAction::SendPrompt(text);
-            }
+                if ui
+                    .button(RichText::new("C").size(12.0))
+                    .on_hover_text("Clear conversation")
+                    .clicked()
+                {
+                    action = InspectorAction::ClearChat;
+                }
+
+                if (should_send || send_clicked) && !self.chat.input.trim().is_empty() {
+                    let text = self.chat.input.trim().to_string();
+                    self.chat.input.clear();
+                    action = InspectorAction::SendPrompt(text);
+                }
+
+                // Remove the trailing newline that Enter adds before we send
+                if should_send {
+                    // egui inserts the newline from Enter; strip it
+                    while self.chat.input.ends_with('\n') {
+                        self.chat.input.pop();
+                    }
+                }
+            });
 
             // Re-focus input after sending
-            if enter_pressed || send_clicked {
+            if should_send {
                 response.request_focus();
             }
         });
@@ -1444,6 +1525,20 @@ fn format_duration(ms: u64) -> String {
         let seconds = (ms % 60_000) / 1000;
         format!("{minutes}m {seconds}s")
     }
+}
+
+/// Truncate a string to at most `max_chars` characters, respecting UTF-8
+/// char boundaries (never panics on multi-byte characters like emoji or CJK).
+fn truncate_chars(s: &str, max_chars: usize) -> &str {
+    if s.len() <= max_chars {
+        return s;
+    }
+    // Find the last char boundary at or before max_chars bytes
+    let mut end = max_chars.min(s.len());
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }
 
 /// Truncate output text to a maximum number of lines.
@@ -1511,6 +1606,36 @@ mod tests {
         assert!(truncated.ends_with("... (truncated)"));
         // 5 lines + the truncation notice
         assert_eq!(truncated.lines().count(), 6);
+    }
+
+    #[test]
+    fn test_truncate_chars_ascii() {
+        assert_eq!(truncate_chars("hello", 10), "hello");
+        assert_eq!(truncate_chars("hello world", 5), "hello");
+        assert_eq!(truncate_chars("", 5), "");
+    }
+
+    #[test]
+    fn test_truncate_chars_multibyte() {
+        // Each emoji is 4 bytes; slicing at byte 2 would panic without boundary check
+        let emoji = "🚀🎉🌍";
+        let result = truncate_chars(emoji, 4); // first emoji is 4 bytes
+        assert_eq!(result, "🚀");
+        // Ensure we don't panic on a mid-char boundary
+        let result = truncate_chars(emoji, 5);
+        assert_eq!(result, "🚀"); // can't include partial second emoji
+    }
+
+    #[test]
+    fn test_truncate_chars_cjk() {
+        // CJK characters are 3 bytes each
+        let cjk = "你好世界";
+        let result = truncate_chars(cjk, 3);
+        assert_eq!(result, "你");
+        let result = truncate_chars(cjk, 4);
+        assert_eq!(result, "你"); // can't include partial second char
+        let result = truncate_chars(cjk, 6);
+        assert_eq!(result, "你好");
     }
 
     #[test]

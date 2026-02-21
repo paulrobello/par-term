@@ -2606,6 +2606,10 @@ impl WindowState {
                         log::info!("ACP: agent_client ready");
                         self.agent_client = Some(client);
                     }
+                    AgentMessage::AutoApproved(description) => {
+                        self.ai_inspector.chat.add_auto_approved(description);
+                        self.needs_redraw = true;
+                    }
                 }
             }
         }
@@ -4356,6 +4360,26 @@ impl WindowState {
                         }
                     });
                 }
+                self.needs_redraw = true;
+            }
+            InspectorAction::CancelPrompt => {
+                if let Some(agent) = &self.agent {
+                    let agent = agent.clone();
+                    self.runtime.spawn(async move {
+                        let agent = agent.lock().await;
+                        if let Err(e) = agent.cancel().await {
+                            log::error!("ACP: failed to cancel prompt: {e}");
+                        }
+                    });
+                }
+                self.ai_inspector.chat.flush_agent_message();
+                self.ai_inspector
+                    .chat
+                    .add_system_message("Cancelled.".to_string());
+                self.needs_redraw = true;
+            }
+            InspectorAction::ClearChat => {
+                self.ai_inspector.chat.clear();
                 self.needs_redraw = true;
             }
             InspectorAction::None => {}
