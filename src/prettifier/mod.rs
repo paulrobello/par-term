@@ -5,8 +5,12 @@
 //! architecture where `ContentDetector` identifies formats and `ContentRenderer`
 //! handles display.
 
+pub mod boundary;
+pub mod regex_detector;
 pub mod traits;
 pub mod types;
 
+pub use boundary::*;
+pub use regex_detector::*;
 pub use traits::*;
 pub use types::*;
