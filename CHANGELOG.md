@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Major Idle CPU Reduction**: Reduced idle CPU usage from ~103% to ~18-25% through four complementary optimizations: conditional dirty tracking in the renderer (only marks dirty when cell/cursor/scrollbar data actually changes), a fast render path that skips expensive shader passes when content is unchanged, adaptive polling with exponential backoff in refresh tasks (16ms → 250ms when idle), and an explicit sleep in the event loop to prevent macOS spinning
+- **Idle Wakeup Cadence Decoupled from FPS**: Refined macOS idle event-loop throttling so focused idle windows no longer wake at render cadence (`max_fps`, often 60Hz) — idle sleep now uses dedicated focused/unfocused caps to reduce unnecessary CPU usage when the terminal is static
 - **Status Bar Skip Updates When Hidden**: When the status bar is enabled but hidden (fullscreen auto-hide or mouse inactivity timeout), per-frame widget updates, session variable capture, and rendering are now skipped — background polling threads continue so data is fresh when the bar reappears
 - **Inactive Tab Refresh Throttling**: Inactive tabs now poll for terminal updates at a reduced rate, lowering CPU usage when many background tabs are open
 

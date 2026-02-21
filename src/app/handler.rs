@@ -810,7 +810,12 @@ impl WindowState {
             };
             for tab in self.tab_manager.tabs_mut() {
                 tab.stop_refresh_task();
-                tab.start_refresh_task(Arc::clone(&self.runtime), Arc::clone(window), fps, self.config.inactive_tab_fps);
+                tab.start_refresh_task(
+                    Arc::clone(&self.runtime),
+                    Arc::clone(window),
+                    fps,
+                    self.config.inactive_tab_fps,
+                );
             }
             log::info!(
                 "Adjusted refresh rate to {} FPS ({})",
@@ -1231,8 +1236,19 @@ impl WindowState {
             // On macOS, ControlFlow::WaitUntil doesn't always prevent the event loop
             // from spinning (CVDisplayLink and NSRunLoop interactions). Add an explicit
             // sleep when no render is needed to guarantee low CPU usage when idle.
+            //
+            // Important: keep this independent from max_fps. Using frame interval here
+            // causes idle focused windows to wake at render cadence (e.g., 60Hz), which
+            // burns CPU even when nothing is changing.
             if !self.needs_redraw {
-                let sleep_until = next_wake.min(now + frame_interval);
+                const FOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 50;
+                const UNFOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 100;
+                let max_idle_spin_sleep = if self.is_focused {
+                    std::time::Duration::from_millis(FOCUSED_IDLE_SPIN_SLEEP_MS)
+                } else {
+                    std::time::Duration::from_millis(UNFOCUSED_IDLE_SPIN_SLEEP_MS)
+                };
+                let sleep_until = next_wake.min(now + max_idle_spin_sleep);
                 let sleep_dur = sleep_until.saturating_duration_since(now);
                 if sleep_dur > std::time::Duration::from_millis(1) {
                     std::thread::sleep(sleep_dur);
