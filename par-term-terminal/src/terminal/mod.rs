@@ -1,4 +1,4 @@
-use crate::scrollback_metadata::{CommandSnapshot, ScrollbackMark, ScrollbackMetadata};
+use crate::scrollback_metadata::{CommandSnapshot, LineMetadata, ScrollbackMark, ScrollbackMetadata};
 use crate::styled_content::{StyledSegment, extract_styled_segments};
 use anyhow::Result;
 use par_term_config::Theme;
@@ -307,6 +307,11 @@ impl TerminalManager {
     /// Find next prompt mark after the given absolute line (if any).
     pub fn scrollback_next_mark(&self, line: usize) -> Option<usize> {
         self.scrollback_metadata.next_mark(line)
+    }
+
+    /// Retrieve metadata for a specific absolute line index, if available.
+    pub fn scrollback_metadata_for_line(&self, line: usize) -> Option<LineMetadata> {
+        self.scrollback_metadata.metadata_for_line(line)
     }
 
     /// Get command history from the core library (commands tracked via shell integration).

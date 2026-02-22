@@ -592,7 +592,7 @@ fn show_renderer_toggle(
     ui: &mut egui::Ui,
     name: &str,
     badge: &str,
-    toggle: &mut crate::config::prettifier::RendererToggle,
+    toggle: &mut par_term_config::config::prettifier::RendererToggle,
     has_changes: &mut bool,
     changes_this_frame: &mut bool,
 ) {
@@ -706,7 +706,7 @@ fn show_custom_renderers_section(
                 .clicked()
             {
                 settings.config.content_prettifier.custom_renderers.push(
-                    crate::config::prettifier::CustomRendererConfig {
+                    par_term_config::config::prettifier::CustomRendererConfig {
                         id: format!(
                             "custom_{}",
                             settings.config.content_prettifier.custom_renderers.len()

@@ -458,13 +458,11 @@ impl WindowState {
                     PrettifyScope::CommandOutput => {
                         // Use previous_mark/next_mark to find command output boundaries.
                         let output_start = term
-                            .scrollback_metadata
-                            .previous_mark(matched_abs)
+                            .scrollback_previous_mark(matched_abs)
                             .map(|p| p + 1) // output starts after the prompt line
                             .unwrap_or(0);
                         let output_end = term
-                            .scrollback_metadata
-                            .next_mark(matched_abs + 1)
+                            .scrollback_next_mark(matched_abs + 1)
                             .unwrap_or(max_readable);
                         (output_start, output_end)
                     }
@@ -496,9 +494,8 @@ impl WindowState {
                 .unwrap_or(0);
 
             preceding_command = term
-                .scrollback_metadata
-                .previous_mark(first_matched_abs)
-                .and_then(|mark_line| term.scrollback_metadata.metadata_for_line(mark_line))
+                .scrollback_previous_mark(first_matched_abs)
+                .and_then(|mark_line| term.scrollback_metadata_for_line(mark_line))
                 .and_then(|m| m.command);
         } else {
             return (lines_by_abs, None, Vec::new());
