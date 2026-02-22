@@ -1,3 +1,4 @@
+use par_term::config::automation::PrettifyScope;
 use par_term::config::{
     Config, CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
 };
@@ -88,6 +89,13 @@ fn test_all_trigger_action_variants_serialize_deserialize() {
         TriggerActionConfig::SendText {
             text: "hello".into(),
             delay_ms: 100,
+        },
+        TriggerActionConfig::Prettify {
+            format: "json".into(),
+            scope: PrettifyScope::CommandOutput,
+            block_end: None,
+            sub_format: None,
+            command_filter: None,
         },
     ];
 
@@ -283,4 +291,153 @@ fn test_config_with_triggers_and_coprocesses_yaml_roundtrip() {
     let deserialized: Config = serde_yaml::from_str(&yaml).unwrap();
     assert_eq!(config.triggers, deserialized.triggers);
     assert_eq!(config.coprocesses, deserialized.coprocesses);
+}
+
+#[test]
+fn test_prettify_action_yaml_roundtrip() {
+    let action = TriggerActionConfig::Prettify {
+        format: "markdown".into(),
+        scope: PrettifyScope::Block,
+        block_end: Some(r"^```$".into()),
+        sub_format: Some("plantuml".into()),
+        command_filter: Some(r"^myapi\s+".into()),
+    };
+
+    let yaml = serde_yaml::to_string(&action).unwrap();
+    let deserialized: TriggerActionConfig = serde_yaml::from_str(&yaml).unwrap();
+    assert_eq!(action, deserialized);
+}
+
+#[test]
+fn test_prettify_action_defaults() {
+    let yaml = r#"
+type: prettify
+format: json
+"#;
+    let action: TriggerActionConfig = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(
+        action,
+        TriggerActionConfig::Prettify {
+            format: "json".into(),
+            scope: PrettifyScope::CommandOutput, // default
+            block_end: None,
+            sub_format: None,
+            command_filter: None,
+        }
+    );
+}
+
+#[test]
+fn test_prettify_scope_deserialization() {
+    // Line scope
+    let yaml = r#"
+type: prettify
+format: json
+scope: line
+"#;
+    let action: TriggerActionConfig = serde_yaml::from_str(yaml).unwrap();
+    match action {
+        TriggerActionConfig::Prettify { scope, .. } => assert_eq!(scope, PrettifyScope::Line),
+        _ => panic!("expected Prettify"),
+    }
+
+    // Block scope
+    let yaml = r#"
+type: prettify
+format: json
+scope: block
+"#;
+    let action: TriggerActionConfig = serde_yaml::from_str(yaml).unwrap();
+    match action {
+        TriggerActionConfig::Prettify { scope, .. } => assert_eq!(scope, PrettifyScope::Block),
+        _ => panic!("expected Prettify"),
+    }
+
+    // CommandOutput scope
+    let yaml = r#"
+type: prettify
+format: json
+scope: command_output
+"#;
+    let action: TriggerActionConfig = serde_yaml::from_str(yaml).unwrap();
+    match action {
+        TriggerActionConfig::Prettify { scope, .. } => {
+            assert_eq!(scope, PrettifyScope::CommandOutput);
+        }
+        _ => panic!("expected Prettify"),
+    }
+}
+
+#[test]
+fn test_prettify_to_core_action_relays_through_mark_line() {
+    use par_term::config::automation::PRETTIFY_RELAY_PREFIX;
+    use par_term_emu_core_rust::terminal::TriggerAction;
+
+    let action = TriggerActionConfig::Prettify {
+        format: "json".into(),
+        scope: PrettifyScope::CommandOutput,
+        block_end: None,
+        sub_format: None,
+        command_filter: Some(r"^myapi\s+".into()),
+    };
+
+    let core = action.to_core_action();
+
+    // Should relay through MarkLine with __prettify__ label prefix.
+    match core {
+        TriggerAction::MarkLine { label, color } => {
+            assert!(color.is_none());
+            let lbl = label.expect("label should be set");
+            assert!(
+                lbl.starts_with(PRETTIFY_RELAY_PREFIX),
+                "label should start with prettify prefix"
+            );
+            let json = lbl.strip_prefix(PRETTIFY_RELAY_PREFIX).unwrap();
+            let payload: serde_json::Value = serde_json::from_str(json).unwrap();
+            assert_eq!(payload["format"], "json");
+            assert_eq!(payload["scope"], "command_output");
+            assert_eq!(payload["command_filter"], r"^myapi\s+");
+        }
+        other => panic!("expected MarkLine relay, got {:?}", other),
+    }
+}
+
+#[test]
+fn test_prettify_none_format_serializes() {
+    let action = TriggerActionConfig::Prettify {
+        format: "none".into(),
+        scope: PrettifyScope::CommandOutput,
+        block_end: None,
+        sub_format: None,
+        command_filter: Some(r"^bat\s+".into()),
+    };
+
+    let yaml = serde_yaml::to_string(&action).unwrap();
+    let deserialized: TriggerActionConfig = serde_yaml::from_str(&yaml).unwrap();
+    assert_eq!(action, deserialized);
+
+    match deserialized {
+        TriggerActionConfig::Prettify { format, .. } => assert_eq!(format, "none"),
+        _ => panic!("expected Prettify"),
+    }
+}
+
+#[test]
+fn test_trigger_with_prettify_action_roundtrip() {
+    let trigger = TriggerConfig {
+        name: "Prettify myapi output".to_string(),
+        pattern: r#"^\{"api_version":"#.to_string(),
+        enabled: true,
+        actions: vec![TriggerActionConfig::Prettify {
+            format: "json".into(),
+            scope: PrettifyScope::CommandOutput,
+            block_end: None,
+            sub_format: None,
+            command_filter: None,
+        }],
+    };
+
+    let yaml = serde_yaml::to_string(&trigger).unwrap();
+    let deserialized: TriggerConfig = serde_yaml::from_str(&yaml).unwrap();
+    assert_eq!(trigger, deserialized);
 }

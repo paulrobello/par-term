@@ -17,6 +17,10 @@ Thumbs.db
 log.txt
 **/flamegraph.svg
 
+# Step runner lock files and logs
+feature-spec/.step*.lock
+step-logs/
+
 # Gemini/Claude temporary files
 *-mcp.json
 .gemini-clipboard

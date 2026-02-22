@@ -316,6 +316,14 @@ pub struct ClaudeCodeConfig {
     /// Enable diff rendering in Claude Code output.
     #[serde(default = "default_true")]
     pub render_diffs: bool,
+
+    /// Automatically render content when a collapsed block is expanded (Ctrl+O).
+    #[serde(default = "default_true")]
+    pub auto_render_on_expand: bool,
+
+    /// Show format badges on collapsed blocks (e.g., "MD", "{} JSON").
+    #[serde(default = "default_true")]
+    pub show_format_badges: bool,
 }
 
 impl Default for ClaudeCodeConfig {
@@ -324,6 +332,8 @@ impl Default for ClaudeCodeConfig {
             auto_detect: true,
             render_markdown: true,
             render_diffs: true,
+            auto_render_on_expand: true,
+            show_format_badges: true,
         }
     }
 }
@@ -491,6 +501,10 @@ pub struct ClaudeCodeConfigOverride {
     pub render_markdown: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub render_diffs: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_render_on_expand: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub show_format_badges: Option<bool>,
 }
 
 // ---------------------------------------------------------------------------
@@ -656,6 +670,10 @@ fn merge_claude_code(
         auto_detect: p.auto_detect.unwrap_or(global.auto_detect),
         render_markdown: p.render_markdown.unwrap_or(global.render_markdown),
         render_diffs: p.render_diffs.unwrap_or(global.render_diffs),
+        auto_render_on_expand: p
+            .auto_render_on_expand
+            .unwrap_or(global.auto_render_on_expand),
+        show_format_badges: p.show_format_badges.unwrap_or(global.show_format_badges),
     }
 }
 
@@ -716,6 +734,8 @@ mod tests {
         assert!(config.auto_detect);
         assert!(config.render_markdown);
         assert!(config.render_diffs);
+        assert!(config.auto_render_on_expand);
+        assert!(config.show_format_badges);
     }
 
     #[test]

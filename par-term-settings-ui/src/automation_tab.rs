@@ -81,6 +81,7 @@ fn action_type_label(action: &TriggerActionConfig) -> &'static str {
         TriggerActionConfig::RunCommand { .. } => "Run Command",
         TriggerActionConfig::PlaySound { .. } => "Play Sound",
         TriggerActionConfig::SendText { .. } => "Send Text",
+        TriggerActionConfig::Prettify { .. } => "Prettify",
     }
 }
 
@@ -116,6 +117,13 @@ fn default_action_for_type(type_index: usize) -> TriggerActionConfig {
             text: String::new(),
             delay_ms: 0,
         },
+        7 => TriggerActionConfig::Prettify {
+            format: "json".to_string(),
+            scope: crate::config::automation::PrettifyScope::default(),
+            block_end: None,
+            sub_format: None,
+            command_filter: None,
+        },
         _ => TriggerActionConfig::Highlight {
             fg: None,
             bg: Some([255, 255, 0]),
@@ -132,6 +140,7 @@ const ACTION_TYPE_NAMES: &[&str] = &[
     "Run Command",
     "Play Sound",
     "Send Text",
+    "Prettify",
 ];
 
 // ============================================================================
@@ -522,6 +531,54 @@ fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionConfig) {
             ui.add(egui::TextEdit::singleline(text).desired_width(100.0));
             ui.label("delay:");
             ui.add(egui::DragValue::new(delay_ms).range(0..=10000).speed(10.0));
+        }
+        TriggerActionConfig::Prettify {
+            format,
+            scope,
+            block_end,
+            sub_format,
+            command_filter,
+        } => {
+            ui.label("format:");
+            ui.add(egui::TextEdit::singleline(format).desired_width(60.0));
+            ui.label("scope:");
+            egui::ComboBox::from_id_salt("prettify_scope")
+                .selected_text(match scope {
+                    crate::config::automation::PrettifyScope::Line => "Line",
+                    crate::config::automation::PrettifyScope::Block => "Block",
+                    crate::config::automation::PrettifyScope::CommandOutput => "Command Output",
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        scope,
+                        crate::config::automation::PrettifyScope::Line,
+                        "Line",
+                    );
+                    ui.selectable_value(
+                        scope,
+                        crate::config::automation::PrettifyScope::Block,
+                        "Block",
+                    );
+                    ui.selectable_value(
+                        scope,
+                        crate::config::automation::PrettifyScope::CommandOutput,
+                        "Command Output",
+                    );
+                });
+
+            // Optional fields shown inline.
+            if let Some(be) = block_end {
+                ui.label("end:");
+                ui.add(egui::TextEdit::singleline(be).desired_width(60.0));
+            }
+            if let Some(sf) = sub_format {
+                ui.label("sub:");
+                ui.add(egui::TextEdit::singleline(sf).desired_width(60.0));
+            }
+            if let Some(cf) = command_filter {
+                ui.label("cmd filter:");
+                ui.add(egui::TextEdit::singleline(cf).desired_width(60.0));
+            }
         }
     }
 }

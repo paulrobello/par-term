@@ -731,6 +731,15 @@ impl MarkdownRenderer {
         Self { config }
     }
 
+    /// Check if a fenced code block language should be sub-rendered by another renderer.
+    ///
+    /// Returns `true` for languages that have dedicated renderers in the registry
+    /// (e.g., diagram languages like Mermaid, PlantUML). This enables multi-format
+    /// handling where Markdown content embeds code blocks in other supported formats.
+    pub fn should_sub_render(language: &str, registry: &RendererRegistry) -> bool {
+        registry.get_renderer(language).is_some()
+    }
+
     /// Render a single line, classifying it as a block-level element and
     /// then applying inline formatting within.
     fn render_line(&self, line: &str, renderer_config: &RendererConfig) -> StyledLine {

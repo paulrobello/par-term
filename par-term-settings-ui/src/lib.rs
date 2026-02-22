@@ -47,6 +47,7 @@ pub mod effects_tab;
 pub mod input_tab;
 pub mod integrations_tab;
 pub mod notifications_tab;
+pub mod prettifier_tab;
 pub mod profiles_tab;
 pub mod progress_bar_tab;
 pub mod quick_settings;
@@ -1663,6 +1664,9 @@ impl SettingsUI {
             }
             SettingsTab::Actions => {
                 actions_tab::show(ui, self, changes_this_frame, &mut collapsed);
+            }
+            SettingsTab::ContentPrettifier => {
+                prettifier_tab::show(ui, self, changes_this_frame, &mut collapsed);
             }
             SettingsTab::Arrangements => {
                 arrangements_tab::show(ui, self, changes_this_frame, &mut collapsed);
