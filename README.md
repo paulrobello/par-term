@@ -697,6 +697,12 @@ Essential feature for emacs/vim users.
 - **Regex Detection**: Automatic detection of URLs in terminal output.
 - **Interactive Links**: Ctrl+Click to open links in your default browser, with hover highlighting and tooltips.
 
+### Assistant Panel & ACP Agents
+- **Assistant Panel**: DevTools-style side panel for terminal state inspection and ACP agent chat.
+- **Bundled + Custom ACP Agents**: Built-in agent definitions plus custom agents via `config.yaml` or `~/.config/par-term/agents/*.toml`.
+- **Per-Agent Environment Variables**: Configure local/provider-specific env vars (for example Ollama/OpenRouter endpoints) for each agent.
+- **Local Claude via Ollama**: Supports `claude-agent-acp` with Ollama Claude-compatible launch mode (see `docs/ASSISTANT_PANEL.md`).
+
 ## Documentation
 
 ### Getting Started
@@ -723,7 +729,7 @@ Essential feature for emacs/vim users.
 - **[SSH Host Management](docs/SSH.md)** - SSH quick connect, host discovery, and SSH profiles.
 - **[Status Bar](docs/STATUS_BAR.md)** - Configurable status bar with widgets and system monitoring.
 - **[Tabs](docs/TABS.md)** - Tab management, duplicate tab, and tab behavior.
-- **[Assistant Panel](docs/ASSISTANT_PANEL.md)** - AI agent integration with terminal state inspection.
+- **[Assistant Panel](docs/ASSISTANT_PANEL.md)** - ACP agent chat, custom agents (UI/TOML/YAML), shader assistant, and Claude+Ollama setup/troubleshooting.
 - **[File Transfers](docs/FILE_TRANSFERS.md)** - OSC 1337 file transfers with shell utilities.
 - **[Self-Update](docs/SELF_UPDATE.md)** - In-place update capability via CLI and Settings UI.
 - **[Debug Logging](docs/LOGGING.md)** - Configurable log levels and troubleshooting.
@@ -761,7 +767,12 @@ cargo run
 # Build optimized release version
 cargo build --release
 ./target/release/par-term
+
+# Install Claude ACP bridge for Assistant Panel (Claude connector)
+make install-acp
 ```
+
+> **Note:** The legacy package `@zed-industries/claude-code-acp` was renamed/deprecated upstream. Use `@zed-industries/claude-agent-acp` (`claude-agent-acp` binary).
 
 ### macOS Bundle
 
@@ -770,6 +781,12 @@ To create a native macOS `.app` bundle with a dock icon:
 ```bash
 make bundle
 make run-bundle
+```
+
+To build and install the app bundle plus the CLI binary and Claude ACP bridge in one step:
+
+```bash
+make bundle-install
 ```
 
 ### Linux Dependencies

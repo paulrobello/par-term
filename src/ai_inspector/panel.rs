@@ -6,7 +6,7 @@
 
 use egui::{Color32, Context, CursorIcon, Frame, Id, Key, Label, Order, Pos2, RichText, Stroke};
 
-use crate::ai_inspector::chat::{parse_text_segments, ChatMessage, ChatState, TextSegment};
+use crate::ai_inspector::chat::{ChatMessage, ChatState, TextSegment, parse_text_segments};
 use crate::ai_inspector::snapshot::{CommandEntry, SnapshotData, SnapshotScope};
 use crate::config::Config;
 use par_term_acp::{AgentConfig, AgentStatus};
@@ -212,6 +212,10 @@ pub struct AIInspectorPanel {
     max_width: f32,
     /// Selected agent index for the multi-agent dropdown.
     selected_agent_index: usize,
+    /// Display name of the most recently requested/connected agent.
+    pub connected_agent_name: Option<String>,
+    /// Identity of the most recently requested/connected agent.
+    pub connected_agent_identity: Option<String>,
 }
 
 impl AIInspectorPanel {
@@ -238,6 +242,8 @@ impl AIInspectorPanel {
             hover_resize_handle: false,
             max_width: 0.0,
             selected_agent_index: 0,
+            connected_agent_name: None,
+            connected_agent_identity: None,
         }
     }
 
@@ -1047,18 +1053,35 @@ impl AIInspectorPanel {
 
         ui.horizontal(|ui| {
             // Status indicator
+            let connected_label = self
+                .connected_agent_name
+                .as_deref()
+                .or(self.connected_agent_identity.as_deref())
+                .unwrap_or("agent");
             let (status_icon, status_color, status_text) = match &self.agent_status {
-                AgentStatus::Connected => ("*", AGENT_CONNECTED, "Connected".to_string()),
+                AgentStatus::Connected => (
+                    "*",
+                    AGENT_CONNECTED,
+                    format!("Connected: {connected_label}"),
+                ),
                 AgentStatus::Connecting => (
                     "o",
                     Color32::from_rgb(255, 193, 7),
-                    "Connecting...".to_string(),
+                    format!("Connecting: {connected_label}..."),
                 ),
                 AgentStatus::Disconnected => ("o", AGENT_DISCONNECTED, "Disconnected".to_string()),
                 AgentStatus::Error(msg) => ("*", EXIT_FAILURE, format!("Error: {msg}")),
             };
             ui.label(RichText::new(status_icon).color(status_color).small());
-            let status_response = ui.label(RichText::new(&status_text).color(status_color).small());
+            let mut status_response =
+                ui.label(RichText::new(&status_text).color(status_color).small());
+            if matches!(
+                self.agent_status,
+                AgentStatus::Connected | AgentStatus::Connecting
+            ) && let Some(identity) = &self.connected_agent_identity
+            {
+                status_response = status_response.on_hover_text(format!("Identity: {identity}"));
+            }
             if let AgentStatus::Error(msg) = &self.agent_status {
                 status_response.on_hover_text(msg);
             }

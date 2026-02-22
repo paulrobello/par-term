@@ -18,12 +18,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Clear Conversation Button**: Added a "C" button next to the send button to clear all chat messages without disconnecting from the agent
 - **Auto-Approval Chat Notifications**: Auto-approved tool calls (read-only tools, safe path writes, YOLO mode) now show as "Auto-approved: ..." entries in the chat history so users have visibility into what the agent is doing
 - **Shell Detection in Snapshots**: Terminal state snapshots now populate the shell field from the `$SHELL` environment variable instead of leaving it blank
+- **Custom ACP Agents in Settings/UI Config**: Assistant settings now support managing custom ACP agents via `ai_inspector_custom_agents`, including per-agent environment variables for local/provider-specific setups (for example Ollama)
+- **Claude + Ollama ACP Documentation**: Expanded Assistant Panel docs with Zed ACP bridge (`claude-agent-acp`) setup, `ollama launch claude` workflow, custom-agent examples, and troubleshooting notes
+- **ACP Harness CLI for Agent Debugging**: Added `par-term-acp-harness` plus `make acp-harness` / `make acp-smoke` targets to reproduce Assistant Panel ACP sessions (including shader-context injection, tool-call logging, transcripts, and Claude+Ollama debugging)
+
+### Changed
+
+- **Claude ACP Bridge Package Name**: User-facing install commands and bundled docs now use `@zed-industries/claude-agent-acp` / `claude-agent-acp` (the upstream replacement for deprecated `@zed-industries/claude-code-acp`)
+- **Bundle Install Includes ACP Bridge**: `make bundle-install` now installs the macOS app bundle, CLI binary, and Claude ACP bridge in one command; CI/release workflows also install/verify the bridge
 
 ### Fixed
 
 - **Input and Shader Lag After CPU Optimizations**: Fixed responsiveness regressions introduced by idle-throttling changes — active tabs/panes no longer use exponential refresh backoff (backoff now applies only to inactive tabs), and the event loop no longer performs idle sleep immediately after queuing a redraw, restoring smooth typing response and shader animation cadence
 - **ACP Agent Connection in App Bundle**: Fixed agent connection failures when running from macOS app bundle — the login shell didn't have nvm/homebrew in PATH. Now resolves the full shell PATH via interactive login shell and passes it to the agent process
 - **Nested Claude Code Session Blocking**: Fixed agent handshake timeout caused by `CLAUDECODE` environment variable leaking into the spawned agent process, which refused to start as a "nested session"
+- **Claude ACP Local Backend Tool Misfires**: Hardened Claude ACP/Ollama sessions against unsupported `Skill`/task tool misuse, improved prompt guidance for local models, and added compatibility handling for XML-style `config_update` tool output emitted by some models
+- **ACP Shader Task Completion Drift (Claude+Ollama)**: Improved Assistant Panel and harness recovery for local backend tool failures and partial completions — detects incomplete shader activation requests (shader written but no `config_update`), retries with stricter bounded ACP guidance, and tracks `config_update` completion from tool-call events to avoid false negatives
 - **Assistant Panel Input Pushed Off-Screen**: Fixed the chat input and controls being invisible because `egui::Area` reported near-infinite available height — added `set_max_height` constraint so the scroll area doesn't consume all space
 - **UTF-8 Panic in Command Truncation**: Fixed potential panic when truncating command text containing multi-byte UTF-8 characters (emoji, CJK, accented characters) — added char-boundary-aware `truncate_chars()` helper used in Timeline, Tree, and List Detail views
 - **Escape Key Closes Panel During Input**: Fixed Escape key unconditionally closing the assistant panel even when typing in the chat input or when a dropdown is open — Escape now only closes the panel when no widget has focus

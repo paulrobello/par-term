@@ -82,6 +82,44 @@ where
     }
 }
 
+fn default_acp_protocol() -> String {
+    "acp".to_string()
+}
+
+fn default_acp_type() -> String {
+    "coding".to_string()
+}
+
+/// Action metadata for a custom ACP agent entry.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CustomAcpAgentActionConfig {
+    #[serde(default)]
+    pub command: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// User-defined ACP agent configuration sourced from `config.yaml`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CustomAcpAgentConfig {
+    pub identity: String,
+    pub name: String,
+    pub short_name: String,
+    #[serde(default = "default_acp_protocol")]
+    pub protocol: String,
+    #[serde(default = "default_acp_type")]
+    pub r#type: String,
+    #[serde(default)]
+    pub active: Option<bool>,
+    pub run_command: HashMap<String, String>,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+    #[serde(default)]
+    pub install_command: Option<String>,
+    #[serde(default)]
+    pub actions: HashMap<String, HashMap<String, CustomAcpAgentActionConfig>>,
+}
+
 /// Configuration for the terminal emulator
 /// Aligned with par-tui-term naming conventions for consistency
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1829,6 +1867,13 @@ pub struct Config {
     /// Allow the AI agent to write input to the terminal (drive terminal)
     #[serde(default = "crate::defaults::ai_inspector_agent_terminal_access")]
     pub ai_inspector_agent_terminal_access: bool,
+
+    /// Additional ACP agents defined directly in `config.yaml`.
+    ///
+    /// Entries here are merged into discovered agents and override agents with
+    /// the same `identity`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ai_inspector_custom_agents: Vec<CustomAcpAgentConfig>,
 }
 
 impl Default for Config {
@@ -2174,6 +2219,7 @@ impl Default for Config {
             ai_inspector_auto_approve: crate::defaults::ai_inspector_auto_approve(),
             ai_inspector_agent_terminal_access: crate::defaults::ai_inspector_agent_terminal_access(
             ),
+            ai_inspector_custom_agents: Vec::new(),
         }
     }
 }

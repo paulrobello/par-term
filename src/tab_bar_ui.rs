@@ -193,12 +193,7 @@ impl TabBarUI {
         // Show the chevron dropdown when there's menu content:
         // profiles to pick from, or the AI assistant toggle.
         let show_chevron = !profiles.is_empty() || config.ai_inspector_enabled;
-        let new_tab_btn_width = 28.0
-            + if show_chevron {
-                CHEVRON_RESERVED
-            } else {
-                0.0
-            };
+        let new_tab_btn_width = 28.0 + if show_chevron { CHEVRON_RESERVED } else { 0.0 };
         let scroll_btn_width = 24.0;
 
         let bar_bg = config.tab_bar_background;

@@ -30,7 +30,7 @@ pub mod watcher;
 
 // Re-export main types for convenience
 pub use cell::Cell;
-pub use config::{Config, substitute_variables};
+pub use config::{Config, CustomAcpAgentActionConfig, CustomAcpAgentConfig, substitute_variables};
 pub use scrollback_mark::ScrollbackMark;
 pub use themes::{Color, Theme};
 

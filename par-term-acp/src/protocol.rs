@@ -107,6 +107,8 @@ pub struct SessionNewParams {
     pub cwd: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<Vec<Value>>,
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    pub meta: Option<Value>,
 }
 
 /// Parameters for the `session/load` request.

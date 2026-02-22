@@ -1504,6 +1504,7 @@ impl WindowManager {
         // Option<Option<String>>: None = no change attempted, Some(None) = success, Some(Some(err)) = error
         let mut last_shader_result: Option<Option<String>> = None;
         let mut last_cursor_shader_result: Option<Option<String>> = None;
+        let mut ai_agent_list_changed = false;
 
         for window_state in self.windows.values_mut() {
             // Detect what changed
@@ -1511,6 +1512,11 @@ impl WindowManager {
 
             // Update the config
             window_state.config = config.clone();
+
+            if changes.ai_inspector_custom_agents {
+                window_state.refresh_available_agents();
+                ai_agent_list_changed = true;
+            }
 
             // Rebuild keybinding registry if keybindings changed
             if changes.keybindings {
@@ -1999,6 +2005,17 @@ impl WindowManager {
                 tab.cache.cells = None;
             }
             window_state.needs_redraw = true;
+        }
+
+        if ai_agent_list_changed
+            && let Some(sw) = &mut self.settings_window
+            && let Some(ws) = self.windows.values().next()
+        {
+            sw.settings_ui.available_agent_ids = ws
+                .available_agents
+                .iter()
+                .map(|a| (a.identity.clone(), a.name.clone()))
+                .collect();
         }
 
         // Restart dynamic profile manager if sources changed

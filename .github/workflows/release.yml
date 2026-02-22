@@ -25,6 +25,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install ACP bridge
+        run: |
+          npm install -g @zed-industries/claude-agent-acp
+          command -v claude-agent-acp
+
       - name: Verify par-term-emu-core-rust is not a path dependency
         run: |
           echo "Checking for par-term-emu-core-rust path dependency in all Cargo.toml files..."

@@ -23,6 +23,9 @@ The Assistant Panel is a DevTools-style right-side panel for terminal state insp
 - [JSON Export](#json-export)
 - [Bundled Agent Configurations](#bundled-agent-configurations)
 - [Custom Agent Configurations](#custom-agent-configurations)
+  - [Settings UI Management](#settings-ui-management)
+  - [Claude Code + Ollama (Local) Example](#claude-code--ollama-local-example)
+  - [Troubleshooting Claude + Ollama](#troubleshooting-claude--ollama)
 - [Shader Assistant](#shader-assistant)
   - [Context Triggers](#context-triggers)
   - [Injected Context](#injected-context)
@@ -130,6 +133,12 @@ The connection bar sits at the top of the panel and shows:
 - **Agent selector dropdown**: Appears when multiple agents are available, allowing you to choose which agent to connect to
 - **Install buttons**: For agents whose ACP connector binary is not found in `PATH`, a one-click install button pastes the install command into the terminal
 
+### Connector Installation Notes
+
+- **Claude Code ACP bridge**: Use `@zed-industries/claude-agent-acp` (binary: `claude-agent-acp`)
+- **Deprecated package**: `@zed-industries/claude-code-acp` has been renamed/deprecated upstream
+- **From source builds**: `make install-acp` installs the Claude ACP bridge, and `make bundle-install` now installs the macOS app bundle, CLI binary, and ACP bridge together
+
 ### Chat Interface
 
 The chat area displays messages with visual differentiation by type:
@@ -165,6 +174,8 @@ When an agent requests permission for a tool call (such as writing a file or run
 - A **Deny** button to reject the request
 
 Writes to the par-term configuration and shader directories are auto-approved because these are safe operations managed by par-term itself.
+
+For Claude-compatible local backends, par-term also blocks unsupported `Skill` tool permission requests that some models may emit incorrectly.
 
 ### Auto-Context Feeding
 
@@ -256,7 +267,7 @@ par-term ships with 8 pre-configured ACP agent definitions embedded at compile t
 
 | Agent | Identity | Connector Command | Install Command |
 |-------|----------|-------------------|-----------------|
-| Claude Code | `claude.com` | `claude-code-acp` | `npm install -g @zed-industries/claude-code-acp` |
+| Claude Code | `claude.com` | `claude-agent-acp` | `npm install -g @zed-industries/claude-agent-acp` |
 | Codex CLI (OpenAI) | `openai.com` | `npx @zed-industries/codex-acp` | `npm install -g @zed-industries/codex-acp` |
 | Gemini CLI | `geminicli.com` | `gemini --experimental-acp` | - |
 | Copilot | `copilot.github.com` | `copilot --acp` | - |
@@ -279,6 +290,11 @@ You can define custom agents or override bundled agents by placing TOML files in
 
 Each `.toml` file defines a single agent. User-defined agents with the same `identity` as a bundled agent replace the bundled definition.
 
+You can manage these from either:
+
+- **Settings UI**: Assistant tab custom agent editor (recommended for most users)
+- **Files on disk**: TOML files in `~/.config/par-term/agents/` or `ai_inspector_custom_agents` in `config.yaml`
+
 ### Agent TOML Format
 
 ```toml
@@ -291,6 +307,13 @@ type = "coding"
 # active = false
 # Optional: install command shown when connector is missing
 # install_command = "pip install my-agent-acp"
+# Optional: environment variables passed to the agent process
+# Useful for Ollama/OpenRouter/local provider endpoints
+#
+#[env]
+#ANTHROPIC_BASE_URL = "http://127.0.0.1:11434"
+#ANTHROPIC_AUTH_TOKEN = "ollama"
+#ANTHROPIC_API_KEY = ""
 
 [run_command]
 # Platform-specific or wildcard run commands
@@ -311,6 +334,7 @@ type = "coding"
 | `type` | No | Agent type (default: `"coding"`) |
 | `active` | No | Whether the agent appears in the list (default: `true`) |
 | `install_command` | No | Command to install the ACP connector |
+| `env` | No | Environment variables injected into the agent subprocess |
 | `run_command` | Yes | Platform-keyed table of connector commands |
 
 Agent discovery loads definitions in this order:
@@ -318,8 +342,108 @@ Agent discovery loads definitions in this order:
 1. **Embedded defaults** (compiled into par-term)
 2. **Bundled directory** (next to the executable, for installed app bundles)
 3. **User config directory** (`~/.config/par-term/agents/`)
+4. **`config.yaml`** (`ai_inspector_custom_agents`)
 
 Later sources override earlier ones by `identity`. Inactive agents (`active = false`) are filtered out after merging.
+
+### `config.yaml` Custom Agents
+
+You can also define custom ACP agents directly in `config.yaml` using `ai_inspector_custom_agents`:
+
+```yaml
+ai_inspector_custom_agents:
+  - identity: "local.my-agent"
+    name: "My Local ACP Agent"
+    short_name: "myagent"
+    protocol: "acp"
+    type: "coding"
+    run_command:
+      "*": "my-agent-acp"
+    env:
+      ANTHROPIC_BASE_URL: "http://127.0.0.1:11434"
+      ANTHROPIC_AUTH_TOKEN: "ollama"
+      ANTHROPIC_API_KEY: ""
+    install_command: "brew install my-agent"
+```
+
+### Settings UI Management
+
+The **Settings > Assistant** tab includes a custom ACP agent manager for adding, editing, and removing entries in `ai_inspector_custom_agents`.
+
+- **Protocol**: par-term currently supports `acp` only; the UI shows this as a read-only field
+- **Type**: typically `coding` for terminal/code agents
+- **Run command**: the connector binary/command par-term launches (for example `claude-agent-acp`)
+- **Install command**: optional command used by the Assistant Panel install button when the connector is missing
+- **Environment variables**: add key/value pairs (for example `ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL`) using the **Add Env Var** button
+- **Tooltips**: field labels include tooltips to explain the purpose of each input
+
+If you edit custom agents while the app is already running, close/reopen the Assistant Panel and reconnect the agent. If the selector still shows stale entries, restart par-term to ensure the latest config is loaded.
+
+### Claude Code + Ollama (Local) Example
+
+You can use the Zed Claude ACP bridge with Ollama's Claude-compatible launch mode. The basic flow is:
+
+1. Install the ACP bridge used by par-term:
+
+```bash
+npm install -g @zed-industries/claude-agent-acp
+```
+
+2. Start Ollama's Claude-compatible endpoint (replace the model if desired):
+
+```bash
+ollama launch claude --model qwen3-coder:latest
+```
+
+3. Add a custom ACP agent in `config.yaml` (or via Settings > Assistant):
+
+```yaml
+ai_inspector_custom_agents:
+  - identity: "claude-ollama.local"
+    name: "Claude (Ollama Local)"
+    short_name: "claude-ollama"
+    protocol: "acp"
+    type: "coding"
+    run_command:
+      "*": "claude-agent-acp"
+    install_command: "npm install -g @zed-industries/claude-agent-acp"
+    env:
+      ANTHROPIC_BASE_URL: "http://127.0.0.1:11434"
+      ANTHROPIC_MODEL: "qwen3-coder:latest"
+      ANTHROPIC_API_KEY: "ollama"
+      ANTHROPIC_AUTH_TOKEN: "ollama"
+      # Use an isolated Claude config dir to avoid loading ~/.claude defaults/CLAUDE.md
+      CLAUDE_CONFIG_DIR: "/Users/your-user/.claude-parterm-ollama"
+```
+
+4. (Recommended) Pre-create the isolated Claude config directory and set a matching model hint:
+
+```bash
+mkdir -p ~/.claude-parterm-ollama
+cat > ~/.claude-parterm-ollama/settings.json <<'EOF'
+{
+  "model": "qwen3-coder:latest"
+}
+EOF
+```
+
+5. In par-term, open the Assistant Panel, select `Claude (Ollama Local)`, and connect.
+
+Notes:
+
+- The Claude ACP bridge (`claude-agent-acp`) is still required; par-term is the ACP host, while the bridge is the Claude-specific ACP adapter subprocess.
+- Some local models do not reliably report provider/model identity. par-term asks them to avoid guessing, so responses may describe capabilities instead of naming the exact model.
+
+### Troubleshooting Claude + Ollama
+
+If the agent connects but behaves incorrectly, check these common issues:
+
+- **Connected but no useful response / generic fallback replies**: Verify `ollama launch claude --model ...` is still running and the model exists locally. Re-run the launch command and reconnect the agent.
+- **Wrong or missing model identity in chat**: This can be a wrapper/model limitation. Confirm the actual model via your `ANTHROPIC_MODEL` env and `~/.claude-parterm-ollama/settings.json` instead of relying on the chat response.
+- **Agent tries unsupported `Skill` / `TodoWrite` / task tools**: par-term now hardens Claude ACP sessions and blocks unsupported `Skill` calls, but reconnect after updating par-term to ensure the new behavior is active.
+- **Agent emits raw XML-like tool tags (`<function=...>`)**: Some local models produce tool-call markup instead of ACP tool calls. par-term includes a compatibility fallback for `mcp__par-term-config__config_update`, but normal ACP tool calls are still preferred.
+- **Custom agent not visible in selector**: Close/reopen the Assistant Panel, then reconnect. If the app was open during config edits and still shows stale state, restart par-term.
+- **Unexpected Claude behavior from `~/.claude/CLAUDE.md`**: Set `CLAUDE_CONFIG_DIR` to a dedicated directory for par-term/Ollama sessions to isolate prompts/settings from your default Claude CLI config.
 
 ## Shader Assistant
 
@@ -340,6 +464,8 @@ When triggered, the following context block is prepended to the agent prompt:
 - **Available shaders**: List of `.glsl`, `.frag`, and `.shader` files in the shaders directory, classified into background and cursor categories (cursor shaders have filenames starting with `cursor_`)
 - **Debug file paths**: Location of transpiled WGSL output (`/tmp/par_term_<name>_shader.wgsl`) and wrapped GLSL (`/tmp/par_term_debug_wrapped.glsl`)
 - **Available uniforms**: All Shadertoy-compatible uniforms (`iTime`, `iResolution`, `iMouse`, `iChannel0-4`) plus cursor-specific extras (`iCurrentCursor`, `iPreviousCursor`, `iTimeCursorChange`)
+- **GLSL compatibility and coordinate rules**: Guidance on sampler argument limitations, UV normalization/clamping, pixel-space vs UV-space handling, and Y-flip pitfalls
+- **Channel placeholder behavior**: Guidance that unset `iChannel0-3` are transparent 1x1 placeholders and how to detect real textures via `iChannelResolution`
 - **Minimal shader template**: A ready-to-use GLSL template with `mainImage` entry point
 - **How to apply changes**: Instructions for using the `config_update` MCP tool to activate shaders without editing `config.yaml` directly
 - **Available config keys**: All background and cursor shader configuration keys with their types
@@ -390,7 +516,9 @@ graph TD
 
 ## Configuration
 
-All Assistant Panel settings are available in the Settings UI under the **Assistant** tab. The following configuration options are supported in `config.yaml`:
+All Assistant Panel settings are available in the Settings UI under the **Assistant** tab. The custom ACP agent editor in this tab manages `ai_inspector_custom_agents` (including per-agent environment variables) and writes the entries to `config.yaml`.
+
+The following configuration options are supported in `config.yaml`:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -407,6 +535,7 @@ All Assistant Panel settings are available in the Settings UI under the **Assist
 | `ai_inspector_context_max_lines` | int | `200` | Maximum output lines sent per auto-context update |
 | `ai_inspector_auto_approve` | bool | `false` | Auto-approve all agent permission requests (YOLO mode) |
 | `ai_inspector_agent_terminal_access` | bool | `false` | Allow the agent to write directly to the terminal |
+| `ai_inspector_custom_agents` | list | `[]` | Extra ACP agent definitions merged into discovery (override by `identity`) |
 
 **Example configuration:**
 
@@ -419,6 +548,14 @@ ai_inspector_auto_launch: true
 ai_inspector_auto_context: false
 ai_inspector_auto_approve: false
 ai_inspector_agent_terminal_access: false
+ai_inspector_custom_agents:
+  - identity: "local.my-agent"
+    name: "My Local ACP Agent"
+    short_name: "myagent"
+    run_command:
+      "*": "my-agent-acp"
+    env:
+      EXAMPLE_FLAG: "1"
 ```
 
 ## Related Documentation

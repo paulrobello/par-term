@@ -53,6 +53,25 @@ pub fn should_inject_shader_context(message: &str, config: &Config) -> bool {
     SHADER_KEYWORDS.iter().any(|kw| lower.contains(kw))
 }
 
+/// Returns `true` when the user message appears to request that a shader be
+/// activated / set as current (not just discussed or edited).
+pub fn is_shader_activation_request(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    let mentions_shader = lower.contains("shader");
+    if !mentions_shader {
+        return false;
+    }
+
+    lower.contains("set shader")
+        || lower.contains("active shader")
+        || lower.contains("activate shader")
+        || lower.contains("set that shader")
+        || lower.contains("set the shader")
+        || lower.contains("set as the active shader")
+        || lower.contains("set as current")
+        || lower.contains("current shader")
+}
+
 /// Classify shader filenames into background and cursor categories.
 ///
 /// Cursor shaders are identified by filenames starting with `"cursor_"`.
@@ -114,10 +133,14 @@ pub fn build_shader_context(config: &Config) -> String {
 
     let mut ctx = String::with_capacity(2048);
 
-    ctx.push_str("[Shader Assistant Context]\n\n");
+    ctx.push_str("[Shader Assistant Context]\n");
+    ctx.push_str(
+        "Use this block as reference context. Treat [Observation] sections as state,\n\
+         [Constraint] sections as hard rules, and [Instruction] sections as guidance.\n\n",
+    );
 
     // ---- Current Shader State ----
-    ctx.push_str("## Current Shader State\n");
+    ctx.push_str("## [Observation] Current Shader State\n");
 
     // Background shader
     if let Some(ref name) = config.custom_shader {
@@ -174,7 +197,7 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push('\n');
 
     // ---- Available Shaders ----
-    ctx.push_str("## Available Shaders\n");
+    ctx.push_str("## [Observation] Available Shaders\n");
 
     if bg_shaders.is_empty() && cursor_shaders.is_empty() {
         ctx.push_str("No shaders found in the shaders directory.\n");
@@ -196,7 +219,7 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push('\n');
 
     // ---- Debug Files ----
-    ctx.push_str("## Debug Files\n");
+    ctx.push_str("## [Observation] Debug Files\n");
 
     if let Some(ref name) = config.custom_shader {
         let stem = Path::new(name)
@@ -221,7 +244,7 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push('\n');
 
     // ---- Available Uniforms ----
-    ctx.push_str("## Available Uniforms\n");
+    ctx.push_str("## [Observation] Available Uniforms\n");
     ctx.push_str("Common (all shaders):\n");
     ctx.push_str("  - `iTime` (float) - elapsed time in seconds\n");
     ctx.push_str(
@@ -232,15 +255,67 @@ pub fn build_shader_context(config: &Config) -> String {
     );
     ctx.push_str("  - `iChannel0`..`iChannel3` (sampler2D) - user texture channels\n");
     ctx.push_str("  - `iChannel4` (sampler2D) - terminal content texture (par-term specific)\n");
+    ctx.push_str("  - `iChannelResolution[0..4]` (vec3) - per-channel texture sizes\n");
+    ctx.push_str(
+        "  - `iProgress` (vec4) - progress state [state, percent, isActive, activeCount]\n",
+    );
     ctx.push_str("Cursor shader extras:\n");
-    ctx.push_str("  - `iCurrentCursor` (vec2) - current cursor position in pixels\n");
-    ctx.push_str("  - `iPreviousCursor` (vec2) - previous cursor position in pixels\n");
+    ctx.push_str("  - `iCurrentCursor` (vec4) - current cursor (xy=top-left px, zw=size px)\n");
+    ctx.push_str("  - `iPreviousCursor` (vec4) - previous cursor (xy=top-left px, zw=size px)\n");
+    ctx.push_str(
+        "  - `iCurrentCursorColor` (vec4) - current cursor RGBA (alpha includes blink opacity)\n",
+    );
+    ctx.push_str("  - `iPreviousCursorColor` (vec4) - previous cursor RGBA\n");
     ctx.push_str("  - `iTimeCursorChange` (float) - time since last cursor move\n");
+    ctx.push_str("  - `iCursorTrailDuration` (float), `iCursorGlowRadius` (float), `iCursorGlowIntensity` (float)\n");
+
+    ctx.push('\n');
+
+    // ---- GLSL Compatibility Rules ----
+    ctx.push_str("## [Constraint] GLSL Compatibility Rules\n");
+    ctx.push_str("- Avoid passing sampler uniforms (e.g. `sampler2D`) as function parameters.\n");
+    ctx.push_str("  Some GLSL versions / toolchains reject sampler-typed function arguments.\n");
+    ctx.push_str("- Prefer sampling global uniforms like `iChannel0`..`iChannel4` directly.\n");
+    ctx.push_str("Safe helper pattern:\n");
+    ctx.push_str("```glsl\n");
+    ctx.push_str("vec4 sampleTerminal(vec2 uv) {\n");
+    ctx.push_str("    return texture(iChannel4, uv);\n");
+    ctx.push_str("}\n");
+    ctx.push_str("```\n");
+    ctx.push_str("- UV/channel sampling rules:\n");
+    ctx.push_str("  - `texture()` expects normalized UVs in `[0,1]`.\n");
+    ctx.push_str("  - Start from `uv = fragCoord / iResolution.xy` for screen-space sampling.\n");
+    ctx.push_str("  - After transforms (rotation/scale/offset), clamp before sampling:\n");
+    ctx.push_str("    `vec2 suv = clamp(transformedUv, vec2(0.0), vec2(1.0));`\n");
+    ctx.push_str("  - Do not mix pixel-space and UV-space in one variable.\n");
+    ctx.push_str("    Convert pixel coords with `/ iResolution.xy` before `texture()`.\n");
+    ctx.push_str(
+        "  - Avoid arbitrary `+0.5` UV offsets unless intentionally correcting a known sampling artifact.\n",
+    );
+    ctx.push_str(
+        "    Random `+0.5` shifts usually move sampling into the wrong coordinate space.\n",
+    );
+    ctx.push_str("- Coordinate-space contract:\n");
+    ctx.push_str("  - `fragCoord` and cursor uniforms are pixel-space values.\n");
+    ctx.push_str(
+        "  - Texture sampling is UV-space. Convert once with `uv = fragCoord / iResolution.xy`.\n",
+    );
+    ctx.push_str("  - Keep pixel and UV vars separate (`cursorPx`, `cursorUv`, `distPx`, etc.).\n");
+    ctx.push_str(
+        "  - If mixing cursor data with UV math, convert explicitly: `cursorUv = (iCurrentCursor.xy + 0.5 * iCurrentCursor.zw) / iResolution.xy`.\n",
+    );
+    ctx.push_str(
+        "  - Avoid implicit/double Y-flips. Use one coordinate convention per calculation path.\n",
+    );
+    ctx.push_str("- Optional channel textures:\n");
+    ctx.push_str("  - Unset iChannel0-3 default to transparent 1x1 placeholders.\n");
+    ctx.push_str("  - Detect a real configured texture with resolution > 1px, not `> 0.0`.\n");
+    ctx.push_str("    Example: `bool hasTex0 = iChannelResolution[0].x > 1.0 && iChannelResolution[0].y > 1.0;`\n");
 
     ctx.push('\n');
 
     // ---- Minimal Shader Template ----
-    ctx.push_str("## Minimal Shader Template\n");
+    ctx.push_str("## [Instruction] Minimal Shader Template\n");
     ctx.push_str("```glsl\n");
     ctx.push_str("void mainImage(out vec4 fragColor, in vec2 fragCoord) {\n");
     ctx.push_str("    vec2 uv = fragCoord / iResolution.xy;\n");
@@ -252,7 +327,7 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push('\n');
 
     // ---- How to Apply Changes ----
-    ctx.push_str("## How to Apply Changes\n");
+    ctx.push_str("## [Instruction] How to Apply Changes\n");
     ctx.push_str(&format!(
         "1. Write shader GLSL files to: `{}`\n",
         shaders_dir.display()
@@ -265,11 +340,21 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push_str("   ```\n");
     ctx.push_str("   For cursor shaders use `cursor_shader` and `cursor_shader_enabled` keys.\n");
     ctx.push_str("3. Changes apply immediately — no restart or manual config edit needed.\n");
+    ctx.push_str(
+        "4. Do not stop after writing the file if the user also asked to activate/set it.\n",
+    );
+    ctx.push_str(
+        "   Completion requires a `config_update` call that sets the shader key and enable flag.\n",
+    );
+    ctx.push_str("5. If reading/listing the shader directory fails, do NOT loop on `Read` for the directory.\n");
+    ctx.push_str(
+        "   You can write a new file directly to the shader directory path (for example `vortex_checker.glsl`) and then activate it.\n",
+    );
 
     ctx.push('\n');
 
     // ---- Available Config Keys ----
-    ctx.push_str("## Available Config Keys\n");
+    ctx.push_str("## [Constraint] Available Config Keys\n");
     ctx.push_str("Background shader: custom_shader (string|null), custom_shader_enabled (bool),\n");
     ctx.push_str("  custom_shader_animation (bool), custom_shader_animation_speed (float),\n");
     ctx.push_str("  custom_shader_brightness (float), custom_shader_text_opacity (float)\n");
@@ -278,7 +363,7 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push_str("  cursor_shader_glow_radius (float), cursor_shader_glow_intensity (float)\n");
     ctx.push('\n');
     ctx.push_str(
-        "IMPORTANT: Do NOT edit config.yaml directly — always use the config_update tool.\n",
+        "[Constraint] Do NOT edit config.yaml directly — always use the config_update tool.\n",
     );
 
     ctx
@@ -301,6 +386,20 @@ mod tests {
         assert!(should_inject_shader_context(
             "help me write a shader",
             &config
+        ));
+    }
+
+    #[test]
+    fn test_is_shader_activation_request_true() {
+        assert!(is_shader_activation_request(
+            "create a shader and set that shader as the active shader"
+        ));
+    }
+
+    #[test]
+    fn test_is_shader_activation_request_false() {
+        assert!(!is_shader_activation_request(
+            "explain how the custom shader uniforms work"
         ));
     }
 
@@ -637,13 +736,14 @@ mod tests {
     fn test_context_contains_all_sections() {
         let config = default_config();
         let ctx = build_shader_context(&config);
-        assert!(ctx.contains("## Current Shader State"));
-        assert!(ctx.contains("## Available Shaders"));
-        assert!(ctx.contains("## Debug Files"));
-        assert!(ctx.contains("## Available Uniforms"));
-        assert!(ctx.contains("## Minimal Shader Template"));
-        assert!(ctx.contains("## How to Apply Changes"));
-        assert!(ctx.contains("## Available Config Keys"));
+        assert!(ctx.contains("## [Observation] Current Shader State"));
+        assert!(ctx.contains("## [Observation] Available Shaders"));
+        assert!(ctx.contains("## [Observation] Debug Files"));
+        assert!(ctx.contains("## [Observation] Available Uniforms"));
+        assert!(ctx.contains("## [Constraint] GLSL Compatibility Rules"));
+        assert!(ctx.contains("## [Instruction] Minimal Shader Template"));
+        assert!(ctx.contains("## [Instruction] How to Apply Changes"));
+        assert!(ctx.contains("## [Constraint] Available Config Keys"));
     }
 
     #[test]
@@ -719,9 +819,16 @@ mod tests {
         assert!(ctx.contains("iMouse"));
         assert!(ctx.contains("iChannel0"));
         assert!(ctx.contains("iChannel4"));
+        assert!(ctx.contains("iChannelResolution[0..4]"));
+        assert!(ctx.contains("iProgress"));
         assert!(ctx.contains("iCurrentCursor"));
         assert!(ctx.contains("iPreviousCursor"));
+        assert!(ctx.contains("iCurrentCursorColor"));
+        assert!(ctx.contains("iPreviousCursorColor"));
         assert!(ctx.contains("iTimeCursorChange"));
+        assert!(ctx.contains("iCursorTrailDuration"));
+        assert!(ctx.contains("iCursorGlowRadius"));
+        assert!(ctx.contains("iCursorGlowIntensity"));
     }
 
     #[test]
@@ -731,6 +838,30 @@ mod tests {
         assert!(ctx.contains("void mainImage(out vec4 fragColor, in vec2 fragCoord)"));
         assert!(ctx.contains("iResolution.xy"));
         assert!(ctx.contains("iChannel4"));
+    }
+
+    #[test]
+    fn test_context_sampler_compatibility_guidance() {
+        let config = default_config();
+        let ctx = build_shader_context(&config);
+        assert!(ctx.contains("Avoid passing sampler uniforms"));
+        assert!(ctx.contains("sampler2D"));
+        assert!(ctx.contains("sampleTerminal"));
+        assert!(ctx.contains("texture(iChannel4, uv)"));
+        assert!(ctx.contains("`texture()` expects normalized UVs in `[0,1]`"));
+        assert!(ctx.contains("fragCoord / iResolution.xy"));
+        assert!(ctx.contains("clamp(transformedUv, vec2(0.0), vec2(1.0))"));
+        assert!(ctx.contains("Do not mix pixel-space and UV-space"));
+        assert!(ctx.contains("Avoid arbitrary `+0.5` UV offsets"));
+        assert!(ctx.contains("`fragCoord` and cursor uniforms are pixel-space values"));
+        assert!(
+            ctx.contains(
+                "cursorUv = (iCurrentCursor.xy + 0.5 * iCurrentCursor.zw) / iResolution.xy"
+            )
+        );
+        assert!(ctx.contains("Avoid implicit/double Y-flips"));
+        assert!(ctx.contains("Unset iChannel0-3 default to transparent 1x1 placeholders"));
+        assert!(ctx.contains("iChannelResolution[0].x > 1.0 && iChannelResolution[0].y > 1.0"));
     }
 
     #[test]

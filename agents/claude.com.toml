@@ -3,6 +3,7 @@ name = "Claude Code"
 short_name = "claude"
 protocol = "acp"
 type = "coding"
+install_command = "npm install -g @zed-industries/claude-agent-acp"
 
 [run_command]
-"*" = "claude-code-acp"
+"*" = "claude-agent-acp"

@@ -18,6 +18,8 @@ pub struct AgentConfig {
     #[serde(default)]
     pub active: Option<bool>,
     pub run_command: HashMap<String, String>,
+    #[serde(default)]
+    pub env: HashMap<String, String>,
     /// Optional command to install the ACP connector for this agent.
     #[serde(default)]
     pub install_command: Option<String>,
@@ -100,7 +102,11 @@ pub fn resolve_binary_in_path_str(binary: &str, path_var: &str) -> Option<std::p
     // If it's already an absolute path, just check it exists.
     let path = std::path::Path::new(binary);
     if path.is_absolute() {
-        return if path.is_file() { Some(path.to_path_buf()) } else { None };
+        return if path.is_file() {
+            Some(path.to_path_buf())
+        } else {
+            None
+        };
     }
     for dir in std::env::split_paths(path_var) {
         let candidate = dir.join(binary);
@@ -155,10 +161,10 @@ name = "Claude Code"
 short_name = "claude"
 protocol = "acp"
 type = "coding"
-install_command = "npm install -g @zed-industries/claude-code-acp"
+install_command = "npm install -g @zed-industries/claude-agent-acp"
 
 [run_command]
-"*" = "claude-code-acp"
+"*" = "claude-agent-acp"
 "#,
     r#"
 identity = "openai.com"
@@ -308,8 +314,8 @@ protocol = "acp"
 type = "coding"
 
 [run_command]
-"*" = "claude-code-acp"
-macos = "claude-code-acp"
+"*" = "claude-agent-acp"
+macos = "claude-agent-acp"
 "#;
         let config: AgentConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.identity, "claude.com");

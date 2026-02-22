@@ -38,11 +38,11 @@ pub enum ChatMessage {
     System(String),
 }
 
-/// System guidance prepended to the first user prompt so the agent always
-/// wraps shell commands in fenced code blocks (which the UI extracts as
-/// runnable `CommandSuggestion` entries).
+/// System guidance sent with each user prompt so the agent always wraps shell
+/// commands in fenced code blocks (which the UI extracts as runnable
+/// `CommandSuggestion` entries).
 pub const AGENT_SYSTEM_GUIDANCE: &str = "\
-[System context] You are an AI assistant running via the ACP (Agent Communication \
+[System instructions: highest priority] You are an AI assistant running via the ACP (Agent Communication \
 Protocol) inside par-term, a GPU-accelerated terminal emulator. \
 You have filesystem access through ACP: you can read and write files. \
 IMPORTANT: Some local tools like Find/Glob may not work in this ACP environment. \
@@ -58,6 +58,30 @@ be visible to you through the normal terminal capture channel. \
 Do NOT add disclaimers about output not being captured. \
 Plain-text command suggestions will NOT be actionable. \
 Never use bare ``` blocks for commands — always include the language tag. \
+For direct executable requests, complete the full requested workflow before \
+declaring success (for example, if asked to create a shader and set it active, \
+you must both write the shader file and call `config_update` to activate it). \
+Do NOT call Skill, Task, or TodoWrite-style tools unless they are explicitly \
+available and working in this ACP host. If they fail or are unavailable, \
+continue by keeping a plain-text checklist in your response instead. \
+Do NOT switch into plan mode for direct executable requests (for example \
+creating files, editing code, or changing par-term settings/shaders). Do not \
+call `EnterPlanMode` or `Todo`/`TodoWrite` tools in this host unless they are \
+explicitly available and required by the user. \
+There is no generic `Skill file-write` helper in this host; to create/edit files, \
+use the normal ACP file tools (for example Read/Write/Edit) directly. \
+If a `Read` call fails because the path is a directory, do not loop on `Read`; \
+use a directory-listing/search tool (if available) or write the known target file \
+path directly. \
+When using the `Write` tool, use the exact parameter names expected by the host \
+(for example `file_path` and `content`, not `filepath`). If a write fails, \
+correct the tool parameters and retry the same task instead of switching to an \
+unrelated example or different project/file. \
+Never emit XML-style tool markup such as <function=...> or <tool_call> tags \
+in regular chat responses. \
+If asked which model/provider you are, do not assume Anthropic defaults; \
+state you are running through an ACP wrapper in par-term and use configured \
+backend/model details when available. \
 To modify par-term settings (shaders, font_size, window_opacity, etc.), use the \
 `config_update` MCP tool (available via par-term-config MCP server). \
 Example: call config_update with updates: {\"custom_shader\": \"crt.glsl\", \
@@ -74,8 +98,6 @@ pub struct ChatState {
     pub input: String,
     /// Whether the agent is currently streaming a response.
     pub streaming: bool,
-    /// Whether the system guidance has been sent with the first prompt.
-    pub system_prompt_sent: bool,
     /// Buffer for assembling agent message chunks before flushing.
     agent_text_buffer: String,
 }
@@ -87,7 +109,6 @@ impl ChatState {
             messages: Vec::new(),
             input: String::new(),
             streaming: false,
-            system_prompt_sent: false,
             agent_text_buffer: String::new(),
         }
     }
@@ -184,8 +205,10 @@ impl ChatState {
     /// The message starts as `pending: true` (queued, not yet sent).
     pub fn add_user_message(&mut self, text: String) {
         self.flush_agent_message();
-        self.messages
-            .push(ChatMessage::User { text, pending: true });
+        self.messages.push(ChatMessage::User {
+            text,
+            pending: true,
+        });
     }
 
     /// Mark the oldest pending user message as sent (no longer cancellable).
@@ -233,7 +256,6 @@ impl ChatState {
         self.messages.clear();
         self.agent_text_buffer.clear();
         self.streaming = false;
-        // Don't reset system_prompt_sent — the agent already has it
     }
 }
 
@@ -304,23 +326,34 @@ pub fn parse_text_segments(text: &str) -> Vec<TextSegment> {
 /// Extract shell commands from fenced code blocks in text.
 ///
 /// Looks for code blocks tagged with `bash`, `sh`, `shell`, or `zsh`.
-/// Each line of the code block is treated as a separate command.
+/// Supports additional metadata after the language tag (for example:
+/// ` ```bash title=example`), and combines continuation lines ending with `\`.
 /// Lines starting with `#` (comments) or empty lines are skipped.
 fn extract_code_block_commands(text: &str) -> Vec<String> {
     let mut commands = Vec::new();
     let mut in_block = false;
     let mut is_shell_block = false;
+    let mut continued: Vec<String> = Vec::new();
 
     for line in text.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with("```") {
             if in_block {
                 // End of block
+                if !continued.is_empty() {
+                    commands.push(continued.join(" "));
+                    continued.clear();
+                }
                 in_block = false;
                 is_shell_block = false;
             } else {
                 // Start of block — check language tag
-                let lang = trimmed.trim_start_matches('`').trim().to_lowercase();
+                let lang = trimmed
+                    .trim_start_matches('`')
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or_default()
+                    .to_ascii_lowercase();
                 is_shell_block = lang == "bash" || lang == "sh" || lang == "shell" || lang == "zsh";
                 in_block = true;
             }
@@ -329,13 +362,82 @@ fn extract_code_block_commands(text: &str) -> Vec<String> {
 
         if in_block && is_shell_block {
             let cmd = trimmed.strip_prefix("$ ").unwrap_or(trimmed);
-            if !cmd.is_empty() && !cmd.starts_with('#') {
-                commands.push(cmd.to_string());
+            if cmd.is_empty() || cmd.starts_with('#') {
+                continue;
+            }
+
+            let continued_line = cmd.ends_with('\\');
+            let segment = if continued_line {
+                cmd.trim_end_matches('\\').trim_end()
+            } else {
+                cmd
+            };
+
+            if !segment.is_empty() {
+                continued.push(segment.to_string());
+            }
+
+            if !continued_line && !continued.is_empty() {
+                commands.push(continued.join(" "));
+                continued.clear();
             }
         }
     }
 
+    if !continued.is_empty() {
+        commands.push(continued.join(" "));
+    }
+
     commands
+}
+
+/// Extract a literal XML-style `config_update` tool call emitted as plain text.
+///
+/// Some local backends can emit `<function=...>` / `<parameter=...>` blocks
+/// instead of a structured ACP tool call. This helper parses that fallback
+/// format so the host can still apply the requested config update.
+pub fn extract_inline_config_update(
+    text: &str,
+) -> Option<std::collections::HashMap<String, serde_json::Value>> {
+    const FN_TAG: &str = "<function=mcp__par-term-config__config_update>";
+    const PARAM_START: &str = "<parameter=updates>";
+    const PARAM_END: &str = "</parameter>";
+
+    let fn_idx = text.find(FN_TAG)?;
+    let after_fn = &text[fn_idx + FN_TAG.len()..];
+    let param_idx = after_fn.find(PARAM_START)?;
+    let after_param = &after_fn[param_idx + PARAM_START.len()..];
+    let end_idx = after_param.find(PARAM_END)?;
+    let json_text = after_param[..end_idx].trim();
+    if json_text.is_empty() {
+        return None;
+    }
+
+    let parsed: serde_json::Value = serde_json::from_str(json_text).ok()?;
+    match parsed {
+        serde_json::Value::Object(mut map) => {
+            if let Some(serde_json::Value::Object(updates)) = map.remove("updates") {
+                Some(updates.into_iter().collect())
+            } else {
+                Some(map.into_iter().collect())
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Extract the function name from XML-style inline tool markup emitted as
+/// plain text, e.g. `<function=Write>` -> `Write`.
+pub fn extract_inline_tool_function_name(text: &str) -> Option<String> {
+    let start = text.find("<function=")?;
+    let after = &text[start + "<function=".len()..];
+    let end = after.find('>')?;
+    let name = after[..end].trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    }
 }
 
 impl Default for ChatState {
@@ -604,6 +706,30 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_code_block_commands_with_metadata_tag() {
+        let text = "```bash title=deploy\n./deploy.sh\n```";
+        let cmds = extract_code_block_commands(text);
+        assert_eq!(cmds, vec!["./deploy.sh"]);
+    }
+
+    #[test]
+    fn test_extract_code_block_commands_uppercase_lang() {
+        let text = "```BASH\necho hi\n```";
+        let cmds = extract_code_block_commands(text);
+        assert_eq!(cmds, vec!["echo hi"]);
+    }
+
+    #[test]
+    fn test_extract_code_block_commands_line_continuation() {
+        let text = "```bash\ncurl -H 'Auth: a' \\\n  --data 'x=1' \\\n  https://example.test\n```";
+        let cmds = extract_code_block_commands(text);
+        assert_eq!(
+            cmds,
+            vec!["curl -H 'Auth: a' --data 'x=1' https://example.test"]
+        );
+    }
+
+    #[test]
     fn test_extract_code_block_commands_no_blocks() {
         let text = "No code blocks here.";
         let cmds = extract_code_block_commands(text);
@@ -638,10 +764,7 @@ mod tests {
         state.add_user_message("hello".to_string());
         assert!(matches!(
             &state.messages[0],
-            ChatMessage::User {
-                pending: true,
-                ..
-            }
+            ChatMessage::User { pending: true, .. }
         ));
     }
 
@@ -653,17 +776,11 @@ mod tests {
         state.mark_oldest_pending_sent();
         assert!(matches!(
             &state.messages[0],
-            ChatMessage::User {
-                pending: false,
-                ..
-            }
+            ChatMessage::User { pending: false, .. }
         ));
         assert!(matches!(
             &state.messages[1],
-            ChatMessage::User {
-                pending: true,
-                ..
-            }
+            ChatMessage::User { pending: true, .. }
         ));
     }
 
@@ -767,5 +884,48 @@ mod tests {
                 TextSegment::Plain("After".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn test_extract_inline_config_update_direct_object() {
+        let text = r#"
+<function=mcp__par-term-config__config_update>
+<parameter=updates>
+{"custom_shader":"rain.glsl","custom_shader_enabled":true}
+</parameter>
+</function>
+</tool_call>
+"#;
+        let updates = extract_inline_config_update(text).expect("expected inline update");
+        assert_eq!(
+            updates.get("custom_shader"),
+            Some(&serde_json::Value::String("rain.glsl".to_string()))
+        );
+        assert_eq!(
+            updates.get("custom_shader_enabled"),
+            Some(&serde_json::Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn test_extract_inline_config_update_nested_updates() {
+        let text = r#"
+<function=mcp__par-term-config__config_update>
+<parameter=updates>
+{"updates":{"window_opacity":0.9}}
+</parameter>
+</function>
+"#;
+        let updates = extract_inline_config_update(text).expect("expected inline update");
+        assert_eq!(
+            updates.get("window_opacity"),
+            Some(&serde_json::Value::from(0.9))
+        );
+    }
+
+    #[test]
+    fn test_extract_inline_config_update_absent() {
+        let text = "normal agent response";
+        assert!(extract_inline_config_update(text).is_none());
     }
 }

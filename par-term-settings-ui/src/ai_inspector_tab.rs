@@ -7,7 +7,8 @@
 
 use super::SettingsUI;
 use super::section::collapsing_section;
-use std::collections::HashSet;
+use par_term_config::CustomAcpAgentConfig;
+use std::collections::{HashMap, HashSet};
 
 /// Show the AI Inspector tab content.
 pub fn show(
@@ -44,6 +45,25 @@ pub fn show(
         ],
     ) {
         show_agent_section(ui, settings, changes_this_frame, collapsed);
+    }
+
+    // Custom agents section
+    if section_matches(
+        &query,
+        "Custom Agents",
+        &[
+            "custom",
+            "acp",
+            "agent",
+            "identity",
+            "run command",
+            "env",
+            "environment",
+            "install command",
+            "connector",
+        ],
+    ) {
+        show_custom_agents_section(ui, settings, changes_this_frame, collapsed);
     }
 
     // Permissions section
@@ -208,11 +228,12 @@ fn show_agent_section(
     collapsed: &mut HashSet<String>,
 ) {
     collapsing_section(ui, "Agent", "ai_inspector_agent", true, collapsed, |ui| {
+        let all_agents = combined_available_agents(settings);
+
         ui.horizontal(|ui| {
             ui.label("Default agent:");
             // Find display name for the currently selected agent
-            let selected_display = settings
-                .available_agent_ids
+            let selected_display = all_agents
                 .iter()
                 .find(|(id, _)| *id == settings.config.ai_inspector_agent)
                 .map(|(_, name)| name.as_str())
@@ -220,7 +241,7 @@ fn show_agent_section(
             egui::ComboBox::from_id_salt("ai_agent")
                 .selected_text(selected_display)
                 .show_ui(ui, |ui| {
-                    for (agent_id, agent_name) in &settings.available_agent_ids {
+                    for (agent_id, agent_name) in &all_agents {
                         if ui
                             .selectable_value(
                                 &mut settings.config.ai_inspector_agent,
@@ -278,6 +299,353 @@ fn show_agent_section(
             }
         });
     });
+}
+
+fn combined_available_agents(settings: &SettingsUI) -> Vec<(String, String)> {
+    let mut combined = settings.available_agent_ids.clone();
+    for custom in &settings.config.ai_inspector_custom_agents {
+        if custom.active == Some(false) {
+            continue;
+        }
+        let label = if custom.name.trim().is_empty() {
+            custom.identity.clone()
+        } else {
+            format!("{} (custom)", custom.name)
+        };
+        if let Some(existing) = combined.iter_mut().find(|(id, _)| *id == custom.identity) {
+            existing.1 = label;
+        } else {
+            combined.push((custom.identity.clone(), label));
+        }
+    }
+    combined
+}
+
+fn set_run_command(agent: &mut CustomAcpAgentConfig, key: &str, value: String) {
+    let value = value.trim().to_string();
+    if value.is_empty() {
+        agent.run_command.remove(key);
+    } else {
+        agent.run_command.insert(key.to_string(), value);
+    }
+}
+
+fn next_env_placeholder_key(env: &HashMap<String, String>) -> String {
+    let base = "NEW_ENV_VAR";
+    if !env.contains_key(base) {
+        return base.to_string();
+    }
+
+    let mut idx = 2usize;
+    loop {
+        let candidate = format!("{base}_{idx}");
+        if !env.contains_key(&candidate) {
+            return candidate;
+        }
+        idx += 1;
+    }
+}
+
+fn show_custom_agents_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(
+        ui,
+        "Custom Agents",
+        "ai_inspector_custom_agents",
+        false,
+        collapsed,
+        |ui| {
+            ui.label(
+                "Define additional ACP agents directly in config. \
+                 Entries override bundled/discovered agents with the same identity.",
+            );
+            ui.add_space(6.0);
+
+            let mut remove_index: Option<usize> = None;
+            for i in 0..settings.config.ai_inspector_custom_agents.len() {
+                let mut changed = false;
+                let mut request_remove = false;
+
+                ui.group(|ui| {
+                    ui.push_id(format!("custom_agent_{i}"), |ui| {
+                        let agent = &mut settings.config.ai_inspector_custom_agents[i];
+
+                        ui.horizontal(|ui| {
+                            ui.strong(format!("Agent {}", i + 1));
+                            if !agent.identity.trim().is_empty() {
+                                ui.label(format!("({})", agent.identity));
+                            }
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui.button("Remove").clicked() {
+                                        request_remove = true;
+                                    }
+                                },
+                            );
+                        });
+
+                        changed |= ui
+                            .text_edit_singleline(&mut agent.identity)
+                            .on_hover_text(
+                                "Unique agent ID (usually a domain-like string), \
+                                 used for selection and overrides.",
+                            )
+                            .changed();
+                        if agent.identity.trim().is_empty() {
+                            ui.colored_label(
+                                egui::Color32::from_rgb(255, 193, 7),
+                                "Identity is required.",
+                            );
+                        } else {
+                            ui.label("Identity");
+                        }
+
+                        changed |= ui
+                            .text_edit_singleline(&mut agent.name)
+                            .on_hover_text("Display name shown in agent selectors.")
+                            .changed();
+                        ui.label("Name");
+
+                        changed |= ui
+                            .text_edit_singleline(&mut agent.short_name)
+                            .on_hover_text("Compact label used in tighter UI surfaces.")
+                            .changed();
+                        ui.label("Short name");
+
+                        ui.horizontal(|ui| {
+                            let active = agent.active.get_or_insert(true);
+                            changed |= ui
+                                .checkbox(active, "Active")
+                                .on_hover_text("Inactive agents are hidden from the UI.")
+                                .changed();
+
+                            if agent.protocol != "acp" {
+                                agent.protocol = "acp".to_string();
+                                changed = true;
+                            }
+
+                            ui.label("Protocol")
+                                .on_hover_text("ACP is currently the only supported protocol.");
+                            ui.add_enabled(
+                                false,
+                                egui::TextEdit::singleline(&mut agent.protocol).desired_width(56.0),
+                            )
+                            .on_hover_text("Read-only: only `acp` is supported right now.");
+
+                            ui.label("Type")
+                                .on_hover_text("Agent category label (for organization/filtering).");
+                            changed |= ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut agent.r#type)
+                                        .desired_width(100.0),
+                                )
+                                .on_hover_text("Typically `coding`.")
+                                .changed();
+                        });
+
+                        ui.label("Install command (optional)");
+                        let mut install_command = agent.install_command.clone().unwrap_or_default();
+                        if ui
+                            .text_edit_singleline(&mut install_command)
+                            .on_hover_text(
+                                "Shown when connector is missing. Example: npm/brew/pip install command.",
+                            )
+                            .changed()
+                        {
+                            let trimmed = install_command.trim().to_string();
+                            agent.install_command = if trimmed.is_empty() {
+                                None
+                            } else {
+                                Some(trimmed)
+                            };
+                            changed = true;
+                        }
+
+                        ui.add_space(4.0);
+                        ui.strong("Run commands");
+
+                        let mut wildcard = agent.run_command.get("*").cloned().unwrap_or_default();
+                        ui.horizontal(|ui| {
+                            ui.label("*")
+                                .on_hover_text("Default command for all platforms.");
+                            if ui
+                                .text_edit_singleline(&mut wildcard)
+                                .on_hover_text("Command used to launch the ACP connector.")
+                                .changed()
+                            {
+                                set_run_command(agent, "*", wildcard.clone());
+                                changed = true;
+                            }
+                        });
+
+                        let mut macos = agent.run_command.get("macos").cloned().unwrap_or_default();
+                        ui.horizontal(|ui| {
+                            ui.label("macos")
+                                .on_hover_text("Optional macOS-specific override command.");
+                            if ui
+                                .text_edit_singleline(&mut macos)
+                                .on_hover_text("Leave empty to fall back to `*`.")
+                                .changed()
+                            {
+                                set_run_command(agent, "macos", macos.clone());
+                                changed = true;
+                            }
+                        });
+
+                        let mut linux = agent.run_command.get("linux").cloned().unwrap_or_default();
+                        ui.horizontal(|ui| {
+                            ui.label("linux")
+                                .on_hover_text("Optional Linux-specific override command.");
+                            if ui
+                                .text_edit_singleline(&mut linux)
+                                .on_hover_text("Leave empty to fall back to `*`.")
+                                .changed()
+                            {
+                                set_run_command(agent, "linux", linux.clone());
+                                changed = true;
+                            }
+                        });
+
+                        let mut windows = agent
+                            .run_command
+                            .get("windows")
+                            .cloned()
+                            .unwrap_or_default();
+                        ui.horizontal(|ui| {
+                            ui.label("windows")
+                                .on_hover_text("Optional Windows-specific override command.");
+                            if ui
+                                .text_edit_singleline(&mut windows)
+                                .on_hover_text("Leave empty to fall back to `*`.")
+                                .changed()
+                            {
+                                set_run_command(agent, "windows", windows.clone());
+                                changed = true;
+                            }
+                        });
+
+                        if agent.run_command.is_empty() {
+                            ui.colored_label(
+                                egui::Color32::from_rgb(255, 152, 0),
+                                "At least one run command is required.",
+                            );
+                        }
+
+                        ui.add_space(4.0);
+                        ui.strong("Environment variables");
+                        ui.label("These key/value pairs are injected into the ACP subprocess.");
+
+                        let mut env_rows: Vec<(String, String)> = agent
+                            .env
+                            .iter()
+                            .map(|(k, v)| (k.clone(), v.clone()))
+                            .collect();
+                        env_rows.sort_by(|a, b| a.0.cmp(&b.0));
+
+                        let mut remove_env_index: Option<usize> = None;
+                        for (idx, (key, value)) in env_rows.iter_mut().enumerate() {
+                            ui.horizontal(|ui| {
+                                ui.label("KEY").on_hover_text(
+                                    "Environment variable name injected into the ACP subprocess.",
+                                );
+                                if ui
+                                    .text_edit_singleline(key)
+                                    .on_hover_text("Example: ANTHROPIC_BASE_URL")
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+                                ui.label("VALUE")
+                                    .on_hover_text("Environment variable value for this key.");
+                                if ui
+                                    .text_edit_singleline(value)
+                                    .on_hover_text("Example: http://127.0.0.1:11434")
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+                                if ui.small_button("Remove").clicked() {
+                                    remove_env_index = Some(idx);
+                                    changed = true;
+                                }
+                            });
+                        }
+
+                        if let Some(idx) = remove_env_index {
+                            env_rows.remove(idx);
+                        }
+
+                        if ui.small_button("Add Env Var").clicked() {
+                            let key = next_env_placeholder_key(&agent.env);
+                            env_rows.push((key, String::new()));
+                            changed = true;
+                        }
+
+                        if changed {
+                            agent.env = env_rows
+                                .into_iter()
+                                .filter_map(|(k, v)| {
+                                    let key = k.trim().to_string();
+                                    if key.is_empty() { None } else { Some((key, v)) }
+                                })
+                                .collect();
+                        }
+                    });
+                });
+
+                if changed {
+                    settings.has_changes = true;
+                    *changes_this_frame = true;
+                }
+                if request_remove {
+                    remove_index = Some(i);
+                }
+
+                ui.add_space(6.0);
+            }
+
+            if let Some(idx) = remove_index {
+                settings.config.ai_inspector_custom_agents.remove(idx);
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if settings.config.ai_inspector_custom_agents.is_empty() {
+                ui.label("No custom agents defined.");
+            }
+
+            if ui.button("Add Custom Agent").clicked() {
+                settings
+                    .config
+                    .ai_inspector_custom_agents
+                    .push(CustomAcpAgentConfig {
+                        identity: format!(
+                            "custom.agent.{}",
+                            settings.config.ai_inspector_custom_agents.len() + 1
+                        ),
+                        name: "Custom ACP Agent".to_string(),
+                        short_name: "custom".to_string(),
+                        protocol: "acp".to_string(),
+                        r#type: "coding".to_string(),
+                        active: Some(true),
+                        run_command: std::collections::HashMap::from([(
+                            "*".to_string(),
+                            "your-agent-acp".to_string(),
+                        )]),
+                        env: std::collections::HashMap::new(),
+                        install_command: None,
+                        actions: std::collections::HashMap::new(),
+                    });
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+        },
+    );
 }
 
 // ============================================================================

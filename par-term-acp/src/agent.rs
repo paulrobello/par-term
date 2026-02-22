@@ -164,10 +164,7 @@ impl Agent {
                 let mut tokens = run_command_template.split_whitespace();
                 if let Some(binary) = tokens.next() {
                     if let Some(abs) = super::agents::resolve_binary_in_path_str(binary, sp) {
-                        log::info!(
-                            "ACP: resolved '{binary}' to '{}'",
-                            abs.display()
-                        );
+                        log::info!("ACP: resolved '{binary}' to '{}'", abs.display());
                         let rest: String = tokens.collect::<Vec<_>>().join(" ");
                         if rest.is_empty() {
                             abs.to_string_lossy().to_string()
@@ -210,13 +207,13 @@ impl Agent {
         if let Some(ref sp) = shell_path {
             cmd.env("PATH", sp);
         }
+        cmd.envs(&self.config.env);
 
         // Ensure the agent doesn't think it's running inside another Claude
         // Code session (which would block session creation).
         cmd.env_remove("CLAUDECODE");
 
-        let mut child = match cmd.spawn()
-        {
+        let mut child = match cmd.spawn() {
             Ok(child) => child,
             Err(e) => {
                 let msg = format!("Failed to spawn agent: {e}");
@@ -318,9 +315,47 @@ impl Agent {
                 "value": config_update_path.to_string_lossy(),
             }],
         });
+        // Claude ACP wrappers support extra session metadata. Use it to keep
+        // local/project Claude settings from unexpectedly overriding the
+        // intended model/backend for custom Ollama sessions.
+        let is_claude_wrapper = self.config.identity.contains("claude")
+            || run_command_template.contains("claude-agent-acp")
+            || run_command_template.contains("claude-code-acp");
+        let session_meta = if is_claude_wrapper {
+            let mut runtime_note = "Runtime note: You are running through par-term ACP. Do not call Skill, Task, or TodoWrite tools unless they are explicitly available and working in this host. Do not switch into plan mode for direct executable requests (file edits, shader creation, config changes), and do not call EnterPlanMode/Todo unless explicitly required and available. There is no generic `Skill file-write` helper here; use normal file read/write/edit tools directly. If a Read call fails because the target is a directory, do not retry Read on that directory; use a listing/search tool or write the known target file path directly. When using Write, use exact parameter names like `file_path` and `content` (not `filepath`). If a tool call fails, correct the parameters and retry the same task instead of switching to an unrelated example/file. For multi-step requests, complete the full workflow before declaring success (e.g. shader file write + config_update activation). If planning/task tools are unavailable, continue with an inline plain-text checklist instead of failing. Do not emit XML-style function tags like <function=...> in normal chat output.".to_string();
+            if let Some(model) = self
+                .config
+                .env
+                .get("ANTHROPIC_MODEL")
+                .filter(|v| !v.trim().is_empty())
+            {
+                runtime_note.push_str(&format!(" Configured model hint: `{}`.", model.trim()));
+            }
+            if let Some(base_url) = self
+                .config
+                .env
+                .get("ANTHROPIC_BASE_URL")
+                .filter(|v| !v.trim().is_empty())
+            {
+                runtime_note.push_str(&format!(" Configured backend hint: `{}`.", base_url.trim()));
+            }
+            Some(serde_json::json!({
+                "claudeCode": {
+                    "options": {
+                        "settingSources": ["user"]
+                    }
+                },
+                "systemPrompt": {
+                    "append": runtime_note
+                }
+            }))
+        } else {
+            None
+        };
         let session_params = SessionNewParams {
             cwd: cwd.to_string(),
             mcp_servers: Some(vec![mcp_server]),
+            meta: session_meta,
         };
         log::info!(
             "ACP: sending session/new (cwd={cwd}, mcp_server_bin={})",
@@ -531,29 +566,51 @@ fn is_safe_write_path(tool_call: &serde_json::Value, safe_paths: &SafePaths) -> 
         return false;
     };
 
-    let path = std::path::Path::new(path_str);
+    // Resolve the target path safely:
+    // - existing paths are fully canonicalized
+    // - non-existing paths resolve and canonicalize the parent, then append
+    //   the final path component
+    // This blocks prefix-based traversal tricks (`/tmp/../etc/...`) and
+    // symlink escapes while still allowing new file creation in safe roots.
+    let target = {
+        let path = std::path::Path::new(path_str);
+        if !path.is_absolute() {
+            return false;
+        }
+        if path.exists() {
+            match std::fs::canonicalize(path) {
+                Ok(p) => p,
+                Err(_) => return false,
+            }
+        } else {
+            let Some(parent) = path.parent() else {
+                return false;
+            };
+            let Ok(parent_real) = std::fs::canonicalize(parent) else {
+                return false;
+            };
+            let Some(file_name) = path.file_name() else {
+                return false;
+            };
+            parent_real.join(file_name)
+        }
+    };
 
-    // Allow writes to /tmp or platform temp dir
-    if path_str.starts_with("/tmp") || path_str.starts_with("/var/folders") {
-        return true;
-    }
-    if let Ok(temp_dir) = std::env::var("TMPDIR")
-        && path_str.starts_with(&temp_dir)
-    {
-        return true;
-    }
-
-    // Allow writes to par-term's shaders directory
-    if path.starts_with(&safe_paths.shaders_dir) {
-        return true;
+    let mut safe_roots: Vec<PathBuf> = vec![
+        PathBuf::from("/tmp"),
+        PathBuf::from("/var/folders"),
+        safe_paths.shaders_dir.clone(),
+        safe_paths.config_dir.clone(),
+    ];
+    if let Ok(temp_dir) = std::env::var("TMPDIR") {
+        safe_roots.push(PathBuf::from(temp_dir));
     }
 
-    // Allow writes to par-term's config directory (for .config-update.json etc.)
-    if path.starts_with(&safe_paths.config_dir) {
-        return true;
-    }
-
-    false
+    safe_roots.into_iter().any(|root| {
+        std::fs::canonicalize(root)
+            .map(|canonical_root| target.starts_with(canonical_root))
+            .unwrap_or(false)
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -642,6 +699,50 @@ async fn handle_incoming_messages(
                                      tool_call={}",
                                     perm_params.tool_call
                                 );
+
+                                // The Skill tool can produce malformed raw function-tag
+                                // output with non-Claude backends (e.g. Ollama models).
+                                // Block it at the host permission layer and let the
+                                // conversation continue with normal chat text.
+                                let lower_tool = tool_name.to_lowercase();
+                                if lower_tool == "skill" {
+                                    let deny_option_id = perm_params
+                                        .options
+                                        .iter()
+                                        .find(|o| {
+                                            matches!(
+                                                o.kind.as_deref(),
+                                                Some("deny")
+                                                    | Some("reject")
+                                                    | Some("cancel")
+                                                    | Some("disallow")
+                                            ) || o.name.to_lowercase().contains("deny")
+                                                || o.name.to_lowercase().contains("reject")
+                                                || o.name.to_lowercase().contains("cancel")
+                                        })
+                                        .or_else(|| perm_params.options.first())
+                                        .map(|o| o.option_id.clone());
+
+                                    log::info!(
+                                        "ACP: auto-blocking tool={tool_name} id={request_id} \
+                                         chosen_option={deny_option_id:?}"
+                                    );
+
+                                    let outcome = RequestPermissionResponse {
+                                        outcome: PermissionOutcome {
+                                            outcome: "selected".to_string(),
+                                            option_id: deny_option_id,
+                                        },
+                                    };
+                                    let response_json =
+                                        serde_json::to_value(&outcome).unwrap_or_default();
+                                    if let Err(e) =
+                                        client.respond(request_id, Some(response_json), None).await
+                                    {
+                                        log::error!("Failed to auto-block Skill permission: {e}");
+                                    }
+                                    continue;
+                                }
 
                                 // Auto-approve read-only tools and config updates.
                                 // Write/edit tools require approval unless writing
@@ -1108,6 +1209,7 @@ async fn handle_incoming_messages(
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn make_test_config() -> AgentConfig {
         AgentConfig {
@@ -1122,6 +1224,7 @@ mod tests {
                 m.insert("*".to_string(), "echo test".to_string());
                 m
             },
+            env: HashMap::new(),
             install_command: None,
             actions: HashMap::new(),
             connector_installed: false,
@@ -1129,9 +1232,22 @@ mod tests {
     }
 
     fn make_safe_paths() -> SafePaths {
+        let base = std::env::temp_dir().join(format!(
+            "par-term-acp-agent-tests-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock should be after epoch")
+                .as_nanos()
+        ));
+        let config_dir = base.join("config");
+        let shaders_dir = base.join("shaders");
+        std::fs::create_dir_all(&config_dir).expect("create config dir");
+        std::fs::create_dir_all(&shaders_dir).expect("create shaders dir");
+
         SafePaths {
-            config_dir: std::path::PathBuf::from("/tmp/test-config"),
-            shaders_dir: std::path::PathBuf::from("/tmp/test-shaders"),
+            config_dir,
+            shaders_dir,
         }
     }
 
@@ -1266,10 +1382,7 @@ mod tests {
 
     #[test]
     fn test_safe_write_path_shaders_dir() {
-        let safe_paths = SafePaths {
-            shaders_dir: std::path::PathBuf::from("/tmp/test-shaders"),
-            config_dir: std::path::PathBuf::from("/tmp/test-config"),
-        };
+        let safe_paths = make_safe_paths();
         let path = safe_paths.shaders_dir.join("crt.glsl");
         let tool_call = serde_json::json!({
             "rawInput": {"file_path": path.to_string_lossy()},
@@ -1280,10 +1393,7 @@ mod tests {
 
     #[test]
     fn test_safe_write_path_config_dir() {
-        let safe_paths = SafePaths {
-            config_dir: std::path::PathBuf::from("/tmp/test-config"),
-            shaders_dir: std::path::PathBuf::from("/tmp/test-shaders"),
-        };
+        let safe_paths = make_safe_paths();
         let path = safe_paths.config_dir.join(".config-update.json");
         let tool_call = serde_json::json!({
             "rawInput": {"file_path": path.to_string_lossy()},
@@ -1325,6 +1435,48 @@ mod tests {
         let tool_call = serde_json::json!({
             "title": "Write"
         });
+        assert!(!is_safe_write_path(&tool_call, &safe_paths));
+    }
+
+    #[test]
+    fn test_unsafe_write_path_tmp_traversal() {
+        let safe_paths = make_safe_paths();
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": "/tmp/../etc/passwd"},
+            "title": "Write /tmp/../etc/passwd"
+        });
+        assert!(!is_safe_write_path(&tool_call, &safe_paths));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_unsafe_write_path_tmp_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let base = std::env::temp_dir().join(format!(
+            "par-term-acp-agent-symlink-tests-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock should be after epoch")
+                .as_nanos()
+        ));
+        let safe_root = base.join("safe");
+        let config_dir = base.join("config");
+        std::fs::create_dir_all(&safe_root).expect("create safe root");
+        std::fs::create_dir_all(&config_dir).expect("create config root");
+        symlink("/etc", safe_root.join("escape")).expect("create symlink");
+
+        let safe_paths = SafePaths {
+            shaders_dir: safe_root.clone(),
+            config_dir,
+        };
+        let escaped_path = safe_root.join("escape").join("leak.glsl");
+        let tool_call = serde_json::json!({
+            "rawInput": {"file_path": escaped_path.to_string_lossy()},
+            "title": format!("Write {}", escaped_path.display())
+        });
+
         assert!(!is_safe_write_path(&tool_call, &safe_paths));
     }
 }

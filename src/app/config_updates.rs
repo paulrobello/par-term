@@ -116,6 +116,7 @@ pub(crate) struct ConfigChanges {
 
     // AI Inspector
     pub ai_inspector_auto_approve: bool,
+    pub ai_inspector_custom_agents: bool,
 }
 
 impl ConfigChanges {
@@ -275,6 +276,8 @@ impl ConfigChanges {
 
             ai_inspector_auto_approve: new.ai_inspector_auto_approve
                 != old.ai_inspector_auto_approve,
+            ai_inspector_custom_agents: new.ai_inspector_custom_agents
+                != old.ai_inspector_custom_agents,
         }
     }
 

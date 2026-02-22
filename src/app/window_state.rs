@@ -3,7 +3,9 @@
 //! This module contains `WindowState`, which holds all state specific to a single window,
 //! including its renderer, tab manager, input handler, and UI components.
 
-use crate::ai_inspector::chat::ChatMessage;
+use crate::ai_inspector::chat::{
+    ChatMessage, extract_inline_config_update, extract_inline_tool_function_name,
+};
 use crate::ai_inspector::panel::{AIInspectorPanel, InspectorAction};
 use crate::app::anti_idle::should_send_keep_alive;
 use crate::app::debug_state::DebugState;
@@ -14,7 +16,8 @@ use crate::close_confirmation_ui::{CloseConfirmAction, CloseConfirmationUI};
 use crate::command_history::CommandHistory;
 use crate::command_history_ui::{CommandHistoryAction, CommandHistoryUI};
 use crate::config::{
-    Config, CursorShaderMetadataCache, CursorStyle, ShaderInstallPrompt, ShaderMetadataCache,
+    Config, CursorShaderMetadataCache, CursorStyle, CustomAcpAgentConfig, ShaderInstallPrompt,
+    ShaderMetadataCache,
 };
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
@@ -159,6 +162,15 @@ pub struct WindowState {
     /// Handles for queued send tasks (waiting on agent lock).
     /// Used to abort queued sends when the user cancels a pending message.
     pub(crate) pending_send_handles: Vec<tokio::task::JoinHandle<()>>,
+    /// Tracks whether the current prompt encountered a recoverable local
+    /// backend tool failure (for example failed `Skill` or `Write`) or
+    /// malformed inline XML-style tool markup.
+    pub(crate) agent_skill_failure_detected: bool,
+    /// Bounded automatic recovery retries after recoverable ACP tool failures
+    /// or incomplete shader activation completion.
+    pub(crate) agent_skill_recovery_attempts: u8,
+    /// Timestamp of the last command auto-context sent to the agent.
+    pub(crate) last_auto_context_sent_at: Option<std::time::Instant>,
     /// Available agent configs
     pub(crate) available_agents: Vec<AgentConfig>,
     /// Shader install prompt UI
@@ -346,6 +358,153 @@ fn json_as_f32(value: &serde_json::Value) -> Result<f32, String> {
     }
 }
 
+const AUTO_CONTEXT_MIN_INTERVAL_MS: u64 = 1200;
+const AUTO_CONTEXT_MAX_COMMAND_LEN: usize = 400;
+
+fn is_sensitive_key(key: &str) -> bool {
+    let key = key.to_ascii_lowercase();
+    const MARKERS: &[&str] = &[
+        "pass",
+        "password",
+        "token",
+        "secret",
+        "key",
+        "apikey",
+        "api_key",
+        "auth",
+        "credential",
+        "session",
+        "cookie",
+    ];
+    MARKERS.iter().any(|marker| key.contains(marker))
+}
+
+fn redact_auto_context_command(command: &str) -> (String, bool) {
+    let mut redacted = false;
+    let mut redact_next = false;
+    let mut out: Vec<String> = Vec::new();
+
+    for token in command.split_whitespace() {
+        if redact_next {
+            out.push("[REDACTED]".to_string());
+            redacted = true;
+            redact_next = false;
+            continue;
+        }
+
+        let cleaned = token.trim_matches(|c| c == '"' || c == '\'');
+
+        if let Some(flag) = cleaned.strip_prefix("--") {
+            if let Some((name, _value)) = flag.split_once('=')
+                && is_sensitive_key(name)
+            {
+                let prefix = token.split_once('=').map(|(p, _)| p).unwrap_or(token);
+                out.push(format!("{prefix}=[REDACTED]"));
+                redacted = true;
+                continue;
+            }
+            if is_sensitive_key(flag) {
+                out.push(token.to_string());
+                redact_next = true;
+                continue;
+            }
+        }
+
+        if let Some((name, _value)) = cleaned.split_once('=')
+            && is_sensitive_key(name)
+        {
+            let prefix = token.split_once('=').map(|(p, _)| p).unwrap_or(token);
+            out.push(format!("{prefix}=[REDACTED]"));
+            redacted = true;
+            continue;
+        }
+
+        out.push(token.to_string());
+    }
+
+    let mut sanitized = out.join(" ");
+    if sanitized.chars().count() > AUTO_CONTEXT_MAX_COMMAND_LEN {
+        sanitized = sanitized
+            .chars()
+            .take(AUTO_CONTEXT_MAX_COMMAND_LEN)
+            .collect();
+        sanitized.push_str("...[truncated]");
+    }
+    (sanitized, redacted)
+}
+
+fn merge_custom_ai_inspector_agents(
+    mut agents: Vec<AgentConfig>,
+    custom_agents: &[CustomAcpAgentConfig],
+) -> Vec<AgentConfig> {
+    for custom in custom_agents {
+        if custom.identity.trim().is_empty()
+            || custom.short_name.trim().is_empty()
+            || custom.name.trim().is_empty()
+            || custom.run_command.is_empty()
+        {
+            log::warn!(
+                "Skipping invalid custom ACP agent entry identity='{}' short_name='{}'",
+                custom.identity,
+                custom.short_name
+            );
+            continue;
+        }
+
+        let actions: std::collections::HashMap<
+            String,
+            std::collections::HashMap<String, par_term_acp::agents::ActionConfig>,
+        > = custom
+            .actions
+            .iter()
+            .map(|(action_name, variants)| {
+                let mapped_variants = variants
+                    .iter()
+                    .map(|(variant_name, action)| {
+                        (
+                            variant_name.clone(),
+                            par_term_acp::agents::ActionConfig {
+                                command: action.command.clone(),
+                                description: action.description.clone(),
+                            },
+                        )
+                    })
+                    .collect::<std::collections::HashMap<_, _>>();
+                (action_name.clone(), mapped_variants)
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+
+        let mut custom_agent = AgentConfig {
+            identity: custom.identity.clone(),
+            name: custom.name.clone(),
+            short_name: custom.short_name.clone(),
+            protocol: if custom.protocol.trim().is_empty() {
+                "acp".to_string()
+            } else {
+                custom.protocol.clone()
+            },
+            r#type: if custom.r#type.trim().is_empty() {
+                "coding".to_string()
+            } else {
+                custom.r#type.clone()
+            },
+            active: custom.active,
+            run_command: custom.run_command.clone(),
+            env: custom.env.clone(),
+            install_command: custom.install_command.clone(),
+            actions,
+            connector_installed: false,
+        };
+
+        custom_agent.detect_connector();
+        agents.retain(|existing| existing.identity != custom_agent.identity);
+        agents.push(custom_agent);
+    }
+
+    agents.retain(|agent| agent.is_active());
+    agents
+}
+
 impl WindowState {
     /// Create a new window state with the given configuration
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
@@ -373,7 +532,9 @@ impl WindowState {
 
         // Discover available ACP agents
         let config_dir = dirs::config_dir().unwrap_or_default().join("par-term");
-        let available_agents = discover_agents(&config_dir);
+        let discovered_agents = discover_agents(&config_dir);
+        let available_agents =
+            merge_custom_ai_inspector_agents(discovered_agents, &config.ai_inspector_custom_agents);
         let command_history_max = config.command_history_max_entries;
 
         Self {
@@ -419,6 +580,9 @@ impl WindowState {
             agent: None,
             agent_client: None,
             pending_send_handles: Vec::new(),
+            agent_skill_failure_detected: false,
+            agent_skill_recovery_attempts: 0,
+            last_auto_context_sent_at: None,
             available_agents,
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
@@ -512,6 +676,16 @@ impl WindowState {
         } else {
             base_title.to_string()
         }
+    }
+
+    /// Recompute available ACP agents from discovered + custom definitions.
+    pub(crate) fn refresh_available_agents(&mut self) {
+        let config_dir = dirs::config_dir().unwrap_or_default().join("par-term");
+        let discovered_agents = discover_agents(&config_dir);
+        self.available_agents = merge_custom_ai_inspector_agents(
+            discovered_agents,
+            &self.config.ai_inspector_custom_agents,
+        );
     }
 
     // ========================================================================
@@ -1072,6 +1246,9 @@ impl WindowState {
             .iter()
             .find(|a| a.identity == identity)
         {
+            self.ai_inspector.connected_agent_name = Some(agent_config.name.clone());
+            self.ai_inspector.connected_agent_identity = Some(agent_config.identity.clone());
+
             // Clean up any previous agent before starting a new connection.
             if let Some(old_agent) = self.agent.take() {
                 let runtime = self.runtime.clone();
@@ -2548,6 +2725,7 @@ impl WindowState {
         let mut pending_quit_confirm_action = QuitConfirmAction::None;
         let mut pending_remote_install_action = RemoteShellInstallAction::None;
         let mut pending_ssh_connect_action = SshConnectAction::None;
+        let mut saw_prompt_complete_this_tick = false;
 
         // Process agent messages
         let msg_count_before = self.ai_inspector.chat.messages.len();
@@ -2568,6 +2746,46 @@ impl WindowState {
                         self.needs_redraw = true;
                     }
                     AgentMessage::SessionUpdate(update) => {
+                        match &update {
+                            par_term_acp::SessionUpdate::ToolCall(info) => {
+                                let title_l = info.title.to_ascii_lowercase();
+                                if title_l.contains("skill")
+                                    || title_l.contains("todo")
+                                    || title_l.contains("enterplanmode")
+                                {
+                                    self.agent_skill_failure_detected = true;
+                                }
+                            }
+                            par_term_acp::SessionUpdate::ToolCallUpdate(info) => {
+                                if let Some(status) = &info.status {
+                                    let status_l = status.to_ascii_lowercase();
+                                    if status_l.contains("fail") || status_l.contains("error") {
+                                        self.agent_skill_failure_detected = true;
+                                    }
+                                }
+                            }
+                            par_term_acp::SessionUpdate::CurrentModeUpdate { mode_id } => {
+                                if mode_id.eq_ignore_ascii_case("plan") {
+                                    self.agent_skill_failure_detected = true;
+                                    self.ai_inspector.chat.add_system_message(
+                                        "Agent switched to plan mode during an executable task. Requesting default mode and retry guidance."
+                                            .to_string(),
+                                    );
+                                    if let Some(agent) = &self.agent {
+                                        let agent = agent.clone();
+                                        self.runtime.spawn(async move {
+                                            let agent = agent.lock().await;
+                                            if let Err(e) = agent.set_mode("default").await {
+                                                log::error!(
+                                                    "ACP: failed to auto-reset mode from plan to default: {e}"
+                                                );
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
                         self.ai_inspector.chat.handle_update(update);
                         self.needs_redraw = true;
                     }
@@ -2600,6 +2818,7 @@ impl WindowState {
                         self.needs_redraw = true;
                     }
                     AgentMessage::PromptStarted => {
+                        self.agent_skill_failure_detected = false;
                         self.ai_inspector.chat.mark_oldest_pending_sent();
                         // Remove the corresponding handle (first in queue).
                         if !self.pending_send_handles.is_empty() {
@@ -2608,6 +2827,7 @@ impl WindowState {
                         self.needs_redraw = true;
                     }
                     AgentMessage::PromptComplete => {
+                        saw_prompt_complete_this_tick = true;
                         self.ai_inspector.chat.flush_agent_message();
                         self.needs_redraw = true;
                     }
@@ -2632,6 +2852,242 @@ impl WindowState {
                 self.config_changed_by_agent = true;
             }
             let _ = reply.send(result);
+            self.needs_redraw = true;
+        }
+
+        // Track recoverable local backend tool failures during the current
+        // prompt (for example failed `Skill`/`Write` calls).
+        if !self.agent_skill_failure_detected {
+            let mut seen_user_boundary = false;
+            for msg in self.ai_inspector.chat.messages.iter().rev() {
+                if matches!(msg, ChatMessage::User { .. }) {
+                    seen_user_boundary = true;
+                    break;
+                }
+                if let ChatMessage::ToolCall { title, status, .. } = msg {
+                    let title_l = title.to_ascii_lowercase();
+                    let status_l = status.to_ascii_lowercase();
+                    let is_failed = status_l.contains("fail") || status_l.contains("error");
+                    let is_recoverable_tool = title_l.contains("skill")
+                        || title_l == "write"
+                        || title_l.starts_with("write ")
+                        || title_l.contains(" write ");
+                    if is_failed && is_recoverable_tool {
+                        self.agent_skill_failure_detected = true;
+                        break;
+                    }
+                }
+            }
+            // If there is no user message yet, ignore stale history.
+            if !seen_user_boundary {
+                self.agent_skill_failure_detected = false;
+            }
+        }
+
+        // Compatibility fallback: some local ACP backends emit literal
+        // `<function=...>` tool markup in chat instead of structured tool calls.
+        // Parse inline `config_update` payloads from newly added agent messages
+        // and apply them so config changes still work.
+        let inline_updates: Vec<(usize, std::collections::HashMap<String, serde_json::Value>)> =
+            self.ai_inspector
+                .chat
+                .messages
+                .iter()
+                .enumerate()
+                .skip(msg_count_before)
+                .filter_map(|(idx, msg)| match msg {
+                    ChatMessage::Agent(text) => {
+                        extract_inline_config_update(text).map(|updates| (idx, updates))
+                    }
+                    _ => None,
+                })
+                .collect();
+
+        for (idx, updates) in inline_updates {
+            match self.apply_agent_config_updates(&updates) {
+                Ok(()) => {
+                    self.config_changed_by_agent = true;
+                    if let Some(ChatMessage::Agent(text)) =
+                        self.ai_inspector.chat.messages.get_mut(idx)
+                    {
+                        *text = "Applied config update request.".to_string();
+                    }
+                    self.ai_inspector.chat.add_system_message(
+                        "Applied inline config_update fallback from agent output.".to_string(),
+                    );
+                }
+                Err(e) => {
+                    self.ai_inspector
+                        .chat
+                        .add_system_message(format!("Inline config_update fallback failed: {e}"));
+                }
+            }
+            self.needs_redraw = true;
+        }
+
+        // Detect other inline XML-style tool markup (we only auto-apply
+        // `config_update`). Treat these as recoverable local backend tool
+        // failures so we can issue a one-shot retry with stricter guidance.
+        for msg in self
+            .ai_inspector
+            .chat
+            .messages
+            .iter()
+            .skip(msg_count_before)
+        {
+            if let ChatMessage::Agent(text) = msg
+                && let Some(function_name) = extract_inline_tool_function_name(text)
+                && function_name != "mcp__par-term-config__config_update"
+            {
+                self.agent_skill_failure_detected = true;
+                self.ai_inspector.chat.add_system_message(format!(
+                    "Agent emitted inline tool markup (`{function_name}`) instead of a structured ACP tool call."
+                ));
+                self.needs_redraw = true;
+                break;
+            }
+        }
+
+        let last_user_text = self
+            .ai_inspector
+            .chat
+            .messages
+            .iter()
+            .rev()
+            .find_map(|msg| {
+                if let ChatMessage::User { text, .. } = msg {
+                    Some(text.clone())
+                } else {
+                    None
+                }
+            });
+
+        let shader_activation_incomplete = if saw_prompt_complete_this_tick {
+            if let Some(user_text) = last_user_text.as_deref() {
+                if crate::ai_inspector::shader_context::is_shader_activation_request(user_text) {
+                    let mut saw_user_boundary = false;
+                    let mut saw_config_update_for_prompt = false;
+                    for msg in self.ai_inspector.chat.messages.iter().rev() {
+                        match msg {
+                            ChatMessage::User { .. } => {
+                                saw_user_boundary = true;
+                                break;
+                            }
+                            ChatMessage::ToolCall { title, .. } => {
+                                let title_l = title.to_ascii_lowercase();
+                                if title_l.contains("config_update") {
+                                    saw_config_update_for_prompt = true;
+                                    break;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    saw_user_boundary && !saw_config_update_for_prompt
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        // Bounded recovery: if the prompt failed due to a local backend tool
+        // mismatch (failed Skill/Write or inline tool markup), or if a shader
+        // activation request completed without a config_update call, nudge the
+        // agent to continue the same task with proper ACP tool use.
+        if saw_prompt_complete_this_tick
+            && (self.agent_skill_failure_detected || shader_activation_incomplete)
+            && self.agent_skill_recovery_attempts < 3
+            && let Some(agent) = &self.agent
+        {
+            let had_recoverable_failure = self.agent_skill_failure_detected;
+            self.agent_skill_recovery_attempts =
+                self.agent_skill_recovery_attempts.saturating_add(1);
+            self.agent_skill_failure_detected = false;
+            self.ai_inspector.chat.streaming = true;
+            if shader_activation_incomplete && !had_recoverable_failure {
+                self.ai_inspector.chat.add_system_message(
+                    format!(
+                        "Agent completed a shader task response without activating the shader via \
+                         config_update. Auto-retrying (attempt {}/3) to finish the activation step.",
+                        self.agent_skill_recovery_attempts
+                    ),
+                );
+            } else {
+                self.ai_inspector.chat.add_system_message(
+                    format!(
+                        "Recoverable local-backend tool failure detected (failed Skill/Write or \
+                         inline tool markup). Auto-retrying (attempt {}/3) with stricter ACP tool guidance.",
+                        self.agent_skill_recovery_attempts
+                    ),
+                );
+            }
+
+            let mut content: Vec<par_term_acp::ContentBlock> =
+                vec![par_term_acp::ContentBlock::Text {
+                    text: format!(
+                        "{}[End system instructions]",
+                        crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE
+                    ),
+                }];
+
+            if let Some(ref user_text) = last_user_text
+                && crate::ai_inspector::shader_context::should_inject_shader_context(
+                    user_text,
+                    &self.config,
+                )
+            {
+                content.push(par_term_acp::ContentBlock::Text {
+                    text: crate::ai_inspector::shader_context::build_shader_context(&self.config),
+                });
+            }
+
+            let extra_recovery_strictness = if self.agent_skill_recovery_attempts >= 2 {
+                " Do not explore unrelated files or dependencies. For shader tasks, go directly \
+                 to the shader file write and config_update activation steps."
+            } else {
+                ""
+            };
+            content.push(par_term_acp::ContentBlock::Text {
+                text: format!(
+                    "[Host recovery note]\nContinue the previous user task and stay on the \
+                       same domain/problem (do not switch to unrelated examples/files). Do NOT \
+                       use `Skill`, `Task`, or `TodoWrite`. Do NOT emit XML-style tool markup \
+                       (`<function=...>`). Use normal ACP file/system/MCP tools directly. If \
+                       a `Read` fails because the target is a directory, do not retry `Read` on \
+                       that directory; use a listing/search tool or write the known target file \
+                       path directly. \
+                       Complete the full requested workflow before declaring success (for shader \
+                       tasks: write the requested shader content, then call config_update to \
+                       activate it). \
+                       using `Write`, use exact parameters like `file_path` and `content` (not \
+                       `filepath`). For par-term settings changes use \
+                       `mcp__par-term-config__config_update` / `config_update`. If a tool \
+                       fails, correct the call and retry the same task with the available \
+                       tools. If you have already created the requested shader file, do not \
+                       stop there: call config_update now to activate it before declaring \
+                       success. Do not ask the user to restate the request unless you truly \
+                       need missing information.{}",
+                    extra_recovery_strictness
+                ),
+            });
+
+            let agent = agent.clone();
+            let tx = self.agent_tx.clone();
+            let handle = self.runtime.spawn(async move {
+                let agent = agent.lock().await;
+                if let Some(ref tx) = tx {
+                    let _ = tx.send(AgentMessage::PromptStarted);
+                }
+                let _ = agent.send_prompt(content).await;
+                if let Some(tx) = tx {
+                    let _ = tx.send(AgentMessage::PromptComplete);
+                }
+            });
+            self.pending_send_handles.push(handle);
             self.needs_redraw = true;
         }
 
@@ -2687,25 +3143,41 @@ impl WindowState {
                     && self.ai_inspector.agent_status == AgentStatus::Connected
                     && let Some((cmd, exit_code, duration_ms)) = history.last()
                 {
-                    let exit_code_str = exit_code
-                        .map(|c| c.to_string())
-                        .unwrap_or_else(|| "N/A".to_string());
-                    let duration = duration_ms.unwrap_or(0);
+                    let now = std::time::Instant::now();
+                    let throttled = self.last_auto_context_sent_at.is_some_and(|last_sent| {
+                        now.duration_since(last_sent)
+                            < std::time::Duration::from_millis(AUTO_CONTEXT_MIN_INTERVAL_MS)
+                    });
 
-                    let cwd = term.shell_integration_cwd().unwrap_or_default();
+                    if !throttled {
+                        let exit_code_str = exit_code
+                            .map(|c| c.to_string())
+                            .unwrap_or_else(|| "N/A".to_string());
+                        let duration = duration_ms.unwrap_or(0);
 
-                    let context = format!(
-                        "Command completed:\n$ {}\nExit code: {}\nDuration: {}ms\nCWD: {}",
-                        cmd, exit_code_str, duration, cwd
-                    );
+                        let cwd = term.shell_integration_cwd().unwrap_or_default();
+                        let (sanitized_cmd, was_redacted) = redact_auto_context_command(cmd);
 
-                    if let Some(agent) = &self.agent {
-                        let agent = agent.clone();
-                        let content = vec![par_term_acp::ContentBlock::Text { text: context }];
-                        self.runtime.spawn(async move {
-                            let agent = agent.lock().await;
-                            let _ = agent.send_prompt(content).await;
-                        });
+                        let context = format!(
+                            "[Auto-context event]\nCommand completed:\n$ {}\nExit code: {}\nDuration: {}ms\nCWD: {}\nSensitive arguments redacted: {}",
+                            sanitized_cmd, exit_code_str, duration, cwd, was_redacted
+                        );
+
+                        if let Some(agent) = &self.agent {
+                            self.last_auto_context_sent_at = Some(now);
+                            self.ai_inspector.chat.add_system_message(if was_redacted {
+                                "Auto-context sent command metadata to the agent (sensitive values redacted).".to_string()
+                            } else {
+                                "Auto-context sent command metadata to the agent.".to_string()
+                            });
+                            self.needs_redraw = true;
+                            let agent = agent.clone();
+                            let content = vec![par_term_acp::ContentBlock::Text { text: context }];
+                            self.runtime.spawn(async move {
+                                let agent = agent.lock().await;
+                                let _ = agent.send_prompt(content).await;
+                            });
+                        }
                     }
                 }
             }
@@ -4254,6 +4726,8 @@ impl WindowState {
                 self.agent_rx = None;
                 self.agent_tx = None;
                 self.agent_client = None;
+                self.ai_inspector.connected_agent_name = None;
+                self.ai_inspector.connected_agent_identity = None;
                 // Abort any queued send tasks.
                 for handle in self.pending_send_handles.drain(..) {
                     handle.abort();
@@ -4262,38 +4736,46 @@ impl WindowState {
                 self.needs_redraw = true;
             }
             InspectorAction::SendPrompt(text) => {
+                // Reset one-shot local backend recovery for each user prompt.
+                self.agent_skill_failure_detected = false;
+                self.agent_skill_recovery_attempts = 0;
                 self.ai_inspector.chat.add_user_message(text.clone());
                 self.ai_inspector.chat.streaming = true;
                 if let Some(agent) = &self.agent {
                     let agent = agent.clone();
-                    // Build the prompt with optional system guidance and shader context.
-                    let mut prompt_text = String::new();
-
-                    // Prepend system guidance on the first prompt so the agent
-                    // knows to wrap commands in fenced code blocks.
-                    if !self.ai_inspector.chat.system_prompt_sent {
-                        self.ai_inspector.chat.system_prompt_sent = true;
-                        prompt_text.push_str(crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE);
-                    }
+                    // Build structured prompt blocks so system/context/user roles
+                    // stay explicit and stable on every turn.
+                    let mut content: Vec<par_term_acp::ContentBlock> =
+                        vec![par_term_acp::ContentBlock::Text {
+                            text: format!(
+                                "{}[End system instructions]",
+                                crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE
+                            ),
+                        }];
 
                     // Inject shader context when relevant (keyword match or active shaders).
                     if crate::ai_inspector::shader_context::should_inject_shader_context(
                         &text,
                         &self.config,
                     ) {
-                        prompt_text.push_str(
-                            &crate::ai_inspector::shader_context::build_shader_context(
+                        content.push(par_term_acp::ContentBlock::Text {
+                            text: crate::ai_inspector::shader_context::build_shader_context(
                                 &self.config,
                             ),
-                        );
+                        });
                     }
 
-                    prompt_text.push_str(&text);
-
-                    let content = vec![par_term_acp::ContentBlock::Text { text: prompt_text }];
+                    content.push(par_term_acp::ContentBlock::Text {
+                        text: format!("[User message]\n{text}"),
+                    });
                     let tx = self.agent_tx.clone();
                     let handle = self.runtime.spawn(async move {
                         let agent = agent.lock().await;
+                        // Ensure each user prompt starts in executable mode even if
+                        // a previous response switched the session to plan mode.
+                        if let Err(e) = agent.set_mode("default").await {
+                            log::warn!("ACP: failed to pre-set default mode before prompt: {e}");
+                        }
                         // Signal that we've acquired the lock — the prompt
                         // is no longer cancellable.
                         if let Some(ref tx) = tx {

@@ -1,7 +1,13 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install doc coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install install-acp acp-harness acp-smoke doc coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
+
+ACP_AGENT ?= claude-ollama.local
+ACP_TIMEOUT ?= 45
+ACP_IDLE_TIMEOUT ?= 6
+ACP_TRANSCRIPT ?= /tmp/par-term-acp-harness.log
+ACP_SMOKE_PROMPT ?= create a new background only shader that uses a procedural checker patern and has an effect that looks like its being pulled into some kind of vortex, then set that shader as the active shader
 
 # Default target
 .DEFAULT_GOAL := help
@@ -48,12 +54,15 @@ help:
 	@echo ""
 	@echo "macOS Bundle:"
 	@echo "  make bundle         - Create macOS .app bundle (release mode)"
-	@echo "  make bundle-install - Install .app bundle to /Applications and binary to PATH"
+	@echo "  make bundle-install - Install .app bundle, binary, and ACP bridge"
 	@echo "  make run-bundle     - Run as macOS .app (shows dock icon)"
 	@echo ""
 	@echo "Other:"
 	@echo "  make clean       - Clean build artifacts"
 	@echo "  make install     - Install the binary"
+	@echo "  make install-acp - Install Claude ACP bridge (@zed-industries/claude-agent-acp)"
+	@echo "  make acp-harness - Run ACP harness (set ARGS='...')"
+	@echo "  make acp-smoke   - Run Claude+Ollama ACP smoke test with transcript"
 	@echo "  make doc         - Generate and open documentation"
 	@echo "  make coverage    - Generate test coverage report"
 	@echo "  make deploy      - Trigger Release and Deploy GitHub Action"
@@ -201,6 +210,29 @@ install: release
 	@cp target/release/par-term "$${HOME}/.cargo/bin/par-term"
 	@echo "Installed to ~/.cargo/bin/par-term"
 
+# Install ACP bridge used by Claude custom agents
+install-acp:
+	@echo "Installing Claude ACP bridge (@zed-industries/claude-agent-acp)..."
+	@command -v npm >/dev/null 2>&1 || { echo "❌ npm is required to install ACP bridge."; exit 1; }
+	@npm install -g @zed-industries/claude-agent-acp
+	@echo "✅ ACP bridge installed: $$(command -v claude-agent-acp || echo 'not found in PATH')"
+
+# Run the ACP harness (pass additional args via ARGS)
+acp-harness:
+	@echo "Running ACP harness..."
+	cargo run --bin par-term-acp-harness -- $(ARGS)
+
+# Reproducible Claude+Ollama smoke test for Assistant Panel ACP debugging
+acp-smoke:
+	@echo "Running ACP smoke test (agent=$(ACP_AGENT))..."
+	@echo "Transcript: $(ACP_TRANSCRIPT)"
+	cargo run --bin par-term-acp-harness -- \
+		--agent "$(ACP_AGENT)" \
+		--timeout-seconds $(ACP_TIMEOUT) \
+		--idle-timeout-seconds $(ACP_IDLE_TIMEOUT) \
+		--transcript-file "$(ACP_TRANSCRIPT)" \
+		--prompt "$(ACP_SMOKE_PROMPT)"
+
 # Generate documentation
 doc:
 	@echo "Generating documentation..."
@@ -321,8 +353,8 @@ else
 	cargo run --release
 endif
 
-# Install macOS app bundle to /Applications and binary to PATH
-bundle-install: bundle install
+# Install macOS app bundle to /Applications, binary to PATH, and ACP bridge
+bundle-install: bundle install install-acp
 ifeq ($(shell uname),Darwin)
 	@echo "Installing par-term.app to /Applications..."
 	@if [ -d "/Applications/par-term.app" ]; then \

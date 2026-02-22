@@ -10,12 +10,13 @@ fn test_shader_context_contains_all_sections() {
 
     // All sections must be present
     assert!(ctx.contains("[Shader Assistant Context]"));
-    assert!(ctx.contains("## Current Shader State"));
-    assert!(ctx.contains("## Available Shaders"));
-    assert!(ctx.contains("## Debug Files"));
-    assert!(ctx.contains("## Available Uniforms"));
-    assert!(ctx.contains("## Minimal Shader Template"));
-    assert!(ctx.contains("## How to Apply Changes"));
+    assert!(ctx.contains("## [Observation] Current Shader State"));
+    assert!(ctx.contains("## [Observation] Available Shaders"));
+    assert!(ctx.contains("## [Observation] Debug Files"));
+    assert!(ctx.contains("## [Observation] Available Uniforms"));
+    assert!(ctx.contains("## [Constraint] GLSL Compatibility Rules"));
+    assert!(ctx.contains("## [Instruction] Minimal Shader Template"));
+    assert!(ctx.contains("## [Instruction] How to Apply Changes"));
 }
 
 #[test]
@@ -27,6 +28,12 @@ fn test_shader_context_template_is_valid_glsl() {
     assert!(ctx.contains("void mainImage(out vec4 fragColor, in vec2 fragCoord)"));
     assert!(ctx.contains("iChannel4"));
     assert!(ctx.contains("iResolution"));
+    assert!(ctx.contains("Avoid passing sampler uniforms"));
+    assert!(ctx.contains("normalized UVs in `[0,1]`"));
+    assert!(ctx.contains("clamp(transformedUv, vec2(0.0), vec2(1.0))"));
+    assert!(ctx.contains("pixel-space values"));
+    assert!(ctx.contains("transparent 1x1 placeholders"));
+    assert!(ctx.contains("iChannelResolution[0].x > 1.0"));
 }
 
 #[test]
