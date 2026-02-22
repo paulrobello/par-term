@@ -174,6 +174,10 @@ pub struct WindowState {
     /// Bounded automatic recovery retries after recoverable ACP tool failures
     /// or incomplete shader activation completion.
     pub(crate) agent_skill_recovery_attempts: u8,
+    /// One-shot transcript replay prompt injected into the next user prompt
+    /// after reconnecting/switching agents to preserve local UI conversation
+    /// context in a fresh ACP session.
+    pub(crate) pending_agent_context_replay: Option<String>,
     /// Timestamp of the last command auto-context sent to the agent.
     pub(crate) last_auto_context_sent_at: Option<std::time::Instant>,
     /// Available agent configs
@@ -618,6 +622,7 @@ impl WindowState {
             pending_send_handles: Vec::new(),
             agent_skill_failure_detected: false,
             agent_skill_recovery_attempts: 0,
+            pending_agent_context_replay: None,
             last_auto_context_sent_at: None,
             available_agents,
             shader_install_ui: ShaderInstallUI::new(),
@@ -1287,6 +1292,8 @@ impl WindowState {
             .iter()
             .find(|a| a.identity == identity)
         {
+            self.pending_agent_context_replay =
+                self.ai_inspector.chat.build_context_replay_prompt();
             self.ai_inspector.connected_agent_name = Some(agent_config.name.clone());
             self.ai_inspector.connected_agent_identity = Some(agent_config.identity.clone());
 
@@ -3938,11 +3945,17 @@ impl WindowState {
                     }
 
                     // Render tab bar if visible (action handled after closure)
+                    let tab_bar_right_reserved = if self.ai_inspector.open {
+                        self.ai_inspector.consumed_width()
+                    } else {
+                        0.0
+                    };
                     pending_tab_action = self.tab_bar_ui.render(
                         ctx,
                         &self.tab_manager,
                         &self.config,
                         &self.profile_manager,
+                        tab_bar_right_reserved,
                     );
 
                     // Render tmux status bar if connected
@@ -4969,6 +4982,25 @@ impl WindowState {
                     handle.abort();
                 }
                 self.ai_inspector.agent_status = AgentStatus::Disconnected;
+                self.pending_agent_context_replay = None;
+                self.needs_redraw = true;
+            }
+            InspectorAction::RevokeAlwaysAllowSelections => {
+                if let Some(identity) = self.ai_inspector.connected_agent_identity.clone() {
+                    // Cancel any queued prompts before replacing the session.
+                    for handle in self.pending_send_handles.drain(..) {
+                        handle.abort();
+                    }
+                    self.ai_inspector.chat.add_system_message(
+                        "Resetting agent session to revoke all \"Always allow\" permissions. Local chat context will be replayed on your next prompt (best effort)."
+                            .to_string(),
+                    );
+                    self.connect_agent(&identity);
+                } else {
+                    self.ai_inspector.chat.add_system_message(
+                        "Cannot reset permissions: no connected agent identity.".to_string(),
+                    );
+                }
                 self.needs_redraw = true;
             }
             InspectorAction::SendPrompt(text) => {
@@ -4998,6 +5030,12 @@ impl WindowState {
                             text: crate::ai_inspector::shader_context::build_shader_context(
                                 &self.config,
                             ),
+                        });
+                    }
+
+                    if let Some(replay_prompt) = self.pending_agent_context_replay.take() {
+                        content.push(par_term_acp::ContentBlock::Text {
+                            text: replay_prompt,
                         });
                     }
 
@@ -5134,6 +5172,7 @@ impl WindowState {
             InspectorAction::ClearChat => {
                 let reconnect_identity = self.ai_inspector.connected_agent_identity.clone();
                 self.ai_inspector.chat.clear();
+                self.pending_agent_context_replay = None;
                 self.agent_skill_failure_detected = false;
                 self.agent_skill_recovery_attempts = 0;
                 // Abort any queued send tasks so stale prompts do not continue

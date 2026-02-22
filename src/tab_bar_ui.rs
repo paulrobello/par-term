@@ -157,6 +157,7 @@ impl TabBarUI {
         tabs: &TabManager,
         config: &Config,
         profiles: &crate::profile::ProfileManager,
+        right_reserved_width: f32,
     ) -> TabBarAction {
         let tab_count = tabs.tab_count();
 
@@ -167,7 +168,7 @@ impl TabBarUI {
 
         match config.tab_bar_position {
             TabBarPosition::Left => self.render_vertical(ctx, tabs, config, profiles),
-            _ => self.render_horizontal(ctx, tabs, config, profiles),
+            _ => self.render_horizontal(ctx, tabs, config, profiles, right_reserved_width),
         }
     }
 
@@ -178,6 +179,7 @@ impl TabBarUI {
         tabs: &TabManager,
         config: &Config,
         profiles: &crate::profile::ProfileManager,
+        right_reserved_width: f32,
     ) -> TabBarAction {
         let tab_count = tabs.tab_count();
 
@@ -207,7 +209,9 @@ impl TabBarUI {
         };
 
         panel.frame(frame).show(ctx, |ui| {
-            let total_bar_width = ui.available_width();
+            // Reserve space on the right for overlay panels (e.g. AI inspector Area)
+            // so tabs/buttons don't render underneath them.
+            let total_bar_width = (ui.available_width() - right_reserved_width.max(0.0)).max(0.0);
 
             // Calculate minimum total width needed for all tabs at min_width
             let min_total_tabs_width = if tab_count > 0 {
@@ -219,14 +223,14 @@ impl TabBarUI {
             // Available width for tabs (without scroll buttons initially).
             // Budget: left_padding + tabs + tab_spacing (cursor gap) + new_tab_btn_width = total
             let base_tabs_area_width =
-                total_bar_width - new_tab_btn_width - tab_spacing - left_padding;
+                (total_bar_width - new_tab_btn_width - tab_spacing - left_padding).max(0.0);
 
             // Determine if scrolling is needed
             let needs_scroll = tab_count > 0 && min_total_tabs_width > base_tabs_area_width;
 
             // Actual tabs area width (accounting for scroll buttons if needed)
             let tabs_area_width = if needs_scroll {
-                base_tabs_area_width - 2.0 * scroll_btn_width - 2.0 * tab_spacing
+                (base_tabs_area_width - 2.0 * scroll_btn_width - 2.0 * tab_spacing).max(0.0)
             } else {
                 base_tabs_area_width
             };

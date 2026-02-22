@@ -260,6 +260,135 @@ impl ChatState {
         self.agent_text_buffer.clear();
         self.streaming = false;
     }
+
+    /// Build a bounded transcript prompt for restoring local chat context
+    /// into a newly connected ACP session.
+    ///
+    /// This is best-effort: it preserves visible UI conversation context
+    /// (user/agent/system/tool summaries), not the agent's internal session
+    /// state or permission request identifiers.
+    pub fn build_context_replay_prompt(&self) -> Option<String> {
+        const MAX_ENTRIES: usize = 24;
+        const MAX_TOTAL_CHARS: usize = 16_000;
+        const MAX_ENTRY_CHARS: usize = 1_200;
+
+        let mut entries: Vec<String> = Vec::new();
+
+        for msg in &self.messages {
+            match msg {
+                ChatMessage::User {
+                    text,
+                    pending: false,
+                } => {
+                    entries.push(format!(
+                        "[User]\n{}",
+                        truncate_replay_text(text, MAX_ENTRY_CHARS)
+                    ));
+                }
+                ChatMessage::User { pending: true, .. } => {
+                    // Skip queued/unsent prompts: the new session never saw them.
+                }
+                ChatMessage::Agent(text) => {
+                    entries.push(format!(
+                        "[Assistant]\n{}",
+                        truncate_replay_text(text, MAX_ENTRY_CHARS)
+                    ));
+                }
+                ChatMessage::System(text) => {
+                    entries.push(format!(
+                        "[System]\n{}",
+                        truncate_replay_text(text, MAX_ENTRY_CHARS / 2)
+                    ));
+                }
+                ChatMessage::AutoApproved(desc) => {
+                    entries.push(format!(
+                        "[Tool Auto-Approved]\n{}",
+                        truncate_replay_text(desc, MAX_ENTRY_CHARS / 2)
+                    ));
+                }
+                ChatMessage::ToolCall {
+                    title,
+                    kind,
+                    status,
+                    ..
+                } => {
+                    entries.push(format!(
+                        "[Tool Call]\n{} ({kind}) - {status}",
+                        truncate_replay_text(title, MAX_ENTRY_CHARS / 2)
+                    ));
+                }
+                ChatMessage::Permission {
+                    description,
+                    resolved,
+                    ..
+                } => {
+                    let state = if *resolved { "resolved" } else { "unresolved" };
+                    entries.push(format!(
+                        "[Permission Request - {state}]\n{}",
+                        truncate_replay_text(description, MAX_ENTRY_CHARS / 2)
+                    ));
+                }
+                ChatMessage::Thinking(_) | ChatMessage::CommandSuggestion(_) => {
+                    // Skip internal reasoning and derived command suggestions to
+                    // reduce noise/duplication in the replay transcript.
+                }
+            }
+        }
+
+        if !self.agent_text_buffer.trim().is_empty() {
+            entries.push(format!(
+                "[Assistant Partial]\n{}",
+                truncate_replay_text(&self.agent_text_buffer, MAX_ENTRY_CHARS)
+            ));
+        }
+
+        if entries.is_empty() {
+            return None;
+        }
+
+        let mut selected: Vec<String> = Vec::new();
+        let mut total_chars = 0usize;
+        for entry in entries.iter().rev() {
+            let entry_chars = entry.chars().count();
+            if !selected.is_empty()
+                && (selected.len() >= MAX_ENTRIES || total_chars + entry_chars > MAX_TOTAL_CHARS)
+            {
+                break;
+            }
+            total_chars += entry_chars;
+            selected.push(entry.clone());
+        }
+        selected.reverse();
+
+        let mut prompt = String::from(
+            "[System: par-term context restore]\n\
+The following is a best-effort transcript reconstructed from the local UI chat \
+history after reconnecting or switching agent/provider. It preserves visible \
+conversation context only (not hidden session state, pending permissions, or \
+tool-call IDs). Use it to continue the conversation naturally from the latest \
+user request. Do not restate the transcript unless asked.\n\n",
+        );
+
+        if selected.len() < entries.len() {
+            prompt.push_str("[Older transcript entries omitted for length.]\n\n");
+        }
+
+        prompt.push_str(&selected.join("\n\n"));
+        Some(prompt)
+    }
+}
+
+/// Truncate replay transcript text by Unicode scalar count and append an ASCII suffix.
+fn truncate_replay_text(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+    if max_chars <= 3 {
+        return ".".repeat(max_chars);
+    }
+    let mut out: String = text.chars().take(max_chars - 3).collect();
+    out.push_str("...");
+    out
 }
 
 /// A segment of agent message text for rendering.
@@ -930,5 +1059,32 @@ mod tests {
     fn test_extract_inline_config_update_absent() {
         let text = "normal agent response";
         assert!(extract_inline_config_update(text).is_none());
+    }
+
+    #[test]
+    fn test_build_context_replay_prompt_includes_conversation() {
+        let mut state = ChatState::new();
+        state.add_user_message("sent".to_string());
+        state.mark_oldest_pending_sent();
+        state.add_user_message("queued".to_string());
+        state
+            .messages
+            .push(ChatMessage::Agent("answer".to_string()));
+        state.add_command_suggestion("echo answer".to_string());
+
+        let prompt = state
+            .build_context_replay_prompt()
+            .expect("expected replay prompt");
+
+        assert!(prompt.contains("[User]\nsent"));
+        assert!(prompt.contains("[Assistant]\nanswer"));
+        assert!(!prompt.contains("queued"));
+        assert!(!prompt.contains("echo answer"));
+    }
+
+    #[test]
+    fn test_build_context_replay_prompt_none_when_empty() {
+        let state = ChatState::new();
+        assert!(state.build_context_replay_prompt().is_none());
     }
 }

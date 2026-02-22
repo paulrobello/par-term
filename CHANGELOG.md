@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Claude + Ollama ACP Documentation**: Expanded Assistant Panel docs with Zed ACP bridge (`claude-agent-acp`) setup, `ollama launch claude` workflow, custom-agent examples, and troubleshooting notes
 - **ACP Harness CLI for Agent Debugging**: Added `par-term-acp-harness` plus `make acp-harness` / `make acp-smoke` targets to reproduce Assistant Panel ACP sessions (including shader-context injection, tool-call logging, transcripts, and Claude+Ollama debugging)
 - **Terminal Screenshot MCP Tool for Agents**: Added `terminal_screenshot` to the par-term MCP server for permission-gated visual terminal capture (including live renderer screenshots in the app and harness fallback image testing via `--screenshot-file`)
+- **Reset Assistant Permission Approvals**: Added a "Reset approvals" button in the Assistant panel when connected — it reconnects the agent session to revoke all session-scoped "Always allow" permission selections, then replays local chat context into the next prompt (best effort) so work can continue
+- **Best-Effort Context Restore Across Agent Reconnects**: When connecting to an agent with existing Assistant chat history (including switching providers/models), par-term now stages a bounded local transcript and injects it into the next prompt so the new ACP session can continue with prior visible context
 
 ### Changed
 
@@ -43,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Error Status Missing Details**: `AgentStatus::Error` now displays the error message inline (e.g., "Error: Agent handshake timed out") with a hover tooltip, instead of showing just "Error"
 - **Agent Selector Not Tracking Selection**: Fixed the multi-agent dropdown always displaying the first agent's name regardless of selection — added persistent `selected_agent_index` so the Connect button and dropdown stay in sync
 - **New Tab Button Clipped Off Right Edge**: Fixed the new-tab split button ([+][▾]) being pushed off the right side of the window — the tab bar width budget was missing the 2px left padding and double-counting the gap before the button, causing ~6px overflow
+- **Assistant Panel Overlapping Tab Bar**: Fixed the assistant panel covering tab bar tabs/buttons when open — the horizontal tab bar now reserves the assistant panel's consumed width so tabs shrink instead of rendering underneath the overlay panel
 
 ---
 

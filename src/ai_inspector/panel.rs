@@ -71,6 +71,9 @@ pub enum InspectorAction {
     ConnectAgent(String),
     /// Disconnect from the current agent.
     DisconnectAgent,
+    /// Reconnect the current agent to clear session-scoped permission approvals
+    /// (including "Always allow" selections).
+    RevokeAlwaysAllowSelections,
     /// Send a user prompt to the connected agent.
     SendPrompt(String),
     /// Toggle agent terminal access.
@@ -1089,6 +1092,15 @@ impl AIInspectorPanel {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 match self.agent_status {
                     AgentStatus::Connected => {
+                        if ui
+                            .button(RichText::new("Reset approvals").small())
+                            .on_hover_text(
+                                "Reconnect the agent session and revoke all \"Always allow\" permission selections (local chat context is restored on the next prompt)",
+                            )
+                            .clicked()
+                        {
+                            action = InspectorAction::RevokeAlwaysAllowSelections;
+                        }
                         if ui
                             .button(RichText::new("Disconnect").small())
                             .on_hover_text("Disconnect from agent")
