@@ -773,7 +773,12 @@ fn show_permissions_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
-            if !settings.config.ai_inspector_agent_screenshot_access {
+            if settings.config.ai_inspector_agent_screenshot_access {
+                ui.colored_label(
+                    egui::Color32::from_rgb(255, 193, 7),
+                    "Screenshot requests still require per-request approval in chat",
+                );
+            } else {
                 ui.colored_label(
                     egui::Color32::from_rgb(255, 152, 0),
                     "Agent screenshot requests will be denied",
