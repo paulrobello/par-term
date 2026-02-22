@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Input and Shader Lag After CPU Optimizations**: Fixed responsiveness regressions introduced by idle-throttling changes — active tabs/panes no longer use exponential refresh backoff (backoff now applies only to inactive tabs), and the event loop no longer performs idle sleep immediately after queuing a redraw, restoring smooth typing response and shader animation cadence
 - **ACP Agent Connection in App Bundle**: Fixed agent connection failures when running from macOS app bundle — the login shell didn't have nvm/homebrew in PATH. Now resolves the full shell PATH via interactive login shell and passes it to the agent process
 - **Nested Claude Code Session Blocking**: Fixed agent handshake timeout caused by `CLAUDECODE` environment variable leaking into the spawned agent process, which refused to start as a "nested session"
 - **Assistant Panel Input Pushed Off-Screen**: Fixed the chat input and controls being invisible because `egui::Area` reported near-infinite available height — added `set_max_height` constraint so the scroll area doesn't consume all space

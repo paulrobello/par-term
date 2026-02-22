@@ -1028,19 +1028,17 @@ impl Tab {
         let handle = runtime.spawn(async move {
             let mut last_gen = 0u64;
             let mut idle_streak = 0u32;
-            const MAX_IDLE_INTERVAL_MS: u64 = 250;
+            const MAX_INACTIVE_IDLE_INTERVAL_MS: u64 = 250;
 
             loop {
-                let base_interval_ms = if is_active.load(Ordering::Relaxed) {
+                let is_active_now = is_active.load(Ordering::Relaxed);
+                // Keep the active tab responsive: only apply backoff to inactive tabs.
+                let interval_ms = if is_active_now {
                     active_interval_ms
+                } else if idle_streak > 0 {
+                    (inactive_interval_ms << idle_streak.min(4)).min(MAX_INACTIVE_IDLE_INTERVAL_MS)
                 } else {
                     inactive_interval_ms
-                };
-                // Exponential backoff: double interval for each consecutive idle poll
-                let interval_ms = if idle_streak > 0 {
-                    (base_interval_ms << idle_streak.min(4)).min(MAX_IDLE_INTERVAL_MS)
-                } else {
-                    base_interval_ms
                 };
                 tokio::time::sleep(tokio::time::Duration::from_millis(interval_ms)).await;
 
@@ -1059,6 +1057,8 @@ impl Tab {
                 if should_redraw {
                     idle_streak = 0;
                     window.request_redraw();
+                } else if is_active_now {
+                    idle_streak = 0;
                 } else {
                     idle_streak = idle_streak.saturating_add(1);
                 }

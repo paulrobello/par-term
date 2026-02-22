@@ -1218,12 +1218,14 @@ impl WindowState {
         // Request a redraw if any of the logic above determined an update is due.
         // Respect combined delay (throughput mode OR flicker reduction),
         // but bypass delays for active file transfers that need UI feedback.
+        let mut redraw_requested = false;
         if self.needs_redraw
             && (!should_delay_render || has_active_file_transfers)
             && let Some(window) = &self.window
         {
             window.request_redraw();
             self.needs_redraw = false;
+            redraw_requested = true;
         }
 
         // Set the calculated sleep interval.
@@ -1240,7 +1242,7 @@ impl WindowState {
             // Important: keep this independent from max_fps. Using frame interval here
             // causes idle focused windows to wake at render cadence (e.g., 60Hz), which
             // burns CPU even when nothing is changing.
-            if !self.needs_redraw {
+            if !self.needs_redraw && !redraw_requested {
                 const FOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 50;
                 const UNFOCUSED_IDLE_SPIN_SLEEP_MS: u64 = 100;
                 let max_idle_spin_sleep = if self.is_focused {
