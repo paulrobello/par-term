@@ -2588,7 +2588,7 @@ impl WindowState {
 
         // Get terminal cells for rendering (with dirty tracking optimization)
         // Also capture alt screen state to disable cursor shader for TUI apps
-        let (cells, current_cursor_pos, cursor_style, is_alt_screen) = if let Ok(term) =
+        let (mut cells, current_cursor_pos, cursor_style, is_alt_screen) = if let Ok(term) =
             terminal.try_lock()
         {
             // Get current generation to check if terminal content has changed
@@ -2896,7 +2896,6 @@ impl WindowState {
 
         // Apply URL underlining to cells (always apply, since cells might be regenerated)
         let url_underline_start = std::time::Instant::now();
-        let mut cells = cells; // Make cells mutable
         self.apply_url_underlines(&mut cells, &renderer_size);
         let _debug_url_underline_time = url_underline_start.elapsed();
 

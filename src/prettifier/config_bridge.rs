@@ -5,12 +5,16 @@
 
 use std::collections::HashMap;
 
+use crate::config::Config;
+use crate::config::prettifier::resolve_prettifier_config;
 use crate::config::prettifier::{
     FormatDetectionRulesConfig, ResolvedPrettifierConfig, RuleOverride, UserDetectionRule,
 };
 
 use super::boundary::DetectionScope;
-use super::pipeline::PrettifierConfig;
+use super::pipeline::{PrettifierConfig, PrettifierPipeline};
+use super::registry::RendererRegistry;
+use super::traits::RendererConfig;
 use super::types::{DetectionRule, RuleScope, RuleSource, RuleStrength};
 
 /// Convert a `ResolvedPrettifierConfig` into the runtime `PrettifierConfig`
@@ -24,6 +28,65 @@ pub fn to_pipeline_config(resolved: &ResolvedPrettifierConfig) -> PrettifierConf
         debounce_ms: resolved.detection.debounce_ms,
         detection_scope: parse_detection_scope(&resolved.detection.scope),
     }
+}
+
+/// Build a [`RendererRegistry`] populated with all built-in detectors and renderers,
+/// configured from the resolved prettifier settings.
+pub fn build_default_registry(resolved: &ResolvedPrettifierConfig) -> RendererRegistry {
+    use super::detectors;
+    use super::renderers;
+
+    let mut registry = RendererRegistry::new(resolved.detection.confidence_threshold);
+
+    // Register built-in detectors (each checks its own enabled flag)
+    detectors::markdown::register_markdown(&mut registry, &resolved.renderers);
+    detectors::json::register_json(&mut registry, &resolved.renderers);
+    detectors::yaml::register_yaml(&mut registry, &resolved.renderers);
+    detectors::toml::register_toml(&mut registry, &resolved.renderers);
+    detectors::xml::register_xml(&mut registry, &resolved.renderers);
+    detectors::csv::register_csv(&mut registry, &resolved.renderers);
+    detectors::diff::register_diff(&mut registry, &resolved.renderers);
+    detectors::log::register_log(&mut registry, &resolved.renderers);
+    detectors::diagrams::register_diagrams(&mut registry, &resolved.renderers.diagrams);
+    detectors::stack_trace::register_stack_trace(&mut registry, &resolved.renderers);
+    detectors::sql_results::register_sql_results(&mut registry, &resolved.renderers);
+
+    // Register built-in renderers
+    renderers::markdown::register_markdown_renderer(&mut registry, &Default::default());
+    renderers::json::register_json_renderer(&mut registry, &Default::default());
+    renderers::yaml::register_yaml_renderer(&mut registry, &Default::default());
+    renderers::toml::register_toml_renderer(&mut registry, &Default::default());
+    renderers::xml::register_xml_renderer(&mut registry, &Default::default());
+    renderers::csv::register_csv_renderer(&mut registry, &Default::default());
+    renderers::diff::register_diff_renderer(&mut registry, &Default::default());
+    renderers::log::register_log_renderer(&mut registry, &Default::default());
+    renderers::diagrams::register_diagram_renderer(&mut registry, &resolved.renderers.diagrams);
+    renderers::stack_trace::register_stack_trace_renderer(&mut registry, &Default::default());
+    renderers::sql_results::register_sql_results_renderer(&mut registry, &Default::default());
+
+    registry
+}
+
+/// Create a [`PrettifierPipeline`] from the application [`Config`], or `None` if
+/// the prettifier is disabled.
+pub fn create_pipeline_from_config(config: &Config) -> Option<PrettifierPipeline> {
+    if !config.enable_prettifier {
+        return None;
+    }
+    let resolved = resolve_prettifier_config(
+        config.enable_prettifier,
+        &config.content_prettifier,
+        None,
+        None,
+    );
+    let pipeline_config = to_pipeline_config(&resolved);
+    let registry = build_default_registry(&resolved);
+    let renderer_config = RendererConfig::default();
+    Some(PrettifierPipeline::new(
+        pipeline_config,
+        registry,
+        renderer_config,
+    ))
 }
 
 /// Parse a scope string from config into the runtime enum.
