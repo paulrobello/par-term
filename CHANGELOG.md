@@ -19,13 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Auto-Approval Chat Notifications**: Auto-approved tool calls (read-only tools, safe path writes, YOLO mode) now show as "Auto-approved: ..." entries in the chat history so users have visibility into what the agent is doing
 - **Shell Detection in Snapshots**: Terminal state snapshots now populate the shell field from the `$SHELL` environment variable instead of leaving it blank
 - **Custom ACP Agents in Settings/UI Config**: Assistant settings now support managing custom ACP agents via `ai_inspector_custom_agents`, including per-agent environment variables for local/provider-specific setups (for example Ollama)
+- **Custom ACP Ollama Context Helper**: Custom ACP agents now support an optional `ollama_context_length` field (also editable in Settings > Assistant) which injects `OLLAMA_CONTEXT_LENGTH` for Ollama-backed agent sessions without manual env var editing
 - **Claude + Ollama ACP Documentation**: Expanded Assistant Panel docs with Zed ACP bridge (`claude-agent-acp`) setup, `ollama launch claude` workflow, custom-agent examples, and troubleshooting notes
 - **ACP Harness CLI for Agent Debugging**: Added `par-term-acp-harness` plus `make acp-harness` / `make acp-smoke` targets to reproduce Assistant Panel ACP sessions (including shader-context injection, tool-call logging, transcripts, and Claude+Ollama debugging)
+- **Terminal Screenshot MCP Tool for Agents**: Added `terminal_screenshot` to the par-term MCP server for permission-gated visual terminal capture (including live renderer screenshots in the app and harness fallback image testing via `--screenshot-file`)
 
 ### Changed
 
 - **Claude ACP Bridge Package Name**: User-facing install commands and bundled docs now use `@zed-industries/claude-agent-acp` / `claude-agent-acp` (the upstream replacement for deprecated `@zed-industries/claude-code-acp`)
 - **Bundle Install Includes ACP Bridge**: `make bundle-install` now installs the macOS app bundle, CLI binary, and Claude ACP bridge in one command; CI/release workflows also install/verify the bridge
+- **Screenshot Permissions Split from YOLO Mode**: Assistant settings now include a separate "Allow Agent Screenshots" toggle, and screenshot requests are no longer auto-approved by YOLO mode
 
 ### Fixed
 

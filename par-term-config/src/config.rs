@@ -115,6 +115,8 @@ pub struct CustomAcpAgentConfig {
     #[serde(default)]
     pub env: HashMap<String, String>,
     #[serde(default)]
+    pub ollama_context_length: Option<u32>,
+    #[serde(default)]
     pub install_command: Option<String>,
     #[serde(default)]
     pub actions: HashMap<String, HashMap<String, CustomAcpAgentActionConfig>>,
@@ -1868,6 +1870,10 @@ pub struct Config {
     #[serde(default = "crate::defaults::ai_inspector_agent_terminal_access")]
     pub ai_inspector_agent_terminal_access: bool,
 
+    /// Allow the AI agent to request terminal screenshots (permission-gated per request)
+    #[serde(default = "crate::defaults::ai_inspector_agent_screenshot_access")]
+    pub ai_inspector_agent_screenshot_access: bool,
+
     /// Additional ACP agents defined directly in `config.yaml`.
     ///
     /// Entries here are merged into discovered agents and override agents with
@@ -2219,6 +2225,8 @@ impl Default for Config {
             ai_inspector_auto_approve: crate::defaults::ai_inspector_auto_approve(),
             ai_inspector_agent_terminal_access: crate::defaults::ai_inspector_agent_terminal_access(
             ),
+            ai_inspector_agent_screenshot_access:
+                crate::defaults::ai_inspector_agent_screenshot_access(),
             ai_inspector_custom_agents: Vec::new(),
         }
     }

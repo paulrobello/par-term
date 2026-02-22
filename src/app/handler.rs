@@ -414,8 +414,19 @@ impl WindowState {
                 // Without this, the click is forwarded to the PTY where mouse-aware
                 // apps (tmux with `mouse on`) trigger a zero-char selection that
                 // clears the system clipboard — destroying any clipboard image.
-                if self.focus_click_pending && state == ElementState::Pressed {
+                //
+                // Some platforms deliver `Focused(true)` before the mouse press, others
+                // can deliver it after the press/release. Treat a press that arrives while
+                // we're still unfocused as a focus-click too, then avoid double-arming the
+                // later focus event path.
+                let is_focus_click_press = state == ElementState::Pressed
+                    && (self.focus_click_pending || !self.is_focused);
+                if is_focus_click_press {
                     self.focus_click_pending = false;
+                    if !self.is_focused {
+                        self.focus_click_suppressed_while_unfocused_at =
+                            Some(std::time::Instant::now());
+                    }
                     self.ui_consumed_mouse_press = true; // Also suppress the release
                     if let Some(window) = &self.window {
                         window.request_redraw();
@@ -754,7 +765,15 @@ impl WindowState {
         // mouse event to tmux (or other mouse-aware apps), which can trigger a
         // zero-char selection that clears the system clipboard.
         if focused {
-            self.focus_click_pending = true;
+            let suppressed_recent_unfocused_click = self
+                .focus_click_suppressed_while_unfocused_at
+                .is_some_and(|t| t.elapsed() <= std::time::Duration::from_millis(500));
+
+            self.focus_click_pending = !suppressed_recent_unfocused_click;
+            self.focus_click_suppressed_while_unfocused_at = None;
+        } else {
+            self.focus_click_pending = false;
+            self.focus_click_suppressed_while_unfocused_at = None;
         }
 
         // Update renderer focus state for unfocused cursor styling
@@ -864,6 +883,9 @@ impl WindowState {
 
         // Check for MCP server config updates (.config-update.json)
         self.check_config_update_file();
+
+        // Check for MCP screenshot requests (.screenshot-request.json)
+        self.check_screenshot_request_file();
 
         // Check for tmux control mode notifications
         if self.check_tmux_notifications() {

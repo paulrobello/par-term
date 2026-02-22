@@ -1,13 +1,18 @@
 //! Minimal MCP (Model Context Protocol) server over stdio.
 //!
 //! Reads line-delimited JSON-RPC 2.0 from stdin and writes responses to stdout.
-//! Exposes a single `config_update` tool that writes configuration changes to a
-//! file for the main application to pick up.
+//! Exposes tools for par-term ACP integrations:
+//! - `config_update`: writes configuration changes to a file for the main app
+//!   to pick up
+//! - `terminal_screenshot`: requests a live terminal screenshot from the app
+//!   via a file-based IPC handshake (with an optional fallback image path for
+//!   non-GUI test harnesses)
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// MCP protocol version.
 const PROTOCOL_VERSION: &str = "2024-11-05";
@@ -19,10 +24,44 @@ const SERVER_NAME: &str = "par-term";
 const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Environment variable for overriding the config update file path.
-const CONFIG_UPDATE_PATH_ENV: &str = "PAR_TERM_CONFIG_UPDATE_PATH";
+pub const CONFIG_UPDATE_PATH_ENV: &str = "PAR_TERM_CONFIG_UPDATE_PATH";
+/// Environment variable for screenshot request IPC file path.
+pub const SCREENSHOT_REQUEST_PATH_ENV: &str = "PAR_TERM_SCREENSHOT_REQUEST_PATH";
+/// Environment variable for screenshot response IPC file path.
+pub const SCREENSHOT_RESPONSE_PATH_ENV: &str = "PAR_TERM_SCREENSHOT_RESPONSE_PATH";
+/// Optional environment variable for a static fallback screenshot file path.
+/// Used by the ACP harness to test the screenshot tool flow without a GUI.
+pub const SCREENSHOT_FALLBACK_PATH_ENV: &str = "PAR_TERM_SCREENSHOT_FALLBACK_PATH";
 
 /// Default config update filename (relative to config dir).
-const CONFIG_UPDATE_FILENAME: &str = ".config-update.json";
+pub const CONFIG_UPDATE_FILENAME: &str = ".config-update.json";
+/// Default screenshot request filename (relative to config dir).
+pub const SCREENSHOT_REQUEST_FILENAME: &str = ".screenshot-request.json";
+/// Default screenshot response filename (relative to config dir).
+pub const SCREENSHOT_RESPONSE_FILENAME: &str = ".screenshot-response.json";
+
+/// Screenshot request written by the MCP server for the GUI app to fulfill.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalScreenshotRequest {
+    pub request_id: String,
+}
+
+/// Screenshot response written by the GUI app for the MCP server to read.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalScreenshotResponse {
+    pub request_id: String,
+    pub ok: bool,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub mime_type: Option<String>,
+    #[serde(default)]
+    pub data_base64: Option<String>,
+    #[serde(default)]
+    pub width: Option<u32>,
+    #[serde(default)]
+    pub height: Option<u32>,
+}
 
 // ---------------------------------------------------------------------------
 // JSON-RPC wire types (minimal, server-side only)
@@ -88,6 +127,23 @@ fn config_update_tool() -> Value {
     })
 }
 
+/// Build the input schema for the `terminal_screenshot` tool.
+fn terminal_screenshot_input_schema() -> Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {}
+    })
+}
+
+/// Build the tool descriptor for `terminal_screenshot`.
+fn terminal_screenshot_tool() -> Value {
+    serde_json::json!({
+        "name": "terminal_screenshot",
+        "description": "Capture a screenshot of the currently visible terminal output (including active shader/cursor visual effects) from the running par-term app. Returns an image for visual debugging. Requires user permission.",
+        "inputSchema": terminal_screenshot_input_schema()
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Config update file path resolution
 // ---------------------------------------------------------------------------
@@ -97,11 +153,25 @@ fn config_update_tool() -> Value {
 /// Checks `PAR_TERM_CONFIG_UPDATE_PATH` env var first, then falls back to
 /// `~/.config/par-term/.config-update.json`.
 fn config_update_path() -> PathBuf {
-    if let Ok(path) = std::env::var(CONFIG_UPDATE_PATH_ENV) {
+    resolve_ipc_path(CONFIG_UPDATE_PATH_ENV, CONFIG_UPDATE_FILENAME)
+}
+
+/// Resolve the path where screenshot requests should be written.
+pub fn screenshot_request_path() -> PathBuf {
+    resolve_ipc_path(SCREENSHOT_REQUEST_PATH_ENV, SCREENSHOT_REQUEST_FILENAME)
+}
+
+/// Resolve the path where screenshot responses should be written.
+pub fn screenshot_response_path() -> PathBuf {
+    resolve_ipc_path(SCREENSHOT_RESPONSE_PATH_ENV, SCREENSHOT_RESPONSE_FILENAME)
+}
+
+/// Resolve a path from env var or default filename under `~/.config/par-term`.
+fn resolve_ipc_path(env_var: &str, default_filename: &str) -> PathBuf {
+    if let Ok(path) = std::env::var(env_var) {
         return PathBuf::from(path);
     }
 
-    // Fall back to XDG config dir / par-term
     let config_dir = dirs::config_dir()
         .unwrap_or_else(|| {
             // Last resort: ~/.config
@@ -111,7 +181,7 @@ fn config_update_path() -> PathBuf {
         })
         .join("par-term");
 
-    config_dir.join(CONFIG_UPDATE_FILENAME)
+    config_dir.join(default_filename)
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +205,7 @@ fn handle_initialize() -> Value {
 /// Handle the `tools/list` request.
 fn handle_tools_list() -> Value {
     serde_json::json!({
-        "tools": [config_update_tool()]
+        "tools": [config_update_tool(), terminal_screenshot_tool()]
     })
 }
 
@@ -152,6 +222,7 @@ fn handle_tools_call(params: Option<Value>) -> Value {
 
     match name {
         "config_update" => handle_config_update(&params),
+        "terminal_screenshot" => handle_terminal_screenshot(&params),
         _ => tool_error(&format!("Unknown tool: {name}")),
     }
 }
@@ -177,6 +248,100 @@ fn handle_config_update(params: &Value) -> Value {
 
     let path = config_update_path();
     write_config_updates(updates, &path)
+}
+
+/// Execute the `terminal_screenshot` tool.
+fn handle_terminal_screenshot(params: &Value) -> Value {
+    // MCP tools/call always includes "arguments", but this tool takes none.
+    if let Some(arguments) = params.get("arguments")
+        && !arguments.is_object()
+    {
+        return tool_error("'arguments' must be an object");
+    }
+
+    if let Ok(fallback) = std::env::var(SCREENSHOT_FALLBACK_PATH_ENV)
+        && !fallback.trim().is_empty()
+    {
+        let path = PathBuf::from(fallback.trim());
+        return image_tool_result_from_file(&path);
+    }
+
+    let request_path = screenshot_request_path();
+    let response_path = screenshot_response_path();
+
+    let request_id = format!(
+        "{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+    );
+    let request = TerminalScreenshotRequest {
+        request_id: request_id.clone(),
+    };
+
+    if let Err(e) = write_json_atomic(&request, &request_path) {
+        return tool_error(&format!(
+            "Failed to write screenshot request {}: {e}",
+            request_path.display()
+        ));
+    }
+
+    let timeout = Duration::from_secs(15);
+    let poll_interval = Duration::from_millis(100);
+    let start = std::time::Instant::now();
+    while start.elapsed() < timeout {
+        match try_read_screenshot_response(&response_path) {
+            Ok(Some(response)) if response.request_id == request_id => {
+                // Clear response file after consuming
+                let _ = std::fs::write(&response_path, "");
+                if !response.ok {
+                    return tool_error(
+                        response
+                            .error
+                            .as_deref()
+                            .unwrap_or("Screenshot capture failed"),
+                    );
+                }
+                let mime_type = response
+                    .mime_type
+                    .unwrap_or_else(|| "image/png".to_string());
+                let data_base64 = match response.data_base64 {
+                    Some(data) if !data.is_empty() => data,
+                    _ => return tool_error("Screenshot response missing image data"),
+                };
+                let width = response.width.unwrap_or(0);
+                let height = response.height.unwrap_or(0);
+                return serde_json::json!({
+                    "content": [
+                        {
+                            "type": "image",
+                            "mimeType": mime_type,
+                            "data": data_base64,
+                        },
+                        {
+                            "type": "text",
+                            "text": format!("Captured terminal screenshot ({}x{}).", width, height),
+                        }
+                    ]
+                });
+            }
+            Ok(Some(_other_response)) => {
+                // Stale response for a different request ID; keep waiting.
+            }
+            Ok(None) => {}
+            Err(e) => {
+                return tool_error(&format!(
+                    "Failed to read screenshot response {}: {e}",
+                    response_path.display()
+                ));
+            }
+        }
+        std::thread::sleep(poll_interval);
+    }
+
+    tool_error("Timed out waiting for par-term app screenshot response")
 }
 
 /// Write config updates to the specified path atomically.
@@ -239,6 +404,80 @@ fn write_config_updates(updates: &Value, path: &std::path::Path) -> Value {
                 keys.join(", ")
             )
         }]
+    })
+}
+
+/// Atomically write a JSON payload to a path.
+fn write_json_atomic<T: Serialize>(payload: &T, path: &std::path::Path) -> Result<(), String> {
+    if let Some(parent) = path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        return Err(format!(
+            "Failed to create parent directory {}: {e}",
+            parent.display()
+        ));
+    }
+
+    let temp_path = path.with_extension("json.tmp");
+    let bytes = serde_json::to_vec_pretty(payload).map_err(|e| e.to_string())?;
+    std::fs::write(&temp_path, &bytes).map_err(|e| {
+        format!(
+            "Failed to write temp file {}: {e}",
+            temp_path.to_string_lossy()
+        )
+    })?;
+    std::fs::rename(&temp_path, path).map_err(|e| {
+        let _ = std::fs::remove_file(&temp_path);
+        format!(
+            "Failed to rename temp file to {}: {e}",
+            path.to_string_lossy()
+        )
+    })?;
+    Ok(())
+}
+
+/// Read and parse a screenshot response file, returning `None` for empty files.
+fn try_read_screenshot_response(
+    path: &std::path::Path,
+) -> Result<Option<TerminalScreenshotResponse>, String> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e.to_string()),
+    };
+    if content.trim().is_empty() {
+        return Ok(None);
+    }
+    let resp =
+        serde_json::from_str::<TerminalScreenshotResponse>(&content).map_err(|e| e.to_string())?;
+    Ok(Some(resp))
+}
+
+/// Build an MCP image tool result from an existing image file.
+fn image_tool_result_from_file(path: &std::path::Path) -> Value {
+    let bytes = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(e) => {
+            return tool_error(&format!(
+                "Failed to read fallback screenshot {}: {e}",
+                path.display()
+            ));
+        }
+    };
+    use base64::Engine;
+    let data = base64::engine::general_purpose::STANDARD.encode(bytes);
+    serde_json::json!({
+        "content": [
+            {
+                "type": "image",
+                "mimeType": "image/png",
+                "data": data
+            },
+            {
+                "type": "text",
+                "text": format!("Provided fallback terminal screenshot from {}.", path.display())
+            }
+        ]
     })
 }
 
@@ -410,9 +649,13 @@ mod tests {
     fn test_handle_tools_list() {
         let result = handle_tools_list();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0]["name"], "config_update");
-        assert!(tools[0]["inputSchema"].is_object());
+        assert_eq!(tools.len(), 2);
+        let names: Vec<_> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+        assert!(names.contains(&"config_update"));
+        assert!(names.contains(&"terminal_screenshot"));
+        for tool in tools {
+            assert!(tool["inputSchema"].is_object());
+        }
     }
 
     #[test]
@@ -558,6 +801,53 @@ mod tests {
             path_str.ends_with(CONFIG_UPDATE_FILENAME),
             "Expected path to end with '{CONFIG_UPDATE_FILENAME}', got: {path_str}"
         );
+    }
+
+    #[test]
+    fn test_screenshot_paths_env_override_and_default() {
+        // SAFETY: test env var manipulation
+        unsafe {
+            std::env::set_var(
+                SCREENSHOT_REQUEST_PATH_ENV,
+                "/tmp/test-par-term-shot-req.json",
+            );
+            std::env::set_var(
+                SCREENSHOT_RESPONSE_PATH_ENV,
+                "/tmp/test-par-term-shot-resp.json",
+            );
+        }
+        assert_eq!(
+            screenshot_request_path(),
+            PathBuf::from("/tmp/test-par-term-shot-req.json")
+        );
+        assert_eq!(
+            screenshot_response_path(),
+            PathBuf::from("/tmp/test-par-term-shot-resp.json")
+        );
+
+        // SAFETY: test env var manipulation
+        unsafe {
+            std::env::remove_var(SCREENSHOT_REQUEST_PATH_ENV);
+            std::env::remove_var(SCREENSHOT_RESPONSE_PATH_ENV);
+        }
+        assert!(
+            screenshot_request_path()
+                .to_string_lossy()
+                .ends_with(SCREENSHOT_REQUEST_FILENAME)
+        );
+        assert!(
+            screenshot_response_path()
+                .to_string_lossy()
+                .ends_with(SCREENSHOT_RESPONSE_FILENAME)
+        );
+    }
+
+    #[test]
+    fn test_image_tool_result_from_file_missing() {
+        let result = image_tool_result_from_file(std::path::Path::new(
+            "/tmp/does-not-exist-terminal-screenshot.png",
+        ));
+        assert_eq!(result["isError"], true);
     }
 
     #[test]

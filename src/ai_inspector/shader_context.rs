@@ -340,13 +340,16 @@ pub fn build_shader_context(config: &Config) -> String {
     ctx.push_str("   ```\n");
     ctx.push_str("   For cursor shaders use `cursor_shader` and `cursor_shader_enabled` keys.\n");
     ctx.push_str("3. Changes apply immediately — no restart or manual config edit needed.\n");
+    ctx.push_str("4. For visual debugging/verification, use the `terminal_screenshot` MCP tool\n");
+    ctx.push_str("   to capture the current terminal output (including shader rendering).\n");
+    ctx.push_str("   This may require user permission before the screenshot is returned.\n");
     ctx.push_str(
-        "4. Do not stop after writing the file if the user also asked to activate/set it.\n",
+        "5. Do not stop after writing the file if the user also asked to activate/set it.\n",
     );
     ctx.push_str(
         "   Completion requires a `config_update` call that sets the shader key and enable flag.\n",
     );
-    ctx.push_str("5. If reading/listing the shader directory fails, do NOT loop on `Read` for the directory.\n");
+    ctx.push_str("6. If reading/listing the shader directory fails, do NOT loop on `Read` for the directory.\n");
     ctx.push_str(
         "   You can write a new file directly to the shader directory path (for example `vortex_checker.glsl`) and then activate it.\n",
     );

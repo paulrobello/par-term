@@ -98,6 +98,10 @@ struct Args {
     #[arg(long)]
     par_term_bin: Option<PathBuf>,
 
+    /// PNG file to return from the `terminal_screenshot` MCP tool (harness fallback)
+    #[arg(long)]
+    screenshot_file: Option<PathBuf>,
+
     /// Print available agents and exit
     #[arg(long)]
     list_agents: bool,
@@ -150,7 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         return Ok(());
     }
 
-    let Some(agent_config) = available_agents
+    let Some(mut agent_config) = available_agents
         .iter()
         .find(|a| a.identity == args.agent)
         .cloned()
@@ -168,6 +172,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .unwrap_or(std::env::current_dir()?)
         .to_string_lossy()
         .to_string();
+
+    if let Some(path) = &args.screenshot_file {
+        agent_config.env.insert(
+            "PAR_TERM_SCREENSHOT_FALLBACK_PATH".to_string(),
+            path.to_string_lossy().to_string(),
+        );
+    }
     let par_term_bin = resolve_par_term_binary(args.par_term_bin.as_deref())?;
 
     println!("ACP harness");
@@ -177,6 +188,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("auto_approve: {}", args.auto_approve);
     println!("apply_config_updates: {}", args.apply_config_updates);
     println!("auto_recover: {}", args.auto_recover);
+    if let Some(path) = &args.screenshot_file {
+        println!("screenshot_fallback: {}", path.display());
+    }
     println!();
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
@@ -423,6 +437,14 @@ fn merge_custom_agents(
             })
             .collect();
 
+        let mut env = custom.env.clone();
+        if !env.contains_key("OLLAMA_CONTEXT_LENGTH")
+            && let Some(ctx) = custom.ollama_context_length
+            && ctx > 0
+        {
+            env.insert("OLLAMA_CONTEXT_LENGTH".to_string(), ctx.to_string());
+        }
+
         let mut custom_agent = AgentConfig {
             identity: custom.identity.clone(),
             name: custom.name.clone(),
@@ -439,7 +461,7 @@ fn merge_custom_agents(
             },
             active: custom.active,
             run_command: custom.run_command.clone(),
-            env: custom.env.clone(),
+            env,
             install_command: custom.install_command.clone(),
             actions,
             connector_installed: false,

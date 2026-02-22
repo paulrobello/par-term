@@ -70,7 +70,14 @@ pub fn show(
     if section_matches(
         &query,
         "Permissions",
-        &["approve", "auto-approve", "yolo", "permission"],
+        &[
+            "approve",
+            "auto-approve",
+            "yolo",
+            "permission",
+            "screenshot",
+            "image",
+        ],
     ) {
         show_permissions_section(ui, settings, changes_this_frame, collapsed);
     }
@@ -540,6 +547,52 @@ fn show_custom_agents_section(
                         ui.strong("Environment variables");
                         ui.label("These key/value pairs are injected into the ACP subprocess.");
 
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            ui.label("Ollama context")
+                                .on_hover_text(
+                                    "Optional helper for Ollama-backed agents. Sets \
+                                     OLLAMA_CONTEXT_LENGTH on the ACP subprocess unless you \
+                                     already define OLLAMA_CONTEXT_LENGTH in Env Vars.",
+                                );
+                            let mut ctx_text = agent
+                                .ollama_context_length
+                                .map(|v| v.to_string())
+                                .unwrap_or_default();
+                            let response = ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut ctx_text)
+                                        .desired_width(100.0)
+                                        .hint_text("e.g. 32768"),
+                                )
+                                .on_hover_text(
+                                    "Context window token limit to expose as \
+                                     OLLAMA_CONTEXT_LENGTH. Leave blank to disable. \
+                                     Note: if your Ollama server runs outside this ACP process \
+                                     (for example a separate `ollama serve` / `ollama launch`), \
+                                     set the same value in that server environment too.",
+                                );
+                            if response.changed() {
+                                let trimmed = ctx_text.trim();
+                                let parsed = if trimmed.is_empty() {
+                                    Some(None)
+                                } else {
+                                    trimmed.parse::<u32>().ok().map(Some)
+                                };
+                                if let Some(value) = parsed {
+                                    agent.ollama_context_length = value.filter(|v| *v > 0);
+                                    changed = true;
+                                }
+                            }
+                            if agent.env.contains_key("OLLAMA_CONTEXT_LENGTH") {
+                                ui.label("(env override)")
+                                    .on_hover_text(
+                                        "Env Vars already defines OLLAMA_CONTEXT_LENGTH. \
+                                         That value takes precedence over this helper field.",
+                                    );
+                            }
+                        });
+
                         let mut env_rows: Vec<(String, String)> = agent
                             .env
                             .iter()
@@ -638,6 +691,7 @@ fn show_custom_agents_section(
                             "your-agent-acp".to_string(),
                         )]),
                         env: std::collections::HashMap::new(),
+                        ollama_context_length: None,
                         install_command: None,
                         actions: std::collections::HashMap::new(),
                     });
@@ -675,7 +729,7 @@ fn show_permissions_section(
             if settings.config.ai_inspector_auto_approve {
                 ui.colored_label(
                     egui::Color32::from_rgb(255, 193, 7),
-                    "All agent permission requests will be auto-approved",
+                    "Most agent permission requests will be auto-approved (screenshots still prompt)",
                 );
             }
 
@@ -699,6 +753,30 @@ fn show_permissions_section(
                 ui.colored_label(
                     egui::Color32::from_rgb(255, 152, 0),
                     "Agent can write commands to the terminal",
+                );
+            }
+
+            ui.add_space(8.0);
+
+            let screenshot_access_response = ui
+                .checkbox(
+                    &mut settings.config.ai_inspector_agent_screenshot_access,
+                    "Allow Agent Screenshots",
+                )
+                .on_hover_text(
+                    "Allow the agent to request terminal screenshots via the \
+                     `terminal_screenshot` MCP tool for visual debugging. \
+                     Screenshot captures remain permission-gated per request and \
+                     are not auto-approved by Yolo Mode.",
+                );
+            if screenshot_access_response.changed() {
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+            if !settings.config.ai_inspector_agent_screenshot_access {
+                ui.colored_label(
+                    egui::Color32::from_rgb(255, 152, 0),
+                    "Agent screenshot requests will be denied",
                 );
             }
         },

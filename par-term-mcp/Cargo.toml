@@ -20,6 +20,7 @@ log = "0.4.29"
 
 # Platform-specific directories for config path resolution
 dirs = "6.0"
+base64 = "0.22.1"
 
 [dev-dependencies]
 tempfile = "3.25"

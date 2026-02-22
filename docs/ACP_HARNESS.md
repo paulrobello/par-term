@@ -155,6 +155,23 @@ cargo run --bin par-term-acp-harness -- \
 
 This is useful when reproducing intermittent model behavior, tool-call failures, or prompt stalls.
 
+### Test Screenshot Tool Flows (Vision Models)
+
+Use `--screenshot-file` to provide a fallback PNG when testing the `terminal_screenshot` MCP tool from the harness. This lets you validate tool-call and vision behavior without running the par-term GUI screenshot capture path:
+
+```bash
+cargo run --bin par-term-acp-harness -- \
+  --agent claude.com \
+  --screenshot-file /Users/probello/Repos/par-term/assets/icon.png \
+  --prompt "Call terminal_screenshot and describe what you see."
+```
+
+This is useful when:
+
+- You want to test screenshot/vision behavior with a normal Claude agent
+- Your local model (for example `qwen3-coder`) is text-only and cannot interpret images
+- You want a deterministic image fixture for transcript-based debugging
+
 ## Makefile Targets
 
 Two convenience targets are available in the project `Makefile`:

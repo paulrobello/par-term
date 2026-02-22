@@ -306,14 +306,38 @@ impl Agent {
         // Include an MCP server that exposes par-term's `config_update` tool
         // so the agent can modify settings without editing config.yaml directly.
         let config_update_path = self.safe_paths.config_dir.join(".config-update.json");
+        let screenshot_request_path = self.safe_paths.config_dir.join(".screenshot-request.json");
+        let screenshot_response_path = self.safe_paths.config_dir.join(".screenshot-response.json");
+        let mut mcp_env = vec![
+            serde_json::json!({
+                "name": "PAR_TERM_CONFIG_UPDATE_PATH",
+                "value": config_update_path.to_string_lossy(),
+            }),
+            serde_json::json!({
+                "name": "PAR_TERM_SCREENSHOT_REQUEST_PATH",
+                "value": screenshot_request_path.to_string_lossy(),
+            }),
+            serde_json::json!({
+                "name": "PAR_TERM_SCREENSHOT_RESPONSE_PATH",
+                "value": screenshot_response_path.to_string_lossy(),
+            }),
+        ];
+        if let Some(fallback_path) = self
+            .config
+            .env
+            .get("PAR_TERM_SCREENSHOT_FALLBACK_PATH")
+            .filter(|v| !v.trim().is_empty())
+        {
+            mcp_env.push(serde_json::json!({
+                "name": "PAR_TERM_SCREENSHOT_FALLBACK_PATH",
+                "value": fallback_path.trim(),
+            }));
+        }
         let mcp_server = serde_json::json!({
             "name": "par-term-config",
             "command": self.mcp_server_bin.to_string_lossy(),
             "args": ["mcp-server"],
-            "env": [{
-                "name": "PAR_TERM_CONFIG_UPDATE_PATH",
-                "value": config_update_path.to_string_lossy(),
-            }],
+            "env": mcp_env,
         });
         // Claude ACP wrappers support extra session metadata. Use it to keep
         // local/project Claude settings from unexpectedly overriding the
@@ -322,7 +346,7 @@ impl Agent {
             || run_command_template.contains("claude-agent-acp")
             || run_command_template.contains("claude-code-acp");
         let session_meta = if is_claude_wrapper {
-            let mut runtime_note = "Runtime note: You are running through par-term ACP. Do not call Skill, Task, or TodoWrite tools unless they are explicitly available and working in this host. Do not switch into plan mode for direct executable requests (file edits, shader creation, config changes), and do not call EnterPlanMode/Todo unless explicitly required and available. There is no generic `Skill file-write` helper here; use normal file read/write/edit tools directly. If a Read call fails because the target is a directory, do not retry Read on that directory; use a listing/search tool or write the known target file path directly. When using Write, use exact parameter names like `file_path` and `content` (not `filepath`). If a tool call fails, correct the parameters and retry the same task instead of switching to an unrelated example/file. For multi-step requests, complete the full workflow before declaring success (e.g. shader file write + config_update activation). If planning/task tools are unavailable, continue with an inline plain-text checklist instead of failing. Do not emit XML-style function tags like <function=...> in normal chat output.".to_string();
+            let mut runtime_note = "Runtime note: You are running through par-term ACP. Do not call Skill, Task, or TodoWrite tools unless they are explicitly available and working in this host. Do not switch into plan mode for direct executable requests (file edits, shader creation, config changes), and do not call EnterPlanMode/Todo unless explicitly required and available. There is no generic `Skill file-write` helper here; use normal file read/write/edit tools directly. If a Read call fails because the target is a directory, do not retry Read on that directory; use a listing/search tool or write the known target file path directly. When using Write, use exact parameter names like `file_path` and `content` (not `filepath`). If a tool call fails, correct the parameters and retry the same task instead of switching to an unrelated example/file. For multi-step requests, complete the full workflow before declaring success (e.g. shader file write + config_update activation). For visual shader/debug issues, you can request a screenshot using the `terminal_screenshot` MCP tool (user permission may be required). If planning/task tools are unavailable, continue with an inline plain-text checklist instead of failing. Do not emit XML-style function tags like <function=...> in normal chat output.".to_string();
             if let Some(model) = self
                 .config
                 .env
@@ -747,8 +771,11 @@ async fn handle_incoming_messages(
                                 // Auto-approve read-only tools and config updates.
                                 // Write/edit tools require approval unless writing
                                 // to a temp directory (shaders dir, /tmp, etc.).
+                                let lower = tool_name.to_lowercase();
+                                let is_par_term_screenshot_tool = lower
+                                    .contains("par-term-config__terminal_screenshot")
+                                    || lower == "terminal_screenshot";
                                 let is_safe_fs_tool = {
-                                    let lower = tool_name.to_lowercase();
                                     let is_read_only = matches!(
                                         lower.as_str(),
                                         "read"
@@ -767,7 +794,8 @@ async fn handle_incoming_messages(
                                             | "config"
                                             | "config_update"
                                             | "configupdate"
-                                    ) || lower.contains("par-term-config");
+                                    ) || (lower.contains("par-term-config")
+                                        && !is_par_term_screenshot_tool);
 
                                     let is_write_tool = matches!(
                                         lower.as_str(),
@@ -798,7 +826,10 @@ async fn handle_incoming_messages(
                                     );
                                 }
 
-                                if auto_approve.load(Ordering::Relaxed) || is_safe_fs_tool {
+                                if (auto_approve.load(Ordering::Relaxed)
+                                    && !is_par_term_screenshot_tool)
+                                    || is_safe_fs_tool
+                                {
                                     // Auto-approve: pick the first "allow" option, or just
                                     // the first option available.
                                     let option_id = perm_params

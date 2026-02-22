@@ -46,11 +46,16 @@ use crate::tmux::{TmuxSession, TmuxSync};
 use crate::tmux_session_picker_ui::{SessionPickerAction, TmuxSessionPickerUI};
 use crate::tmux_status_bar_ui::TmuxStatusBarUI;
 use anyhow::Result;
+use base64::Engine as _;
 use par_term_acp::{
     Agent, AgentConfig, AgentMessage, AgentStatus, ClientCapabilities, FsCapabilities, SafePaths,
     discover_agents,
 };
 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
+use par_term_mcp::{
+    SCREENSHOT_REQUEST_FILENAME, SCREENSHOT_RESPONSE_FILENAME, TerminalScreenshotRequest,
+    TerminalScreenshotResponse,
+};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -231,6 +236,8 @@ pub struct WindowState {
     pub(crate) config_watcher: Option<crate::config::watcher::ConfigWatcher>,
     /// Watcher for `.config-update.json` written by the MCP server
     pub(crate) config_update_watcher: Option<crate::config::watcher::ConfigWatcher>,
+    /// Watcher for `.screenshot-request.json` written by the MCP server
+    pub(crate) screenshot_request_watcher: Option<crate::config::watcher::ConfigWatcher>,
     /// Last shader reload error message (for display in UI)
     pub(crate) shader_reload_error: Option<String>,
     /// Background shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
@@ -266,6 +273,10 @@ pub struct WindowState {
     /// other mouse-aware apps), which can trigger a zero-char selection that clears
     /// the system clipboard — destroying any clipboard image.
     pub(crate) focus_click_pending: bool,
+    /// Timestamp of a mouse press we already suppressed while the window was still
+    /// unfocused. Used to avoid arming a second suppression when the OS delivers
+    /// the `Focused(true)` event after the click press/release.
+    pub(crate) focus_click_suppressed_while_unfocused_at: Option<std::time::Instant>,
 
     // Resize overlay state
     /// Whether the resize overlay is currently visible
@@ -474,6 +485,14 @@ fn merge_custom_ai_inspector_agents(
             })
             .collect::<std::collections::HashMap<_, _>>();
 
+        let mut env = custom.env.clone();
+        if !env.contains_key("OLLAMA_CONTEXT_LENGTH")
+            && let Some(ctx) = custom.ollama_context_length
+            && ctx > 0
+        {
+            env.insert("OLLAMA_CONTEXT_LENGTH".to_string(), ctx.to_string());
+        }
+
         let mut custom_agent = AgentConfig {
             identity: custom.identity.clone(),
             name: custom.name.clone(),
@@ -490,7 +509,7 @@ fn merge_custom_ai_inspector_agents(
             },
             active: custom.active,
             run_command: custom.run_command.clone(),
-            env: custom.env.clone(),
+            env,
             install_command: custom.install_command.clone(),
             actions,
             connector_installed: false,
@@ -503,6 +522,23 @@ fn merge_custom_ai_inspector_agents(
 
     agents.retain(|agent| agent.is_active());
     agents
+}
+
+fn is_terminal_screenshot_permission_tool(tool_call: &serde_json::Value) -> bool {
+    let tool_name = tool_call
+        .get("kind")
+        .and_then(|v| v.as_str())
+        .or_else(|| tool_call.get("name").and_then(|v| v.as_str()))
+        .or_else(|| tool_call.get("toolName").and_then(|v| v.as_str()))
+        .or_else(|| {
+            tool_call
+                .get("title")
+                .and_then(|v| v.as_str())
+                .and_then(|t| t.split_whitespace().next())
+        })
+        .unwrap_or("");
+    let lower = tool_name.to_ascii_lowercase();
+    lower == "terminal_screenshot" || lower.contains("par-term-config__terminal_screenshot")
 }
 
 impl WindowState {
@@ -612,6 +648,7 @@ impl WindowState {
             shader_watcher: None,
             config_watcher: None,
             config_update_watcher: None,
+            screenshot_request_watcher: None,
             shader_reload_error: None,
             background_shader_reload_result: None,
             cursor_shader_reload_result: None,
@@ -626,6 +663,7 @@ impl WindowState {
             profiles_menu_needs_update: true, // Update menu on startup
             ui_consumed_mouse_press: false,
             focus_click_pending: false,
+            focus_click_suppressed_while_unfocused_at: None,
 
             resize_overlay_visible: false,
             resize_overlay_hide_time: None,
@@ -1029,6 +1067,9 @@ impl WindowState {
 
         // Initialize config-update file watcher (MCP server writes here)
         self.init_config_update_watcher();
+
+        // Initialize screenshot-request watcher (MCP server screenshot tool writes here)
+        self.init_screenshot_request_watcher();
 
         // Sync status bar monitor state based on config
         self.status_bar_ui.sync_monitor_state(&self.config);
@@ -1499,6 +1540,44 @@ impl WindowState {
         }
     }
 
+    /// Initialize the watcher for `.screenshot-request.json` (MCP screenshot tool).
+    ///
+    /// The MCP server writes screenshot requests to this file. We watch it,
+    /// capture the current renderer output, write a response to
+    /// `.screenshot-response.json`, and clear the request file.
+    pub(crate) fn init_screenshot_request_watcher(&mut self) {
+        let request_path = Config::config_dir().join(SCREENSHOT_REQUEST_FILENAME);
+
+        if !request_path.exists() {
+            if let Some(parent) = request_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(&request_path, "");
+        }
+
+        let response_path = Config::config_dir().join(SCREENSHOT_RESPONSE_FILENAME);
+        if !response_path.exists() {
+            if let Some(parent) = response_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::write(&response_path, "");
+        }
+
+        match crate::config::watcher::ConfigWatcher::new(&request_path, 100) {
+            Ok(watcher) => {
+                debug_info!("CONFIG", "Screenshot-request watcher initialized");
+                self.screenshot_request_watcher = Some(watcher);
+            }
+            Err(e) => {
+                debug_info!(
+                    "CONFIG",
+                    "Failed to initialize screenshot-request watcher: {}",
+                    e
+                );
+            }
+        }
+    }
+
     /// Check for pending config update file changes (from MCP server).
     ///
     /// When the MCP server writes `.config-update.json`, this reads it,
@@ -1543,6 +1622,109 @@ impl WindowState {
 
         // Clear the file so we don't re-process it
         let _ = std::fs::write(&update_path, "");
+    }
+
+    /// Check for pending screenshot request file changes (from MCP server).
+    ///
+    /// When the MCP server writes `.screenshot-request.json`, this captures the
+    /// active terminal renderer output and writes a response to
+    /// `.screenshot-response.json`.
+    pub(crate) fn check_screenshot_request_file(&mut self) {
+        let Some(watcher) = &self.screenshot_request_watcher else {
+            return;
+        };
+        if watcher.try_recv().is_none() {
+            return;
+        }
+
+        let request_path = Config::config_dir().join(SCREENSHOT_REQUEST_FILENAME);
+        let response_path = Config::config_dir().join(SCREENSHOT_RESPONSE_FILENAME);
+
+        let content = match std::fs::read_to_string(&request_path) {
+            Ok(c) if c.trim().is_empty() => return,
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!("ACP screenshot: failed to read request file: {e}");
+                return;
+            }
+        };
+
+        let request = match serde_json::from_str::<TerminalScreenshotRequest>(&content) {
+            Ok(req) => req,
+            Err(e) => {
+                log::error!("ACP screenshot: invalid JSON in request file: {e}");
+                let _ = std::fs::write(&request_path, "");
+                return;
+            }
+        };
+
+        let response = match self.capture_terminal_screenshot_mcp_response(&request.request_id) {
+            Ok(resp) => resp,
+            Err(e) => TerminalScreenshotResponse {
+                request_id: request.request_id.clone(),
+                ok: false,
+                error: Some(e),
+                mime_type: None,
+                data_base64: None,
+                width: None,
+                height: None,
+            },
+        };
+
+        match serde_json::to_vec_pretty(&response) {
+            Ok(bytes) => {
+                let tmp = response_path.with_extension("json.tmp");
+                if let Err(e) =
+                    std::fs::write(&tmp, &bytes).and_then(|_| std::fs::rename(&tmp, &response_path))
+                {
+                    let _ = std::fs::remove_file(&tmp);
+                    log::error!(
+                        "ACP screenshot: failed to write response {}: {}",
+                        response_path.display(),
+                        e
+                    );
+                }
+            }
+            Err(e) => {
+                log::error!("ACP screenshot: failed to serialize response: {e}");
+            }
+        }
+
+        // Clear request file so it is processed only once.
+        let _ = std::fs::write(&request_path, "");
+    }
+
+    fn capture_terminal_screenshot_mcp_response(
+        &mut self,
+        request_id: &str,
+    ) -> Result<TerminalScreenshotResponse, String> {
+        let renderer = self
+            .renderer
+            .as_mut()
+            .ok_or_else(|| "No renderer available for screenshot".to_string())?;
+
+        let image = renderer
+            .take_screenshot()
+            .map_err(|e| format!("Renderer screenshot failed: {e}"))?;
+        let width = image.width();
+        let height = image.height();
+
+        let mut buf = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(image)
+            .write_to(&mut buf, image::ImageFormat::Png)
+            .map_err(|e| format!("PNG encode failed: {e}"))?;
+        let png_bytes = buf.into_inner();
+        let data_base64 = base64::engine::general_purpose::STANDARD.encode(&png_bytes);
+
+        Ok(TerminalScreenshotResponse {
+            request_id: request_id.to_string(),
+            ok: true,
+            error: None,
+            mime_type: Some("image/png".to_string()),
+            data_base64: Some(data_base64),
+            width: Some(width),
+            height: Some(height),
+        })
     }
 
     /// Check for pending config file changes and apply them.
@@ -2803,6 +2985,60 @@ impl WindowState {
                             .and_then(|t| t.as_str())
                             .unwrap_or("Permission requested")
                             .to_string();
+                        if is_terminal_screenshot_permission_tool(&tool_call)
+                            && !self.config.ai_inspector_agent_screenshot_access
+                        {
+                            let deny_option_id = options
+                                .iter()
+                                .find(|o| {
+                                    matches!(
+                                        o.kind.as_deref(),
+                                        Some("deny")
+                                            | Some("reject")
+                                            | Some("cancel")
+                                            | Some("disallow")
+                                    ) || o.name.to_lowercase().contains("deny")
+                                        || o.name.to_lowercase().contains("reject")
+                                        || o.name.to_lowercase().contains("cancel")
+                                })
+                                .or_else(|| options.first())
+                                .map(|o| o.option_id.clone());
+
+                            if let Some(client) = &self.agent_client {
+                                let client = client.clone();
+                                self.runtime.spawn(async move {
+                                    use par_term_acp::{
+                                        PermissionOutcome, RequestPermissionResponse,
+                                    };
+                                    let outcome = RequestPermissionResponse {
+                                        outcome: PermissionOutcome {
+                                            outcome: "selected".to_string(),
+                                            option_id: deny_option_id,
+                                        },
+                                    };
+                                    let response_json =
+                                        serde_json::to_value(&outcome).unwrap_or_default();
+                                    if let Err(e) =
+                                        client.respond(request_id, Some(response_json), None).await
+                                    {
+                                        log::error!(
+                                            "ACP: failed to auto-deny screenshot permission: {e}"
+                                        );
+                                    }
+                                });
+                            } else {
+                                log::error!(
+                                    "ACP: cannot auto-deny screenshot permission id={request_id} \
+                                     — agent_client is None!"
+                                );
+                            }
+
+                            self.ai_inspector.chat.add_system_message(format!(
+                                "Blocked screenshot request (`{description}`) because \"Allow Agent Screenshots\" is disabled in Settings > Assistant > Permissions."
+                            ));
+                            self.needs_redraw = true;
+                            continue;
+                        }
                         self.ai_inspector
                             .chat
                             .messages
@@ -4896,7 +5132,25 @@ impl WindowState {
                 self.needs_redraw = true;
             }
             InspectorAction::ClearChat => {
+                let reconnect_identity = self.ai_inspector.connected_agent_identity.clone();
                 self.ai_inspector.chat.clear();
+                self.agent_skill_failure_detected = false;
+                self.agent_skill_recovery_attempts = 0;
+                // Abort any queued send tasks so stale prompts do not continue
+                // after the conversation/session reset.
+                for handle in self.pending_send_handles.drain(..) {
+                    handle.abort();
+                }
+                if let Some(identity) = reconnect_identity
+                    && (self.agent.is_some()
+                        || self.ai_inspector.agent_status != AgentStatus::Disconnected)
+                {
+                    self.connect_agent(&identity);
+                    self.ai_inspector.chat.add_system_message(
+                        "Conversation cleared. Reconnected agent to reset session state."
+                            .to_string(),
+                    );
+                }
                 self.needs_redraw = true;
             }
             InspectorAction::None => {}

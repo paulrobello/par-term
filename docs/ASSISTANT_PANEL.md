@@ -177,19 +177,32 @@ Writes to the par-term configuration and shader directories are auto-approved be
 
 For Claude-compatible local backends, par-term also blocks unsupported `Skill` tool permission requests that some models may emit incorrectly.
 
+For visual debugging workflows, agents can use the `terminal_screenshot` MCP tool to request a screenshot of the terminal renderer output (for example shader output). Screenshot requests are permission-gated and are treated separately from normal file/config permissions.
+
 ### Auto-Context Feeding
 
 When `ai_inspector_auto_context` is enabled, par-term automatically sends command completion results to the connected agent. Each time a command finishes in the terminal, the agent receives a notification containing the command text, exit code, and recent terminal output. This allows the agent to stay aware of what is happening in the terminal without requiring you to copy-paste results manually.
 
 ### YOLO Mode
 
-The **YOLO** checkbox enables auto-approval of all agent permission requests. When active, every permission request from the agent is immediately granted without prompting. This is useful for trusted workflows where you want the agent to work uninterrupted, but should be used with caution.
+The **YOLO** checkbox enables auto-approval of most agent permission requests. When active, file/config/tool permissions are generally granted without prompting so trusted workflows can proceed uninterrupted, but should still be used with caution.
+
+Screenshot capture requests (`terminal_screenshot`) are intentionally excluded and still prompt for permission unless you approve them interactively.
 
 YOLO mode works by setting the agent's session mode to `bypassPermissions`. Unchecking the box reverts to the `default` mode.
 
 ### Terminal Access Toggle
 
 The **Terminal access** checkbox controls whether the agent is allowed to write text directly to the terminal. When disabled, agent attempts to write to the terminal are blocked. This provides a safety mechanism when you want the agent to suggest commands but not execute them autonomously.
+
+### Screenshot Access Toggle
+
+The **Allow Agent Screenshots** setting (Settings -> Assistant -> Permissions) controls whether the agent may request terminal screenshots through the `terminal_screenshot` MCP tool.
+
+- **Enabled**: Screenshot requests appear as normal permission prompts and can be approved/denied per request
+- **Disabled**: Screenshot requests are automatically denied, and the panel adds a system message explaining why
+
+This setting is separate from terminal input access and separate from YOLO mode so you can allow autonomous file/config changes while still blocking visual capture.
 
 ## Terminal Capture
 
@@ -375,6 +388,7 @@ The **Settings > Assistant** tab includes a custom ACP agent manager for adding,
 - **Run command**: the connector binary/command par-term launches (for example `claude-agent-acp`)
 - **Install command**: optional command used by the Assistant Panel install button when the connector is missing
 - **Environment variables**: add key/value pairs (for example `ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL`) using the **Add Env Var** button
+- **Ollama context**: optional helper field that sets `OLLAMA_CONTEXT_LENGTH` for the agent subprocess (explicit `OLLAMA_CONTEXT_LENGTH` env var still wins)
 - **Tooltips**: field labels include tooltips to explain the purpose of each input
 
 If you edit custom agents while the app is already running, close/reopen the Assistant Panel and reconnect the agent. If the selector still shows stale entries, restart par-term to ensure the latest config is loaded.
@@ -414,6 +428,9 @@ ai_inspector_custom_agents:
       ANTHROPIC_AUTH_TOKEN: "ollama"
       # Use an isolated Claude config dir to avoid loading ~/.claude defaults/CLAUDE.md
       CLAUDE_CONFIG_DIR: "/Users/your-user/.claude-parterm-ollama"
+    # Optional helper: par-term injects OLLAMA_CONTEXT_LENGTH for this agent
+    # unless you already define OLLAMA_CONTEXT_LENGTH in env above.
+    ollama_context_length: 32768
 ```
 
 4. (Recommended) Pre-create the isolated Claude config directory and set a matching model hint:
@@ -439,6 +456,7 @@ Notes:
 If the agent connects but behaves incorrectly, check these common issues:
 
 - **Connected but no useful response / generic fallback replies**: Verify `ollama launch claude --model ...` is still running and the model exists locally. Re-run the launch command and reconnect the agent.
+- **Need a larger context window**: Increase `ollama_context_length` on the custom agent (or set `OLLAMA_CONTEXT_LENGTH` in Env Vars). If Ollama is running as a separate process/service, set the same context length in that Ollama process environment too.
 - **Wrong or missing model identity in chat**: This can be a wrapper/model limitation. Confirm the actual model via your `ANTHROPIC_MODEL` env and `~/.claude-parterm-ollama/settings.json` instead of relying on the chat response.
 - **Agent tries unsupported `Skill` / `TodoWrite` / task tools**: par-term now hardens Claude ACP sessions and blocks unsupported `Skill` calls, but reconnect after updating par-term to ensure the new behavior is active.
 - **Agent emits raw XML-like tool tags (`<function=...>`)**: Some local models produce tool-call markup instead of ACP tool calls. par-term includes a compatibility fallback for `mcp__par-term-config__config_update`, but normal ACP tool calls are still preferred.
@@ -535,6 +553,7 @@ The following configuration options are supported in `config.yaml`:
 | `ai_inspector_context_max_lines` | int | `200` | Maximum output lines sent per auto-context update |
 | `ai_inspector_auto_approve` | bool | `false` | Auto-approve all agent permission requests (YOLO mode) |
 | `ai_inspector_agent_terminal_access` | bool | `false` | Allow the agent to write directly to the terminal |
+| `ai_inspector_agent_screenshot_access` | bool | `true` | Allow the agent to request terminal screenshots (still permission-gated per request) |
 | `ai_inspector_custom_agents` | list | `[]` | Extra ACP agent definitions merged into discovery (override by `identity`) |
 
 **Example configuration:**
@@ -548,6 +567,7 @@ ai_inspector_auto_launch: true
 ai_inspector_auto_context: false
 ai_inspector_auto_approve: false
 ai_inspector_agent_terminal_access: false
+ai_inspector_agent_screenshot_access: true
 ai_inspector_custom_agents:
   - identity: "local.my-agent"
     name: "My Local ACP Agent"

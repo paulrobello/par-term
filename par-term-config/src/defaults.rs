@@ -989,3 +989,7 @@ pub fn ai_inspector_auto_approve() -> bool {
 pub fn ai_inspector_agent_terminal_access() -> bool {
     false
 }
+
+pub fn ai_inspector_agent_screenshot_access() -> bool {
+    true
+}
