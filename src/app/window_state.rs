@@ -2703,6 +2703,24 @@ impl WindowState {
             return; // Terminal locked and no cache available, skip this frame
         };
 
+        // --- Prettifier pipeline update ---
+        // Feed terminal output changes to the prettifier, check debounce, and handle
+        // alt-screen transitions. This runs outside the terminal lock.
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            // Detect alt-screen transitions
+            if is_alt_screen != tab.was_alt_screen {
+                if let Some(ref mut pipeline) = tab.prettifier {
+                    pipeline.on_alt_screen_change(is_alt_screen);
+                }
+                tab.was_alt_screen = is_alt_screen;
+            }
+
+            // Always check debounce (cheap: just a timestamp comparison)
+            if let Some(ref mut pipeline) = tab.prettifier {
+                pipeline.check_debounce();
+            }
+        }
+
         // Ensure cursor visibility flag for cell renderer reflects current config every frame
         // (so toggling "Hide default cursor" takes effect immediately even if no other changes)
         // Resolve hides_cursor: per-shader override -> metadata defaults -> global config
@@ -3591,6 +3609,36 @@ impl WindowState {
                 renderer.set_separator_marks(separator_marks);
             } else {
                 renderer.set_separator_marks(Vec::new());
+            }
+
+            // Compute and set gutter indicators for prettified blocks
+            {
+                let gutter_data = if let Some(tab) = self.tab_manager.active_tab() {
+                    if let Some(ref pipeline) = tab.prettifier {
+                        if pipeline.is_enabled() {
+                            let indicators = tab.gutter_manager.indicators_for_viewport(
+                                pipeline,
+                                scroll_offset,
+                                visible_lines,
+                            );
+                            // Default gutter indicator color: semi-transparent highlight
+                            let gutter_color = [0.3, 0.5, 0.8, 0.15];
+                            indicators
+                                .iter()
+                                .flat_map(|ind| {
+                                    (ind.row..ind.row + ind.height).map(move |r| (r, gutter_color))
+                                })
+                                .collect::<Vec<_>>()
+                        } else {
+                            Vec::new()
+                        }
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                };
+                renderer.set_gutter_indicators(gutter_data);
             }
 
             // Update animations and request redraw if frames changed

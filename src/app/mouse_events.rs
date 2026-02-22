@@ -605,6 +605,45 @@ impl WindowState {
                         self.needs_redraw = true;
                     }
 
+                    // --- 5d. Prettifier Gutter Click ---
+                    // Check if clicking in the gutter area to toggle a prettified block
+                    if let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)
+                    {
+                        let viewport_rows = self
+                            .renderer
+                            .as_ref()
+                            .map(|r| r.grid_size().1)
+                            .unwrap_or(24);
+                        let handled = if let Some(tab) = self.tab_manager.active_tab_mut() {
+                            if let Some(ref pipeline) = tab.prettifier {
+                                let scroll_offset = tab.scroll_state.offset;
+                                let indicators = tab.gutter_manager.indicators_for_viewport(
+                                    pipeline,
+                                    scroll_offset,
+                                    viewport_rows,
+                                );
+                                if let Some(block_id) =
+                                    tab.gutter_manager.hit_test(col, row, &indicators)
+                                {
+                                    if let Some(ref mut p) = tab.prettifier {
+                                        p.toggle_block(block_id);
+                                    }
+                                    self.needs_redraw = true;
+                                    true
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        if handled {
+                            return;
+                        }
+                    }
+
                     // --- 6. Selection Anchoring & Click Counting ---
                     // Handle complex selection modes based on click sequence
                     if let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1)

@@ -1404,6 +1404,53 @@ impl CellRenderer {
             );
         }
 
+        // Write gutter indicator background instances after separator slots
+        let gutter_base = separator_base + self.rows;
+        let mut gutter_instances = vec![
+            BackgroundInstance {
+                position: [0.0, 0.0],
+                size: [0.0, 0.0],
+                color: [0.0, 0.0, 0.0, 0.0],
+            };
+            self.rows
+        ];
+
+        if !self.gutter_indicators.is_empty() {
+            let width_f = self.config.width as f32;
+            let height_f = self.config.height as f32;
+            for &(screen_row, color) in &self.gutter_indicators {
+                if screen_row < self.rows {
+                    let x0 = self.window_padding + self.content_offset_x;
+                    let x1 = x0 + 2.0 * self.cell_width; // gutter_width = 2 columns
+                    let y0 = self.window_padding
+                        + self.content_offset_y
+                        + screen_row as f32 * self.cell_height;
+                    gutter_instances[screen_row] = BackgroundInstance {
+                        position: [x0 / width_f * 2.0 - 1.0, 1.0 - (y0 / height_f * 2.0)],
+                        size: [(x1 - x0) / width_f * 2.0, self.cell_height / height_f * 2.0],
+                        color,
+                    };
+                }
+            }
+        }
+
+        for (i, instance) in gutter_instances.iter().enumerate() {
+            if gutter_base + i < self.max_bg_instances {
+                self.bg_instances[gutter_base + i] = *instance;
+            }
+        }
+        let gutter_byte_offset = gutter_base * std::mem::size_of::<BackgroundInstance>();
+        let gutter_byte_count = gutter_instances.len() * std::mem::size_of::<BackgroundInstance>();
+        if gutter_byte_offset + gutter_byte_count
+            <= self.max_bg_instances * std::mem::size_of::<BackgroundInstance>()
+        {
+            self.queue.write_buffer(
+                &self.bg_instance_buffer,
+                gutter_byte_offset as u64,
+                bytemuck::cast_slice(&gutter_instances),
+            );
+        }
+
         Ok(())
     }
 

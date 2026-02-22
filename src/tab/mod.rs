@@ -15,6 +15,8 @@ use crate::app::mouse::MouseState;
 use crate::app::render_cache::RenderCache;
 use crate::config::Config;
 use crate::pane::{NavigationDirection, PaneManager, SplitDirection};
+use crate::prettifier::gutter::GutterManager;
+use crate::prettifier::pipeline::PrettifierPipeline;
 use crate::profile::Profile;
 use crate::scroll_state::ScrollState;
 use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_logger};
@@ -370,6 +372,12 @@ pub struct Tab {
         Vec<Option<std::sync::Arc<crate::scripting::observer::ScriptEventForwarder>>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
     pub trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    /// Prettifier pipeline for content detection and rendering (None if disabled)
+    pub prettifier: Option<PrettifierPipeline>,
+    /// Gutter manager for prettifier indicators
+    pub gutter_manager: GutterManager,
+    /// Whether the terminal was on the alt screen last frame (for detecting transitions)
+    pub was_alt_screen: bool,
     /// Profile saved before SSH auto-switch (for revert on disconnect)
     pub pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
     /// Whether current profile was auto-applied due to SSH hostname detection
@@ -574,6 +582,9 @@ impl Tab {
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
+            prettifier: None,
+            gutter_manager: GutterManager::new(),
+            was_alt_screen: false,
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
             is_active: Arc::new(AtomicBool::new(false)),
@@ -804,6 +815,9 @@ impl Tab {
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
+            prettifier: None,
+            gutter_manager: GutterManager::new(),
+            was_alt_screen: false,
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
             is_active: Arc::new(AtomicBool::new(false)),
@@ -1537,6 +1551,9 @@ impl Tab {
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
+            prettifier: None,
+            gutter_manager: GutterManager::new(),
+            was_alt_screen: false,
             pre_ssh_switch_profile: None,
             ssh_auto_switched: false,
             is_active: Arc::new(AtomicBool::new(false)),

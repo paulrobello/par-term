@@ -366,4 +366,34 @@ impl WindowState {
 
         Some(selected_text)
     }
+
+    /// Get copy text from the prettifier pipeline if the selection overlaps a prettified block.
+    ///
+    /// Returns the rendered or source text from the block based on the clipboard config's
+    /// `default_copy` setting. Returns `None` if no prettifier is active or the selection
+    /// doesn't overlap a prettified block.
+    pub(crate) fn get_prettifier_copy_text(&self) -> Option<String> {
+        let tab = self.tab_manager.active_tab()?;
+        let pipeline = tab.prettifier.as_ref()?;
+        if !pipeline.is_enabled() {
+            return None;
+        }
+        let selection = tab.mouse.selection.as_ref()?;
+        let (start, _end) = selection.normalized();
+        let start_row = start.1 + tab.scroll_state.offset;
+
+        let block = pipeline.block_at_row(start_row)?;
+
+        // Use the clipboard default_copy config to decide what to return.
+        let default_copy = &self.config.content_prettifier.clipboard.default_copy;
+        if default_copy == "source" {
+            Some(block.buffer.source_text())
+        } else {
+            // "rendered" (default): prefer rendered text, fall back to source.
+            block
+                .buffer
+                .rendered_text()
+                .or_else(|| Some(block.buffer.source_text()))
+        }
+    }
 }

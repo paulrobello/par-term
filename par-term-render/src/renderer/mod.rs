@@ -735,6 +735,12 @@ impl Renderer {
         }
     }
 
+    /// Set gutter indicator data for the current frame (single-pane path).
+    pub fn set_gutter_indicators(&mut self, indicators: Vec<(usize, [f32; 4])>) {
+        self.cell_renderer.set_gutter_indicators(indicators);
+        self.dirty = true;
+    }
+
     /// Set whether transparency affects only default background cells.
     /// When true, non-default (colored) backgrounds remain opaque for readability.
     pub fn set_transparency_affects_only_default_background(&mut self, value: bool) {
