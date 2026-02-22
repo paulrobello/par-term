@@ -4,6 +4,7 @@
 
 use crate::config::{Config, TabBarMode, TabBarPosition};
 use crate::tab::{TabId, TabManager};
+use egui::emath::GuiRounding as _;
 
 /// Width reserved for the profile chevron (▾) button in the tab bar split button.
 /// Accounts for the button min_size (14px) plus egui button frame padding (~4px each side).
@@ -1006,7 +1007,9 @@ impl TabBarUI {
         // Draw tab background with pill shape
         // Use rounding based on tab height for a smooth pill appearance
         // Shrink vertically so borders are fully visible within tab bar
-        let tab_draw_rect = tab_rect.shrink2(egui::vec2(0.0, 2.0));
+        let tab_draw_rect = tab_rect
+            .shrink2(egui::vec2(0.0, 2.0))
+            .round_to_pixels(ui.pixels_per_point());
         let tab_rounding = tab_draw_rect.height() / 2.0;
         if ui.is_rect_visible(tab_rect) {
             ui.painter()
@@ -1057,7 +1060,7 @@ impl TabBarUI {
                                 border_color[2],
                             ),
                         ),
-                        egui::StrokeKind::Inside,
+                        egui::StrokeKind::Middle,
                     );
                 }
             }
