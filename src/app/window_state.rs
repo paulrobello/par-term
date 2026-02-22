@@ -90,6 +90,19 @@ type PaneRenderData = (
     Option<crate::pane::PaneBackground>, // per-pane background
 );
 
+#[derive(Clone)]
+pub(crate) struct PreservedClipboardImage {
+    pub(crate) width: usize,
+    pub(crate) height: usize,
+    pub(crate) bytes: Vec<u8>,
+}
+
+pub(crate) struct ClipboardImageClickGuard {
+    pub(crate) image: PreservedClipboardImage,
+    pub(crate) press_position: (f64, f64),
+    pub(crate) suppress_terminal_mouse_click: bool,
+}
+
 /// Per-window state that manages a single terminal window with multiple tabs
 pub struct WindowState {
     pub(crate) config: Config,
@@ -281,6 +294,9 @@ pub struct WindowState {
     /// unfocused. Used to avoid arming a second suppression when the OS delivers
     /// the `Focused(true)` event after the click press/release.
     pub(crate) focus_click_suppressed_while_unfocused_at: Option<std::time::Instant>,
+    /// Snapshot of clipboard image content captured on mouse-down so we can restore it
+    /// after a plain click if a terminal app/tmux clears the clipboard on click.
+    pub(crate) clipboard_image_click_guard: Option<ClipboardImageClickGuard>,
 
     // Resize overlay state
     /// Whether the resize overlay is currently visible
@@ -669,6 +685,7 @@ impl WindowState {
             ui_consumed_mouse_press: false,
             focus_click_pending: false,
             focus_click_suppressed_while_unfocused_at: None,
+            clipboard_image_click_guard: None,
 
             resize_overlay_visible: false,
             resize_overlay_hide_time: None,

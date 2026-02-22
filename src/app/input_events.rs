@@ -273,9 +273,7 @@ impl WindowState {
             };
 
             if is_copy {
-                if let Some(selected_text) = self.get_selected_text()
-                    && !selected_text.is_empty()
-                {
+                if let Some(selected_text) = self.get_selected_text_for_copy() {
                     if let Err(e) = self.input_handler.copy_to_clipboard(&selected_text) {
                         log::error!("Failed to copy to clipboard: {}", e);
                     } else {

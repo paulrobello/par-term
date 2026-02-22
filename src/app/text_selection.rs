@@ -338,4 +338,32 @@ impl WindowState {
 
         Some(selected_text)
     }
+
+    /// Extract selected text and normalize it for clipboard copy operations.
+    ///
+    /// Applies the `copy_trailing_newline` setting and drops selections that become
+    /// empty after normalization to avoid clobbering an existing clipboard payload
+    /// (for example an image clipboard) with an empty text write.
+    pub(crate) fn get_selected_text_for_copy(&self) -> Option<String> {
+        let mut selected_text = self.get_selected_text()?;
+        if selected_text.is_empty() {
+            return None;
+        }
+
+        // Inverted config logic: false means strip trailing line endings.
+        if !self.config.copy_trailing_newline {
+            while selected_text.ends_with('\n') || selected_text.ends_with('\r') {
+                selected_text.pop();
+            }
+        }
+
+        if selected_text.is_empty() {
+            log::debug!(
+                "Skipping clipboard copy: selection became empty after newline normalization"
+            );
+            return None;
+        }
+
+        Some(selected_text)
+    }
 }

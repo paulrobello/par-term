@@ -1,4 +1,4 @@
-use crate::app::window_state::WindowState;
+use crate::app::window_state::{ClipboardImageClickGuard, PreservedClipboardImage, WindowState};
 use crate::selection::{Selection, SelectionMode};
 use crate::terminal::ClipboardSlot;
 use crate::url_detection;
@@ -74,6 +74,224 @@ impl WindowState {
         false // Event not consumed, handle normally
     }
 
+    fn active_terminal_mouse_tracking_enabled_at(&self, mouse_position: (f64, f64)) -> bool {
+        let Some(tab) = self.tab_manager.active_tab() else {
+            return false;
+        };
+
+        if let Some(ref pm) = tab.pane_manager
+            && let Some(focused_pane) = pm.focused_pane()
+        {
+            if self
+                .pixel_to_pane_cell(mouse_position.0, mouse_position.1, &focused_pane.bounds)
+                .is_none()
+            {
+                return false;
+            }
+            return focused_pane
+                .terminal
+                .try_lock()
+                .ok()
+                .is_some_and(|term| term.is_mouse_tracking_enabled());
+        }
+
+        if self
+            .pixel_to_cell(mouse_position.0, mouse_position.1)
+            .is_none()
+        {
+            return false;
+        }
+
+        tab.terminal
+            .try_lock()
+            .ok()
+            .is_some_and(|term| term.is_mouse_tracking_enabled())
+    }
+
+    pub(crate) fn begin_clipboard_image_click_guard(
+        &mut self,
+        button: MouseButton,
+        state: ElementState,
+    ) {
+        if button != MouseButton::Left || state != ElementState::Pressed {
+            return;
+        }
+
+        // Only guard plain clicks; modified clicks are usually intentional actions.
+        let mods = self.input_handler.modifiers.state();
+        if mods.alt_key() || mods.control_key() || mods.shift_key() || mods.super_key() {
+            self.clipboard_image_click_guard = None;
+            return;
+        }
+
+        let press_position = self
+            .tab_manager
+            .active_tab()
+            .map(|t| t.mouse.position)
+            .unwrap_or((0.0, 0.0));
+
+        let mut clipboard = match arboard::Clipboard::new() {
+            Ok(clipboard) => clipboard,
+            Err(_) => {
+                self.clipboard_image_click_guard = None;
+                return;
+            }
+        };
+
+        match clipboard.get_image() {
+            Ok(image) => {
+                self.clipboard_image_click_guard = Some(ClipboardImageClickGuard {
+                    image: PreservedClipboardImage {
+                        width: image.width,
+                        height: image.height,
+                        bytes: image.bytes.into_owned(),
+                    },
+                    press_position,
+                    suppress_terminal_mouse_click: self
+                        .active_terminal_mouse_tracking_enabled_at(press_position),
+                });
+                crate::debug_log!("MOUSE", "Armed clipboard image click guard");
+            }
+            Err(_) => {
+                self.clipboard_image_click_guard = None;
+            }
+        }
+    }
+
+    pub(crate) fn finish_clipboard_image_click_guard(
+        &mut self,
+        button: MouseButton,
+        state: ElementState,
+    ) {
+        if button != MouseButton::Left || state != ElementState::Released {
+            return;
+        }
+
+        let Some(guard) = self.clipboard_image_click_guard.take() else {
+            return;
+        };
+
+        let release_position = self
+            .tab_manager
+            .active_tab()
+            .map(|t| t.mouse.position)
+            .unwrap_or((0.0, 0.0));
+
+        let dx = release_position.0 - guard.press_position.0;
+        let dy = release_position.1 - guard.press_position.1;
+        const CLICK_RESTORE_THRESHOLD_PX: f64 = 6.0;
+        if (dx * dx + dy * dy) > CLICK_RESTORE_THRESHOLD_PX * CLICK_RESTORE_THRESHOLD_PX {
+            return;
+        }
+
+        let _ = self.restore_clipboard_image_if_missing(&guard.image);
+
+        let runtime = Arc::clone(&self.runtime);
+        let image = guard.image.clone();
+        runtime.spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+            if let Ok(mut clipboard) = arboard::Clipboard::new()
+                && clipboard.get_image().is_err()
+            {
+                let _ = clipboard.set_image(arboard::ImageData {
+                    width: image.width,
+                    height: image.height,
+                    bytes: std::borrow::Cow::Owned(image.bytes),
+                });
+            }
+        });
+    }
+
+    fn restore_clipboard_image_if_missing(&self, image: &PreservedClipboardImage) -> bool {
+        let mut clipboard = match arboard::Clipboard::new() {
+            Ok(clipboard) => clipboard,
+            Err(_) => return false,
+        };
+
+        if clipboard.get_image().is_ok() {
+            return true;
+        }
+
+        match clipboard.set_image(arboard::ImageData {
+            width: image.width,
+            height: image.height,
+            bytes: std::borrow::Cow::Owned(image.bytes.clone()),
+        }) {
+            Ok(()) => {
+                crate::debug_log!("MOUSE", "Restored clipboard image after plain click");
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    fn should_suppress_terminal_mouse_click_for_image_guard(
+        &self,
+        button: MouseButton,
+        _state: ElementState,
+        mouse_position: (f64, f64),
+    ) -> bool {
+        if button != MouseButton::Left {
+            return false;
+        }
+
+        let Some(guard) = &self.clipboard_image_click_guard else {
+            return false;
+        };
+        if !guard.suppress_terminal_mouse_click {
+            return false;
+        }
+
+        let mods = self.input_handler.modifiers.state();
+        if mods.alt_key() || mods.control_key() || mods.shift_key() || mods.super_key() {
+            return false;
+        }
+
+        let dx = mouse_position.0 - guard.press_position.0;
+        let dy = mouse_position.1 - guard.press_position.1;
+        const CLICK_RESTORE_THRESHOLD_PX: f64 = 6.0;
+        // Suppress the full press/release pair if this started as a plain click-like gesture.
+        (dx * dx + dy * dy) <= CLICK_RESTORE_THRESHOLD_PX * CLICK_RESTORE_THRESHOLD_PX
+    }
+
+    fn maybe_forward_guarded_terminal_mouse_press_on_drag(&mut self, position: (f64, f64)) {
+        let should_release_guard = self
+            .clipboard_image_click_guard
+            .as_ref()
+            .is_some_and(|guard| {
+                if !guard.suppress_terminal_mouse_click {
+                    return false;
+                }
+                let dx = position.0 - guard.press_position.0;
+                let dy = position.1 - guard.press_position.1;
+                const CLICK_RESTORE_THRESHOLD_PX: f64 = 6.0;
+                (dx * dx + dy * dy) > CLICK_RESTORE_THRESHOLD_PX * CLICK_RESTORE_THRESHOLD_PX
+            });
+
+        if !should_release_guard {
+            return;
+        }
+
+        if let Some(guard) = &mut self.clipboard_image_click_guard {
+            guard.suppress_terminal_mouse_click = false;
+        }
+
+        if self.try_send_mouse_event(0, true) {
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.mouse.button_pressed = true;
+            }
+            crate::debug_log!(
+                "MOUSE",
+                "Released image clipboard click guard on drag; forwarded delayed mouse press"
+            );
+        } else {
+            crate::debug_log!(
+                "MOUSE",
+                "Released image clipboard click guard on drag; terminal mouse tracking unavailable"
+            );
+        }
+    }
+
     pub(crate) fn handle_mouse_button(&mut self, button: MouseButton, state: ElementState) {
         // Get mouse position from active tab for shader interaction
         let mouse_position = self
@@ -81,6 +299,9 @@ impl WindowState {
             .active_tab()
             .map(|t| t.mouse.position)
             .unwrap_or((0.0, 0.0));
+
+        let suppress_terminal_mouse_click = self
+            .should_suppress_terminal_mouse_click_for_image_guard(button, state, mouse_position);
 
         // Check if profile drawer is open - let egui handle all mouse events
         if self.profile_drawer_ui.expanded {
@@ -274,7 +495,9 @@ impl WindowState {
 
                 // --- 4. Mouse Tracking Forwarding ---
                 // Forward events to the PTY if terminal application requested tracking
-                if self.try_send_mouse_event(0, state == ElementState::Pressed) {
+                if !suppress_terminal_mouse_click
+                    && self.try_send_mouse_event(0, state == ElementState::Pressed)
+                {
                     // Still track button state so mouse motion reporting works correctly.
                     // ButtonEvent mode only reports motion when button_pressed is true,
                     // so we must set this even though the click was consumed by tracking.
@@ -282,6 +505,19 @@ impl WindowState {
                         tab.mouse.button_pressed = state == ElementState::Pressed;
                     }
                     return; // Exit early: terminal app handled the input
+                }
+                if suppress_terminal_mouse_click {
+                    crate::debug_log!(
+                        "MOUSE",
+                        "Suppressing terminal mouse click forwarding to preserve image clipboard"
+                    );
+                    if let Some(tab) = self.tab_manager.active_tab_mut() {
+                        // Fully consume the protected click so it doesn't become a local
+                        // selection anchor and affect the next drag-selection gesture.
+                        tab.mouse.button_pressed = false;
+                        tab.mouse.is_selecting = false;
+                    }
+                    return;
                 }
 
                 // Track button press state for motion tracking logic (drag selection, motion reporting)
@@ -479,16 +715,7 @@ impl WindowState {
                         tab.mouse.is_selecting = false;
                     }
 
-                    if let Some(mut selected_text) = self.get_selected_text()
-                        && !selected_text.is_empty()
-                    {
-                        // Strip trailing newline if configured (inverted logic: copy_trailing_newline=false means strip)
-                        if !self.config.copy_trailing_newline {
-                            while selected_text.ends_with('\n') || selected_text.ends_with('\r') {
-                                selected_text.pop();
-                            }
-                        }
-
+                    if let Some(selected_text) = self.get_selected_text_for_copy() {
                         // Always copy to primary selection (Linux X11 - no-op on other platforms)
                         if let Err(e) = self.input_handler.copy_to_primary_selection(&selected_text)
                         {
@@ -557,6 +784,10 @@ impl WindowState {
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             tab.mouse.position = position;
         }
+
+        // If a protected image-clipboard click turns into a drag, restore normal terminal
+        // mouse behavior by sending the press event once movement proves drag intent.
+        self.maybe_forward_guarded_terminal_mouse_press_on_drag(position);
 
         // Notify status bar of mouse activity (for auto-hide timer)
         self.status_bar_ui.on_mouse_activity();

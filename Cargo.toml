@@ -2,6 +2,9 @@
 members = ["par-term-acp", "par-term-config", "par-term-fonts", "par-term-input", "par-term-keybindings", "par-term-mcp", "par-term-render", "par-term-scripting", "par-term-settings-ui", "par-term-ssh", "par-term-terminal", "par-term-tmux", "par-term-update"]
 resolver = "2"
 
+[patch.crates-io]
+par-term-emu-core-rust = { path = "../par-term-emu-core-rust" }
+
 [package]
 name = "par-term"
 version = "0.21.0"

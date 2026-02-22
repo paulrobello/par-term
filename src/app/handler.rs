@@ -444,7 +444,9 @@ impl WindowState {
                             }
                         } else {
                             self.ui_consumed_mouse_press = false;
+                            self.begin_clipboard_image_click_guard(button, state);
                             self.handle_mouse_button(button, state);
+                            self.finish_clipboard_image_click_guard(button, state);
                         }
                     } else {
                         // Release: block if we consumed the press OR if UI wants pointer
@@ -454,7 +456,9 @@ impl WindowState {
                                 window.request_redraw();
                             }
                         } else {
+                            self.begin_clipboard_image_click_guard(button, state);
                             self.handle_mouse_button(button, state);
+                            self.finish_clipboard_image_click_guard(button, state);
                         }
                     }
                 }

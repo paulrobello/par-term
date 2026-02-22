@@ -1028,7 +1028,7 @@ impl WindowManager {
                 }
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
-                    && let Some(text) = window_state.get_selected_text()
+                    && let Some(text) = window_state.get_selected_text_for_copy()
                 {
                     if let Err(e) = window_state.input_handler.copy_to_clipboard(&text) {
                         log::error!("Failed to copy to clipboard: {}", e);

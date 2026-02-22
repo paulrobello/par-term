@@ -572,7 +572,7 @@ impl WindowState {
 
     /// Yank the current visual selection to clipboard, optionally exiting copy mode
     fn yank_copy_mode_selection(&mut self) {
-        if let Some(text) = self.get_selected_text() {
+        if let Some(text) = self.get_selected_text_for_copy() {
             let text_len = text.len();
             let auto_exit = self.config.copy_mode_auto_exit_on_yank;
             match self.input_handler.copy_to_clipboard(&text) {
