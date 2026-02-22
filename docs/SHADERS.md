@@ -1,6 +1,6 @@
 # Included Shaders
 
-Par-term includes 50 ready-to-use GLSL shaders (38 background + 12 cursor). This document lists all available shaders organized by category.
+Par-term includes 51 ready-to-use GLSL shaders (39 background + 12 cursor). This document lists all available shaders organized by category.
 
 **[View Shader Gallery with Screenshots](https://paulrobello.github.io/par-term/)**
 
@@ -79,6 +79,7 @@ These shaders typically use [`full_content: true`](CUSTOM_SHADERS.md#shader-mode
 | Shader | Description |
 |--------|-------------|
 | `drunkard.glsl` | Wobbly distortion effect using Perlin noise (moni-dz, CC BY-NC-SA 4.0) |
+| `glass-sphere-bounce.glsl` | Bouncing glass sphere that refracts a background image (or fallback gradient) with configurable size, bounce speed, IOR, chromatic aberration, and optional thin-film iridescence. Uses `iChannel0` for background texture. |
 
 ### Lighting & Glow
 

@@ -183,6 +183,12 @@
       "category": "effects"
     },
     {
+      "path": "glass-sphere-bounce.glsl",
+      "sha256": "a3f7114f94fa6ae17198c8dee50334434530439a30f271b37d91cc5b76eb3ba3",
+      "type": "shader",
+      "category": "effects"
+    },
+    {
       "path": "glitchy.glsl",
       "sha256": "01dd82f4264990cafc69ca44e51b973441d6cbf0e39e3edfe53c75efaf561a1e",
       "type": "shader",
