@@ -8,6 +8,19 @@ use par_term_emu_core_rust::terminal::Terminal;
 use parking_lot::Mutex;
 use std::sync::Arc;
 
+/// Events produced by shell-integration markers that the prettifier pipeline
+/// needs in order to delineate command output blocks.
+#[derive(Debug, Clone)]
+pub enum ShellLifecycleEvent {
+    /// A command has started executing (OSC 133 C marker).
+    CommandStarted {
+        command: String,
+        absolute_line: usize,
+    },
+    /// A command has finished executing (OSC 133 D marker).
+    CommandFinished { absolute_line: usize },
+}
+
 // Re-export clipboard types for use in other modules
 pub use par_term_emu_core_rust::terminal::{ClipboardEntry, ClipboardSlot};
 
@@ -91,6 +104,8 @@ pub struct TerminalManager {
     /// Command text captured from the terminal (waiting to be applied to a mark).
     /// Stored as (absolute_line, text) so we can target the correct mark.
     captured_command_text: Option<(usize, String)>,
+    /// Shell lifecycle events queued for the prettifier pipeline.
+    shell_lifecycle_events: Vec<ShellLifecycleEvent>,
 }
 
 impl TerminalManager {
@@ -120,6 +135,7 @@ impl TerminalManager {
             last_shell_marker: None,
             command_start_pos: None,
             captured_command_text: None,
+            shell_lifecycle_events: Vec::new(),
         })
     }
 
@@ -215,11 +231,20 @@ impl TerminalManager {
                             .or_else(|| self.captured_command_text.as_ref().map(|(_, t)| t.clone()))
                             .unwrap_or_default();
                         if !cmd_text.is_empty() {
-                            term.start_command_execution(cmd_text);
+                            term.start_command_execution(cmd_text.clone());
+                            self.shell_lifecycle_events
+                                .push(ShellLifecycleEvent::CommandStarted {
+                                    command: cmd_text,
+                                    absolute_line: abs_line,
+                                });
                         }
                     }
                     "command_finished" => {
                         term.end_command_execution(*exit_code);
+                        self.shell_lifecycle_events
+                            .push(ShellLifecycleEvent::CommandFinished {
+                                absolute_line: abs_line,
+                            });
                     }
                     _ => {}
                 }
@@ -663,6 +688,11 @@ impl TerminalManager {
         self.last_shell_marker = None;
         self.command_start_pos = None;
         self.captured_command_text = None;
+    }
+
+    /// Drain queued shell lifecycle events for the prettifier pipeline.
+    pub fn drain_shell_lifecycle_events(&mut self) -> Vec<ShellLifecycleEvent> {
+        std::mem::take(&mut self.shell_lifecycle_events)
     }
 
     /// Search for text in the visible screen.

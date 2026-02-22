@@ -973,6 +973,8 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "custom",
             "claude code",
             "external command",
+            "test detection",
+            "sample",
         ],
         SettingsTab::Arrangements => &[
             "arrangement",

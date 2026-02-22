@@ -2719,6 +2719,35 @@ impl WindowState {
             if let Some(ref mut pipeline) = tab.prettifier {
                 pipeline.check_debounce();
             }
+
+            // Feed terminal output lines to the prettifier pipeline
+            if let Some(ref mut pipeline) = tab.prettifier {
+                if pipeline.is_enabled() && !is_alt_screen {
+                    for row_idx in 0..visible_lines {
+                        let start = row_idx * grid_cols;
+                        let end = (start + grid_cols).min(cells.len());
+                        if start >= cells.len() {
+                            break;
+                        }
+                        let line: String = cells[start..end]
+                            .iter()
+                            .map(|c| {
+                                let g = c.grapheme.as_str();
+                                if g.is_empty() || g == "\0" {
+                                    " "
+                                } else {
+                                    g
+                                }
+                            })
+                            .collect::<String>()
+                            .trim_end()
+                            .to_string();
+                        let absolute_row =
+                            cached_scrollback_len.saturating_sub(scroll_offset) + row_idx;
+                        pipeline.process_output(&line, absolute_row);
+                    }
+                }
+            }
         }
 
         // Ensure cursor visibility flag for cell renderer reflects current config every frame
@@ -2776,37 +2805,62 @@ impl WindowState {
 
         let mut show_scrollbar = self.should_show_scrollbar();
 
-        let (scrollback_len, terminal_title) = if let Ok(mut term) = terminal.try_lock() {
-            // Use cursor row 0 when cursor not visible (e.g., alt screen)
-            let cursor_row = current_cursor_pos.map(|(_, row)| row).unwrap_or(0);
-            let sb_len = term.scrollback_len();
-            term.update_scrollback_metadata(sb_len, cursor_row);
+        let (scrollback_len, terminal_title, shell_lifecycle_events) =
+            if let Ok(mut term) = terminal.try_lock() {
+                // Use cursor row 0 when cursor not visible (e.g., alt screen)
+                let cursor_row = current_cursor_pos.map(|(_, row)| row).unwrap_or(0);
+                let sb_len = term.scrollback_len();
+                term.update_scrollback_metadata(sb_len, cursor_row);
 
-            // Feed newly completed commands into persistent history from two sources:
-            // 1. Scrollback marks (populated via set_mark_command_at from grid text extraction)
-            // 2. Core library command history (populated by the terminal emulator core)
-            // Both sources are checked because command text may come from either path
-            // depending on shell integration quality. The synced_commands set prevents
-            // duplicate adds across frames and sources.
-            for mark in term.scrollback_marks() {
-                if let Some(ref cmd) = mark.command
-                    && !cmd.is_empty()
-                    && self.synced_commands.insert(cmd.clone())
-                {
-                    self.command_history
-                        .add(cmd.clone(), mark.exit_code, mark.duration_ms);
+                // Drain shell lifecycle events for the prettifier pipeline
+                let shell_events = term.drain_shell_lifecycle_events();
+
+                // Feed newly completed commands into persistent history from two sources:
+                // 1. Scrollback marks (populated via set_mark_command_at from grid text extraction)
+                // 2. Core library command history (populated by the terminal emulator core)
+                // Both sources are checked because command text may come from either path
+                // depending on shell integration quality. The synced_commands set prevents
+                // duplicate adds across frames and sources.
+                for mark in term.scrollback_marks() {
+                    if let Some(ref cmd) = mark.command
+                        && !cmd.is_empty()
+                        && self.synced_commands.insert(cmd.clone())
+                    {
+                        self.command_history
+                            .add(cmd.clone(), mark.exit_code, mark.duration_ms);
+                    }
+                }
+                for (cmd, exit_code, duration_ms) in term.core_command_history() {
+                    if !cmd.is_empty() && self.synced_commands.insert(cmd.clone()) {
+                        self.command_history.add(cmd, exit_code, duration_ms);
+                    }
+                }
+
+                (sb_len, term.get_title(), shell_events)
+            } else {
+                (cached_scrollback_len, cached_terminal_title.clone(), Vec::new())
+            };
+
+        // Forward shell lifecycle events to the prettifier pipeline (outside terminal lock)
+        if !shell_lifecycle_events.is_empty() {
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                if let Some(ref mut pipeline) = tab.prettifier {
+                    for event in &shell_lifecycle_events {
+                        match event {
+                            par_term_terminal::ShellLifecycleEvent::CommandStarted {
+                                command,
+                                ..
+                            } => {
+                                pipeline.on_command_start(command);
+                            }
+                            par_term_terminal::ShellLifecycleEvent::CommandFinished { .. } => {
+                                pipeline.on_command_end();
+                            }
+                        }
+                    }
                 }
             }
-            for (cmd, exit_code, duration_ms) in term.core_command_history() {
-                if !cmd.is_empty() && self.synced_commands.insert(cmd.clone()) {
-                    self.command_history.add(cmd, exit_code, duration_ms);
-                }
-            }
-
-            (sb_len, term.get_title())
-        } else {
-            (cached_scrollback_len, cached_terminal_title.clone())
-        };
+        }
 
         // Update cache scrollback and clamp scroll state.
         //
@@ -3531,6 +3585,64 @@ impl WindowState {
         // Sync AI Inspector panel width before scrollbar update so the scrollbar
         // position uses the current panel width on this frame (not the previous one).
         self.sync_ai_inspector_width();
+
+        // Prettifier cell substitution — replace raw cells with rendered content
+        if !self.debug.cache_hit && !is_alt_screen {
+            if let Some(tab) = self.tab_manager.active_tab() {
+                if let Some(ref pipeline) = tab.prettifier {
+                    if pipeline.is_enabled() {
+                        let scroll_off = tab.scroll_state.offset;
+                        for viewport_row in 0..visible_lines {
+                            let absolute_row =
+                                scrollback_len.saturating_sub(scroll_off) + viewport_row;
+                            if let Some(block) = pipeline.block_at_row(absolute_row) {
+                                if !block.has_rendered() {
+                                    continue;
+                                }
+                                let display_lines = block.buffer.display_lines();
+                                let block_start = block.content().start_row;
+                                let line_offset = absolute_row.saturating_sub(block_start);
+                                if let Some(styled_line) = display_lines.get(line_offset) {
+                                    let cell_start = viewport_row * grid_cols;
+                                    let cell_end = (cell_start + grid_cols).min(cells.len());
+                                    if cell_start >= cells.len() {
+                                        break;
+                                    }
+                                    // Clear row
+                                    for cell in &mut cells[cell_start..cell_end] {
+                                        *cell = par_term_config::Cell::default();
+                                    }
+                                    // Write styled segments
+                                    let mut col = 0;
+                                    for segment in &styled_line.segments {
+                                        for ch in segment.text.chars() {
+                                            if col >= grid_cols {
+                                                break;
+                                            }
+                                            let idx = cell_start + col;
+                                            if idx < cells.len() {
+                                                cells[idx].grapheme = ch.to_string();
+                                                if let Some([r, g, b]) = segment.fg {
+                                                    cells[idx].fg_color = [r, g, b, 0xFF];
+                                                }
+                                                if let Some([r, g, b]) = segment.bg {
+                                                    cells[idx].bg_color = [r, g, b, 0xFF];
+                                                }
+                                                cells[idx].bold = segment.bold;
+                                                cells[idx].italic = segment.italic;
+                                                cells[idx].underline = segment.underline;
+                                                cells[idx].strikethrough = segment.strikethrough;
+                                            }
+                                            col += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         if let Some(renderer) = &mut self.renderer {
             // Status bar inset is handled by sync_status_bar_inset() above,

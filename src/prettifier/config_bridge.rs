@@ -89,6 +89,63 @@ pub fn create_pipeline_from_config(config: &Config) -> Option<PrettifierPipeline
     ))
 }
 
+/// Result of running detection on sample content.
+#[derive(Debug, Clone)]
+pub struct DetectionTestResult {
+    /// Detected format ID (e.g., "markdown", "json"), or empty if no match.
+    pub format_id: String,
+    /// Confidence score (0.0–1.0).
+    pub confidence: f32,
+    /// IDs of rules that matched.
+    pub matched_rules: Vec<String>,
+    /// The confidence threshold from config.
+    pub threshold: f32,
+}
+
+/// Test detection against sample content using the current config.
+///
+/// Builds a temporary registry from the provided config, constructs a
+/// `ContentBlock` from the sample text, and runs `registry.detect()`.
+pub fn test_detection(
+    config: &Config,
+    sample_text: &str,
+    preceding_command: Option<&str>,
+) -> DetectionTestResult {
+    let resolved = resolve_prettifier_config(
+        config.enable_prettifier,
+        &config.content_prettifier,
+        None,
+        None,
+    );
+    let registry = build_default_registry(&resolved);
+    let threshold = resolved.detection.confidence_threshold;
+
+    let lines: Vec<String> = sample_text.lines().map(|l| l.to_string()).collect();
+    let line_count = lines.len();
+    let content = super::types::ContentBlock {
+        lines,
+        preceding_command: preceding_command.map(|s| s.to_string()),
+        start_row: 0,
+        end_row: line_count,
+        timestamp: std::time::SystemTime::now(),
+    };
+
+    match registry.detect(&content) {
+        Some(result) => DetectionTestResult {
+            format_id: result.format_id.clone(),
+            confidence: result.confidence,
+            matched_rules: result.matched_rules.clone(),
+            threshold,
+        },
+        None => DetectionTestResult {
+            format_id: String::new(),
+            confidence: 0.0,
+            matched_rules: Vec::new(),
+            threshold,
+        },
+    }
+}
+
 /// Parse a scope string from config into the runtime enum.
 fn parse_detection_scope(scope: &str) -> DetectionScope {
     match scope {

@@ -669,6 +669,16 @@ pub struct SettingsUI {
     /// Callback: count shader files
     pub shader_count_files_fn: Option<fn(&std::path::Path) -> usize>,
 
+    // Test detection state (prettifier tab)
+    /// Multiline sample text for testing detection
+    pub test_detection_content: String,
+    /// Optional preceding command for test detection
+    pub test_detection_command: String,
+    /// Flag set by UI button to request detection test
+    pub test_detection_requested: bool,
+    /// Result of last detection test: (format_id, confidence, matched_rules, threshold)
+    pub test_detection_result: Option<(String, f32, Vec<String>, f32)>,
+
     /// Callback: check if shell integration is installed
     pub shell_integration_is_installed_fn: Option<fn() -> bool>,
 
@@ -876,6 +886,10 @@ impl SettingsUI {
             shader_uninstall_fn: None,
             shader_has_files_fn: None,
             shader_count_files_fn: None,
+            test_detection_content: String::new(),
+            test_detection_command: String::new(),
+            test_detection_requested: false,
+            test_detection_result: None,
             shell_integration_is_installed_fn: None,
             shell_integration_detected_shell_fn: None,
             shell_integration_install_fn: None,
