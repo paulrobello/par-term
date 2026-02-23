@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Claude ACP Bridge Package Name**: User-facing install commands and bundled docs now use `@zed-industries/claude-agent-acp` / `claude-agent-acp` (the upstream replacement for deprecated `@zed-industries/claude-code-acp`)
 - **Bundle Install Includes ACP Bridge**: `make bundle-install` now installs the macOS app bundle, CLI binary, and Claude ACP bridge in one command; CI/release workflows also install/verify the bridge
 - **Screenshot Permissions Split from YOLO Mode**: Assistant settings now include a separate "Allow Agent Screenshots" toggle, and screenshot requests are no longer auto-approved by YOLO mode
+- **Core Emulator Dependency Bump**: Updated `par-term-emu-core-rust` to v0.39.2 (published crate) and removed the temporary local path override used while validating the clipboard-click fixes
 
 ### Fixed
 
@@ -46,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Agent Selector Not Tracking Selection**: Fixed the multi-agent dropdown always displaying the first agent's name regardless of selection — added persistent `selected_agent_index` so the Connect button and dropdown stay in sync
 - **New Tab Button Clipped Off Right Edge**: Fixed the new-tab split button ([+][▾]) being pushed off the right side of the window — the tab bar width budget was missing the 2px left padding and double-counting the gap before the button, causing ~6px overflow
 - **Assistant Panel Overlapping Tab Bar**: Fixed the assistant panel covering tab bar tabs/buttons when open — the horizontal tab bar now reserves the assistant panel's consumed width so tabs shrink instead of rendering underneath the overlay panel
+- **Clipboard Image Loss on Plain Click (Focused Window / tmux)**: Fixed image clipboard contents being cleared when single-clicking in an already-focused terminal window (especially with tmux mouse reporting enabled) before pasting into image-aware apps like Claude Code — par-term now guards click-like mouse gestures when an image is present in the clipboard, suppresses the forwarded tmux click that caused zero-drag selection/clipboard clears, preserves normal drag-to-select behavior, and skips empty clipboard text writes after selection normalization
 
 ---
 
@@ -76,7 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Progress Bar Overlapping Tab Bar**: Fixed progress bars rendering on top of the tab bar — progress bars now respect the tab bar position and render below a top tab bar or above a bottom tab bar
 - **Vertically Squashed Ballot Box and Dingbat Glyphs**: Fixed checkbox characters (☐☑☒) and check marks (✓✔) appearing vertically compressed compared to other terminals — Miscellaneous Symbols and Dingbats Unicode ranges now get snap-to-cell-boundaries treatment to prevent scale compression from pixel rounding
 - **Vertically Squished Geometric Shapes**: Fixed geometric shape characters (◼ ■ ▪ ◾ ▬ ▮) rendering as short rectangles instead of proper squares — these now use pixel-perfect geometric rendering with aspect-ratio preservation, using cell width as the base dimension and centering vertically in the cell
-- **Clipboard Image Lost on Single Click**: Fixed single-clicking in the terminal overwriting clipboard images with whitespace — added a 4-pixel drag threshold before initiating text selection so trackpad micro-movements during taps no longer create accidental selections that auto-copy over existing clipboard content
+- **Clipboard Image Lost on Single Click**: Added an initial mitigation to reduce accidental clipboard overwrites from click jitter during text selection (further hardened in a later follow-up fix)
 - **Settings Close Reverting Live-Previewed Config**: Fixed closing the settings window reverting live-previewed config changes (like `tab_inactive_outline_only`) — the collapsed-sections save was loading stale values from disk and triggering the config file watcher, overwriting in-memory live-preview state. Now saves the current in-memory config so disk stays in sync
 
 ---

@@ -190,7 +190,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Word boundary characters | ✅ `Characters Considered Part of Word` | ✅ `word_characters` | ✅ | - | - | Default: `/-+\~_.` (iTerm2 compatible), Settings UI |
 | Paste bracketing | ✅ `Allow Paste Bracketing` | ✅ | ✅ | - | - | - |
 | Paste special options | ✅ Many transformations | ✅ `Cmd/Ctrl+Shift+V` | ✅ | - | - | 26 transforms: shell escape, case, whitespace, encoding |
-| Allow terminal clipboard access | ✅ `Allow Clipboard Access From Terminal` | ✅ OSC 52 | ✅ | - | - | - |
+| Allow terminal clipboard access | ✅ `Allow Clipboard Access From Terminal` | ✅ OSC 52 | ✅ | - | - | Core v0.39.2 hardens empty OSC 52 clipboard writes (no-op instead of clearing clipboard state) |
 | Wrap filenames in quotes | ✅ | ✅ `dropped_file_quote_style` | ✅ | - | - | Auto-quote dropped files with configurable style |
 
 ---
@@ -370,7 +370,7 @@ This document compares features between iTerm2 and par-term, including assessmen
 | Run tmux as shell | ✅ | ✅ | ✅ | - | - | Basic compatibility |
 | Render tmux status bar | ✅ | ✅ | ✅ | - | - | Handles reverse video (SGR 7) correctly |
 | Render tmux panes/windows | ✅ | ✅ | ✅ | - | - | Standard VT sequence rendering |
-| tmux mouse support | ✅ | ✅ | ✅ | - | - | Mouse reporting works in tmux |
+| tmux mouse support | ✅ | ✅ | ✅ | - | - | Mouse reporting works in tmux; plain-click guard preserves image clipboard without breaking drag selection |
 
 ### Native tmux Integration (Control Mode)
 
