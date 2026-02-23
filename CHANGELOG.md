@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Tab Clicks Temporarily Ignored After Context Menu**: Fixed a tab-context-menu input edge case where left clicks could appear unresponsive until a later repaint — mouse handling now requests an immediate redraw while the tab context menu is open so egui can process click-away dismissal promptly
+
 ---
 
 ## [0.22.0] - 2026-02-22

@@ -361,8 +361,12 @@ impl WindowState {
             return; // Click is on tab bar, don't process as terminal event
         }
 
-        // Check if tab context menu is open - if so, let egui handle all clicks
+        // Check if tab context menu is open - if so, let egui handle all clicks.
+        // Request a redraw so egui can process click-away dismissal immediately.
         if self.tab_bar_ui.is_context_menu_open() {
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
             return;
         }
 
