@@ -403,6 +403,9 @@ The following tab bar rendering issues have been resolved:
 - **Rounded Corner Stroke Thickness** -- Tab bar rounded corners now render with consistent stroke thickness, eliminating visual artifacts at corner boundaries
 - **First Tab Border Clipping** -- The leftmost tab no longer clips its left border against the tab bar edge
 - **Progress Bar Overlapping Tab Bar** -- Terminal progress bars no longer visually overlap or bleed into the tab bar region
+- **New Tab Button Clipped Off Right Edge** -- A width budget miscalculation caused the new-tab button (and chevron) to be clipped past the right edge of the tab bar; the layout now correctly accounts for padding in its width budget
+- **Assistant Panel Overlapping Tab Bar** -- When the assistant panel was open, tab bar content could render underneath the overlay; the tab bar now reserves the assistant panel width so tabs and buttons shrink to fit
+- **Rounded Tab Border Consistency** -- Tab pill draw rects are snapped to pixel boundaries with a centered stroke so rounded and straight border segments render with uniform thickness
 
 ## Configuration
 

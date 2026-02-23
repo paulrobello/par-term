@@ -64,7 +64,7 @@ Shaders are written in GLSL (OpenGL Shading Language) and automatically transpil
 
 ### Install All Shaders (Recommended)
 
-Use the built-in CLI command to download and install all 49+ shaders from the latest release:
+Use the built-in CLI command to download and install all 51+ shaders from the latest release:
 
 ```bash
 # Install shaders (with confirmation prompt)

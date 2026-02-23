@@ -12,6 +12,7 @@ par-term provides comprehensive mouse support for text selection, URL handling, 
 - [Pane Interaction](#pane-interaction)
 - [Configuration](#configuration)
 - [Platform Differences](#platform-differences)
+- [Known Fixes](#known-fixes)
 - [Related Documentation](#related-documentation)
 
 ## Overview
@@ -267,6 +268,12 @@ The Input tab in Settings provides:
 | Rectangular select | `Option + Cmd` | `Alt + Ctrl` |
 | Primary selection | No | Yes (X11) |
 | Middle-click paste | Clipboard | Primary selection |
+
+## Known Fixes
+
+The following mouse-related issues have been resolved:
+
+- **Clipboard Image Loss on Plain Click** -- When an image was present in the system clipboard, a single left-click inside an already-focused terminal window with mouse reporting (e.g., tmux) could clear the image from the clipboard. par-term now snapshots the clipboard image on mouse-down and restores it after a plain click-like gesture (no drag, no modifier keys) if the image was lost during the click
 
 ## Related Documentation
 

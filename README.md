@@ -12,32 +12,45 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.21.0
+## What's New in 0.22.0
 
 ### ✨ New Features
+
+- **Agent Screenshot Tool**: Added `terminal_screenshot` MCP tool for permission-gated visual terminal capture by ACP agents
+- **Code Block Rendering in Chat**: Agent messages with fenced code blocks now render with dark background, border, language label, and monospace font
+- **Cancel Queued Messages**: Queued user messages show a "(queued)" label and red "Cancel" button to abort before reaching the agent
+- **Cancel Button During Streaming**: Red "Cancel" button next to spinner when agent is streaming — invokes `Agent::cancel()`
+- **Multi-line Chat Input**: Changed assistant panel input to multi-line — Enter sends, Shift+Enter inserts newline, grows up to 6 rows
+- **Clear Conversation Button**: "C" button next to send clears all chat messages without disconnecting
+- **Auto-Approval Chat Notifications**: Auto-approved tool calls now show as "Auto-approved: ..." entries in chat history
+- **Best-Effort Context Restore**: Reconnecting to an agent with existing chat history injects prior context into the next prompt
+- **Glass Sphere Bounce Shader**: New `glass-sphere-bounce.glsl` background shader
+
+### 🐛 Bug Fixes
+
+- **Input and Shader Lag**: Fixed responsiveness regressions from idle-throttling — active tabs no longer use exponential backoff
+- **Scrollbar Repositioning**: Scrollbar now repositions when content insets change (e.g., assistant panel open/close)
+- **New Tab Button Clipped**: Fixed new-tab split button pushed off right edge by ~6px overflow in tab bar width budget
+- **Assistant Panel Overlapping Tab Bar**: Tab bar now reserves assistant panel width so tabs shrink instead of rendering underneath
+- **Clipboard Image Loss on Click**: Fixed image clipboard cleared when single-clicking in focused terminal with tmux mouse reporting
+- **Tab Bar Rounded Borders**: Sharpened rounded tab borders for cleaner rendering
+
+### 🔧 Changed
+
+- **Screenshot Permissions Split from YOLO Mode**: Separate "Allow Agent Screenshots" toggle — screenshots not auto-approved by YOLO mode
+- **Claude ACP Bridge Package Name**: Updated to `@zed-industries/claude-agent-acp`
+
+<details>
+<summary><strong>What's New in 0.21.0</strong></summary>
 
 - **Nerd Font Icons for Profile Picker**: Replaced emoji presets with ~120 curated Nerd Font icons across 10 categories with descriptive tooltips
 - **Tab Icon via Context Menu**: Right-click any tab to pick a custom icon from the Nerd Font grid — persists across sessions, layouts, and tab duplication
 - **Tab Title Mode**: New `tab_title_mode` config option (`auto` / `osc_only`) controls automatic tab title updates
 - **Rename Tab**: Right-click any tab to set a custom static name — enter blank to revert to automatic behavior
-- **Session Persistence for Tab Names and Colors**: User-set tab names and custom tab colors preserved across save/restore
+- **Major Idle CPU Reduction**: Reduced idle CPU from ~103% to ~18-25% via conditional dirty tracking, fast render path, adaptive polling backoff
+- **Fixed**: Layout restore tab properties, input lag, scrollbar overlap, geometric shapes, clipboard loss, settings revert, tab bar borders
 
-### ⚡ Performance
-
-- **Major Idle CPU Reduction**: Reduced idle CPU from ~103% to ~18-25% via conditional dirty tracking, fast render path, adaptive polling backoff, and macOS event loop sleep fix
-- **Idle Wakeup Cadence Decoupled from FPS**: Focused idle windows no longer wake at render cadence — dedicated focused/unfocused caps reduce unnecessary CPU usage
-- **Status Bar Skip Updates When Hidden**: Per-frame widget updates skipped when bar is hidden
-- **Inactive Tab Refresh Throttling**: Inactive tabs poll at reduced rate
-
-### 🐛 Bug Fixes
-
-- **Layout Restore Tab Properties for Multi-Window**: Fixed tab colors/icons/titles applying to wrong window in multi-window layouts
-- **Input Lag During Heavy Terminal Output**: Fixed ~1-second input freezes with multiple active tabs
-- **Scrollbar Overlapping Terminal Content**: Terminal grid now reserves scrollbar width
-- **Geometric Shape / Ballot Box / Dingbat Rendering**: Fixed vertically squished geometric shapes and ballot box characters
-- **Clipboard Image Lost on Single Click**: Added drag threshold to prevent accidental selection overwriting clipboard
-- **Settings Close Reverting Live-Previewed Config**: Fixed settings window reverting in-memory config changes on close
-- **Tab Bar Rendering**: Fixed first tab border clipping, progress bar overlap, and rounded corner stroke thickness
+</details>
 
 <details>
 <summary><strong>What's New in 0.20.0</strong></summary>

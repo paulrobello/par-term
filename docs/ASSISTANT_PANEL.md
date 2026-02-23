@@ -11,11 +11,19 @@ The Assistant Panel is a DevTools-style right-side panel for terminal state insp
   - [Connecting to an Agent](#connecting-to-an-agent)
   - [Agent Connection Bar](#agent-connection-bar)
   - [Chat Interface](#chat-interface)
+  - [Code Block Rendering](#code-block-rendering)
+  - [Multi-line Chat Input](#multi-line-chat-input)
+  - [Clear Conversation](#clear-conversation)
+  - [Cancel Queued Messages](#cancel-queued-messages)
+  - [Cancel Streaming Responses](#cancel-streaming-responses)
   - [Command Suggestions](#command-suggestions)
   - [Permission Handling](#permission-handling)
+  - [Reset Permission Approvals](#reset-permission-approvals)
   - [Auto-Context Feeding](#auto-context-feeding)
   - [YOLO Mode](#yolo-mode)
   - [Terminal Access Toggle](#terminal-access-toggle)
+  - [Screenshot Access Toggle](#screenshot-access-toggle)
+  - [Context Restore Across Reconnects](#context-restore-across-reconnects)
 - [Terminal Capture](#terminal-capture)
   - [Capture Scope](#capture-scope)
   - [View Modes](#view-modes)
@@ -32,6 +40,7 @@ The Assistant Panel is a DevTools-style right-side panel for terminal state insp
   - [Config File Watcher](#config-file-watcher)
 - [Panel Behavior](#panel-behavior)
 - [Configuration](#configuration)
+- [Known Issues Fixed in v0.22.0](#known-issues-fixed-in-v0220)
 - [Related Documentation](#related-documentation)
 
 ## Overview
@@ -68,7 +77,7 @@ graph LR
 
 You can also toggle the panel using the keybinding action `toggle_ai_inspector` in your keybindings configuration. When `ai_inspector_enabled` is true, the new tab dropdown menu includes an **Assistant Panel** toggle item, providing an additional way to open and close the panel.
 
-Press `Escape` while the panel is focused to close it, or click the **X** button in the panel title bar.
+Press `Escape` while no input widget has focus to close the panel, or click the **X** button in the panel title bar. If the chat input or another widget is focused, `Escape` releases focus from that widget instead of closing the panel.
 
 When the `ai_inspector_auto_launch` configuration option is enabled, the configured agent connects automatically each time the panel opens.
 
@@ -79,8 +88,8 @@ The panel is organized from top to bottom as follows:
 1. **Title bar** with heading and close button
 2. **Agent connection bar** with status indicator, connect/disconnect controls, and agent selector
 3. **Terminal Capture** (collapsible, collapsed by default) with scope, view mode, and command history
-4. **Chat messages** (scrollable area, sticks to bottom)
-5. **Chat input** with send button (visible when connected)
+4. **Chat messages** (scrollable area, sticks to bottom) with code block rendering and streaming support
+5. **Chat input** with send button and clear conversation button (visible when connected; supports multi-line editing)
 6. **Controls row** with Terminal access and YOLO checkboxes (visible when connected)
 7. **Action bar** with Copy JSON and Save buttons
 
@@ -128,7 +137,7 @@ sequenceDiagram
 
 The connection bar sits at the top of the panel and shows:
 
-- **Status indicator**: Green circle when connected, yellow when connecting, gray when disconnected, red on error
+- **Status indicator**: Green circle when connected, yellow when connecting, gray when disconnected, red on error (with inline error message and full-detail tooltip)
 - **Connect / Disconnect button**: Connects to the first available agent or disconnects the current session
 - **Agent selector dropdown**: Appears when multiple agents are available, allowing you to choose which agent to connect to
 - **Install buttons**: For agents whose ACP connector binary is not found in `PATH`, a one-click install button pastes the install command into the terminal
@@ -151,10 +160,46 @@ The chat area displays messages with visual differentiation by type:
 | **Tool Call** | Agent-initiated operations | Monospace with status indicator (OK/FAIL/running) |
 | **Command Suggestion** | Extracted shell commands | Green-tinted background with Run and Paste buttons |
 | **Permission** | Agent permission requests | Amber background with option buttons |
-| **Auto-Approved** | Permission auto-granted | Gray italic text |
+| **Auto-Approved** | Auto-approved tool call notification | Gray italic text prefixed with "Auto-approved:" |
 | **System** | Informational messages | Gray italic text with "i" prefix |
 
 All message text supports selection for copying.
+
+When YOLO mode or session-scoped approvals automatically grant a tool call, the chat log displays an **Auto-approved** entry showing which tool was approved. This keeps you informed about autonomous actions without interrupting the workflow.
+
+### Code Block Rendering
+
+Agent messages that contain fenced code blocks render with enhanced formatting:
+
+- **Dark background** with a subtle border to distinguish code from prose
+- **Language tag label** displayed at the top of the block (e.g., "rust", "python", "bash")
+- **Monospace font** for code content
+- **Streaming support**: Code blocks render progressively as the agent streams its response, so partial blocks remain readable during generation
+
+Code blocks that use a shell language tag (`bash`, `sh`, `zsh`, `shell`) are also extracted as [Command Suggestions](#command-suggestions) with Run and Paste buttons.
+
+### Multi-line Chat Input
+
+The chat input field supports multi-line editing:
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Send the current message |
+| `Shift+Enter` | Insert a newline |
+
+The input field grows automatically as you type, expanding up to 6 rows before showing a scrollbar. This is useful for pasting multi-line prompts or composing longer instructions without sending prematurely.
+
+### Clear Conversation
+
+The **C** button next to the send button clears the entire chat history without disconnecting the agent. The agent session remains active, so you can continue sending new messages immediately. This is useful for starting a fresh conversation thread while keeping the same connection.
+
+### Cancel Queued Messages
+
+When you send a message while the agent is still processing a previous response, the new message enters a queue. Queued messages display a **(queued)** label and a red **Cancel** button. Clicking Cancel removes the message from the queue before the agent processes it.
+
+### Cancel Streaming Responses
+
+While the agent is streaming a response, a red **Cancel** button appears next to the activity spinner. Clicking Cancel invokes `Agent::cancel()` to abort the in-flight response. The partial response remains visible in the chat history.
 
 ### Command Suggestions
 
@@ -177,7 +222,13 @@ Writes to the par-term configuration and shader directories are auto-approved be
 
 For Claude-compatible local backends, par-term also blocks unsupported `Skill` tool permission requests that some models may emit incorrectly.
 
-For visual debugging workflows, agents can use the `terminal_screenshot` MCP tool to request a screenshot of the terminal renderer output (for example shader output). Screenshot requests are permission-gated and are treated separately from normal file/config permissions.
+For visual debugging workflows, agents can use the `terminal_screenshot` MCP tool to request a screenshot of the terminal renderer output (for example shader output). Screenshot requests are permission-gated and are treated separately from normal file/config permissions. The `terminal_screenshot` tool is registered in par-term's built-in MCP server and requires the **Allow Agent Screenshots** setting to be enabled before requests are even presented for approval.
+
+### Reset Permission Approvals
+
+The **Reset approvals** button in the controls row disconnects and immediately reconnects the agent, creating a new ACP session. This revokes all session-scoped permission approvals (such as "Allow for session" grants) without losing the chat history. Prior conversation messages are re-injected into the new session via [Context Restore Across Reconnects](#context-restore-across-reconnects).
+
+Use this when you want to tighten permissions mid-session without fully closing the panel or manually tracking which tools were approved.
 
 ### Auto-Context Feeding
 
@@ -203,6 +254,12 @@ The **Allow Agent Screenshots** setting (Settings -> Assistant -> Permissions) c
 - **Disabled**: Screenshot requests are automatically denied, and the panel adds a system message explaining why
 
 This setting is separate from terminal input access and separate from YOLO mode so you can allow autonomous file/config changes while still blocking visual capture.
+
+### Context Restore Across Reconnects
+
+When the agent disconnects and reconnects (including via [Reset Permission Approvals](#reset-permission-approvals)), par-term performs a best-effort restore of the prior conversation. The existing chat messages are injected into the new ACP session so the agent retains context from the previous exchange.
+
+This is a best-effort mechanism: the injected history provides context for the agent's language model, but tool-call state, file watchers, and other session-scoped resources from the previous session are not carried over.
 
 ## Terminal Capture
 
@@ -320,6 +377,8 @@ type = "coding"
 # active = false
 # Optional: install command shown when connector is missing
 # install_command = "pip install my-agent-acp"
+# Optional: context window size for Ollama backends
+# ollama_context_length = 32768
 # Optional: environment variables passed to the agent process
 # Useful for Ollama/OpenRouter/local provider endpoints
 #
@@ -348,6 +407,7 @@ type = "coding"
 | `active` | No | Whether the agent appears in the list (default: `true`) |
 | `install_command` | No | Command to install the ACP connector |
 | `env` | No | Environment variables injected into the agent subprocess |
+| `ollama_context_length` | No | Context window size for Ollama backends; par-term injects `OLLAMA_CONTEXT_LENGTH` unless the env table already defines it |
 | `run_command` | Yes | Platform-keyed table of connector commands |
 
 Agent discovery loads definitions in this order:
@@ -377,6 +437,8 @@ ai_inspector_custom_agents:
       ANTHROPIC_AUTH_TOKEN: "ollama"
       ANTHROPIC_API_KEY: ""
     install_command: "brew install my-agent"
+    # Optional: context window size for Ollama backends
+    ollama_context_length: 32768
 ```
 
 ### Settings UI Management
@@ -530,7 +592,7 @@ graph TD
 - **Auto-expand**: If content overflows the configured width, the panel expands to accommodate it (up to the maximum width)
 - **Terminal reflow**: When the panel opens, closes, or is resized, the terminal reflows its columns to fit the remaining viewport width
 - **Z-ordering**: The panel renders at `Order::Middle` so modal dialogs (quit, close tab, etc.) always appear above it. The resize handle line renders at `Order::Background`.
-- **Keyboard**: Press `Escape` to close the panel
+- **Keyboard**: Press `Escape` to close the panel (only when no input widget has focus; see [Opening and Closing](#opening-and-closing))
 
 ## Configuration
 
@@ -578,9 +640,21 @@ ai_inspector_custom_agents:
       EXAMPLE_FLAG: "1"
 ```
 
+## Known Issues Fixed in v0.22.0
+
+The following issues affecting the Assistant Panel were resolved in this release:
+
+- **ACP agent connection in app bundle**: The macOS `.app` bundle now resolves `PATH` through a login shell, so ACP connector binaries installed via `npm -g` or Homebrew are found correctly without manual `PATH` configuration
+- **Nested Claude Code session blocking**: par-term no longer leaks the `CLAUDECODE` environment variable into agent subprocesses, which previously caused the Claude ACP bridge to detect a parent Claude session and block startup
+- **Assistant Panel input pushed off-screen**: The chat input area no longer overflows the panel bounds when the conversation log grows long
+- **Escape key closes panel during input**: Pressing `Escape` while the chat input or another widget has focus now releases focus from that widget rather than closing the panel; a second press (with no widget focused) closes the panel
+- **Error status missing details**: Agent error states now display an inline error message in the connection bar with a tooltip showing the full error detail, rather than showing only a red status dot
+- **Agent selector not tracking selection**: The agent dropdown now correctly reflects the currently connected agent after reconnection or agent switching
+
 ## Related Documentation
 
 - [Keyboard Shortcuts](KEYBOARD_SHORTCUTS.md) - Full keybinding reference including `Cmd+I` / `Ctrl+Shift+I`
 - [Automation](AUTOMATION.md) - Scripting and automation features including the observer API
 - [Custom Shaders](CUSTOM_SHADERS.md) - Shader creation, Shadertoy compatibility, and debug workflows
 - [Shaders](SHADERS.md) - Built-in shader reference and WGSL shader architecture
+- [ACP Harness](ACP_HARNESS.md) - Reproducible ACP agent testing and transcript capture
