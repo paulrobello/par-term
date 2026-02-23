@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Tab Clicks Temporarily Ignored After Context Menu**: Fixed a tab-context-menu input edge case where left clicks could appear unresponsive until a later repaint — mouse handling now requests an immediate redraw while the tab context menu is open so egui can process click-away dismissal promptly
+- **Tab Title Emoji Rendering in egui**: Improved tab/profile icon and title rendering when names contain emoji or complex grapheme sequences — egui tab labels now sanitize unsupported emoji presentation/ZWJ sequences and map common icons to reliable monochrome symbols to avoid missing glyphs/tofu boxes
 
 ---
 

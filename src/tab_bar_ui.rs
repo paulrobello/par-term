@@ -5,6 +5,8 @@
 use crate::config::{Config, TabBarMode, TabBarPosition};
 use crate::tab::{TabId, TabManager};
 use egui::emath::GuiRounding as _;
+use std::borrow::Cow;
+use unicode_segmentation::UnicodeSegmentation;
 
 /// Width reserved for the profile chevron (▾) button in the tab bar split button.
 /// Accounts for the button min_size (14px) plus egui button frame padding (~4px each side).
@@ -711,7 +713,8 @@ impl TabBarUI {
 
                 // Profile icon
                 let icon_width = if let Some(icon) = profile_icon {
-                    ui.label(icon);
+                    let icon = sanitize_egui_title_text(icon);
+                    ui.label(icon.as_ref());
                     ui.add_space(2.0);
                     18.0
                 } else {
@@ -735,7 +738,8 @@ impl TabBarUI {
                 let available = (full_width - 16.0 - icon_width - close_width).max(20.0);
                 let base_font_id = ui.style().text_styles[&egui::TextStyle::Button].clone();
                 let max_chars = estimate_max_chars(ui, &base_font_id, available);
-                let display_title = truncate_plain(title, max_chars);
+                let safe_title = sanitize_egui_title_text(title);
+                let display_title = truncate_plain(safe_title.as_ref(), max_chars);
                 ui.label(egui::RichText::new(display_title).color(text_color));
             });
 
@@ -1092,7 +1096,8 @@ impl TabBarUI {
 
                 // Profile icon (from auto-applied directory/hostname profile)
                 let icon_width = if let Some(icon) = profile_icon {
-                    ui.label(icon);
+                    let icon = sanitize_egui_title_text(icon);
+                    ui.label(icon.as_ref());
                     ui.add_space(2.0);
                     18.0
                 } else {
@@ -1134,11 +1139,12 @@ impl TabBarUI {
                 };
 
                 if config.tab_html_titles {
-                    let segments = parse_html_title(title);
+                    let segments = sanitize_styled_segments_for_egui(parse_html_title(title));
                     let truncated = truncate_segments(&segments, max_chars);
                     render_segments(ui, &truncated, text_color);
                 } else {
-                    let display_title = truncate_plain(title, max_chars);
+                    let safe_title = sanitize_egui_title_text(title);
+                    let display_title = truncate_plain(safe_title.as_ref(), max_chars);
                     ui.label(egui::RichText::new(display_title).color(text_color));
                 }
 
@@ -1460,8 +1466,9 @@ impl TabBarUI {
                 let text_color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 220);
                 let font_id = egui::FontId::proportional(13.0);
                 let max_text_width = ghost_width - 16.0;
+                let safe_drag_title = sanitize_egui_title_text(&self.dragging_title);
                 let galley = ui.painter().layout(
-                    self.dragging_title.clone(),
+                    safe_drag_title.into_owned(),
                     font_id,
                     text_color,
                     max_text_width,
@@ -1866,6 +1873,167 @@ fn truncate_plain(title: &str, max_len: usize) -> String {
     taken
 }
 
+/// Replace emoji-heavy graphemes with monochrome symbols/icons that render reliably in egui.
+///
+/// par-term configures Nerd Font Symbols as an egui fallback, but many full-color emoji glyphs
+/// (especially SMP emoji / ZWJ sequences) still fail or render poorly. We keep the stored title
+/// untouched and only sanitize at the egui title rendering boundary.
+fn sanitize_egui_title_text(input: &str) -> Cow<'_, str> {
+    if !input.chars().any(is_egui_title_suspect_char) {
+        return Cow::Borrowed(input);
+    }
+
+    let mut out = String::with_capacity(input.len());
+    let mut changed = false;
+
+    for grapheme in UnicodeSegmentation::graphemes(input, true) {
+        if let Some(replacement) = map_title_grapheme_to_monochrome(grapheme) {
+            out.push_str(replacement);
+            changed = true;
+            continue;
+        }
+
+        if grapheme.chars().all(is_regional_indicator) {
+            for ch in grapheme.chars() {
+                if let Some(letter) = regional_indicator_to_ascii(ch) {
+                    out.push(letter);
+                }
+            }
+            changed = true;
+            continue;
+        }
+
+        let mut stripped = String::new();
+        let mut stripped_any = false;
+        for ch in grapheme.chars() {
+            if is_egui_title_ignorable_char(ch) {
+                stripped_any = true;
+                changed = true;
+                continue;
+            }
+            stripped.push(ch);
+        }
+
+        if stripped_any {
+            if stripped.is_empty() {
+                continue;
+            }
+
+            if let Some(replacement) = map_title_grapheme_to_monochrome(&stripped) {
+                out.push_str(replacement);
+                continue;
+            }
+
+            if stripped.chars().any(is_smp_pictograph) {
+                // Mixed grapheme (often a ZWJ emoji sequence) still contains unsupported emoji.
+                // Collapse to a single visible marker rather than tofu boxes.
+                out.push('•');
+                continue;
+            }
+
+            out.push_str(&stripped);
+            continue;
+        }
+
+        if grapheme.chars().any(is_smp_pictograph) {
+            out.push('•');
+            changed = true;
+            continue;
+        }
+
+        out.push_str(grapheme);
+    }
+
+    if changed {
+        Cow::Owned(out)
+    } else {
+        Cow::Borrowed(input)
+    }
+}
+
+fn sanitize_styled_segments_for_egui(mut segments: Vec<StyledSegment>) -> Vec<StyledSegment> {
+    for segment in &mut segments {
+        let safe = sanitize_egui_title_text(&segment.text);
+        if let Cow::Owned(text) = safe {
+            segment.text = text;
+        }
+    }
+    segments
+}
+
+fn is_egui_title_suspect_char(ch: char) -> bool {
+    is_egui_title_ignorable_char(ch) || is_regional_indicator(ch) || is_smp_pictograph(ch)
+}
+
+fn is_egui_title_ignorable_char(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{FE0E}' // text presentation selector (safe to drop in tab titles)
+            | '\u{FE0F}' // emoji presentation selector
+            | '\u{200D}' // zero-width joiner
+            | '\u{20E3}' // combining keycap
+    ) || matches!(ch, '\u{1F3FB}'..='\u{1F3FF}') // skin tone modifiers
+}
+
+fn is_regional_indicator(ch: char) -> bool {
+    matches!(ch, '\u{1F1E6}'..='\u{1F1FF}')
+}
+
+fn regional_indicator_to_ascii(ch: char) -> Option<char> {
+    if !is_regional_indicator(ch) {
+        return None;
+    }
+    let offset = (ch as u32) - 0x1F1E6;
+    Some(char::from_u32(u32::from(b'A') + offset)?)
+}
+
+/// SMP pictographs (most "emoji-only" symbols) commonly fail in egui's font stack.
+fn is_smp_pictograph(ch: char) -> bool {
+    matches!(
+        ch as u32,
+        0x1F300..=0x1FAFF // Misc Symbols & Pictographs -> Symbols & Pictographs Extended-A
+    )
+}
+
+fn map_title_grapheme_to_monochrome(grapheme: &str) -> Option<&'static str> {
+    // Prefer Nerd Font monochrome icons (egui fallback font is configured on window init).
+    // Fall back to standard BMP symbols where a good equivalent exists.
+    match grapheme {
+        "👨‍💻" | "👩‍💻" | "🧑‍💻" => Some("\u{f121}"),      // nerd-font code
+        "🤖" => Some("\u{ee0d}"),                    // nerd-font robot
+        "🧠" => Some("\u{f2db}"), // nerd-font chip (closest dev-ish monochrome analog)
+        "🚀" => Some("\u{f135}"), // nerd-font rocket
+        "💡" => Some("\u{f0eb}"), // nerd-font lightbulb
+        "🎯" => Some("\u{f140}"), // nerd-font crosshairs
+        "🎛" | "🎛️" | "🎚" | "🎚️" => Some("\u{f1de}"), // nerd-font sliders
+        "🛠" | "🛠️" | "🔧" | "🔨" | "🧰" => Some("\u{f0ad}"), // nerd-font wrench
+        "🔒" => Some("\u{f023}"), // nerd-font lock
+        "🔓" => Some("\u{eb74}"), // nerd-font unlock
+        "🔔" => Some("\u{f0f3}"), // nerd-font bell
+        "📁" | "🗂" | "🗂️" => Some("\u{ea83}"), // nerd-font folder
+        "📂" => Some("\u{eaf7}"), // nerd-font open folder
+        "📄" => Some("\u{ea7b}"), // nerd-font file
+        "📦" => Some("\u{f487}"), // nerd-font package
+        "📝" | "✍" | "✍️" => Some("\u{f040}"), // nerd-font pencil
+        "🌐" => Some("\u{f0ac}"), // nerd-font globe
+        "☁" | "☁️" => Some("\u{ebaa}"), // nerd-font cloud
+        "⭐" | "🌟" => Some("★"),
+        "✨" | "💫" => Some("✦"),
+        "🔥" => Some("\u{f06d}"), // nerd-font fire
+        "✅" => Some("✓"),
+        "❌" => Some("✕"),
+        "🔍" | "🔎" => Some("⌕"),
+        "🔗" => Some("⛓"),
+        "📌" | "📍" => Some("•"),
+        "🧪" => Some("⚗"),
+        "🟢" | "🟩" | "🔵" | "🟦" | "🟣" | "🟪" | "🟡" | "🟨" | "🟠" | "🟧" | "🔴" | "🟥" => {
+            Some("●")
+        }
+        "⚪" | "⚫" | "⬜" | "⬛" => Some("●"),
+        _ => None,
+    }
+}
+
 fn truncate_segments(segments: &[StyledSegment], max_len: usize) -> Vec<StyledSegment> {
     if max_len == 0 {
         return vec![StyledSegment {
@@ -2167,5 +2335,27 @@ mod tests {
     fn truncate_plain_handles_short_text() {
         assert_eq!(truncate_plain("abc", 5), "abc");
         assert_eq!(truncate_plain("abcdef", 5), "abcd…");
+    }
+
+    #[test]
+    fn sanitize_egui_title_text_strips_variation_sequences() {
+        let input = "Build ⚙️ 1️⃣ ready";
+        assert_eq!(sanitize_egui_title_text(input), "Build ⚙ 1 ready");
+    }
+
+    #[test]
+    fn sanitize_egui_title_text_maps_flags_to_letters() {
+        assert_eq!(sanitize_egui_title_text("🇺🇸 deploy"), "US deploy");
+    }
+
+    #[test]
+    fn sanitize_egui_title_text_maps_common_dev_emoji() {
+        let mapped = sanitize_egui_title_text("🤖 tune 🎛️");
+        assert_eq!(mapped, "\u{ee0d} tune \u{f1de}");
+    }
+
+    #[test]
+    fn sanitize_egui_title_text_falls_back_for_unknown_smp_emoji() {
+        assert_eq!(sanitize_egui_title_text("face 😀 ok"), "face • ok");
     }
 }
