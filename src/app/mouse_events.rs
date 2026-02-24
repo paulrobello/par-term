@@ -498,8 +498,12 @@ impl WindowState {
                 }
 
                 // --- 4. Mouse Tracking Forwarding ---
-                // Forward events to the PTY if terminal application requested tracking
+                // Forward events to the PTY if terminal application requested tracking.
+                // Shift held bypasses mouse tracking to allow local text selection
+                // (standard terminal convention: iTerm2, Kitty, Alacritty all honour this).
+                let shift_held = self.input_handler.modifiers.state().shift_key();
                 if !suppress_terminal_mouse_click
+                    && !shift_held
                     && self.try_send_mouse_event(0, state == ElementState::Pressed)
                 {
                     // Still track button state so mouse motion reporting works correctly.
@@ -885,6 +889,9 @@ impl WindowState {
         // In split pane mode, only forward when mouse is inside the focused pane's bounds.
         // Clicks outside the focused pane (on dividers or other panes) must fall through
         // to divider drag and hover handlers.
+        // Shift held bypasses mouse tracking so the user can drag-select even inside
+        // apps like `less` that enable mouse tracking on the alternate screen.
+        let shift_held = self.input_handler.modifiers.state().shift_key();
         if let Some(tab) = self.tab_manager.active_tab() {
             let resolved = if let Some(ref pm) = tab.pane_manager
                 && let Some(focused_pane) = pm.focused_pane()
@@ -918,7 +925,7 @@ impl WindowState {
                     .ok()
                     .is_some_and(|term| term.should_report_mouse_motion(button_pressed));
 
-                if should_report && let Ok(term) = terminal_arc.try_lock() {
+                if should_report && !shift_held && let Ok(term) = terminal_arc.try_lock() {
                     // Encode button+motion (button 32 marker)
                     let button = if button_pressed {
                         32 // Motion while button pressed
@@ -1049,7 +1056,7 @@ impl WindowState {
 
         if let Some((col, row)) = self.pixel_to_cell(position.0, position.1)
             && button_pressed
-            && !alt_screen_active
+            && (!alt_screen_active || shift_held)
         {
             // Minimum pixel distance before a click becomes a drag selection.
             // Prevents accidental micro-drags (e.g. trackpad taps) from creating
