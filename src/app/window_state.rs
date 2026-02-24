@@ -2953,22 +2953,38 @@ impl WindowState {
                                     tab.cache.prettifier_command_start_line.take()
                                 {
                                     let cmd_text = tab.cache.prettifier_command_text.take();
-                                    // Read full command output from scrollback (skip prompt line)
-                                    let output_start = start + 1;
-                                    if let Ok(term) = terminal.try_lock() {
-                                        let lines =
-                                            term.lines_text_range(output_start, *absolute_line);
+                                    // In All scope, the per-frame feed has already accumulated
+                                    // attribute-aware lines (with reconstruct_markdown_from_cells)
+                                    // in the boundary detector. Using submit_command_output would
+                                    // reset that state and replace it with plain-text scrollback
+                                    // reads, losing bold/italic markdown reconstruction.
+                                    // Instead, flush the boundary detector's accumulated content.
+                                    if pipeline.detection_scope()
+                                        != crate::prettifier::boundary::DetectionScope::CommandOutput
+                                    {
                                         crate::debug_info!(
                                             "PRETTIFIER",
-                                            "submit_command_output: {} lines (rows {}..{})",
-                                            lines.len(),
-                                            output_start,
-                                            absolute_line
+                                            "on_command_end (All scope, flushing boundary detector)"
                                         );
-                                        pipeline.submit_command_output(lines, cmd_text);
-                                    } else {
-                                        // Lock failed — fall back to boundary detector state
                                         pipeline.on_command_end();
+                                    } else {
+                                        // CommandOutput scope: read full output from scrollback
+                                        let output_start = start + 1;
+                                        if let Ok(term) = terminal.try_lock() {
+                                            let lines = term
+                                                .lines_text_range(output_start, *absolute_line);
+                                            crate::debug_info!(
+                                                "PRETTIFIER",
+                                                "submit_command_output: {} lines (rows {}..{})",
+                                                lines.len(),
+                                                output_start,
+                                                absolute_line
+                                            );
+                                            pipeline.submit_command_output(lines, cmd_text);
+                                        } else {
+                                            // Lock failed — fall back to boundary detector state
+                                            pipeline.on_command_end();
+                                        }
                                     }
                                 } else {
                                     pipeline.on_command_end();
@@ -2992,11 +3008,6 @@ impl WindowState {
                     && current_generation != tab.cache.prettifier_feed_generation
                 {
                     tab.cache.prettifier_feed_generation = current_generation;
-
-                    // Reset row tracker on terminal clear (scrollback shrank).
-                    if scrollback_len < tab.cache.scrollback_len {
-                        tab.cache.prettifier_last_fed_max_row = 0;
-                    }
 
                     // Heuristic Claude Code session detection from visible output.
                     // One-time: scan for signature patterns if not yet detected.
@@ -3035,16 +3046,17 @@ impl WindowState {
 
                     let is_claude_session = pipeline.claude_code().is_active();
 
+                    // Reset the boundary detector so it gets a fresh snapshot of
+                    // visible content each time the terminal changes. Without this,
+                    // the same rows would accumulate as duplicates across frames.
+                    // The debounce timer (100ms) handles emission timing — the block
+                    // is emitted once content stabilizes.
+                    pipeline.reset_boundary();
+
+                    // Feed all visible rows from the current frame snapshot.
                     for row_idx in 0..visible_lines {
                         let absolute_row =
                             scrollback_len.saturating_sub(scroll_offset) + row_idx;
-
-                        // Skip rows already fed (deduplication).
-                        if tab.cache.prettifier_last_fed_max_row > 0
-                            && absolute_row <= tab.cache.prettifier_last_fed_max_row
-                        {
-                            continue;
-                        }
 
                         let start = row_idx * grid_cols;
                         let end = (start + grid_cols).min(cells.len());
@@ -3073,10 +3085,6 @@ impl WindowState {
                         };
 
                         pipeline.process_output(&line, absolute_row);
-
-                        if absolute_row > tab.cache.prettifier_last_fed_max_row {
-                            tab.cache.prettifier_last_fed_max_row = absolute_row;
-                        }
                     }
                 }
             }
@@ -3812,6 +3820,7 @@ impl WindowState {
                 if let Some(ref pipeline) = tab.prettifier {
                     if pipeline.is_enabled() {
                         let scroll_off = tab.scroll_state.offset;
+                        let gutter_w = tab.gutter_manager.gutter_width;
                         for viewport_row in 0..visible_lines {
                             let absolute_row =
                                 scrollback_len.saturating_sub(scroll_off) + viewport_row;
@@ -3841,8 +3850,8 @@ impl WindowState {
                                     for cell in &mut cells[cell_start..cell_end] {
                                         *cell = par_term_config::Cell::default();
                                     }
-                                    // Write styled segments
-                                    let mut col = 0;
+                                    // Write styled segments (offset by gutter width to avoid clipping)
+                                    let mut col = gutter_w;
                                     for segment in &styled_line.segments {
                                         for ch in segment.text.chars() {
                                             if col >= grid_cols {

@@ -204,6 +204,14 @@ impl PrettifierPipeline {
         self.boundary_detector.scope()
     }
 
+    /// Reset the boundary detector, discarding accumulated lines.
+    ///
+    /// Used by the per-frame feed to provide a fresh content snapshot
+    /// on each generation change, preventing duplicate accumulation.
+    pub fn reset_boundary(&mut self) {
+        self.boundary_detector.reset();
+    }
+
     /// Signal that the terminal entered or exited the alternate screen.
     pub fn on_alt_screen_change(&mut self, entering: bool) {
         if let Some(block) = self.boundary_detector.on_alt_screen_change(entering) {
