@@ -410,4 +410,203 @@ mod tests {
         assert!(!json_rules[0].enabled);
         assert!((json_rules[0].weight - 0.8).abs() < f32::EPSILON);
     }
+
+    // -----------------------------------------------------------------------
+    // End-to-end detection integration tests
+    // -----------------------------------------------------------------------
+
+    fn default_config() -> Config {
+        Config::default()
+    }
+
+    #[test]
+    fn test_detection_markdown_headers_and_emphasis() {
+        let config = default_config();
+        let sample = "# Hello World\n\nThis is **bold** and *italic* text.\n\n## Sub-header\n\n- Item 1\n- Item 2\n";
+        let result = test_detection(&config, sample, None);
+        assert_eq!(result.format_id, "markdown", "Expected markdown detection, got {:?}", result.format_id);
+        assert!(result.confidence >= result.threshold, "confidence {:.2} < threshold {:.2}", result.confidence, result.threshold);
+    }
+
+    #[test]
+    fn test_detection_markdown_fenced_code() {
+        let config = default_config();
+        let sample = "Here is some code:\n\n```python\ndef hello():\n    print(\"hello\")\n```\n\nAnd more text.";
+        let result = test_detection(&config, sample, None);
+        assert_eq!(result.format_id, "markdown", "Expected markdown detection for fenced code block");
+        assert!(result.confidence >= result.threshold);
+    }
+
+    #[test]
+    fn test_detection_markdown_table() {
+        let config = default_config();
+        let sample = "# Results\n\n| Name | Score |\n|------|-------|\n| Alice | 95 |\n| Bob | 87 |\n";
+        let result = test_detection(&config, sample, None);
+        assert_eq!(result.format_id, "markdown", "Expected markdown detection for tables");
+        assert!(result.confidence >= result.threshold);
+    }
+
+    #[test]
+    fn test_detection_json_object() {
+        let config = default_config();
+        let sample = "{\n  \"name\": \"par-term\",\n  \"version\": \"0.21.0\",\n  \"features\": [\"prettifier\", \"sixel\"]\n}";
+        let result = test_detection(&config, sample, None);
+        assert_eq!(result.format_id, "json", "Expected json detection, got {:?}", result.format_id);
+        assert!(result.confidence >= result.threshold);
+    }
+
+    #[test]
+    fn test_detection_json_with_curl_context() {
+        let config = default_config();
+        let sample = "{\n  \"status\": 200,\n  \"data\": {\n    \"id\": 42\n  }\n}";
+        let result = test_detection(&config, sample, Some("curl https://api.example.com"));
+        assert_eq!(result.format_id, "json", "Expected json detection with curl context");
+        assert!(result.confidence >= result.threshold);
+    }
+
+    #[test]
+    fn test_detection_yaml_document() {
+        let config = default_config();
+        let sample = "---\nname: par-term\nversion: 0.21.0\nfeatures:\n  - prettifier\n  - sixel\n";
+        let result = test_detection(&config, sample, None);
+        assert_eq!(result.format_id, "yaml", "Expected yaml detection, got {:?}", result.format_id);
+        assert!(result.confidence >= result.threshold);
+    }
+
+    #[test]
+    fn test_detection_diff_git() {
+        let config = default_config();
+        let sample = "diff --git a/src/main.rs b/src/main.rs\nindex abc1234..def5678 100644\n--- a/src/main.rs\n+++ b/src/main.rs\n@@ -10,3 +10,4 @@\n fn main() {\n     println!(\"hello\");\n+    println!(\"world\");\n }\n";
+        let result = test_detection(&config, sample, None);
+        assert_eq!(result.format_id, "diff", "Expected diff detection, got {:?}", result.format_id);
+        assert!(result.confidence >= result.threshold);
+    }
+
+    #[test]
+    fn test_detection_xml() {
+        let config = default_config();
+        let sample = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<root>\n  <item id=\"1\">Hello</item>\n  <item id=\"2\">World</item>\n</root>";
+        let result = test_detection(&config, sample, None);
+        assert_eq!(result.format_id, "xml", "Expected xml detection, got {:?}", result.format_id);
+        assert!(result.confidence >= result.threshold);
+    }
+
+    #[test]
+    fn test_detection_toml() {
+        let config = default_config();
+        let sample = "[package]\nname = \"par-term\"\nversion = \"0.21.0\"\nedition = \"2024\"\n\n[dependencies]\nwgpu = \"0.20\"\n";
+        let result = test_detection(&config, sample, None);
+        assert_eq!(result.format_id, "toml", "Expected toml detection, got {:?}", result.format_id);
+        assert!(result.confidence >= result.threshold);
+    }
+
+    #[test]
+    fn test_detection_log_output() {
+        let config = default_config();
+        let sample = "2024-01-15T10:30:00.000Z INFO  server started on port 8080\n2024-01-15T10:30:01.000Z DEBUG handling request GET /api/data\n2024-01-15T10:30:02.000Z WARN  slow query detected (2.5s)\n2024-01-15T10:30:03.000Z ERROR connection refused: database not reachable\n";
+        let result = test_detection(&config, sample, None);
+        assert_eq!(result.format_id, "log", "Expected log detection, got {:?}", result.format_id);
+        assert!(result.confidence >= result.threshold);
+    }
+
+    #[test]
+    fn test_detection_csv() {
+        let config = default_config();
+        let sample = "name,age,city\nAlice,30,NYC\nBob,25,SF\nCharlie,35,LA\n";
+        let result = test_detection(&config, sample, None);
+        assert_eq!(result.format_id, "csv", "Expected csv detection, got {:?}", result.format_id);
+        assert!(result.confidence >= result.threshold);
+    }
+
+    #[test]
+    fn test_detection_plain_text_no_match() {
+        let config = default_config();
+        let sample = "This is just plain text.\nNothing special about it.\nJust regular terminal output.";
+        let result = test_detection(&config, sample, None);
+        // Should NOT match any format with sufficient confidence
+        assert!(
+            result.format_id.is_empty() || result.confidence < result.threshold,
+            "Plain text should not be detected as {:?} (confidence={:.2})", result.format_id, result.confidence
+        );
+    }
+
+    #[test]
+    fn test_detection_full_pipeline_markdown_rendering() {
+        // Test the complete flow: config → pipeline → detect → render
+        let config = default_config();
+        let resolved = resolve_prettifier_config(
+            config.enable_prettifier,
+            &config.content_prettifier,
+            None,
+            None,
+        );
+        let pipeline_config = to_pipeline_config(&resolved);
+        let registry = build_default_registry(&resolved);
+        let renderer_config = super::super::traits::RendererConfig::default();
+        let mut pipeline = super::super::pipeline::PrettifierPipeline::new(
+            super::super::pipeline::PrettifierConfig {
+                detection_scope: super::super::boundary::DetectionScope::All,
+                ..pipeline_config
+            },
+            registry,
+            renderer_config,
+        );
+
+        // Feed markdown lines
+        pipeline.process_output("# Hello World", 0);
+        pipeline.process_output("", 1);
+        pipeline.process_output("This is **bold** text.", 2);
+        pipeline.process_output("", 3);
+        pipeline.process_output("", 4); // Two blank lines trigger boundary
+
+        let blocks = pipeline.active_blocks();
+        assert!(!blocks.is_empty(), "Expected at least one detected block after feeding markdown");
+        assert_eq!(blocks[0].detection.format_id, "markdown");
+        assert!(blocks[0].has_rendered(), "Block should have rendered content");
+
+        // Verify rendered content has styled lines
+        let display = blocks[0].buffer.display_lines();
+        assert!(!display.is_empty(), "Rendered content should have display lines");
+    }
+
+    #[test]
+    fn test_detection_full_pipeline_command_output_scope() {
+        // Test with CommandOutput scope — requires OSC 133 markers
+        let config = default_config();
+        let resolved = resolve_prettifier_config(
+            config.enable_prettifier,
+            &config.content_prettifier,
+            None,
+            None,
+        );
+        let pipeline_config = to_pipeline_config(&resolved);
+        let registry = build_default_registry(&resolved);
+        let renderer_config = super::super::traits::RendererConfig::default();
+        let mut pipeline = super::super::pipeline::PrettifierPipeline::new(
+            super::super::pipeline::PrettifierConfig {
+                detection_scope: super::super::boundary::DetectionScope::CommandOutput,
+                ..pipeline_config
+            },
+            registry,
+            renderer_config,
+        );
+
+        // Simulate OSC 133 command flow
+        pipeline.on_command_start("cat README.md");
+        pipeline.process_output("# par-term", 10);
+        pipeline.process_output("", 11);
+        pipeline.process_output("A GPU-accelerated terminal.", 12);
+        pipeline.process_output("", 13);
+        pipeline.process_output("## Features", 14);
+        pipeline.process_output("", 15);
+        pipeline.process_output("- **Fast rendering**", 16);
+        pipeline.process_output("- Inline graphics", 17);
+        pipeline.on_command_end(); // OSC 133 D
+
+        let blocks = pipeline.active_blocks();
+        assert!(!blocks.is_empty(), "Expected at least one detected block in CommandOutput scope");
+        assert_eq!(blocks[0].detection.format_id, "markdown");
+        assert!(blocks[0].has_rendered());
+        assert_eq!(blocks[0].content().preceding_command.as_deref(), Some("cat README.md"));
+    }
 }

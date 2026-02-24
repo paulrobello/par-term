@@ -38,7 +38,7 @@ pub struct BoundaryConfig {
 impl Default for BoundaryConfig {
     fn default() -> Self {
         Self {
-            scope: DetectionScope::CommandOutput,
+            scope: DetectionScope::All,
             max_scan_lines: 500,
             debounce_ms: 100,
             blank_line_threshold: 2,
@@ -90,15 +90,20 @@ impl BoundaryDetector {
     /// In `CommandOutput` scope, lines outside C→D region are ignored.
     /// In `ManualOnly` scope, never auto-emits.
     pub fn push_line(&mut self, line: &str, row: usize) -> Option<ContentBlock> {
-        self.last_output_time = Instant::now();
-
         match self.config.scope {
             DetectionScope::CommandOutput => {
                 if !self.in_command_output {
                     return None;
                 }
+                crate::debug_trace!(
+                    "PRETTIFIER",
+                    "push_line (CommandOutput, in_cmd=true) row={}: {:?}",
+                    row,
+                    &line[..line.len().min(60)]
+                );
             }
             DetectionScope::ManualOnly => {
+                self.last_output_time = Instant::now();
                 if self.current_lines.is_empty() {
                     self.block_start_row = row;
                 }
@@ -108,6 +113,8 @@ impl BoundaryDetector {
             }
             DetectionScope::All => {}
         }
+
+        self.last_output_time = Instant::now();
 
         if self.current_lines.is_empty() {
             self.block_start_row = row;
@@ -143,6 +150,11 @@ impl BoundaryDetector {
     /// Sets command context, enables accumulation in `CommandOutput` scope,
     /// and clears any pre-command noise.
     pub fn on_command_start(&mut self, command: &str) {
+        crate::debug_info!(
+            "PRETTIFIER",
+            "on_command_start: {:?}",
+            &command[..command.len().min(80)]
+        );
         self.current_command = Some(command.to_string());
         self.in_command_output = true;
         self.current_lines.clear();
@@ -154,6 +166,11 @@ impl BoundaryDetector {
     /// Emits accumulated lines as a `ContentBlock`. In `ManualOnly` scope,
     /// returns `None`.
     pub fn on_command_end(&mut self) -> Option<ContentBlock> {
+        crate::debug_info!(
+            "PRETTIFIER",
+            "on_command_end: accumulated {} lines",
+            self.current_lines.len()
+        );
         self.in_command_output = false;
         if self.config.scope == DetectionScope::ManualOnly {
             return None;
@@ -205,6 +222,11 @@ impl BoundaryDetector {
     /// Works in all scopes including `ManualOnly`.
     pub fn flush(&mut self) -> Option<ContentBlock> {
         self.emit_block()
+    }
+
+    /// Get the configured detection scope.
+    pub fn scope(&self) -> DetectionScope {
+        self.config.scope
     }
 
     /// Clear all accumulated state.

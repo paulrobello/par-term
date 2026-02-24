@@ -173,6 +173,37 @@ impl PrettifierPipeline {
         }
     }
 
+    /// Submit pre-built command output lines (read from scrollback) for detection and rendering.
+    ///
+    /// This bypasses the boundary detector's line-by-line accumulation and directly
+    /// creates a `ContentBlock` from the provided lines. Used when `CommandFinished`
+    /// fires and we can read the complete output from terminal scrollback.
+    pub fn submit_command_output(&mut self, lines: Vec<(String, usize)>, command: Option<String>) {
+        self.boundary_detector.reset();
+        if lines.is_empty() {
+            return;
+        }
+
+        let start_row = lines.first().unwrap().1;
+        let end_row = lines.last().unwrap().1 + 1;
+        let text_lines: Vec<String> = lines.into_iter().map(|(text, _)| text).collect();
+
+        let block = ContentBlock {
+            lines: text_lines,
+            preceding_command: command,
+            start_row,
+            end_row,
+            timestamp: std::time::SystemTime::now(),
+        };
+
+        self.handle_block(block);
+    }
+
+    /// Get the configured detection scope.
+    pub fn detection_scope(&self) -> DetectionScope {
+        self.boundary_detector.scope()
+    }
+
     /// Signal that the terminal entered or exited the alternate screen.
     pub fn on_alt_screen_change(&mut self, entering: bool) {
         if let Some(block) = self.boundary_detector.on_alt_screen_change(entering) {
@@ -282,6 +313,11 @@ impl PrettifierPipeline {
         process_name: &str,
     ) -> bool {
         self.claude_code.detect_session(env_vars, process_name)
+    }
+
+    /// Manually mark this as a Claude Code session (from output pattern heuristics).
+    pub fn mark_claude_code_active(&mut self) {
+        self.claude_code.mark_active();
     }
 
     /// Feed a line through the Claude Code integration.
@@ -396,6 +432,15 @@ impl PrettifierPipeline {
         }
 
         if let Some(detection) = self.registry.detect(&content) {
+            crate::debug_info!(
+                "PRETTIFIER",
+                "block detected: format={}, confidence={:.2}, rows={}..{}, lines={}",
+                detection.format_id,
+                detection.confidence,
+                content.start_row,
+                content.end_row,
+                content.lines.len()
+            );
             let format_id = detection.format_id.clone();
             let mut buffer = DualViewBuffer::new(content);
             let terminal_width = self.renderer_config.terminal_width;
@@ -404,6 +449,14 @@ impl PrettifierPipeline {
 
             let block_id = self.next_block_id;
             self.next_block_id += 1;
+
+            let has_rendered = buffer.rendered().is_some();
+            crate::debug_info!(
+                "PRETTIFIER",
+                "block stored: id={}, rendered={}",
+                block_id,
+                has_rendered
+            );
 
             self.active_blocks.push(PrettifiedBlock {
                 buffer,

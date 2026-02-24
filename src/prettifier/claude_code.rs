@@ -115,6 +115,11 @@ impl ClaudeCodeIntegration {
         self.is_claude_code_session
     }
 
+    /// Manually mark this as a Claude Code session (e.g., from output pattern heuristics).
+    pub fn mark_active(&mut self) {
+        self.is_claude_code_session = true;
+    }
+
     /// Access the integration config.
     pub fn config(&self) -> &ClaudeCodeConfig {
         &self.config

@@ -562,6 +562,126 @@ fn is_terminal_screenshot_permission_tool(tool_call: &serde_json::Value) -> bool
     lower == "terminal_screenshot" || lower.contains("par-term-config__terminal_screenshot")
 }
 
+/// Reconstruct markdown syntax from cell attributes for Claude Code output.
+///
+/// Claude Code pre-renders markdown with ANSI sequences (bold for headers/emphasis,
+/// italic for emphasis), stripping the original syntax markers. This function
+/// reconstructs markdown syntax from cell attributes so the prettifier's markdown
+/// detector can recognize patterns like `# Header` and `**bold**`.
+fn reconstruct_markdown_from_cells(cells: &[par_term_config::Cell]) -> String {
+    // First, extract plain text and trim trailing whitespace.
+    let trimmed_len = cells
+        .iter()
+        .rposition(|c| {
+            let g = c.grapheme.as_str();
+            !(g.is_empty() || g == "\0" || g == " ")
+        })
+        .map(|i| i + 1)
+        .unwrap_or(0);
+
+    if trimmed_len == 0 {
+        return String::new();
+    }
+
+    let cells = &cells[..trimmed_len];
+
+    // Find the first non-whitespace cell index.
+    let first_nonws = cells
+        .iter()
+        .position(|c| {
+            let g = c.grapheme.as_str();
+            !(g.is_empty() || g == "\0" || g == " ")
+        })
+        .unwrap_or(0);
+
+    // Check if all non-whitespace cells share the same attribute pattern (for header detection).
+    let all_bold = cells[first_nonws..].iter().all(|c| {
+        let g = c.grapheme.as_str();
+        (g.is_empty() || g == "\0" || g == " ") || c.bold
+    });
+
+    let all_underline = all_bold
+        && cells[first_nonws..].iter().all(|c| {
+            let g = c.grapheme.as_str();
+            (g.is_empty() || g == "\0" || g == " ") || c.underline
+        });
+
+    // Extract the plain text content.
+    let plain_text: String = cells
+        .iter()
+        .map(|c| {
+            let g = c.grapheme.as_str();
+            if g.is_empty() || g == "\0" {
+                " "
+            } else {
+                g
+            }
+        })
+        .collect::<String>()
+        .trim_end()
+        .to_string();
+
+    // Header detection: if every non-ws cell is bold, it's a header.
+    // Bold + underline → H1 (`# `), bold only → H2 (`## `).
+    if all_bold && !plain_text.trim().is_empty() {
+        let trimmed = plain_text.trim_start();
+        // Don't add header markers to lines that already look like list items, tables, etc.
+        if !trimmed.starts_with('-')
+            && !trimmed.starts_with('*')
+            && !trimmed.starts_with('|')
+            && !trimmed.starts_with('#')
+        {
+            return if all_underline {
+                format!("# {trimmed}")
+            } else {
+                format!("## {trimmed}")
+            };
+        }
+    }
+
+    // Inline bold/italic reconstruction: track attribute transitions.
+    let mut result = String::with_capacity(plain_text.len() + 32);
+    let mut in_bold = false;
+    let mut in_italic = false;
+
+    for cell in cells {
+        let g = cell.grapheme.as_str();
+        let ch = if g.is_empty() || g == "\0" { " " } else { g };
+
+        // Bold transitions (skip if whole line is bold — already handled as header).
+        if !all_bold {
+            if cell.bold && !in_bold {
+                result.push_str("**");
+                in_bold = true;
+            } else if !cell.bold && in_bold {
+                result.push_str("**");
+                in_bold = false;
+            }
+        }
+
+        // Italic transitions.
+        if cell.italic && !in_italic {
+            result.push('*');
+            in_italic = true;
+        } else if !cell.italic && in_italic {
+            result.push('*');
+            in_italic = false;
+        }
+
+        result.push_str(ch);
+    }
+
+    // Close any open markers.
+    if in_bold {
+        result.push_str("**");
+    }
+    if in_italic {
+        result.push('*');
+    }
+
+    result.trim_end().to_string()
+}
+
 impl WindowState {
     /// Create a new window state with the given configuration
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
@@ -2588,8 +2708,8 @@ impl WindowState {
 
         // Get terminal cells for rendering (with dirty tracking optimization)
         // Also capture alt screen state to disable cursor shader for TUI apps
-        let (mut cells, current_cursor_pos, cursor_style, is_alt_screen) = if let Ok(term) =
-            terminal.try_lock()
+        let (mut cells, current_cursor_pos, cursor_style, is_alt_screen, current_generation) =
+            if let Ok(term) = terminal.try_lock()
         {
             // Get current generation to check if terminal content has changed
             let current_generation = term.update_generation();
@@ -2694,11 +2814,11 @@ impl WindowState {
             // Check if alt screen is active (TUI apps like vim, htop)
             let is_alt_screen = term.is_alt_screen_active();
 
-            (cells, current_cursor_pos, cursor_style, is_alt_screen)
+            (cells, current_cursor_pos, cursor_style, is_alt_screen, current_generation)
         } else if let Some(cached) = cache_cells {
             // Terminal locked (e.g., upload in progress), use cached cells so the
             // rest of the render pipeline (including file transfer overlay) can proceed.
-            (cached, cache_cursor_pos, None, false)
+            (cached, cache_cursor_pos, None, false, cache_generation)
         } else {
             return; // Terminal locked and no cache available, skip this frame
         };
@@ -2718,35 +2838,6 @@ impl WindowState {
             // Always check debounce (cheap: just a timestamp comparison)
             if let Some(ref mut pipeline) = tab.prettifier {
                 pipeline.check_debounce();
-            }
-
-            // Feed terminal output lines to the prettifier pipeline
-            if let Some(ref mut pipeline) = tab.prettifier {
-                if pipeline.is_enabled() && !is_alt_screen {
-                    for row_idx in 0..visible_lines {
-                        let start = row_idx * grid_cols;
-                        let end = (start + grid_cols).min(cells.len());
-                        if start >= cells.len() {
-                            break;
-                        }
-                        let line: String = cells[start..end]
-                            .iter()
-                            .map(|c| {
-                                let g = c.grapheme.as_str();
-                                if g.is_empty() || g == "\0" {
-                                    " "
-                                } else {
-                                    g
-                                }
-                            })
-                            .collect::<String>()
-                            .trim_end()
-                            .to_string();
-                        let absolute_row =
-                            cached_scrollback_len.saturating_sub(scroll_offset) + row_idx;
-                        pipeline.process_output(&line, absolute_row);
-                    }
-                }
             }
         }
 
@@ -2849,13 +2940,142 @@ impl WindowState {
                         match event {
                             par_term_terminal::ShellLifecycleEvent::CommandStarted {
                                 command,
-                                ..
+                                absolute_line,
                             } => {
+                                tab.cache.prettifier_command_start_line = Some(*absolute_line);
+                                tab.cache.prettifier_command_text = Some(command.clone());
                                 pipeline.on_command_start(command);
                             }
-                            par_term_terminal::ShellLifecycleEvent::CommandFinished { .. } => {
-                                pipeline.on_command_end();
+                            par_term_terminal::ShellLifecycleEvent::CommandFinished {
+                                absolute_line,
+                            } => {
+                                if let Some(start) =
+                                    tab.cache.prettifier_command_start_line.take()
+                                {
+                                    let cmd_text = tab.cache.prettifier_command_text.take();
+                                    // Read full command output from scrollback (skip prompt line)
+                                    let output_start = start + 1;
+                                    if let Ok(term) = terminal.try_lock() {
+                                        let lines =
+                                            term.lines_text_range(output_start, *absolute_line);
+                                        crate::debug_info!(
+                                            "PRETTIFIER",
+                                            "submit_command_output: {} lines (rows {}..{})",
+                                            lines.len(),
+                                            output_start,
+                                            absolute_line
+                                        );
+                                        pipeline.submit_command_output(lines, cmd_text);
+                                    } else {
+                                        // Lock failed — fall back to boundary detector state
+                                        pipeline.on_command_end();
+                                    }
+                                } else {
+                                    pipeline.on_command_end();
+                                }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Feed terminal output lines to the prettifier pipeline (gated on content changes).
+        // Skip per-frame viewport feed for CommandOutput scope — it reads full output
+        // from scrollback on CommandFinished instead.
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            if let Some(ref mut pipeline) = tab.prettifier {
+                if pipeline.is_enabled()
+                    && !is_alt_screen
+                    && pipeline.detection_scope()
+                        != crate::prettifier::boundary::DetectionScope::CommandOutput
+                    && current_generation != tab.cache.prettifier_feed_generation
+                {
+                    tab.cache.prettifier_feed_generation = current_generation;
+
+                    // Reset row tracker on terminal clear (scrollback shrank).
+                    if scrollback_len < tab.cache.scrollback_len {
+                        tab.cache.prettifier_last_fed_max_row = 0;
+                    }
+
+                    // Heuristic Claude Code session detection from visible output.
+                    // One-time: scan for signature patterns if not yet detected.
+                    if !pipeline.claude_code().is_active() {
+                        'detect: for row_idx in 0..visible_lines {
+                            let start = row_idx * grid_cols;
+                            let end = (start + grid_cols).min(cells.len());
+                            if start >= cells.len() {
+                                break;
+                            }
+                            let row_text: String = cells[start..end]
+                                .iter()
+                                .map(|c| {
+                                    let g = c.grapheme.as_str();
+                                    if g.is_empty() || g == "\0" { " " } else { g }
+                                })
+                                .collect();
+                            // Look for Claude Code signature patterns in output.
+                            if row_text.contains("Claude Code")
+                                || row_text.contains("claude.ai/code")
+                                || row_text.contains("Tips for getting the best")
+                                || (row_text.contains("Model:")
+                                    && (row_text.contains("Opus")
+                                        || row_text.contains("Sonnet")
+                                        || row_text.contains("Haiku")))
+                            {
+                                crate::debug_info!(
+                                    "PRETTIFIER",
+                                    "Claude Code session detected from output heuristic"
+                                );
+                                pipeline.mark_claude_code_active();
+                                break 'detect;
+                            }
+                        }
+                    }
+
+                    let is_claude_session = pipeline.claude_code().is_active();
+
+                    for row_idx in 0..visible_lines {
+                        let absolute_row =
+                            scrollback_len.saturating_sub(scroll_offset) + row_idx;
+
+                        // Skip rows already fed (deduplication).
+                        if tab.cache.prettifier_last_fed_max_row > 0
+                            && absolute_row <= tab.cache.prettifier_last_fed_max_row
+                        {
+                            continue;
+                        }
+
+                        let start = row_idx * grid_cols;
+                        let end = (start + grid_cols).min(cells.len());
+                        if start >= cells.len() {
+                            break;
+                        }
+
+                        let line = if is_claude_session {
+                            // Attribute-aware markdown reconstruction for Claude Code sessions.
+                            reconstruct_markdown_from_cells(&cells[start..end])
+                        } else {
+                            // Plain text extraction for normal output.
+                            cells[start..end]
+                                .iter()
+                                .map(|c| {
+                                    let g = c.grapheme.as_str();
+                                    if g.is_empty() || g == "\0" {
+                                        " "
+                                    } else {
+                                        g
+                                    }
+                                })
+                                .collect::<String>()
+                                .trim_end()
+                                .to_string()
+                        };
+
+                        pipeline.process_output(&line, absolute_row);
+
+                        if absolute_row > tab.cache.prettifier_last_fed_max_row {
+                            tab.cache.prettifier_last_fed_max_row = absolute_row;
                         }
                     }
                 }
@@ -3603,6 +3823,15 @@ impl WindowState {
                                 let block_start = block.content().start_row;
                                 let line_offset = absolute_row.saturating_sub(block_start);
                                 if let Some(styled_line) = display_lines.get(line_offset) {
+                                    crate::debug_trace!(
+                                        "PRETTIFIER",
+                                        "cell sub: vp_row={}, abs_row={}, block_id={}, line_off={}, segs={}",
+                                        viewport_row,
+                                        absolute_row,
+                                        block.block_id,
+                                        line_offset,
+                                        styled_line.segments.len()
+                                    );
                                     let cell_start = viewport_row * grid_cols;
                                     let cell_end = (cell_start + grid_cols).min(cells.len());
                                     if cell_start >= cells.len() {

@@ -18,7 +18,7 @@ fn default_global_toggle_key() -> String {
 }
 
 fn default_detection_scope() -> String {
-    "command_output".to_string()
+    "all".to_string()
 }
 
 fn default_confidence_threshold() -> f32 {
@@ -698,7 +698,7 @@ mod tests {
     #[test]
     fn test_detection_config_defaults() {
         let config = DetectionConfig::default();
-        assert_eq!(config.scope, "command_output");
+        assert_eq!(config.scope, "all");
         assert!((config.confidence_threshold - 0.6).abs() < f32::EPSILON);
         assert_eq!(config.max_scan_lines, 500);
         assert_eq!(config.debounce_ms, 100);
@@ -749,7 +749,7 @@ mod tests {
         let yaml = "{}";
         let config: PrettifierYamlConfig = serde_yaml::from_str(yaml).unwrap();
         assert!(config.respect_alternate_screen);
-        assert_eq!(config.detection.scope, "command_output");
+        assert_eq!(config.detection.scope, "all");
     }
 
     #[test]
@@ -837,7 +837,7 @@ detection_rules:
 
         assert!(resolved.enabled);
         assert!(resolved.respect_alternate_screen);
-        assert_eq!(resolved.detection.scope, "command_output");
+        assert_eq!(resolved.detection.scope, "all");
         assert!(resolved.renderers.markdown.enabled);
     }
 
