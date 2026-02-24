@@ -23,7 +23,7 @@ pub fn show(
     // Master toggle section
     if section_matches(
         &query,
-        "Content Prettifier",
+        "Prettifier",
         &["prettifier", "prettify", "enable", "toggle", "detect"],
     ) {
         show_master_toggle(ui, settings, changes_this_frame);
@@ -136,7 +136,7 @@ fn show_master_toggle(ui: &mut egui::Ui, settings: &mut SettingsUI, changes_this
         if ui
             .checkbox(
                 &mut settings.config.enable_prettifier,
-                egui::RichText::new("Enable Content Prettifier").strong(),
+                egui::RichText::new("Enable Prettifier").strong(),
             )
             .changed()
         {

@@ -212,6 +212,14 @@ impl PrettifierPipeline {
         self.boundary_detector.reset();
     }
 
+    /// Clear all active prettified blocks.
+    ///
+    /// Used when transitioning from verbose→compact mode in Claude Code sessions
+    /// so that cell substitution doesn't overwrite Claude Code's own rendering.
+    pub fn clear_blocks(&mut self) {
+        self.active_blocks.clear();
+    }
+
     /// Signal that the terminal entered or exited the alternate screen.
     pub fn on_alt_screen_change(&mut self, entering: bool) {
         if let Some(block) = self.boundary_detector.on_alt_screen_change(entering) {

@@ -3046,30 +3046,19 @@ impl WindowState {
 
                     let is_claude_session = pipeline.claude_code().is_active();
 
-                    // Reset the boundary detector so it gets a fresh snapshot of
-                    // visible content each time the terminal changes. Without this,
-                    // the same rows would accumulate as duplicates across frames.
-                    // The debounce timer (100ms) handles emission timing — the block
-                    // is emitted once content stabilizes.
-                    pipeline.reset_boundary();
-
-                    // Feed all visible rows from the current frame snapshot.
-                    for row_idx in 0..visible_lines {
-                        let absolute_row =
-                            scrollback_len.saturating_sub(scroll_offset) + row_idx;
-
-                        let start = row_idx * grid_cols;
-                        let end = (start + grid_cols).min(cells.len());
-                        if start >= cells.len() {
-                            break;
-                        }
-
-                        let line = if is_claude_session {
-                            // Attribute-aware markdown reconstruction for Claude Code sessions.
-                            reconstruct_markdown_from_cells(&cells[start..end])
-                        } else {
-                            // Plain text extraction for normal output.
-                            cells[start..end]
+                    // In Claude Code compact mode, collapse markers indicate tool
+                    // outputs are hidden. Don't prettify — let Claude Code's own
+                    // rendering show (styled responses, collapsed summaries). When
+                    // the user presses Ctrl+O (verbose mode), markers disappear and
+                    // we prettify the expanded content.
+                    let has_collapse_markers = is_claude_session
+                        && (0..visible_lines).any(|row_idx| {
+                            let start = row_idx * grid_cols;
+                            let end = (start + grid_cols).min(cells.len());
+                            if start >= cells.len() {
+                                return false;
+                            }
+                            let text: String = cells[start..end]
                                 .iter()
                                 .map(|c| {
                                     let g = c.grapheme.as_str();
@@ -3079,12 +3068,71 @@ impl WindowState {
                                         g
                                     }
                                 })
-                                .collect::<String>()
-                                .trim_end()
-                                .to_string()
-                        };
+                                .collect();
+                            // Match Claude Code's specific collapse patterns:
+                            //   "… +N lines (ctrl+o to expand)"
+                            //   "Read N lines (ctrl+o to expand)"
+                            //   "Read N files (ctrl+o to expand)"
+                            //   "+N lines (ctrl+o to expand)"
+                            let is_collapse_line =
+                                text.contains("lines (ctrl+o to expand)")
+                                    || text.contains("files (ctrl+o to expand)");
+                            if is_collapse_line {
+                                crate::debug_info!(
+                                    "PRETTIFIER",
+                                    "collapse marker found at row {}",
+                                    row_idx
+                                );
+                            }
+                            is_collapse_line
+                        });
 
-                        pipeline.process_output(&line, absolute_row);
+                    if has_collapse_markers {
+                        // Compact mode — clear any existing prettified blocks
+                        // so cell substitution doesn't overwrite Claude Code's
+                        // own rendering.
+                        pipeline.clear_blocks();
+                    } else {
+                        // Reset the boundary detector so it gets a fresh snapshot of
+                        // visible content each time the terminal changes. Without this,
+                        // the same rows would accumulate as duplicates across frames.
+                        // The debounce timer (100ms) handles emission timing — the block
+                        // is emitted once content stabilizes.
+                        pipeline.reset_boundary();
+
+                        // Feed all visible rows from the current frame snapshot.
+                        for row_idx in 0..visible_lines {
+                            let absolute_row =
+                                scrollback_len.saturating_sub(scroll_offset) + row_idx;
+
+                            let start = row_idx * grid_cols;
+                            let end = (start + grid_cols).min(cells.len());
+                            if start >= cells.len() {
+                                break;
+                            }
+
+                            let line = if is_claude_session {
+                                // Attribute-aware markdown reconstruction for Claude Code sessions.
+                                reconstruct_markdown_from_cells(&cells[start..end])
+                            } else {
+                                // Plain text extraction for normal output.
+                                cells[start..end]
+                                    .iter()
+                                    .map(|c| {
+                                        let g = c.grapheme.as_str();
+                                        if g.is_empty() || g == "\0" {
+                                            " "
+                                        } else {
+                                            g
+                                        }
+                                    })
+                                    .collect::<String>()
+                                    .trim_end()
+                                    .to_string()
+                            };
+
+                            pipeline.process_output(&line, absolute_row);
+                        }
                     }
                 }
             }
