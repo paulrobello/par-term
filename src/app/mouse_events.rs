@@ -1054,7 +1054,9 @@ impl WindowState {
             // Minimum pixel distance before a click becomes a drag selection.
             // Prevents accidental micro-drags (e.g. trackpad taps) from creating
             // tiny selections that overwrite clipboard content (including images).
-            const DRAG_THRESHOLD_PX: f64 = 4.0;
+            // Slightly larger dead zone to avoid accidental selection starts from
+            // trackpad jitter / tap-to-click movement noise.
+            const DRAG_THRESHOLD_PX: f64 = 8.0;
 
             let past_drag_threshold = click_pixel_position.is_some_and(|(cx, cy)| {
                 let dx = position.0 - cx;
