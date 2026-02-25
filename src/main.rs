@@ -37,6 +37,28 @@ fn main() -> Result<()> {
     // shutdown or PtySession::drop timeouts. Background cleanup threads and
     // the OS will handle any remaining resource cleanup.
     log::info!("Event loop exited, force-exiting process");
-    let exit_code = if result.is_ok() { 0 } else { 1 };
+    let exit_code = match result {
+        Ok(_) => 0,
+        Err(ref e) => {
+            eprintln!("par-term: error: {e:#}");
+            // On Linux, provide a hint when the error looks like a missing display server
+            #[cfg(target_os = "linux")]
+            {
+                let msg = format!("{e:?}").to_lowercase();
+                if msg.contains("display")
+                    || msg.contains("wayland")
+                    || msg.contains("xcb")
+                    || msg.contains("x server")
+                    || msg.contains("compositor")
+                {
+                    eprintln!(
+                        "par-term: hint: no display server found — ensure DISPLAY (X11) or \
+                         WAYLAND_DISPLAY (Wayland) is set and a compositor is running"
+                    );
+                }
+            }
+            1
+        }
+    };
     std::process::exit(exit_code);
 }

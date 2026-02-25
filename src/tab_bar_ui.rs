@@ -1984,7 +1984,7 @@ fn regional_indicator_to_ascii(ch: char) -> Option<char> {
         return None;
     }
     let offset = (ch as u32) - 0x1F1E6;
-    Some(char::from_u32(u32::from(b'A') + offset)?)
+    char::from_u32(u32::from(b'A') + offset)
 }
 
 /// SMP pictographs (most "emoji-only" symbols) commonly fail in egui's font stack.
