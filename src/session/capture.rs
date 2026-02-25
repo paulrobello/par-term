@@ -15,9 +15,14 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
             continue;
         };
 
-        // Get window position and size
+        // Get window position and size in logical pixels.
+        // Dividing physical values by scale_factor gives scale-factor-
+        // independent logical pixels that winit correctly places via
+        // LogicalPosition on restore (important for mixed-DPI setups).
+        // Use inner_size (content area) not outer_size (includes decorations).
+        let scale = window.scale_factor();
         let window_pos = window.outer_position().unwrap_or_default();
-        let outer_size = window.outer_size();
+        let inner_size = window.inner_size();
 
         // Capture tabs
         let tabs: Vec<SessionTab> = window_state
@@ -49,8 +54,14 @@ pub fn capture_session(windows: &HashMap<WindowId, WindowState>) -> SessionState
         let active_tab_index = window_state.tab_manager.active_tab_index().unwrap_or(0);
 
         session_windows.push(SessionWindow {
-            position: (window_pos.x, window_pos.y),
-            size: (outer_size.width, outer_size.height),
+            position: (
+                (window_pos.x as f64 / scale) as i32,
+                (window_pos.y as f64 / scale) as i32,
+            ),
+            size: (
+                (inner_size.width as f64 / scale) as u32,
+                (inner_size.height as f64 / scale) as u32,
+            ),
             tabs,
             active_tab_index,
         });

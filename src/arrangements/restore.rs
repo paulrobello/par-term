@@ -70,10 +70,15 @@ pub fn clamp_to_monitor(
     (clamped_x, clamped_y, clamped_width, clamped_height)
 }
 
-/// Compute the absolute position and size for a window snapshot,
-/// given the monitor mapping and available monitors.
+/// Compute the absolute position and size for a window snapshot in **logical
+/// pixels**, given the monitor mapping and available monitors.
 ///
-/// Returns (absolute_x, absolute_y, width, height) or None if no monitors available.
+/// Returns (absolute_x, absolute_y, width, height) in logical pixels, or None
+/// if no monitors are available.
+///
+/// All values are in scale-factor-independent logical pixels so they can be
+/// passed directly to winit as `LogicalPosition` / `LogicalSize`, which
+/// handles the per-monitor DPI conversion correctly.
 pub fn compute_restore_position(
     snapshot: &super::WindowSnapshot,
     monitor_mapping: &HashMap<usize, usize>,
@@ -90,21 +95,39 @@ pub fn compute_restore_position(
         .unwrap_or(0);
     let target_monitor = available.get(target_index).or(available.first())?;
 
+    // Convert the monitor's physical-pixel origin to logical pixels.
+    // On macOS with mixed-DPI setups, monitor.position() returns values
+    // scaled by the monitor's own backingScaleFactor, so different monitors
+    // produce incompatible "physical" coordinates.  Dividing by scale_factor
+    // yields the unified logical (point) coordinate that winit can use to
+    // place windows correctly via LogicalPosition.
+    let monitor_scale = target_monitor.scale_factor();
     let monitor_pos = target_monitor.position();
+    let monitor_pos_logical = (
+        (monitor_pos.x as f64 / monitor_scale) as i32,
+        (monitor_pos.y as f64 / monitor_scale) as i32,
+    );
+
+    // Convert the monitor's physical size to logical pixels for clamping.
     let monitor_size = target_monitor.size();
+    let monitor_size_logical = (
+        (monitor_size.width as f64 / monitor_scale) as u32,
+        (monitor_size.height as f64 / monitor_scale) as u32,
+    );
 
-    // Convert relative position to absolute
-    let abs_x = monitor_pos.x + snapshot.position_relative.0;
-    let abs_y = monitor_pos.y + snapshot.position_relative.1;
+    // snapshot.position_relative and snapshot.size are already in logical
+    // pixels (stored that way since the logical-pixel fix).
+    let abs_x = monitor_pos_logical.0 + snapshot.position_relative.0;
+    let abs_y = monitor_pos_logical.1 + snapshot.position_relative.1;
 
-    // Clamp to ensure visibility
+    // Clamp to ensure visibility (all values in logical pixels)
     let (x, y, w, h) = clamp_to_monitor(
         abs_x,
         abs_y,
         snapshot.size.0,
         snapshot.size.1,
-        (monitor_pos.x, monitor_pos.y),
-        (monitor_size.width, monitor_size.height),
+        monitor_pos_logical,
+        monitor_size_logical,
     );
 
     Some((x, y, w, h))
@@ -165,6 +188,7 @@ mod tests {
                     index: 0,
                     position: (0, 0),
                     size: (1920, 1080),
+                    scale_factor: 1.0,
                 },
                 position_relative: (0, 0),
                 size: (800, 600),

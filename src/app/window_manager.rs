@@ -2651,10 +2651,17 @@ impl WindowManager {
             self.config.window_title.clone()
         };
 
+        // position and size are in logical pixels (scale-factor-independent).
+        // Using LogicalPosition/LogicalSize lets winit apply the correct
+        // per-monitor DPI conversion, which is critical for mixed-DPI
+        // multi-monitor setups (e.g. Retina laptop + 1x external display).
         let mut window_attrs = Window::default_attributes()
             .with_title(&title)
-            .with_inner_size(winit::dpi::PhysicalSize::new(size.0, size.1))
-            .with_position(winit::dpi::PhysicalPosition::new(position.0, position.1))
+            .with_inner_size(winit::dpi::LogicalSize::new(size.0 as f64, size.1 as f64))
+            .with_position(winit::dpi::LogicalPosition::new(
+                position.0 as f64,
+                position.1 as f64,
+            ))
             .with_decorations(self.config.window_decorations);
 
         if self.config.lock_window_size {
@@ -2718,10 +2725,13 @@ impl WindowManager {
                     log::warn!("Failed to initialize menu for window: {}", e);
                 }
 
-                // Set the position explicitly (in case the WM overrode it)
+                // Set the position explicitly (in case the WM overrode it).
+                // Use LogicalPosition so the per-monitor scale conversion is
+                // applied correctly (matches with_position above).
                 if let Some(win) = &window_state.window {
-                    win.set_outer_position(winit::dpi::PhysicalPosition::new(
-                        position.0, position.1,
+                    win.set_outer_position(winit::dpi::LogicalPosition::new(
+                        position.0 as f64,
+                        position.1 as f64,
                     ));
                 }
 

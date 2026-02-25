@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Window Arrangement Position/Size Wrong on Second Monitor (DPI)**: Fixed arrangement restore placing windows at the wrong position and with the wrong size when a second display with a different DPI is connected and set as primary — on macOS, `monitor.position()` scales each monitor's origin by its own `backingScaleFactor`, producing per-monitor coordinate spaces that are incompatible across displays with different scale factors; `position_relative` and window size are now stored in scale-factor-independent **logical pixels** (physical ÷ scale_factor) and restored via `LogicalPosition`/`LogicalSize` so winit applies the correct per-monitor DPI conversion; also fixed a related bug where window size was captured as `outer_size` (content + title bar) but restored as `inner_size` (content only), causing the window to grow by the title bar height on every restore (affects both arrangement and session capture)
+
 - **Character Rendering Artifacts (Thin Lines at Cell Edges)**: Fixed intermittent thin bright lines appearing on the right side and bottom of terminal cells — caused by the bilinear sampler bleeding into uninitialized or stale padding pixels in the glyph atlas when glyphs were evicted from the LRU cache; the padding strips are now explicitly zeroed after each glyph upload so bilinear sampling at glyph edges always blends with transparent black
 
 - **No Error Message on Missing Display Server**: par-term now prints a clear error to stderr when startup fails (e.g., no X or Wayland server available) instead of silently exiting with code 1; on Linux an additional hint is shown pointing to the `DISPLAY`/`WAYLAND_DISPLAY` environment variables
