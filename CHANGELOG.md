@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Font Hinting Default**: Font hinting is now **enabled** by default (was disabled) — improves text sharpness at common display sizes; can be toggled in Settings → Appearance → Font Hinting
+
 ### Fixed
+
+- **`clear` Does Not Remove Inline Graphics (Sixel/iTerm2/Kitty)**: Fixed a bug where typing `clear` (or any ED 2 / ED 3 erase-display sequence) left inline graphics still visible on screen — graphics that had partially scrolled into the scrollback buffer were stored in a separate scrollback list that `ED 2` never cleared; `ED 2` and `ED 3` now call `clear_scrollback_graphics()` in addition to clearing current-screen placements, so all visible graphics are removed for all three protocols (requires `par-term-emu-core-rust` ≥ 0.39.3)
 
 - **Window Arrangement Position/Size Wrong on Second Monitor (DPI)**: Fixed arrangement restore placing windows at the wrong position and with the wrong size when a second display with a different DPI is connected and set as primary — on macOS, `monitor.position()` scales each monitor's origin by its own `backingScaleFactor`, producing per-monitor coordinate spaces that are incompatible across displays with different scale factors; `position_relative` and window size are now stored in scale-factor-independent **logical pixels** (physical ÷ scale_factor) and restored via `LogicalPosition`/`LogicalSize` so winit applies the correct per-monitor DPI conversion; also fixed a related bug where window size was captured as `outer_size` (content + title bar) but restored as `inner_size` (content only), causing the window to grow by the title bar height on every restore (affects both arrangement and session capture)
 

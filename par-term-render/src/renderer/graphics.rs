@@ -17,6 +17,9 @@ impl Renderer {
         scrollback_len: usize,
         visible_rows: usize,
     ) -> Result<()> {
+        // Track whether we had graphics before this update (to detect removal)
+        let had_graphics = !self.sixel_graphics.is_empty();
+
         // Clear old graphics list
         self.sixel_graphics.clear();
 
@@ -110,8 +113,9 @@ impl Renderer {
             ));
         }
 
-        if !graphics.is_empty() {
-            self.dirty = true; // Mark dirty when graphics change
+        // Mark dirty when graphics change (added or removed)
+        if !graphics.is_empty() || had_graphics {
+            self.dirty = true;
         }
 
         Ok(())

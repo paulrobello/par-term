@@ -15,7 +15,7 @@ categories = ["command-line-utilities"]
 par-term-config = { path = "../par-term-config", version = "0.5.0" }
 
 # Terminal event observer trait
-par-term-emu-core-rust = { version = "0.39.2", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.39.3", default-features = false, features = ["rust-only"] }
 
 # Serialization for JSON protocol
 serde = { version = "1.0.228", features = ["derive"] }

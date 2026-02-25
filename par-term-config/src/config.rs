@@ -192,7 +192,7 @@ pub struct Config {
     /// Enable hinting for font rendering
     /// Hinting improves text clarity at small sizes by aligning glyphs to pixel boundaries
     /// Disable for a softer, more "true to design" appearance
-    #[serde(default)]
+    #[serde(default = "crate::defaults::bool_true")]
     pub font_hinting: bool,
 
     /// Thin strokes / font smoothing mode
@@ -1899,7 +1899,7 @@ impl Default for Config {
             enable_ligatures: crate::defaults::bool_true(),
             enable_kerning: crate::defaults::bool_true(),
             font_antialias: crate::defaults::bool_true(),
-            font_hinting: false,
+            font_hinting: true,
             font_thin_strokes: ThinStrokesMode::default(),
             minimum_contrast: crate::defaults::minimum_contrast(),
             copy_mode_enabled: crate::defaults::bool_true(),

@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 # Terminal emulator core
-par-term-emu-core-rust = { version = "0.39.2", default-features = false, features = ["rust-only"] }
+par-term-emu-core-rust = { version = "0.39.3", default-features = false, features = ["rust-only"] }
 
 # Configuration (for Theme, Color, Cell types)
 par-term-config = { path = "../par-term-config", version = "0.5.0" }
