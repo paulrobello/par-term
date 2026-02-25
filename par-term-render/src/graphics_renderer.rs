@@ -461,6 +461,124 @@ impl GraphicsRenderer {
         Ok(())
     }
 
+    /// Render sixel graphics for a specific pane using explicit origin coordinates.
+    ///
+    /// Identical to [`render`] but uses `pane_origin_x`/`pane_origin_y` for positioning
+    /// instead of the global `window_padding + content_offset` values, so graphics are
+    /// placed relative to the pane rather than the full window.
+    ///
+    /// # Arguments
+    /// * `device` - WGPU device for creating buffers
+    /// * `queue` - WGPU queue for writing buffer data
+    /// * `render_pass` - Active render pass to render into
+    /// * `graphics` - Slice of sixel graphics to render with their positions
+    /// * `window_width` - Window width in pixels
+    /// * `window_height` - Window height in pixels
+    /// * `pane_origin_x` - X pixel coordinate of the pane's content origin
+    /// * `pane_origin_y` - Y pixel coordinate of the pane's content origin
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_for_pane(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        render_pass: &mut RenderPass,
+        graphics: &[(u64, isize, usize, usize, usize, f32, usize)],
+        window_width: f32,
+        window_height: f32,
+        pane_origin_x: f32,
+        pane_origin_y: f32,
+    ) -> Result<()> {
+        if graphics.is_empty() {
+            return Ok(());
+        }
+
+        // Build instance data
+        let mut instances = Vec::with_capacity(graphics.len());
+        for &(id, row, col, _width_cells, _height_cells, alpha, scroll_offset_rows) in graphics {
+            // Check if texture exists
+            if let Some(tex_info) = self.texture_cache.get(&id) {
+                // Calculate screen position using the pane's content origin.
+                let adjusted_row = row + scroll_offset_rows as isize;
+                let x = (pane_origin_x + col as f32 * self.cell_width) / window_width;
+                let y = (pane_origin_y + adjusted_row as f32 * self.cell_height) / window_height;
+
+                // Calculate texture V offset for scrolled graphics
+                let tex_v_start = if scroll_offset_rows > 0 && tex_info.height > 0 {
+                    let pixels_scrolled = scroll_offset_rows as f32 * self.cell_height;
+                    (pixels_scrolled / tex_info.height as f32).min(0.99)
+                } else {
+                    0.0
+                };
+                let tex_v_height = 1.0 - tex_v_start;
+
+                // Calculate display size based on aspect ratio preservation setting
+                let (width, height) = if self.preserve_aspect_ratio {
+                    let visible_height_pixels = if scroll_offset_rows > 0 {
+                        (tex_info.height as f32 * tex_v_height).max(1.0)
+                    } else {
+                        tex_info.height as f32
+                    };
+                    (
+                        tex_info.width as f32 / window_width,
+                        visible_height_pixels / window_height,
+                    )
+                } else {
+                    let cell_w = _width_cells as f32 * self.cell_width / window_width;
+                    let visible_cell_rows = if scroll_offset_rows > 0 {
+                        (_height_cells as f32 * tex_v_height).max(0.0)
+                    } else {
+                        _height_cells as f32
+                    };
+                    let cell_h = visible_cell_rows * self.cell_height / window_height;
+                    (cell_w, cell_h)
+                };
+
+                instances.push(SixelInstance {
+                    position: [x, y],
+                    tex_coords: [0.0, tex_v_start, 1.0, tex_v_height],
+                    size: [width, height],
+                    alpha,
+                    _padding: 0.0,
+                });
+            }
+        }
+
+        if instances.is_empty() {
+            return Ok(());
+        }
+
+        // Resize instance buffer if needed
+        let required_capacity = instances.len();
+        if required_capacity > self.instance_capacity {
+            let new_capacity = (required_capacity * 2).max(32);
+            self.instance_buffer = device.create_buffer(&BufferDescriptor {
+                label: Some("Sixel Instance Buffer"),
+                size: (new_capacity * std::mem::size_of::<SixelInstance>()) as u64,
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.instance_capacity = new_capacity;
+        }
+
+        // Write instance data to buffer
+        queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
+
+        // Set pipeline
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
+
+        let mut instance_idx = 0u32;
+        for &(id, _, _, _, _, _, _) in graphics {
+            if let Some(tex_info) = self.texture_cache.get(&id) {
+                render_pass.set_bind_group(0, &tex_info.bind_group, &[]);
+                render_pass.draw(0..4, instance_idx..(instance_idx + 1));
+                instance_idx += 1;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Remove a texture from the cache
     #[allow(dead_code)]
     pub fn remove_texture(&mut self, id: u64) {

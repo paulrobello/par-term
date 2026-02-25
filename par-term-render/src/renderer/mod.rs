@@ -64,6 +64,8 @@ pub struct PaneRenderInfo<'a> {
     pub scroll_offset: usize,
     /// Per-pane background image override (None = use global background)
     pub background: Option<par_term_config::PaneBackground>,
+    /// Inline graphics (Sixel/iTerm2/Kitty) to render for this pane
+    pub graphics: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
 }
 
 /// Information needed to render a pane divider
@@ -1420,6 +1422,20 @@ impl Renderer {
                 &separator_marks,
                 pane.background.as_ref(),
             )?;
+        }
+
+        // Render inline graphics (Sixel/iTerm2/Kitty) for each pane, clipped to its bounds
+        for pane in panes {
+            if !pane.graphics.is_empty() {
+                self.render_pane_sixel_graphics(
+                    &surface_view,
+                    &pane.viewport,
+                    &pane.graphics,
+                    pane.scroll_offset,
+                    pane.scrollback_len,
+                    pane.grid_size.1,
+                )?;
+            }
         }
 
         // Render dividers between panes

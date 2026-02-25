@@ -88,6 +88,7 @@ type PaneRenderData = (
     usize,                               // scrollback_len
     usize,                               // scroll_offset
     Option<crate::pane::PaneBackground>, // per-pane background
+    Vec<par_term_emu_core_rust::graphics::TerminalGraphic>, // per-pane inline graphics
 );
 
 #[derive(Clone)]
@@ -3596,8 +3597,18 @@ impl WindowState {
             // Include both current screen graphics and scrollback graphics
             // Use get_graphics_with_animations() to get current animation frames
             // Use try_lock() to avoid blocking the event loop when PTY reader holds the lock
+            //
+            // In split-pane mode each pane has its own PTY terminal; graphics are collected
+            // per-pane inside the pane data gather loop below and do not go through here.
             let graphics_start = std::time::Instant::now();
-            if let Some(tab) = self.tab_manager.active_tab()
+            let has_pane_manager_for_graphics = self
+                .tab_manager
+                .active_tab()
+                .and_then(|t| t.pane_manager.as_ref())
+                .map(|pm| pm.pane_count() > 0)
+                .unwrap_or(false);
+            if !has_pane_manager_for_graphics
+                && let Some(tab) = self.tab_manager.active_tab()
                 && let Ok(terminal) = tab.terminal.try_lock()
             {
                 let mut graphics = terminal.get_graphics_with_animations();
@@ -4513,6 +4524,18 @@ impl WindowState {
                                     let cols = cols.max(1);
                                     let rows = rows.max(1);
 
+                                    // Collect inline graphics (Sixel/iTerm2/Kitty) from this
+                                    // pane's PTY terminal.  Each pane has its own PTY so graphics
+                                    // are never in the shared tab.terminal.
+                                    let pane_graphics =
+                                        if let Ok(term) = pane.terminal.try_lock() {
+                                            let mut g = term.get_graphics_with_animations();
+                                            g.extend(term.get_scrollback_graphics());
+                                            g
+                                        } else {
+                                            Vec::new()
+                                        };
+
                                     pane_data.push((
                                         viewport,
                                         cells,
@@ -4523,6 +4546,7 @@ impl WindowState {
                                         pane_scrollback_len,
                                         pane_scroll_offset,
                                         pane_background,
+                                        pane_graphics,
                                     ));
                                 }
                             }
@@ -5369,6 +5393,7 @@ impl WindowState {
             scrollback_len,
             scroll_offset,
             pane_background,
+            graphics,
         ) in pane_data
         {
             let cells_boxed = cells.into_boxed_slice();
@@ -5387,6 +5412,7 @@ impl WindowState {
                 scrollback_len,
                 scroll_offset,
                 background: pane_background,
+                graphics,
             });
         }
 

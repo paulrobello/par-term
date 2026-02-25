@@ -178,6 +178,145 @@ impl Renderer {
         Ok(())
     }
 
+    /// Compute positioned graphics list for a single pane without touching `self.sixel_graphics`.
+    ///
+    /// Shares the same texture cache as the global path so textures are never duplicated.
+    ///
+    /// Returns a `Vec` of `(id, screen_row, col, width_cells, height_cells, alpha,
+    /// effective_clip_rows)` tuples ready to pass to
+    /// [`GraphicsRenderer::render_for_pane`].
+    #[allow(clippy::type_complexity)]
+    pub fn update_pane_graphics(
+        &mut self,
+        graphics: &[par_term_emu_core_rust::graphics::TerminalGraphic],
+        view_scroll_offset: usize,
+        scrollback_len: usize,
+        visible_rows: usize,
+    ) -> Result<Vec<(u64, isize, usize, usize, usize, f32, usize)>> {
+        let total_lines = scrollback_len + visible_rows;
+        let view_end = total_lines.saturating_sub(view_scroll_offset);
+        let view_start = view_end.saturating_sub(visible_rows);
+
+        let mut positioned = Vec::new();
+
+        for graphic in graphics {
+            let id = graphic.id;
+            let (col, row) = graphic.position;
+
+            let screen_row: isize = if let Some(sb_row) = graphic.scrollback_row {
+                sb_row as isize - view_start as isize
+            } else {
+                let absolute_row =
+                    scrollback_len.saturating_sub(graphic.scroll_offset_rows) + row;
+                absolute_row as isize - view_start as isize
+            };
+
+            // Upload / refresh texture in the shared cache
+            self.graphics_renderer.get_or_create_texture(
+                self.cell_renderer.device(),
+                self.cell_renderer.queue(),
+                id,
+                &graphic.pixels,
+                graphic.width as u32,
+                graphic.height as u32,
+            )?;
+
+            let width_cells =
+                ((graphic.width as f32 / self.cell_renderer.cell_width()).ceil() as usize).max(1);
+            let height_cells =
+                ((graphic.height as f32 / self.cell_renderer.cell_height()).ceil() as usize)
+                    .max(1);
+
+            let effective_clip_rows = if screen_row < 0 {
+                (-screen_row) as usize
+            } else {
+                0
+            };
+
+            positioned.push((
+                id,
+                screen_row,
+                col,
+                width_cells,
+                height_cells,
+                1.0,
+                effective_clip_rows,
+            ));
+        }
+
+        Ok(positioned)
+    }
+
+    /// Render inline graphics (Sixel/iTerm2/Kitty) for a single split pane.
+    ///
+    /// Uses the same `surface_view` as the cell render pass (with `LoadOp::Load`) so
+    /// graphics are composited on top of already-rendered cells.  A scissor rect derived
+    /// from `viewport` clips output to the pane's bounds.
+    pub(crate) fn render_pane_sixel_graphics(
+        &mut self,
+        surface_view: &wgpu::TextureView,
+        viewport: &crate::cell_renderer::PaneViewport,
+        graphics: &[par_term_emu_core_rust::graphics::TerminalGraphic],
+        scroll_offset: usize,
+        scrollback_len: usize,
+        visible_rows: usize,
+    ) -> Result<()> {
+        let positioned =
+            self.update_pane_graphics(graphics, scroll_offset, scrollback_len, visible_rows)?;
+
+        if positioned.is_empty() {
+            return Ok(());
+        }
+
+        let mut encoder =
+            self.cell_renderer
+                .device()
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("pane sixel encoder"),
+                });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("pane sixel render pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: surface_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            // Clip to pane bounds
+            let (sx, sy, sw, sh) = viewport.to_scissor_rect();
+            render_pass.set_scissor_rect(sx, sy, sw, sh);
+
+            let (ox, oy) = viewport.content_origin();
+
+            self.graphics_renderer.render_for_pane(
+                self.cell_renderer.device(),
+                self.cell_renderer.queue(),
+                &mut render_pass,
+                &positioned,
+                self.size.width as f32,
+                self.size.height as f32,
+                ox,
+                oy,
+            )?;
+        }
+
+        self.cell_renderer
+            .queue()
+            .submit(std::iter::once(encoder.finish()));
+
+        Ok(())
+    }
+
     /// Clear all cached sixel textures
     #[allow(dead_code)]
     pub fn clear_sixel_cache(&mut self) {
