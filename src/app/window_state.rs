@@ -4487,7 +4487,16 @@ impl WindowState {
                                             (Vec::new(), 0)
                                         }
                                     } else {
-                                        (Vec::new(), 0)
+                                        // Still need the actual scrollback_len even without marks:
+                                        // it's used for graphics position math (tex_v_start
+                                        // cropping when graphic is partially off-top, and
+                                        // view_start when showing scrollback graphics).
+                                        let sb_len = if let Ok(term) = pane.terminal.try_lock() {
+                                            term.scrollback_len()
+                                        } else {
+                                            0
+                                        };
+                                        (Vec::new(), sb_len)
                                     };
                                     let pane_scroll_offset = pane.scroll_state.offset;
 
