@@ -2932,6 +2932,15 @@ impl WindowState {
                 (cached_scrollback_len, cached_terminal_title.clone(), Vec::new())
             };
 
+        // Capture prettifier block count before processing events/feed so we can
+        // detect when new blocks are added and invalidate the cell cache.
+        let prettifier_block_count_before = self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.prettifier.as_ref())
+            .map(|p| p.active_blocks().len())
+            .unwrap_or(0);
+
         // Forward shell lifecycle events to the prettifier pipeline (outside terminal lock)
         if !shell_lifecycle_events.is_empty() {
             if let Some(tab) = self.tab_manager.active_tab_mut() {
@@ -3134,6 +3143,28 @@ impl WindowState {
                             pipeline.process_output(&line, absolute_row);
                         }
                     }
+                }
+            }
+        }
+
+        // If new prettified blocks were added during event processing or per-frame feed,
+        // invalidate the cell cache so the next frame runs cell substitution.
+        {
+            let block_count_after = self
+                .tab_manager
+                .active_tab()
+                .and_then(|t| t.prettifier.as_ref())
+                .map(|p| p.active_blocks().len())
+                .unwrap_or(0);
+            if block_count_after > prettifier_block_count_before {
+                crate::debug_info!(
+                    "PRETTIFIER",
+                    "new blocks detected ({} -> {}), invalidating cell cache",
+                    prettifier_block_count_before,
+                    block_count_after
+                );
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.cache.cells = None;
                 }
             }
         }
