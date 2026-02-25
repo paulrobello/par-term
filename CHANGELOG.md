@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **No Error Message on Missing Display Server**: par-term now prints a clear error to stderr when startup fails (e.g., no X or Wayland server available) instead of silently exiting with code 1; on Linux an additional hint is shown pointing to the `DISPLAY`/`WAYLAND_DISPLAY` environment variables
 - **Text Selection in Mouse-Tracking Apps (less, vim, etc.)**: Holding Shift while clicking/dragging now bypasses application mouse tracking to allow local text selection — previously apps like `less` that enable mouse tracking on the alternate screen made it impossible to highlight text; this matches the standard behaviour of iTerm2, Kitty, and Alacritty
 - **tmux Pane Clicking Intermittently Broken**: Fixed a bug where clicking to switch tmux panes would silently fail when an image was in the clipboard — the clipboard-image protection guard was suppressing the click entirely instead of forwarding it to the PTY, so tmux never received the pane-switch event; the guard now correctly allows mouse-tracked clicks to pass through to the terminal application
 - **Tab Clicks Temporarily Ignored After Context Menu**: Fixed a tab-context-menu input edge case where left clicks could appear unresponsive until a later repaint — mouse handling now requests an immediate redraw while the tab context menu is open so egui can process click-away dismissal promptly
