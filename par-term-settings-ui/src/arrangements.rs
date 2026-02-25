@@ -22,13 +22,26 @@ pub struct MonitorInfo {
     #[serde(default)]
     pub index: usize,
 
-    /// Monitor position in virtual screen coordinates
+    /// Monitor position in virtual screen coordinates (physical pixels)
     #[serde(default)]
     pub position: (i32, i32),
 
     /// Monitor size in physical pixels
     #[serde(default)]
     pub size: (u32, u32),
+
+    /// DPI scale factor at capture time (e.g. 2.0 for Retina/HiDPI)
+    /// Used to interpret position_relative and window size in WindowSnapshot.
+    #[serde(default = "default_scale_factor", skip_serializing_if = "is_one")]
+    pub scale_factor: f64,
+}
+
+fn default_scale_factor() -> f64 {
+    1.0
+}
+
+fn is_one(v: &f64) -> bool {
+    (*v - 1.0).abs() < f64::EPSILON
 }
 
 /// Snapshot of a single tab's state
@@ -64,7 +77,7 @@ pub struct WindowSnapshot {
     /// Position relative to monitor origin (portable across setups)
     pub position_relative: (i32, i32),
 
-    /// Outer window size in physical pixels
+    /// Inner window size in logical pixels (scale-factor-independent)
     pub size: (u32, u32),
 
     /// Tabs in this window
@@ -321,6 +334,7 @@ mod tests {
                 index: 0,
                 position: (0, 0),
                 size: (2560, 1440),
+                scale_factor: 1.0,
             }],
             windows: vec![WindowSnapshot {
                 monitor: MonitorInfo {
@@ -328,6 +342,7 @@ mod tests {
                     index: 0,
                     position: (0, 0),
                     size: (2560, 1440),
+                    scale_factor: 1.0,
                 },
                 position_relative: (100, 200),
                 size: (800, 600),

@@ -106,6 +106,7 @@ mod tests {
                 index: 0,
                 position: (0, 0),
                 size: (2560, 1440),
+                scale_factor: 1.0,
             }],
             windows: vec![WindowSnapshot {
                 monitor: MonitorInfo {
@@ -113,6 +114,7 @@ mod tests {
                     index: 0,
                     position: (0, 0),
                     size: (2560, 1440),
+                    scale_factor: 1.0,
                 },
                 position_relative: (100, 200),
                 size: (800, 600),

@@ -16,6 +16,7 @@ fn monitor_info_from_handle(handle: &winit::monitor::MonitorHandle, index: usize
         index,
         position: (pos.x, pos.y),
         size: (size.width, size.height),
+        scale_factor: handle.scale_factor(),
     }
 }
 
@@ -59,18 +60,32 @@ pub fn capture_arrangement(
                 index: 0,
                 position: (0, 0),
                 size: (1920, 1080),
+                scale_factor: 1.0,
             })
         };
 
-        // Compute position relative to monitor origin
+        // Compute position relative to monitor origin in logical pixels.
+        //
+        // On macOS with mixed-DPI displays, monitor.position() and
+        // window.outer_position() both scale by their respective monitor's
+        // backingScaleFactor, so they live in per-monitor "physical" spaces
+        // that are NOT unified across monitors.  Dividing by scale_factor
+        // converts them into scale-factor-independent logical (point) pixels,
+        // which winit then handles correctly via LogicalPosition on restore.
+        let scale = window.scale_factor();
         let window_pos = window.outer_position().unwrap_or_default();
         let position_relative = (
-            window_pos.x - monitor_info.position.0,
-            window_pos.y - monitor_info.position.1,
+            ((window_pos.x - monitor_info.position.0) as f64 / scale) as i32,
+            ((window_pos.y - monitor_info.position.1) as f64 / scale) as i32,
         );
 
-        let outer_size = window.outer_size();
-        let size = (outer_size.width, outer_size.height);
+        // Use inner_size (content area only, not including decorations) so
+        // the restored window matches the original content size exactly.
+        let inner_size = window.inner_size();
+        let size = (
+            (inner_size.width as f64 / scale) as u32,
+            (inner_size.height as f64 / scale) as u32,
+        );
 
         // Capture tabs
         let tabs: Vec<TabSnapshot> = window_state
