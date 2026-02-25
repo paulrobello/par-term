@@ -716,6 +716,14 @@ Essential feature for emacs/vim users.
 - **Per-Agent Environment Variables**: Configure local/provider-specific env vars (for example Ollama/OpenRouter endpoints) for each agent.
 - **Local Claude via Ollama**: Supports `claude-agent-acp` with Ollama Claude-compatible launch mode (see `docs/ASSISTANT_PANEL.md`).
 
+### Content Prettifier
+- **Auto-Detection**: Automatically detects and renders structured content in terminal output — Markdown, JSON, YAML, TOML, XML, CSV, diffs, log files, SQL results, stack traces, and diagrams.
+- **11 Built-in Renderers**: Each with syntax highlighting, source line mapping, and per-block source/rendered toggling (`Ctrl+Shift+P` global toggle).
+- **Diagram Rendering**: Mermaid, PlantUML, GraphViz, D2, and 7 more diagram languages with local CLI, Kroki API, and text fallback backends.
+- **Custom Renderers**: Define your own renderers that pipe content through external commands (e.g., `bat`, `pygmentize`) with full ANSI color preservation.
+- **Claude Code Integration**: Auto-detects Claude Code sessions, renders markdown and diffs in output, shows format badges on collapsed blocks.
+- **Configurable**: Per-renderer enable/disable, priority ordering, detection rules, clipboard behavior, and profile-level overrides.
+
 ## Documentation
 
 ### Getting Started
@@ -745,6 +753,7 @@ Essential feature for emacs/vim users.
 - **[Assistant Panel](docs/ASSISTANT_PANEL.md)** - ACP agent chat, custom agents (UI/TOML/YAML), shader assistant, and Claude+Ollama setup/troubleshooting.
 - **[File Transfers](docs/FILE_TRANSFERS.md)** - OSC 1337 file transfers with shell utilities.
 - **[Self-Update](docs/SELF_UPDATE.md)** - In-place update capability via CLI and Settings UI.
+- **[Content Prettifier](docs/PRETTIFIER.md)** - Auto-detect and render markdown, JSON, YAML, diffs, diagrams, and more with custom renderers.
 - **[Debug Logging](docs/LOGGING.md)** - Configurable log levels and troubleshooting.
 
 ### Shaders

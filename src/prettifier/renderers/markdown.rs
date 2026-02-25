@@ -742,7 +742,12 @@ impl MarkdownRenderer {
 
     /// Render a single line, classifying it as a block-level element and
     /// then applying inline formatting within.
-    fn render_line(&self, line: &str, renderer_config: &RendererConfig) -> StyledLine {
+    fn render_line(
+        &self,
+        line: &str,
+        renderer_config: &RendererConfig,
+        footnote_links: &mut Option<Vec<String>>,
+    ) -> StyledLine {
         let theme = &renderer_config.theme_colors;
         let width = renderer_config.terminal_width;
 
@@ -750,7 +755,7 @@ impl MarkdownRenderer {
         if let Some(caps) = re_header().captures(line) {
             let level = caps.get(1).unwrap().as_str().len();
             let content = caps.get(2).unwrap().as_str();
-            return self.render_header(level, content, theme);
+            return self.render_header(level, content, theme, footnote_links);
         }
 
         // Horizontal rule (check before unordered list since `---` could match list)
@@ -761,14 +766,14 @@ impl MarkdownRenderer {
         // Blockquote
         if let Some(caps) = re_blockquote().captures(line) {
             let content = caps.get(1).unwrap().as_str();
-            return self.render_blockquote(content, theme);
+            return self.render_blockquote(content, theme, footnote_links);
         }
 
         // Unordered list
         if let Some(caps) = re_unordered_list().captures(line) {
             let indent = caps.get(1).unwrap().as_str();
             let content = caps.get(3).unwrap().as_str();
-            return self.render_unordered_list(indent, content, theme);
+            return self.render_unordered_list(indent, content, theme, footnote_links);
         }
 
         // Ordered list
@@ -776,17 +781,23 @@ impl MarkdownRenderer {
             let indent = caps.get(1).unwrap().as_str();
             let number = caps.get(2).unwrap().as_str();
             let content = caps.get(3).unwrap().as_str();
-            return self.render_ordered_list(indent, number, content, theme);
+            return self.render_ordered_list(indent, number, content, theme, footnote_links);
         }
 
         // Paragraph / plain line: apply inline formatting
-        let segments = self.render_inline(line, theme);
+        let segments = self.render_inline(line, theme, footnote_links);
         StyledLine::new(segments)
     }
 
     /// Render a header (H1–H6) with visual hierarchy.
-    fn render_header(&self, level: usize, content: &str, theme: &ThemeColors) -> StyledLine {
-        let segments = self.render_inline(content, theme);
+    fn render_header(
+        &self,
+        level: usize,
+        content: &str,
+        theme: &ThemeColors,
+        footnote_links: &mut Option<Vec<String>>,
+    ) -> StyledLine {
+        let segments = self.render_inline(content, theme, footnote_links);
 
         let styled = segments
             .into_iter()
@@ -831,14 +842,19 @@ impl MarkdownRenderer {
     }
 
     /// Render a blockquote with left border and dimmed text.
-    fn render_blockquote(&self, content: &str, theme: &ThemeColors) -> StyledLine {
+    fn render_blockquote(
+        &self,
+        content: &str,
+        theme: &ThemeColors,
+        footnote_links: &mut Option<Vec<String>>,
+    ) -> StyledLine {
         let mut segments = vec![StyledSegment {
             text: "▎ ".to_string(),
             fg: Some(theme.palette[6]),
             ..Default::default()
         }];
 
-        let inline = self.render_inline(content, theme);
+        let inline = self.render_inline(content, theme, footnote_links);
         for mut seg in inline {
             if seg.fg.is_none() {
                 seg.fg = Some(theme.palette[7]);
@@ -856,6 +872,7 @@ impl MarkdownRenderer {
         indent: &str,
         content: &str,
         theme: &ThemeColors,
+        footnote_links: &mut Option<Vec<String>>,
     ) -> StyledLine {
         let bullet = match indent.len() / 2 {
             0 => "•",
@@ -869,7 +886,7 @@ impl MarkdownRenderer {
             ..Default::default()
         }];
 
-        segments.extend(self.render_inline(content, theme));
+        segments.extend(self.render_inline(content, theme, footnote_links));
         StyledLine::new(segments)
     }
 
@@ -880,6 +897,7 @@ impl MarkdownRenderer {
         number: &str,
         content: &str,
         theme: &ThemeColors,
+        footnote_links: &mut Option<Vec<String>>,
     ) -> StyledLine {
         let mut segments = vec![StyledSegment {
             text: format!("{indent}{number} "),
@@ -888,12 +906,20 @@ impl MarkdownRenderer {
             ..Default::default()
         }];
 
-        segments.extend(self.render_inline(content, theme));
+        segments.extend(self.render_inline(content, theme, footnote_links));
         StyledLine::new(segments)
     }
 
     /// Render inline elements within a text span.
-    fn render_inline(&self, text: &str, theme: &ThemeColors) -> Vec<StyledSegment> {
+    ///
+    /// When `footnote_links` is `Some`, links are rendered with footnote-style
+    /// `[N]` references and URLs are collected into the vector for later display.
+    fn render_inline(
+        &self,
+        text: &str,
+        theme: &ThemeColors,
+        footnote_links: &mut Option<Vec<String>>,
+    ) -> Vec<StyledSegment> {
         let spans = extract_inline_spans(text);
 
         if spans.is_empty() {
@@ -942,13 +968,33 @@ impl MarkdownRenderer {
                         });
                     }
                     LinkStyle::Footnote => {
-                        segments.push(StyledSegment {
-                            text: lt.clone(),
-                            fg: Some(theme.palette[12]),
-                            underline: true,
-                            link_url: Some(url.clone()),
-                            ..Default::default()
-                        });
+                        // In footnote mode, footnote_links must be Some.
+                        // We append the reference number inline and collect
+                        // the URL for a footnote section at the end.
+                        if let Some(footnotes) = footnote_links {
+                            footnotes.push(url.clone());
+                            let n = footnotes.len();
+                            segments.push(StyledSegment {
+                                text: lt.clone(),
+                                fg: Some(theme.palette[12]),
+                                underline: true,
+                                ..Default::default()
+                            });
+                            segments.push(StyledSegment {
+                                text: format!("[{n}]"),
+                                fg: Some(theme.palette[8]),
+                                ..Default::default()
+                            });
+                        } else {
+                            // Fallback if footnote_links is None (shouldn't happen).
+                            segments.push(StyledSegment {
+                                text: lt.clone(),
+                                fg: Some(theme.palette[12]),
+                                underline: true,
+                                link_url: Some(url.clone()),
+                                ..Default::default()
+                            });
+                        }
                     }
                 },
                 SpanKind::BoldItalic(content) => {
@@ -1103,6 +1149,12 @@ impl ContentRenderer for MarkdownRenderer {
         let theme = &config.theme_colors;
         let width = config.terminal_width;
 
+        // Initialize footnote collection if using footnote link style.
+        let mut footnote_links = match self.config.link_style {
+            LinkStyle::Footnote => Some(Vec::new()),
+            _ => None,
+        };
+
         // Pass 1: classify lines into block-level elements.
         let blocks = classify_blocks(&content.lines);
 
@@ -1113,7 +1165,11 @@ impl ContentRenderer for MarkdownRenderer {
         for block in &blocks {
             match block {
                 BlockElement::Line { source_idx } => {
-                    let styled = self.render_line(&content.lines[*source_idx], config);
+                    let styled = self.render_line(
+                        &content.lines[*source_idx],
+                        config,
+                        &mut footnote_links,
+                    );
                     line_mapping.push(SourceLineMapping {
                         rendered_line: lines.len(),
                         source_line: Some(*source_idx),
@@ -1193,6 +1249,53 @@ impl ContentRenderer for MarkdownRenderer {
             }
         }
 
+        // Append footnote references section if any links were collected.
+        if let Some(ref footnotes) = footnote_links {
+            if !footnotes.is_empty() {
+                // Blank separator line.
+                line_mapping.push(SourceLineMapping {
+                    rendered_line: lines.len(),
+                    source_line: None,
+                });
+                lines.push(StyledLine::plain(""));
+
+                // Horizontal rule.
+                let rule: String = std::iter::repeat_n('─', width.min(40)).collect();
+                line_mapping.push(SourceLineMapping {
+                    rendered_line: lines.len(),
+                    source_line: None,
+                });
+                lines.push(StyledLine::new(vec![StyledSegment {
+                    text: rule,
+                    fg: Some(theme.palette[8]),
+                    ..Default::default()
+                }]));
+
+                // Each footnote: [N]: url
+                for (i, url) in footnotes.iter().enumerate() {
+                    line_mapping.push(SourceLineMapping {
+                        rendered_line: lines.len(),
+                        source_line: None,
+                    });
+                    lines.push(StyledLine::new(vec![
+                        StyledSegment {
+                            text: format!("[{}]", i + 1),
+                            fg: Some(theme.palette[8]),
+                            bold: true,
+                            ..Default::default()
+                        },
+                        StyledSegment {
+                            text: format!(": {url}"),
+                            fg: Some(theme.palette[12]),
+                            underline: true,
+                            link_url: Some(url.clone()),
+                            ..Default::default()
+                        },
+                    ]));
+                }
+            }
+        }
+
         Ok(RenderedContent {
             lines,
             line_mapping,
@@ -1251,7 +1354,7 @@ mod tests {
     }
 
     fn render_line(line: &str) -> StyledLine {
-        renderer().render_line(line, &test_config())
+        renderer().render_line(line, &test_config(), &mut None)
     }
 
     fn segment_texts(line: &StyledLine) -> Vec<&str> {
@@ -1452,7 +1555,7 @@ mod tests {
             link_style: LinkStyle::InlineUrl,
             ..Default::default()
         });
-        let line = r.render_line("See [Docs](https://docs.rs)", &test_config());
+        let line = r.render_line("See [Docs](https://docs.rs)", &test_config(), &mut None);
         let link_seg = line
             .segments
             .iter()
@@ -1568,7 +1671,7 @@ mod tests {
             horizontal_rule_style: HorizontalRuleStyle::Thick,
             ..Default::default()
         });
-        let line = r.render_line("---", &test_config());
+        let line = r.render_line("---", &test_config(), &mut None);
         assert!(line.segments[0].text.contains('━'));
     }
 
@@ -1578,7 +1681,7 @@ mod tests {
             horizontal_rule_style: HorizontalRuleStyle::Dashed,
             ..Default::default()
         });
-        let line = r.render_line("---", &test_config());
+        let line = r.render_line("---", &test_config(), &mut None);
         assert!(line.segments[0].text.contains('╌'));
     }
 
@@ -1636,7 +1739,7 @@ mod tests {
             header_style: HeaderStyle::Bold,
             ..Default::default()
         });
-        let line = r.render_line("# Title", &test_config());
+        let line = r.render_line("# Title", &test_config(), &mut None);
         assert!(line.segments[0].bold);
     }
 
@@ -1646,13 +1749,51 @@ mod tests {
             header_style: HeaderStyle::Underlined,
             ..Default::default()
         });
-        let line = r.render_line("# Title", &test_config());
+        let line = r.render_line("# Title", &test_config(), &mut None);
         assert!(line.segments[0].underline);
         assert!(line.segments[0].bold);
 
-        let line = r.render_line("### Title", &test_config());
+        let line = r.render_line("### Title", &test_config(), &mut None);
         assert!(line.segments[0].bold);
         assert!(!line.segments[0].underline);
+    }
+
+    // -- Footnote link style --
+
+    #[test]
+    fn test_link_footnote_style_inline_ref() {
+        let r = MarkdownRenderer::new(MarkdownRendererConfig {
+            link_style: LinkStyle::Footnote,
+            ..Default::default()
+        });
+        let block = make_block(&["See [Example](https://example.com) and [Docs](https://docs.rs)"]);
+        let result = r.render(&block, &test_config()).unwrap();
+        // Should have: content line + blank + rule + 2 footnote lines = 5 lines
+        assert!(result.lines.len() >= 4);
+        // The content line should have [1] and [2] references.
+        let content_text: String = result.lines[0]
+            .segments
+            .iter()
+            .map(|s| s.text.as_str())
+            .collect();
+        assert!(content_text.contains("[1]"), "Should have [1] reference: {content_text}");
+        assert!(content_text.contains("[2]"), "Should have [2] reference: {content_text}");
+        // Last two lines should be footnote references.
+        let last = &result.lines[result.lines.len() - 1];
+        let last_text: String = last.segments.iter().map(|s| s.text.as_str()).collect();
+        assert!(last_text.contains("docs.rs"));
+    }
+
+    #[test]
+    fn test_link_footnote_style_no_links() {
+        let r = MarkdownRenderer::new(MarkdownRendererConfig {
+            link_style: LinkStyle::Footnote,
+            ..Default::default()
+        });
+        let block = make_block(&["No links here"]);
+        let result = r.render(&block, &test_config()).unwrap();
+        // No footnotes should be appended.
+        assert_eq!(result.lines.len(), 1);
     }
 
     // -- Edge cases --

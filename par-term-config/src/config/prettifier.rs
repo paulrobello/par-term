@@ -297,6 +297,10 @@ pub struct CustomRendererConfig {
     #[serde(default)]
     pub render_command: Option<String>,
 
+    /// Arguments to pass to the render command.
+    #[serde(default)]
+    pub render_args: Vec<String>,
+
     /// Priority relative to built-in renderers.
     #[serde(default = "default_priority")]
     pub priority: i32,

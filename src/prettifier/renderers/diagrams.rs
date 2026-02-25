@@ -1,16 +1,28 @@
 //! Diagram renderer for fenced code blocks tagged with diagram language identifiers.
 //!
 //! Converts fenced code blocks tagged with diagram language identifiers
-//! (Mermaid, PlantUML, GraphViz, D2, etc.) into styled fallback output.
-//! When rendering backends (local CLI tools, Kroki API) are unavailable,
-//! falls back to syntax-highlighted source display with a format badge.
+//! (Mermaid, PlantUML, GraphViz, D2, etc.) into rendered output using one of
+//! three backends:
+//!
+//! - **Local CLI**: pipes diagram source to a local tool (e.g., `dot`, `mmdc`),
+//!   captures PNG output, and stores it as an `InlineGraphic`.
+//! - **Kroki API**: sends diagram source via HTTP POST to a Kroki server,
+//!   receives PNG output, and stores it as an `InlineGraphic`.
+//! - **Text fallback**: syntax-highlighted source display with a format badge.
+//!
+//! Backend selection follows the `engine` config: `"auto"` tries local CLI first
+//! then Kroki, `"local"` uses only local CLI, `"kroki"` uses only the API,
+//! and `"text_fallback"` skips both.
 
 use std::collections::HashMap;
+use std::io::Write;
+use std::process::{Command, Stdio};
 
 use crate::config::prettifier::DiagramRendererConfig;
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig};
 use crate::prettifier::types::{
-    ContentBlock, RenderedContent, RendererCapability, SourceLineMapping, StyledLine, StyledSegment,
+    ContentBlock, InlineGraphic, RenderedContent, RendererCapability, SourceLineMapping, StyledLine,
+    StyledSegment,
 };
 
 /// A supported diagram language with rendering metadata.
@@ -28,11 +40,13 @@ pub struct DiagramLanguage {
     pub local_args: Vec<String>,
 }
 
+/// Default Kroki server URL when none is configured.
+const DEFAULT_KROKI_SERVER: &str = "https://kroki.io";
+
 /// Renders fenced code blocks with diagram language tags.
 ///
-/// Currently provides syntax-highlighted fallback rendering. The infrastructure
-/// for local CLI and Kroki API backends is defined but requires async support
-/// in the rendering pipeline to be fully operational.
+/// Supports three rendering backends: local CLI tools, Kroki API, and text
+/// fallback. Backend selection is controlled by the `engine` config field.
 pub struct DiagramRenderer {
     config: DiagramRendererConfig,
     /// Registry of supported diagram languages, keyed by tag.
@@ -124,6 +138,158 @@ impl DiagramRenderer {
             Some(tag)
         } else {
             None
+        }
+    }
+
+    /// Try to render a diagram using the configured backend.
+    ///
+    /// Returns `Some((png_bytes, display_name))` on success, `None` if no backend
+    /// succeeded (caller should fall back to text rendering).
+    fn try_render_backend(&self, tag: &str, source: &str) -> Option<(Vec<u8>, String)> {
+        let lang = self.get_language(tag)?;
+        let display_name = lang.display_name.clone();
+        let backend = self.backend();
+
+        match backend {
+            "text_fallback" => None,
+            "local" => self.try_local_cli(lang, source).map(|d| (d, display_name)),
+            "kroki" => self.try_kroki(lang, source).map(|d| (d, display_name)),
+            // "auto" or unrecognized: try local first, then Kroki.
+            _ => self
+                .try_local_cli(lang, source)
+                .or_else(|| self.try_kroki(lang, source))
+                .map(|d| (d, display_name)),
+        }
+    }
+
+    /// Render a diagram via a local CLI command.
+    ///
+    /// Pipes diagram source to stdin, expects PNG on stdout.
+    fn try_local_cli(&self, lang: &DiagramLanguage, source: &str) -> Option<Vec<u8>> {
+        let cmd = lang.local_command.as_deref()?;
+
+        let mut child = Command::new(cmd)
+            .args(&lang.local_args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .ok()?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            let _ = stdin.write_all(source.as_bytes());
+        }
+
+        let output = child.wait_with_output().ok()?;
+        if output.status.success() && !output.stdout.is_empty() {
+            Some(output.stdout)
+        } else {
+            None
+        }
+    }
+
+    /// Render a diagram via the Kroki API.
+    ///
+    /// Sends a POST request with the diagram source and receives PNG back.
+    /// Gracefully returns `None` if the HTTP request fails or TLS is unavailable.
+    fn try_kroki(&self, lang: &DiagramLanguage, source: &str) -> Option<Vec<u8>> {
+        let kroki_type = lang.kroki_type.as_deref()?;
+        let server = self
+            .config
+            .kroki_server
+            .as_deref()
+            .unwrap_or(DEFAULT_KROKI_SERVER);
+        let url = format!("{server}/{kroki_type}/png");
+        let source = source.to_string();
+
+        // ureq may panic if TLS provider isn't available at runtime;
+        // catch_unwind ensures we fall back gracefully instead of crashing.
+        std::panic::catch_unwind(|| {
+            let response = ureq::post(&url)
+                .header("Content-Type", "text/plain")
+                .send(source.as_bytes())
+                .ok()?;
+
+            let bytes = response.into_body().read_to_vec().ok()?;
+            if bytes.is_empty() {
+                None
+            } else {
+                Some(bytes)
+            }
+        })
+        .ok()
+        .flatten()
+    }
+
+    /// Render a diagram section with backend rendering, producing an InlineGraphic
+    /// and a header line, or falling back to text rendering.
+    fn render_diagram_section(
+        &self,
+        tag: &str,
+        source_lines: &[&str],
+        start_line: usize,
+        theme: &RendererConfig,
+    ) -> (Vec<StyledLine>, Vec<SourceLineMapping>, Vec<InlineGraphic>) {
+        let source = source_lines.join("\n");
+
+        // Try backend rendering.
+        if let Some((png_data, display_name)) = self.try_render_backend(tag, &source) {
+            let mut styled = Vec::new();
+            let mut mappings = Vec::new();
+
+            // Estimate image height in cells (assume ~16px per cell row).
+            // We'll use a conservative estimate; the actual display depends on
+            // the terminal's cell size and image protocol.
+            let estimated_height_cells = 20; // Reasonable default
+            let width_cells = theme.terminal_width.min(80);
+
+            // Header line indicating rendered diagram.
+            let header = StyledLine::new(vec![
+                StyledSegment {
+                    text: format!(" {display_name} "),
+                    fg: Some(theme.theme_colors.bg),
+                    bg: Some(theme.theme_colors.palette[2]), // Green background = rendered
+                    bold: true,
+                    ..Default::default()
+                },
+                StyledSegment {
+                    text: " (rendered)".to_string(),
+                    fg: Some(theme.theme_colors.palette[10]), // Bright green
+                    ..Default::default()
+                },
+            ]);
+            mappings.push(SourceLineMapping {
+                rendered_line: 0,
+                source_line: Some(start_line),
+            });
+            styled.push(header);
+
+            // Add placeholder lines for the graphic height so cell substitution
+            // reserves vertical space.
+            for row in 0..estimated_height_cells {
+                mappings.push(SourceLineMapping {
+                    rendered_line: styled.len(),
+                    source_line: Some(start_line),
+                });
+                styled.push(StyledLine::plain(""));
+                // Only the first blank line gets the graphic placed on it.
+                let _ = row;
+            }
+
+            let graphic = InlineGraphic {
+                data: png_data,
+                row: 1, // Right after the header line
+                col: 0,
+                width_cells,
+                height_cells: estimated_height_cells,
+            };
+
+            (styled, mappings, vec![graphic])
+        } else {
+            // Fall back to text rendering.
+            let (styled, mappings) =
+                self.render_diagram_fallback(tag, source_lines, start_line, theme);
+            (styled, mappings, vec![])
         }
     }
 
@@ -220,6 +386,7 @@ impl ContentRenderer for DiagramRenderer {
 
         let mut all_lines = Vec::new();
         let mut all_mappings = Vec::new();
+        let mut all_graphics = Vec::new();
 
         for section in sections {
             match section {
@@ -228,12 +395,17 @@ impl ContentRenderer for DiagramRenderer {
                     source_lines,
                     start_line,
                 } => {
-                    let (lines, mappings) =
-                        self.render_diagram_fallback(tag, &source_lines, start_line, config);
-                    // Adjust mapping indices for the current offset.
+                    let (lines, mappings, graphics) =
+                        self.render_diagram_section(tag, &source_lines, start_line, config);
+                    let offset = all_lines.len();
+                    // Adjust mapping and graphic indices for the current offset.
                     for mut mapping in mappings {
-                        mapping.rendered_line += all_lines.len();
+                        mapping.rendered_line += offset;
                         all_mappings.push(mapping);
+                    }
+                    for mut graphic in graphics {
+                        graphic.row += offset;
+                        all_graphics.push(graphic);
                     }
                     all_lines.extend(lines);
                 }
@@ -250,7 +422,7 @@ impl ContentRenderer for DiagramRenderer {
         Ok(RenderedContent {
             lines: all_lines,
             line_mapping: all_mappings,
-            graphics: vec![],
+            graphics: all_graphics,
             format_badge: "DG".to_string(),
         })
     }
@@ -668,6 +840,68 @@ mod tests {
                 lang.tag
             );
         }
+    }
+
+    #[test]
+    fn test_text_fallback_engine() {
+        let config = DiagramRendererConfig {
+            engine: Some("text_fallback".into()),
+            ..DiagramRendererConfig::default()
+        };
+        let renderer = DiagramRenderer::new(config);
+        let block = make_block(&["```mermaid", "graph TD", "```"]);
+        let result = renderer.render(&block, &RendererConfig::default()).unwrap();
+        // text_fallback should always produce source-style output.
+        let first_text: String = result.lines[0]
+            .segments
+            .iter()
+            .map(|s| s.text.as_str())
+            .collect();
+        assert!(first_text.contains("source"));
+        assert!(result.graphics.is_empty());
+    }
+
+    #[test]
+    fn test_auto_backend_falls_back_to_text() {
+        // With "auto" backend and no local tools installed, should fall back to text.
+        let config = DiagramRendererConfig {
+            engine: None, // "auto"
+            ..DiagramRendererConfig::default()
+        };
+        let renderer = DiagramRenderer::new(config);
+        // Use a language with no local command to ensure fallback.
+        let block = make_block(&["```ditaa", "+---+", "| A |", "+---+", "```"]);
+        let result = renderer.render(&block, &RendererConfig::default()).unwrap();
+        // Should still produce output (text fallback).
+        assert!(!result.lines.is_empty());
+    }
+
+    #[test]
+    fn test_try_local_cli_missing_command() {
+        let renderer = test_renderer();
+        let lang = DiagramLanguage {
+            tag: "test".into(),
+            display_name: "Test".into(),
+            kroki_type: None,
+            local_command: Some("nonexistent_command_12345".into()),
+            local_args: vec![],
+        };
+        // Should return None for missing command.
+        assert!(renderer.try_local_cli(&lang, "test").is_none());
+    }
+
+    #[test]
+    fn test_try_local_cli_no_command() {
+        let renderer = test_renderer();
+        let lang = DiagramLanguage {
+            tag: "test".into(),
+            display_name: "Test".into(),
+            kroki_type: None,
+            local_command: None,
+            local_args: vec![],
+        };
+        // Should return None when no command is configured.
+        assert!(renderer.try_local_cli(&lang, "test").is_none());
     }
 
     #[test]
