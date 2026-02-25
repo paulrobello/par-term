@@ -247,6 +247,17 @@ impl WindowState {
             return false;
         }
 
+        // When mouse tracking is active the click is forwarded to the PTY application, not
+        // consumed as a local text selection.  There is no risk of the clipboard image being
+        // overwritten by a selection, so let the click through.
+        // finish_clipboard_image_click_guard will still restore the image afterwards if the PTY
+        // app happened to change the clipboard (e.g. a TUI doing an internal copy).
+        // Without this early return, plain clicks in tmux are swallowed here, so pane-switching
+        // by clicking never reaches tmux.
+        if self.active_terminal_mouse_tracking_enabled_at(mouse_position) {
+            return false;
+        }
+
         let dx = mouse_position.0 - guard.press_position.0;
         let dy = mouse_position.1 - guard.press_position.1;
         const CLICK_RESTORE_THRESHOLD_PX: f64 = 6.0;
