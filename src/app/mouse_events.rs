@@ -936,7 +936,10 @@ impl WindowState {
                     .ok()
                     .is_some_and(|term| term.should_report_mouse_motion(button_pressed));
 
-                if should_report && !shift_held && let Ok(term) = terminal_arc.try_lock() {
+                if should_report
+                    && !shift_held
+                    && let Ok(term) = terminal_arc.try_lock()
+                {
                     // Encode button+motion (button 32 marker)
                     let button = if button_pressed {
                         32 // Motion while button pressed

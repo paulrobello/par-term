@@ -267,6 +267,67 @@ impl CellRenderer {
             },
         );
 
+        // Clear the padding strips with transparent black so bilinear sampling at glyph
+        // edges never bleeds into stale data from previously evicted glyphs.
+        let pad_right_x = info.x + raster.width;
+        let pad_bottom_y = info.y + raster.height;
+
+        // Right border: `padding` columns × glyph height
+        if pad_right_x + padding <= 2048 && raster.height > 0 {
+            let zero = vec![0u8; (padding * raster.height * 4) as usize];
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &self.atlas_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: pad_right_x,
+                        y: info.y,
+                        z: 0,
+                    },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &zero,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padding * 4),
+                    rows_per_image: Some(raster.height),
+                },
+                wgpu::Extent3d {
+                    width: padding,
+                    height: raster.height,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+
+        // Bottom border: glyph width × `padding` rows
+        if pad_bottom_y + padding <= 2048 && raster.width > 0 {
+            let zero = vec![0u8; (raster.width * padding * 4) as usize];
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &self.atlas_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: info.x,
+                        y: pad_bottom_y,
+                        z: 0,
+                    },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &zero,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(raster.width * 4),
+                    rows_per_image: Some(padding),
+                },
+                wgpu::Extent3d {
+                    width: raster.width,
+                    height: padding,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+
         self.atlas_next_x += raster.width + padding;
         self.atlas_row_height = self.atlas_row_height.max(raster.height);
 
