@@ -5958,24 +5958,29 @@ impl WindowState {
         hovered_divider_index: Option<usize>,
         show_scrollbar: bool,
     ) -> Result<bool> {
-        // Build pane render infos - we need to leak the cells temporarily
-        let mut pane_render_infos: Vec<PaneRenderInfo> = Vec::new();
-        let mut leaked_cells: Vec<*mut [crate::cell_renderer::Cell]> = Vec::new();
+        // Two-phase construction: separate owned cell data from pane metadata
+        // so PaneRenderInfo can borrow cell slices safely.  This replaces the
+        // previous unsafe Box::into_raw / Box::from_raw pattern that leaked
+        // memory if render_split_panes panicked.
+        //
+        // Phase 1: Extract cells into a Vec that outlives the render infos.
+        // The remaining pane fields are collected into partial render infos.
+        let mut owned_cells: Vec<Vec<crate::cell_renderer::Cell>> =
+            Vec::with_capacity(pane_data.len());
+        let mut partial_infos: Vec<PaneRenderInfo> = Vec::with_capacity(pane_data.len());
 
         for pane in pane_data {
-            let cells_boxed = pane.cells.into_boxed_slice();
-            let cells_ptr = Box::into_raw(cells_boxed);
-            leaked_cells.push(cells_ptr);
-
-            pane_render_infos.push(PaneRenderInfo {
+            let focused = pane.viewport.focused;
+            owned_cells.push(pane.cells);
+            partial_infos.push(PaneRenderInfo {
                 viewport: pane.viewport,
-                // SAFETY: We just allocated this, and we'll free it after rendering
-                cells: unsafe { &*cells_ptr },
+                // Placeholder — will be patched in Phase 2 once owned_cells
+                // is finished growing and its elements have stable addresses.
+                cells: &[],
                 grid_size: pane.grid_size,
                 cursor_pos: pane.cursor_pos,
                 cursor_opacity: pane.cursor_opacity,
-                // Only the focused pane shows a scrollbar
-                show_scrollbar: show_scrollbar && pane.viewport.focused,
+                show_scrollbar: show_scrollbar && focused,
                 marks: pane.marks,
                 scrollback_len: pane.scrollback_len,
                 scroll_offset: pane.scroll_offset,
@@ -5983,6 +5988,14 @@ impl WindowState {
                 graphics: pane.graphics,
             });
         }
+
+        // Phase 2: Patch cell references now that owned_cells won't reallocate.
+        // owned_cells lives until scope exit (even on panic), so the borrows
+        // are valid for the lifetime of partial_infos.
+        for (info, cells) in partial_infos.iter_mut().zip(owned_cells.iter()) {
+            info.cells = cells.as_slice();
+        }
+        let pane_render_infos = partial_infos;
 
         // Build divider render info
         let divider_render_infos: Vec<DividerRenderInfo> = dividers
@@ -6001,8 +6014,9 @@ impl WindowState {
             divider_style: config.pane_divider_style,
         };
 
-        // Call the split pane renderer
-        let result = renderer.render_split_panes(
+        // Call the split pane renderer.
+        // owned_cells is dropped automatically at scope exit, even on panic.
+        renderer.render_split_panes(
             &pane_render_infos,
             &divider_render_infos,
             &pane_titles,
@@ -6010,15 +6024,7 @@ impl WindowState {
             &divider_settings,
             egui_data,
             false,
-        );
-
-        // Clean up leaked cell memory
-        for ptr in leaked_cells {
-            // SAFETY: We just allocated these above
-            let _ = unsafe { Box::from_raw(ptr) };
-        }
-
-        result
+        )
     }
 
     /// Handle responses from the integrations welcome dialog
