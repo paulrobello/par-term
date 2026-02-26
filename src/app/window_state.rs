@@ -2962,38 +2962,25 @@ impl WindowState {
                                     tab.cache.prettifier_command_start_line.take()
                                 {
                                     let cmd_text = tab.cache.prettifier_command_text.take();
-                                    // In All scope, the per-frame feed has already accumulated
-                                    // attribute-aware lines (with reconstruct_markdown_from_cells)
-                                    // in the boundary detector. Using submit_command_output would
-                                    // reset that state and replace it with plain-text scrollback
-                                    // reads, losing bold/italic markdown reconstruction.
-                                    // Instead, flush the boundary detector's accumulated content.
-                                    if pipeline.detection_scope()
-                                        != crate::prettifier::boundary::DetectionScope::CommandOutput
-                                    {
+                                    // Read full command output from scrollback so the
+                                    // prettified block covers the entire output, not just
+                                    // the visible portion. This ensures scrolling through
+                                    // long output shows prettified content throughout.
+                                    let output_start = start + 1;
+                                    if let Ok(term) = terminal.try_lock() {
+                                        let lines = term
+                                            .lines_text_range(output_start, *absolute_line);
                                         crate::debug_info!(
                                             "PRETTIFIER",
-                                            "on_command_end (All scope, flushing boundary detector)"
+                                            "submit_command_output: {} lines (rows {}..{})",
+                                            lines.len(),
+                                            output_start,
+                                            absolute_line
                                         );
-                                        pipeline.on_command_end();
+                                        pipeline.submit_command_output(lines, cmd_text);
                                     } else {
-                                        // CommandOutput scope: read full output from scrollback
-                                        let output_start = start + 1;
-                                        if let Ok(term) = terminal.try_lock() {
-                                            let lines = term
-                                                .lines_text_range(output_start, *absolute_line);
-                                            crate::debug_info!(
-                                                "PRETTIFIER",
-                                                "submit_command_output: {} lines (rows {}..{})",
-                                                lines.len(),
-                                                output_start,
-                                                absolute_line
-                                            );
-                                            pipeline.submit_command_output(lines, cmd_text);
-                                        } else {
-                                            // Lock failed — fall back to boundary detector state
-                                            pipeline.on_command_end();
-                                        }
+                                        // Lock failed — fall back to boundary detector state
+                                        pipeline.on_command_end();
                                     }
                                 } else {
                                     pipeline.on_command_end();
