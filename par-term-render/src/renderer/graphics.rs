@@ -415,6 +415,7 @@ impl Renderer {
     ///
     /// Graphics are composited on top of terminal cells in the same pass as
     /// sixel/iTerm2/Kitty graphics.
+    #[allow(clippy::type_complexity)]
     pub fn update_prettifier_graphics(
         &mut self,
         graphics: &[(u64, &[u8], u32, u32, isize, usize)],
@@ -453,7 +454,7 @@ impl Renderer {
                 col,
                 width_cells,
                 height_cells,
-                1.0,                 // Full opacity
+                1.0, // Full opacity
                 effective_clip_rows,
             ));
         }

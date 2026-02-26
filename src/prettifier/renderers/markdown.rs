@@ -16,8 +16,8 @@ use crate::config::prettifier::DiagramRendererConfig;
 use crate::prettifier::registry::RendererRegistry;
 use crate::prettifier::traits::{ContentRenderer, RendererConfig, ThemeColors};
 use crate::prettifier::types::{
-    ContentBlock, InlineGraphic, RenderedContent, RendererCapability, SourceLineMapping, StyledLine,
-    StyledSegment,
+    ContentBlock, InlineGraphic, RenderedContent, RendererCapability, SourceLineMapping,
+    StyledLine, StyledSegment,
 };
 
 // ---------------------------------------------------------------------------
@@ -1209,13 +1209,9 @@ impl ContentRenderer for MarkdownRenderer {
                         let lang = language.as_deref().unwrap();
                         let source_refs: Vec<&str> =
                             code_lines.iter().map(String::as_str).collect();
-                        let (diagram_lines, diagram_mappings, diagram_graphics) =
-                            self.diagram_renderer.render_diagram_section(
-                                lang,
-                                &source_refs,
-                                *fence_open_idx,
-                                config,
-                            );
+                        let (diagram_lines, diagram_mappings, diagram_graphics) = self
+                            .diagram_renderer
+                            .render_diagram_section(lang, &source_refs, *fence_open_idx, config);
 
                         // Adjust line mappings to account for current output offset.
                         let offset = lines.len();
@@ -1309,49 +1305,49 @@ impl ContentRenderer for MarkdownRenderer {
         }
 
         // Append footnote references section if any links were collected.
-        if let Some(ref footnotes) = footnote_links {
-            if !footnotes.is_empty() {
-                // Blank separator line.
+        if let Some(ref footnotes) = footnote_links
+            && !footnotes.is_empty()
+        {
+            // Blank separator line.
+            line_mapping.push(SourceLineMapping {
+                rendered_line: lines.len(),
+                source_line: None,
+            });
+            lines.push(StyledLine::plain(""));
+
+            // Horizontal rule.
+            let rule: String = std::iter::repeat_n('─', width.min(40)).collect();
+            line_mapping.push(SourceLineMapping {
+                rendered_line: lines.len(),
+                source_line: None,
+            });
+            lines.push(StyledLine::new(vec![StyledSegment {
+                text: rule,
+                fg: Some(theme.palette[8]),
+                ..Default::default()
+            }]));
+
+            // Each footnote: [N]: url
+            for (i, url) in footnotes.iter().enumerate() {
                 line_mapping.push(SourceLineMapping {
                     rendered_line: lines.len(),
                     source_line: None,
                 });
-                lines.push(StyledLine::plain(""));
-
-                // Horizontal rule.
-                let rule: String = std::iter::repeat_n('─', width.min(40)).collect();
-                line_mapping.push(SourceLineMapping {
-                    rendered_line: lines.len(),
-                    source_line: None,
-                });
-                lines.push(StyledLine::new(vec![StyledSegment {
-                    text: rule,
-                    fg: Some(theme.palette[8]),
-                    ..Default::default()
-                }]));
-
-                // Each footnote: [N]: url
-                for (i, url) in footnotes.iter().enumerate() {
-                    line_mapping.push(SourceLineMapping {
-                        rendered_line: lines.len(),
-                        source_line: None,
-                    });
-                    lines.push(StyledLine::new(vec![
-                        StyledSegment {
-                            text: format!("[{}]", i + 1),
-                            fg: Some(theme.palette[8]),
-                            bold: true,
-                            ..Default::default()
-                        },
-                        StyledSegment {
-                            text: format!(": {url}"),
-                            fg: Some(theme.palette[12]),
-                            underline: true,
-                            link_url: Some(url.clone()),
-                            ..Default::default()
-                        },
-                    ]));
-                }
+                lines.push(StyledLine::new(vec![
+                    StyledSegment {
+                        text: format!("[{}]", i + 1),
+                        fg: Some(theme.palette[8]),
+                        bold: true,
+                        ..Default::default()
+                    },
+                    StyledSegment {
+                        text: format!(": {url}"),
+                        fg: Some(theme.palette[12]),
+                        underline: true,
+                        link_url: Some(url.clone()),
+                        ..Default::default()
+                    },
+                ]));
             }
         }
 

@@ -582,7 +582,9 @@ impl Tab {
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
-            prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(config, cols, None),
+            prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(
+                config, cols, None,
+            ),
             gutter_manager: GutterManager::new(),
             was_alt_screen: false,
             pre_ssh_switch_profile: None,
@@ -815,7 +817,9 @@ impl Tab {
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
-            prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(config, cols, None),
+            prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(
+                config, cols, None,
+            ),
             gutter_manager: GutterManager::new(),
             was_alt_screen: false,
             pre_ssh_switch_profile: None,

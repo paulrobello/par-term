@@ -189,12 +189,7 @@ impl DiagramRenderer {
     ///
     /// Only works for mermaid diagrams; returns `None` for other diagram types.
     /// Renders mermaid source → SVG → PNG bytes.
-    fn try_native_mermaid(
-        &self,
-        tag: &str,
-        source: &str,
-        colors: &ThemeColors,
-    ) -> Option<Vec<u8>> {
+    fn try_native_mermaid(&self, tag: &str, source: &str, colors: &ThemeColors) -> Option<Vec<u8>> {
         if tag != "mermaid" {
             return None;
         }
@@ -744,8 +739,8 @@ fn dark_mermaid_theme(colors: &ThemeColors) -> mermaid_rs_renderer::Theme {
 /// Returns `None` if parsing fails, dimensions are invalid (zero or > 4096),
 /// or rasterization/encoding fails.
 pub fn svg_to_png_bytes(svg: &str, bg: Option<[u8; 3]>) -> Option<Vec<u8>> {
-    use image::codecs::png::PngEncoder;
     use image::ImageEncoder;
+    use image::codecs::png::PngEncoder;
 
     // Some SVG generators produce malformed font-family attributes with
     // unescaped inner quotes (e.g. font-family="..., "Segoe UI", ...").
@@ -779,12 +774,21 @@ pub fn svg_to_png_bytes(svg: &str, bg: Option<[u8; 3]>) -> Option<Vec<u8>> {
     let [r, g, b] = bg.unwrap_or([255, 255, 255]);
     pixmap.fill(resvg::tiny_skia::Color::from_rgba8(r, g, b, 255));
 
-    resvg::render(&tree, resvg::tiny_skia::Transform::default(), &mut pixmap.as_mut());
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::default(),
+        &mut pixmap.as_mut(),
+    );
 
     let mut png_buf = Vec::new();
     let encoder = PngEncoder::new(&mut png_buf);
     encoder
-        .write_image(pixmap.data(), width, height, image::ExtendedColorType::Rgba8)
+        .write_image(
+            pixmap.data(),
+            width,
+            height,
+            image::ExtendedColorType::Rgba8,
+        )
         .ok()?;
 
     crate::debug_info!(
@@ -972,7 +976,10 @@ mod tests {
         let result = renderer.render(&block, &config).unwrap();
         assert_eq!(result.format_badge, "DG");
         // Should have header + placeholder rows for the rendered image.
-        assert!(result.lines.len() >= 2, "Expected at least header + placeholder rows");
+        assert!(
+            result.lines.len() >= 2,
+            "Expected at least header + placeholder rows"
+        );
         // First line should mention "Mermaid" and "(rendered)".
         let first_text: String = result.lines[0]
             .segments
@@ -1053,7 +1060,10 @@ mod tests {
         // Line 1: header (Mermaid badge with "(rendered)" — native backend succeeds)
         // Lines 2..N: blank placeholder rows for the rendered image
         // Last line: "End of content." (plain text)
-        assert!(result.lines.len() >= 3, "Expected at least text + header + text");
+        assert!(
+            result.lines.len() >= 3,
+            "Expected at least text + header + text"
+        );
         assert_eq!(result.lines[0].segments[0].text, "Here is a diagram:");
         assert_eq!(
             result.lines[result.lines.len() - 1].segments[0].text,
@@ -1286,7 +1296,10 @@ mod tests {
         let colors = ThemeColors::default();
         let source = "graph TD\n  A-->B\n  B-->C";
         let result = renderer.try_native_mermaid("mermaid", source, &colors);
-        assert!(result.is_some(), "Native mermaid should render a basic flowchart");
+        assert!(
+            result.is_some(),
+            "Native mermaid should render a basic flowchart"
+        );
         let png = result.unwrap();
         // PNG signature: first 8 bytes.
         assert!(png.len() > 8);
@@ -1312,7 +1325,10 @@ mod tests {
         let colors = ThemeColors::default();
         let source = "sequenceDiagram\n  Alice->>Bob: Hello\n  Bob-->>Alice: Hi";
         let result = renderer.try_native_mermaid("mermaid", source, &colors);
-        assert!(result.is_some(), "Native mermaid should render a sequence diagram");
+        assert!(
+            result.is_some(),
+            "Native mermaid should render a sequence diagram"
+        );
         let png = result.unwrap();
         assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
     }
@@ -1322,8 +1338,16 @@ mod tests {
         let renderer = test_renderer();
         let colors = ThemeColors::default();
         // Native renderer should return None for non-mermaid tags.
-        assert!(renderer.try_native_mermaid("plantuml", "anything", &colors).is_none());
-        assert!(renderer.try_native_mermaid("dot", "anything", &colors).is_none());
+        assert!(
+            renderer
+                .try_native_mermaid("plantuml", "anything", &colors)
+                .is_none()
+        );
+        assert!(
+            renderer
+                .try_native_mermaid("dot", "anything", &colors)
+                .is_none()
+        );
     }
 
     #[test]

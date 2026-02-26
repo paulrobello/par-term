@@ -1,14 +1,14 @@
 use parking_lot::Mutex;
-use rodio::{OutputStream, OutputStreamBuilder, Sink, Source};
+use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player, Source};
 use std::sync::Arc;
 use std::time::Duration;
 
 /// Audio bell manager for playing terminal bell sounds
 pub struct AudioBell {
-    /// Audio output stream handle (kept alive for the duration of the application)
-    stream: Option<OutputStream>,
-    /// Audio sink for playback
-    sink: Option<Arc<Mutex<Sink>>>,
+    /// Audio output device sink handle (kept alive for the duration of the application)
+    stream: Option<MixerDeviceSink>,
+    /// Audio player for playback
+    sink: Option<Arc<Mutex<Player>>>,
 }
 
 impl Drop for AudioBell {
@@ -34,10 +34,10 @@ impl Drop for AudioBell {
 impl AudioBell {
     /// Create a new audio bell manager
     pub fn new() -> Result<Self, String> {
-        let stream = OutputStreamBuilder::open_default_stream()
+        let stream = DeviceSinkBuilder::open_default_sink()
             .map_err(|e| format!("Failed to open audio stream: {}", e))?;
 
-        let sink = Sink::connect_new(stream.mixer());
+        let sink = Player::connect_new(stream.mixer());
 
         Ok(Self {
             stream: Some(stream),

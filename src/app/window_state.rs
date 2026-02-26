@@ -2976,49 +2976,44 @@ impl WindowState {
             .unwrap_or(0);
 
         // Forward shell lifecycle events to the prettifier pipeline (outside terminal lock)
-        if !shell_lifecycle_events.is_empty() {
-            if let Some(tab) = self.tab_manager.active_tab_mut() {
-                if let Some(ref mut pipeline) = tab.prettifier {
-                    for event in &shell_lifecycle_events {
-                        match event {
-                            par_term_terminal::ShellLifecycleEvent::CommandStarted {
-                                command,
-                                absolute_line,
-                            } => {
-                                tab.cache.prettifier_command_start_line = Some(*absolute_line);
-                                tab.cache.prettifier_command_text = Some(command.clone());
-                                pipeline.on_command_start(command);
+        if !shell_lifecycle_events.is_empty()
+            && let Some(tab) = self.tab_manager.active_tab_mut()
+            && let Some(ref mut pipeline) = tab.prettifier
+        {
+            for event in &shell_lifecycle_events {
+                match event {
+                    par_term_terminal::ShellLifecycleEvent::CommandStarted {
+                        command,
+                        absolute_line,
+                    } => {
+                        tab.cache.prettifier_command_start_line = Some(*absolute_line);
+                        tab.cache.prettifier_command_text = Some(command.clone());
+                        pipeline.on_command_start(command);
+                    }
+                    par_term_terminal::ShellLifecycleEvent::CommandFinished { absolute_line } => {
+                        if let Some(start) = tab.cache.prettifier_command_start_line.take() {
+                            let cmd_text = tab.cache.prettifier_command_text.take();
+                            // Read full command output from scrollback so the
+                            // prettified block covers the entire output, not just
+                            // the visible portion. This ensures scrolling through
+                            // long output shows prettified content throughout.
+                            let output_start = start + 1;
+                            if let Ok(term) = terminal.try_lock() {
+                                let lines = term.lines_text_range(output_start, *absolute_line);
+                                crate::debug_info!(
+                                    "PRETTIFIER",
+                                    "submit_command_output: {} lines (rows {}..{})",
+                                    lines.len(),
+                                    output_start,
+                                    absolute_line
+                                );
+                                pipeline.submit_command_output(lines, cmd_text);
+                            } else {
+                                // Lock failed — fall back to boundary detector state
+                                pipeline.on_command_end();
                             }
-                            par_term_terminal::ShellLifecycleEvent::CommandFinished {
-                                absolute_line,
-                            } => {
-                                if let Some(start) = tab.cache.prettifier_command_start_line.take()
-                                {
-                                    let cmd_text = tab.cache.prettifier_command_text.take();
-                                    // Read full command output from scrollback so the
-                                    // prettified block covers the entire output, not just
-                                    // the visible portion. This ensures scrolling through
-                                    // long output shows prettified content throughout.
-                                    let output_start = start + 1;
-                                    if let Ok(term) = terminal.try_lock() {
-                                        let lines =
-                                            term.lines_text_range(output_start, *absolute_line);
-                                        crate::debug_info!(
-                                            "PRETTIFIER",
-                                            "submit_command_output: {} lines (rows {}..{})",
-                                            lines.len(),
-                                            output_start,
-                                            absolute_line
-                                        );
-                                        pipeline.submit_command_output(lines, cmd_text);
-                                    } else {
-                                        // Lock failed — fall back to boundary detector state
-                                        pipeline.on_command_end();
-                                    }
-                                } else {
-                                    pipeline.on_command_end();
-                                }
-                            }
+                        } else {
+                            pipeline.on_command_end();
                         }
                     }
                 }
@@ -3028,132 +3023,129 @@ impl WindowState {
         // Feed terminal output lines to the prettifier pipeline (gated on content changes).
         // Skip per-frame viewport feed for CommandOutput scope — it reads full output
         // from scrollback on CommandFinished instead.
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            if let Some(ref mut pipeline) = tab.prettifier {
-                if pipeline.is_enabled()
-                    && !is_alt_screen
-                    && pipeline.detection_scope()
-                        != crate::prettifier::boundary::DetectionScope::CommandOutput
-                    && current_generation != tab.cache.prettifier_feed_generation
-                {
-                    tab.cache.prettifier_feed_generation = current_generation;
+        if let Some(tab) = self.tab_manager.active_tab_mut()
+            && let Some(ref mut pipeline) = tab.prettifier
+            && pipeline.is_enabled()
+            && !is_alt_screen
+            && pipeline.detection_scope()
+                != crate::prettifier::boundary::DetectionScope::CommandOutput
+            && current_generation != tab.cache.prettifier_feed_generation
+        {
+            tab.cache.prettifier_feed_generation = current_generation;
 
-                    // Heuristic Claude Code session detection from visible output.
-                    // One-time: scan for signature patterns if not yet detected.
-                    if !pipeline.claude_code().is_active() {
-                        'detect: for row_idx in 0..visible_lines {
-                            let start = row_idx * grid_cols;
-                            let end = (start + grid_cols).min(cells.len());
-                            if start >= cells.len() {
-                                break;
-                            }
-                            let row_text: String = cells[start..end]
-                                .iter()
-                                .map(|c| {
-                                    let g = c.grapheme.as_str();
-                                    if g.is_empty() || g == "\0" { " " } else { g }
-                                })
-                                .collect();
-                            // Look for Claude Code signature patterns in output.
-                            if row_text.contains("Claude Code")
-                                || row_text.contains("claude.ai/code")
-                                || row_text.contains("Tips for getting the best")
-                                || (row_text.contains("Model:")
-                                    && (row_text.contains("Opus")
-                                        || row_text.contains("Sonnet")
-                                        || row_text.contains("Haiku")))
-                            {
-                                crate::debug_info!(
-                                    "PRETTIFIER",
-                                    "Claude Code session detected from output heuristic"
-                                );
-                                pipeline.mark_claude_code_active();
-                                break 'detect;
-                            }
-                        }
+            // Heuristic Claude Code session detection from visible output.
+            // One-time: scan for signature patterns if not yet detected.
+            if !pipeline.claude_code().is_active() {
+                'detect: for row_idx in 0..visible_lines {
+                    let start = row_idx * grid_cols;
+                    let end = (start + grid_cols).min(cells.len());
+                    if start >= cells.len() {
+                        break;
+                    }
+                    let row_text: String = cells[start..end]
+                        .iter()
+                        .map(|c| {
+                            let g = c.grapheme.as_str();
+                            if g.is_empty() || g == "\0" { " " } else { g }
+                        })
+                        .collect();
+                    // Look for Claude Code signature patterns in output.
+                    if row_text.contains("Claude Code")
+                        || row_text.contains("claude.ai/code")
+                        || row_text.contains("Tips for getting the best")
+                        || (row_text.contains("Model:")
+                            && (row_text.contains("Opus")
+                                || row_text.contains("Sonnet")
+                                || row_text.contains("Haiku")))
+                    {
+                        crate::debug_info!(
+                            "PRETTIFIER",
+                            "Claude Code session detected from output heuristic"
+                        );
+                        pipeline.mark_claude_code_active();
+                        break 'detect;
+                    }
+                }
+            }
+
+            let is_claude_session = pipeline.claude_code().is_active();
+
+            // In Claude Code compact mode, collapse markers indicate tool
+            // outputs are hidden. Don't prettify — let Claude Code's own
+            // rendering show (styled responses, collapsed summaries). When
+            // the user presses Ctrl+O (verbose mode), markers disappear and
+            // we prettify the expanded content.
+            let has_collapse_markers = is_claude_session
+                && (0..visible_lines).any(|row_idx| {
+                    let start = row_idx * grid_cols;
+                    let end = (start + grid_cols).min(cells.len());
+                    if start >= cells.len() {
+                        return false;
+                    }
+                    let text: String = cells[start..end]
+                        .iter()
+                        .map(|c| {
+                            let g = c.grapheme.as_str();
+                            if g.is_empty() || g == "\0" { " " } else { g }
+                        })
+                        .collect();
+                    // Match Claude Code's specific collapse patterns:
+                    //   "… +N lines (ctrl+o to expand)"
+                    //   "Read N lines (ctrl+o to expand)"
+                    //   "Read N files (ctrl+o to expand)"
+                    //   "+N lines (ctrl+o to expand)"
+                    let is_collapse_line = text.contains("lines (ctrl+o to expand)")
+                        || text.contains("files (ctrl+o to expand)");
+                    if is_collapse_line {
+                        crate::debug_info!(
+                            "PRETTIFIER",
+                            "collapse marker found at row {}",
+                            row_idx
+                        );
+                    }
+                    is_collapse_line
+                });
+
+            if has_collapse_markers {
+                // Compact mode — clear any existing prettified blocks
+                // so cell substitution doesn't overwrite Claude Code's
+                // own rendering.
+                pipeline.clear_blocks();
+            } else {
+                // Reset the boundary detector so it gets a fresh snapshot of
+                // visible content each time the terminal changes. Without this,
+                // the same rows would accumulate as duplicates across frames.
+                // The debounce timer (100ms) handles emission timing — the block
+                // is emitted once content stabilizes.
+                pipeline.reset_boundary();
+
+                // Feed all visible rows from the current frame snapshot.
+                for row_idx in 0..visible_lines {
+                    let absolute_row = scrollback_len.saturating_sub(scroll_offset) + row_idx;
+
+                    let start = row_idx * grid_cols;
+                    let end = (start + grid_cols).min(cells.len());
+                    if start >= cells.len() {
+                        break;
                     }
 
-                    let is_claude_session = pipeline.claude_code().is_active();
-
-                    // In Claude Code compact mode, collapse markers indicate tool
-                    // outputs are hidden. Don't prettify — let Claude Code's own
-                    // rendering show (styled responses, collapsed summaries). When
-                    // the user presses Ctrl+O (verbose mode), markers disappear and
-                    // we prettify the expanded content.
-                    let has_collapse_markers = is_claude_session
-                        && (0..visible_lines).any(|row_idx| {
-                            let start = row_idx * grid_cols;
-                            let end = (start + grid_cols).min(cells.len());
-                            if start >= cells.len() {
-                                return false;
-                            }
-                            let text: String = cells[start..end]
-                                .iter()
-                                .map(|c| {
-                                    let g = c.grapheme.as_str();
-                                    if g.is_empty() || g == "\0" { " " } else { g }
-                                })
-                                .collect();
-                            // Match Claude Code's specific collapse patterns:
-                            //   "… +N lines (ctrl+o to expand)"
-                            //   "Read N lines (ctrl+o to expand)"
-                            //   "Read N files (ctrl+o to expand)"
-                            //   "+N lines (ctrl+o to expand)"
-                            let is_collapse_line = text.contains("lines (ctrl+o to expand)")
-                                || text.contains("files (ctrl+o to expand)");
-                            if is_collapse_line {
-                                crate::debug_info!(
-                                    "PRETTIFIER",
-                                    "collapse marker found at row {}",
-                                    row_idx
-                                );
-                            }
-                            is_collapse_line
-                        });
-
-                    if has_collapse_markers {
-                        // Compact mode — clear any existing prettified blocks
-                        // so cell substitution doesn't overwrite Claude Code's
-                        // own rendering.
-                        pipeline.clear_blocks();
+                    let line = if is_claude_session {
+                        // Attribute-aware markdown reconstruction for Claude Code sessions.
+                        reconstruct_markdown_from_cells(&cells[start..end])
                     } else {
-                        // Reset the boundary detector so it gets a fresh snapshot of
-                        // visible content each time the terminal changes. Without this,
-                        // the same rows would accumulate as duplicates across frames.
-                        // The debounce timer (100ms) handles emission timing — the block
-                        // is emitted once content stabilizes.
-                        pipeline.reset_boundary();
+                        // Plain text extraction for normal output.
+                        cells[start..end]
+                            .iter()
+                            .map(|c| {
+                                let g = c.grapheme.as_str();
+                                if g.is_empty() || g == "\0" { " " } else { g }
+                            })
+                            .collect::<String>()
+                            .trim_end()
+                            .to_string()
+                    };
 
-                        // Feed all visible rows from the current frame snapshot.
-                        for row_idx in 0..visible_lines {
-                            let absolute_row =
-                                scrollback_len.saturating_sub(scroll_offset) + row_idx;
-
-                            let start = row_idx * grid_cols;
-                            let end = (start + grid_cols).min(cells.len());
-                            if start >= cells.len() {
-                                break;
-                            }
-
-                            let line = if is_claude_session {
-                                // Attribute-aware markdown reconstruction for Claude Code sessions.
-                                reconstruct_markdown_from_cells(&cells[start..end])
-                            } else {
-                                // Plain text extraction for normal output.
-                                cells[start..end]
-                                    .iter()
-                                    .map(|c| {
-                                        let g = c.grapheme.as_str();
-                                        if g.is_empty() || g == "\0" { " " } else { g }
-                                    })
-                                    .collect::<String>()
-                                    .trim_end()
-                                    .to_string()
-                            };
-
-                            pipeline.process_output(&line, absolute_row);
-                        }
-                    }
+                    pipeline.process_output(&line, absolute_row);
                 }
             }
         }
@@ -3909,122 +3901,124 @@ impl WindowState {
         // (set before this point), so we must re-apply styled content every frame.
         //
         // Also collect inline graphics (rendered diagrams) for GPU compositing.
-        let mut prettifier_graphics: Vec<(u64, std::sync::Arc<Vec<u8>>, u32, u32, isize, usize)> =
-            Vec::new();
-        if !is_alt_screen {
-            if let Some(tab) = self.tab_manager.active_tab() {
-                if let Some(ref pipeline) = tab.prettifier {
-                    if pipeline.is_enabled() {
-                        let scroll_off = tab.scroll_state.offset;
-                        let gutter_w = tab.gutter_manager.gutter_width;
+        #[allow(clippy::type_complexity)]
+        let mut prettifier_graphics: Vec<(
+            u64,
+            std::sync::Arc<Vec<u8>>,
+            u32,
+            u32,
+            isize,
+            usize,
+        )> = Vec::new();
+        if !is_alt_screen
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Some(ref pipeline) = tab.prettifier
+            && pipeline.is_enabled()
+        {
+            let scroll_off = tab.scroll_state.offset;
+            let gutter_w = tab.gutter_manager.gutter_width;
 
-                        // Track which blocks we've already collected graphics from
-                        // to avoid duplicates when multiple viewport rows fall in
-                        // the same block.
-                        let mut collected_block_ids = std::collections::HashSet::new();
+            // Track which blocks we've already collected graphics from
+            // to avoid duplicates when multiple viewport rows fall in
+            // the same block.
+            let mut collected_block_ids = std::collections::HashSet::new();
 
-                        for viewport_row in 0..visible_lines {
-                            let absolute_row =
-                                scrollback_len.saturating_sub(scroll_off) + viewport_row;
-                            if let Some(block) = pipeline.block_at_row(absolute_row) {
-                                if !block.has_rendered() {
-                                    continue;
+            for viewport_row in 0..visible_lines {
+                let absolute_row = scrollback_len.saturating_sub(scroll_off) + viewport_row;
+                if let Some(block) = pipeline.block_at_row(absolute_row) {
+                    if !block.has_rendered() {
+                        continue;
+                    }
+
+                    // Collect inline graphics from this block (once per block).
+                    if collected_block_ids.insert(block.block_id) {
+                        let block_start = block.content().start_row;
+                        for graphic in block.buffer.rendered_graphics() {
+                            if !graphic.is_rgba
+                                || graphic.data.is_empty()
+                                || graphic.pixel_width == 0
+                                || graphic.pixel_height == 0
+                            {
+                                continue;
+                            }
+                            // Compute screen row: block_start + graphic.row within block,
+                            // then convert to viewport coordinates.
+                            let abs_graphic_row = block_start + graphic.row;
+                            let view_start = scrollback_len.saturating_sub(scroll_off);
+                            let screen_row = abs_graphic_row as isize - view_start as isize;
+
+                            // Use block_id + graphic row as a stable texture ID
+                            // (offset to avoid colliding with terminal graphic IDs).
+                            let texture_id = 0x8000_0000_0000_0000_u64
+                                | (block.block_id << 16)
+                                | (graphic.row as u64);
+
+                            crate::debug_info!(
+                                "PRETTIFIER",
+                                "uploading graphic: block={}, row={}, screen_row={}, {}x{} px, {} bytes RGBA",
+                                block.block_id,
+                                graphic.row,
+                                screen_row,
+                                graphic.pixel_width,
+                                graphic.pixel_height,
+                                graphic.data.len()
+                            );
+
+                            prettifier_graphics.push((
+                                texture_id,
+                                graphic.data.clone(),
+                                graphic.pixel_width,
+                                graphic.pixel_height,
+                                screen_row,
+                                graphic.col + gutter_w,
+                            ));
+                        }
+                    }
+
+                    let display_lines = block.buffer.display_lines();
+                    let block_start = block.content().start_row;
+                    let line_offset = absolute_row.saturating_sub(block_start);
+                    if let Some(styled_line) = display_lines.get(line_offset) {
+                        crate::debug_trace!(
+                            "PRETTIFIER",
+                            "cell sub: vp_row={}, abs_row={}, block_id={}, line_off={}, segs={}",
+                            viewport_row,
+                            absolute_row,
+                            block.block_id,
+                            line_offset,
+                            styled_line.segments.len()
+                        );
+                        let cell_start = viewport_row * grid_cols;
+                        let cell_end = (cell_start + grid_cols).min(cells.len());
+                        if cell_start >= cells.len() {
+                            break;
+                        }
+                        // Clear row
+                        for cell in &mut cells[cell_start..cell_end] {
+                            *cell = par_term_config::Cell::default();
+                        }
+                        // Write styled segments (offset by gutter width to avoid clipping)
+                        let mut col = gutter_w;
+                        for segment in &styled_line.segments {
+                            for ch in segment.text.chars() {
+                                if col >= grid_cols {
+                                    break;
                                 }
-
-                                // Collect inline graphics from this block (once per block).
-                                if collected_block_ids.insert(block.block_id) {
-                                    let block_start = block.content().start_row;
-                                    for graphic in block.buffer.rendered_graphics() {
-                                        if !graphic.is_rgba
-                                            || graphic.data.is_empty()
-                                            || graphic.pixel_width == 0
-                                            || graphic.pixel_height == 0
-                                        {
-                                            continue;
-                                        }
-                                        // Compute screen row: block_start + graphic.row within block,
-                                        // then convert to viewport coordinates.
-                                        let abs_graphic_row = block_start + graphic.row;
-                                        let view_start =
-                                            scrollback_len.saturating_sub(scroll_off);
-                                        let screen_row =
-                                            abs_graphic_row as isize - view_start as isize;
-
-                                        // Use block_id + graphic row as a stable texture ID
-                                        // (offset to avoid colliding with terminal graphic IDs).
-                                        let texture_id = 0x8000_0000_0000_0000_u64
-                                            | ((block.block_id as u64) << 16)
-                                            | (graphic.row as u64);
-
-                                        crate::debug_info!(
-                                            "PRETTIFIER",
-                                            "uploading graphic: block={}, row={}, screen_row={}, {}x{} px, {} bytes RGBA",
-                                            block.block_id,
-                                            graphic.row,
-                                            screen_row,
-                                            graphic.pixel_width,
-                                            graphic.pixel_height,
-                                            graphic.data.len()
-                                        );
-
-                                        prettifier_graphics.push((
-                                            texture_id,
-                                            graphic.data.clone(),
-                                            graphic.pixel_width,
-                                            graphic.pixel_height,
-                                            screen_row,
-                                            graphic.col + gutter_w,
-                                        ));
+                                let idx = cell_start + col;
+                                if idx < cells.len() {
+                                    cells[idx].grapheme = ch.to_string();
+                                    if let Some([r, g, b]) = segment.fg {
+                                        cells[idx].fg_color = [r, g, b, 0xFF];
                                     }
+                                    if let Some([r, g, b]) = segment.bg {
+                                        cells[idx].bg_color = [r, g, b, 0xFF];
+                                    }
+                                    cells[idx].bold = segment.bold;
+                                    cells[idx].italic = segment.italic;
+                                    cells[idx].underline = segment.underline;
+                                    cells[idx].strikethrough = segment.strikethrough;
                                 }
-
-                                let display_lines = block.buffer.display_lines();
-                                let block_start = block.content().start_row;
-                                let line_offset = absolute_row.saturating_sub(block_start);
-                                if let Some(styled_line) = display_lines.get(line_offset) {
-                                    crate::debug_trace!(
-                                        "PRETTIFIER",
-                                        "cell sub: vp_row={}, abs_row={}, block_id={}, line_off={}, segs={}",
-                                        viewport_row,
-                                        absolute_row,
-                                        block.block_id,
-                                        line_offset,
-                                        styled_line.segments.len()
-                                    );
-                                    let cell_start = viewport_row * grid_cols;
-                                    let cell_end = (cell_start + grid_cols).min(cells.len());
-                                    if cell_start >= cells.len() {
-                                        break;
-                                    }
-                                    // Clear row
-                                    for cell in &mut cells[cell_start..cell_end] {
-                                        *cell = par_term_config::Cell::default();
-                                    }
-                                    // Write styled segments (offset by gutter width to avoid clipping)
-                                    let mut col = gutter_w;
-                                    for segment in &styled_line.segments {
-                                        for ch in segment.text.chars() {
-                                            if col >= grid_cols {
-                                                break;
-                                            }
-                                            let idx = cell_start + col;
-                                            if idx < cells.len() {
-                                                cells[idx].grapheme = ch.to_string();
-                                                if let Some([r, g, b]) = segment.fg {
-                                                    cells[idx].fg_color = [r, g, b, 0xFF];
-                                                }
-                                                if let Some([r, g, b]) = segment.bg {
-                                                    cells[idx].bg_color = [r, g, b, 0xFF];
-                                                }
-                                                cells[idx].bold = segment.bold;
-                                                cells[idx].italic = segment.italic;
-                                                cells[idx].underline = segment.underline;
-                                                cells[idx].strikethrough = segment.strikethrough;
-                                            }
-                                            col += 1;
-                                        }
-                                    }
-                                }
+                                col += 1;
                             }
                         }
                     }
@@ -4203,6 +4197,7 @@ impl WindowState {
             // These are appended to the sixel_graphics render list and composited in
             // the same pass as Sixel/iTerm2/Kitty graphics.
             if !prettifier_graphics.is_empty() {
+                #[allow(clippy::type_complexity)]
                 let refs: Vec<(u64, &[u8], u32, u32, isize, usize)> = prettifier_graphics
                     .iter()
                     .map(|(id, data, w, h, row, col)| (*id, data.as_slice(), *w, *h, *row, *col))
@@ -5216,10 +5211,10 @@ impl WindowState {
                     // Only update when non-zero to avoid clobbering a good value on lock failure.
                     // The `apply_scroll` function already clamps the target; we don't call
                     // `clamp_to_scrollback` here because that would reset an ongoing scroll.
-                    if focused_pane_scrollback_len > 0 {
-                        if let Some(tab) = self.tab_manager.active_tab_mut() {
-                            tab.cache.scrollback_len = focused_pane_scrollback_len;
-                        }
+                    if focused_pane_scrollback_len > 0
+                        && let Some(tab) = self.tab_manager.active_tab_mut()
+                    {
+                        tab.cache.scrollback_len = focused_pane_scrollback_len;
                     }
 
                     // Get hovered divider index for hover color rendering

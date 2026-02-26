@@ -15,7 +15,7 @@ categories = ["config"]
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 serde_yaml = "0.9"
-toml = "0.8"
+toml = "1.0"
 
 # UUID for profile identifiers
 uuid = { version = "1.21", features = ["v4", "serde"] }

@@ -324,10 +324,7 @@ mod tests {
             parse_detection_scope("manual_only"),
             DetectionScope::ManualOnly
         );
-        assert_eq!(
-            parse_detection_scope("unknown"),
-            DetectionScope::All
-        );
+        assert_eq!(parse_detection_scope("unknown"), DetectionScope::All);
     }
 
     #[test]

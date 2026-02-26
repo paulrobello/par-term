@@ -95,7 +95,7 @@ tokio = { version = "1.49", features = ["full"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 serde_yaml = "0.9"
-toml = "0.8"
+toml = "1.0"
 
 # UUID for profile identifiers
 uuid = { version = "1.21", features = ["v4", "serde"] }
@@ -118,7 +118,7 @@ regex = "1.12.3"
 open = "5.3.3"  # Cross-platform URL opener
 
 # Audio playback for bell sound
-rodio = "0.21.1"
+rodio = "0.22.1"
 
 # Desktop notifications
 notify-rust = "4.12"
@@ -138,7 +138,7 @@ image = "0.25.9"
 # Native Mermaid diagram rendering (pure Rust, zero external deps)
 mermaid-rs-renderer = { version = "0.2", default-features = false }
 # SVG rasterization for mermaid diagram PNG output
-resvg = "0.45"
+resvg = "0.47"
 
 # Half-precision float for HDR cubemap textures
 half = "2.7.1"
@@ -151,10 +151,7 @@ muda = "0.17.1"
 libc = "0.2.182"
 clap = { version = "4.5.59", features = ["derive"] }
 ureq = { version = "3.2.0", default-features = false, features = ["native-tls", "gzip"] }
-# Pin native-tls to 0.2.16 — 0.2.17 added Protocol::Tlsv13 but its OpenSSL
-# backend has non-exhaustive match arms, causing compile errors on Linux.
-# Remove once upstream native-tls releases a fix.
-native-tls = "=0.2.16"
+native-tls = "0.2.18"
 zip = "8.1.0"
 semver = "1.0.27"  # Semantic version parsing for update checks
 sha2 = "0.10.9"

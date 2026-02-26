@@ -562,14 +562,14 @@ impl WindowState {
                     return;
                 }
             };
-            let stream = match rodio::OutputStreamBuilder::open_default_stream() {
+            let stream = match rodio::DeviceSinkBuilder::open_default_sink() {
                 Ok(s) => s,
                 Err(e) => {
                     log::error!("Failed to open audio output: {}", e);
                     return;
                 }
             };
-            let sink = rodio::Sink::connect_new(stream.mixer());
+            let sink = rodio::Player::connect_new(stream.mixer());
             let source = match rodio::Decoder::new(BufReader::new(file)) {
                 Ok(s) => s,
                 Err(e) => {
