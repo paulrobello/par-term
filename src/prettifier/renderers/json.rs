@@ -68,7 +68,7 @@ impl Default for JsonRendererConfig {
 
 fn re_url() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r#"https?://[^\s"]+"#).unwrap())
+    RE.get_or_init(|| Regex::new(r#"https?://[^\s"]+"#).expect("regex pattern is valid and should always compile"))
 }
 
 // ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ impl JsonRenderer {
                 );
                 // Remove the last line we just pushed — we'll merge the key with the
                 // opening bracket/brace of the value.
-                let key_line = lines.pop().unwrap();
+                let key_line = lines.pop().expect("lines is non-empty: we just pushed a key segment to it");
                 line_mapping.pop();
 
                 let before_len = lines.len();

@@ -5,7 +5,13 @@
 //! - Closing panes
 //! - Navigating between panes
 //! - Resizing panes
+//!
+//! Sub-modules:
+//! - [`super::tmux_helpers`]: Helper types and free functions for tmux layout operations.
 
+use super::tmux_helpers::{
+    DividerUpdateContext, RemoveResult, TmuxLayoutRebuildContext, extract_panes_from_node,
+};
 use super::types::{
     DividerRect, NavigationDirection, Pane, PaneBounds, PaneId, PaneNode, SplitDirection,
 };
@@ -16,29 +22,6 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-
-/// Context for divider ratio update operations.
-/// Groups the immutable parameters passed through recursive calls in `update_divider_ratio`.
-#[derive(Clone, Copy)]
-struct DividerUpdateContext {
-    target_index: usize,
-    new_x: f32,
-    new_y: f32,
-    bounds: PaneBounds,
-    divider_width: f32,
-}
-
-/// Context for tmux layout rebuild operations.
-/// Groups the shared parameters passed through `rebuild_layout_node`,
-/// `rebuild_multi_split_to_binary`, and `rebuild_remaining_children`.
-struct TmuxLayoutRebuildContext<'a> {
-    existing_mappings: &'a HashMap<TmuxPaneId, PaneId>,
-    new_tmux_panes: &'a [TmuxPaneId],
-    existing_panes: &'a mut HashMap<PaneId, Pane>,
-    config: &'a Config,
-    runtime: Arc<Runtime>,
-    new_mappings: &'a mut HashMap<TmuxPaneId, PaneId>,
-}
 
 /// Manages the pane tree within a single tab
 pub struct PaneManager {
@@ -1050,7 +1033,7 @@ impl PaneManager {
         // Extract all existing panes from the current tree
         let mut existing_panes: HashMap<PaneId, Pane> = HashMap::new();
         if let Some(root) = self.root.take() {
-            Self::extract_panes_from_node(root, &mut existing_panes);
+            extract_panes_from_node(root, &mut existing_panes);
         }
 
         log::debug!(
@@ -1097,20 +1080,6 @@ impl PaneManager {
         );
 
         Ok(new_mappings)
-    }
-
-    /// Extract all panes from a node into a map
-    fn extract_panes_from_node(node: PaneNode, panes: &mut HashMap<PaneId, Pane>) {
-        match node {
-            PaneNode::Leaf(pane) => {
-                let pane = *pane; // Unbox the pane
-                panes.insert(pane.id, pane);
-            }
-            PaneNode::Split { first, second, .. } => {
-                Self::extract_panes_from_node(*first, panes);
-                Self::extract_panes_from_node(*second, panes);
-            }
-        }
     }
 
     /// Rebuild a layout node, reusing existing panes where possible
@@ -1639,14 +1608,6 @@ impl Default for PaneManager {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Result of attempting to remove a pane from the tree
-enum RemoveResult {
-    /// Pane was removed, returning the new subtree (or None if empty)
-    Removed(Option<PaneNode>),
-    /// Pane was not found, returning the original tree
-    NotFound(PaneNode),
 }
 
 #[cfg(test)]

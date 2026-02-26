@@ -30,7 +30,7 @@ pub fn create_log_detector() -> crate::prettifier::regex_detector::RegexDetector
             pattern: Regex::new(
                 r"^\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}:\d{2}.*?(TRACE|DEBUG|INFO|WARN|ERROR|FATAL)",
             )
-            .unwrap(),
+            .expect("log_timestamp_level: pattern is valid and should always compile"),
             weight: 0.7,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -42,7 +42,7 @@ pub fn create_log_detector() -> crate::prettifier::regex_detector::RegexDetector
         // Log level at start of line
         .rule(DetectionRule {
             id: "log_level_prefix".into(),
-            pattern: Regex::new(r"^\s*\[?(TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\]?\s").unwrap(),
+            pattern: Regex::new(r"^\s*\[?(TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\]?\s").expect("log_level_prefix: pattern is valid and should always compile"),
             weight: 0.5,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -54,7 +54,7 @@ pub fn create_log_detector() -> crate::prettifier::regex_detector::RegexDetector
         // ISO timestamp
         .rule(DetectionRule {
             id: "log_iso_timestamp".into(),
-            pattern: Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}").unwrap(),
+            pattern: Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}").expect("regex pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -69,7 +69,7 @@ pub fn create_log_detector() -> crate::prettifier::regex_detector::RegexDetector
             pattern: Regex::new(
                 r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d+\s+\d{2}:\d{2}:\d{2}",
             )
-            .unwrap(),
+            .expect("log_syslog: pattern is valid and should always compile"),
             weight: 0.4,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -81,7 +81,7 @@ pub fn create_log_detector() -> crate::prettifier::regex_detector::RegexDetector
         // JSON log lines (structured logging)
         .rule(DetectionRule {
             id: "log_json_line".into(),
-            pattern: Regex::new(r#"^\{"(timestamp|time|ts|level|msg|message)":"#).unwrap(),
+            pattern: Regex::new(r#"^\{"(timestamp|time|ts|level|msg|message)":"#).expect("log_json_line: pattern is valid and should always compile"),
             weight: 0.6,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,

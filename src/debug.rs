@@ -150,7 +150,7 @@ fn get_logger() -> &'static Mutex<DebugLogger> {
 }
 
 fn get_timestamp() -> String {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).expect("SystemTime::now() is always after UNIX_EPOCH");
     format!("{}.{:06}", now.as_secs(), now.subsec_micros())
 }
 

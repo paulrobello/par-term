@@ -104,7 +104,7 @@ fn re_timestamp_level() -> &'static Regex {
         Regex::new(
             r"^(\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}:\d{2}[^\s]*)\s+\[?(TRACE|DEBUG|INFO|WARN(?:ING)?|ERROR|ERR|FATAL|CRIT(?:ICAL)?)\]?\s*(.*)",
         )
-        .unwrap()
+        .expect("re_timestamp_level: pattern is valid and should always compile")
     })
 }
 
@@ -114,7 +114,7 @@ fn re_level_prefix() -> &'static Regex {
         Regex::new(
             r"^\s*\[?(TRACE|DEBUG|INFO|WARN(?:ING)?|ERROR|ERR|FATAL|CRIT(?:ICAL)?)\]?\s+(.*)",
         )
-        .unwrap()
+        .expect("re_level_prefix: pattern is valid and should always compile")
     })
 }
 
@@ -124,7 +124,7 @@ fn re_syslog() -> &'static Regex {
         Regex::new(
             r"^((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d+\s+\d{2}:\d{2}:\d{2})\s+(.*)",
         )
-        .unwrap()
+        .expect("re_syslog: pattern is valid and should always compile")
     })
 }
 
@@ -146,8 +146,8 @@ fn find_json_start(s: &str) -> Option<usize> {
 fn parse_log_line(line: &str) -> LogLine {
     // Try timestamp + level pattern first
     if let Some(caps) = re_timestamp_level().captures(line) {
-        let ts = caps.get(1).unwrap().as_str().to_string();
-        let level_str = caps.get(2).unwrap().as_str();
+        let ts = caps.get(1).expect("re_timestamp_level capture group 1 (timestamp) must be present after a match").as_str().to_string();
+        let level_str = caps.get(2).expect("re_timestamp_level capture group 2 (level) must be present after a match").as_str();
         let level = LogLevel::from_str(level_str);
         let msg = caps.get(3).map(|m| m.as_str()).unwrap_or("").to_string();
         let json_start = find_json_start(&msg);
@@ -162,11 +162,11 @@ fn parse_log_line(line: &str) -> LogLine {
 
     // Try syslog format
     if let Some(caps) = re_syslog().captures(line) {
-        let ts = caps.get(1).unwrap().as_str().to_string();
+        let ts = caps.get(1).expect("re_syslog capture group 1 (timestamp) must be present after a match").as_str().to_string();
         let rest = caps.get(2).map(|m| m.as_str()).unwrap_or("");
         // Try to extract level from the rest
         if let Some(level_caps) = re_level_prefix().captures(rest) {
-            let level_str = level_caps.get(1).unwrap().as_str();
+            let level_str = level_caps.get(1).expect("re_level_prefix capture group 1 (level) must be present after a match").as_str();
             let level = LogLevel::from_str(level_str);
             let msg = level_caps
                 .get(2)
@@ -194,7 +194,7 @@ fn parse_log_line(line: &str) -> LogLine {
 
     // Try level prefix only
     if let Some(caps) = re_level_prefix().captures(line) {
-        let level_str = caps.get(1).unwrap().as_str();
+        let level_str = caps.get(1).expect("re_level_prefix capture group 1 (level) must be present after a match").as_str();
         let level = LogLevel::from_str(level_str);
         let msg = caps.get(2).map(|m| m.as_str()).unwrap_or("").to_string();
         let json_start = find_json_start(&msg);

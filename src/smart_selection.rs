@@ -185,7 +185,7 @@ impl SmartSelectionCache {
             self.rules_hash = hash;
         }
 
-        self.matcher.as_ref().unwrap()
+        self.matcher.as_ref().expect("matcher was just set to Some above if it was None")
     }
 }
 

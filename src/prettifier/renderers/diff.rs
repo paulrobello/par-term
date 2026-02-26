@@ -8,6 +8,15 @@
 //! - **Word-level diff**: highlights changed words within paired +/- lines
 //! - **Line number gutter**: old/new line numbers from hunk headers
 //! - **Side-by-side mode**: when terminal is wide enough
+//!
+//! Helper sub-modules:
+//! - [`diff_parser`] — unified diff parsing (DiffFile, DiffHunk, DiffLine)
+//! - [`diff_word`] — word-level LCS diff and segment building
+
+#[path = "diff_parser.rs"]
+mod diff_parser;
+#[path = "diff_word.rs"]
+mod diff_word;
 
 use super::push_line;
 use crate::prettifier::registry::RendererRegistry;
@@ -15,6 +24,9 @@ use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, Th
 use crate::prettifier::types::{
     ContentBlock, RenderedContent, RendererCapability, SourceLineMapping, StyledLine, StyledSegment,
 };
+
+use diff_parser::{DiffFile, DiffHunk, DiffLine, parse_unified_diff};
+use diff_word::word_diff_segments;
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -57,364 +69,13 @@ impl Default for DiffRendererConfig {
 }
 
 // ---------------------------------------------------------------------------
-// Diff parsing types
+// Line-state tracker
 // ---------------------------------------------------------------------------
-
-/// A parsed diff covering one or more files.
-#[derive(Debug, Clone)]
-struct DiffFile {
-    old_path: String,
-    new_path: String,
-    hunks: Vec<DiffHunk>,
-    /// Extra header lines (e.g. `index ...`, `mode ...`).
-    header_lines: Vec<String>,
-}
-
-/// A single hunk within a diff file.
-#[derive(Debug, Clone)]
-struct DiffHunk {
-    old_start: usize,
-    old_count: usize,
-    new_start: usize,
-    new_count: usize,
-    /// Optional function/context text after the @@ markers.
-    header_text: String,
-    lines: Vec<DiffLine>,
-}
-
-/// A single line within a diff hunk.
-#[derive(Debug, Clone)]
-enum DiffLine {
-    Context(String),
-    Added(String),
-    Removed(String),
-}
 
 /// Tracks current line numbers while rendering.
 struct DiffLineState {
     old_line: usize,
     new_line: usize,
-}
-
-// ---------------------------------------------------------------------------
-// Diff parsing
-// ---------------------------------------------------------------------------
-
-/// Parse unified diff content into structured `DiffFile`s.
-fn parse_unified_diff(lines: &[String]) -> Vec<DiffFile> {
-    let mut files: Vec<DiffFile> = Vec::new();
-    let mut i = 0;
-
-    while i < lines.len() {
-        let line = &lines[i];
-
-        // Start of a new file diff: `diff --git a/... b/...`
-        if line.starts_with("diff --git ") {
-            let (old_path, new_path) = parse_git_diff_header(line);
-            let mut header_lines = vec![line.clone()];
-
-            i += 1;
-            // Collect header lines until we hit --- or another diff/hunk
-            while i < lines.len()
-                && !lines[i].starts_with("--- ")
-                && !lines[i].starts_with("diff --git ")
-                && !lines[i].starts_with("@@ ")
-            {
-                header_lines.push(lines[i].clone());
-                i += 1;
-            }
-
-            // Parse --- / +++ if present
-            let mut final_old = old_path;
-            let mut final_new = new_path;
-            if i < lines.len() && lines[i].starts_with("--- ") {
-                final_old = lines[i][4..].trim().to_string();
-                i += 1;
-                if i < lines.len() && lines[i].starts_with("+++ ") {
-                    final_new = lines[i][4..].trim().to_string();
-                    i += 1;
-                }
-            }
-
-            // Parse hunks
-            let mut hunks = Vec::new();
-            while i < lines.len() && !lines[i].starts_with("diff --git ") {
-                if lines[i].starts_with("@@ ") {
-                    let (hunk, next_i) = parse_hunk(lines, i);
-                    hunks.push(hunk);
-                    i = next_i;
-                } else {
-                    i += 1;
-                }
-            }
-
-            files.push(DiffFile {
-                old_path: final_old,
-                new_path: final_new,
-                hunks,
-                header_lines,
-            });
-        } else if line.starts_with("--- ")
-            && i + 1 < lines.len()
-            && lines[i + 1].starts_with("+++ ")
-        {
-            // Non-git unified diff (e.g., `diff -u`)
-            let old_path = lines[i][4..].trim().to_string();
-            let new_path = lines[i + 1][4..].trim().to_string();
-            i += 2;
-
-            let mut hunks = Vec::new();
-            while i < lines.len()
-                && !lines[i].starts_with("--- ")
-                && !lines[i].starts_with("diff --git ")
-            {
-                if lines[i].starts_with("@@ ") {
-                    let (hunk, next_i) = parse_hunk(lines, i);
-                    hunks.push(hunk);
-                    i = next_i;
-                } else {
-                    i += 1;
-                }
-            }
-
-            files.push(DiffFile {
-                old_path,
-                new_path,
-                hunks,
-                header_lines: Vec::new(),
-            });
-        } else {
-            i += 1;
-        }
-    }
-
-    files
-}
-
-/// Parse `diff --git a/path b/path` into (old_path, new_path).
-fn parse_git_diff_header(line: &str) -> (String, String) {
-    let rest = line.strip_prefix("diff --git ").unwrap_or(line);
-    // Split on " b/" — handles `a/path b/path`
-    if let Some(idx) = rest.find(" b/") {
-        let old = rest[..idx].to_string();
-        let new = rest[idx + 1..].to_string();
-        (old, new)
-    } else {
-        // Fallback: split on space
-        let parts: Vec<&str> = rest.splitn(2, ' ').collect();
-        if parts.len() == 2 {
-            (parts[0].to_string(), parts[1].to_string())
-        } else {
-            (rest.to_string(), rest.to_string())
-        }
-    }
-}
-
-/// Parse a hunk starting at `@@ -old_start,old_count +new_start,new_count @@ ...`.
-/// Returns the parsed hunk and the index of the next line after the hunk.
-fn parse_hunk(lines: &[String], start: usize) -> (DiffHunk, usize) {
-    let header = &lines[start];
-    let (old_start, old_count, new_start, new_count, header_text) = parse_hunk_header(header);
-
-    let mut hunk_lines = Vec::new();
-    let mut i = start + 1;
-
-    while i < lines.len() {
-        let line = &lines[i];
-        if line.starts_with("@@ ") || line.starts_with("diff --git ") || line.starts_with("--- ") {
-            break;
-        }
-
-        if let Some(rest) = line.strip_prefix('+') {
-            hunk_lines.push(DiffLine::Added(rest.to_string()));
-        } else if let Some(rest) = line.strip_prefix('-') {
-            hunk_lines.push(DiffLine::Removed(rest.to_string()));
-        } else if let Some(rest) = line.strip_prefix(' ') {
-            hunk_lines.push(DiffLine::Context(rest.to_string()));
-        } else {
-            // No-newline-at-end-of-file marker or other, treat as context
-            hunk_lines.push(DiffLine::Context(line.to_string()));
-        }
-        i += 1;
-    }
-
-    (
-        DiffHunk {
-            old_start,
-            old_count,
-            new_start,
-            new_count,
-            header_text,
-            lines: hunk_lines,
-        },
-        i,
-    )
-}
-
-/// Parse `@@ -old_start,old_count +new_start,new_count @@ optional_text`.
-fn parse_hunk_header(header: &str) -> (usize, usize, usize, usize, String) {
-    let mut old_start = 1;
-    let mut old_count = 1;
-    let mut new_start = 1;
-    let mut new_count = 1;
-    let mut header_text = String::new();
-
-    // Find the range between the @@ markers
-    if let Some(rest) = header.strip_prefix("@@ ")
-        && let Some(end_idx) = rest.find(" @@")
-    {
-        let range_part = &rest[..end_idx];
-        header_text = rest[end_idx + 3..].trim().to_string();
-
-        // Parse -old_start,old_count +new_start,new_count
-        let parts: Vec<&str> = range_part.split_whitespace().collect();
-        for part in parts {
-            if let Some(old_part) = part.strip_prefix('-') {
-                let nums: Vec<&str> = old_part.split(',').collect();
-                old_start = nums[0].parse().unwrap_or(1);
-                if nums.len() > 1 {
-                    old_count = nums[1].parse().unwrap_or(1);
-                }
-            } else if let Some(new_part) = part.strip_prefix('+') {
-                let nums: Vec<&str> = new_part.split(',').collect();
-                new_start = nums[0].parse().unwrap_or(1);
-                if nums.len() > 1 {
-                    new_count = nums[1].parse().unwrap_or(1);
-                }
-            }
-        }
-    }
-
-    (old_start, old_count, new_start, new_count, header_text)
-}
-
-// ---------------------------------------------------------------------------
-// Word-level diff
-// ---------------------------------------------------------------------------
-
-/// Split a string into words for word-level diff comparison.
-fn split_into_words(s: &str) -> Vec<&str> {
-    let mut words = Vec::new();
-    let mut start = None;
-
-    for (i, ch) in s.char_indices() {
-        if ch.is_alphanumeric() || ch == '_' {
-            if start.is_none() {
-                start = Some(i);
-            }
-        } else {
-            if let Some(s_idx) = start {
-                words.push(&s[s_idx..i]);
-                start = None;
-            }
-            // Each non-word character is its own token
-            words.push(&s[i..i + ch.len_utf8()]);
-        }
-    }
-    if let Some(s_idx) = start {
-        words.push(&s[s_idx..]);
-    }
-
-    words
-}
-
-/// Compute the longest common subsequence length table for two slices.
-fn lcs_table<'a>(a: &[&'a str], b: &[&'a str]) -> Vec<Vec<usize>> {
-    let m = a.len();
-    let n = b.len();
-    let mut table = vec![vec![0usize; n + 1]; m + 1];
-
-    for i in 1..=m {
-        for j in 1..=n {
-            if a[i - 1] == b[j - 1] {
-                table[i][j] = table[i - 1][j - 1] + 1;
-            } else {
-                table[i][j] = table[i - 1][j].max(table[i][j - 1]);
-            }
-        }
-    }
-
-    table
-}
-
-/// Maximum token count before skipping LCS (prevents O(n*m) blowup).
-const MAX_LCS_TOKENS: usize = 200;
-
-/// Mark which tokens are changed (not in LCS) for word-level highlighting.
-fn mark_changes<'a>(tokens: &[&'a str], other: &[&'a str]) -> Vec<bool> {
-    // Guard: if either side is too large, treat all tokens as changed.
-    if tokens.len() > MAX_LCS_TOKENS || other.len() > MAX_LCS_TOKENS {
-        return vec![true; tokens.len()];
-    }
-    let table = lcs_table(tokens, other);
-    let mut changed = vec![true; tokens.len()];
-
-    let mut i = tokens.len();
-    let mut j = other.len();
-
-    while i > 0 && j > 0 {
-        if tokens[i - 1] == other[j - 1] {
-            changed[i - 1] = false;
-            i -= 1;
-            j -= 1;
-        } else if table[i - 1][j] >= table[i][j - 1] {
-            i -= 1;
-        } else {
-            j -= 1;
-        }
-    }
-
-    changed
-}
-
-/// Produce styled segments for a line with word-level diff highlighting.
-fn word_diff_segments(
-    line_text: &str,
-    other_text: &str,
-    base_fg: [u8; 3],
-    highlight_bg: [u8; 3],
-) -> Vec<StyledSegment> {
-    let words_a = split_into_words(line_text);
-    let words_b = split_into_words(other_text);
-    let changes = mark_changes(&words_a, &words_b);
-
-    let mut segments = Vec::new();
-    let mut current_text = String::new();
-    let mut current_changed = false;
-
-    for (word, &is_changed) in words_a.iter().zip(changes.iter()) {
-        if is_changed != current_changed && !current_text.is_empty() {
-            segments.push(StyledSegment {
-                text: std::mem::take(&mut current_text),
-                fg: Some(base_fg),
-                bg: if current_changed {
-                    Some(highlight_bg)
-                } else {
-                    None
-                },
-                bold: current_changed,
-                ..Default::default()
-            });
-        }
-        current_changed = is_changed;
-        current_text.push_str(word);
-    }
-
-    if !current_text.is_empty() {
-        segments.push(StyledSegment {
-            text: current_text,
-            fg: Some(base_fg),
-            bg: if current_changed {
-                Some(highlight_bg)
-            } else {
-                None
-            },
-            bold: current_changed,
-            ..Default::default()
-        });
-    }
-
-    segments
 }
 
 // ---------------------------------------------------------------------------
@@ -1106,6 +767,8 @@ mod tests {
     use super::*;
     use crate::prettifier::traits::RendererConfig;
     use crate::prettifier::types::ContentBlock;
+    use diff_parser::parse_hunk_header;
+    use diff_word::split_into_words;
     use std::time::SystemTime;
 
     fn test_config() -> RendererConfig {

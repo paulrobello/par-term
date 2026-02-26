@@ -28,7 +28,7 @@ pub fn create_json_detector() -> crate::prettifier::regex_detector::RegexDetecto
         // Strong rules
         .rule(DetectionRule {
             id: "json_open_brace".into(),
-            pattern: Regex::new(r"^\s*\{\s*$").unwrap(),
+            pattern: Regex::new(r"^\s*\{\s*$").expect("regex pattern is valid and should always compile"),
             weight: 0.4,
             scope: RuleScope::FirstLines(3),
             strength: RuleStrength::Strong,
@@ -39,7 +39,7 @@ pub fn create_json_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "json_open_bracket".into(),
-            pattern: Regex::new(r"^\s*\[\s*$").unwrap(),
+            pattern: Regex::new(r"^\s*\[\s*$").expect("regex pattern is valid and should always compile"),
             weight: 0.35,
             scope: RuleScope::FirstLines(3),
             strength: RuleStrength::Strong,
@@ -50,7 +50,7 @@ pub fn create_json_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "json_key_value".into(),
-            pattern: Regex::new(r#"^\s*"[^"]+"\s*:\s*"#).unwrap(),
+            pattern: Regex::new(r#"^\s*"[^"]+"\s*:\s*"#).expect("regex pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -62,7 +62,7 @@ pub fn create_json_detector() -> crate::prettifier::regex_detector::RegexDetecto
         // Supporting rules
         .rule(DetectionRule {
             id: "json_close_brace".into(),
-            pattern: Regex::new(r"^\s*\}\s*,?\s*$").unwrap(),
+            pattern: Regex::new(r"^\s*\}\s*,?\s*$").expect("regex pattern is valid and should always compile"),
             weight: 0.2,
             scope: RuleScope::LastLines(3),
             strength: RuleStrength::Supporting,
@@ -73,7 +73,7 @@ pub fn create_json_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "json_curl_context".into(),
-            pattern: Regex::new(r"^(curl|http|httpie|wget)\s+").unwrap(),
+            pattern: Regex::new(r"^(curl|http|httpie|wget)\s+").expect("json_http_command_context: pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::PrecedingCommand,
             strength: RuleStrength::Supporting,
@@ -84,7 +84,7 @@ pub fn create_json_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "json_jq_context".into(),
-            pattern: Regex::new(r"^(jq|gron|fx)\s+").unwrap(),
+            pattern: Regex::new(r"^(jq|gron|fx)\s+").expect("json_jq_command_context: pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::PrecedingCommand,
             strength: RuleStrength::Supporting,

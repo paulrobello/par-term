@@ -6,6 +6,18 @@
 //! **Pass 2** renders each block, applying inline formatting within paragraphs
 //! and using dedicated renderers for code blocks (with syntax highlighting) and
 //! tables (via the shared `TableRenderer`).
+//!
+//! Helper sub-modules:
+//! - [`markdown_inline`] — inline span extraction (bold, italic, code, links)
+//! - [`markdown_blocks`] — block-level element classification
+//! - [`markdown_highlight`] — keyword-based syntax highlighting
+
+#[path = "markdown_blocks.rs"]
+mod markdown_blocks;
+#[path = "markdown_highlight.rs"]
+mod markdown_highlight;
+#[path = "markdown_inline.rs"]
+mod markdown_inline;
 
 use regex::Regex;
 use std::sync::OnceLock;
@@ -19,6 +31,10 @@ use crate::prettifier::types::{
     ContentBlock, InlineGraphic, RenderedContent, RendererCapability, SourceLineMapping,
     StyledLine, StyledSegment,
 };
+
+use markdown_blocks::{BlockElement, classify_blocks};
+use markdown_highlight::{get_language_def, highlight_code_line, subtle_bg};
+use markdown_inline::{SpanKind, extract_inline_spans};
 
 // ---------------------------------------------------------------------------
 // Configuration types
@@ -88,636 +104,49 @@ impl Default for MarkdownRendererConfig {
 }
 
 // ---------------------------------------------------------------------------
-// Compiled regexes
+// Compiled block-level regexes (used only in render_line)
 // ---------------------------------------------------------------------------
 
 fn re_header() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^(#{1,6})\s+(.*)$").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(r"^(#{1,6})\s+(.*)$")
+            .expect("re_header: pattern is valid and should always compile")
+    })
 }
 
 fn re_blockquote() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^>\s?(.*)$").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(r"^>\s?(.*)$")
+            .expect("re_blockquote: pattern is valid and should always compile")
+    })
 }
 
 fn re_unordered_list() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^(\s*)([-*+])\s+(.*)$").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(r"^(\s*)([-*+])\s+(.*)$")
+            .expect("re_unordered_list: pattern is valid and should always compile")
+    })
 }
 
 fn re_ordered_list() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^(\s*)(\d+[.)])\s+(.*)$").unwrap())
+    RE.get_or_init(|| {
+        Regex::new(r"^(\s*)(\d+[.)])\s+(.*)$")
+            .expect("re_ordered_list: pattern is valid and should always compile")
+    })
 }
 
 fn re_horizontal_rule() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"^(?:-[\s-]*-[\s-]*-[\s-]*|\*[\s*]*\*[\s*]*\*[\s*]*|_[\s_]*_[\s_]*_[\s_]*)$")
-            .unwrap()
+        Regex::new(
+            r"^(?:-[\s-]*-[\s-]*-[\s-]*|\*[\s*]*\*[\s*]*\*[\s*]*|_[\s_]*_[\s_]*_[\s_]*)$",
+        )
+        .expect("re_horizontal_rule: pattern is valid and should always compile")
     })
-}
-
-fn re_inline_code() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"`([^`]+)`").unwrap())
-}
-
-fn re_link() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap())
-}
-
-fn re_bold_italic() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\*\*\*(.+?)\*\*\*|___(.+?)___").unwrap())
-}
-
-fn re_bold() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\*\*(.+?)\*\*|__(.+?)__").unwrap())
-}
-
-fn re_italic() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    // Use \b around underscore italic to avoid matching snake_case identifiers.
-    RE.get_or_init(|| Regex::new(r"\*([^*]+)\*|\b_([^_]+)_\b").unwrap())
-}
-
-fn re_fence_open() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^(\s*)(```|~~~)(\w*)\s*$").unwrap())
-}
-
-// ---------------------------------------------------------------------------
-// Inline span extraction
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone)]
-struct InlineSpan {
-    start: usize,
-    end: usize,
-    kind: SpanKind,
-}
-
-#[derive(Debug, Clone)]
-enum SpanKind {
-    Code(String),
-    Link { text: String, url: String },
-    BoldItalic(String),
-    Bold(String),
-    Italic(String),
-}
-
-fn any_occupied(occupied: &[bool], start: usize, end: usize) -> bool {
-    occupied[start..end].iter().any(|&b| b)
-}
-
-fn mark_occupied(occupied: &mut [bool], start: usize, end: usize) {
-    for b in &mut occupied[start..end] {
-        *b = true;
-    }
-}
-
-fn find_in_unoccupied(text: &str, re: &Regex, occupied: &[bool]) -> Vec<(usize, usize)> {
-    let mut results = Vec::new();
-    let mut pos = 0;
-    while pos < text.len() {
-        if occupied[pos] {
-            pos += 1;
-            continue;
-        }
-        if let Some(m) = re.find_at(text, pos) {
-            if !any_occupied(occupied, m.start(), m.end()) {
-                results.push((m.start(), m.end()));
-                pos = m.end();
-            } else {
-                pos = m.start() + 1;
-            }
-        } else {
-            break;
-        }
-    }
-    results
-}
-
-fn extract_inline_spans(text: &str) -> Vec<InlineSpan> {
-    if text.is_empty() {
-        return Vec::new();
-    }
-
-    let mut occupied = vec![false; text.len()];
-    let mut spans = Vec::new();
-
-    // Pass 1: Code spans (highest priority, opaque)
-    for (start, end) in find_in_unoccupied(text, re_inline_code(), &occupied) {
-        let caps = re_inline_code().captures(&text[start..]).unwrap();
-        let content = caps.get(1).unwrap().as_str().to_string();
-        mark_occupied(&mut occupied, start, end);
-        spans.push(InlineSpan {
-            start,
-            end,
-            kind: SpanKind::Code(content),
-        });
-    }
-
-    // Pass 2: Links
-    for (start, end) in find_in_unoccupied(text, re_link(), &occupied) {
-        let caps = re_link().captures(&text[start..]).unwrap();
-        let link_text = caps.get(1).unwrap().as_str().to_string();
-        let url = caps.get(2).unwrap().as_str().to_string();
-        mark_occupied(&mut occupied, start, end);
-        spans.push(InlineSpan {
-            start,
-            end,
-            kind: SpanKind::Link {
-                text: link_text,
-                url,
-            },
-        });
-    }
-
-    // Pass 3: Bold+italic
-    for (start, end) in find_in_unoccupied(text, re_bold_italic(), &occupied) {
-        let caps = re_bold_italic().captures(&text[start..]).unwrap();
-        let content = caps
-            .get(1)
-            .or_else(|| caps.get(2))
-            .unwrap()
-            .as_str()
-            .to_string();
-        mark_occupied(&mut occupied, start, end);
-        spans.push(InlineSpan {
-            start,
-            end,
-            kind: SpanKind::BoldItalic(content),
-        });
-    }
-
-    // Pass 4: Bold
-    for (start, end) in find_in_unoccupied(text, re_bold(), &occupied) {
-        let caps = re_bold().captures(&text[start..]).unwrap();
-        let content = caps
-            .get(1)
-            .or_else(|| caps.get(2))
-            .unwrap()
-            .as_str()
-            .to_string();
-        mark_occupied(&mut occupied, start, end);
-        spans.push(InlineSpan {
-            start,
-            end,
-            kind: SpanKind::Bold(content),
-        });
-    }
-
-    // Pass 5: Italic
-    for (start, end) in find_in_unoccupied(text, re_italic(), &occupied) {
-        let caps = re_italic().captures(&text[start..]).unwrap();
-        let content = caps
-            .get(1)
-            .or_else(|| caps.get(2))
-            .unwrap()
-            .as_str()
-            .to_string();
-        mark_occupied(&mut occupied, start, end);
-        spans.push(InlineSpan {
-            start,
-            end,
-            kind: SpanKind::Italic(content),
-        });
-    }
-
-    spans.sort_by_key(|s| s.start);
-    spans
-}
-
-// ---------------------------------------------------------------------------
-// Block-level element classification
-// ---------------------------------------------------------------------------
-
-/// A block-level element identified during the first pass.
-enum BlockElement {
-    /// A single line rendered with inline formatting.
-    Line { source_idx: usize },
-    /// A fenced code block (``` or ~~~).
-    CodeBlock {
-        language: Option<String>,
-        /// The content lines (without fence markers).
-        lines: Vec<String>,
-        /// Source line index of the opening fence.
-        fence_open_idx: usize,
-        /// Source line index of the closing fence (if present).
-        fence_close_idx: Option<usize>,
-    },
-    /// A pipe-delimited markdown table.
-    Table {
-        headers: Vec<String>,
-        alignments: Vec<ColumnAlignment>,
-        rows: Vec<Vec<String>>,
-        /// Source line range [start, end) covering header + separator + data rows.
-        source_start: usize,
-        source_end: usize,
-    },
-}
-
-/// Check if a line is a markdown table row (has pipe separators).
-fn is_table_row(line: &str) -> bool {
-    let trimmed = line.trim();
-    trimmed.contains('|') && !trimmed.is_empty()
-}
-
-/// Check if a line is a table separator row (e.g., `|---|:---:|---:|`).
-fn is_separator_row(line: &str) -> bool {
-    let trimmed = line.trim();
-    if !trimmed.contains('-') {
-        return false;
-    }
-    let cells = parse_table_cells(trimmed);
-    if cells.is_empty() {
-        return false;
-    }
-    cells.iter().all(|cell| {
-        let c = cell.trim();
-        !c.is_empty() && c.chars().all(|ch| ch == '-' || ch == ':' || ch == ' ')
-    })
-}
-
-/// Parse a pipe-delimited table row into cells.
-fn parse_table_cells(line: &str) -> Vec<String> {
-    let trimmed = line.trim();
-    // Strip leading/trailing pipes.
-    let inner = trimmed
-        .strip_prefix('|')
-        .unwrap_or(trimmed)
-        .strip_suffix('|')
-        .unwrap_or(trimmed);
-    inner.split('|').map(|s| s.trim().to_string()).collect()
-}
-
-/// Parse alignment from a separator cell (e.g., `:---:` → Center).
-fn parse_alignment(cell: &str) -> ColumnAlignment {
-    let c = cell.trim();
-    let starts_colon = c.starts_with(':');
-    let ends_colon = c.ends_with(':');
-    match (starts_colon, ends_colon) {
-        (true, true) => ColumnAlignment::Center,
-        (false, true) => ColumnAlignment::Right,
-        _ => ColumnAlignment::Left,
-    }
-}
-
-/// First pass: classify source lines into block-level elements.
-fn classify_blocks(lines: &[String]) -> Vec<BlockElement> {
-    let mut blocks = Vec::new();
-    let mut i = 0;
-
-    while i < lines.len() {
-        // Check for fenced code block opening.
-        if let Some(caps) = re_fence_open().captures(&lines[i]) {
-            let delimiter = caps.get(2).unwrap().as_str().to_string();
-            let lang_str = caps.get(3).unwrap().as_str().to_string();
-            let language = if lang_str.is_empty() {
-                None
-            } else {
-                Some(lang_str)
-            };
-
-            let fence_open_idx = i;
-            let mut code_lines = Vec::new();
-            i += 1;
-
-            // Accumulate until closing fence or end of input.
-            let mut fence_close_idx = None;
-            while i < lines.len() {
-                let trimmed = lines[i].trim();
-                if trimmed == delimiter || trimmed == format!("{delimiter} ").trim_end() {
-                    fence_close_idx = Some(i);
-                    i += 1;
-                    break;
-                }
-                code_lines.push(lines[i].clone());
-                i += 1;
-            }
-
-            blocks.push(BlockElement::CodeBlock {
-                language,
-                lines: code_lines,
-                fence_open_idx,
-                fence_close_idx,
-            });
-            continue;
-        }
-
-        // Check for table: current line is a table row and next line is a separator.
-        if i + 1 < lines.len() && is_table_row(&lines[i]) && is_separator_row(&lines[i + 1]) {
-            let header_cells = parse_table_cells(&lines[i]);
-            let sep_cells = parse_table_cells(&lines[i + 1]);
-            let alignments: Vec<ColumnAlignment> =
-                sep_cells.iter().map(|c| parse_alignment(c)).collect();
-
-            let source_start = i;
-            i += 2; // Skip header + separator.
-
-            let mut data_rows = Vec::new();
-            while i < lines.len() && is_table_row(&lines[i]) && !is_separator_row(&lines[i]) {
-                data_rows.push(parse_table_cells(&lines[i]));
-                i += 1;
-            }
-
-            blocks.push(BlockElement::Table {
-                headers: header_cells,
-                alignments,
-                rows: data_rows,
-                source_start,
-                source_end: i,
-            });
-            continue;
-        }
-
-        // Regular line.
-        blocks.push(BlockElement::Line { source_idx: i });
-        i += 1;
-    }
-
-    blocks
-}
-
-// ---------------------------------------------------------------------------
-// Simple keyword-based syntax highlighting
-// ---------------------------------------------------------------------------
-
-/// Language definition for syntax highlighting.
-struct LanguageDef {
-    keywords: &'static [&'static str],
-    comment_prefix: &'static str,
-    builtins: &'static [&'static str],
-}
-
-fn get_language_def(language: &str) -> Option<LanguageDef> {
-    match language.to_lowercase().as_str() {
-        "rust" | "rs" => Some(LanguageDef {
-            keywords: &[
-                "fn", "let", "mut", "const", "static", "if", "else", "match", "for", "while",
-                "loop", "return", "break", "continue", "struct", "enum", "impl", "trait", "pub",
-                "use", "mod", "crate", "self", "super", "where", "async", "await", "move",
-                "unsafe", "type", "as", "in", "ref", "true", "false",
-            ],
-            comment_prefix: "//",
-            builtins: &[
-                "Self", "Option", "Result", "Vec", "String", "Box", "Rc", "Arc", "Some", "None",
-                "Ok", "Err",
-            ],
-        }),
-        "python" | "py" => Some(LanguageDef {
-            keywords: &[
-                "def", "class", "if", "elif", "else", "for", "while", "return", "import", "from",
-                "as", "try", "except", "finally", "with", "yield", "lambda", "pass", "break",
-                "continue", "raise", "and", "or", "not", "in", "is", "True", "False", "None",
-                "async", "await",
-            ],
-            comment_prefix: "#",
-            builtins: &[
-                "print",
-                "len",
-                "range",
-                "int",
-                "str",
-                "float",
-                "list",
-                "dict",
-                "set",
-                "tuple",
-                "bool",
-                "type",
-                "isinstance",
-                "self",
-            ],
-        }),
-        "javascript" | "js" | "typescript" | "ts" => Some(LanguageDef {
-            keywords: &[
-                "function",
-                "const",
-                "let",
-                "var",
-                "if",
-                "else",
-                "for",
-                "while",
-                "return",
-                "class",
-                "new",
-                "this",
-                "import",
-                "export",
-                "from",
-                "default",
-                "try",
-                "catch",
-                "finally",
-                "throw",
-                "async",
-                "await",
-                "yield",
-                "switch",
-                "case",
-                "break",
-                "continue",
-                "typeof",
-                "instanceof",
-                "true",
-                "false",
-                "null",
-                "undefined",
-            ],
-            comment_prefix: "//",
-            builtins: &[
-                "console", "Promise", "Array", "Object", "Map", "Set", "JSON", "Math", "String",
-                "Number", "Boolean", "Error",
-            ],
-        }),
-        "json" => Some(LanguageDef {
-            keywords: &["true", "false", "null"],
-            comment_prefix: "",
-            builtins: &[],
-        }),
-        "yaml" | "yml" => Some(LanguageDef {
-            keywords: &["true", "false", "null", "yes", "no"],
-            comment_prefix: "#",
-            builtins: &[],
-        }),
-        "shell" | "sh" | "bash" | "zsh" => Some(LanguageDef {
-            keywords: &[
-                "if", "then", "else", "elif", "fi", "for", "while", "do", "done", "case", "esac",
-                "function", "return", "exit", "export", "local", "readonly", "in", "select",
-                "until", "true", "false",
-            ],
-            comment_prefix: "#",
-            builtins: &[
-                "echo", "cd", "ls", "cat", "grep", "sed", "awk", "find", "sort", "uniq", "wc",
-                "head", "tail", "mkdir", "rm", "cp", "mv", "chmod", "chown", "curl", "wget",
-            ],
-        }),
-        _ => None,
-    }
-}
-
-/// Highlight a single code line using simple keyword matching.
-///
-/// Returns styled segments with colors for keywords, strings, comments,
-/// numbers, and builtins.
-fn highlight_code_line(
-    line: &str,
-    lang_def: Option<&LanguageDef>,
-    theme: &ThemeColors,
-    show_bg: bool,
-) -> StyledLine {
-    let code_bg = if show_bg {
-        Some(subtle_bg(theme))
-    } else {
-        None
-    };
-
-    let Some(def) = lang_def else {
-        // No language definition — plain text with optional background.
-        return StyledLine::new(vec![StyledSegment {
-            text: line.to_string(),
-            bg: code_bg,
-            ..Default::default()
-        }]);
-    };
-
-    // Check for full-line comment.
-    if !def.comment_prefix.is_empty() && line.trim_start().starts_with(def.comment_prefix) {
-        return StyledLine::new(vec![StyledSegment {
-            text: line.to_string(),
-            fg: Some(theme.palette[8]), // dim grey
-            bg: code_bg,
-            italic: true,
-            ..Default::default()
-        }]);
-    }
-
-    // Tokenize the line into segments.
-    let mut segments = Vec::new();
-    let mut chars = line.char_indices().peekable();
-
-    while let Some(&(byte_pos, ch)) = chars.peek() {
-        // String literal.
-        if ch == '"' || ch == '\'' {
-            let quote = ch;
-            let start = byte_pos;
-            chars.next(); // consume opening quote
-            let mut escaped = false;
-            while let Some(&(_, c)) = chars.peek() {
-                chars.next();
-                if escaped {
-                    escaped = false;
-                } else if c == '\\' {
-                    escaped = true;
-                } else if c == quote {
-                    break;
-                }
-            }
-            let end = chars.peek().map(|&(i, _)| i).unwrap_or(line.len());
-            segments.push(StyledSegment {
-                text: line[start..end].to_string(),
-                fg: Some(theme.palette[10]), // bright green
-                bg: code_bg,
-                ..Default::default()
-            });
-            continue;
-        }
-
-        // Inline comment.
-        if !def.comment_prefix.is_empty() && line[byte_pos..].starts_with(def.comment_prefix) {
-            segments.push(StyledSegment {
-                text: line[byte_pos..].to_string(),
-                fg: Some(theme.palette[8]),
-                bg: code_bg,
-                italic: true,
-                ..Default::default()
-            });
-            break;
-        }
-
-        // Word (identifier or keyword).
-        if ch.is_alphanumeric() || ch == '_' {
-            let start = byte_pos;
-            while let Some(&(_, c)) = chars.peek() {
-                if c.is_alphanumeric() || c == '_' {
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            let end = chars.peek().map(|&(i, _)| i).unwrap_or(line.len());
-            let word = &line[start..end];
-
-            let fg = if def.keywords.contains(&word) {
-                Some(theme.palette[13]) // bright magenta
-            } else if def.builtins.contains(&word) {
-                Some(theme.palette[14]) // bright cyan
-            } else if word
-                .chars()
-                .all(|c| c.is_ascii_digit() || c == '_' || c == '.')
-            {
-                Some(theme.palette[11]) // bright yellow
-            } else {
-                None
-            };
-
-            segments.push(StyledSegment {
-                text: word.to_string(),
-                fg,
-                bg: code_bg,
-                ..Default::default()
-            });
-            continue;
-        }
-
-        // Number (starting with digit).
-        if ch.is_ascii_digit() {
-            let start = byte_pos;
-            while let Some(&(_, c)) = chars.peek() {
-                if c.is_ascii_digit() || c == '.' || c == 'x' || c == 'o' || c == 'b' || c == '_' {
-                    chars.next();
-                } else {
-                    break;
-                }
-            }
-            let end = chars.peek().map(|&(i, _)| i).unwrap_or(line.len());
-            segments.push(StyledSegment {
-                text: line[start..end].to_string(),
-                fg: Some(theme.palette[11]), // bright yellow
-                bg: code_bg,
-                ..Default::default()
-            });
-            continue;
-        }
-
-        // Other character (punctuation, whitespace, etc.).
-        let start = byte_pos;
-        chars.next();
-        let end = chars.peek().map(|&(i, _)| i).unwrap_or(line.len());
-        segments.push(StyledSegment {
-            text: line[start..end].to_string(),
-            bg: code_bg,
-            ..Default::default()
-        });
-    }
-
-    if segments.is_empty() {
-        // Empty line within code block.
-        segments.push(StyledSegment {
-            text: String::new(),
-            bg: code_bg,
-            ..Default::default()
-        });
-    }
-
-    StyledLine::new(segments)
 }
 
 // ---------------------------------------------------------------------------
@@ -770,8 +199,15 @@ impl MarkdownRenderer {
 
         // Header
         if let Some(caps) = re_header().captures(line) {
-            let level = caps.get(1).unwrap().as_str().len();
-            let content = caps.get(2).unwrap().as_str();
+            let level = caps
+                .get(1)
+                .expect("re_header capture group 1 (hashes) must be present after a match")
+                .as_str()
+                .len();
+            let content = caps
+                .get(2)
+                .expect("re_header capture group 2 (content) must be present after a match")
+                .as_str();
             return self.render_header(level, content, theme, footnote_links);
         }
 
@@ -782,22 +218,46 @@ impl MarkdownRenderer {
 
         // Blockquote
         if let Some(caps) = re_blockquote().captures(line) {
-            let content = caps.get(1).unwrap().as_str();
+            let content = caps
+                .get(1)
+                .expect("re_blockquote capture group 1 (content) must be present after a match")
+                .as_str();
             return self.render_blockquote(content, theme, footnote_links);
         }
 
         // Unordered list
         if let Some(caps) = re_unordered_list().captures(line) {
-            let indent = caps.get(1).unwrap().as_str();
-            let content = caps.get(3).unwrap().as_str();
+            let indent = caps
+                .get(1)
+                .expect(
+                    "re_unordered_list capture group 1 (indent) must be present after a match",
+                )
+                .as_str();
+            let content = caps
+                .get(3)
+                .expect(
+                    "re_unordered_list capture group 3 (content) must be present after a match",
+                )
+                .as_str();
             return self.render_unordered_list(indent, content, theme, footnote_links);
         }
 
         // Ordered list
         if let Some(caps) = re_ordered_list().captures(line) {
-            let indent = caps.get(1).unwrap().as_str();
-            let number = caps.get(2).unwrap().as_str();
-            let content = caps.get(3).unwrap().as_str();
+            let indent = caps
+                .get(1)
+                .expect("re_ordered_list capture group 1 (indent) must be present after a match")
+                .as_str();
+            let number = caps
+                .get(2)
+                .expect("re_ordered_list capture group 2 (number) must be present after a match")
+                .as_str();
+            let content = caps
+                .get(3)
+                .expect(
+                    "re_ordered_list capture group 3 (content) must be present after a match",
+                )
+                .as_str();
             return self.render_ordered_list(indent, number, content, theme, footnote_links);
         }
 
@@ -1132,15 +592,6 @@ fn header_brightness(level: usize, theme: &ThemeColors) -> [u8; 3] {
     ]
 }
 
-/// Compute a subtle background highlight for inline code / code blocks.
-fn subtle_bg(theme: &ThemeColors) -> [u8; 3] {
-    [
-        theme.bg[0].saturating_add(25),
-        theme.bg[1].saturating_add(25),
-        theme.bg[2].saturating_add(25),
-    ]
-}
-
 // ---------------------------------------------------------------------------
 // ContentRenderer trait implementation
 // ---------------------------------------------------------------------------
@@ -1206,7 +657,9 @@ impl ContentRenderer for MarkdownRenderer {
                         .is_some_and(|lang| self.diagram_renderer.is_diagram_language(lang));
 
                     if is_diagram {
-                        let lang = language.as_deref().unwrap();
+                        let lang = language
+                            .as_deref()
+                            .expect("is_diagram implies language is Some");
                         let source_refs: Vec<&str> =
                             code_lines.iter().map(String::as_str).collect();
                         let (diagram_lines, diagram_mappings, diagram_graphics) = self
@@ -1398,8 +851,14 @@ pub fn register_markdown_renderer_with_diagrams(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prettifier::renderers::table::ColumnAlignment;
     use crate::prettifier::traits::RendererConfig;
     use crate::prettifier::types::ContentBlock;
+    use markdown_blocks::{
+        BlockElement, classify_blocks, is_separator_row, is_table_row, parse_alignment,
+        parse_table_cells,
+    };
+    use markdown_highlight::{get_language_def, highlight_code_line};
     use std::time::SystemTime;
 
     fn test_config() -> RendererConfig {

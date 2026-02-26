@@ -28,7 +28,7 @@ pub fn create_yaml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         .definitive_rule_shortcircuit(false) // Disabled so min_matching_rules is always respected
         .rule(DetectionRule {
             id: "yaml_doc_start".into(),
-            pattern: Regex::new(r"^---\s*$").unwrap(),
+            pattern: Regex::new(r"^---\s*$").expect("regex pattern is valid and should always compile"),
             weight: 0.5,
             scope: RuleScope::FirstLines(3),
             strength: RuleStrength::Definitive,
@@ -39,7 +39,7 @@ pub fn create_yaml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "yaml_key_value".into(),
-            pattern: Regex::new(r"^[a-zA-Z_][\w.\-]*:(\s|$)").unwrap(),
+            pattern: Regex::new(r"^[a-zA-Z_][\w.\-]*:(\s|$)").expect("yaml_key_value: pattern is valid and should always compile"),
             weight: 0.4,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -50,7 +50,7 @@ pub fn create_yaml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "yaml_nested".into(),
-            pattern: Regex::new(r"^\s{2,}[a-zA-Z_][\w.\-]*:(\s|$)").unwrap(),
+            pattern: Regex::new(r"^\s{2,}[a-zA-Z_][\w.\-]*:(\s|$)").expect("yaml_nested: pattern is valid and should always compile"),
             weight: 0.25,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -61,7 +61,7 @@ pub fn create_yaml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "yaml_list".into(),
-            pattern: Regex::new(r"^\s*-\s+\S").unwrap(),
+            pattern: Regex::new(r"^\s*-\s+\S").expect("regex pattern is valid and should always compile"),
             weight: 0.2,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,

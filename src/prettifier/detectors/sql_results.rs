@@ -26,7 +26,7 @@ pub fn create_sql_results_detector() -> crate::prettifier::regex_detector::Regex
         .definitive_rule_shortcircuit(true)
         .rule(DetectionRule {
             id: "sql_psql_separator".into(),
-            pattern: Regex::new(r"^-+\+-[-+]+$").unwrap(),
+            pattern: Regex::new(r"^-+\+-[-+]+$").expect("regex pattern is valid and should always compile"),
             weight: 0.4,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -37,7 +37,7 @@ pub fn create_sql_results_detector() -> crate::prettifier::regex_detector::Regex
         })
         .rule(DetectionRule {
             id: "sql_mysql_border".into(),
-            pattern: Regex::new(r"^\+[-+]+\+$").unwrap(),
+            pattern: Regex::new(r"^\+[-+]+\+$").expect("regex pattern is valid and should always compile"),
             weight: 0.6,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Definitive,
@@ -48,7 +48,7 @@ pub fn create_sql_results_detector() -> crate::prettifier::regex_detector::Regex
         })
         .rule(DetectionRule {
             id: "sql_row_count".into(),
-            pattern: Regex::new(r"^\(\d+ rows?\)$").unwrap(),
+            pattern: Regex::new(r"^\(\d+ rows?\)$").expect("sql_row_count: pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::LastLines(3),
             strength: RuleStrength::Supporting,
@@ -59,7 +59,7 @@ pub fn create_sql_results_detector() -> crate::prettifier::regex_detector::Regex
         })
         .rule(DetectionRule {
             id: "sql_command_context".into(),
-            pattern: Regex::new(r"(psql|mysql|sqlite3|pgcli|mycli)").unwrap(),
+            pattern: Regex::new(r"(psql|mysql|sqlite3|pgcli|mycli)").expect("sql_command_context: pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::PrecedingCommand,
             strength: RuleStrength::Supporting,
