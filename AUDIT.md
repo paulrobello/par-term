@@ -11,8 +11,6 @@
 
 par-term is a well-architected Rust terminal emulator with a clean 13-crate workspace, GPU-accelerated rendering via wgpu, and comprehensive feature set including inline graphics, custom shaders, ACP agents, tmux integration, and split panes. The project demonstrates strong competence in GPU pipeline design, async I/O, and cross-platform development.
 
-Rust's memory safety guarantees eliminate entire vulnerability classes. The codebase shows security awareness in several areas: proper shell quoting, HTML escaping, path canonicalization for ACP agents, credential leak prevention, and zip path traversal protection.
-
 39 findings have been resolved across six phases. The most pressing remaining issues center around:
 - **God Object**: `WindowState` (6,508 lines, ~90 fields, impl across 16 files)
 - **Monolithic render function**: `render()` at 3,462 lines
@@ -58,26 +56,6 @@ All tests pass, clippy produces 0 warnings, and the overall architecture is soun
 |---|----------|---------|----------|
 | L11 | Code Quality | No doc-tests (0 documented examples in `cargo test` output) | Project-wide |
 
-### Info (Positive Findings)
-
-| # | Category | Finding | Location |
-|---|----------|---------|----------|
-| I1 | Architecture | 13-crate workspace is a clean DAG with no circular dependencies | `Cargo.toml` workspace |
-| I2 | Architecture | Three-pass GPU pipeline (cells, graphics, egui) with dirty tracking is well-designed | `par-term-render/` |
-| I3 | Architecture | Input pipeline cleanly layered: winit -> keybindings -> hardcoded shortcuts -> VT sequences | `par-term-input/`, `par-term-keybindings/` |
-| I4 | Security | ACP agent write paths canonicalized and restricted to safe directories | `par-term-acp/src/agent.rs` |
-| I5 | Security | Sensitive commands redacted from auto-context sent to AI agents | `src/app/window_state.rs` |
-| I6 | Security | Dynamic profile fetcher refuses auth headers over plain HTTP | `src/profile/dynamic.rs` |
-| I7 | Security | Zip extraction uses `enclosed_name()` for path traversal protection | `par-term-update/src/self_updater.rs` |
-| I8 | Security | TLS uses platform certificate verifier (correct for production) | `par-term-update/src/http.rs`, `src/http.rs` |
-| I9 | Security | Proper process cleanup via `Drop` for `ScriptProcess` and `ScriptManager` | `par-term-scripting/src/process.rs` |
-| I10 | Code Quality | All tests pass; 0 clippy warnings | `cargo test`, `cargo clippy` |
-| I11 | Code Quality | `parking_lot::Mutex` used project-wide (no poisoning) with documented lock discipline | CLAUDE.md, MEMORY.md |
-| I12 | Docs | 38 markdown docs in `docs/` following consistent style guide with Mermaid diagrams | `docs/` |
-| I13 | Docs | CLAUDE.md is exceptional developer documentation with workflows, gotchas, crate dependency graph | `CLAUDE.md` |
-| I14 | Docs | All `unsafe` blocks have `// SAFETY:` comments | Project-wide |
-| I15 | Docs | Only 1 TODO in entire codebase -- excellent code hygiene | `src/app/window_manager.rs` |
-
 ---
 
 ## Detailed Findings
@@ -116,42 +94,15 @@ The project guideline says "Keep files under 500 lines; refactor files exceeding
 | 1,638 | `src/prettifier/renderers/diff.rs` |
 | 1,633 | `src/tab/mod.rs` |
 
-#### 1.3 Design Patterns Identified
-
-| Pattern | Where Used | Assessment |
-|---------|-----------|------------|
-| Workspace/Crate Module | 13 sub-crates | Excellent -- clean DAG |
-| Observer | `par-term-scripting`, shell lifecycle | Appropriate |
-| State Machine | Copy mode, tmux prefix | Good fit |
-| Command | `TabBarAction`, `StatusBarAction`, `MenuAction` | Good decoupling |
-| Builder (partial) | `RendererInitParams`, `PaneManager` | Incomplete -- should be extended |
-| Proxy/Facade | Re-export modules | Appropriate for migration |
-| LRU Cache | Glyph atlas, text shaping cache | Performance-appropriate |
-| RAII/Drop | Tab, Pane, SessionLogger, SystemMonitor | Well-implemented with fast-shutdown flag |
-| Tree Structure | `PaneNode` for pane splitting | Appropriate for arbitrary nesting |
-
-#### 1.4 Missing Typed Errors (M9)
+#### 1.3 Missing Typed Errors (M9)
 
 Only the prettifier subsystem defines `thiserror` error types. The rest relies on `anyhow::Result`. Sub-crates (`par-term-config`, `par-term-render`) would benefit from typed errors for config parsing failures, GPU errors, and terminal failures so callers can match on specific variants.
 
 ---
 
-### 2. Security Assessment
+### 2. Code Quality
 
-#### 2.1 Positive Security Findings
-
-- ACP agent file writes are canonicalized and restricted to safe root directories (`/tmp`, `shaders_dir`, `config_dir`)
-- Sensitive commands (password, token, secret, key, apikey, auth, credential) are redacted from AI agent context
-- Dynamic profile fetcher blocks auth headers over plain HTTP
-- Zip extraction uses `enclosed_name()` for path traversal protection
-- TLS uses platform certificate verifier
-- `ScriptProcess` and `ScriptManager` implement `Drop` for proper cleanup
-
----
-
-### 3. Code Quality
-
-#### 3.1 Monolithic Render Function (C1)
+#### 2.1 Monolithic Render Function (C1)
 
 The `render()` method at 3,462 lines handles FPS throttling, scroll animation, tab titles, font rebuilds, resize, cell generation, ACP agent message processing, cursor animation, all egui overlays (15+ panels), and GPU submission.
 
@@ -171,23 +122,19 @@ pub(crate) fn render(&mut self) {
 }
 ```
 
-#### 3.2 Production unwrap() Calls (M12)
+#### 2.2 Production unwrap() Calls (M12)
 
 680 `unwrap()` calls across the codebase. Most concerning: `self.window.as_ref().unwrap()` in the render path would crash with no useful error message. Either make `window` non-optional (require at construction) or use early-return patterns.
 
-#### 3.3 Cell Cloning in Render Path (M15)
+#### 2.3 Cell Cloning in Render Path (M15)
 
 The cell vector (cols * rows elements) is cloned on every cache hit and cache store, doubling allocation cost. Consider `Arc<Vec<Cell>>` or a double-buffer pattern.
 
 ---
 
-### 4. Documentation
+### 3. Documentation
 
-#### 4.1 Overall Assessment: A-
-
-The project has exceptionally strong documentation for a Rust project of its size: 38 markdown files in `docs/`, a comprehensive README, detailed ARCHITECTURE.md with Mermaid diagrams, a documentation style guide, CONTRIBUTING.md, SECURITY.md, GETTING_STARTED.md, and TROUBLESHOOTING.md. All `unsafe` blocks have SAFETY comments. Only 1 TODO in the entire codebase.
-
-#### 4.2 Rustdoc Coverage by Crate
+#### 3.1 Rustdoc Coverage by Crate
 
 | Crate | Coverage | Assessment |
 |-------|----------|------------|
@@ -206,7 +153,7 @@ The project has exceptionally strong documentation for a Rust project of its siz
 | par-term-config | ~44% | Poor -- this is the user-facing config crate |
 | par-term-acp | ~32% | Poor -- architecturally complex crate |
 
-#### 4.3 Remaining Documentation Gaps
+#### 3.2 Remaining Documentation Gaps
 
 - **Centralized config reference** (H11): 386 config fields scattered across 30+ docs with no single reference.
 - **Rustdoc coverage** (H12, M21): Several crates below 70% target.
@@ -233,18 +180,3 @@ The project has exceptionally strong documentation for a Rust project of its siz
 - [ ] **M12**: Audit `unwrap()` calls in storage/I/O paths; make `window` non-optional
 - [ ] **M15**: Investigate `Arc<Vec<Cell>>` or double-buffering for cell cache
 - [ ] **L11**: Add doc-tests to key public API items in sub-crates
-
----
-
-## Testing & Tooling Status
-
-| Metric | Value | Assessment |
-|--------|-------|------------|
-| Total tests | 1,507 | Strong |
-| Test pass rate | 100% | Excellent |
-| Clippy warnings | 0 | Excellent |
-| Unit tests | 999 | Good coverage |
-| Integration tests | 508+ across 26 files | Good |
-| Doc-tests | 0 | Gap |
-| `unsafe` blocks documented | 100% | Excellent |
-| TODO/FIXME count | 1 | Excellent hygiene |
