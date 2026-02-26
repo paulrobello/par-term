@@ -85,9 +85,9 @@ type PaneRenderData = (
     Option<(usize, usize)>,
     f32,
     Vec<ScrollbackMark>,
-    usize,                               // scrollback_len
-    usize,                               // scroll_offset
-    Option<crate::pane::PaneBackground>, // per-pane background
+    usize,                                                  // scrollback_len
+    usize,                                                  // scroll_offset
+    Option<crate::pane::PaneBackground>,                    // per-pane background
     Vec<par_term_emu_core_rust::graphics::TerminalGraphic>, // per-pane inline graphics
 );
 
@@ -4567,36 +4567,47 @@ impl WindowState {
                                     // Collect inline graphics (Sixel/iTerm2/Kitty) from this
                                     // pane's PTY terminal.  Each pane has its own PTY so graphics
                                     // are never in the shared tab.terminal.
-                                    let pane_graphics =
-                                        if let Ok(term) = pane.terminal.try_lock() {
-                                            let mut g = term.get_graphics_with_animations();
-                                            let sb = term.get_scrollback_graphics();
+                                    let pane_graphics = if let Ok(term) = pane.terminal.try_lock() {
+                                        let mut g = term.get_graphics_with_animations();
+                                        let sb = term.get_scrollback_graphics();
+                                        crate::debug_log!(
+                                            "GRAPHICS",
+                                            "pane {:?}: active_graphics={}, scrollback_graphics={}, scrollback_len={}, scroll_offset={}, visible_rows={}, viewport=({},{},{}x{})",
+                                            pane_id,
+                                            g.len(),
+                                            sb.len(),
+                                            pane_scrollback_len,
+                                            pane_scroll_offset,
+                                            rows,
+                                            viewport.x,
+                                            viewport.y,
+                                            viewport.width,
+                                            viewport.height
+                                        );
+                                        for (i, gfx) in g.iter().chain(sb.iter()).enumerate() {
                                             crate::debug_log!(
                                                 "GRAPHICS",
-                                                "pane {:?}: active_graphics={}, scrollback_graphics={}, scrollback_len={}, scroll_offset={}, visible_rows={}, viewport=({},{},{}x{})",
-                                                pane_id,
-                                                g.len(),
-                                                sb.len(),
-                                                pane_scrollback_len,
-                                                pane_scroll_offset,
-                                                rows,
-                                                viewport.x, viewport.y, viewport.width, viewport.height
+                                                "  graphic[{}]: id={}, pos=({},{}), scroll_offset_rows={}, scrollback_row={:?}, size={}x{}",
+                                                i,
+                                                gfx.id,
+                                                gfx.position.0,
+                                                gfx.position.1,
+                                                gfx.scroll_offset_rows,
+                                                gfx.scrollback_row,
+                                                gfx.width,
+                                                gfx.height
                                             );
-                                            for (i, gfx) in g.iter().chain(sb.iter()).enumerate() {
-                                                crate::debug_log!(
-                                                    "GRAPHICS",
-                                                    "  graphic[{}]: id={}, pos=({},{}), scroll_offset_rows={}, scrollback_row={:?}, size={}x{}",
-                                                    i, gfx.id, gfx.position.0, gfx.position.1,
-                                                    gfx.scroll_offset_rows, gfx.scrollback_row,
-                                                    gfx.width, gfx.height
-                                                );
-                                            }
-                                            g.extend(sb);
-                                            g
-                                        } else {
-                                            crate::debug_log!("GRAPHICS", "pane {:?}: try_lock() failed, no graphics", pane_id);
-                                            Vec::new()
-                                        };
+                                        }
+                                        g.extend(sb);
+                                        g
+                                    } else {
+                                        crate::debug_log!(
+                                            "GRAPHICS",
+                                            "pane {:?}: try_lock() failed, no graphics",
+                                            pane_id
+                                        );
+                                        Vec::new()
+                                    };
 
                                     pane_data.push((
                                         viewport,
@@ -4613,7 +4624,13 @@ impl WindowState {
                                 }
                             }
 
-                            Some((pane_data, dividers, pane_titles, focused_viewport, focused_pane_scrollback_len))
+                            Some((
+                                pane_data,
+                                dividers,
+                                pane_titles,
+                                focused_viewport,
+                                focused_pane_scrollback_len,
+                            ))
                         } else {
                             None
                         }
@@ -4622,7 +4639,13 @@ impl WindowState {
                     }
                 };
 
-                if let Some((pane_data, dividers, pane_titles, focused_viewport, focused_pane_scrollback_len)) = pane_render_data
+                if let Some((
+                    pane_data,
+                    dividers,
+                    pane_titles,
+                    focused_viewport,
+                    focused_pane_scrollback_len,
+                )) = pane_render_data
                 {
                     // Update tab cache with the focused pane's scrollback_len so that scroll
                     // operations (mouse wheel, Page Up/Down, etc.) see the correct limit.

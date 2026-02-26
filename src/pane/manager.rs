@@ -628,7 +628,6 @@ impl PaneManager {
         self.resize_all_terminals_with_padding(cell_width, cell_height, 0.0, 0.0);
     }
 
-
     /// Resize all terminal PTYs to match their pane bounds, accounting for padding.
     ///
     /// The padding reduces the content area where text is rendered, so terminals

@@ -215,7 +215,13 @@ impl Renderer {
 
         log::debug!(
             "[PANE_GRAPHICS] update_pane_graphics: scrollback_len={}, visible_rows={}, view_scroll_offset={}, total_lines={}, view_start={}, view_end={}, graphics_count={}",
-            scrollback_len, visible_rows, view_scroll_offset, total_lines, view_start, view_end, graphics.len()
+            scrollback_len,
+            visible_rows,
+            view_scroll_offset,
+            total_lines,
+            view_start,
+            view_end,
+            graphics.len()
         );
 
         let mut positioned = Vec::new();
@@ -243,7 +249,10 @@ impl Renderer {
                 let sr = sb_row as isize - view_start as isize;
                 log::debug!(
                     "[PANE_GRAPHICS] scrollback graphic id={}: sb_row={}, view_start={}, screen_row={}",
-                    id, sb_row, view_start, sr
+                    id,
+                    sb_row,
+                    view_start,
+                    sr
                 );
                 sr
             } else {
@@ -252,7 +261,16 @@ impl Renderer {
                 let sr = absolute_row as isize - view_start as isize;
                 log::debug!(
                     "[PANE_GRAPHICS] current graphic id={}: scrollback_len={}, scroll_offset_rows={}, core_cell_h={}, disp_cell_h={}, scroll_in_display_rows={}, row={}, absolute_row={}, view_start={}, screen_row={}",
-                    id, scrollback_len, graphic.scroll_offset_rows, core_cell_height, display_cell_height, scroll_offset_in_display_rows, row, absolute_row, view_start, sr
+                    id,
+                    scrollback_len,
+                    graphic.scroll_offset_rows,
+                    core_cell_height,
+                    display_cell_height,
+                    scroll_offset_in_display_rows,
+                    row,
+                    absolute_row,
+                    view_start,
+                    sr
                 );
                 sr
             };
@@ -270,8 +288,7 @@ impl Renderer {
             let width_cells =
                 ((graphic.width as f32 / self.cell_renderer.cell_width()).ceil() as usize).max(1);
             let height_cells =
-                ((graphic.height as f32 / self.cell_renderer.cell_height()).ceil() as usize)
-                    .max(1);
+                ((graphic.height as f32 / self.cell_renderer.cell_height()).ceil() as usize).max(1);
 
             let effective_clip_rows = if screen_row < 0 {
                 (-screen_row) as usize
@@ -346,14 +363,25 @@ impl Renderer {
 
             log::debug!(
                 "[PANE_GRAPHICS] render_pane_sixel_graphics: scissor=({},{},{},{}), origin=({},{}), window={}x{}, positioned_count={}",
-                sx, sy, sw, sh, ox, oy,
-                self.size.width, self.size.height,
+                sx,
+                sy,
+                sw,
+                sh,
+                ox,
+                oy,
+                self.size.width,
+                self.size.height,
                 positioned.len()
             );
             for (id, screen_row, col, wc, hc, _, clip) in &positioned {
                 log::debug!(
                     "[PANE_GRAPHICS]   positioned: id={}, screen_row={}, col={}, width_cells={}, height_cells={}, clip_rows={}",
-                    id, screen_row, col, wc, hc, clip
+                    id,
+                    screen_row,
+                    col,
+                    wc,
+                    hc,
+                    clip
                 );
             }
 
