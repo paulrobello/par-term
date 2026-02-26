@@ -60,7 +60,7 @@ struct ScrollbarUniforms {
 
 struct ScrollbarMarkInstance {
     bind_group: BindGroup,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // GPU lifetime: must outlive bind_group which references this buffer
     buffer: Buffer,
 }
 
@@ -476,17 +476,14 @@ impl Scrollbar {
     }
 
     /// Update scrollbar position side (left/right)
-    #[allow(dead_code)]
     pub fn update_position(&mut self, position: &str) {
         self.position_right = !position.eq_ignore_ascii_case("left");
     }
 
-    #[allow(dead_code)]
     pub fn width(&self) -> f32 {
         self.width
     }
 
-    #[allow(dead_code)]
     pub fn position_right(&self) -> bool {
         self.position_right
     }
@@ -559,7 +556,6 @@ impl Scrollbar {
     }
 
     /// Whether the scrollbar is currently visible
-    #[allow(dead_code)]
     pub fn is_visible(&self) -> bool {
         self.visible
     }

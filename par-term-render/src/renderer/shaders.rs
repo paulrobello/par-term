@@ -161,7 +161,6 @@ pub(super) fn init_cursor_shader(
 
 impl Renderer {
     /// Enable or disable animation for the custom shader at runtime
-    #[allow(dead_code)]
     pub fn set_custom_shader_animation(&mut self, enabled: bool) {
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
             custom_shader.set_animation_enabled(enabled);
@@ -430,7 +429,6 @@ impl Renderer {
     }
 
     /// Get the current cursor shader path
-    #[allow(dead_code)]
     pub fn cursor_shader_path(&self) -> Option<&str> {
         self.cursor_shader_path.as_deref()
     }
@@ -646,7 +644,6 @@ impl Renderer {
     ///
     /// When enabled, the app's configured background image is bound as iChannel0
     /// instead of the custom_shader_channel0 texture file.
-    #[allow(dead_code)]
     pub fn set_use_background_as_channel0(&mut self, use_background: bool) {
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
             custom_shader
@@ -676,7 +673,6 @@ impl Renderer {
     /// - Per-shader config changes
     ///
     /// The background texture is always synced to ensure changes are reflected.
-    #[allow(dead_code)]
     pub fn update_background_as_channel0(&mut self, use_background: bool) {
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
             // Always sync the background texture first - it may have changed

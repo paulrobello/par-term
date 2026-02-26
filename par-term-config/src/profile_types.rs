@@ -171,7 +171,6 @@ pub struct Profile {
     pub source: ProfileSource,
 }
 
-#[allow(dead_code)]
 impl Profile {
     /// Create a new profile with the given name
     pub fn new(name: impl Into<String>) -> Self {
@@ -491,7 +490,6 @@ impl Default for Profile {
 
 /// Manages a collection of profiles
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)]
 pub struct ProfileManager {
     /// All profiles indexed by ID
     profiles: HashMap<ProfileId, Profile>,
@@ -500,7 +498,6 @@ pub struct ProfileManager {
     order: Vec<ProfileId>,
 }
 
-#[allow(dead_code)]
 impl ProfileManager {
     /// Create a new empty profile manager
     pub fn new() -> Self {

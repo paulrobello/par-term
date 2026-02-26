@@ -186,7 +186,6 @@ pub struct Renderer {
     pub(crate) cursor_shader_disabled_for_alt_screen: bool,
 
     // Debug overlay text
-    #[allow(dead_code)]
     pub(crate) debug_text: Option<String>,
 }
 
@@ -788,7 +787,6 @@ impl Renderer {
     /// Update window padding in real-time without full renderer rebuild.
     /// Accepts logical pixels (from config); scales to physical pixels internally.
     /// Returns Some((cols, rows)) if grid size changed and terminal needs resize.
-    #[allow(dead_code)]
     pub fn update_window_padding(&mut self, logical_padding: f32) -> Option<(usize, usize)> {
         let physical_padding = logical_padding * self.cell_renderer.scale_factor;
         let result = self.cell_renderer.update_window_padding(physical_padding);
@@ -819,7 +817,6 @@ impl Renderer {
     }
 
     /// Enable/disable background image and reload if needed
-    #[allow(dead_code)]
     pub fn set_background_image_enabled(
         &mut self,
         enabled: bool,
@@ -920,14 +917,12 @@ impl Renderer {
     }
 
     /// Update scrollbar position (left/right) in real-time
-    #[allow(dead_code)]
     pub fn update_scrollbar_position(&mut self, position: &str) {
         self.cell_renderer.update_scrollbar_position(position);
         self.dirty = true;
     }
 
     /// Update background image opacity in real-time
-    #[allow(dead_code)]
     pub fn update_background_image_opacity(&mut self, opacity: f32) {
         self.cell_renderer.update_background_image_opacity(opacity);
         self.dirty = true;
@@ -1158,7 +1153,6 @@ impl Renderer {
     ///
     /// # Returns
     /// `true` if rendering was performed, `false` if skipped
-    #[allow(dead_code)]
     pub fn render_panes(
         &mut self,
         panes: &[PaneRenderInfo<'_>],
@@ -1500,7 +1494,6 @@ impl Renderer {
     /// * `surface_view` - The texture view to render to
     /// * `dividers` - List of dividers to render with hover state
     /// * `settings` - Divider appearance settings
-    #[allow(dead_code)]
     pub fn render_dividers(
         &mut self,
         surface_view: &wgpu::TextureView,
@@ -1799,7 +1792,6 @@ impl Renderer {
     /// * `surface_view` - The texture view to render to
     /// * `viewport` - The focused pane's viewport
     /// * `settings` - Divider/focus settings
-    #[allow(dead_code)]
     pub fn render_focus_indicator(
         &mut self,
         surface_view: &wgpu::TextureView,
@@ -1919,7 +1911,6 @@ impl Renderer {
     ///
     /// Title bars are rendered on top of pane content and dividers.
     /// Each title bar consists of a colored background rectangle and centered text.
-    #[allow(dead_code)]
     pub fn render_pane_titles(
         &mut self,
         surface_view: &wgpu::TextureView,
@@ -2453,20 +2444,16 @@ impl Renderer {
     }
 
     /// Check if the renderer needs to be redrawn
-    #[allow(dead_code)]
     pub fn is_dirty(&self) -> bool {
         self.dirty
     }
 
     /// Mark the renderer as dirty, forcing a redraw on next render call
-    #[allow(dead_code)]
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }
 
     /// Set debug overlay text to be rendered
-    #[allow(dead_code)]
-    #[allow(dead_code)]
     pub fn render_debug_overlay(&mut self, text: &str) {
         self.debug_text = Some(text.to_string());
         self.dirty = true; // Mark dirty to ensure debug overlay renders
@@ -2498,7 +2485,6 @@ impl Renderer {
     }
 
     /// Get the current vsync mode
-    #[allow(dead_code)]
     pub fn current_vsync_mode(&self) -> par_term_config::VsyncMode {
         self.cell_renderer.current_vsync_mode()
     }

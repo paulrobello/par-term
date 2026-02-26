@@ -10,9 +10,10 @@
 ///    - Controlled by `RUST_LOG` environment variable
 ///    - Used by most application code and third-party crates
 ///
-/// Both write to `/tmp/par_term_debug.log` (Unix/macOS) or `%TEMP%\par_term_debug.log` (Windows).
+/// Both write to `<temp_dir>/par_term_debug.log` (respects `$TMPDIR` on Unix, `%TEMP%` on Windows).
 /// The log file is always created so that errors are captured even in GUI-only contexts
 /// (macOS app bundles, Windows GUI apps) where stderr is invisible.
+/// The log file is created with 0600 permissions on Unix and symlink-checked to prevent attacks.
 ///
 /// When `RUST_LOG` is set, `log` crate output is also mirrored to stderr for terminal debugging.
 use parking_lot::Mutex;
@@ -60,10 +61,16 @@ impl DebugLogger {
     fn new() -> Self {
         let level = DebugLevel::from_env();
 
-        #[cfg(unix)]
-        let log_path = std::path::PathBuf::from("/tmp/par_term_debug.log");
-        #[cfg(windows)]
         let log_path = std::env::temp_dir().join("par_term_debug.log");
+
+        // Security: refuse to open symlinks (prevents symlink attacks)
+        if log_path
+            .symlink_metadata()
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false)
+        {
+            let _ = std::fs::remove_file(&log_path);
+        }
 
         let file = OpenOptions::new()
             .write(true)
@@ -71,6 +78,13 @@ impl DebugLogger {
             .create(true)
             .open(&log_path)
             .ok();
+
+        // Security: restrict log file to owner-only access on Unix
+        #[cfg(unix)]
+        if file.is_some() {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&log_path, std::fs::Permissions::from_mode(0o600));
+        }
 
         let mut logger = DebugLogger { level, file };
         logger.write_raw(&format!(
@@ -142,14 +156,7 @@ fn get_timestamp() -> String {
 
 /// Get the path to the debug log file.
 pub fn log_path() -> std::path::PathBuf {
-    #[cfg(unix)]
-    {
-        std::path::PathBuf::from("/tmp/par_term_debug.log")
-    }
-    #[cfg(windows)]
-    {
-        std::env::temp_dir().join("par_term_debug.log")
-    }
+    std::env::temp_dir().join("par_term_debug.log")
 }
 
 /// Check if debugging is enabled at given level (for custom debug macros)

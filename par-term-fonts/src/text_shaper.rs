@@ -38,26 +38,21 @@ use unicode_segmentation::UnicodeSegmentation;
 #[derive(Debug, Clone, Copy)]
 pub struct ShapedGlyph {
     /// Glyph ID from the font
-    #[allow(dead_code)]
     pub glyph_id: u32,
 
     /// Cluster index (which input character(s) this glyph represents)
-    #[allow(dead_code)]
     pub cluster: u32,
 
     /// Horizontal advance width in pixels
     pub x_advance: f32,
 
     /// Vertical advance (usually 0 for horizontal text)
-    #[allow(dead_code)]
     pub y_advance: f32,
 
     /// Horizontal offset from the current position
-    #[allow(dead_code)]
     pub x_offset: f32,
 
     /// Vertical offset from the baseline
-    #[allow(dead_code)]
     pub y_offset: f32,
 }
 
@@ -100,19 +95,15 @@ impl Default for ShapingOptions {
 #[derive(Debug, Clone)]
 pub struct ShapedRun {
     /// The input text that was shaped
-    #[allow(dead_code)]
     pub text: String,
 
     /// The shaped glyphs
-    #[allow(dead_code)]
     pub glyphs: Vec<ShapedGlyph>,
 
     /// Total advance width in pixels
-    #[allow(dead_code)]
     pub total_advance: f32,
 
     /// Grapheme cluster boundaries (indices into the text)
-    #[allow(dead_code)]
     pub cluster_boundaries: Vec<usize>,
 }
 
@@ -164,7 +155,6 @@ impl TextShaper {
     ///
     /// Regional indicators are pairs of characters U+1F1E6-U+1F1FF
     /// that combine to form flag emoji (e.g., 🇺🇸 = U+1F1FA + U+1F1F8)
-    #[allow(dead_code)]
     pub fn is_regional_indicator_pair(&self, grapheme: &str) -> bool {
         let chars: Vec<char> = grapheme.chars().collect();
         if chars.len() == 2 {
@@ -181,7 +171,6 @@ impl TextShaper {
     /// Check if a grapheme contains a Zero Width Joiner (ZWJ)
     ///
     /// ZWJ sequences are used for complex emoji like family emoji (👨‍👩‍👧‍👦)
-    #[allow(dead_code)]
     pub fn contains_zwj(&self, grapheme: &str) -> bool {
         grapheme.contains('\u{200D}')
     }
@@ -353,13 +342,11 @@ impl TextShaper {
     }
 
     /// Clear the shape cache
-    #[allow(dead_code)]
     pub fn clear_cache(&mut self) {
         self.shape_cache.clear();
     }
 
     /// Get the current cache size
-    #[allow(dead_code)]
     pub fn cache_size(&self) -> usize {
         self.shape_cache.len()
     }

@@ -18,14 +18,11 @@ struct SixelInstance {
 
 /// Metadata for a cached sixel texture
 struct SixelTextureInfo {
-    #[allow(dead_code)]
     texture: Texture,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // GPU lifetime: must outlive the bind_group which references this view
     view: TextureView,
     bind_group: BindGroup,
-    #[allow(dead_code)]
     width: u32,
-    #[allow(dead_code)]
     height: u32,
 }
 
@@ -580,19 +577,16 @@ impl GraphicsRenderer {
     }
 
     /// Remove a texture from the cache
-    #[allow(dead_code)]
     pub fn remove_texture(&mut self, id: u64) {
         self.texture_cache.remove(&id);
     }
 
     /// Clear all cached textures
-    #[allow(dead_code)]
     pub fn clear_cache(&mut self) {
         self.texture_cache.clear();
     }
 
     /// Get the number of cached textures
-    #[allow(dead_code)]
     pub fn cache_size(&self) -> usize {
         self.texture_cache.len()
     }

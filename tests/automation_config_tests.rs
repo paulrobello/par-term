@@ -29,8 +29,8 @@ fn test_trigger_config_yaml_roundtrip() {
         ],
     };
 
-    let yaml = serde_yaml::to_string(&trigger).unwrap();
-    let deserialized: TriggerConfig = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&trigger).unwrap();
+    let deserialized: TriggerConfig = serde_yml::from_str(&yaml).unwrap();
     assert_eq!(trigger, deserialized);
 }
 
@@ -42,7 +42,7 @@ pattern: "foo"
 enabled: false
 actions: []
 "#;
-    let trigger: TriggerConfig = serde_yaml::from_str(yaml).unwrap();
+    let trigger: TriggerConfig = serde_yml::from_str(yaml).unwrap();
     assert!(!trigger.enabled);
 }
 
@@ -53,7 +53,7 @@ fn test_trigger_config_defaults() {
 name: test
 pattern: "foo"
 "#;
-    let trigger: TriggerConfig = serde_yaml::from_str(yaml).unwrap();
+    let trigger: TriggerConfig = serde_yml::from_str(yaml).unwrap();
     assert!(trigger.enabled);
     assert!(trigger.actions.is_empty());
 }
@@ -100,8 +100,8 @@ fn test_all_trigger_action_variants_serialize_deserialize() {
     ];
 
     for action in &actions {
-        let yaml = serde_yaml::to_string(action).unwrap();
-        let deserialized: TriggerActionConfig = serde_yaml::from_str(&yaml).unwrap();
+        let yaml = serde_yml::to_string(action).unwrap();
+        let deserialized: TriggerActionConfig = serde_yml::from_str(&yaml).unwrap();
         assert_eq!(action, &deserialized);
     }
 }
@@ -111,7 +111,7 @@ fn test_trigger_action_highlight_defaults() {
     let yaml = r#"
 type: highlight
 "#;
-    let action: TriggerActionConfig = serde_yaml::from_str(yaml).unwrap();
+    let action: TriggerActionConfig = serde_yml::from_str(yaml).unwrap();
     assert_eq!(
         action,
         TriggerActionConfig::Highlight {
@@ -127,7 +127,7 @@ fn test_trigger_action_play_sound_defaults() {
     let yaml = r#"
 type: play_sound
 "#;
-    let action: TriggerActionConfig = serde_yaml::from_str(yaml).unwrap();
+    let action: TriggerActionConfig = serde_yml::from_str(yaml).unwrap();
     assert_eq!(
         action,
         TriggerActionConfig::PlaySound {
@@ -242,8 +242,8 @@ fn test_coprocess_def_config_yaml_roundtrip() {
         restart_delay_ms: 0,
     };
 
-    let yaml = serde_yaml::to_string(&coproc).unwrap();
-    let deserialized: CoprocessDefConfig = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&coproc).unwrap();
+    let deserialized: CoprocessDefConfig = serde_yml::from_str(&yaml).unwrap();
     assert_eq!(coproc, deserialized);
 }
 
@@ -253,7 +253,7 @@ fn test_coprocess_def_config_defaults() {
 name: test
 command: /bin/cat
 "#;
-    let coproc: CoprocessDefConfig = serde_yaml::from_str(yaml).unwrap();
+    let coproc: CoprocessDefConfig = serde_yml::from_str(yaml).unwrap();
     assert_eq!(coproc.name, "test");
     assert_eq!(coproc.command, "/bin/cat");
     assert!(coproc.args.is_empty());
@@ -287,8 +287,8 @@ fn test_config_with_triggers_and_coprocesses_yaml_roundtrip() {
         restart_delay_ms: 0,
     }];
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
-    let deserialized: Config = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
+    let deserialized: Config = serde_yml::from_str(&yaml).unwrap();
     assert_eq!(config.triggers, deserialized.triggers);
     assert_eq!(config.coprocesses, deserialized.coprocesses);
 }
@@ -303,8 +303,8 @@ fn test_prettify_action_yaml_roundtrip() {
         command_filter: Some(r"^myapi\s+".into()),
     };
 
-    let yaml = serde_yaml::to_string(&action).unwrap();
-    let deserialized: TriggerActionConfig = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&action).unwrap();
+    let deserialized: TriggerActionConfig = serde_yml::from_str(&yaml).unwrap();
     assert_eq!(action, deserialized);
 }
 
@@ -314,7 +314,7 @@ fn test_prettify_action_defaults() {
 type: prettify
 format: json
 "#;
-    let action: TriggerActionConfig = serde_yaml::from_str(yaml).unwrap();
+    let action: TriggerActionConfig = serde_yml::from_str(yaml).unwrap();
     assert_eq!(
         action,
         TriggerActionConfig::Prettify {
@@ -335,7 +335,7 @@ type: prettify
 format: json
 scope: line
 "#;
-    let action: TriggerActionConfig = serde_yaml::from_str(yaml).unwrap();
+    let action: TriggerActionConfig = serde_yml::from_str(yaml).unwrap();
     match action {
         TriggerActionConfig::Prettify { scope, .. } => assert_eq!(scope, PrettifyScope::Line),
         _ => panic!("expected Prettify"),
@@ -347,7 +347,7 @@ type: prettify
 format: json
 scope: block
 "#;
-    let action: TriggerActionConfig = serde_yaml::from_str(yaml).unwrap();
+    let action: TriggerActionConfig = serde_yml::from_str(yaml).unwrap();
     match action {
         TriggerActionConfig::Prettify { scope, .. } => assert_eq!(scope, PrettifyScope::Block),
         _ => panic!("expected Prettify"),
@@ -359,7 +359,7 @@ type: prettify
 format: json
 scope: command_output
 "#;
-    let action: TriggerActionConfig = serde_yaml::from_str(yaml).unwrap();
+    let action: TriggerActionConfig = serde_yml::from_str(yaml).unwrap();
     match action {
         TriggerActionConfig::Prettify { scope, .. } => {
             assert_eq!(scope, PrettifyScope::CommandOutput);
@@ -412,8 +412,8 @@ fn test_prettify_none_format_serializes() {
         command_filter: Some(r"^bat\s+".into()),
     };
 
-    let yaml = serde_yaml::to_string(&action).unwrap();
-    let deserialized: TriggerActionConfig = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&action).unwrap();
+    let deserialized: TriggerActionConfig = serde_yml::from_str(&yaml).unwrap();
     assert_eq!(action, deserialized);
 
     match deserialized {
@@ -437,7 +437,7 @@ fn test_trigger_with_prettify_action_roundtrip() {
         }],
     };
 
-    let yaml = serde_yaml::to_string(&trigger).unwrap();
-    let deserialized: TriggerConfig = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&trigger).unwrap();
+    let deserialized: TriggerConfig = serde_yml::from_str(&yaml).unwrap();
     assert_eq!(trigger, deserialized);
 }

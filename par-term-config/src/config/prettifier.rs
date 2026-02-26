@@ -733,7 +733,7 @@ mod tests {
     #[test]
     fn test_yaml_deserialization_empty() {
         let yaml = "{}";
-        let config: PrettifierYamlConfig = serde_yaml::from_str(yaml).unwrap();
+        let config: PrettifierYamlConfig = serde_yml::from_str(yaml).unwrap();
         assert!(config.respect_alternate_screen);
         assert_eq!(config.detection.scope, "all");
     }
@@ -750,7 +750,7 @@ renderers:
   json:
     priority: 100
 "#;
-        let config: PrettifierYamlConfig = serde_yaml::from_str(yaml).unwrap();
+        let config: PrettifierYamlConfig = serde_yml::from_str(yaml).unwrap();
         assert_eq!(config.detection.scope, "all");
         assert!((config.detection.confidence_threshold - 0.8).abs() < f32::EPSILON);
         assert!(!config.renderers.markdown.enabled);
@@ -769,7 +769,7 @@ custom_renderers:
     render_command: "protoc --decode_raw"
     priority: 30
 "#;
-        let config: PrettifierYamlConfig = serde_yaml::from_str(yaml).unwrap();
+        let config: PrettifierYamlConfig = serde_yml::from_str(yaml).unwrap();
         assert_eq!(config.custom_renderers.len(), 1);
         assert_eq!(config.custom_renderers[0].id, "protobuf");
         assert_eq!(config.custom_renderers[0].priority, 30);
@@ -789,7 +789,7 @@ detection_rules:
       - id: "md_atx_header"
         enabled: false
 "#;
-        let config: PrettifierYamlConfig = serde_yaml::from_str(yaml).unwrap();
+        let config: PrettifierYamlConfig = serde_yml::from_str(yaml).unwrap();
         assert!(config.detection_rules.contains_key("markdown"));
         let md_rules = &config.detection_rules["markdown"];
         assert_eq!(md_rules.additional.len(), 1);
@@ -811,7 +811,7 @@ detection_rules:
     #[test]
     fn test_override_serialization_skips_none() {
         let override_config = PrettifierConfigOverride::default();
-        let yaml = serde_yaml::to_string(&override_config).unwrap();
+        let yaml = serde_yml::to_string(&override_config).unwrap();
         // All fields are None, so YAML should be essentially empty
         assert_eq!(yaml.trim(), "{}");
     }

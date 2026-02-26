@@ -21,7 +21,6 @@ use winit::window::Window;
 /// Manages the native menu system
 pub struct MenuManager {
     /// The root menu
-    #[allow(dead_code)]
     menu: Menu,
     /// Mapping from menu item IDs to actions
     action_map: HashMap<MenuId, MenuAction>,

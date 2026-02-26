@@ -11,7 +11,6 @@ impl TerminalManager {
     }
 
     /// Get the most recent clipboard entry for a slot
-    #[allow(dead_code)]
     pub fn get_latest_clipboard(&self, slot: ClipboardSlot) -> Option<ClipboardEntry> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -20,7 +19,6 @@ impl TerminalManager {
     }
 
     /// Search clipboard history across all slots or a specific slot
-    #[allow(dead_code)]
     pub fn search_clipboard_history(
         &self,
         query: &str,
@@ -78,7 +76,6 @@ impl TerminalManager {
     }
 
     /// Set maximum clipboard history entries per slot
-    #[allow(dead_code)]
     pub fn set_max_clipboard_sync_history(&self, max: usize) {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();

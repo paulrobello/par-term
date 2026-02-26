@@ -2335,7 +2335,7 @@ impl Config {
             log::info!("Loading existing config from {:?}", config_path);
             let contents = fs::read_to_string(&config_path)?;
             let contents = substitute_variables(&contents);
-            let mut config: Config = serde_yaml::from_str(&contents)?;
+            let mut config: Config = serde_yml::from_str(&contents)?;
 
             // Merge in any new default keybindings that don't exist in user's config
             config.merge_default_keybindings();
@@ -2583,8 +2583,12 @@ impl Config {
             fs::create_dir_all(parent)?;
         }
 
-        let yaml = serde_yaml::to_string(self)?;
-        fs::write(&config_path, yaml)?;
+        let yaml = serde_yml::to_string(self)?;
+
+        // Atomic save: write to temp file then rename to prevent corruption on crash
+        let temp_path = config_path.with_extension("yaml.tmp");
+        fs::write(&temp_path, &yaml)?;
+        fs::rename(&temp_path, &config_path)?;
 
         Ok(())
     }
@@ -2750,7 +2754,6 @@ impl Config {
 
     /// Get the channel texture paths as an array of Options
     /// Returns [channel0, channel1, channel2, channel3] for iChannel0-3
-    #[allow(dead_code)]
     pub fn shader_channel_paths(&self) -> [Option<PathBuf>; 4] {
         [
             self.custom_shader_channel0
@@ -2770,7 +2773,6 @@ impl Config {
 
     /// Get the cubemap path prefix (resolved)
     /// Returns None if not configured, otherwise the resolved path prefix
-    #[allow(dead_code)]
     pub fn shader_cubemap_path(&self) -> Option<PathBuf> {
         self.custom_shader_cubemap
             .as_ref()
@@ -2778,7 +2780,6 @@ impl Config {
     }
 
     /// Set the window title
-    #[allow(dead_code)]
     pub fn with_title(mut self, title: impl Into<String>) -> Self {
         self.window_title = title.into();
         self
@@ -3105,8 +3106,12 @@ impl Config {
             last_working_directory: Some(directory.to_string()),
         };
 
-        let yaml = serde_yaml::to_string(&state)?;
-        fs::write(&state_path, yaml)?;
+        let yaml = serde_yml::to_string(&state)?;
+
+        // Atomic save: write to temp file then rename to prevent corruption on crash
+        let temp_path = state_path.with_extension("yaml.tmp");
+        fs::write(&temp_path, &yaml)?;
+        fs::rename(&temp_path, &state_path)?;
 
         log::debug!(
             "Saved last working directory to {:?}: {}",
@@ -3142,7 +3147,7 @@ impl Config {
 
         match fs::read_to_string(&state_path) {
             Ok(contents) => {
-                if let Ok(state) = serde_yaml::from_str::<SessionState>(&contents)
+                if let Ok(state) = serde_yml::from_str::<SessionState>(&contents)
                     && let Some(dir) = state.last_working_directory
                 {
                     log::debug!("Loaded last working directory from state file: {}", dir);

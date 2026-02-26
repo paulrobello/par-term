@@ -245,12 +245,12 @@ fn test_config_persistence_snippets() {
 
     // Save config
     let config_path = config_dir.join("config.yaml");
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     fs::write(&config_path, yaml).unwrap();
 
     // Load config
     let loaded_yaml = fs::read_to_string(&config_path).unwrap();
-    let loaded_config: Config = serde_yaml::from_str(&loaded_yaml).unwrap();
+    let loaded_config: Config = serde_yml::from_str(&loaded_yaml).unwrap();
 
     assert_eq!(loaded_config.snippets.len(), 1);
     assert_eq!(loaded_config.snippets[0].id, "test");
@@ -276,12 +276,12 @@ fn test_config_persistence_actions() {
 
     // Save config
     let config_path = config_dir.join("config.yaml");
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     fs::write(&config_path, yaml).unwrap();
 
     // Load config
     let loaded_yaml = fs::read_to_string(&config_path).unwrap();
-    let loaded_config: Config = serde_yaml::from_str(&loaded_yaml).unwrap();
+    let loaded_config: Config = serde_yml::from_str(&loaded_yaml).unwrap();
 
     assert_eq!(loaded_config.actions.len(), 1);
     assert_eq!(loaded_config.actions[0].id(), "test");
@@ -389,10 +389,10 @@ fn test_snippet_serialization() {
     .with_folder("Git".to_string());
 
     // Serialize
-    let yaml = serde_yaml::to_string(&snippet).unwrap();
+    let yaml = serde_yml::to_string(&snippet).unwrap();
 
     // Deserialize
-    let deserialized: SnippetConfig = serde_yaml::from_str(&yaml).unwrap();
+    let deserialized: SnippetConfig = serde_yml::from_str(&yaml).unwrap();
 
     assert_eq!(deserialized.id, snippet.id);
     assert_eq!(deserialized.title, snippet.title);
@@ -415,10 +415,10 @@ fn test_action_serialization() {
     };
 
     // Serialize
-    let yaml = serde_yaml::to_string(&action).unwrap();
+    let yaml = serde_yml::to_string(&action).unwrap();
 
     // Deserialize
-    let deserialized: CustomActionConfig = serde_yaml::from_str(&yaml).unwrap();
+    let deserialized: CustomActionConfig = serde_yml::from_str(&yaml).unwrap();
 
     assert_eq!(deserialized.id(), action.id());
     assert_eq!(deserialized.title(), action.title());
@@ -512,10 +512,10 @@ fn test_action_types_serialization_roundtrip() {
 
     for action in actions {
         // Serialize
-        let yaml = serde_yaml::to_string(&action).unwrap();
+        let yaml = serde_yml::to_string(&action).unwrap();
 
         // Deserialize
-        let deserialized: CustomActionConfig = serde_yaml::from_str(&yaml).unwrap();
+        let deserialized: CustomActionConfig = serde_yml::from_str(&yaml).unwrap();
 
         assert_eq!(deserialized.id(), action.id());
         assert_eq!(deserialized.title(), action.title());
@@ -677,13 +677,13 @@ fn test_snippet_serialization_with_auto_execute() {
     .with_auto_execute();
 
     // Serialize
-    let yaml = serde_yaml::to_string(&snippet).unwrap();
+    let yaml = serde_yml::to_string(&snippet).unwrap();
 
     // Check that auto_execute is in the YAML
     assert!(yaml.contains("auto_execute"));
 
     // Deserialize
-    let deserialized: SnippetConfig = serde_yaml::from_str(&yaml).unwrap();
+    let deserialized: SnippetConfig = serde_yml::from_str(&yaml).unwrap();
 
     assert_eq!(deserialized.id, snippet.id);
     assert!(deserialized.auto_execute);
@@ -948,11 +948,11 @@ fn test_action_keybinding_serialization_roundtrip() {
     };
 
     // Serialize
-    let yaml = serde_yaml::to_string(&action).unwrap();
+    let yaml = serde_yml::to_string(&action).unwrap();
     assert!(yaml.contains("keybinding"));
 
     // Deserialize
-    let deserialized: CustomActionConfig = serde_yaml::from_str(&yaml).unwrap();
+    let deserialized: CustomActionConfig = serde_yml::from_str(&yaml).unwrap();
     assert_eq!(deserialized.keybinding(), Some("Ctrl+Shift+T"));
     assert!(deserialized.keybinding_enabled());
 }
@@ -1017,10 +1017,10 @@ fn test_snippet_library_export_import() {
     };
 
     // Serialize
-    let yaml = serde_yaml::to_string(&library).unwrap();
+    let yaml = serde_yml::to_string(&library).unwrap();
 
     // Deserialize
-    let deserialized: SnippetLibrary = serde_yaml::from_str(&yaml).unwrap();
+    let deserialized: SnippetLibrary = serde_yml::from_str(&yaml).unwrap();
 
     assert_eq!(deserialized.snippets.len(), 2);
     assert_eq!(deserialized.snippets[0].id, "s1");
@@ -1044,10 +1044,10 @@ fn test_snippet_custom_variables_roundtrip() {
     .with_variable("name".to_string(), "World".to_string());
 
     // Serialize
-    let yaml = serde_yaml::to_string(&snippet).unwrap();
+    let yaml = serde_yml::to_string(&snippet).unwrap();
 
     // Deserialize
-    let deserialized: SnippetConfig = serde_yaml::from_str(&yaml).unwrap();
+    let deserialized: SnippetConfig = serde_yml::from_str(&yaml).unwrap();
 
     assert_eq!(deserialized.variables.len(), 2);
     assert_eq!(
@@ -1112,8 +1112,8 @@ fn test_snippet_library_empty() {
         snippets: Vec::new(),
     };
 
-    let yaml = serde_yaml::to_string(&library).unwrap();
-    let deserialized: SnippetLibrary = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&library).unwrap();
+    let deserialized: SnippetLibrary = serde_yml::from_str(&yaml).unwrap();
 
     assert!(deserialized.snippets.is_empty());
 }

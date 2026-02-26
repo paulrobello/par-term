@@ -131,8 +131,8 @@ mod tests {
             conflict_resolution: ConflictResolution::RemoteWins,
         };
 
-        let yaml = serde_yaml::to_string(&source).expect("serialize");
-        let deserialized: DynamicProfileSource = serde_yaml::from_str(&yaml).expect("deserialize");
+        let yaml = serde_yml::to_string(&source).expect("serialize");
+        let deserialized: DynamicProfileSource = serde_yml::from_str(&yaml).expect("deserialize");
 
         assert_eq!(deserialized.url, source.url);
         assert_eq!(deserialized.headers, source.headers);
@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn test_deserialize_minimal_yaml() {
         let yaml = "url: https://example.com/profiles.yaml\n";
-        let source: DynamicProfileSource = serde_yaml::from_str(yaml).expect("deserialize minimal");
+        let source: DynamicProfileSource = serde_yml::from_str(yaml).expect("deserialize minimal");
 
         assert_eq!(source.url, "https://example.com/profiles.yaml");
         assert!(source.headers.is_empty());

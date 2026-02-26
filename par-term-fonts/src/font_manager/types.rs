@@ -11,7 +11,6 @@ use swash::FontRef;
 #[derive(Clone)]
 pub struct FontData {
     /// Raw font data bytes (TTF/OTF)
-    #[allow(dead_code)]
     pub data: Arc<Vec<u8>>,
     /// Swash font reference for glyph operations
     pub font_ref: FontRef<'static>,

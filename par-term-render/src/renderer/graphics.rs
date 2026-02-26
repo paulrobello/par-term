@@ -9,7 +9,6 @@ impl Renderer {
     /// * `view_scroll_offset` - Current view scroll offset (0 = viewing current content)
     /// * `scrollback_len` - Total lines in scrollback buffer
     /// * `visible_rows` - Number of visible rows in terminal
-    #[allow(dead_code)]
     pub fn update_graphics(
         &mut self,
         graphics: &[par_term_emu_core_rust::graphics::TerminalGraphic],
@@ -467,7 +466,6 @@ impl Renderer {
     }
 
     /// Clear all cached sixel textures
-    #[allow(dead_code)]
     pub fn clear_sixel_cache(&mut self) {
         self.graphics_renderer.clear_cache();
         self.sixel_graphics.clear();
@@ -475,13 +473,11 @@ impl Renderer {
     }
 
     /// Get the number of cached sixel textures
-    #[allow(dead_code)]
     pub fn sixel_cache_size(&self) -> usize {
         self.graphics_renderer.cache_size()
     }
 
     /// Remove a specific sixel texture from cache
-    #[allow(dead_code)]
     pub fn remove_sixel_texture(&mut self, id: u64) {
         self.graphics_renderer.remove_texture(id);
         self.sixel_graphics

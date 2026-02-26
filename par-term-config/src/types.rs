@@ -79,7 +79,6 @@ pub fn color_tuple_to_f32_a(r: u8, g: u8, b: u8, alpha: f32) -> [f32; 4] {
 /// This enum is exported for potential future use (e.g., custom keybinding UI).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-#[allow(dead_code)]
 pub enum KeyModifier {
     /// Control key
     Ctrl,
@@ -1243,7 +1242,6 @@ pub struct CursorShaderMetadata {
 ///
 /// Created by merging user overrides, shader metadata defaults, and global defaults.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ResolvedShaderConfig {
     /// Animation speed multiplier
     pub animation_speed: f32,
@@ -1289,7 +1287,6 @@ impl Default for ResolvedShaderConfig {
 
 /// Fully resolved cursor shader configuration with all values filled in.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ResolvedCursorShaderConfig {
     /// Base resolved shader config
     pub base: ResolvedShaderConfig,

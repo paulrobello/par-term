@@ -4,7 +4,6 @@ use par_term_emu_core_rust::graphics::TerminalGraphic;
 impl TerminalManager {
     /// Get all graphics (Sixel, iTerm2, Kitty)
     /// Returns a vector of cloned TerminalGraphic objects for rendering
-    #[allow(dead_code)]
     pub fn get_graphics(&self) -> Vec<TerminalGraphic> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -28,7 +27,6 @@ impl TerminalManager {
     }
 
     /// Get graphics at a specific row
-    #[allow(dead_code)]
     pub fn get_graphics_at_row(&self, row: usize) -> Vec<TerminalGraphic> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -40,7 +38,6 @@ impl TerminalManager {
     }
 
     /// Get total graphics count
-    #[allow(dead_code)]
     pub fn graphics_count(&self) -> usize {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();

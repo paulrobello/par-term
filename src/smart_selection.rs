@@ -15,7 +15,7 @@ pub struct SmartSelectionMatcher {
 }
 
 struct CompiledRule {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Retained for debug logging and future diagnostics
     name: String,
     regex: Regex,
     precision: f64,

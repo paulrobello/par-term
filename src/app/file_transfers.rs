@@ -31,9 +31,9 @@ const RECENT_TRANSFER_DISPLAY_SECS: u64 = 3;
 
 /// UI-friendly information about an active file transfer
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub(crate) struct TransferInfo {
     /// Unique transfer identifier
+    #[allow(dead_code)] // Protocol data: populated from FileTransfer for diagnostics
     pub id: u64,
     /// Display filename
     pub filename: String,
@@ -44,14 +44,15 @@ pub(crate) struct TransferInfo {
     /// Total expected bytes (None if unknown)
     pub total_bytes: Option<usize>,
     /// When the transfer started (unix millis)
+    #[allow(dead_code)] // Protocol data: populated from FileTransfer for diagnostics
     pub started_at: u64,
 }
 
 /// A completed download awaiting the save dialog
 #[derive(Debug)]
-#[allow(dead_code)]
 pub(crate) struct PendingSave {
     /// Transfer ID
+    #[allow(dead_code)] // Protocol data: correlates save with transfer for diagnostics
     pub id: u64,
     /// Suggested filename
     pub filename: String,
@@ -61,9 +62,9 @@ pub(crate) struct PendingSave {
 
 /// An upload request awaiting the file picker
 #[derive(Debug)]
-#[allow(dead_code)]
 pub(crate) struct PendingUpload {
     /// Upload format (e.g., "base64")
+    #[allow(dead_code)] // Protocol data: stored for future multi-format upload support
     pub format: String,
 }
 

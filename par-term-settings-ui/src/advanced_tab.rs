@@ -295,7 +295,7 @@ fn export_preferences(settings: &mut SettingsUI) {
         .save_file();
 
     if let Some(path) = path {
-        match serde_yaml::to_string(&settings.config) {
+        match serde_yml::to_string(&settings.config) {
             Ok(yaml) => {
                 if let Err(e) = std::fs::write(&path, yaml) {
                     settings.import_export_status = Some(format!("Failed to write file: {}", e));
@@ -379,7 +379,7 @@ fn apply_imported_config(
     content: &str,
     mode: ImportMode,
 ) {
-    match serde_yaml::from_str::<Config>(content) {
+    match serde_yml::from_str::<Config>(content) {
         Ok(imported) => {
             match mode {
                 ImportMode::Replace => {
@@ -421,21 +421,21 @@ fn apply_imported_config(
 pub fn merge_config(current: &mut Config, imported: &Config) {
     let defaults = Config::default();
 
-    // Serialize all three to serde_yaml::Value for field-by-field comparison
-    let default_val: serde_yaml::Value =
-        serde_yaml::from_str(&serde_yaml::to_string(&defaults).unwrap_or_default())
-            .unwrap_or(serde_yaml::Value::Null);
-    let imported_val: serde_yaml::Value =
-        serde_yaml::from_str(&serde_yaml::to_string(imported).unwrap_or_default())
-            .unwrap_or(serde_yaml::Value::Null);
-    let mut current_val: serde_yaml::Value =
-        serde_yaml::from_str(&serde_yaml::to_string(&*current).unwrap_or_default())
-            .unwrap_or(serde_yaml::Value::Null);
+    // Serialize all three to serde_yml::Value for field-by-field comparison
+    let default_val: serde_yml::Value =
+        serde_yml::from_str(&serde_yml::to_string(&defaults).unwrap_or_default())
+            .unwrap_or(serde_yml::Value::Null);
+    let imported_val: serde_yml::Value =
+        serde_yml::from_str(&serde_yml::to_string(imported).unwrap_or_default())
+            .unwrap_or(serde_yml::Value::Null);
+    let mut current_val: serde_yml::Value =
+        serde_yml::from_str(&serde_yml::to_string(&*current).unwrap_or_default())
+            .unwrap_or(serde_yml::Value::Null);
 
     if let (
-        serde_yaml::Value::Mapping(ref default_map),
-        serde_yaml::Value::Mapping(ref imported_map),
-        serde_yaml::Value::Mapping(current_map),
+        serde_yml::Value::Mapping(ref default_map),
+        serde_yml::Value::Mapping(ref imported_map),
+        serde_yml::Value::Mapping(current_map),
     ) = (default_val, imported_val, &mut current_val)
     {
         for (key, imported_field) in imported_map {
@@ -448,7 +448,7 @@ pub fn merge_config(current: &mut Config, imported: &Config) {
     }
 
     // Deserialize the merged value back into Config
-    if let Ok(merged) = serde_yaml::from_value::<Config>(current_val) {
+    if let Ok(merged) = serde_yml::from_value::<Config>(current_val) {
         *current = merged;
     }
 }

@@ -3,9 +3,7 @@ use super::{CellRenderer, GlyphInfo};
 pub(crate) struct RasterizedGlyph {
     pub width: u32,
     pub height: u32,
-    #[allow(dead_code)]
     pub bearing_x: f32,
-    #[allow(dead_code)]
     pub bearing_y: f32,
     pub pixels: Vec<u8>,
     pub is_colored: bool,

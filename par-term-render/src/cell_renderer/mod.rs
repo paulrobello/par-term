@@ -32,7 +32,7 @@ pub struct CellRenderer {
     pub(crate) bg_pipeline: wgpu::RenderPipeline,
     pub(crate) text_pipeline: wgpu::RenderPipeline,
     pub(crate) bg_image_pipeline: wgpu::RenderPipeline,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
     pub(crate) visual_bell_pipeline: wgpu::RenderPipeline,
 
     // Buffers
@@ -40,21 +40,21 @@ pub struct CellRenderer {
     pub(crate) bg_instance_buffer: wgpu::Buffer,
     pub(crate) text_instance_buffer: wgpu::Buffer,
     pub(crate) bg_image_uniform_buffer: wgpu::Buffer,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
     pub(crate) visual_bell_uniform_buffer: wgpu::Buffer,
 
     // Bind groups
     pub(crate) text_bind_group: wgpu::BindGroup,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // GPU lifetime: must outlive bind groups created from this layout
     pub(crate) text_bind_group_layout: wgpu::BindGroupLayout,
     pub(crate) bg_image_bind_group: Option<wgpu::BindGroup>,
     pub(crate) bg_image_bind_group_layout: wgpu::BindGroupLayout,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
     pub(crate) visual_bell_bind_group: wgpu::BindGroup,
 
     // Glyph atlas
     pub(crate) atlas_texture: wgpu::Texture,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // GPU lifetime: must outlive text_bind_group which references this view
     pub(crate) atlas_view: wgpu::TextureView,
     pub(crate) glyph_cache: HashMap<u64, GlyphInfo>,
     pub(crate) lru_head: Option<u64>,
@@ -89,7 +89,6 @@ pub struct CellRenderer {
     /// This is added to content_inset_right for scrollbar bounds only,
     /// since egui panels already claim space before wgpu rendering.
     pub(crate) egui_right_inset: f32,
-    #[allow(dead_code)]
     pub(crate) scale_factor: f32,
 
     // Components
@@ -126,7 +125,6 @@ pub struct CellRenderer {
     /// Cursor shadow offset in pixels [x, y]
     pub(crate) cursor_shadow_offset: [f32; 2],
     /// Cursor shadow blur radius (not fully supported yet, but stores config)
-    #[allow(dead_code)]
     pub(crate) cursor_shadow_blur: f32,
     /// Cursor boost (glow) intensity (0.0-1.0)
     pub(crate) cursor_boost: f32,
@@ -176,7 +174,7 @@ pub struct CellRenderer {
     pub(crate) text_instances: Vec<TextInstance>,
 
     // Shaping options
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Config stored for future text shaping pipeline integration
     pub(crate) enable_text_shaping: bool,
     pub(crate) enable_ligatures: bool,
     pub(crate) enable_kerning: bool,
@@ -1205,7 +1203,6 @@ impl CellRenderer {
         self.dirty_rows.fill(true);
     }
 
-    #[allow(dead_code)]
     pub fn update_window_padding(&mut self, padding: f32) -> Option<(usize, usize)> {
         if (self.window_padding - padding).abs() > f32::EPSILON {
             self.window_padding = padding;
@@ -1424,7 +1421,6 @@ impl CellRenderer {
     }
 
     /// Get the list of supported present modes for this surface
-    #[allow(dead_code)]
     pub fn supported_present_modes(&self) -> &[wgpu::PresentMode] {
         &self.supported_present_modes
     }
@@ -1476,7 +1472,6 @@ impl CellRenderer {
     }
 
     /// Get the current vsync mode
-    #[allow(dead_code)]
     pub fn current_vsync_mode(&self) -> par_term_config::VsyncMode {
         match self.config.present_mode {
             wgpu::PresentMode::Immediate => par_term_config::VsyncMode::Immediate,
@@ -1488,7 +1483,6 @@ impl CellRenderer {
         }
     }
 
-    #[allow(dead_code)]
     pub fn update_graphics(
         &mut self,
         _graphics: &[par_term_emu_core_rust::graphics::TerminalGraphic],

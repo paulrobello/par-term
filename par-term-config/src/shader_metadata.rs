@@ -51,7 +51,7 @@ pub fn parse_shader_metadata(source: &str) -> Option<ShaderMetadata> {
     let yaml_trimmed = yaml_content.trim();
 
     // Parse the YAML
-    match serde_yaml::from_str(yaml_trimmed) {
+    match serde_yml::from_str(yaml_trimmed) {
         Ok(metadata) => {
             log::debug!("Parsed shader metadata: {:?}", metadata);
             Some(metadata)
@@ -90,7 +90,7 @@ pub fn parse_shader_metadata_from_file(path: &Path) -> Option<ShaderMetadata> {
 /// # Returns
 /// The YAML representation of the metadata
 pub fn serialize_metadata_to_yaml(metadata: &ShaderMetadata) -> Result<String, String> {
-    serde_yaml::to_string(metadata).map_err(|e| format!("Failed to serialize metadata: {}", e))
+    serde_yml::to_string(metadata).map_err(|e| format!("Failed to serialize metadata: {}", e))
 }
 
 /// Format shader metadata as a complete comment block ready to insert into a shader.
@@ -175,7 +175,6 @@ pub struct ShaderMetadataCache {
 
 impl ShaderMetadataCache {
     /// Create a new empty metadata cache.
-    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::default()
     }
@@ -189,7 +188,6 @@ impl ShaderMetadataCache {
     }
 
     /// Set the shaders directory path.
-    #[allow(dead_code)]
     pub fn set_shaders_dir(&mut self, shaders_dir: PathBuf) {
         self.shaders_dir = Some(shaders_dir);
     }
@@ -217,7 +215,6 @@ impl ShaderMetadataCache {
     /// Get metadata without caching (always reads from disk).
     ///
     /// Useful for hot reload scenarios where you want fresh data.
-    #[allow(dead_code)]
     pub fn get_fresh(&self, shader_name: &str) -> Option<ShaderMetadata> {
         self.load_metadata(shader_name)
     }
@@ -257,7 +254,6 @@ impl ShaderMetadataCache {
     /// Invalidate cached metadata for a specific shader.
     ///
     /// Call this when a shader file has been modified (hot reload).
-    #[allow(dead_code)]
     pub fn invalidate(&mut self, shader_name: &str) {
         self.cache.remove(shader_name);
         log::debug!("Invalidated metadata cache for: {}", shader_name);
@@ -266,20 +262,17 @@ impl ShaderMetadataCache {
     /// Invalidate all cached metadata.
     ///
     /// Call this when the shaders directory might have changed.
-    #[allow(dead_code)]
     pub fn invalidate_all(&mut self) {
         self.cache.clear();
         log::debug!("Invalidated all metadata cache entries");
     }
 
     /// Check if metadata is cached for a shader.
-    #[allow(dead_code)]
     pub fn is_cached(&self, shader_name: &str) -> bool {
         self.cache.contains_key(shader_name)
     }
 
     /// Get the number of cached entries.
-    #[allow(dead_code)]
     pub fn cache_size(&self) -> usize {
         self.cache.len()
     }
@@ -319,7 +312,7 @@ pub fn parse_cursor_shader_metadata(source: &str) -> Option<CursorShaderMetadata
     let yaml_trimmed = yaml_content.trim();
 
     // Parse the YAML as CursorShaderMetadata
-    match serde_yaml::from_str(yaml_trimmed) {
+    match serde_yml::from_str(yaml_trimmed) {
         Ok(metadata) => {
             log::debug!("Parsed cursor shader metadata: {:?}", metadata);
             Some(metadata)
@@ -364,7 +357,7 @@ pub fn parse_cursor_shader_metadata_from_file(path: &Path) -> Option<CursorShade
 pub fn serialize_cursor_metadata_to_yaml(
     metadata: &CursorShaderMetadata,
 ) -> Result<String, String> {
-    serde_yaml::to_string(metadata).map_err(|e| format!("Failed to serialize metadata: {}", e))
+    serde_yml::to_string(metadata).map_err(|e| format!("Failed to serialize metadata: {}", e))
 }
 
 /// Format cursor shader metadata as a complete comment block ready to insert into a shader.
@@ -455,7 +448,6 @@ pub struct CursorShaderMetadataCache {
 
 impl CursorShaderMetadataCache {
     /// Create a new empty metadata cache.
-    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::default()
     }
@@ -469,7 +461,6 @@ impl CursorShaderMetadataCache {
     }
 
     /// Set the shaders directory path.
-    #[allow(dead_code)]
     pub fn set_shaders_dir(&mut self, shaders_dir: PathBuf) {
         self.shaders_dir = Some(shaders_dir);
     }
@@ -497,7 +488,6 @@ impl CursorShaderMetadataCache {
     /// Get metadata without caching (always reads from disk).
     ///
     /// Useful for hot reload scenarios where you want fresh data.
-    #[allow(dead_code)]
     pub fn get_fresh(&self, shader_name: &str) -> Option<CursorShaderMetadata> {
         self.load_metadata(shader_name)
     }
@@ -548,20 +538,17 @@ impl CursorShaderMetadataCache {
     /// Invalidate all cached metadata.
     ///
     /// Call this when the shaders directory might have changed.
-    #[allow(dead_code)]
     pub fn invalidate_all(&mut self) {
         self.cache.clear();
         log::debug!("Invalidated all cursor shader metadata cache entries");
     }
 
     /// Check if metadata is cached for a shader.
-    #[allow(dead_code)]
     pub fn is_cached(&self, shader_name: &str) -> bool {
         self.cache.contains_key(shader_name)
     }
 
     /// Get the number of cached entries.
-    #[allow(dead_code)]
     pub fn cache_size(&self) -> usize {
         self.cache.len()
     }

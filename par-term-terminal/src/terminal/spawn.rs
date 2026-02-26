@@ -3,7 +3,6 @@ use anyhow::Result;
 
 impl TerminalManager {
     /// Spawn a shell in the terminal
-    #[allow(dead_code)]
     pub fn spawn_shell(&mut self) -> Result<()> {
         log::info!("Spawning shell in PTY");
         let mut pty = self.pty_session.lock();
@@ -13,7 +12,6 @@ impl TerminalManager {
     }
 
     /// Spawn a custom shell command in the terminal
-    #[allow(dead_code)]
     pub fn spawn_custom_shell(&mut self, command: &str) -> Result<()> {
         log::info!("Spawning custom shell: {}", command);
         let mut pty = self.pty_session.lock();
@@ -24,7 +22,6 @@ impl TerminalManager {
     }
 
     /// Spawn a custom shell with arguments
-    #[allow(dead_code)]
     pub fn spawn_custom_shell_with_args(&mut self, command: &str, args: &[String]) -> Result<()> {
         log::info!("Spawning custom shell: {} with args: {:?}", command, args);
         let mut pty = self.pty_session.lock();
@@ -35,7 +32,6 @@ impl TerminalManager {
     }
 
     /// Spawn shell with optional working directory and environment variables
-    #[allow(dead_code)]
     pub fn spawn_shell_with_dir(
         &mut self,
         working_dir: Option<&str>,

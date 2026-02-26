@@ -40,8 +40,8 @@ fn test_widget_config_serialization_roundtrip() {
         order: 2,
         format: None,
     };
-    let yaml = serde_yaml::to_string(&widget).expect("serialize");
-    let deserialized: StatusBarWidgetConfig = serde_yaml::from_str(&yaml).expect("deserialize");
+    let yaml = serde_yml::to_string(&widget).expect("serialize");
+    let deserialized: StatusBarWidgetConfig = serde_yml::from_str(&yaml).expect("deserialize");
     assert_eq!(deserialized.id, widget.id);
     assert_eq!(deserialized.enabled, widget.enabled);
     assert_eq!(deserialized.section, widget.section);
@@ -57,8 +57,8 @@ fn test_custom_widget_config_serialization() {
         order: 0,
         format: Some("\\(session.username) on \\(session.hostname)".to_string()),
     };
-    let yaml = serde_yaml::to_string(&widget).expect("serialize");
-    let deserialized: StatusBarWidgetConfig = serde_yaml::from_str(&yaml).expect("deserialize");
+    let yaml = serde_yml::to_string(&widget).expect("serialize");
+    let deserialized: StatusBarWidgetConfig = serde_yml::from_str(&yaml).expect("deserialize");
     assert_eq!(deserialized.id, WidgetId::Custom("my_widget".to_string()));
     assert_eq!(
         deserialized.format,
@@ -83,7 +83,7 @@ status_bar_widgets:
     section: left
     order: 0
 "#;
-    let config: Config = serde_yaml::from_str(yaml).expect("deserialize");
+    let config: Config = serde_yml::from_str(yaml).expect("deserialize");
     assert!(config.status_bar_enabled);
     assert_eq!(config.status_bar_height, 28.0);
     assert_eq!(config.status_bar_widgets.len(), 2);

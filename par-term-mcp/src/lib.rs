@@ -70,7 +70,7 @@ pub struct TerminalScreenshotResponse {
 /// An incoming JSON-RPC 2.0 message from the client.
 #[derive(Debug, Deserialize)]
 struct IncomingMessage {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Deserialized from JSON-RPC protocol; required by spec
     jsonrpc: String,
     #[serde(default)]
     id: Option<Value>,

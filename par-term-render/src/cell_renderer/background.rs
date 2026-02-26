@@ -4,8 +4,8 @@ use anyhow::Result;
 use par_term_config::color_u8_to_f32;
 
 /// Cached GPU texture for a per-pane background image
-#[allow(dead_code)]
 pub(crate) struct PaneBackgroundEntry {
+    #[allow(dead_code)] // GPU lifetime: must outlive the TextureView created from it
     pub(crate) texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) sampler: wgpu::Sampler,
@@ -159,13 +159,11 @@ impl CellRenderer {
         self.update_bg_image_uniforms();
     }
 
-    #[allow(dead_code)]
     pub fn update_background_image_opacity(&mut self, opacity: f32) {
         self.bg_image_opacity = opacity;
         self.update_bg_image_uniforms();
     }
 
-    #[allow(dead_code)]
     pub fn update_background_image_opacity_only(&mut self, opacity: f32) {
         self.bg_image_opacity = opacity;
         self.update_bg_image_uniforms();
@@ -199,7 +197,6 @@ impl CellRenderer {
     }
 
     /// Check if a background image is currently loaded.
-    #[allow(dead_code)]
     pub fn has_background_image(&self) -> bool {
         self.bg_image_texture.is_some()
     }
@@ -217,7 +214,6 @@ impl CellRenderer {
 
     /// Get the solid background color as a wgpu::Color with window_opacity applied.
     /// Returns None if not in solid color mode.
-    #[allow(dead_code)]
     pub fn get_solid_color_as_clear(&self) -> Option<wgpu::Color> {
         if self.bg_is_solid_color {
             Some(wgpu::Color {
@@ -531,18 +527,6 @@ impl CellRenderer {
         );
 
         Ok(true)
-    }
-
-    /// Remove a cached pane background texture
-    #[allow(dead_code)]
-    pub(crate) fn evict_pane_background(&mut self, path: &str) {
-        self.pane_bg_cache.remove(path);
-    }
-
-    /// Clear all cached pane background textures
-    #[allow(dead_code)]
-    pub(crate) fn clear_pane_bg_cache(&mut self) {
-        self.pane_bg_cache.clear();
     }
 
     /// Create a bind group and uniform buffer for a per-pane background render.

@@ -27,7 +27,6 @@ use winit::window::Window;
 
 /// Captures all parameters needed for Renderer::new()
 /// Built from Config and Theme to eliminate duplicate parameter extraction
-#[allow(dead_code)]
 pub(crate) struct RendererInitParams {
     pub font_family: Option<String>,
     pub font_family_bold: Option<String>,
@@ -78,7 +77,6 @@ pub(crate) struct RendererInitParams {
     pub cursor_shader_animation: bool,
     pub cursor_shader_animation_speed: f32,
     pub cursor_shader_hides_cursor: bool,
-    pub cursor_shader_disable_in_alt_screen: bool,
     pub cursor_shader_glow_radius: f32,
     pub cursor_shader_glow_intensity: f32,
     pub cursor_shader_trail_duration: f32,
@@ -205,7 +203,6 @@ impl RendererInitParams {
             cursor_shader_animation: config.cursor_shader_animation,
             cursor_shader_animation_speed: resolved_cursor.base.animation_speed,
             cursor_shader_hides_cursor: resolved_cursor.hides_cursor,
-            cursor_shader_disable_in_alt_screen: resolved_cursor.disable_in_alt_screen,
             cursor_shader_glow_radius: resolved_cursor.glow_radius,
             cursor_shader_glow_intensity: resolved_cursor.glow_intensity,
             cursor_shader_trail_duration: resolved_cursor.trail_duration,

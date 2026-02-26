@@ -36,7 +36,7 @@ fn test_activity_notification_yaml_deserialization() {
 notification_activity_enabled: true
 notification_activity_threshold: 30
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
 
     assert!(config.notification_activity_enabled);
     assert_eq!(config.notification_activity_threshold, 30);
@@ -49,7 +49,7 @@ fn test_silence_notification_yaml_deserialization() {
 notification_silence_enabled: true
 notification_silence_threshold: 600
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
 
     assert!(config.notification_silence_enabled);
     assert_eq!(config.notification_silence_threshold, 600);
@@ -64,7 +64,7 @@ notification_activity_threshold: 15
 notification_silence_enabled: true
 notification_silence_threshold: 120
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
 
     assert!(config.notification_activity_enabled);
     assert_eq!(config.notification_activity_threshold, 15);
@@ -76,7 +76,7 @@ notification_silence_threshold: 120
 #[test]
 fn test_notification_config_yaml_serialization() {
     let config = Config::default();
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
 
     // Check that the fields are present in serialization
     assert!(yaml.contains("notification_activity_enabled: false"));
@@ -93,7 +93,7 @@ fn test_notification_config_aliases() {
 activity_notifications: true
 activity_threshold: 25
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.notification_activity_enabled);
     assert_eq!(config.notification_activity_threshold, 25);
 
@@ -102,7 +102,7 @@ activity_threshold: 25
 silence_notifications: true
 silence_threshold: 180
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.notification_silence_enabled);
     assert_eq!(config.notification_silence_threshold, 180);
 }
@@ -218,7 +218,7 @@ fn test_minimum_threshold_values() {
 notification_activity_threshold: 1
 notification_silence_threshold: 1
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
 
     assert_eq!(config.notification_activity_threshold, 1);
     assert_eq!(config.notification_silence_threshold, 1);
@@ -231,7 +231,7 @@ fn test_large_threshold_values() {
 notification_activity_threshold: 3600
 notification_silence_threshold: 86400
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
 
     // 1 hour activity threshold
     assert_eq!(config.notification_activity_threshold, 3600);

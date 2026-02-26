@@ -892,7 +892,6 @@ impl Tab {
     }
 
     /// Check if the terminal in this tab is still running
-    #[allow(dead_code)]
     pub fn is_running(&self) -> bool {
         if let Ok(term) = self.terminal.try_lock() {
             term.is_running()
@@ -1104,7 +1103,6 @@ impl Tab {
     }
 
     /// Check if this tab has a custom color set
-    #[allow(dead_code)]
     pub fn has_custom_color(&self) -> bool {
         self.custom_color.is_some()
     }

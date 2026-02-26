@@ -822,9 +822,21 @@ make bundle-install
 
 ### Linux Dependencies
 
-On Linux (Ubuntu/Debian), you need GTK3 and X11/Wayland libraries:
+On Linux, you need GTK3 and X11/Wayland libraries. Install the appropriate packages for your distribution:
+
+**Ubuntu/Debian**:
 ```bash
 sudo apt install libgtk-3-dev libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev
+```
+
+**Fedora/RHEL**:
+```bash
+sudo dnf install gtk3-devel libxkbcommon-devel wayland-devel libxcb-devel alsa-lib-devel
+```
+
+**Arch Linux**:
+```bash
+sudo pacman -S gtk3 libxkbcommon wayland libxcb alsa-lib
 ```
 
 ### macOS Gatekeeper Notice
@@ -911,47 +923,22 @@ See the [Shader Gallery](docs/SHADERS.md) for previews of all included shaders.
 
 ## Keyboard Shortcuts
 
-### Window & Tab Management
+Essential shortcuts to get started. On macOS, keybindings use `Cmd`; on Linux/Windows, they use `Ctrl+Shift` to avoid conflicts with terminal control codes.
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd/Ctrl + N` | New window |
 | `Cmd/Ctrl + T` | New tab |
 | `Cmd/Ctrl + W` | Close tab (or window if single tab) |
-| `Cmd/Ctrl + Q` | Quit (Windows/Linux) |
-| `Cmd/Ctrl + Shift + ]` | Next tab |
-| `Cmd/Ctrl + Shift + [` | Previous tab |
-| `Ctrl + Tab` | Next tab (alternative) |
-| `Ctrl + Shift + Tab` | Previous tab (alternative) |
-| `Cmd/Ctrl + 1-9` | Switch to tab 1-9 |
-| `Cmd/Ctrl + Shift + Left` | Move tab left |
-| `Cmd/Ctrl + Shift + Right` | Move tab right |
-
-### Navigation & Editing
-
-| Shortcut | Action |
-|----------|--------|
-| `PageUp` / `PageDown` | Scroll up/down one page |
-| `Shift + Home` | Jump to top of scrollback |
-| `Shift + End` | Jump to bottom (current) |
+| `Cmd/Ctrl + N` | New window |
 | `Cmd/Ctrl + C` | Copy selection |
 | `Cmd/Ctrl + V` | Paste from clipboard |
-| `Cmd/Ctrl + Shift + K` | Clear scrollback buffer |
-| `Cmd/Ctrl + Shift + H` | Clipboard history |
-| `Ctrl + L` | Clear visible screen |
-| `Cmd/Ctrl + +/-/0` | Adjust font size / Reset |
-| `Ctrl + Shift + S` | Take screenshot |
-
-### UI Toggles
-
-| Shortcut | Action |
-|----------|--------|
-| `F1` | Toggle Help panel |
-| `F3` | Toggle FPS overlay |
+| `Cmd/Ctrl + F` | Open search |
+| `Cmd/Ctrl + D` | Split pane horizontally |
 | `F5` | Reload configuration |
 | `F11` | Toggle fullscreen |
-| `F12` | Open Settings window |
-| `Cmd + ,` / `Ctrl + ,` | Open Settings window (alternative) |
+| `F12` / `Cmd + ,` | Open Settings |
+
+See the [full keyboard shortcuts reference](docs/KEYBOARD_SHORTCUTS.md) for the complete list, including copy mode, pane management, shader toggles, SSH quick connect, and all customizable keybindings.
 
 ## Configuration
 

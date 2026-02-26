@@ -19,7 +19,6 @@ pub enum ProfileModalAction {
     /// Cancel and discard changes
     Cancel,
     /// Open a profile immediately (after creation)
-    #[allow(dead_code)]
     OpenProfile(ProfileId),
 }
 
