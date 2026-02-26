@@ -22,11 +22,22 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 
 use crate::config::prettifier::DiagramRendererConfig;
-use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig};
+use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, ThemeColors};
 use crate::prettifier::types::{
     ContentBlock, InlineGraphic, RenderedContent, RendererCapability, SourceLineMapping,
     StyledLine, StyledSegment,
 };
+
+/// Lazily-loaded system font database for SVG text rendering.
+///
+/// Loading system fonts is expensive (~50ms), so we do it once and share
+/// the database across all `svg_to_png_bytes` calls.
+static FONTDB: std::sync::LazyLock<Arc<fontdb::Database>> = std::sync::LazyLock::new(|| {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+    crate::debug_info!("PRETTIFIER", "Loaded {} font faces from system", db.len());
+    Arc::new(db)
+});
 
 /// A supported diagram language with rendering metadata.
 #[derive(Debug, Clone)]
@@ -148,19 +159,26 @@ impl DiagramRenderer {
     ///
     /// Returns `Some((png_bytes, display_name))` on success, `None` if no backend
     /// succeeded (caller should fall back to text rendering).
-    fn try_render_backend(&self, tag: &str, source: &str) -> Option<(Vec<u8>, String)> {
+    fn try_render_backend(
+        &self,
+        tag: &str,
+        source: &str,
+        colors: &ThemeColors,
+    ) -> Option<(Vec<u8>, String)> {
         let lang = self.get_language(tag)?;
         let display_name = lang.display_name.clone();
         let backend = self.backend();
 
         match backend {
             "text_fallback" => None,
-            "native" => self.try_native_mermaid(tag, source).map(|d| (d, display_name)),
+            "native" => self
+                .try_native_mermaid(tag, source, colors)
+                .map(|d| (d, display_name)),
             "local" => self.try_local_cli(lang, source).map(|d| (d, display_name)),
             "kroki" => self.try_kroki(lang, source).map(|d| (d, display_name)),
             // "auto" or unrecognized: try native (mermaid only) → local CLI → Kroki.
             _ => self
-                .try_native_mermaid(tag, source)
+                .try_native_mermaid(tag, source, colors)
                 .or_else(|| self.try_local_cli(lang, source))
                 .or_else(|| self.try_kroki(lang, source))
                 .map(|d| (d, display_name)),
@@ -171,13 +189,24 @@ impl DiagramRenderer {
     ///
     /// Only works for mermaid diagrams; returns `None` for other diagram types.
     /// Renders mermaid source → SVG → PNG bytes.
-    fn try_native_mermaid(&self, tag: &str, source: &str) -> Option<Vec<u8>> {
+    fn try_native_mermaid(
+        &self,
+        tag: &str,
+        source: &str,
+        colors: &ThemeColors,
+    ) -> Option<Vec<u8>> {
         if tag != "mermaid" {
             return None;
         }
 
-        // Render mermaid source to SVG.
-        let svg = match mermaid_rs_renderer::render(source) {
+        let theme = dark_mermaid_theme(colors);
+        let opts = mermaid_rs_renderer::RenderOptions {
+            theme,
+            layout: mermaid_rs_renderer::LayoutConfig::default(),
+        };
+
+        // Render mermaid source to SVG using the dark theme.
+        let svg = match mermaid_rs_renderer::render_with_options(source, opts) {
             Ok(svg_str) => {
                 crate::debug_info!(
                     "PRETTIFIER",
@@ -192,8 +221,8 @@ impl DiagramRenderer {
             }
         };
 
-        // Convert SVG to PNG.
-        svg_to_png_bytes(&svg)
+        // Convert SVG to PNG with terminal background.
+        svg_to_png_bytes(&svg, Some(colors.bg))
     }
 
     /// Render a diagram via a local CLI command.
@@ -293,7 +322,9 @@ impl DiagramRenderer {
         let source = source_lines.join("\n");
 
         // Try backend rendering.
-        if let Some((png_data, display_name)) = self.try_render_backend(tag, &source) {
+        if let Some((png_data, display_name)) =
+            self.try_render_backend(tag, &source, &theme.theme_colors)
+        {
             // Decode PNG → RGBA so the GPU renderer can texture it directly.
             let decoded = image::load_from_memory(&png_data).ok();
             let (rgba_data, pixel_width, pixel_height) = match decoded {
@@ -629,11 +660,90 @@ fn sanitize_svg_font_family(svg: &str) -> String {
     result
 }
 
+/// Format an `[r, g, b]` triple as a `#RRGGBB` hex string.
+fn rgb_to_hex(c: [u8; 3]) -> String {
+    format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2])
+}
+
+/// Build a dark `mermaid_rs_renderer::Theme` derived from terminal colors.
+fn dark_mermaid_theme(colors: &ThemeColors) -> mermaid_rs_renderer::Theme {
+    let fg = rgb_to_hex(colors.fg);
+    let bg = rgb_to_hex(colors.bg);
+    let blue = rgb_to_hex(colors.palette[4]);
+    let mauve = rgb_to_hex(colors.palette[5]);
+    let teal = rgb_to_hex(colors.palette[6]);
+    let surface0 = rgb_to_hex(colors.palette[0]);
+    let overlay0 = rgb_to_hex(colors.palette[8]);
+    let subtext0 = rgb_to_hex(colors.palette[7]);
+
+    let pie_colors = [
+        blue.clone(),
+        mauve.clone(),
+        teal.clone(),
+        rgb_to_hex(colors.palette[1]),  // red
+        rgb_to_hex(colors.palette[2]),  // green
+        rgb_to_hex(colors.palette[3]),  // yellow
+        rgb_to_hex(colors.palette[9]),  // bright red
+        rgb_to_hex(colors.palette[10]), // bright green
+        rgb_to_hex(colors.palette[11]), // bright yellow
+        rgb_to_hex(colors.palette[12]), // bright blue
+        rgb_to_hex(colors.palette[13]), // bright magenta
+        rgb_to_hex(colors.palette[14]), // bright cyan
+    ];
+
+    mermaid_rs_renderer::Theme {
+        font_family: "sans-serif".to_string(),
+        font_size: 14.0,
+        primary_color: blue.clone(),
+        primary_text_color: "#FFFFFF".to_string(),
+        primary_border_color: overlay0.clone(),
+        line_color: subtext0.clone(),
+        secondary_color: mauve,
+        tertiary_color: teal,
+        edge_label_background: surface0.clone(),
+        cluster_background: surface0,
+        cluster_border: overlay0.clone(),
+        background: bg,
+        sequence_actor_fill: blue,
+        sequence_actor_border: overlay0.clone(),
+        sequence_actor_line: subtext0.clone(),
+        sequence_note_fill: rgb_to_hex(colors.palette[3]),
+        sequence_note_border: rgb_to_hex(colors.palette[11]),
+        sequence_activation_fill: overlay0.clone(),
+        sequence_activation_border: subtext0.clone(),
+        text_color: fg.clone(),
+        git_colors: mermaid_rs_renderer::Theme::modern().git_colors,
+        git_inv_colors: mermaid_rs_renderer::Theme::modern().git_inv_colors,
+        git_branch_label_colors: mermaid_rs_renderer::Theme::modern().git_branch_label_colors,
+        git_commit_label_color: fg.clone(),
+        git_commit_label_background: overlay0.clone(),
+        git_tag_label_color: fg.clone(),
+        git_tag_label_background: overlay0,
+        git_tag_label_border: subtext0,
+        pie_colors,
+        pie_title_text_size: 25.0,
+        pie_title_text_color: fg.clone(),
+        pie_section_text_size: 17.0,
+        pie_section_text_color: fg.clone(),
+        pie_legend_text_size: 17.0,
+        pie_legend_text_color: fg,
+        pie_stroke_color: rgb_to_hex(colors.palette[7]),
+        pie_stroke_width: 1.6,
+        pie_outer_stroke_width: 1.6,
+        pie_outer_stroke_color: rgb_to_hex(colors.palette[8]),
+        pie_opacity: 0.85,
+    }
+}
+
 /// Convert an SVG string to PNG bytes using resvg.
+///
+/// `bg` sets the pixmap background color; defaults to white when `None`.
+/// System fonts are loaded lazily via [`FONTDB`] so that `<text>` elements
+/// render correctly.
 ///
 /// Returns `None` if parsing fails, dimensions are invalid (zero or > 4096),
 /// or rasterization/encoding fails.
-pub fn svg_to_png_bytes(svg: &str) -> Option<Vec<u8>> {
+pub fn svg_to_png_bytes(svg: &str, bg: Option<[u8; 3]>) -> Option<Vec<u8>> {
     use image::codecs::png::PngEncoder;
     use image::ImageEncoder;
 
@@ -642,7 +752,10 @@ pub fn svg_to_png_bytes(svg: &str) -> Option<Vec<u8>> {
     // Fix these so the XML parser doesn't choke.
     let svg = sanitize_svg_font_family(svg);
 
-    let opts = resvg::usvg::Options::default();
+    let opts = resvg::usvg::Options {
+        fontdb: FONTDB.clone(),
+        ..Default::default()
+    };
     let tree = match resvg::usvg::Tree::from_str(&svg, &opts) {
         Ok(t) => t,
         Err(e) => {
@@ -663,8 +776,8 @@ pub fn svg_to_png_bytes(svg: &str) -> Option<Vec<u8>> {
     }
 
     let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height)?;
-    // White background for readability.
-    pixmap.fill(resvg::tiny_skia::Color::WHITE);
+    let [r, g, b] = bg.unwrap_or([255, 255, 255]);
+    pixmap.fill(resvg::tiny_skia::Color::from_rgba8(r, g, b, 255));
 
     resvg::render(&tree, resvg::tiny_skia::Transform::default(), &mut pixmap.as_mut());
 
@@ -1170,8 +1283,9 @@ mod tests {
     #[test]
     fn test_native_mermaid_basic_flowchart() {
         let renderer = test_renderer();
+        let colors = ThemeColors::default();
         let source = "graph TD\n  A-->B\n  B-->C";
-        let result = renderer.try_native_mermaid("mermaid", source);
+        let result = renderer.try_native_mermaid("mermaid", source, &colors);
         assert!(result.is_some(), "Native mermaid should render a basic flowchart");
         let png = result.unwrap();
         // PNG signature: first 8 bytes.
@@ -1182,20 +1296,22 @@ mod tests {
     #[test]
     fn test_native_mermaid_handles_garbage_gracefully() {
         let renderer = test_renderer();
+        let colors = ThemeColors::default();
         // The mermaid-rs-renderer is tolerant of unusual input.
         // This test verifies it doesn't panic on garbage — the result can be
         // either Some (rendered as best-effort) or None (parse error).
-        let _ = renderer.try_native_mermaid("mermaid", "");
-        let _ = renderer.try_native_mermaid("mermaid", "this is not valid mermaid %%!@#$");
-        let _ = renderer.try_native_mermaid("mermaid", "\x00\x01\x02");
+        let _ = renderer.try_native_mermaid("mermaid", "", &colors);
+        let _ = renderer.try_native_mermaid("mermaid", "this is not valid mermaid %%!@#$", &colors);
+        let _ = renderer.try_native_mermaid("mermaid", "\x00\x01\x02", &colors);
         // If we get here without panicking, the test passes.
     }
 
     #[test]
     fn test_native_mermaid_sequence_diagram() {
         let renderer = test_renderer();
+        let colors = ThemeColors::default();
         let source = "sequenceDiagram\n  Alice->>Bob: Hello\n  Bob-->>Alice: Hi";
-        let result = renderer.try_native_mermaid("mermaid", source);
+        let result = renderer.try_native_mermaid("mermaid", source, &colors);
         assert!(result.is_some(), "Native mermaid should render a sequence diagram");
         let png = result.unwrap();
         assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
@@ -1204,9 +1320,10 @@ mod tests {
     #[test]
     fn test_native_mermaid_non_mermaid_tag() {
         let renderer = test_renderer();
+        let colors = ThemeColors::default();
         // Native renderer should return None for non-mermaid tags.
-        assert!(renderer.try_native_mermaid("plantuml", "anything").is_none());
-        assert!(renderer.try_native_mermaid("dot", "anything").is_none());
+        assert!(renderer.try_native_mermaid("plantuml", "anything", &colors).is_none());
+        assert!(renderer.try_native_mermaid("dot", "anything", &colors).is_none());
     }
 
     #[test]
@@ -1214,7 +1331,7 @@ mod tests {
         let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
             <rect width="100" height="100" fill="red"/>
         </svg>"#;
-        let result = svg_to_png_bytes(svg);
+        let result = svg_to_png_bytes(svg, None);
         assert!(result.is_some(), "Simple SVG should convert to PNG");
         let png = result.unwrap();
         assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
@@ -1222,7 +1339,7 @@ mod tests {
 
     #[test]
     fn test_svg_to_png_bytes_invalid() {
-        let result = svg_to_png_bytes("this is not svg at all");
+        let result = svg_to_png_bytes("this is not svg at all", None);
         assert!(result.is_none(), "Invalid SVG should return None");
     }
 
