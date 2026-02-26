@@ -3076,58 +3076,20 @@ impl WindowState {
 
             let is_claude_session = pipeline.claude_code().is_active();
 
-            // In Claude Code compact mode, collapse markers indicate tool
-            // outputs are hidden. Don't prettify — let Claude Code's own
-            // rendering show (styled responses, collapsed summaries). When
-            // the user presses Ctrl+O (verbose mode), markers disappear and
-            // we prettify the expanded content.
-            let has_collapse_markers = is_claude_session
-                && (0..visible_lines).any(|row_idx| {
-                    let start = row_idx * grid_cols;
-                    let end = (start + grid_cols).min(cells.len());
-                    if start >= cells.len() {
-                        return false;
-                    }
-                    let text: String = cells[start..end]
-                        .iter()
-                        .map(|c| {
-                            let g = c.grapheme.as_str();
-                            if g.is_empty() || g == "\0" { " " } else { g }
-                        })
-                        .collect();
-                    // Match Claude Code's specific collapse patterns:
-                    //   "… +N lines (ctrl+o to expand)"
-                    //   "Read N lines (ctrl+o to expand)"
-                    //   "Read N files (ctrl+o to expand)"
-                    //   "+N lines (ctrl+o to expand)"
-                    let is_collapse_line = text.contains("lines (ctrl+o to expand)")
-                        || text.contains("files (ctrl+o to expand)");
-                    if is_collapse_line {
-                        crate::debug_info!(
-                            "PRETTIFIER",
-                            "collapse marker found at row {}",
-                            row_idx
-                        );
-                    }
-                    is_collapse_line
-                });
-
-            if has_collapse_markers {
-                // Compact mode — clear any existing prettified blocks
-                // so cell substitution doesn't overwrite Claude Code's
-                // own rendering.
-                pipeline.clear_blocks();
-            } else {
-                // Reset the boundary detector so it gets a fresh snapshot of
-                // visible content each time the terminal changes. Without this,
-                // the same rows would accumulate as duplicates across frames.
-                // The debounce timer (100ms) handles emission timing — the block
-                // is emitted once content stabilizes.
+            if is_claude_session {
+                // Claude Code session: collect segments between collapse markers
+                // and submit each directly as a content block. This bypasses the
+                // boundary detector's line-by-line accumulation which doesn't work
+                // well with per-frame viewport feeds (reset_boundary + re-feed
+                // prevents debounce from ever firing). The deduplication in
+                // handle_block prevents duplicate blocks across frames.
                 pipeline.reset_boundary();
 
-                // Feed all visible rows from the current frame snapshot.
+                let mut current_segment: Vec<(String, usize)> = Vec::new();
+
                 for row_idx in 0..visible_lines {
-                    let absolute_row = scrollback_len.saturating_sub(scroll_offset) + row_idx;
+                    let absolute_row =
+                        scrollback_len.saturating_sub(scroll_offset) + row_idx;
 
                     let start = row_idx * grid_cols;
                     let end = (start + grid_cols).min(cells.len());
@@ -3135,21 +3097,60 @@ impl WindowState {
                         break;
                     }
 
-                    let line = if is_claude_session {
-                        // Attribute-aware markdown reconstruction for Claude Code sessions.
-                        reconstruct_markdown_from_cells(&cells[start..end])
-                    } else {
-                        // Plain text extraction for normal output.
-                        cells[start..end]
-                            .iter()
-                            .map(|c| {
-                                let g = c.grapheme.as_str();
-                                if g.is_empty() || g == "\0" { " " } else { g }
-                            })
-                            .collect::<String>()
-                            .trim_end()
-                            .to_string()
-                    };
+                    let row_text: String = cells[start..end]
+                        .iter()
+                        .map(|c| {
+                            let g = c.grapheme.as_str();
+                            if g.is_empty() || g == "\0" { " " } else { g }
+                        })
+                        .collect();
+
+                    // Collapse markers split content into separate segments.
+                    if row_text.contains("lines (ctrl+o to expand)")
+                        || row_text.contains("files (ctrl+o to expand)")
+                    {
+                        if !current_segment.is_empty() {
+                            pipeline.submit_command_output(
+                                std::mem::take(&mut current_segment),
+                                None,
+                            );
+                        }
+                        continue;
+                    }
+
+                    let line = reconstruct_markdown_from_cells(&cells[start..end]);
+                    current_segment.push((line, absolute_row));
+                }
+
+                // Submit trailing segment (after last collapse marker).
+                if !current_segment.is_empty() {
+                    pipeline
+                        .submit_command_output(std::mem::take(&mut current_segment), None);
+                }
+            } else {
+                // Non-Claude session: use boundary detector with blank-line
+                // heuristic and debounce for normal terminal output.
+                pipeline.reset_boundary();
+
+                for row_idx in 0..visible_lines {
+                    let absolute_row =
+                        scrollback_len.saturating_sub(scroll_offset) + row_idx;
+
+                    let start = row_idx * grid_cols;
+                    let end = (start + grid_cols).min(cells.len());
+                    if start >= cells.len() {
+                        break;
+                    }
+
+                    let line: String = cells[start..end]
+                        .iter()
+                        .map(|c| {
+                            let g = c.grapheme.as_str();
+                            if g.is_empty() || g == "\0" { " " } else { g }
+                        })
+                        .collect::<String>()
+                        .trim_end()
+                        .to_string();
 
                     pipeline.process_output(&line, absolute_row);
                 }

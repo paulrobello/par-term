@@ -461,18 +461,37 @@ impl PrettifierPipeline {
         }
 
         if let Some(detection) = self.registry.detect(&content) {
+            let format_id = detection.format_id.clone();
+            let mut buffer = DualViewBuffer::new(content);
+            let content_hash = buffer.content_hash();
+            let terminal_width = self.renderer_config.terminal_width;
+
+            // Deduplicate: if an existing block covers overlapping rows,
+            // skip if content is identical, or replace if content changed.
+            // This prevents the per-frame viewport feed from creating
+            // thousands of duplicate blocks for the same visible content.
+            let overlapping_idx = self.active_blocks.iter().position(|b| {
+                let c = b.content();
+                c.start_row < row_range.end && c.end_row > row_range.start
+            });
+            if let Some(idx) = overlapping_idx {
+                if self.active_blocks[idx].buffer.content_hash() == content_hash {
+                    // Same content, same rows — skip duplicate.
+                    return;
+                }
+                // Content changed — remove the old block so we can replace it.
+                self.active_blocks.remove(idx);
+            }
+
             crate::debug_info!(
                 "PRETTIFIER",
                 "block detected: format={}, confidence={:.2}, rows={}..{}, lines={}",
                 detection.format_id,
                 detection.confidence,
-                content.start_row,
-                content.end_row,
-                content.lines.len()
+                row_range.start,
+                row_range.end,
+                buffer.source().lines.len()
             );
-            let format_id = detection.format_id.clone();
-            let mut buffer = DualViewBuffer::new(content);
-            let terminal_width = self.renderer_config.terminal_width;
 
             self.render_into_buffer(&mut buffer, &format_id, terminal_width);
 
