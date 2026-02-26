@@ -802,6 +802,33 @@ fn show_logging_section(
                 settings.has_changes = true;
                 *changes_this_frame = true;
             }
+
+            ui.add_space(8.0);
+
+            let mut redact = settings.config.session_log_redact_passwords;
+            if ui
+                .checkbox(&mut redact, "Redact passwords in session logs")
+                .on_hover_text(
+                    "Detects password prompts (sudo, ssh, etc.) and replaces \
+                     keyboard input with a redaction marker. Prevents passwords \
+                     from being written to session log files on disk.",
+                )
+                .changed()
+            {
+                settings.config.session_log_redact_passwords = redact;
+                settings.has_changes = true;
+                *changes_this_frame = true;
+            }
+
+            if !settings.config.session_log_redact_passwords {
+                ui.label(
+                    egui::RichText::new(
+                        "\u{26a0} Warning: Session logs may contain passwords and credentials",
+                    )
+                    .color(egui::Color32::from_rgb(255, 193, 7))
+                    .small(),
+                );
+            }
         },
     );
 }

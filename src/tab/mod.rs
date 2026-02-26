@@ -499,6 +499,7 @@ impl Tab {
                 session_title,
             ) {
                 Ok(mut logger) => {
+                    logger.set_redact_passwords(config.session_log_redact_passwords);
                     if let Err(e) = logger.start() {
                         log::warn!("Failed to start session logging: {}", e);
                     } else {
@@ -740,6 +741,7 @@ impl Tab {
                 session_title,
             ) {
                 Ok(mut logger) => {
+                    logger.set_redact_passwords(config.session_log_redact_passwords);
                     if let Err(e) = logger.start() {
                         log::warn!("Failed to start session logging for profile: {}", e);
                     } else {
@@ -1153,6 +1155,7 @@ impl Tab {
                 session_title,
             )?;
 
+            logger.set_redact_passwords(config.session_log_redact_passwords);
             logger.start()?;
 
             // Set up output callback to record PTY output

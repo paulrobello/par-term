@@ -61,7 +61,6 @@ All tests pass, clippy produces 0 warnings, and the overall architecture is soun
 |---|----------|---------|----------|
 | L1 | Security | Clipboard paste without control character sanitization (standard terminal behavior) | `src/clipboard_history_ui.rs` |
 | L3 | Security | MCP IPC files permissions not explicitly restrictive | `par-term-mcp/src/lib.rs` |
-| L5 | Security | Session logger captures raw I/O including passwords at prompts | `src/session_logger.rs` |
 | L11 | Code Quality | No doc-tests (0 documented examples in `cargo test` output) | Project-wide |
 
 ### Info (Positive Findings)

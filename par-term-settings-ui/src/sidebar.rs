@@ -1113,6 +1113,11 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "log directory",
             "archive",
             "archive on close",
+            "redact",
+            "redact passwords",
+            "password",
+            "sensitive",
+            "credentials",
             // Screenshots
             "screenshot",
             "screenshot format",
