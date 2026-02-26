@@ -281,6 +281,27 @@ impl ClaudeCodeIntegration {
             content_summary: format!("{} lines", content.lines.len()),
         }
     }
+
+    /// Purge stale `row_to_block` and `expand_states` entries that reference
+    /// rows below the scrollback floor. Called after pipeline block eviction.
+    pub fn cleanup_stale_entries(&mut self, min_row: usize) {
+        // Collect block IDs that will be removed.
+        let stale_ids: Vec<u64> = self
+            .row_to_block
+            .iter()
+            .filter(|&(&row, _)| row < min_row)
+            .map(|(_, &id)| id)
+            .collect();
+
+        self.row_to_block.retain(|&row, _| row >= min_row);
+
+        for id in stale_ids {
+            // Only remove expand state if no remaining rows reference it.
+            if !self.row_to_block.values().any(|&bid| bid == id) {
+                self.expand_states.remove(&id);
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

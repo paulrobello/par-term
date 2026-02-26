@@ -15,12 +15,10 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-use super::tree_renderer;
+use super::{push_line, tree_renderer};
 use crate::prettifier::registry::RendererRegistry;
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, ThemeColors};
-use crate::prettifier::types::{
-    ContentBlock, RenderedContent, RendererCapability, SourceLineMapping, StyledLine, StyledSegment,
-};
+use crate::prettifier::types::{ContentBlock, RenderedContent, RendererCapability, StyledSegment};
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -306,19 +304,6 @@ fn plain_segment(text: &str) -> StyledSegment {
     }
 }
 
-fn push_line(
-    lines: &mut Vec<StyledLine>,
-    line_mapping: &mut Vec<SourceLineMapping>,
-    segments: Vec<StyledSegment>,
-    source_line: Option<usize>,
-) {
-    line_mapping.push(SourceLineMapping {
-        rendered_line: lines.len(),
-        source_line,
-    });
-    lines.push(StyledLine::new(segments));
-}
-
 // ---------------------------------------------------------------------------
 // ContentRenderer implementation
 // ---------------------------------------------------------------------------
@@ -549,7 +534,7 @@ pub fn register_yaml_renderer(registry: &mut RendererRegistry, config: &YamlRend
 mod tests {
     use super::*;
     use crate::prettifier::traits::RendererConfig;
-    use crate::prettifier::types::ContentBlock;
+    use crate::prettifier::types::{ContentBlock, StyledLine};
     use std::time::SystemTime;
 
     fn test_config() -> RendererConfig {

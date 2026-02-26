@@ -21,9 +21,9 @@ pub mod terminal;
 // Re-export main types for convenience
 pub use scrollback_metadata::{CommandSnapshot, LineMetadata, ScrollbackMark, ScrollbackMetadata};
 pub use styled_content::{StyledSegment, extract_styled_segments, segments_to_plain_text};
+pub use terminal::ShellLifecycleEvent;
 pub use terminal::TerminalManager;
 pub use terminal::coprocess_env;
-pub use terminal::ShellLifecycleEvent;
 
 // Re-export types from core that are part of our public API
 pub use par_term_emu_core_rust::terminal::{ClipboardEntry, ClipboardSlot, HyperlinkInfo};

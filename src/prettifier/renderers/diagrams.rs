@@ -21,8 +21,8 @@ use std::process::{Command, Stdio};
 use crate::config::prettifier::DiagramRendererConfig;
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig};
 use crate::prettifier::types::{
-    ContentBlock, InlineGraphic, RenderedContent, RendererCapability, SourceLineMapping, StyledLine,
-    StyledSegment,
+    ContentBlock, InlineGraphic, RenderedContent, RendererCapability, SourceLineMapping,
+    StyledLine, StyledSegment,
 };
 
 /// A supported diagram language with rendering metadata.
@@ -211,11 +211,7 @@ impl DiagramRenderer {
                 .ok()?;
 
             let bytes = response.into_body().read_to_vec().ok()?;
-            if bytes.is_empty() {
-                None
-            } else {
-                Some(bytes)
-            }
+            if bytes.is_empty() { None } else { Some(bytes) }
         })
         .ok()
         .flatten()

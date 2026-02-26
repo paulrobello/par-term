@@ -147,12 +147,33 @@ impl DualViewBuffer {
     /// For very large blocks, only render the visible portion.
     /// Returns styled lines for the visible range only.
     pub fn display_lines_range(&self, start: usize, count: usize) -> Vec<StyledLine> {
-        let all = self.display_lines();
-        let end = (start + count).min(all.len());
-        if start >= all.len() {
+        match self.view_mode {
+            ViewMode::Rendered => {
+                if let Some(ref rendered) = self.rendered {
+                    let end = (start + count).min(rendered.lines.len());
+                    if start >= rendered.lines.len() {
+                        return vec![];
+                    }
+                    rendered.lines[start..end].to_vec()
+                } else {
+                    self.source_lines_range(start, count)
+                }
+            }
+            ViewMode::Source => self.source_lines_range(start, count),
+        }
+    }
+
+    /// Slice source lines into `StyledLine`s without cloning everything.
+    fn source_lines_range(&self, start: usize, count: usize) -> Vec<StyledLine> {
+        let total = self.source.lines.len();
+        if start >= total {
             return vec![];
         }
-        all[start..end].to_vec()
+        let end = (start + count).min(total);
+        self.source.lines[start..end]
+            .iter()
+            .map(|l| StyledLine::plain(l))
+            .collect()
     }
 
     /// Whether this block uses virtual rendering (>10K lines).

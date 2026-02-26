@@ -37,14 +37,6 @@ fn default_clipboard_copy() -> String {
     "rendered".to_string()
 }
 
-fn default_source_copy_modifier() -> String {
-    "Alt".to_string()
-}
-
-fn default_vi_copy_mode() -> String {
-    "source".to_string()
-}
-
 fn default_priority() -> i32 {
     50
 }
@@ -159,22 +151,12 @@ pub struct ClipboardConfig {
     /// What to copy by default: "rendered" or "source".
     #[serde(default = "default_clipboard_copy")]
     pub default_copy: String,
-
-    /// Modifier key to copy the alternative form.
-    #[serde(default = "default_source_copy_modifier")]
-    pub source_copy_modifier: String,
-
-    /// What to copy in vi copy mode: "source" or "rendered".
-    #[serde(default = "default_vi_copy_mode")]
-    pub vi_copy_mode: String,
 }
 
 impl Default for ClipboardConfig {
     fn default() -> Self {
         Self {
             default_copy: default_clipboard_copy(),
-            source_copy_modifier: default_source_copy_modifier(),
-            vi_copy_mode: default_vi_copy_mode(),
         }
     }
 }
@@ -728,8 +710,6 @@ mod tests {
     fn test_clipboard_config_defaults() {
         let config = ClipboardConfig::default();
         assert_eq!(config.default_copy, "rendered");
-        assert_eq!(config.source_copy_modifier, "Alt");
-        assert_eq!(config.vi_copy_mode, "source");
     }
 
     #[test]

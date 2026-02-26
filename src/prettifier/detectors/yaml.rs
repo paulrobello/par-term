@@ -39,7 +39,7 @@ pub fn create_yaml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "yaml_key_value".into(),
-            pattern: Regex::new(r"^[a-zA-Z_][a-zA-Z0-9_]*:(\s|$)").unwrap(),
+            pattern: Regex::new(r"^[a-zA-Z_][\w.\-]*:(\s|$)").unwrap(),
             weight: 0.4,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -50,7 +50,7 @@ pub fn create_yaml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "yaml_nested".into(),
-            pattern: Regex::new(r"^\s{2,}[a-zA-Z_][a-zA-Z0-9_]*:(\s|$)").unwrap(),
+            pattern: Regex::new(r"^\s{2,}[a-zA-Z_][\w.\-]*:(\s|$)").unwrap(),
             weight: 0.25,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -61,7 +61,7 @@ pub fn create_yaml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "yaml_list".into(),
-            pattern: Regex::new(r"^\s*-\s+[a-zA-Z_]").unwrap(),
+            pattern: Regex::new(r"^\s*-\s+\S").unwrap(),
             weight: 0.2,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,

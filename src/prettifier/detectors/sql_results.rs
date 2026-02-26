@@ -26,7 +26,7 @@ pub fn create_sql_results_detector() -> crate::prettifier::regex_detector::Regex
         .definitive_rule_shortcircuit(true)
         .rule(DetectionRule {
             id: "sql_psql_separator".into(),
-            pattern: Regex::new(r"^[-+]+$").unwrap(),
+            pattern: Regex::new(r"^-+\+-[-+]+$").unwrap(),
             weight: 0.4,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -48,7 +48,7 @@ pub fn create_sql_results_detector() -> crate::prettifier::regex_detector::Regex
         })
         .rule(DetectionRule {
             id: "sql_row_count".into(),
-            pattern: Regex::new(r"^\(?(\d+) rows?\)?").unwrap(),
+            pattern: Regex::new(r"^\(\d+ rows?\)$").unwrap(),
             weight: 0.3,
             scope: RuleScope::LastLines(3),
             strength: RuleStrength::Supporting,

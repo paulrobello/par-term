@@ -188,7 +188,11 @@ fn parse_psql_results(lines: &[String]) -> Option<SqlParseResult> {
 
         // Parse pipe-delimited row
         if trimmed.contains('|') {
-            let cells: Vec<String> = trimmed.split('|').map(|c| c.trim().to_string()).collect();
+            let cells: Vec<String> = trimmed
+                .trim_matches('|')
+                .split('|')
+                .map(|c| c.trim().to_string())
+                .collect();
 
             if !found_separator {
                 headers = cells;

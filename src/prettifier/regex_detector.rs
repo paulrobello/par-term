@@ -113,12 +113,14 @@ impl RegexDetector {
     /// Test a single rule against the content block.
     ///
     /// Returns `true` if the rule's pattern matches the extracted text.
-    fn rule_matches(&self, rule: &DetectionRule, content: &ContentBlock) -> bool {
+    fn rule_matches(
+        &self,
+        rule: &DetectionRule,
+        content: &ContentBlock,
+        cached_full_text: &str,
+    ) -> bool {
         match &rule.scope {
-            RuleScope::FullBlock => {
-                let full = content.full_text();
-                rule.pattern.is_match(&full)
-            }
+            RuleScope::FullBlock => rule.pattern.is_match(cached_full_text),
             RuleScope::PrecedingCommand => match &content.preceding_command {
                 Some(cmd) => rule.pattern.is_match(cmd),
                 None => false,
@@ -145,6 +147,9 @@ impl ContentDetector for RegexDetector {
         let mut match_count: usize = 0;
         let mut matched_rules: Vec<String> = Vec::new();
 
+        // Pre-compute full_text once for all FullBlock rule checks.
+        let full_text = content.full_text();
+
         for rule in &self.rules {
             // Skip disabled rules.
             if !rule.enabled {
@@ -164,7 +169,7 @@ impl ContentDetector for RegexDetector {
                 }
             }
 
-            if self.rule_matches(rule, content) {
+            if self.rule_matches(rule, content, &full_text) {
                 total_weight += rule.weight;
                 match_count += 1;
                 matched_rules.push(rule.id.clone());
@@ -233,6 +238,23 @@ impl ContentDetector for RegexDetector {
 
     fn detection_rules(&self) -> &[DetectionRule] {
         &self.rules
+    }
+
+    fn apply_config_overrides(&mut self, overrides: &[crate::config::prettifier::RuleOverride]) {
+        for ov in overrides {
+            if let Some(rule) = self.rules.iter_mut().find(|r| r.id == ov.id) {
+                if let Some(enabled) = ov.enabled {
+                    rule.enabled = enabled;
+                }
+                if let Some(weight) = ov.weight {
+                    rule.weight = weight;
+                }
+            }
+        }
+    }
+
+    fn merge_config_rules(&mut self, rules: Vec<DetectionRule>) {
+        self.merge_user_rules(rules);
     }
 }
 

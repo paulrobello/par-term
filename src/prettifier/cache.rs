@@ -3,7 +3,7 @@
 //! `RenderCache` stores rendered content keyed by content hash and terminal width,
 //! avoiding re-rendering unchanged blocks. Uses LRU eviction when the cache is full.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use super::types::RenderedContent;
 
@@ -14,8 +14,8 @@ pub struct RenderCache {
     entries: HashMap<(u64, usize), CacheEntry>,
     /// Maximum number of cached entries.
     max_entries: usize,
-    /// LRU tracking: most recently accessed keys at the end.
-    access_order: Vec<(u64, usize)>,
+    /// LRU tracking: most recently accessed keys at the back.
+    access_order: VecDeque<(u64, usize)>,
     /// Number of cache hits.
     hit_count: u64,
     /// Number of cache misses.
@@ -35,7 +35,7 @@ impl RenderCache {
         Self {
             entries: HashMap::new(),
             max_entries,
-            access_order: Vec::new(),
+            access_order: VecDeque::new(),
             hit_count: 0,
             miss_count: 0,
         }
@@ -87,7 +87,7 @@ impl RenderCache {
                     format_id: format_id.to_string(),
                 },
             );
-            self.access_order.push(key);
+            self.access_order.push_back(key);
         }
     }
 
@@ -120,13 +120,12 @@ impl RenderCache {
         if let Some(pos) = self.access_order.iter().position(|k| k == key) {
             self.access_order.remove(pos);
         }
-        self.access_order.push(*key);
+        self.access_order.push_back(*key);
     }
 
     /// Evict the least recently used entry.
     fn evict_lru(&mut self) {
-        if let Some(oldest) = self.access_order.first().copied() {
-            self.access_order.remove(0);
+        if let Some(oldest) = self.access_order.pop_front() {
             self.entries.remove(&oldest);
         }
     }

@@ -103,6 +103,16 @@ pub trait ContentDetector: Send + Sync {
     fn accepts_custom_rules(&self) -> bool {
         true
     }
+
+    /// Apply rule overrides (enable/disable, weight changes) from user config.
+    ///
+    /// Default is a no-op; `RegexDetector` overrides this.
+    fn apply_config_overrides(&mut self, _overrides: &[crate::config::prettifier::RuleOverride]) {}
+
+    /// Merge additional user-defined rules from config.
+    ///
+    /// Default is a no-op; `RegexDetector` overrides this.
+    fn merge_config_rules(&mut self, _rules: Vec<DetectionRule>) {}
 }
 
 /// Renders detected content into styled terminal output.

@@ -12,7 +12,7 @@ pub struct RenderCache {
     pub scrollback_len: usize,    // Last known scrollback length
     pub prettifier_feed_generation: u64, // Last terminal generation fed to prettifier
     pub prettifier_command_start_line: Option<usize>, // Absolute line from CommandStarted
-    pub prettifier_command_text: Option<String>,      // Command text for ContentBlock
+    pub prettifier_command_text: Option<String>, // Command text for ContentBlock
 }
 
 impl RenderCache {

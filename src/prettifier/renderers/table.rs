@@ -143,11 +143,11 @@ impl TableRenderer {
         let col_count = headers.len();
 
         // Compute natural column widths from content.
-        let mut col_widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
+        let mut col_widths: Vec<usize> = headers.iter().map(|h| h.chars().count()).collect();
         for row in rows {
             for (i, cell) in row.iter().enumerate() {
                 if i < col_count {
-                    col_widths[i] = col_widths[i].max(cell.len());
+                    col_widths[i] = col_widths[i].max(cell.chars().count());
                 }
             }
         }
@@ -296,9 +296,9 @@ impl TableRenderer {
 
 /// Align text within a field of the given width.
 fn align_text(text: &str, width: usize, alignment: &ColumnAlignment) -> String {
-    let text_len = text.len();
+    let text_len = text.chars().count();
     if text_len >= width {
-        return text[..width].to_string();
+        return text.chars().take(width).collect();
     }
 
     let padding = width - text_len;

@@ -13,12 +13,10 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-use super::tree_renderer;
+use super::{push_line, tree_renderer};
 use crate::prettifier::registry::RendererRegistry;
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, ThemeColors};
-use crate::prettifier::types::{
-    ContentBlock, RenderedContent, RendererCapability, SourceLineMapping, StyledLine, StyledSegment,
-};
+use crate::prettifier::types::{ContentBlock, RenderedContent, RendererCapability, StyledSegment};
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -226,19 +224,6 @@ fn plain_segment(text: &str) -> StyledSegment {
     }
 }
 
-fn push_line(
-    lines: &mut Vec<StyledLine>,
-    line_mapping: &mut Vec<SourceLineMapping>,
-    segments: Vec<StyledSegment>,
-    source_line: Option<usize>,
-) {
-    line_mapping.push(SourceLineMapping {
-        rendered_line: lines.len(),
-        source_line,
-    });
-    lines.push(StyledLine::new(segments));
-}
-
 // ---------------------------------------------------------------------------
 // ContentRenderer implementation
 // ---------------------------------------------------------------------------
@@ -265,9 +250,29 @@ impl ContentRenderer for XmlRenderer {
         let mut lines = Vec::new();
         let mut line_mapping = Vec::new();
         let mut depth: usize = 0;
+        // When collapsing a deep element, skip all children until we return
+        // to this depth. `None` means we're not skipping.
+        let mut skip_until_depth: Option<usize> = None;
 
         for (line_idx, line) in content.lines.iter().enumerate() {
             let trimmed = line.trim();
+
+            // While skipping collapsed children, track depth changes but don't emit output.
+            if let Some(target_depth) = skip_until_depth {
+                if let Some(caps) = re_opening_tag().captures(trimmed) {
+                    // Only count non-self-closing opening tags.
+                    if !re_self_closing_tag().is_match(trimmed) {
+                        let _ = caps; // suppress unused warning
+                        depth += 1;
+                    }
+                } else if re_closing_tag().is_match(trimmed) {
+                    depth = depth.saturating_sub(1);
+                    if depth <= target_depth {
+                        skip_until_depth = None;
+                    }
+                }
+                continue;
+            }
 
             if trimmed.is_empty() {
                 push_line(
@@ -395,7 +400,7 @@ impl ContentRenderer for XmlRenderer {
                 let attrs = caps.get(2).map_or("", |m| m.as_str());
                 let prefix = tree_renderer::tree_guides(depth);
 
-                // Collapse deep elements
+                // Collapse deep elements — skip all children until matching close tag.
                 if depth >= self.config.max_depth_expanded {
                     let summary = format!("<{tag_name}>...</{tag_name}>");
                     push_line(
@@ -412,7 +417,10 @@ impl ContentRenderer for XmlRenderer {
                         ],
                         Some(line_idx),
                     );
-                    // Don't increment depth for collapsed elements
+                    // Enter skip mode: track nested depth until we return to
+                    // current depth (the matching closing tag brings us back).
+                    skip_until_depth = Some(depth);
+                    depth += 1; // account for this opening tag
                     continue;
                 }
 
@@ -475,7 +483,7 @@ pub fn register_xml_renderer(registry: &mut RendererRegistry, config: &XmlRender
 mod tests {
     use super::*;
     use crate::prettifier::traits::RendererConfig;
-    use crate::prettifier::types::ContentBlock;
+    use crate::prettifier::types::{ContentBlock, StyledLine};
     use std::time::SystemTime;
 
     fn test_config() -> RendererConfig {

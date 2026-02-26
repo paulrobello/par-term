@@ -113,6 +113,26 @@ impl RendererRegistry {
     pub fn renderer_count(&self) -> usize {
         self.renderers.len()
     }
+
+    /// Apply rule overrides and additional rules from config to a specific format's detector.
+    pub fn apply_rules_for_format(
+        &mut self,
+        format_id: &str,
+        overrides: &[crate::config::prettifier::RuleOverride],
+        additional: Vec<super::types::DetectionRule>,
+    ) {
+        for (_priority, detector) in &mut self.detectors {
+            if detector.format_id() == format_id {
+                if !overrides.is_empty() {
+                    detector.apply_config_overrides(overrides);
+                }
+                if !additional.is_empty() {
+                    detector.merge_config_rules(additional);
+                }
+                return;
+            }
+        }
+    }
 }
 
 #[cfg(test)]

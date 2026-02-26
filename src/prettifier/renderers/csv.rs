@@ -56,16 +56,72 @@ fn detect_delimiter(lines: &[String]) -> char {
     if tab_count > comma_count { '\t' } else { ',' }
 }
 
+/// Parse a single CSV line respecting RFC 4180 quoted fields.
+fn parse_csv_line(line: &str, delimiter: char) -> Vec<String> {
+    let mut fields = Vec::new();
+    let mut chars = line.chars().peekable();
+    let mut field = String::new();
+
+    while chars.peek().is_some() {
+        // Skip leading whitespace before a field.
+        while chars.peek() == Some(&' ') {
+            chars.next();
+        }
+
+        if chars.peek() == Some(&'"') {
+            // Quoted field: consume opening quote.
+            chars.next();
+            field.clear();
+            loop {
+                match chars.next() {
+                    Some('"') => {
+                        if chars.peek() == Some(&'"') {
+                            // Escaped quote inside quoted field.
+                            field.push('"');
+                            chars.next();
+                        } else {
+                            // End of quoted field.
+                            break;
+                        }
+                    }
+                    Some(c) => field.push(c),
+                    None => break, // Unterminated quote — best effort.
+                }
+            }
+            fields.push(field.clone());
+            // Skip to next delimiter or end.
+            while let Some(&c) = chars.peek() {
+                chars.next();
+                if c == delimiter {
+                    break;
+                }
+            }
+        } else {
+            // Unquoted field: read until delimiter.
+            field.clear();
+            loop {
+                match chars.peek() {
+                    Some(&c) if c == delimiter => {
+                        chars.next();
+                        break;
+                    }
+                    Some(_) => field.push(chars.next().unwrap()),
+                    None => break,
+                }
+            }
+            fields.push(field.trim().to_string());
+        }
+    }
+
+    fields
+}
+
 /// Parse CSV/TSV lines into rows of fields.
 fn parse_csv(lines: &[String], delimiter: char) -> Vec<Vec<String>> {
     lines
         .iter()
         .filter(|l| !l.trim().is_empty())
-        .map(|line| {
-            line.split(delimiter)
-                .map(|field| field.trim().to_string())
-                .collect()
-        })
+        .map(|line| parse_csv_line(line, delimiter))
         .collect()
 }
 

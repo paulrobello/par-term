@@ -15,11 +15,10 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
+use super::push_line;
 use crate::prettifier::registry::RendererRegistry;
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, ThemeColors};
-use crate::prettifier::types::{
-    ContentBlock, RenderedContent, RendererCapability, SourceLineMapping, StyledLine, StyledSegment,
-};
+use crate::prettifier::types::{ContentBlock, RenderedContent, RendererCapability, StyledSegment};
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -347,24 +346,6 @@ impl LogRenderer {
 }
 
 // ---------------------------------------------------------------------------
-// Helper function
-// ---------------------------------------------------------------------------
-
-/// Push a styled line and its source mapping.
-fn push_line(
-    lines: &mut Vec<StyledLine>,
-    line_mapping: &mut Vec<SourceLineMapping>,
-    segments: Vec<StyledSegment>,
-    source_line: Option<usize>,
-) {
-    line_mapping.push(SourceLineMapping {
-        rendered_line: lines.len(),
-        source_line,
-    });
-    lines.push(StyledLine::new(segments));
-}
-
-// ---------------------------------------------------------------------------
 // ContentRenderer implementation
 // ---------------------------------------------------------------------------
 
@@ -480,7 +461,7 @@ pub fn register_log_renderer(registry: &mut RendererRegistry, config: &LogRender
 mod tests {
     use super::*;
     use crate::prettifier::traits::RendererConfig;
-    use crate::prettifier::types::ContentBlock;
+    use crate::prettifier::types::{ContentBlock, StyledLine};
     use std::time::SystemTime;
 
     fn test_config() -> RendererConfig {

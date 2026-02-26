@@ -21,6 +21,9 @@ use crate::config::prettifier::ClaudeCodeConfig;
 /// Default maximum number of entries in the render cache.
 const DEFAULT_CACHE_SIZE: usize = 64;
 
+/// Maximum active blocks before oldest-first eviction.
+const MAX_ACTIVE_BLOCKS: usize = 128;
+
 /// Configuration for the `PrettifierPipeline`.
 #[derive(Debug, Clone)]
 pub struct PrettifierConfig {
@@ -285,10 +288,20 @@ impl PrettifierPipeline {
     ///
     /// A block covers row `r` if `start_row <= r < end_row`.
     pub fn block_at_row(&self, row: usize) -> Option<&PrettifiedBlock> {
-        self.active_blocks.iter().find(|b| {
-            let content = b.content();
-            row >= content.start_row && row < content.end_row
-        })
+        // Blocks are naturally sorted by start_row. Use binary search to find
+        // the last block whose start_row <= row, then check if row < end_row.
+        let idx = self
+            .active_blocks
+            .partition_point(|b| b.content().start_row <= row);
+        if idx == 0 {
+            return None;
+        }
+        let block = &self.active_blocks[idx - 1];
+        if row < block.content().end_row {
+            Some(block)
+        } else {
+            None
+        }
     }
 
     /// Whether the pipeline is effectively enabled.
@@ -479,6 +492,26 @@ impl PrettifierPipeline {
                 detection,
                 block_id,
             });
+
+            // Evict oldest blocks if we exceed the cap.
+            self.evict_excess_blocks();
+        }
+    }
+
+    /// Evict oldest active blocks when the count exceeds [`MAX_ACTIVE_BLOCKS`].
+    ///
+    /// Also cleans up suppressed ranges and Claude Code integration entries
+    /// that reference rows below the oldest remaining block.
+    fn evict_excess_blocks(&mut self) {
+        while self.active_blocks.len() > MAX_ACTIVE_BLOCKS {
+            self.active_blocks.remove(0);
+        }
+
+        // Clean up suppressed_ranges below the oldest remaining block.
+        if let Some(oldest) = self.active_blocks.first() {
+            let min_row = oldest.content().start_row;
+            self.suppressed_ranges.retain(|r| r.end > min_row);
+            self.claude_code.cleanup_stale_entries(min_row);
         }
     }
 

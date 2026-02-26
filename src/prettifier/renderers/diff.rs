@@ -9,6 +9,7 @@
 //! - **Line number gutter**: old/new line numbers from hunk headers
 //! - **Side-by-side mode**: when terminal is wide enough
 
+use super::push_line;
 use crate::prettifier::registry::RendererRegistry;
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, ThemeColors};
 use crate::prettifier::types::{
@@ -42,8 +43,6 @@ pub struct DiffRendererConfig {
     pub word_diff: bool,
     /// Show line number gutter (default: true).
     pub show_line_numbers: bool,
-    /// Context lines around changes (default: 3).
-    pub context_lines: usize,
 }
 
 impl Default for DiffRendererConfig {
@@ -53,7 +52,6 @@ impl Default for DiffRendererConfig {
             side_by_side_min_width: 160,
             word_diff: true,
             show_line_numbers: true,
-            context_lines: 3,
         }
     }
 }
@@ -339,8 +337,15 @@ fn lcs_table<'a>(a: &[&'a str], b: &[&'a str]) -> Vec<Vec<usize>> {
     table
 }
 
+/// Maximum token count before skipping LCS (prevents O(n*m) blowup).
+const MAX_LCS_TOKENS: usize = 200;
+
 /// Mark which tokens are changed (not in LCS) for word-level highlighting.
 fn mark_changes<'a>(tokens: &[&'a str], other: &[&'a str]) -> Vec<bool> {
+    // Guard: if either side is too large, treat all tokens as changed.
+    if tokens.len() > MAX_LCS_TOKENS || other.len() > MAX_LCS_TOKENS {
+        return vec![true; tokens.len()];
+    }
     let table = lcs_table(tokens, other);
     let mut changed = vec![true; tokens.len()];
 
@@ -457,6 +462,7 @@ impl DiffRenderer {
                             bold: true,
                             ..Default::default()
                         }],
+                        None,
                     );
                 }
             }
@@ -472,6 +478,7 @@ impl DiffRenderer {
                         bold: true,
                         ..Default::default()
                     }],
+                    None,
                 );
                 push_line(
                     lines,
@@ -482,6 +489,7 @@ impl DiffRenderer {
                         bold: true,
                         ..Default::default()
                     }],
+                    None,
                 );
             }
 
@@ -520,6 +528,7 @@ impl DiffRenderer {
                 fg: Some(theme.palette[6]), // Cyan
                 ..Default::default()
             }],
+            None,
         );
 
         let mut state = DiffLineState {
@@ -546,7 +555,7 @@ impl DiffRenderer {
                         text: format!(" {text}"),
                         ..Default::default()
                     });
-                    push_line(lines, line_mapping, segments);
+                    push_line(lines, line_mapping, segments, None);
                     state.old_line += 1;
                     state.new_line += 1;
                     i += 1;
@@ -614,7 +623,7 @@ impl DiffRenderer {
                                             ..Default::default()
                                         });
                                     }
-                                    push_line(lines, line_mapping, segments);
+                                    push_line(lines, line_mapping, segments, None);
                                     state.old_line += 1;
                                 }
                             }
@@ -651,7 +660,7 @@ impl DiffRenderer {
                                             ..Default::default()
                                         });
                                     }
-                                    push_line(lines, line_mapping, segments);
+                                    push_line(lines, line_mapping, segments, None);
                                     state.new_line += 1;
                                 }
                             }
@@ -667,7 +676,7 @@ impl DiffRenderer {
                                 fg: Some(theme.palette[1]), // Red
                                 ..Default::default()
                             });
-                            push_line(lines, line_mapping, segments);
+                            push_line(lines, line_mapping, segments, None);
                             state.old_line += 1;
                             i += 1;
                         }
@@ -682,7 +691,7 @@ impl DiffRenderer {
                             fg: Some(theme.palette[1]), // Red
                             ..Default::default()
                         });
-                        push_line(lines, line_mapping, segments);
+                        push_line(lines, line_mapping, segments, None);
                         state.old_line += 1;
                         i += 1;
                     }
@@ -698,7 +707,7 @@ impl DiffRenderer {
                         fg: Some(theme.palette[2]), // Green
                         ..Default::default()
                     });
-                    push_line(lines, line_mapping, segments);
+                    push_line(lines, line_mapping, segments, None);
                     state.new_line += 1;
                     i += 1;
                 }
@@ -733,6 +742,7 @@ impl DiffRenderer {
                             bold: true,
                             ..Default::default()
                         }],
+                        None,
                     );
                 }
             }
@@ -761,6 +771,7 @@ impl DiffRenderer {
                             ..Default::default()
                         },
                     ],
+                    None,
                 );
             }
 
@@ -786,6 +797,7 @@ impl DiffRenderer {
                         fg: Some(theme.palette[6]),
                         ..Default::default()
                     }],
+                    None,
                 );
 
                 // Build side-by-side rows
@@ -868,7 +880,7 @@ impl DiffRenderer {
                         }
                     }
 
-                    push_line(lines, line_mapping, segments);
+                    push_line(lines, line_mapping, segments, None);
                 }
             }
         }
@@ -1007,26 +1019,15 @@ fn line_num_segment(num: Option<usize>, width: usize, theme: &ThemeColors) -> St
 
 /// Truncate a string to fit within a given width.
 fn truncate_str(s: &str, max_width: usize) -> String {
-    if s.len() <= max_width {
+    let char_count = s.chars().count();
+    if char_count <= max_width {
         s.to_string()
     } else if max_width > 1 {
-        format!("{}~", &s[..max_width - 1])
+        let truncated: String = s.chars().take(max_width - 1).collect();
+        format!("{truncated}~")
     } else {
         "~".to_string()
     }
-}
-
-/// Push a styled line and its source mapping.
-fn push_line(
-    lines: &mut Vec<StyledLine>,
-    line_mapping: &mut Vec<SourceLineMapping>,
-    segments: Vec<StyledSegment>,
-) {
-    line_mapping.push(SourceLineMapping {
-        rendered_line: lines.len(),
-        source_line: None,
-    });
-    lines.push(StyledLine::new(segments));
 }
 
 // ---------------------------------------------------------------------------
@@ -1581,7 +1582,6 @@ mod tests {
         assert_eq!(config.side_by_side_min_width, 160);
         assert!(config.word_diff);
         assert!(config.show_line_numbers);
-        assert_eq!(config.context_lines, 3);
     }
 
     // -- Hunk header parsing --

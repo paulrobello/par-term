@@ -13,6 +13,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
+use super::push_line;
 use crate::prettifier::registry::RendererRegistry;
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, ThemeColors};
 use crate::prettifier::types::{
@@ -430,24 +431,6 @@ impl StackTraceRenderer {
             }
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// Helper function
-// ---------------------------------------------------------------------------
-
-/// Push a styled line and its source mapping.
-fn push_line(
-    lines: &mut Vec<StyledLine>,
-    line_mapping: &mut Vec<SourceLineMapping>,
-    segments: Vec<StyledSegment>,
-    source_line: Option<usize>,
-) {
-    line_mapping.push(SourceLineMapping {
-        rendered_line: lines.len(),
-        source_line,
-    });
-    lines.push(StyledLine::new(segments));
 }
 
 // ---------------------------------------------------------------------------

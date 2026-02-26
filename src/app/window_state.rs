@@ -611,11 +611,7 @@ fn reconstruct_markdown_from_cells(cells: &[par_term_config::Cell]) -> String {
         .iter()
         .map(|c| {
             let g = c.grapheme.as_str();
-            if g.is_empty() || g == "\0" {
-                " "
-            } else {
-                g
-            }
+            if g.is_empty() || g == "\0" { " " } else { g }
         })
         .collect::<String>()
         .trim_end()
@@ -1957,6 +1953,17 @@ impl WindowState {
                     self.reinit_shader_watcher();
                 }
 
+                // Rebuild prettifier pipelines if prettifier config changed.
+                if changes.prettifier_changed {
+                    for tab in self.tab_manager.tabs_mut() {
+                        tab.prettifier =
+                            crate::prettifier::config_bridge::create_pipeline_from_config(
+                                &self.config,
+                                self.config.cols,
+                            );
+                    }
+                }
+
                 self.needs_redraw = true;
                 debug_info!("CONFIG", "Config reloaded successfully");
             }
@@ -2047,6 +2054,16 @@ impl WindowState {
 
         if changes.needs_watcher_reinit() {
             self.reinit_shader_watcher();
+        }
+
+        // Rebuild prettifier pipelines if prettifier config changed.
+        if changes.prettifier_changed {
+            for tab in self.tab_manager.tabs_mut() {
+                tab.prettifier = crate::prettifier::config_bridge::create_pipeline_from_config(
+                    &self.config,
+                    self.config.cols,
+                );
+            }
         }
 
         // Save to disk
@@ -2709,119 +2726,130 @@ impl WindowState {
         // Get terminal cells for rendering (with dirty tracking optimization)
         // Also capture alt screen state to disable cursor shader for TUI apps
         let (mut cells, current_cursor_pos, cursor_style, is_alt_screen, current_generation) =
-            if let Ok(term) = terminal.try_lock()
-        {
-            // Get current generation to check if terminal content has changed
-            let current_generation = term.update_generation();
+            if let Ok(term) = terminal.try_lock() {
+                // Get current generation to check if terminal content has changed
+                let current_generation = term.update_generation();
 
-            // Normalize selection if it exists and extract mode
-            let (selection, rectangular) = if let Some(sel) = mouse_selection {
-                (
-                    Some(sel.normalized()),
-                    sel.mode == SelectionMode::Rectangular,
-                )
-            } else {
-                (None, false)
-            };
-
-            // Get cursor position and opacity (only show if we're at the bottom with no scroll offset
-            // and the cursor is visible - TUI apps hide cursor via DECTCEM escape sequence)
-            // If lock_cursor_visibility is enabled, ignore the terminal's visibility state
-            // In copy mode, use the copy mode cursor position instead
-            let cursor_visible = self.config.lock_cursor_visibility || term.is_cursor_visible();
-            let current_cursor_pos = if self.copy_mode.active {
-                self.copy_mode.screen_cursor_pos(scroll_offset)
-            } else if scroll_offset == 0 && cursor_visible {
-                Some(term.cursor_position())
-            } else {
-                None
-            };
-
-            let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_opacity));
-
-            // Get cursor style for geometric rendering
-            // In copy mode, always use SteadyBlock for clear visibility
-            // If lock_cursor_style is enabled, use the config's cursor style instead of terminal's
-            // If lock_cursor_blink is enabled and cursor_blink is false, force steady cursor
-            let cursor_style = if self.copy_mode.active && current_cursor_pos.is_some() {
-                Some(TermCursorStyle::SteadyBlock)
-            } else if current_cursor_pos.is_some() {
-                if self.config.lock_cursor_style {
-                    // Convert config cursor style to terminal cursor style
-                    let style = if self.config.cursor_blink {
-                        match self.config.cursor_style {
-                            CursorStyle::Block => TermCursorStyle::BlinkingBlock,
-                            CursorStyle::Beam => TermCursorStyle::BlinkingBar,
-                            CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
-                        }
-                    } else {
-                        match self.config.cursor_style {
-                            CursorStyle::Block => TermCursorStyle::SteadyBlock,
-                            CursorStyle::Beam => TermCursorStyle::SteadyBar,
-                            CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
-                        }
-                    };
-                    Some(style)
+                // Normalize selection if it exists and extract mode
+                let (selection, rectangular) = if let Some(sel) = mouse_selection {
+                    (
+                        Some(sel.normalized()),
+                        sel.mode == SelectionMode::Rectangular,
+                    )
                 } else {
-                    let mut style = term.cursor_style();
-                    // If blink is locked off, convert blinking styles to steady
-                    if self.config.lock_cursor_blink && !self.config.cursor_blink {
-                        style = match style {
-                            TermCursorStyle::BlinkingBlock => TermCursorStyle::SteadyBlock,
-                            TermCursorStyle::BlinkingBar => TermCursorStyle::SteadyBar,
-                            TermCursorStyle::BlinkingUnderline => TermCursorStyle::SteadyUnderline,
-                            other => other,
+                    (None, false)
+                };
+
+                // Get cursor position and opacity (only show if we're at the bottom with no scroll offset
+                // and the cursor is visible - TUI apps hide cursor via DECTCEM escape sequence)
+                // If lock_cursor_visibility is enabled, ignore the terminal's visibility state
+                // In copy mode, use the copy mode cursor position instead
+                let cursor_visible = self.config.lock_cursor_visibility || term.is_cursor_visible();
+                let current_cursor_pos = if self.copy_mode.active {
+                    self.copy_mode.screen_cursor_pos(scroll_offset)
+                } else if scroll_offset == 0 && cursor_visible {
+                    Some(term.cursor_position())
+                } else {
+                    None
+                };
+
+                let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_opacity));
+
+                // Get cursor style for geometric rendering
+                // In copy mode, always use SteadyBlock for clear visibility
+                // If lock_cursor_style is enabled, use the config's cursor style instead of terminal's
+                // If lock_cursor_blink is enabled and cursor_blink is false, force steady cursor
+                let cursor_style = if self.copy_mode.active && current_cursor_pos.is_some() {
+                    Some(TermCursorStyle::SteadyBlock)
+                } else if current_cursor_pos.is_some() {
+                    if self.config.lock_cursor_style {
+                        // Convert config cursor style to terminal cursor style
+                        let style = if self.config.cursor_blink {
+                            match self.config.cursor_style {
+                                CursorStyle::Block => TermCursorStyle::BlinkingBlock,
+                                CursorStyle::Beam => TermCursorStyle::BlinkingBar,
+                                CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
+                            }
+                        } else {
+                            match self.config.cursor_style {
+                                CursorStyle::Block => TermCursorStyle::SteadyBlock,
+                                CursorStyle::Beam => TermCursorStyle::SteadyBar,
+                                CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
+                            }
                         };
+                        Some(style)
+                    } else {
+                        let mut style = term.cursor_style();
+                        // If blink is locked off, convert blinking styles to steady
+                        if self.config.lock_cursor_blink && !self.config.cursor_blink {
+                            style = match style {
+                                TermCursorStyle::BlinkingBlock => TermCursorStyle::SteadyBlock,
+                                TermCursorStyle::BlinkingBar => TermCursorStyle::SteadyBar,
+                                TermCursorStyle::BlinkingUnderline => {
+                                    TermCursorStyle::SteadyUnderline
+                                }
+                                other => other,
+                            };
+                        }
+                        Some(style)
                     }
-                    Some(style)
-                }
-            } else {
-                None
-            };
+                } else {
+                    None
+                };
 
-            log::trace!(
-                "Cursor: pos={:?}, opacity={:.2}, style={:?}, scroll={}, visible={}",
-                current_cursor_pos,
-                self.cursor_opacity,
-                cursor_style,
-                scroll_offset,
-                term.is_cursor_visible()
-            );
+                log::trace!(
+                    "Cursor: pos={:?}, opacity={:.2}, style={:?}, scroll={}, visible={}",
+                    current_cursor_pos,
+                    self.cursor_opacity,
+                    cursor_style,
+                    scroll_offset,
+                    term.is_cursor_visible()
+                );
 
-            // Check if we need to regenerate cells
-            // Only regenerate when content actually changes, not on every cursor blink
-            let needs_regeneration = cache_cells.is_none()
+                // Check if we need to regenerate cells
+                // Only regenerate when content actually changes, not on every cursor blink
+                let needs_regeneration = cache_cells.is_none()
                 || current_generation != cache_generation
                 || scroll_offset != cache_scroll_offset
                 || current_cursor_pos != cache_cursor_pos // Regenerate if cursor position changed
                 || mouse_selection != cache_selection; // Regenerate if selection changed (including clearing)
 
-            let cell_gen_start = std::time::Instant::now();
-            let (cells, is_cache_hit) = if needs_regeneration {
-                // Generate fresh cells
-                let fresh_cells =
-                    term.get_cells_with_scrollback(scroll_offset, selection, rectangular, cursor);
+                let cell_gen_start = std::time::Instant::now();
+                let (cells, is_cache_hit) = if needs_regeneration {
+                    // Generate fresh cells
+                    let fresh_cells = term.get_cells_with_scrollback(
+                        scroll_offset,
+                        selection,
+                        rectangular,
+                        cursor,
+                    );
 
-                (fresh_cells, false)
+                    (fresh_cells, false)
+                } else {
+                    // Use cached cells - clone is still needed because of apply_url_underlines
+                    // but we track it accurately for debug logging
+                    (cache_cells.as_ref().unwrap().clone(), true)
+                };
+                self.debug.cache_hit = is_cache_hit;
+                self.debug.cell_gen_time = cell_gen_start.elapsed();
+
+                // Check if alt screen is active (TUI apps like vim, htop)
+                let is_alt_screen = term.is_alt_screen_active();
+
+                (
+                    cells,
+                    current_cursor_pos,
+                    cursor_style,
+                    is_alt_screen,
+                    current_generation,
+                )
+            } else if let Some(cached) = cache_cells {
+                // Terminal locked (e.g., upload in progress), use cached cells so the
+                // rest of the render pipeline (including file transfer overlay) can proceed.
+                (cached, cache_cursor_pos, None, false, cache_generation)
             } else {
-                // Use cached cells - clone is still needed because of apply_url_underlines
-                // but we track it accurately for debug logging
-                (cache_cells.as_ref().unwrap().clone(), true)
+                return; // Terminal locked and no cache available, skip this frame
             };
-            self.debug.cache_hit = is_cache_hit;
-            self.debug.cell_gen_time = cell_gen_start.elapsed();
-
-            // Check if alt screen is active (TUI apps like vim, htop)
-            let is_alt_screen = term.is_alt_screen_active();
-
-            (cells, current_cursor_pos, cursor_style, is_alt_screen, current_generation)
-        } else if let Some(cached) = cache_cells {
-            // Terminal locked (e.g., upload in progress), use cached cells so the
-            // rest of the render pipeline (including file transfer overlay) can proceed.
-            (cached, cache_cursor_pos, None, false, cache_generation)
-        } else {
-            return; // Terminal locked and no cache available, skip this frame
-        };
 
         // --- Prettifier pipeline update ---
         // Feed terminal output changes to the prettifier, check debounce, and handle
@@ -2929,7 +2957,11 @@ impl WindowState {
 
                 (sb_len, term.get_title(), shell_events)
             } else {
-                (cached_scrollback_len, cached_terminal_title.clone(), Vec::new())
+                (
+                    cached_scrollback_len,
+                    cached_terminal_title.clone(),
+                    Vec::new(),
+                )
             };
 
         // Capture prettifier block count before processing events/feed so we can
@@ -2958,8 +2990,7 @@ impl WindowState {
                             par_term_terminal::ShellLifecycleEvent::CommandFinished {
                                 absolute_line,
                             } => {
-                                if let Some(start) =
-                                    tab.cache.prettifier_command_start_line.take()
+                                if let Some(start) = tab.cache.prettifier_command_start_line.take()
                                 {
                                     let cmd_text = tab.cache.prettifier_command_text.take();
                                     // Read full command output from scrollback so the
@@ -2968,8 +2999,8 @@ impl WindowState {
                                     // long output shows prettified content throughout.
                                     let output_start = start + 1;
                                     if let Ok(term) = terminal.try_lock() {
-                                        let lines = term
-                                            .lines_text_range(output_start, *absolute_line);
+                                        let lines =
+                                            term.lines_text_range(output_start, *absolute_line);
                                         crate::debug_info!(
                                             "PRETTIFIER",
                                             "submit_command_output: {} lines (rows {}..{})",
@@ -3058,11 +3089,7 @@ impl WindowState {
                                 .iter()
                                 .map(|c| {
                                     let g = c.grapheme.as_str();
-                                    if g.is_empty() || g == "\0" {
-                                        " "
-                                    } else {
-                                        g
-                                    }
+                                    if g.is_empty() || g == "\0" { " " } else { g }
                                 })
                                 .collect();
                             // Match Claude Code's specific collapse patterns:
@@ -3070,9 +3097,8 @@ impl WindowState {
                             //   "Read N lines (ctrl+o to expand)"
                             //   "Read N files (ctrl+o to expand)"
                             //   "+N lines (ctrl+o to expand)"
-                            let is_collapse_line =
-                                text.contains("lines (ctrl+o to expand)")
-                                    || text.contains("files (ctrl+o to expand)");
+                            let is_collapse_line = text.contains("lines (ctrl+o to expand)")
+                                || text.contains("files (ctrl+o to expand)");
                             if is_collapse_line {
                                 crate::debug_info!(
                                     "PRETTIFIER",
@@ -3116,11 +3142,7 @@ impl WindowState {
                                     .iter()
                                     .map(|c| {
                                         let g = c.grapheme.as_str();
-                                        if g.is_empty() || g == "\0" {
-                                            " "
-                                        } else {
-                                            g
-                                        }
+                                        if g.is_empty() || g == "\0" { " " } else { g }
                                     })
                                     .collect::<String>()
                                     .trim_end()

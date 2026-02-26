@@ -138,7 +138,8 @@ fn re_bold() -> &'static Regex {
 
 fn re_italic() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\*([^*]+)\*|_([^_]+)_").unwrap())
+    // Use \b around underscore italic to avoid matching snake_case identifiers.
+    RE.get_or_init(|| Regex::new(r"\*([^*]+)\*|\b_([^_]+)_\b").unwrap())
 }
 
 fn re_fence_open() -> &'static Regex {
@@ -1165,11 +1166,8 @@ impl ContentRenderer for MarkdownRenderer {
         for block in &blocks {
             match block {
                 BlockElement::Line { source_idx } => {
-                    let styled = self.render_line(
-                        &content.lines[*source_idx],
-                        config,
-                        &mut footnote_links,
-                    );
+                    let styled =
+                        self.render_line(&content.lines[*source_idx], config, &mut footnote_links);
                     line_mapping.push(SourceLineMapping {
                         rendered_line: lines.len(),
                         source_line: Some(*source_idx),
@@ -1776,8 +1774,14 @@ mod tests {
             .iter()
             .map(|s| s.text.as_str())
             .collect();
-        assert!(content_text.contains("[1]"), "Should have [1] reference: {content_text}");
-        assert!(content_text.contains("[2]"), "Should have [2] reference: {content_text}");
+        assert!(
+            content_text.contains("[1]"),
+            "Should have [1] reference: {content_text}"
+        );
+        assert!(
+            content_text.contains("[2]"),
+            "Should have [2] reference: {content_text}"
+        );
         // Last two lines should be footnote references.
         let last = &result.lines[result.lines.len() - 1];
         let last_text: String = last.segments.iter().map(|s| s.text.as_str()).collect();

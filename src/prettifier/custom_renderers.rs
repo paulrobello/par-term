@@ -5,7 +5,7 @@
 //! - Custom regex-only detectors created from config patterns
 //! - Custom fenced block diagram languages
 
-use std::io::Write;
+use std::io::{Read as _, Write};
 use std::process::{Command, Stdio};
 
 use crate::config::prettifier::CustomRendererConfig;
@@ -81,21 +81,58 @@ impl ContentRenderer for ExternalCommandRenderer {
             let _ = stdin.write_all(input.as_bytes());
         }
 
-        let output = child
-            .wait_with_output()
+        // Poll with timeout (10s) and output cap (1 MiB) to prevent hangs.
+        const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+        const MAX_OUTPUT: usize = 1024 * 1024; // 1 MiB
+        let deadline = std::time::Instant::now() + TIMEOUT;
+
+        loop {
+            match child.try_wait() {
+                Ok(Some(_status)) => break,
+                Ok(None) => {
+                    if std::time::Instant::now() >= deadline {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        return Err(RenderError::RenderFailed(format!(
+                            "{} timed out after {}s",
+                            self.render_command,
+                            TIMEOUT.as_secs()
+                        )));
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                Err(e) => {
+                    return Err(RenderError::RenderFailed(format!(
+                        "command execution failed: {e}"
+                    )));
+                }
+            }
+        }
+
+        let exit_status = child
+            .wait()
             .map_err(|e| RenderError::RenderFailed(format!("command execution failed: {e}")))?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        if !exit_status.success() {
+            let mut stderr_buf = String::new();
+            if let Some(mut stderr) = child.stderr.take() {
+                let _ = stderr.read_to_string(&mut stderr_buf);
+            }
             return Err(RenderError::RenderFailed(format!(
                 "{} exited with {}: {}",
                 self.render_command,
-                output.status,
-                stderr.trim()
+                exit_status,
+                stderr_buf.trim()
             )));
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut stdout_bytes = Vec::new();
+        if let Some(mut stdout) = child.stdout.take() {
+            stdout_bytes.resize(MAX_OUTPUT, 0);
+            let n = stdout.read(&mut stdout_bytes).unwrap_or(0);
+            stdout_bytes.truncate(n);
+        }
+        let stdout = String::from_utf8_lossy(&stdout_bytes);
         let lines: Vec<StyledLine> = stdout.lines().map(parse_ansi_line).collect();
 
         let line_mapping: Vec<SourceLineMapping> = lines
@@ -157,14 +194,14 @@ const ANSI_COLORS: [[u8; 3]; 8] = [
 
 /// Bright ANSI color palette (indices 8–15).
 const ANSI_BRIGHT: [[u8; 3]; 8] = [
-    [85, 85, 85],     // 8  Bright black
-    [255, 85, 85],    // 9  Bright red
-    [85, 255, 85],    // 10 Bright green
-    [255, 255, 85],   // 11 Bright yellow
-    [85, 85, 255],    // 12 Bright blue
-    [255, 85, 255],   // 13 Bright magenta
-    [85, 255, 255],   // 14 Bright cyan
-    [255, 255, 255],  // 15 Bright white
+    [85, 85, 85],    // 8  Bright black
+    [255, 85, 85],   // 9  Bright red
+    [85, 255, 85],   // 10 Bright green
+    [255, 255, 85],  // 11 Bright yellow
+    [85, 85, 255],   // 12 Bright blue
+    [255, 85, 255],  // 13 Bright magenta
+    [85, 255, 255],  // 14 Bright cyan
+    [255, 255, 255], // 15 Bright white
 ];
 
 /// Convert a 256-color index to RGB.
@@ -519,10 +556,15 @@ mod tests {
 
     #[test]
     fn test_parse_ansi_italic_underline_strikethrough() {
-        let line = parse_ansi_line("\x1b[3mitalic\x1b[0m \x1b[4munderline\x1b[0m \x1b[9mstrike\x1b[0m");
+        let line =
+            parse_ansi_line("\x1b[3mitalic\x1b[0m \x1b[4munderline\x1b[0m \x1b[9mstrike\x1b[0m");
         // Resets between styled words produce separate segments for the spaces
         let italic_seg = line.segments.iter().find(|s| s.text == "italic").unwrap();
-        let underline_seg = line.segments.iter().find(|s| s.text == "underline").unwrap();
+        let underline_seg = line
+            .segments
+            .iter()
+            .find(|s| s.text == "underline")
+            .unwrap();
         let strike_seg = line.segments.iter().find(|s| s.text == "strike").unwrap();
         assert!(italic_seg.italic);
         assert!(underline_seg.underline);

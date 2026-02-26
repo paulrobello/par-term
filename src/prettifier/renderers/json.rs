@@ -15,7 +15,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-use super::tree_renderer;
+use super::{push_line, tree_renderer};
 use crate::prettifier::registry::RendererRegistry;
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig, ThemeColors};
 use crate::prettifier::types::{
@@ -29,8 +29,6 @@ use crate::prettifier::types::{
 /// Configuration for the JSON renderer.
 #[derive(Clone, Debug)]
 pub struct JsonRendererConfig {
-    /// Spaces per indentation level (default: 2).
-    pub indent: usize,
     /// Auto-collapse objects/arrays beyond this depth (default: 3).
     pub max_depth_expanded: usize,
     /// Truncate string values longer than this (default: 200).
@@ -52,7 +50,6 @@ pub struct JsonRendererConfig {
 impl Default for JsonRendererConfig {
     fn default() -> Self {
         Self {
-            indent: 2,
             max_depth_expanded: 3,
             max_string_length: 200,
             show_array_length: true,
@@ -110,7 +107,7 @@ impl JsonRenderer {
                 let prefix = tree_renderer::tree_guides(depth);
                 let mut segments = vec![guide_segment(&prefix, theme)];
                 segments.extend(self.style_value(value, theme));
-                push_line(lines, line_mapping, segments);
+                push_line(lines, line_mapping, segments, None);
             }
         }
     }
@@ -143,6 +140,7 @@ impl JsonRenderer {
                     },
                     punct_segment("}", theme),
                 ],
+                None,
             );
             return;
         }
@@ -157,7 +155,7 @@ impl JsonRenderer {
                 ..Default::default()
             });
         }
-        push_line(lines, line_mapping, open_segments);
+        push_line(lines, line_mapping, open_segments, None);
 
         // Key-value pairs
         let keys: Vec<&String> = if self.config.sort_keys {
@@ -172,7 +170,7 @@ impl JsonRenderer {
         for (i, key) in keys.iter().enumerate() {
             let value = &map[*key];
             let inner_prefix = tree_renderer::tree_guides(depth + 1);
-            let trailing_comma = if i < key_count - 1 { "," } else { "" };
+            let trailing_comma = if i + 1 < key_count { "," } else { "" };
 
             if is_scalar(value) {
                 let mut segments = vec![
@@ -182,7 +180,7 @@ impl JsonRenderer {
                 ];
                 segments.extend(self.style_value(value, theme));
                 segments.push(punct_segment(trailing_comma, theme));
-                push_line(lines, line_mapping, segments);
+                push_line(lines, line_mapping, segments, None);
             } else {
                 // Complex value: emit key, then recurse for the value
                 push_line(
@@ -193,6 +191,7 @@ impl JsonRenderer {
                         key_segment(key, theme),
                         punct_segment(": ", theme),
                     ],
+                    None,
                 );
                 // Remove the last line we just pushed — we'll merge the key with the
                 // opening bracket/brace of the value.
@@ -234,6 +233,7 @@ impl JsonRenderer {
             lines,
             line_mapping,
             vec![guide_segment(&prefix, theme), punct_segment("}", theme)],
+            None,
         );
     }
 
@@ -265,6 +265,7 @@ impl JsonRenderer {
                     },
                     punct_segment("]", theme),
                 ],
+                None,
             );
             return;
         }
@@ -279,21 +280,21 @@ impl JsonRenderer {
                 ..Default::default()
             });
         }
-        push_line(lines, line_mapping, open_segments);
+        push_line(lines, line_mapping, open_segments, None);
 
         // Elements
         let display_count = arr.len().min(self.config.max_array_display);
         let total = arr.len();
 
         for (i, value) in arr.iter().take(display_count).enumerate() {
-            let trailing_comma = if i < total - 1 { "," } else { "" };
+            let trailing_comma = if i + 1 < total { "," } else { "" };
 
             if is_scalar(value) {
                 let inner_prefix = tree_renderer::tree_guides(depth + 1);
                 let mut segments = vec![guide_segment(&inner_prefix, theme)];
                 segments.extend(self.style_value(value, theme));
                 segments.push(punct_segment(trailing_comma, theme));
-                push_line(lines, line_mapping, segments);
+                push_line(lines, line_mapping, segments, None);
             } else {
                 self.render_value(value, depth + 1, lines, line_mapping, theme);
                 // Add trailing comma
@@ -323,6 +324,7 @@ impl JsonRenderer {
                         ..Default::default()
                     },
                 ],
+                None,
             );
         }
 
@@ -331,6 +333,7 @@ impl JsonRenderer {
             lines,
             line_mapping,
             vec![guide_segment(&prefix, theme), punct_segment("]", theme)],
+            None,
         );
     }
 
@@ -340,8 +343,9 @@ impl JsonRenderer {
 
         match value {
             serde_json::Value::String(s) => {
-                let display = if s.len() > self.config.max_string_length {
-                    format!("\"{}...\"", &s[..self.config.max_string_length])
+                let display = if s.chars().count() > self.config.max_string_length {
+                    let truncated: String = s.chars().take(self.config.max_string_length).collect();
+                    format!("\"{truncated}...\"")
                 } else {
                     format!("\"{s}\"")
                 };
@@ -460,19 +464,6 @@ fn type_annotation(text: &str, theme: &ThemeColors) -> StyledSegment {
         italic: true,
         ..Default::default()
     }
-}
-
-/// Push a styled line and its source mapping.
-fn push_line(
-    lines: &mut Vec<StyledLine>,
-    line_mapping: &mut Vec<SourceLineMapping>,
-    segments: Vec<StyledSegment>,
-) {
-    line_mapping.push(SourceLineMapping {
-        rendered_line: lines.len(),
-        source_line: None,
-    });
-    lines.push(StyledLine::new(segments));
 }
 
 // ---------------------------------------------------------------------------
@@ -988,7 +979,6 @@ mod tests {
     #[test]
     fn test_config_defaults() {
         let config = JsonRendererConfig::default();
-        assert_eq!(config.indent, 2);
         assert_eq!(config.max_depth_expanded, 3);
         assert_eq!(config.max_string_length, 200);
         assert!(config.show_array_length);

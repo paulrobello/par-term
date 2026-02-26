@@ -1,4 +1,6 @@
-use crate::scrollback_metadata::{CommandSnapshot, LineMetadata, ScrollbackMark, ScrollbackMetadata};
+use crate::scrollback_metadata::{
+    CommandSnapshot, LineMetadata, ScrollbackMark, ScrollbackMetadata,
+};
 use crate::styled_content::{StyledSegment, extract_styled_segments};
 use anyhow::Result;
 use par_term_config::Theme;

@@ -165,7 +165,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         // Command context rule
         .rule(DetectionRule {
             id: "md_claude_code_context".into(),
-            pattern: Regex::new(r"(claude|cc|claude-code)").unwrap(),
+            pattern: Regex::new(r"\b(claude|claude-code)\b|(?:^|\s)cc(?:\s|$)").unwrap(),
             weight: 0.2,
             scope: RuleScope::PrecedingCommand,
             strength: RuleStrength::Supporting,
