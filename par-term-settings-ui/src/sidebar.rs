@@ -533,19 +533,6 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "restore session",
             "undo timeout",
             "undo entries",
-            // Content Prettifier
-            "prettifier",
-            "prettify",
-            "content",
-            "detect",
-            "render",
-            "markdown",
-            "json",
-            "yaml",
-            "diagram",
-            "confidence",
-            "detection",
-            "claude code",
         ],
         SettingsTab::Effects => &[
             // Background
@@ -823,6 +810,12 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "ascii",
             "nul",
             "enq",
+            "esc",
+            "space",
+            // Sound file formats
+            "wav",
+            "ogg",
+            "flac",
         ],
         SettingsTab::Integrations => &[
             "shell integration",
@@ -840,6 +833,13 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "open folder",
             "shaders folder",
             "overwrite",
+            // Status and info
+            "detected",
+            "version",
+            "status",
+            "location",
+            "copy",
+            "modified",
         ],
         SettingsTab::Automation => &[
             "trigger",
@@ -868,6 +868,11 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "variable",
             "foreground",
             "foreground color",
+            // Prettify action
+            "prettify",
+            "prettifier",
+            "scope",
+            "command output",
             // Coprocess extras
             "restart",
             "restart policy",
@@ -969,12 +974,32 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "toggle",
             "source",
             "rendered",
-            "trigger",
             "custom",
             "claude code",
             "external command",
             "test detection",
             "sample",
+            // Diagram engine
+            "engine",
+            "kroki",
+            "native",
+            "text fallback",
+            // Display options
+            "alternate screen",
+            "per-block",
+            "per block",
+            "block",
+            // Clipboard
+            "clipboard",
+            "copy",
+            // Cache
+            "cache",
+            "max entries",
+            // Detection tuning
+            "scope",
+            "threshold",
+            "debounce",
+            "scan",
         ],
         SettingsTab::Arrangements => &[
             "arrangement",
@@ -1002,7 +1027,6 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "acp",
             "llm",
             "assistant",
-            "snapshot",
             "zone",
             "command",
             "history",
@@ -1020,8 +1044,6 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "cards",
             "timeline",
             "tree",
-            "export",
-            "json",
             "env",
             "environment",
             "anthropic",
@@ -1029,11 +1051,14 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "startup",
             "open",
             "width",
-            "persist",
             // Panel
             "panel",
             // Permissions
             "permissions",
+            "auto-approve",
+            "auto approve",
+            "screenshot",
+            "screenshot access",
             // Agent extras
             "auto-send",
             "auto send",
@@ -1045,6 +1070,19 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "list",
             "list detail",
             "recent",
+            // Custom agents
+            "custom",
+            "identity",
+            "short name",
+            "install command",
+            "connector",
+            "run command",
+            "active",
+            "protocol",
+            // Platform-specific
+            "macos",
+            "linux",
+            "windows",
         ],
         SettingsTab::Advanced => &[
             // tmux
@@ -1122,6 +1160,14 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "daily",
             "weekly",
             "monthly",
+            "homebrew",
+            "brew",
+            "cargo",
+            "self-update",
+            // Import/export extras
+            "backup",
+            "config",
+            "url import",
         ],
     }
 }

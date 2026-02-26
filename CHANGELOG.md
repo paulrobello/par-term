@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Settings Quick Search Keywords**: Fixed and updated search keywords across all settings tabs — removed 12 content-prettifier keywords that were incorrectly placed in the Terminal tab (causing wrong tab matches for searches like "markdown" or "json"); added ~50 missing keywords across ContentPrettifier (engine, kroki, alternate screen, cache), AI Inspector (custom agents, screenshot access, platform-specific), Automation (prettify action), Integrations (detected, version, status), Advanced (homebrew, cargo), and Notifications (audio formats); removed 5 stale keywords from AI Inspector and ContentPrettifier that referenced non-existent settings
+
+### Fixed
+
 - **Inline Graphics in Split Pane Mode (Sixel/iTerm2/Kitty)**: Inline graphics now render correctly in split-pane layouts — previously graphics were invisible in all split panes because the render path read from the shared tab terminal instead of each pane's own PTY, and never issued a graphics draw call; each pane now gathers graphics from its own terminal, uploads textures to the shared GPU cache, and renders them clipped to the pane's scissor rect
 
 - **Scrollback in Split Pane Mode**: Scrollback (mouse-wheel scroll, Page Up/Down, keyboard marks navigation) now works correctly in split panes — fixed three independent bugs: (1) `tab.cache.scrollback_len` was not updated from the focused pane's terminal so scroll distance was always clamped to 0; (2) `clamp_to_scrollback()` was called every frame with the stale tab-terminal's scrollback length (0 in pane mode), resetting scroll state on every frame; (3) the scroll offset stored in `tab.scroll_state` was not being used when gathering focused-pane cell data for rendering
