@@ -187,8 +187,8 @@ impl PrettifierPipeline {
             return;
         }
 
-        let start_row = lines.first().unwrap().1;
-        let end_row = lines.last().unwrap().1 + 1;
+        let start_row = lines.first().expect("lines is non-empty, checked above").1;
+        let end_row = lines.last().expect("lines is non-empty, checked above").1 + 1;
         let text_lines: Vec<String> = lines.into_iter().map(|(text, _)| text).collect();
 
         let block = ContentBlock {

@@ -28,7 +28,7 @@ pub fn create_diff_detector() -> crate::prettifier::regex_detector::RegexDetecto
         // Definitive rules
         .rule(DetectionRule {
             id: "diff_git_header".into(),
-            pattern: Regex::new(r"^diff --git\s+").unwrap(),
+            pattern: Regex::new(r"^diff --git\s+").expect("regex pattern is valid and should always compile"),
             weight: 0.9,
             scope: RuleScope::FirstLines(5),
             strength: RuleStrength::Definitive,
@@ -39,7 +39,7 @@ pub fn create_diff_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "diff_unified_header".into(),
-            pattern: Regex::new(r"^---\s+\S+.*\n\+\+\+\s+\S+").unwrap(),
+            pattern: Regex::new(r"^---\s+\S+.*\n\+\+\+\s+\S+").expect("regex pattern is valid and should always compile"),
             weight: 0.9,
             scope: RuleScope::FullBlock,
             strength: RuleStrength::Definitive,
@@ -50,7 +50,7 @@ pub fn create_diff_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "diff_hunk".into(),
-            pattern: Regex::new(r"^@@\s+-\d+,?\d*\s+\+\d+,?\d*\s+@@").unwrap(),
+            pattern: Regex::new(r"^@@\s+-\d+,?\d*\s+\+\d+,?\d*\s+@@").expect("regex pattern is valid and should always compile"),
             weight: 0.8,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Definitive,
@@ -62,7 +62,7 @@ pub fn create_diff_detector() -> crate::prettifier::regex_detector::RegexDetecto
         // Supporting rules
         .rule(DetectionRule {
             id: "diff_add_line".into(),
-            pattern: Regex::new(r"^\+[^+]").unwrap(),
+            pattern: Regex::new(r"^\+[^+]").expect("regex pattern is valid and should always compile"),
             weight: 0.1,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -73,7 +73,7 @@ pub fn create_diff_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "diff_remove_line".into(),
-            pattern: Regex::new(r"^-[^-]").unwrap(),
+            pattern: Regex::new(r"^-[^-]").expect("regex pattern is valid and should always compile"),
             weight: 0.1,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -84,7 +84,7 @@ pub fn create_diff_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "diff_git_context".into(),
-            pattern: Regex::new(r"^git\s+(diff|log|show)").unwrap(),
+            pattern: Regex::new(r"^git\s+(diff|log|show)").expect("diff_git_context: pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::PrecedingCommand,
             strength: RuleStrength::Supporting,

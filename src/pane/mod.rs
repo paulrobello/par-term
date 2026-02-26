@@ -7,6 +7,7 @@
 //! - `PaneId`: Unique identifier for each pane
 
 mod manager;
+mod tmux_helpers;
 mod types;
 
 pub use manager::PaneManager;

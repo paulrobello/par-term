@@ -26,7 +26,7 @@ pub fn create_toml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         .definitive_rule_shortcircuit(false)
         .rule(DetectionRule {
             id: "toml_section_header".into(),
-            pattern: Regex::new(r"^\[[\w.-]+\]\s*$").unwrap(),
+            pattern: Regex::new(r"^\[[\w.-]+\]\s*$").expect("regex pattern is valid and should always compile"),
             weight: 0.5,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -37,7 +37,7 @@ pub fn create_toml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "toml_array_table".into(),
-            pattern: Regex::new(r"^\[\[[\w.-]+\]\]\s*$").unwrap(),
+            pattern: Regex::new(r"^\[\[[\w.-]+\]\]\s*$").expect("regex pattern is valid and should always compile"),
             weight: 0.6,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Definitive,
@@ -48,7 +48,7 @@ pub fn create_toml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "toml_key_value".into(),
-            pattern: Regex::new(r"^[\w.-]+\s*=\s*").unwrap(),
+            pattern: Regex::new(r"^[\w.-]+\s*=\s*").expect("regex pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -59,7 +59,7 @@ pub fn create_toml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "toml_string_value".into(),
-            pattern: Regex::new(r#"=\s*"[^"]*"\s*$"#).unwrap(),
+            pattern: Regex::new(r#"=\s*"[^"]*"\s*$"#).expect("regex pattern is valid and should always compile"),
             weight: 0.2,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -70,7 +70,7 @@ pub fn create_toml_detector() -> crate::prettifier::regex_detector::RegexDetecto
         })
         .rule(DetectionRule {
             id: "toml_comment".into(),
-            pattern: Regex::new(r"^\s*#").unwrap(),
+            pattern: Regex::new(r"^\s*#").expect("regex pattern is valid and should always compile"),
             weight: 0.1,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,

@@ -19,7 +19,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         // Definitive rules
         .rule(DetectionRule {
             id: "md_fenced_code".into(),
-            pattern: Regex::new(r"^```\w*\s*$").unwrap(),
+            pattern: Regex::new(r"^```\w*\s*$").expect("regex pattern is valid and should always compile"),
             weight: 0.8,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Definitive,
@@ -30,7 +30,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         })
         .rule(DetectionRule {
             id: "md_fenced_tilde".into(),
-            pattern: Regex::new(r"^~~~\w*\s*$").unwrap(),
+            pattern: Regex::new(r"^~~~\w*\s*$").expect("regex pattern is valid and should always compile"),
             weight: 0.8,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Definitive,
@@ -42,7 +42,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         // Strong rules
         .rule(DetectionRule {
             id: "md_atx_header".into(),
-            pattern: Regex::new(r"^#{1,6}\s+\S").unwrap(),
+            pattern: Regex::new(r"^#{1,6}\s+\S").expect("regex pattern is valid and should always compile"),
             weight: 0.5,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -53,7 +53,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         })
         .rule(DetectionRule {
             id: "md_table".into(),
-            pattern: Regex::new(r"^\|.*\|.*\|").unwrap(),
+            pattern: Regex::new(r"^\|.*\|.*\|").expect("regex pattern is valid and should always compile"),
             weight: 0.4,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -65,7 +65,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         // Supporting rules
         .rule(DetectionRule {
             id: "md_table_separator".into(),
-            pattern: Regex::new(r"^\|[\s\-:\|]+\|").unwrap(),
+            pattern: Regex::new(r"^\|[\s\-:\|]+\|").expect("regex pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -76,7 +76,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         })
         .rule(DetectionRule {
             id: "md_bold".into(),
-            pattern: Regex::new(r"\*\*[^*]+\*\*").unwrap(),
+            pattern: Regex::new(r"\*\*[^*]+\*\*").expect("regex pattern is valid and should always compile"),
             weight: 0.2,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -87,7 +87,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         })
         .rule(DetectionRule {
             id: "md_italic".into(),
-            pattern: Regex::new(r"(?:^|[^*])\*[^*]+\*(?:[^*]|$)").unwrap(),
+            pattern: Regex::new(r"(?:^|[^*])\*[^*]+\*(?:[^*]|$)").expect("md_italic: pattern is valid and should always compile"),
             weight: 0.15,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -98,7 +98,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         })
         .rule(DetectionRule {
             id: "md_link".into(),
-            pattern: Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap(),
+            pattern: Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").expect("md_link: pattern is valid and should always compile"),
             weight: 0.2,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -109,7 +109,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         })
         .rule(DetectionRule {
             id: "md_list_bullet".into(),
-            pattern: Regex::new(r"^\s*[-*+]\s+\S").unwrap(),
+            pattern: Regex::new(r"^\s*[-*+]\s+\S").expect("regex pattern is valid and should always compile"),
             weight: 0.15,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -120,7 +120,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         })
         .rule(DetectionRule {
             id: "md_list_ordered".into(),
-            pattern: Regex::new(r"^\s*\d+[.)]\s+\S").unwrap(),
+            pattern: Regex::new(r"^\s*\d+[.)]\s+\S").expect("md_list_ordered: pattern is valid and should always compile"),
             weight: 0.15,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -131,7 +131,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         })
         .rule(DetectionRule {
             id: "md_blockquote".into(),
-            pattern: Regex::new(r"^>\s+").unwrap(),
+            pattern: Regex::new(r"^>\s+").expect("regex pattern is valid and should always compile"),
             weight: 0.15,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -142,7 +142,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         })
         .rule(DetectionRule {
             id: "md_inline_code".into(),
-            pattern: Regex::new(r"`[^`]+`").unwrap(),
+            pattern: Regex::new(r"`[^`]+`").expect("regex pattern is valid and should always compile"),
             weight: 0.1,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -153,7 +153,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         })
         .rule(DetectionRule {
             id: "md_horizontal_rule".into(),
-            pattern: Regex::new(r"^[-*_]\s*[-*_]\s*[-*_][\s*_-]*$").unwrap(),
+            pattern: Regex::new(r"^[-*_]\s*[-*_]\s*[-*_][\s*_-]*$").expect("regex pattern is valid and should always compile"),
             weight: 0.15,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -165,7 +165,7 @@ pub fn create_markdown_detector() -> crate::prettifier::regex_detector::RegexDet
         // Command context rule
         .rule(DetectionRule {
             id: "md_claude_code_context".into(),
-            pattern: Regex::new(r"\b(claude|claude-code)\b|(?:^|\s)cc(?:\s|$)").unwrap(),
+            pattern: Regex::new(r"\b(claude|claude-code)\b|(?:^|\s)cc(?:\s|$)").expect("md_claude_code_context: pattern is valid and should always compile"),
             weight: 0.2,
             scope: RuleScope::PrecedingCommand,
             strength: RuleStrength::Supporting,
