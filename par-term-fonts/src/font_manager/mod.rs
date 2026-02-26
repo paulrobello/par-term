@@ -328,6 +328,63 @@ impl FontManager {
         None
     }
 
+    /// Find a glyph for a character, excluding specific font indices.
+    ///
+    /// This is used when a font claims to have a glyph but can't render it
+    /// (e.g., Apple Color Emoji has charmap entries but empty outlines for some symbols).
+    /// The caller can retry with the font that failed excluded from the search.
+    pub fn find_glyph_excluding(
+        &self,
+        character: char,
+        bold: bool,
+        italic: bool,
+        excluded: &[usize],
+    ) -> Option<(usize, u16)> {
+        // Try styled font first (unless excluded)
+        let styled_font = self.get_styled_font(bold, italic);
+        let font_idx = match (bold, italic) {
+            (true, true) if self.bold_italic.is_some() => 3,
+            (true, false) if self.bold.is_some() => 1,
+            (false, true) if self.italic.is_some() => 2,
+            _ => 0,
+        };
+        if !excluded.contains(&font_idx) {
+            let glyph_id = styled_font.charmap().map(character);
+            if glyph_id != 0 {
+                return Some((font_idx, glyph_id));
+            }
+        }
+
+        // Check Unicode range-specific fonts
+        let char_code = character as u32;
+        for range_font in &self.range_fonts {
+            if !excluded.contains(&range_font.font_index)
+                && char_code >= range_font.start
+                && char_code <= range_font.end
+            {
+                let glyph_id = range_font.font.font_ref.charmap().map(character);
+                if glyph_id != 0 {
+                    return Some((range_font.font_index, glyph_id));
+                }
+            }
+        }
+
+        // Try fallback fonts
+        let fallback_start_index = 4 + self.range_fonts.len();
+        for (idx, fallback) in self.fallbacks.iter().enumerate() {
+            let font_index = fallback_start_index + idx;
+            if excluded.contains(&font_index) {
+                continue;
+            }
+            let glyph_id = fallback.font_ref.charmap().map(character);
+            if glyph_id != 0 {
+                return Some((font_index, glyph_id));
+            }
+        }
+
+        None
+    }
+
     /// Find the font index for a character in range fonts.
     #[allow(dead_code)]
     pub fn find_range_font_index(&self, char_code: u32) -> Option<(usize, u16)> {

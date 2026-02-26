@@ -173,9 +173,39 @@ impl CellRenderer {
             ]
         };
 
-        let image = Render::new(&sources)
+        let mut image = Render::new(&sources)
             .format(render_format)
             .render(&mut scaler, glyph_id)?;
+
+        // Detect degenerate outlines: some fonts (e.g., Apple Color Emoji) have charmap
+        // entries but produce empty outlines (all-zero alpha) when the font only has
+        // bitmap data (sbix). When this happens for monochrome symbol rendering, retry
+        // with color bitmap sources and convert to alpha mask. This allows characters
+        // like ✔ ❄ ⭐ to render from emoji fonts as a last resort.
+        if force_monochrome
+            && matches!(image.content, Content::Mask)
+            && image.data.iter().all(|&b| b == 0)
+        {
+            // Outline produced empty pixels — retry with color bitmap
+            let mut retry_ctx = ScaleContext::new();
+            let mut retry_scaler = retry_ctx
+                .builder(*font)
+                .size(self.font_size_pixels)
+                .hint(self.font_hinting)
+                .build();
+            let color_sources = [
+                swash::scale::Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
+                swash::scale::Source::ColorOutline(0),
+            ];
+            if let Some(color_image) = Render::new(&color_sources)
+                .format(render_format)
+                .render(&mut retry_scaler, glyph_id)
+            {
+                image = color_image;
+            } else {
+                return None;
+            }
+        }
 
         let (pixels, is_colored) = match image.content {
             Content::Color => {
@@ -207,6 +237,12 @@ impl CellRenderer {
                 (pixels, false)
             }
         };
+
+        // Final check: reject glyphs that are still all-transparent after processing.
+        // This catches cases where even color bitmap conversion produced no visible pixels.
+        if !is_colored && pixels.iter().skip(3).step_by(4).all(|&a| a == 0) {
+            return None;
+        }
 
         Some(RasterizedGlyph {
             width: image.placement.width,

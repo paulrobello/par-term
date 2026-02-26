@@ -888,108 +888,142 @@ impl CellRenderer {
 
                         // Use grapheme-aware glyph lookup for multi-character sequences
                         // (flags, emoji with skin tones, ZWJ sequences, combining chars)
-                        let glyph_result = if chars.len() > 1 {
+                        let mut glyph_result = if chars.len() > 1 {
                             self.font_manager
                                 .find_grapheme_glyph(&grapheme, bold, italic)
                         } else {
                             self.font_manager.find_glyph(*ch, bold, italic)
                         };
 
-                        if let Some((font_idx, glyph_id)) = glyph_result {
-                            let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
-                            // Check if this character should be rendered as a monochrome symbol
-                            // (dingbats, etc.) rather than colorful emoji
-                            let force_monochrome =
-                                chars.len() == 1 && super::atlas::should_render_as_symbol(*ch);
-                            let info = if self.glyph_cache.contains_key(&cache_key) {
-                                // Move to front of LRU
-                                self.lru_remove(cache_key);
-                                self.lru_push_front(cache_key);
-                                self.glyph_cache.get(&cache_key).unwrap().clone()
-                            } else if let Some(raster) =
-                                self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
-                            {
-                                let info = self.upload_glyph(cache_key, &raster);
-                                self.glyph_cache.insert(cache_key, info.clone());
-                                self.lru_push_front(cache_key);
-                                info
-                            } else {
+                        // Check if this character should be rendered as a monochrome symbol
+                        // (dingbats, etc.) rather than colorful emoji
+                        let force_monochrome =
+                            chars.len() == 1 && super::atlas::should_render_as_symbol(*ch);
+
+                        // Try to find a renderable glyph. Some fonts (e.g., Apple Color
+                        // Emoji) have charmap entries for characters but produce empty
+                        // outlines. When rasterization fails, retry with alternative fonts.
+                        let mut excluded_fonts: Vec<usize> = Vec::new();
+                        let resolved_info = loop {
+                            match glyph_result {
+                                Some((font_idx, glyph_id)) => {
+                                    let cache_key =
+                                        ((font_idx as u64) << 32) | (glyph_id as u64);
+                                    if self.glyph_cache.contains_key(&cache_key) {
+                                        self.lru_remove(cache_key);
+                                        self.lru_push_front(cache_key);
+                                        break Some(
+                                            self.glyph_cache.get(&cache_key).unwrap().clone(),
+                                        );
+                                    } else if let Some(raster) = self.rasterize_glyph(
+                                        font_idx,
+                                        glyph_id,
+                                        force_monochrome,
+                                    ) {
+                                        let info = self.upload_glyph(cache_key, &raster);
+                                        self.glyph_cache.insert(cache_key, info.clone());
+                                        self.lru_push_front(cache_key);
+                                        break Some(info);
+                                    } else if chars.len() == 1 {
+                                        // Rasterization failed — try next font
+                                        excluded_fonts.push(font_idx);
+                                        glyph_result =
+                                            self.font_manager.find_glyph_excluding(
+                                                *ch,
+                                                bold,
+                                                italic,
+                                                &excluded_fonts,
+                                            );
+                                        continue;
+                                    } else {
+                                        break None;
+                                    }
+                                }
+                                None => break None,
+                            }
+                        };
+                        let info = match resolved_info {
+                            Some(info) => info,
+                            None => {
                                 x_offset += self.cell_width;
                                 continue;
-                            };
+                            }
+                        };
 
-                            let char_w = if is_wide {
-                                self.cell_width * 2.0
-                            } else {
-                                self.cell_width
-                            };
-                            let x0 =
-                                (self.window_padding + self.content_offset_x + x_offset).round();
-                            let x1 =
-                                (self.window_padding + self.content_offset_x + x_offset + char_w)
-                                    .round();
-                            let y0 = (self.window_padding
-                                + self.content_offset_y
-                                + row as f32 * self.cell_height)
+                        let char_w = if is_wide {
+                            self.cell_width * 2.0
+                        } else {
+                            self.cell_width
+                        };
+                        let x0 =
+                            (self.window_padding + self.content_offset_x + x_offset).round();
+                        let x1 =
+                            (self.window_padding + self.content_offset_x + x_offset + char_w)
                                 .round();
-                            let y1 = (self.window_padding
+                        let y0 = (self.window_padding
+                            + self.content_offset_y
+                            + row as f32 * self.cell_height)
+                            .round();
+                        let y1 = (self.window_padding
+                            + self.content_offset_y
+                            + (row + 1) as f32 * self.cell_height)
+                            .round();
+
+                        let cell_w = x1 - x0;
+                        let cell_h = y1 - y0;
+
+                        let scale_x = cell_w / char_w;
+                        let scale_y = cell_h / self.cell_height;
+
+                        // Position glyph relative to snapped cell top-left.
+                        // Round the scaled baseline position once, then subtract
+                        // the integer bearing_y. This ensures all glyphs on a row
+                        // share the same rounded baseline, with bearing offsets
+                        // applied exactly (no scale_y on bearing avoids rounding
+                        // artifacts between glyphs with different bearings).
+                        let baseline_offset = baseline_y_unrounded
+                            - (self.window_padding
                                 + self.content_offset_y
-                                + (row + 1) as f32 * self.cell_height)
-                                .round();
+                                + row as f32 * self.cell_height);
+                        let glyph_left = x0 + (info.bearing_x * scale_x).round();
+                        let baseline_in_cell = (baseline_offset * scale_y).round();
+                        let glyph_top = y0 + baseline_in_cell - info.bearing_y;
 
-                            let cell_w = x1 - x0;
-                            let cell_h = y1 - y0;
+                        let render_w = info.width as f32 * scale_x;
+                        let render_h = info.height as f32 * scale_y;
 
-                            let scale_x = cell_w / char_w;
-                            let scale_y = cell_h / self.cell_height;
+                        // For block characters that need font rendering (box drawing, etc.),
+                        // apply snapping to cell boundaries with sub-pixel extension.
+                        // Only apply to single-char graphemes (multi-char are never block chars)
+                        let (final_left, final_top, final_w, final_h) = if chars.len() == 1
+                            && block_chars::should_snap_to_boundaries(char_type)
+                        {
+                            // Snap threshold of 3 pixels, extension of 0.5 pixels
+                            block_chars::snap_glyph_to_cell(
+                                glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1,
+                                3.0, 0.5,
+                            )
+                        } else {
+                            (glyph_left, glyph_top, render_w, render_h)
+                        };
 
-                            // Position glyph relative to snapped cell top-left.
-                            // Round the scaled baseline position once, then subtract
-                            // the integer bearing_y. This ensures all glyphs on a row
-                            // share the same rounded baseline, with bearing offsets
-                            // applied exactly (no scale_y on bearing avoids rounding
-                            // artifacts between glyphs with different bearings).
-                            let baseline_offset = baseline_y_unrounded
-                                - (self.window_padding
-                                    + self.content_offset_y
-                                    + row as f32 * self.cell_height);
-                            let glyph_left = x0 + (info.bearing_x * scale_x).round();
-                            let baseline_in_cell = (baseline_offset * scale_y).round();
-                            let glyph_top = y0 + baseline_in_cell - info.bearing_y;
-
-                            let render_w = info.width as f32 * scale_x;
-                            let render_h = info.height as f32 * scale_y;
-
-                            // For block characters that need font rendering (box drawing, etc.),
-                            // apply snapping to cell boundaries with sub-pixel extension.
-                            // Only apply to single-char graphemes (multi-char are never block chars)
-                            let (final_left, final_top, final_w, final_h) = if chars.len() == 1
-                                && block_chars::should_snap_to_boundaries(char_type)
-                            {
-                                // Snap threshold of 3 pixels, extension of 0.5 pixels
-                                block_chars::snap_glyph_to_cell(
-                                    glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1, 3.0,
-                                    0.5,
-                                )
-                            } else {
-                                (glyph_left, glyph_top, render_w, render_h)
-                            };
-
-                            row_text.push(TextInstance {
-                                position: [
-                                    final_left / self.config.width as f32 * 2.0 - 1.0,
-                                    1.0 - (final_top / self.config.height as f32 * 2.0),
-                                ],
-                                size: [
-                                    final_w / self.config.width as f32 * 2.0,
-                                    final_h / self.config.height as f32 * 2.0,
-                                ],
-                                tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
-                                tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
-                                color: render_fg_color,
-                                is_colored: if info.is_colored { 1 } else { 0 },
-                            });
-                        }
+                        row_text.push(TextInstance {
+                            position: [
+                                final_left / self.config.width as f32 * 2.0 - 1.0,
+                                1.0 - (final_top / self.config.height as f32 * 2.0),
+                            ],
+                            size: [
+                                final_w / self.config.width as f32 * 2.0,
+                                final_h / self.config.height as f32 * 2.0,
+                            ],
+                            tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
+                            tex_size: [
+                                info.width as f32 / 2048.0,
+                                info.height as f32 / 2048.0,
+                            ],
+                            color: render_fg_color,
+                            is_colored: if info.is_colored { 1 } else { 0 },
+                        });
                     }
                     x_offset += self.cell_width;
                     current_col += 1;
