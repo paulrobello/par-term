@@ -329,13 +329,25 @@ pub fn ensure_url_scheme(url: &str) -> String {
 /// Expand a link handler command template by replacing `{url}` with the given URL.
 ///
 /// Returns the command split into program + arguments, ready for spawning.
+/// The command template is parsed using shell-word splitting BEFORE URL substitution
+/// so that the URL remains a single argument regardless of its content (preventing
+/// argument injection via crafted URLs containing spaces or shell metacharacters).
+///
 /// Returns an error if the expanded command is empty (whitespace-only or blank).
 pub fn expand_link_handler(command: &str, url: &str) -> Result<Vec<String>, String> {
-    let expanded = command.replace("{url}", url);
-    let parts: Vec<String> = expanded.split_whitespace().map(String::from).collect();
-    if parts.is_empty() {
+    // Parse the command template into tokens FIRST, before substitution.
+    // This ensures that {url} occupies exactly one token position,
+    // and the substituted URL cannot inject additional arguments.
+    let tokens = shell_words::split(command)
+        .map_err(|e| format!("Failed to parse link handler command: {}", e))?;
+    if tokens.is_empty() {
         return Err("Link handler command is empty after expansion".to_string());
     }
+    // Replace {url} placeholder within each token (the URL stays as one argument)
+    let parts: Vec<String> = tokens
+        .into_iter()
+        .map(|token| token.replace("{url}", url))
+        .collect();
     Ok(parts)
 }
 
@@ -487,22 +499,29 @@ pub fn open_file_in_editor(
         }
     };
 
-    // Replace placeholders in command template
+    // Replace placeholders in command template.
+    // Shell-escape ALL substituted values to prevent command injection via
+    // malicious filenames containing shell metacharacters (backticks, $(), etc.).
+    let escaped_path = shell_escape(&resolved_path);
     let line_str = line
         .map(|l| l.to_string())
         .unwrap_or_else(|| "1".to_string());
     let col_str = column
         .map(|c| c.to_string())
         .unwrap_or_else(|| "1".to_string());
+    // Line/col are numeric strings so shell_escape is defensive, but apply it
+    // consistently to guard against any future changes to how these are sourced.
+    let escaped_line = shell_escape(&line_str);
+    let escaped_col = shell_escape(&col_str);
 
     let full_cmd = cmd
-        .replace("{file}", &resolved_path)
-        .replace("{line}", &line_str)
-        .replace("{col}", &col_str);
+        .replace("{file}", &escaped_path)
+        .replace("{line}", &escaped_line)
+        .replace("{col}", &escaped_col);
 
     // If the template didn't have placeholders, append the file path
     let full_cmd = if !cmd.contains("{file}") {
-        format!("{} {}", full_cmd, shell_escape(&resolved_path))
+        format!("{} {}", full_cmd, escaped_path)
     } else {
         full_cmd
     };
@@ -829,5 +848,78 @@ mod tests {
     fn test_expand_link_handler_empty_command() {
         let result = expand_link_handler("", "https://example.com");
         assert!(result.is_err());
+    }
+
+    // --- H1 security: URL argument injection prevention ---
+
+    #[test]
+    fn test_expand_link_handler_url_with_spaces_stays_single_arg() {
+        // A crafted URL with spaces must NOT inject additional arguments
+        let parts = expand_link_handler(
+            "firefox {url}",
+            "https://evil.com --new-window javascript:alert(1)",
+        )
+        .expect("should succeed");
+        // The URL (including its spaces) must remain a single argument
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0], "firefox");
+        assert_eq!(
+            parts[1],
+            "https://evil.com --new-window javascript:alert(1)"
+        );
+    }
+
+    #[test]
+    fn test_expand_link_handler_url_with_shell_metacharacters() {
+        // Shell metacharacters in URLs must not cause issues
+        let parts =
+            expand_link_handler("open {url}", "https://example.com/search?q=foo&bar=baz|cat")
+                .expect("should succeed");
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[1], "https://example.com/search?q=foo&bar=baz|cat");
+    }
+
+    #[test]
+    fn test_expand_link_handler_quoted_template_preserved() {
+        // A template that uses shell quoting should be parsed correctly
+        let parts = expand_link_handler("open -a 'Google Chrome' {url}", "https://example.com")
+            .expect("should succeed");
+        assert_eq!(
+            parts,
+            vec!["open", "-a", "Google Chrome", "https://example.com"]
+        );
+    }
+
+    // --- H2 security: shell_escape tests ---
+
+    #[test]
+    fn test_shell_escape_basic_path() {
+        assert_eq!(shell_escape("/tmp/file.txt"), "'/tmp/file.txt'");
+    }
+
+    #[test]
+    fn test_shell_escape_path_with_single_quotes() {
+        assert_eq!(
+            shell_escape("/tmp/it's a file.txt"),
+            "'/tmp/it'\\''s a file.txt'"
+        );
+    }
+
+    #[test]
+    fn test_shell_escape_path_with_backticks() {
+        // Backticks inside single quotes are safe (not interpreted)
+        assert_eq!(
+            shell_escape("/tmp/`rm -rf /`/file.txt"),
+            "'/tmp/`rm -rf /`/file.txt'"
+        );
+    }
+
+    #[test]
+    fn test_shell_escape_path_with_dollar_expansion() {
+        // $(cmd) inside single quotes is safe (not interpreted)
+        assert_eq!(
+            shell_escape("/tmp/$(whoami)/file.txt"),
+            "'/tmp/$(whoami)/file.txt'"
+        );
     }
 }

@@ -48,7 +48,7 @@ pub fn load_arrangements_from(path: PathBuf) -> Result<ArrangementManager> {
         return Ok(ArrangementManager::new());
     }
 
-    let arrangements: Vec<WindowArrangement> = serde_yaml::from_str(&contents)
+    let arrangements: Vec<WindowArrangement> = serde_yml::from_str(&contents)
         .with_context(|| format!("Failed to parse arrangements from {:?}", path))?;
 
     crate::debug_info!(
@@ -84,7 +84,7 @@ pub fn save_arrangements_to(manager: &ArrangementManager, path: PathBuf) -> Resu
 
     let arrangements = manager.to_vec();
     let contents =
-        serde_yaml::to_string(&arrangements).context("Failed to serialize arrangements")?;
+        serde_yml::to_string(&arrangements).context("Failed to serialize arrangements")?;
 
     std::fs::write(&path, contents)
         .with_context(|| format!("Failed to write arrangements to {:?}", path))?;

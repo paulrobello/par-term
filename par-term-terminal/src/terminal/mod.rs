@@ -112,7 +112,6 @@ pub struct TerminalManager {
 
 impl TerminalManager {
     /// Create a new terminal manager with the specified dimensions
-    #[allow(dead_code)]
     pub fn new(cols: usize, rows: usize) -> Result<Self> {
         Self::new_with_scrollback(cols, rows, 10000)
     }
@@ -378,7 +377,6 @@ impl TerminalManager {
     }
 
     /// Write string to the PTY
-    #[allow(dead_code)]
     pub fn write_str(&self, data: &str) -> Result<()> {
         let mut pty = self.pty_session.lock();
         pty.write_str(data)
@@ -490,14 +488,12 @@ impl TerminalManager {
     }
 
     /// Get the terminal content as a string
-    #[allow(dead_code)]
     pub fn content(&self) -> Result<String> {
         let pty = self.pty_session.lock();
         Ok(pty.content())
     }
 
     /// Resize the terminal
-    #[allow(dead_code)]
     pub fn resize(&mut self, cols: usize, rows: usize) -> Result<()> {
         log::info!("Resizing terminal to: {}x{}", cols, rows);
 
@@ -534,7 +530,6 @@ impl TerminalManager {
     }
 
     /// Set pixel dimensions for XTWINOPS CSI 14 t query support
-    #[allow(dead_code)]
     pub fn set_pixel_size(&mut self, width_px: usize, height_px: usize) -> Result<()> {
         let pty = self.pty_session.lock();
         let term_arc = pty.terminal();
@@ -544,20 +539,17 @@ impl TerminalManager {
     }
 
     /// Get the current terminal dimensions
-    #[allow(dead_code)]
     pub fn dimensions(&self) -> (usize, usize) {
         self.dimensions
     }
 
     /// Get a clone of the underlying terminal for direct access
-    #[allow(dead_code)]
     pub fn terminal(&self) -> Arc<Mutex<Terminal>> {
         let pty = self.pty_session.lock();
         pty.terminal()
     }
 
     /// Check if there have been updates since last check
-    #[allow(dead_code)]
     pub fn has_updates(&self) -> bool {
         false
     }
@@ -582,7 +574,6 @@ impl TerminalManager {
     }
 
     /// Get scrollback lines
-    #[allow(dead_code)]
     pub fn scrollback(&self) -> Vec<String> {
         let pty = self.pty_session.lock();
         pty.scrollback()
@@ -767,7 +758,6 @@ impl TerminalManager {
     }
 
     /// Take a screenshot of the terminal and save to file
-    #[allow(dead_code)]
     pub fn screenshot_to_file(
         &self,
         path: &std::path::Path,
@@ -971,7 +961,6 @@ impl TerminalManager {
     }
 
     /// Get cursor position
-    #[allow(dead_code)]
     pub fn cursor_position(&self) -> (usize, usize) {
         let pty = self.pty_session.lock();
         pty.cursor_position()
@@ -1152,7 +1141,6 @@ impl TerminalManager {
     }
 
     /// Get styled segments from the terminal for rendering
-    #[allow(dead_code)]
     pub fn get_styled_segments(&self) -> Vec<StyledSegment> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
@@ -1367,7 +1355,14 @@ impl TerminalManager {
 
 impl TerminalManager {
     /// Sync trigger configs from Config into the core TriggerRegistry.
-    pub fn sync_triggers(&self, triggers: &[par_term_config::TriggerConfig]) {
+    ///
+    /// Returns a map of `trigger_id -> require_user_action` for each
+    /// successfully registered trigger, so the frontend can enforce
+    /// security restrictions on dangerous actions.
+    pub fn sync_triggers(
+        &self,
+        triggers: &[par_term_config::TriggerConfig],
+    ) -> std::collections::HashMap<u64, bool> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let mut term = terminal.lock();
@@ -1376,6 +1371,8 @@ impl TerminalManager {
         for id in existing {
             term.remove_trigger(id);
         }
+
+        let mut security_map = std::collections::HashMap::new();
 
         for trigger_config in triggers {
             let actions: Vec<par_term_emu_core_rust::terminal::TriggerAction> = trigger_config
@@ -1393,7 +1390,13 @@ impl TerminalManager {
                     if !trigger_config.enabled {
                         term.set_trigger_enabled(id, false);
                     }
-                    log::info!("Trigger '{}' registered (id={})", trigger_config.name, id);
+                    security_map.insert(id, trigger_config.require_user_action);
+                    log::info!(
+                        "Trigger '{}' registered (id={}, require_user_action={})",
+                        trigger_config.name,
+                        id,
+                        trigger_config.require_user_action,
+                    );
                 }
                 Err(e) => {
                     log::error!(
@@ -1404,6 +1407,8 @@ impl TerminalManager {
                 }
             }
         }
+
+        security_map
     }
 }
 

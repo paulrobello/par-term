@@ -16,7 +16,6 @@ const SUPPORTED_EXTENSIONS: [&str; 4] = ["png", "jpg", "jpeg", "hdr"];
 /// A cubemap texture that can be bound to a custom shader
 pub struct CubemapTexture {
     /// The GPU texture (kept alive to ensure view/sampler remain valid)
-    #[allow(dead_code)]
     pub texture: Texture,
     /// View for binding to shaders (TextureViewDimension::Cube)
     pub view: TextureView,
@@ -25,7 +24,6 @@ pub struct CubemapTexture {
     /// Size of each face in pixels (faces are always square)
     pub face_size: u32,
     /// Whether this is an HDR texture (uses Rgba16Float)
-    #[allow(dead_code)]
     pub is_hdr: bool,
 }
 

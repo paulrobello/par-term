@@ -911,13 +911,11 @@ impl WindowManager {
     }
 
     /// Get mutable reference to a window's state
-    #[allow(dead_code)]
     pub fn get_window_mut(&mut self, window_id: WindowId) -> Option<&mut WindowState> {
         self.windows.get_mut(&window_id)
     }
 
     /// Get reference to a window's state
-    #[allow(dead_code)]
     pub fn get_window(&self, window_id: WindowId) -> Option<&WindowState> {
         self.windows.get(&window_id)
     }
@@ -1994,9 +1992,9 @@ impl WindowManager {
             }
 
             // Resync triggers from config into core registry for all tabs
-            for tab in window_state.tab_manager.tabs() {
+            for tab in window_state.tab_manager.tabs_mut() {
                 if let Ok(term) = tab.terminal.try_lock() {
-                    term.sync_triggers(&config.triggers);
+                    tab.trigger_security = term.sync_triggers(&config.triggers);
                 }
             }
 

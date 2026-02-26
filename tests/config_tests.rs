@@ -1,7 +1,8 @@
 #![allow(clippy::field_reassign_with_default)]
 
 use par_term::config::{
-    Config, TabBarPosition, TabStyle, UnfocusedCursorStyle, WindowType, substitute_variables,
+    Config, TabBarPosition, TabStyle, UnfocusedCursorStyle, WindowType, is_env_var_allowed,
+    substitute_variables, substitute_variables_with_allowlist,
 };
 
 #[test]
@@ -35,7 +36,7 @@ fn test_config_with_title() {
 #[test]
 fn test_config_yaml_serialization() {
     let config = Config::default();
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("cols: 80"));
     assert!(yaml.contains("rows: 24"));
     assert!(yaml.contains("font_size: 12.0"));
@@ -55,7 +56,7 @@ auto_copy_selection: true
 middle_click_paste: false
 screenshot_format: "svg"
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.cols, 100);
     assert_eq!(config.rows, 30);
     assert_eq!(config.font_size, 16.0);
@@ -75,7 +76,7 @@ fn test_config_partial_yaml() {
 cols: 100
 font_size: 16.0
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.cols, 100);
     assert_eq!(config.rows, 24); // default
     assert_eq!(config.font_size, 16.0);
@@ -114,7 +115,7 @@ pause_shaders_on_blur: false
 pause_refresh_on_blur: true
 unfocused_fps: 5
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(!config.pause_shaders_on_blur);
     assert!(config.pause_refresh_on_blur);
     assert_eq!(config.unfocused_fps, 5);
@@ -128,7 +129,7 @@ initial_text_delay_ms: 250
 initial_text_send_newline: false
 "#;
 
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.initial_text, "ssh server");
     assert_eq!(config.initial_text_delay_ms, 250);
     assert!(!config.initial_text_send_newline);
@@ -141,7 +142,7 @@ fn test_config_initial_text_yaml_serialization() {
     config.initial_text_delay_ms = 10;
     config.initial_text_send_newline = false;
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("initial_text: echo ready"));
     assert!(yaml.contains("initial_text_delay_ms: 10"));
     assert!(yaml.contains("initial_text_send_newline: false"));
@@ -154,7 +155,7 @@ fn test_config_power_saving_yaml_serialization() {
     config.pause_refresh_on_blur = true;
     config.unfocused_fps = 15;
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("pause_shaders_on_blur: false"));
     assert!(yaml.contains("pause_refresh_on_blur: true"));
     assert!(yaml.contains("unfocused_fps: 15"));
@@ -195,7 +196,7 @@ tab_bell_indicator: [255, 180, 80]
 tab_close_button: [130, 130, 130]
 tab_close_button_hover: [255, 80, 80]
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.tab_bar_background, [30, 30, 30]);
     assert_eq!(config.tab_active_background, [80, 80, 80]);
     assert_eq!(config.tab_inactive_background, [35, 35, 35]);
@@ -215,7 +216,7 @@ fn test_config_tab_bar_color_yaml_serialization() {
     config.tab_bar_background = [50, 50, 50];
     config.tab_active_indicator = [200, 100, 50];
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("tab_bar_background:"));
     assert!(yaml.contains("- 50"));
     assert!(yaml.contains("tab_active_indicator:"));
@@ -230,7 +231,7 @@ fn test_config_tab_bar_color_partial_yaml() {
 tab_bar_background: [25, 25, 25]
 tab_active_text: [200, 200, 200]
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.tab_bar_background, [25, 25, 25]);
     assert_eq!(config.tab_active_text, [200, 200, 200]);
     // Other fields should have defaults
@@ -254,7 +255,7 @@ fn test_config_inactive_tab_dimming_yaml_deserialization() {
 dim_inactive_tabs: false
 inactive_tab_opacity: 0.8
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(!config.dim_inactive_tabs);
     assert!((config.inactive_tab_opacity - 0.8).abs() < f32::EPSILON);
 }
@@ -265,7 +266,7 @@ fn test_config_inactive_tab_dimming_yaml_serialization() {
     config.dim_inactive_tabs = false;
     config.inactive_tab_opacity = 0.5;
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("dim_inactive_tabs: false"));
     assert!(yaml.contains("inactive_tab_opacity: 0.5"));
 }
@@ -276,7 +277,7 @@ fn test_config_inactive_tab_dimming_partial_yaml() {
     let yaml = r#"
 dim_inactive_tabs: true
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.dim_inactive_tabs);
     // Default opacity should be used
     assert!((config.inactive_tab_opacity - 0.6).abs() < f32::EPSILON);
@@ -288,19 +289,19 @@ fn test_config_inactive_tab_opacity_bounds() {
     let yaml = r#"
 inactive_tab_opacity: 0.0
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!((config.inactive_tab_opacity).abs() < f32::EPSILON);
 
     let yaml = r#"
 inactive_tab_opacity: 1.0
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!((config.inactive_tab_opacity - 1.0).abs() < f32::EPSILON);
 
     let yaml = r#"
 inactive_tab_opacity: 0.3
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!((config.inactive_tab_opacity - 0.3).abs() < f32::EPSILON);
 }
 
@@ -341,7 +342,7 @@ cursor_shadow_blur: 5.0
 cursor_boost: 0.5
 cursor_boost_color: [255, 200, 100]
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hidden);
     assert!(config.cursor_guide_enabled);
     assert_eq!(config.cursor_guide_color, [200, 200, 255, 40]);
@@ -358,17 +359,17 @@ cursor_boost_color: [255, 200, 100]
 fn test_config_unfocused_cursor_style_variants() {
     // Test hollow variant
     let yaml = r#"unfocused_cursor_style: hollow"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hollow);
 
     // Test same variant
     let yaml = r#"unfocused_cursor_style: same"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Same);
 
     // Test hidden variant
     let yaml = r#"unfocused_cursor_style: hidden"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.unfocused_cursor_style, UnfocusedCursorStyle::Hidden);
 }
 
@@ -381,7 +382,7 @@ fn test_config_cursor_enhancement_yaml_serialization() {
     config.cursor_shadow_enabled = true;
     config.cursor_boost = 0.7;
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("unfocused_cursor_style: same"));
     assert!(yaml.contains("cursor_guide_enabled: true"));
     assert!(yaml.contains("cursor_shadow_enabled: true"));
@@ -395,7 +396,7 @@ fn test_config_cursor_enhancement_partial_yaml() {
 cursor_guide_enabled: true
 cursor_boost: 0.3
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.cursor_guide_enabled);
     assert!((config.cursor_boost - 0.3).abs() < f32::EPSILON);
     // Other fields should have defaults
@@ -420,7 +421,7 @@ fn test_config_answerback_string_yaml_deserialization() {
     let yaml = r#"
 answerback_string: "par-term"
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.answerback_string, "par-term");
 }
 
@@ -429,7 +430,7 @@ fn test_config_answerback_string_yaml_serialization() {
     let mut config = Config::default();
     config.answerback_string = "vt100".to_string();
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("answerback_string: vt100"));
 }
 
@@ -439,7 +440,7 @@ fn test_config_answerback_string_empty_by_default_yaml() {
     let yaml = r#"
 answerback_string: ""
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.answerback_string.is_empty());
 }
 
@@ -449,7 +450,7 @@ fn test_config_answerback_string_partial_yaml() {
     let yaml = r#"
 cols: 120
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     // Answerback should use default (empty)
     assert!(config.answerback_string.is_empty());
     assert_eq!(config.cols, 120);
@@ -477,7 +478,7 @@ option_click_moves_cursor: false
 focus_follows_mouse: true
 report_horizontal_scroll: false
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(!config.option_click_moves_cursor);
     assert!(config.focus_follows_mouse);
     assert!(!config.report_horizontal_scroll);
@@ -490,7 +491,7 @@ fn test_config_advanced_mouse_yaml_serialization() {
     config.focus_follows_mouse = true;
     config.report_horizontal_scroll = false;
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("option_click_moves_cursor: false"));
     assert!(yaml.contains("focus_follows_mouse: true"));
     assert!(yaml.contains("report_horizontal_scroll: false"));
@@ -502,7 +503,7 @@ fn test_config_advanced_mouse_partial_yaml() {
     let yaml = r#"
 focus_follows_mouse: true
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.focus_follows_mouse);
     // Other fields should have defaults
     assert!(config.option_click_moves_cursor);
@@ -532,27 +533,27 @@ fn test_config_window_management_defaults() {
 fn test_config_window_type_variants() {
     // Test all window type variants
     let yaml = r#"window_type: normal"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.window_type, WindowType::Normal);
 
     let yaml = r#"window_type: fullscreen"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.window_type, WindowType::Fullscreen);
 
     let yaml = r#"window_type: edge_top"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.window_type, WindowType::EdgeTop);
 
     let yaml = r#"window_type: edge_bottom"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.window_type, WindowType::EdgeBottom);
 
     let yaml = r#"window_type: edge_left"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.window_type, WindowType::EdgeLeft);
 
     let yaml = r#"window_type: edge_right"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.window_type, WindowType::EdgeRight);
 }
 
@@ -574,7 +575,7 @@ target_monitor: 1
 lock_window_size: true
 show_window_number: true
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.window_type, WindowType::EdgeTop);
     assert_eq!(config.target_monitor, Some(1));
     assert!(config.lock_window_size);
@@ -589,7 +590,7 @@ fn test_config_window_management_yaml_serialization() {
     config.lock_window_size = true;
     config.show_window_number = true;
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("window_type: fullscreen"));
     assert!(yaml.contains("target_monitor: 2"));
     assert!(yaml.contains("lock_window_size: true"));
@@ -602,7 +603,7 @@ fn test_config_window_management_partial_yaml() {
     let yaml = r#"
 lock_window_size: true
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.lock_window_size);
     // Other fields should have defaults
     assert_eq!(config.window_type, WindowType::Normal);
@@ -616,7 +617,7 @@ fn test_config_target_monitor_none_yaml() {
     let yaml = r#"
 target_monitor: null
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.target_monitor.is_none());
 }
 
@@ -631,7 +632,7 @@ fn test_config_target_space_yaml_deserialization() {
     let yaml = r#"
 target_space: 3
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.target_space, Some(3));
 }
 
@@ -640,7 +641,7 @@ fn test_config_target_space_null_yaml() {
     let yaml = r#"
 target_space: null
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.target_space.is_none());
 }
 
@@ -649,7 +650,7 @@ fn test_config_target_space_yaml_serialization() {
     let mut config = Config::default();
     config.target_space = Some(5);
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("target_space: 5"));
 }
 
@@ -659,7 +660,7 @@ fn test_config_target_space_missing_defaults_to_none() {
     let yaml = r#"
 font_size: 14.0
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.target_space.is_none());
 }
 
@@ -733,7 +734,7 @@ session_log_format: plain
 session_log_directory: "/tmp/test-logs"
 archive_on_close: false
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.auto_log_sessions);
     assert_eq!(config.session_log_format, SessionLogFormat::Plain);
     assert_eq!(config.session_log_directory, "/tmp/test-logs");
@@ -747,7 +748,7 @@ fn test_session_logging_yaml_serialization() {
     config.session_log_format = SessionLogFormat::Html;
     config.session_log_directory = "/var/log/terminal".to_string();
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("auto_log_sessions: true"));
     assert!(yaml.contains("session_log_format: html"));
     assert!(yaml.contains("session_log_directory: /var/log/terminal"));
@@ -757,15 +758,15 @@ fn test_session_logging_yaml_serialization() {
 fn test_session_log_format_yaml_variants() {
     // Test all format variants
     let yaml = r#"session_log_format: plain"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.session_log_format, SessionLogFormat::Plain);
 
     let yaml = r#"session_log_format: html"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.session_log_format, SessionLogFormat::Html);
 
     let yaml = r#"session_log_format: asciicast"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.session_log_format, SessionLogFormat::Asciicast);
 }
 
@@ -775,7 +776,7 @@ fn test_session_logging_partial_yaml() {
     let yaml = r#"
 auto_log_sessions: true
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.auto_log_sessions);
     // Other fields should have defaults
     assert_eq!(config.session_log_format, SessionLogFormat::Asciicast);
@@ -810,12 +811,12 @@ fn test_startup_directory_mode_defaults() {
 fn test_startup_directory_mode_yaml_parsing() {
     // Test home mode
     let yaml = r#"startup_directory_mode: home"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.startup_directory_mode, StartupDirectoryMode::Home);
 
     // Test previous mode
     let yaml = r#"startup_directory_mode: previous"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(
         config.startup_directory_mode,
         StartupDirectoryMode::Previous
@@ -823,7 +824,7 @@ fn test_startup_directory_mode_yaml_parsing() {
 
     // Test custom mode
     let yaml = r#"startup_directory_mode: custom"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.startup_directory_mode, StartupDirectoryMode::Custom);
 }
 
@@ -833,7 +834,7 @@ fn test_startup_directory_custom_path() {
 startup_directory_mode: custom
 startup_directory: "/tmp/test-dir"
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.startup_directory_mode, StartupDirectoryMode::Custom);
     assert_eq!(config.startup_directory, Some("/tmp/test-dir".to_string()));
 }
@@ -879,7 +880,7 @@ fn test_get_effective_startup_directory_custom_mode_nonexistent() {
 startup_directory_mode: custom
 startup_directory: "/nonexistent/path/that/does/not/exist"
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     // Should fall back to home directory when custom path doesn't exist
     let effective_dir = config.get_effective_startup_directory();
     assert!(
@@ -899,7 +900,7 @@ fn test_get_effective_startup_directory_previous_mode_nonexistent() {
 startup_directory_mode: previous
 last_working_directory: "/nonexistent/path/that/does/not/exist"
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     // Should fall back to home directory when previous path doesn't exist
     let effective_dir = config.get_effective_startup_directory();
     assert!(
@@ -919,7 +920,7 @@ fn test_get_effective_startup_directory_custom_mode_with_tilde() {
 startup_directory_mode: custom
 startup_directory: "~"
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     // Tilde should expand to home directory
     let effective_dir = config.get_effective_startup_directory();
     assert!(
@@ -941,7 +942,7 @@ working_directory: "/tmp"
 startup_directory_mode: custom
 startup_directory: "~"
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     let effective_dir = config.get_effective_startup_directory();
     assert!(effective_dir.is_some());
     assert_eq!(
@@ -957,7 +958,7 @@ fn test_startup_directory_yaml_serialization() {
     config.startup_directory_mode = StartupDirectoryMode::Custom;
     config.startup_directory = Some("~/Projects".to_string());
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("startup_directory_mode: custom"));
     assert!(yaml.contains("startup_directory: ~/Projects"));
 }
@@ -978,10 +979,10 @@ unsafe fn remove_test_var(key: &str) {
 
 #[test]
 fn test_substitute_variables_basic_env_var() {
-    unsafe { set_test_var("PAR_TEST_VAR", "hello_world") };
-    let result = substitute_variables("value: ${PAR_TEST_VAR}");
+    unsafe { set_test_var("PAR_TERM_TEST_VAR", "hello_world") };
+    let result = substitute_variables("value: ${PAR_TERM_TEST_VAR}");
     assert_eq!(result, "value: hello_world");
-    unsafe { remove_test_var("PAR_TEST_VAR") };
+    unsafe { remove_test_var("PAR_TERM_TEST_VAR") };
 }
 
 #[test]
@@ -994,44 +995,44 @@ fn test_substitute_variables_home_and_user() {
 
 #[test]
 fn test_substitute_variables_multiple_vars() {
-    unsafe { set_test_var("PAR_TEST_A", "alpha") };
-    unsafe { set_test_var("PAR_TEST_B", "beta") };
-    let result = substitute_variables("${PAR_TEST_A} and ${PAR_TEST_B}");
+    unsafe { set_test_var("PAR_TERM_TEST_A", "alpha") };
+    unsafe { set_test_var("PAR_TERM_TEST_B", "beta") };
+    let result = substitute_variables("${PAR_TERM_TEST_A} and ${PAR_TERM_TEST_B}");
     assert_eq!(result, "alpha and beta");
-    unsafe { remove_test_var("PAR_TEST_A") };
-    unsafe { remove_test_var("PAR_TEST_B") };
+    unsafe { remove_test_var("PAR_TERM_TEST_A") };
+    unsafe { remove_test_var("PAR_TERM_TEST_B") };
 }
 
 #[test]
 fn test_substitute_variables_missing_var_unchanged() {
-    // Unset vars should remain as-is
-    unsafe { remove_test_var("PAR_NONEXISTENT_VAR_12345") };
-    let result = substitute_variables("value: ${PAR_NONEXISTENT_VAR_12345}");
-    assert_eq!(result, "value: ${PAR_NONEXISTENT_VAR_12345}");
+    // Unset vars should remain as-is (PAR_TERM_ prefix so it passes allowlist)
+    unsafe { remove_test_var("PAR_TERM_NONEXISTENT_12345") };
+    let result = substitute_variables("value: ${PAR_TERM_NONEXISTENT_12345}");
+    assert_eq!(result, "value: ${PAR_TERM_NONEXISTENT_12345}");
 }
 
 #[test]
 fn test_substitute_variables_default_value() {
-    unsafe { remove_test_var("PAR_MISSING_WITH_DEFAULT") };
-    let result = substitute_variables("shell: ${PAR_MISSING_WITH_DEFAULT:-/bin/bash}");
+    unsafe { remove_test_var("PAR_TERM_MISSING_WITH_DEFAULT") };
+    let result = substitute_variables("shell: ${PAR_TERM_MISSING_WITH_DEFAULT:-/bin/bash}");
     assert_eq!(result, "shell: /bin/bash");
 }
 
 #[test]
 fn test_substitute_variables_default_value_not_used_when_set() {
-    unsafe { set_test_var("PAR_SET_WITH_DEFAULT", "/bin/zsh") };
-    let result = substitute_variables("shell: ${PAR_SET_WITH_DEFAULT:-/bin/bash}");
+    unsafe { set_test_var("PAR_TERM_SET_WITH_DEFAULT", "/bin/zsh") };
+    let result = substitute_variables("shell: ${PAR_TERM_SET_WITH_DEFAULT:-/bin/bash}");
     assert_eq!(result, "shell: /bin/zsh");
-    unsafe { remove_test_var("PAR_SET_WITH_DEFAULT") };
+    unsafe { remove_test_var("PAR_TERM_SET_WITH_DEFAULT") };
 }
 
 #[test]
 fn test_substitute_variables_escaped_dollar() {
     // $${VAR} should produce the literal ${VAR}
-    unsafe { set_test_var("PAR_TEST_ESC", "should_not_appear") };
-    let result = substitute_variables("literal: $${PAR_TEST_ESC}");
-    assert_eq!(result, "literal: ${PAR_TEST_ESC}");
-    unsafe { remove_test_var("PAR_TEST_ESC") };
+    unsafe { set_test_var("PAR_TERM_TEST_ESC", "should_not_appear") };
+    let result = substitute_variables("literal: $${PAR_TERM_TEST_ESC}");
+    assert_eq!(result, "literal: ${PAR_TERM_TEST_ESC}");
+    unsafe { remove_test_var("PAR_TERM_TEST_ESC") };
 }
 
 #[test]
@@ -1043,45 +1044,198 @@ fn test_substitute_variables_no_vars() {
 
 #[test]
 fn test_substitute_variables_adjacent_vars() {
-    unsafe { set_test_var("PAR_TEST_X", "foo") };
-    unsafe { set_test_var("PAR_TEST_Y", "bar") };
-    let result = substitute_variables("${PAR_TEST_X}${PAR_TEST_Y}");
+    unsafe { set_test_var("PAR_TERM_TEST_X", "foo") };
+    unsafe { set_test_var("PAR_TERM_TEST_Y", "bar") };
+    let result = substitute_variables("${PAR_TERM_TEST_X}${PAR_TERM_TEST_Y}");
     assert_eq!(result, "foobar");
-    unsafe { remove_test_var("PAR_TEST_X") };
-    unsafe { remove_test_var("PAR_TEST_Y") };
+    unsafe { remove_test_var("PAR_TERM_TEST_X") };
+    unsafe { remove_test_var("PAR_TERM_TEST_Y") };
 }
 
 #[test]
 fn test_substitute_variables_in_yaml_config() {
-    unsafe { set_test_var("PAR_TEST_FONT", "Fira Code") };
-    unsafe { set_test_var("PAR_TEST_TITLE", "My Terminal") };
+    unsafe { set_test_var("PAR_TERM_TEST_FONT", "Fira Code") };
+    unsafe { set_test_var("PAR_TERM_TEST_TITLE", "My Terminal") };
     let yaml = r#"
-font_family: "${PAR_TEST_FONT}"
-window_title: "${PAR_TEST_TITLE}"
+font_family: "${PAR_TERM_TEST_FONT}"
+window_title: "${PAR_TERM_TEST_TITLE}"
 cols: 120
 "#;
     let substituted = substitute_variables(yaml);
-    let config: Config = serde_yaml::from_str(&substituted).unwrap();
+    let config: Config = serde_yml::from_str(&substituted).unwrap();
     assert_eq!(config.font_family, "Fira Code");
     assert_eq!(config.window_title, "My Terminal");
     assert_eq!(config.cols, 120);
-    unsafe { remove_test_var("PAR_TEST_FONT") };
-    unsafe { remove_test_var("PAR_TEST_TITLE") };
+    unsafe { remove_test_var("PAR_TERM_TEST_FONT") };
+    unsafe { remove_test_var("PAR_TERM_TEST_TITLE") };
 }
 
 #[test]
 fn test_substitute_variables_partial_string() {
-    unsafe { set_test_var("PAR_TEST_USER", "testuser") };
-    let result = substitute_variables("badge: ${PAR_TEST_USER}@myhost");
+    unsafe { set_test_var("PAR_TERM_TEST_USER", "testuser") };
+    let result = substitute_variables("badge: ${PAR_TERM_TEST_USER}@myhost");
     assert_eq!(result, "badge: testuser@myhost");
-    unsafe { remove_test_var("PAR_TEST_USER") };
+    unsafe { remove_test_var("PAR_TERM_TEST_USER") };
 }
 
 #[test]
 fn test_substitute_variables_empty_default() {
-    unsafe { remove_test_var("PAR_EMPTY_DEFAULT") };
-    let result = substitute_variables("val: ${PAR_EMPTY_DEFAULT:-}");
+    unsafe { remove_test_var("PAR_TERM_EMPTY_DEFAULT") };
+    let result = substitute_variables("val: ${PAR_TERM_EMPTY_DEFAULT:-}");
     assert_eq!(result, "val: ");
+}
+
+// ============================================================================
+// Environment Variable Allowlist Tests
+// ============================================================================
+
+#[test]
+fn test_allowlist_permits_common_safe_vars() {
+    // These should all be on the allowlist
+    assert!(is_env_var_allowed("HOME"));
+    assert!(is_env_var_allowed("USER"));
+    assert!(is_env_var_allowed("USERNAME"));
+    assert!(is_env_var_allowed("LOGNAME"));
+    assert!(is_env_var_allowed("SHELL"));
+    assert!(is_env_var_allowed("TERM"));
+    assert!(is_env_var_allowed("LANG"));
+    assert!(is_env_var_allowed("PATH"));
+    assert!(is_env_var_allowed("EDITOR"));
+    assert!(is_env_var_allowed("VISUAL"));
+    assert!(is_env_var_allowed("PAGER"));
+    assert!(is_env_var_allowed("TMPDIR"));
+    assert!(is_env_var_allowed("DISPLAY"));
+    assert!(is_env_var_allowed("WAYLAND_DISPLAY"));
+    assert!(is_env_var_allowed("HOSTNAME"));
+    assert!(is_env_var_allowed("HOST"));
+    assert!(is_env_var_allowed("COLORTERM"));
+    assert!(is_env_var_allowed("TERM_PROGRAM"));
+}
+
+#[test]
+fn test_allowlist_permits_xdg_vars() {
+    assert!(is_env_var_allowed("XDG_CONFIG_HOME"));
+    assert!(is_env_var_allowed("XDG_DATA_HOME"));
+    assert!(is_env_var_allowed("XDG_STATE_HOME"));
+    assert!(is_env_var_allowed("XDG_CACHE_HOME"));
+    assert!(is_env_var_allowed("XDG_RUNTIME_DIR"));
+}
+
+#[test]
+fn test_allowlist_permits_windows_vars() {
+    assert!(is_env_var_allowed("APPDATA"));
+    assert!(is_env_var_allowed("LOCALAPPDATA"));
+    assert!(is_env_var_allowed("USERPROFILE"));
+}
+
+#[test]
+fn test_allowlist_permits_par_term_prefix() {
+    assert!(is_env_var_allowed("PAR_TERM_CUSTOM"));
+    assert!(is_env_var_allowed("PAR_TERM_SOMETHING_ELSE"));
+    assert!(is_env_var_allowed("PAR_TERM_"));
+}
+
+#[test]
+fn test_allowlist_permits_lc_prefix() {
+    assert!(is_env_var_allowed("LC_ALL"));
+    assert!(is_env_var_allowed("LC_CTYPE"));
+    assert!(is_env_var_allowed("LC_MESSAGES"));
+    assert!(is_env_var_allowed("LC_COLLATE"));
+}
+
+#[test]
+fn test_allowlist_blocks_sensitive_vars() {
+    assert!(!is_env_var_allowed("AWS_SECRET_ACCESS_KEY"));
+    assert!(!is_env_var_allowed("API_KEY"));
+    assert!(!is_env_var_allowed("GITHUB_TOKEN"));
+    assert!(!is_env_var_allowed("DATABASE_URL"));
+    assert!(!is_env_var_allowed("SECRET_KEY"));
+    assert!(!is_env_var_allowed("OPENAI_API_KEY"));
+    assert!(!is_env_var_allowed("SSH_PRIVATE_KEY"));
+    assert!(!is_env_var_allowed("RANDOM_VAR"));
+}
+
+#[test]
+fn test_substitute_allowlisted_var_resolves() {
+    // HOME is on the allowlist and should be set on all Unix-like systems
+    let home = std::env::var("HOME").unwrap_or_default();
+    let result = substitute_variables("path: ${HOME}/config");
+    assert_eq!(result, format!("path: {home}/config"));
+}
+
+#[test]
+fn test_substitute_non_allowlisted_var_blocked() {
+    // Set a non-allowlisted variable and verify it's NOT substituted
+    unsafe { set_test_var("SECRET_API_KEY_TEST_M3", "super_secret") };
+    let result = substitute_variables("key: ${SECRET_API_KEY_TEST_M3}");
+    // Should remain as literal text, not resolved
+    assert_eq!(result, "key: ${SECRET_API_KEY_TEST_M3}");
+    unsafe { remove_test_var("SECRET_API_KEY_TEST_M3") };
+}
+
+#[test]
+fn test_substitute_par_term_prefix_resolves() {
+    unsafe { set_test_var("PAR_TERM_MY_SETTING", "custom_value") };
+    let result = substitute_variables("setting: ${PAR_TERM_MY_SETTING}");
+    assert_eq!(result, "setting: custom_value");
+    unsafe { remove_test_var("PAR_TERM_MY_SETTING") };
+}
+
+#[test]
+fn test_substitute_lc_prefix_resolves() {
+    unsafe { set_test_var("LC_TEST_LOCALE", "en_US.UTF-8") };
+    let result = substitute_variables("locale: ${LC_TEST_LOCALE}");
+    assert_eq!(result, "locale: en_US.UTF-8");
+    unsafe { remove_test_var("LC_TEST_LOCALE") };
+}
+
+#[test]
+fn test_substitute_allow_all_overrides_allowlist() {
+    // With allow_all=true, even non-allowlisted vars should resolve
+    unsafe { set_test_var("SECRET_OVERRIDE_TEST_M3", "resolved_secret") };
+    let result = substitute_variables_with_allowlist("key: ${SECRET_OVERRIDE_TEST_M3}", true);
+    assert_eq!(result, "key: resolved_secret");
+    unsafe { remove_test_var("SECRET_OVERRIDE_TEST_M3") };
+}
+
+#[test]
+fn test_substitute_allow_all_false_blocks_non_allowlisted() {
+    unsafe { set_test_var("BLOCKED_VAR_TEST_M3", "should_not_appear") };
+    let result = substitute_variables_with_allowlist("val: ${BLOCKED_VAR_TEST_M3}", false);
+    assert_eq!(result, "val: ${BLOCKED_VAR_TEST_M3}");
+    unsafe { remove_test_var("BLOCKED_VAR_TEST_M3") };
+}
+
+#[test]
+fn test_substitute_mixed_allowed_and_blocked() {
+    unsafe { set_test_var("PAR_TERM_GOOD", "allowed") };
+    unsafe { set_test_var("NAUGHTY_SECRET_TEST_M3", "blocked") };
+    let result = substitute_variables("good: ${PAR_TERM_GOOD}, bad: ${NAUGHTY_SECRET_TEST_M3}");
+    assert_eq!(result, "good: allowed, bad: ${NAUGHTY_SECRET_TEST_M3}");
+    unsafe { remove_test_var("PAR_TERM_GOOD") };
+    unsafe { remove_test_var("NAUGHTY_SECRET_TEST_M3") };
+}
+
+#[test]
+fn test_substitute_non_allowlisted_with_default_uses_literal() {
+    // Non-allowlisted var with a default — the entire ${VAR:-default} is left as-is
+    unsafe { remove_test_var("BLOCKED_DEFAULT_TEST_M3") };
+    let result = substitute_variables("val: ${BLOCKED_DEFAULT_TEST_M3:-fallback}");
+    // The variable is blocked, so the placeholder stays as literal text
+    assert_eq!(result, "val: ${BLOCKED_DEFAULT_TEST_M3:-fallback}");
+}
+
+#[test]
+fn test_substitute_escaped_dollar_still_works_with_allowlist() {
+    // Escaped dollars should still produce literal ${VAR} regardless of allowlist
+    let result = substitute_variables("literal: $${HOME}");
+    assert_eq!(result, "literal: ${HOME}");
+}
+
+#[test]
+fn test_config_default_allow_all_env_vars_is_false() {
+    let config = Config::default();
+    assert!(!config.allow_all_env_vars);
 }
 
 // ============================================================================
@@ -1102,8 +1256,8 @@ fn test_tab_bar_position_serialization() {
         let mut config = Config::default();
         config.tab_bar_position = position;
 
-        let yaml = serde_yaml::to_string(&config).unwrap();
-        let deserialized: Config = serde_yaml::from_str(&yaml).unwrap();
+        let yaml = serde_yml::to_string(&config).unwrap();
+        let deserialized: Config = serde_yml::from_str(&yaml).unwrap();
         assert_eq!(
             deserialized.tab_bar_position, position,
             "Round-trip failed for {:?}",
@@ -1115,15 +1269,15 @@ fn test_tab_bar_position_serialization() {
 #[test]
 fn test_tab_bar_position_yaml_variants() {
     let yaml = r#"tab_bar_position: top"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.tab_bar_position, TabBarPosition::Top);
 
     let yaml = r#"tab_bar_position: bottom"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.tab_bar_position, TabBarPosition::Bottom);
 
     let yaml = r#"tab_bar_position: left"#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.tab_bar_position, TabBarPosition::Left);
 }
 
@@ -1133,7 +1287,7 @@ fn test_tab_bar_position_partial_yaml() {
     let yaml = r#"
 cols: 100
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.tab_bar_position, TabBarPosition::Top);
     assert_eq!(config.tab_bar_width, 160.0);
 }
@@ -1144,7 +1298,7 @@ fn test_tab_bar_width_yaml_deserialization() {
 tab_bar_position: left
 tab_bar_width: 250.0
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.tab_bar_position, TabBarPosition::Left);
     assert!((config.tab_bar_width - 250.0).abs() < f32::EPSILON);
 }
@@ -1155,7 +1309,7 @@ fn test_tab_bar_width_yaml_serialization() {
     config.tab_bar_position = TabBarPosition::Left;
     config.tab_bar_width = 200.0;
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
     assert!(yaml.contains("tab_bar_position: left"));
     assert!(yaml.contains("tab_bar_width: 200.0"));
 }
@@ -1219,7 +1373,7 @@ auto_dark_mode: true
 light_theme: solarized-light
 dark_theme: dracula
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(config.auto_dark_mode);
     assert_eq!(config.light_theme, "solarized-light");
     assert_eq!(config.dark_theme, "dracula");
@@ -1228,7 +1382,7 @@ dark_theme: dracula
 #[test]
 fn test_auto_dark_mode_yaml_defaults_when_absent() {
     let yaml = "cols: 120\n";
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert!(!config.auto_dark_mode);
     assert_eq!(config.light_theme, "light-background");
     assert_eq!(config.dark_theme, "dark-background");
@@ -1311,7 +1465,7 @@ tab_style: automatic
 light_tab_style: compact
 dark_tab_style: high_contrast
 "#;
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.tab_style, TabStyle::Automatic);
     assert_eq!(config.light_tab_style, TabStyle::Compact);
     assert_eq!(config.dark_tab_style, TabStyle::HighContrast);
@@ -1320,7 +1474,7 @@ dark_tab_style: high_contrast
 #[test]
 fn test_auto_tab_style_yaml_defaults_when_absent() {
     let yaml = "cols: 120\n";
-    let config: Config = serde_yaml::from_str(yaml).unwrap();
+    let config: Config = serde_yml::from_str(yaml).unwrap();
     assert_eq!(config.light_tab_style, TabStyle::Light);
     assert_eq!(config.dark_tab_style, TabStyle::Dark);
 }

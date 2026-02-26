@@ -11,6 +11,11 @@ fn main() -> Result<()> {
     // Process CLI arguments first (before logging init for cleaner output)
     let runtime_options = match cli::process_cli() {
         cli::CliResult::Exit(code) => {
+            if code == 0 {
+                return Ok(());
+            }
+            // Non-zero exit: use process::exit so the shell sees the correct
+            // exit code. No app state exists yet, so no destructors are skipped.
             std::process::exit(code);
         }
         cli::CliResult::Continue(options) => options,
@@ -32,13 +37,19 @@ fn main() -> Result<()> {
     let app = App::new(Arc::clone(&runtime), runtime_options)?;
     let result = app.run();
 
-    // All windows are closed and cleanup threads are running in background.
-    // Force-exit the process immediately to avoid blocking on tokio runtime
-    // shutdown or PtySession::drop timeouts. Background cleanup threads and
-    // the OS will handle any remaining resource cleanup.
-    log::info!("Event loop exited, force-exiting process");
-    let exit_code = match result {
-        Ok(_) => 0,
+    // Event loop has exited. All windows have already been closed and their
+    // Drop impls have run (PTY cleanup, session saves, etc.).
+    // Drop the runtime explicitly so Tokio can shut down its worker threads
+    // before main returns. Use `shutdown_timeout` to avoid blocking forever
+    // if a background task hangs.
+    log::info!("Event loop exited, shutting down runtime");
+    let rt = Arc::try_unwrap(runtime).ok();
+    if let Some(rt) = rt {
+        rt.shutdown_timeout(std::time::Duration::from_secs(2));
+    }
+
+    match result {
+        Ok(_) => Ok(()),
         Err(ref e) => {
             eprintln!("par-term: error: {e:#}");
             // On Linux, provide a hint when the error looks like a missing display server
@@ -57,8 +68,8 @@ fn main() -> Result<()> {
                     );
                 }
             }
-            1
+            // Return the original error so main exits with code 1 (anyhow default)
+            result
         }
-    };
-    std::process::exit(exit_code);
+    }
 }

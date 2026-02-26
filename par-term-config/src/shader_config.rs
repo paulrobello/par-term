@@ -26,7 +26,6 @@ use std::path::PathBuf;
 ///
 /// # Returns
 /// A fully resolved configuration with all values filled in
-#[allow(dead_code)]
 pub fn resolve_shader_config(
     user_override: Option<&ShaderConfig>,
     metadata: Option<&ShaderMetadata>,
@@ -164,7 +163,6 @@ pub fn resolve_cursor_shader_config(
     }
 }
 
-#[allow(dead_code)]
 impl ResolvedShaderConfig {
     /// Resolve a shader config for a specific shader.
     ///
@@ -204,7 +202,6 @@ impl ResolvedShaderConfig {
     }
 }
 
-#[allow(dead_code)]
 impl ResolvedCursorShaderConfig {
     /// Resolve a cursor shader config for a specific shader.
     ///
@@ -225,7 +222,6 @@ impl ResolvedCursorShaderConfig {
 /// Default global values for shader configuration.
 ///
 /// These are used when neither user override nor metadata provide a value.
-#[allow(dead_code)]
 pub mod global_defaults {
     pub const ANIMATION_SPEED: f32 = 1.0;
     pub const BRIGHTNESS: f32 = 1.0;

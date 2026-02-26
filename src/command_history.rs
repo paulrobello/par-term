@@ -62,7 +62,7 @@ impl CommandHistory {
             return;
         }
         match fs::read_to_string(&self.path) {
-            Ok(contents) => match serde_yaml::from_str::<CommandHistoryFile>(&contents) {
+            Ok(contents) => match serde_yml::from_str::<CommandHistoryFile>(&contents) {
                 Ok(file) => {
                     // Load entries, newest first (file stores newest first)
                     self.entries = file.commands.into();
@@ -93,7 +93,7 @@ impl CommandHistory {
             log::error!("Failed to create command history directory: {}", e);
             return;
         }
-        match serde_yaml::to_string(&file) {
+        match serde_yml::to_string(&file) {
             Ok(yaml) => {
                 if let Err(e) = fs::write(&self.path, yaml) {
                     log::error!("Failed to write command history: {}", e);
@@ -128,7 +128,7 @@ impl CommandHistory {
                     log::error!("Failed to create command history directory: {}", e);
                     return;
                 }
-                match serde_yaml::to_string(&file) {
+                match serde_yml::to_string(&file) {
                     Ok(yaml) => {
                         if let Err(e) = fs::write(&path, yaml) {
                             log::error!("Failed to write command history: {}", e);

@@ -3,9 +3,6 @@
 //! This module handles:
 //! - Desktop notifications (OSC 9/777)
 //! - Bell events (audio, visual, desktop)
-//! - Screenshot capture with notifications
-
-use std::sync::Arc;
 
 use super::window_state::WindowState;
 
@@ -148,91 +145,6 @@ impl WindowState {
             );
             audio_bell.play_alert(alert_cfg);
         }
-    }
-
-    /// Take a screenshot of the terminal and save to file.
-    #[allow(dead_code)]
-    pub(crate) fn take_screenshot(&self) {
-        log::info!("Taking screenshot...");
-
-        let terminal = if let Some(tab) = self.tab_manager.active_tab() {
-            Arc::clone(&tab.terminal)
-        } else {
-            log::warn!("No terminal available for screenshot");
-            self.deliver_notification("Screenshot Error", "No terminal available");
-            return;
-        };
-
-        // Generate timestamp-based filename
-        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-        let format = &self.config.screenshot_format;
-        let filename = format!("par-term_screenshot_{}.{}", timestamp, format);
-
-        // Create screenshots directory in user's home dir
-        if let Some(home_dir) = dirs::home_dir() {
-            let screenshot_dir = home_dir.join("par-term-screenshots");
-            if !screenshot_dir.exists()
-                && let Err(e) = std::fs::create_dir_all(&screenshot_dir)
-            {
-                log::error!("Failed to create screenshot directory: {}", e);
-                self.deliver_notification(
-                    "Screenshot Error",
-                    &format!("Failed to create directory: {}", e),
-                );
-                return;
-            }
-
-            let path = screenshot_dir.join(&filename);
-            let path_str = path.to_string_lossy().to_string();
-
-            // Take screenshot (include scrollback for better context)
-            let terminal_clone = terminal;
-            let format_clone = format.clone();
-
-            // Use async to avoid blocking the UI
-            let result = std::thread::spawn(move || {
-                if let Ok(term) = terminal_clone.try_lock() {
-                    // Include 0 scrollback lines (just visible content)
-                    term.screenshot_to_file(&path, &format_clone, 0)
-                } else {
-                    Err(anyhow::anyhow!("Failed to lock terminal"))
-                }
-            })
-            .join();
-
-            match result {
-                Ok(Ok(())) => {
-                    log::info!("Screenshot saved to: {}", path_str);
-                    self.deliver_notification(
-                        "Screenshot Saved",
-                        &format!("Saved to: {}", path_str),
-                    );
-                }
-                Ok(Err(e)) => {
-                    log::error!("Failed to save screenshot: {}", e);
-                    self.deliver_notification(
-                        "Screenshot Error",
-                        &format!("Failed to save: {}", e),
-                    );
-                }
-                Err(e) => {
-                    log::error!("Screenshot thread panicked: {:?}", e);
-                    self.deliver_notification("Screenshot Error", "Screenshot thread failed");
-                }
-            }
-        } else {
-            log::error!("Failed to get home directory");
-            self.deliver_notification("Screenshot Error", "Failed to get home directory");
-        }
-    }
-
-    /// Toggle recording (placeholder - not yet implemented in core library).
-    #[allow(dead_code)]
-    pub(crate) fn toggle_recording(&mut self) {
-        self.deliver_notification(
-            "Recording Not Available",
-            "Recording APIs are not yet implemented in the core library",
-        );
     }
 
     /// Check for session exit notifications across all tabs.

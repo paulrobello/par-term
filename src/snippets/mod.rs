@@ -102,16 +102,6 @@ impl VariableSubstitutor {
         Ok(result)
     }
 
-    /// Resolve a single variable to its value (without session variables).
-    #[allow(dead_code)]
-    fn resolve_variable(
-        &self,
-        name: &str,
-        custom_vars: &HashMap<String, String>,
-    ) -> SubstitutionResult<String> {
-        self.resolve_variable_with_session(name, custom_vars, None)
-    }
-
     /// Resolve a single variable to its value, including session variables.
     fn resolve_variable_with_session(
         &self,

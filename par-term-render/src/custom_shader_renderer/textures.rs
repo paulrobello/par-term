@@ -11,7 +11,6 @@ use wgpu::*;
 pub struct ChannelTexture {
     /// The GPU texture (kept alive to ensure view/sampler remain valid)
     /// When using an external texture (e.g., background image), this is None
-    #[allow(dead_code)]
     pub texture: Option<Texture>,
     /// View for binding to shaders
     pub view: TextureView,

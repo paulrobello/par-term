@@ -219,7 +219,6 @@ impl ShaderWatcher {
     }
 
     /// Get the debounce delay in milliseconds
-    #[allow(dead_code)]
     pub fn debounce_delay_ms(&self) -> u64 {
         self.debounce_delay_ms
     }
@@ -243,28 +242,24 @@ impl ShaderWatcherBuilder {
     }
 
     /// Set the background shader path
-    #[allow(dead_code)]
     pub fn background_shader(mut self, path: impl Into<PathBuf>) -> Self {
         self.background_shader_path = Some(path.into());
         self
     }
 
     /// Set the cursor shader path
-    #[allow(dead_code)]
     pub fn cursor_shader(mut self, path: impl Into<PathBuf>) -> Self {
         self.cursor_shader_path = Some(path.into());
         self
     }
 
     /// Set the debounce delay in milliseconds
-    #[allow(dead_code)]
     pub fn debounce_delay_ms(mut self, delay_ms: u64) -> Self {
         self.debounce_delay_ms = delay_ms;
         self
     }
 
     /// Build the ShaderWatcher
-    #[allow(dead_code)]
     pub fn build(self) -> Result<ShaderWatcher> {
         ShaderWatcher::new(
             self.background_shader_path.as_deref(),

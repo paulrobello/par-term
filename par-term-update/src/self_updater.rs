@@ -4,6 +4,7 @@
 //! detecting the current installation method, and performing
 //! platform-specific binary replacement.
 
+use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
 /// How par-term was installed — determines update strategy
@@ -120,9 +121,33 @@ pub fn get_asset_name() -> Result<&'static str, String> {
     }
 }
 
-/// Get the download URL for the platform binary from the release API response.
-pub fn get_binary_download_url(api_url: &str) -> Result<String, String> {
+/// Get the checksum asset name for the current platform.
+///
+/// Returns the expected `.sha256` filename, e.g. `par-term-macos-aarch64.zip.sha256`.
+pub fn get_checksum_asset_name() -> Result<String, String> {
     let asset_name = get_asset_name()?;
+    Ok(format!("{}.sha256", asset_name))
+}
+
+/// Compute SHA256 hash of in-memory data, returning the lowercase hex string.
+pub fn compute_data_hash(data: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    format!("{:x}", hasher.finalize())
+}
+
+/// Download URLs for the binary and optional checksum from a GitHub release.
+pub struct DownloadUrls {
+    /// URL for the platform binary/archive asset
+    pub binary_url: String,
+    /// URL for the `.sha256` checksum file, if present in the release
+    pub checksum_url: Option<String>,
+}
+
+/// Get the download URLs for the platform binary and checksum from the release API response.
+pub fn get_download_urls(api_url: &str) -> Result<DownloadUrls, String> {
+    let asset_name = get_asset_name()?;
+    let checksum_name = get_checksum_asset_name()?;
 
     let mut body = crate::http::agent()
         .get(api_url)
@@ -136,24 +161,123 @@ pub fn get_binary_download_url(api_url: &str) -> Result<String, String> {
         .read_to_string()
         .map_err(|e| format!("Failed to read response body: {}", e))?;
 
-    // Find the browser_download_url matching our asset name
+    // Collect all browser_download_url values
     let search_pattern = "\"browser_download_url\":\"";
+    let mut binary_url: Option<String> = None;
+    let mut checksum_url: Option<String> = None;
 
     for (i, _) in body_str.match_indices(search_pattern) {
         let url_start = i + search_pattern.len();
         if let Some(url_end) = body_str[url_start..].find('"') {
             let url = &body_str[url_start..url_start + url_end];
-            if url.ends_with(asset_name) {
-                return Ok(url.to_string());
+            if url.ends_with(&checksum_name) {
+                checksum_url = Some(url.to_string());
+            } else if url.ends_with(asset_name) {
+                binary_url = Some(url.to_string());
             }
         }
     }
 
-    Err(format!(
-        "Could not find {} in the latest release.\n\
-         Please download manually from https://github.com/paulrobello/par-term/releases",
-        asset_name
-    ))
+    match binary_url {
+        Some(url) => Ok(DownloadUrls {
+            binary_url: url,
+            checksum_url,
+        }),
+        None => Err(format!(
+            "Could not find {} in the latest release.\n\
+             Please download manually from https://github.com/paulrobello/par-term/releases",
+            asset_name
+        )),
+    }
+}
+
+/// Get the download URL for the platform binary from the release API response.
+///
+/// This is a convenience wrapper around [`get_download_urls`] that returns only
+/// the binary URL, for callers that don't need checksum verification.
+pub fn get_binary_download_url(api_url: &str) -> Result<String, String> {
+    get_download_urls(api_url).map(|urls| urls.binary_url)
+}
+
+/// Parse expected hash from a `.sha256` checksum file.
+///
+/// Supports two common formats:
+/// - Plain hash: `abcdef1234...`
+/// - BSD/GNU style: `abcdef1234...  filename`
+fn parse_checksum_file(content: &str) -> Result<String, String> {
+    let trimmed = content.trim();
+    if trimmed.is_empty() {
+        return Err("Checksum file is empty".to_string());
+    }
+
+    // Take the first whitespace-delimited token as the hex hash
+    let hash = trimmed
+        .split_whitespace()
+        .next()
+        .ok_or_else(|| "Checksum file is empty".to_string())?
+        .to_lowercase();
+
+    // Validate it looks like a SHA256 hex string (64 hex chars)
+    if hash.len() != 64 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(format!(
+            "Checksum file does not contain a valid SHA256 hash (got '{}')",
+            hash
+        ));
+    }
+
+    Ok(hash)
+}
+
+/// Verify the downloaded data against a SHA256 checksum from the release.
+///
+/// Returns `Ok(())` if verification passes or no checksum is available
+/// (with a warning log). Returns `Err` if the checksum does not match.
+fn verify_download(data: &[u8], checksum_url: Option<&str>) -> Result<(), String> {
+    let checksum_url = match checksum_url {
+        Some(url) => url,
+        None => {
+            log::warn!(
+                "No .sha256 checksum file found in release — \
+                 skipping integrity verification. \
+                 This is expected for older releases."
+            );
+            return Ok(());
+        }
+    };
+
+    // Download the checksum file
+    let checksum_data = match crate::http::download_file(checksum_url) {
+        Ok(data) => data,
+        Err(e) => {
+            log::warn!(
+                "Failed to download checksum file ({}): {} — \
+                 skipping integrity verification",
+                checksum_url,
+                e
+            );
+            return Ok(());
+        }
+    };
+
+    let checksum_content = String::from_utf8(checksum_data)
+        .map_err(|_| "Checksum file contains invalid UTF-8".to_string())?;
+
+    let expected_hash = parse_checksum_file(&checksum_content)?;
+    let actual_hash = compute_data_hash(data);
+
+    if actual_hash != expected_hash {
+        return Err(format!(
+            "Checksum verification failed!\n\
+             Expected: {}\n\
+             Actual:   {}\n\
+             The downloaded binary may be corrupted or tampered with. \
+             Update aborted for safety.",
+            expected_hash, actual_hash
+        ));
+    }
+
+    log::info!("SHA256 checksum verified successfully");
+    Ok(())
 }
 
 /// Perform the self-update: download, verify, replace binary, report result.
@@ -184,12 +308,15 @@ pub fn perform_update(new_version: &str) -> Result<UpdateResult, String> {
 
     let old_version = env!("CARGO_PKG_VERSION").to_string();
 
-    // Fetch release API and get download URL
+    // Fetch release API and get download URLs (binary + optional checksum)
     let api_url = "https://api.github.com/repos/paulrobello/par-term/releases/latest";
-    let download_url = get_binary_download_url(api_url)?;
+    let urls = get_download_urls(api_url)?;
 
     // Download the binary/archive
-    let data = crate::http::download_file(&download_url).map_err(|e| e.to_string())?;
+    let data = crate::http::download_file(&urls.binary_url).map_err(|e| e.to_string())?;
+
+    // Verify SHA256 checksum (fails on mismatch, warns if no checksum available)
+    verify_download(&data, urls.checksum_url.as_deref())?;
 
     // Perform platform-specific installation
     let install_path = match installation {
@@ -434,5 +561,101 @@ mod tests {
             InstallationType::StandaloneBinary.description(),
             "standalone binary"
         );
+    }
+
+    #[test]
+    fn test_get_checksum_asset_name() {
+        let result = get_checksum_asset_name();
+        assert!(result.is_ok());
+        let name = result.unwrap();
+        assert!(
+            name.ends_with(".sha256"),
+            "Checksum asset name should end with .sha256, got '{}'",
+            name
+        );
+        assert!(
+            name.starts_with("par-term-"),
+            "Checksum asset name should start with 'par-term-', got '{}'",
+            name
+        );
+    }
+
+    #[test]
+    fn test_compute_data_hash_known_value() {
+        // SHA256 of "hello world"
+        let hash = compute_data_hash(b"hello world");
+        assert_eq!(
+            hash,
+            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        );
+    }
+
+    #[test]
+    fn test_compute_data_hash_empty() {
+        let hash = compute_data_hash(b"");
+        assert_eq!(
+            hash,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn test_parse_checksum_file_plain_hash() {
+        let content = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9\n";
+        let hash = parse_checksum_file(content).unwrap();
+        assert_eq!(
+            hash,
+            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        );
+    }
+
+    #[test]
+    fn test_parse_checksum_file_with_filename() {
+        let content = "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9  par-term-linux-x86_64\n";
+        let hash = parse_checksum_file(content).unwrap();
+        assert_eq!(
+            hash,
+            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        );
+    }
+
+    #[test]
+    fn test_parse_checksum_file_uppercase_normalized() {
+        let content = "B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9\n";
+        let hash = parse_checksum_file(content).unwrap();
+        assert_eq!(
+            hash,
+            "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+        );
+    }
+
+    #[test]
+    fn test_parse_checksum_file_empty() {
+        let result = parse_checksum_file("");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("empty"));
+    }
+
+    #[test]
+    fn test_parse_checksum_file_invalid_hash() {
+        let result = parse_checksum_file("not-a-hash");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("valid SHA256"));
+    }
+
+    #[test]
+    fn test_parse_checksum_file_wrong_length() {
+        // 32 hex chars (MD5 length) instead of 64 (SHA256 length)
+        let result = parse_checksum_file("d41d8cd98f00b204e9800998ecf8427e");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("valid SHA256"));
+    }
+
+    #[test]
+    fn test_verify_download_no_checksum_url() {
+        // Should succeed with warning when no checksum URL is available
+        let data = b"some binary data";
+        let result = verify_download(data, None);
+        assert!(result.is_ok());
     }
 }

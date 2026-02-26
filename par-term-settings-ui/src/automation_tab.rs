@@ -209,6 +209,22 @@ fn show_triggers_section(
                             .color(egui::Color32::GRAY),
                         );
 
+                        // Security indicator: warn if trigger allows dangerous
+                        // actions from terminal output
+                        if !trigger.require_user_action
+                            && trigger.actions.iter().any(|a| a.is_dangerous())
+                        {
+                            ui.label(
+                                egui::RichText::new("[unsafe]")
+                                    .small()
+                                    .color(egui::Color32::from_rgb(220, 160, 50)),
+                            )
+                            .on_hover_text(
+                                "This trigger can execute dangerous actions \
+                                 (RunCommand/SendText) from passive terminal output",
+                            );
+                        }
+
                         // Edit button
                         if ui.small_button("Edit").clicked() {
                             start_edit_index = Some(i);
@@ -250,6 +266,7 @@ fn show_triggers_section(
                 settings.temp_trigger_name = trigger.name.clone();
                 settings.temp_trigger_pattern = trigger.pattern.clone();
                 settings.temp_trigger_actions = trigger.actions.clone();
+                settings.temp_trigger_require_user_action = trigger.require_user_action;
                 settings.trigger_pattern_error = None;
             }
 
@@ -271,6 +288,7 @@ fn show_triggers_section(
                 settings.temp_trigger_name = String::new();
                 settings.temp_trigger_pattern = String::new();
                 settings.temp_trigger_actions = Vec::new();
+                settings.temp_trigger_require_user_action = true;
                 settings.trigger_pattern_error = None;
             }
         },
@@ -305,6 +323,32 @@ fn show_trigger_edit_form(
         });
         if let Some(ref err) = settings.trigger_pattern_error {
             ui.colored_label(egui::Color32::RED, err);
+        }
+
+        // Security: require_user_action checkbox
+        // Only shown when the trigger has dangerous actions (RunCommand, SendText).
+        let has_dangerous = settings
+            .temp_trigger_actions
+            .iter()
+            .any(|a| a.is_dangerous());
+        if has_dangerous {
+            ui.add_space(4.0);
+            ui.checkbox(
+                &mut settings.temp_trigger_require_user_action,
+                "Require user action (safe default)",
+            )
+            .on_hover_text(
+                "When checked, RunCommand and SendText actions are blocked when triggered \
+                 by passive terminal output. Uncheck ONLY if you trust all terminal output \
+                 sources — malicious content could exploit pattern matching to run commands.",
+            );
+            if !settings.temp_trigger_require_user_action {
+                ui.colored_label(
+                    egui::Color32::from_rgb(220, 160, 50),
+                    "Warning: Dangerous actions can be triggered by terminal output. \
+                     A command denylist and rate limiter still apply.",
+                );
+            }
         }
 
         // Actions list
@@ -379,6 +423,7 @@ fn show_trigger_edit_form(
                     pattern: settings.temp_trigger_pattern.trim().to_string(),
                     enabled: true,
                     actions: settings.temp_trigger_actions.clone(),
+                    require_user_action: settings.temp_trigger_require_user_action,
                 };
 
                 if let Some(i) = edit_index {

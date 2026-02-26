@@ -14,7 +14,6 @@ pub enum MenuAction {
     /// Close the current window
     CloseWindow,
     /// Quit the application (only used on Windows/Linux - macOS handles quit via system menu)
-    #[allow(dead_code)]
     Quit,
 
     // Profiles menu
@@ -23,7 +22,6 @@ pub enum MenuAction {
     /// Toggle the profile drawer visibility
     ToggleProfileDrawer,
     /// Open a specific profile (static menu entries for common profiles)
-    #[allow(dead_code)]
     OpenProfile(ProfileId),
 
     // Tab menu
@@ -38,13 +36,10 @@ pub enum MenuAction {
     /// Switch to tab by index (1-9)
     SwitchToTab(usize),
     /// Move tab left (not yet implemented)
-    #[allow(dead_code)]
     MoveTabLeft,
     /// Move tab right (not yet implemented)
-    #[allow(dead_code)]
     MoveTabRight,
     /// Duplicate the current tab (not yet implemented)
-    #[allow(dead_code)]
     DuplicateTab,
 
     // Edit menu
@@ -97,12 +92,9 @@ pub enum MenuAction {
 
     // Keybinding actions (triggered by user-defined keybindings or menu)
     /// Toggle background/custom shader on/off
-    #[allow(dead_code)]
     ToggleBackgroundShader,
     /// Toggle cursor shader on/off
-    #[allow(dead_code)]
     ToggleCursorShader,
     /// Reload configuration from disk (same as F5)
-    #[allow(dead_code)]
     ReloadConfig,
 }

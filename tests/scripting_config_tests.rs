@@ -26,8 +26,8 @@ fn test_script_config_yaml_roundtrip() {
         env_vars,
     };
 
-    let yaml = serde_yaml::to_string(&script).unwrap();
-    let deserialized: ScriptConfig = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&script).unwrap();
+    let deserialized: ScriptConfig = serde_yml::from_str(&yaml).unwrap();
     assert_eq!(script, deserialized);
 }
 
@@ -38,7 +38,7 @@ fn test_script_config_defaults_minimal_yaml() {
 name: test-script
 script_path: /bin/my-script
 "#;
-    let script: ScriptConfig = serde_yaml::from_str(yaml).unwrap();
+    let script: ScriptConfig = serde_yml::from_str(yaml).unwrap();
     assert_eq!(script.name, "test-script");
     assert_eq!(script.script_path, "/bin/my-script");
     assert!(script.enabled); // defaults to true
@@ -56,7 +56,7 @@ fn test_script_config_enabled_defaults_to_true() {
 name: test
 script_path: /bin/test
 "#;
-    let script: ScriptConfig = serde_yaml::from_str(yaml).unwrap();
+    let script: ScriptConfig = serde_yml::from_str(yaml).unwrap();
     assert!(script.enabled);
 }
 
@@ -67,7 +67,7 @@ name: test
 script_path: /bin/test
 enabled: false
 "#;
-    let script: ScriptConfig = serde_yaml::from_str(yaml).unwrap();
+    let script: ScriptConfig = serde_yml::from_str(yaml).unwrap();
     assert!(!script.enabled);
 }
 
@@ -81,7 +81,7 @@ subscriptions:
   - bell
   - title_change
 "#;
-    let script: ScriptConfig = serde_yaml::from_str(yaml).unwrap();
+    let script: ScriptConfig = serde_yml::from_str(yaml).unwrap();
     assert_eq!(
         script.subscriptions,
         vec![
@@ -101,7 +101,7 @@ env_vars:
   API_KEY: secret123
   DEBUG: "true"
 "#;
-    let script: ScriptConfig = serde_yaml::from_str(yaml).unwrap();
+    let script: ScriptConfig = serde_yml::from_str(yaml).unwrap();
     assert_eq!(script.env_vars.get("API_KEY").unwrap(), "secret123");
     assert_eq!(script.env_vars.get("DEBUG").unwrap(), "true");
     assert_eq!(script.env_vars.len(), 2);
@@ -123,8 +123,8 @@ fn test_config_with_scripts_yaml_roundtrip() {
         env_vars: HashMap::new(),
     }];
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
-    let deserialized: Config = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&config).unwrap();
+    let deserialized: Config = serde_yml::from_str(&yaml).unwrap();
     assert_eq!(config.scripts, deserialized.scripts);
 }
 
@@ -143,7 +143,7 @@ restart_policy: {}
 "#,
             yaml_val
         );
-        let script: ScriptConfig = serde_yaml::from_str(&yaml).unwrap();
+        let script: ScriptConfig = serde_yml::from_str(&yaml).unwrap();
         assert_eq!(
             script.restart_policy, expected,
             "Failed for restart_policy: {}",

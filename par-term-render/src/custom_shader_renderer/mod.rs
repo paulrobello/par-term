@@ -679,13 +679,11 @@ impl CustomShaderRenderer {
     }
 
     /// Check if animation is enabled
-    #[allow(dead_code)]
     pub fn animation_enabled(&self) -> bool {
         self.animation_enabled
     }
 
     /// Set animation enabled state
-    #[allow(dead_code)]
     pub fn set_animation_enabled(&mut self, enabled: bool) {
         self.animation_enabled = enabled;
         if enabled {
@@ -714,7 +712,6 @@ impl CustomShaderRenderer {
     }
 
     /// Check if full content mode is enabled
-    #[allow(dead_code)]
     pub fn full_content_mode(&self) -> bool {
         self.full_content_mode
     }
@@ -752,7 +749,6 @@ impl CustomShaderRenderer {
     }
 
     /// Update a channel texture at runtime
-    #[allow(dead_code)]
     pub fn update_channel_texture(
         &mut self,
         device: &Device,
@@ -787,7 +783,6 @@ impl CustomShaderRenderer {
     }
 
     /// Update the cubemap texture at runtime
-    #[allow(dead_code)]
     pub fn update_cubemap(
         &mut self,
         device: &Device,
@@ -820,7 +815,6 @@ impl CustomShaderRenderer {
     ///
     /// Note: This only updates the flag. Use `update_use_background_as_channel0`
     /// if you also need to recreate the bind group.
-    #[allow(dead_code)]
     pub fn set_use_background_as_channel0(&mut self, use_background: bool) {
         if self.use_background_as_channel0 != use_background {
             self.use_background_as_channel0 = use_background;
@@ -829,7 +823,6 @@ impl CustomShaderRenderer {
     }
 
     /// Check if using background image as iChannel0.
-    #[allow(dead_code)]
     pub fn use_background_as_channel0(&self) -> bool {
         self.use_background_as_channel0
     }

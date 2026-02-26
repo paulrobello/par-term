@@ -2,4 +2,6 @@
 //!
 //! This module re-exports types from the par-term-render crate for backward compatibility.
 
-pub use par_term_render::cell_renderer::*;
+pub use par_term_render::cell_renderer::{
+    Cell, CellRenderer, PaneViewport, atlas, background, block_chars, pipeline, render, types,
+};

@@ -77,19 +77,29 @@ struct RendererSizing {
     scale_factor: f32,
 }
 
-/// Pane render data tuple for split pane rendering
-type PaneRenderData = (
-    PaneViewport,
-    Vec<crate::cell_renderer::Cell>,
-    (usize, usize),
-    Option<(usize, usize)>,
-    f32,
-    Vec<ScrollbackMark>,
-    usize,                                                  // scrollback_len
-    usize,                                                  // scroll_offset
-    Option<crate::pane::PaneBackground>,                    // per-pane background
-    Vec<par_term_emu_core_rust::graphics::TerminalGraphic>, // per-pane inline graphics
-);
+/// Pane render data for split pane rendering
+struct PaneRenderData {
+    /// Viewport bounds and state for this pane
+    viewport: PaneViewport,
+    /// Cells to render (should match viewport grid size)
+    cells: Vec<crate::cell_renderer::Cell>,
+    /// Grid dimensions (cols, rows)
+    grid_size: (usize, usize),
+    /// Cursor position within this pane (col, row), or None if no cursor visible
+    cursor_pos: Option<(usize, usize)>,
+    /// Cursor opacity (0.0 = hidden, 1.0 = fully visible)
+    cursor_opacity: f32,
+    /// Scrollback marks for this pane
+    marks: Vec<ScrollbackMark>,
+    /// Scrollback length for this pane (needed for separator mark mapping)
+    scrollback_len: usize,
+    /// Current scroll offset for this pane (needed for separator mark mapping)
+    scroll_offset: usize,
+    /// Per-pane background image override (None = use global background)
+    background: Option<crate::pane::PaneBackground>,
+    /// Inline graphics (Sixel/iTerm2/Kitty) to render for this pane
+    graphics: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
+}
 
 #[derive(Clone)]
 pub(crate) struct PreservedClipboardImage {
@@ -212,9 +222,6 @@ pub struct WindowState {
     pub(crate) ssh_connect_ui: SshConnectUI,
     /// Whether terminal session recording is active
     pub(crate) is_recording: bool,
-    /// When recording started
-    #[allow(dead_code)]
-    pub(crate) recording_start_time: Option<std::time::Instant>,
     /// Flag to indicate shutdown is in progress
     pub(crate) is_shutting_down: bool,
     /// Window index (1-based) for display in title bar
@@ -766,7 +773,6 @@ impl WindowState {
             remote_shell_install_ui: RemoteShellInstallUI::new(),
             ssh_connect_ui: SshConnectUI::new(),
             is_recording: false,
-            recording_start_time: None,
             is_shutting_down: false,
             window_index: 1, // Will be set by WindowManager when window is created
 
@@ -865,72 +871,6 @@ impl WindowState {
         );
     }
 
-    // ========================================================================
-    // Active Tab State Accessors (compatibility - may be useful later)
-    // ========================================================================
-    #[allow(dead_code)]
-    pub(crate) fn terminal(
-        &self,
-    ) -> Option<&Arc<tokio::sync::Mutex<crate::terminal::TerminalManager>>> {
-        self.active_terminal()
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn scroll_state(&self) -> Option<&crate::scroll_state::ScrollState> {
-        self.tab_manager.active_tab().map(|t| &t.scroll_state)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn scroll_state_mut(&mut self) -> Option<&mut crate::scroll_state::ScrollState> {
-        self.tab_manager
-            .active_tab_mut()
-            .map(|t| &mut t.scroll_state)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn mouse(&self) -> Option<&crate::app::mouse::MouseState> {
-        self.tab_manager.active_tab().map(|t| &t.mouse)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn mouse_mut(&mut self) -> Option<&mut crate::app::mouse::MouseState> {
-        self.tab_manager.active_tab_mut().map(|t| &mut t.mouse)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn bell(&self) -> Option<&crate::app::bell::BellState> {
-        self.tab_manager.active_tab().map(|t| &t.bell)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn bell_mut(&mut self) -> Option<&mut crate::app::bell::BellState> {
-        self.tab_manager.active_tab_mut().map(|t| &mut t.bell)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn cache(&self) -> Option<&crate::app::render_cache::RenderCache> {
-        self.tab_manager.active_tab().map(|t| &t.cache)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn cache_mut(&mut self) -> Option<&mut crate::app::render_cache::RenderCache> {
-        self.tab_manager.active_tab_mut().map(|t| &mut t.cache)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn refresh_task(&self) -> Option<&Option<tokio::task::JoinHandle<()>>> {
-        self.tab_manager.active_tab().map(|t| &t.refresh_task)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn abort_refresh_task(&mut self) {
-        if let Some(tab) = self.tab_manager.active_tab_mut()
-            && let Some(task) = tab.refresh_task.take()
-        {
-            task.abort();
-        }
-    }
-
     /// Extract a substring based on character columns to avoid UTF-8 slicing panics
     pub(crate) fn extract_columns(line: &str, start_col: usize, end_col: Option<usize>) -> String {
         let mut extracted = String::new();
@@ -974,15 +914,6 @@ impl WindowState {
         } else {
             crate::debug_trace!("REDRAW", "request_redraw called but no window");
         }
-    }
-
-    /// Invalidate cache and request redraw (common pattern after state changes)
-    #[inline]
-    #[allow(dead_code)] // Available for future use, cannot be used inside renderer borrow blocks
-    pub(crate) fn invalidate_and_redraw(&mut self) {
-        self.invalidate_tab_cache();
-        self.needs_redraw = true;
-        self.request_redraw();
     }
 
     /// Clear renderer cells and invalidate cache (used when switching tabs)
@@ -5156,18 +5087,22 @@ impl WindowState {
                                         Vec::new()
                                     };
 
-                                    pane_data.push((
+                                    pane_data.push(PaneRenderData {
                                         viewport,
                                         cells,
-                                        (cols, rows),
+                                        grid_size: (cols, rows),
                                         cursor_pos,
-                                        if is_focused { cursor_opacity } else { 0.0 },
+                                        cursor_opacity: if is_focused {
+                                            cursor_opacity
+                                        } else {
+                                            0.0
+                                        },
                                         marks,
-                                        pane_scrollback_len,
-                                        pane_scroll_offset,
-                                        pane_background,
-                                        pane_graphics,
-                                    ));
+                                        scrollback_len: pane_scrollback_len,
+                                        scroll_offset: pane_scroll_offset,
+                                        background: pane_background,
+                                        graphics: pane_graphics,
+                                    });
                                 }
                             }
 
@@ -6024,43 +5959,44 @@ impl WindowState {
         hovered_divider_index: Option<usize>,
         show_scrollbar: bool,
     ) -> Result<bool> {
-        // Build pane render infos - we need to leak the cells temporarily
-        let mut pane_render_infos: Vec<PaneRenderInfo> = Vec::new();
-        let mut leaked_cells: Vec<*mut [crate::cell_renderer::Cell]> = Vec::new();
+        // Two-phase construction: separate owned cell data from pane metadata
+        // so PaneRenderInfo can borrow cell slices safely.  This replaces the
+        // previous unsafe Box::into_raw / Box::from_raw pattern that leaked
+        // memory if render_split_panes panicked.
+        //
+        // Phase 1: Extract cells into a Vec that outlives the render infos.
+        // The remaining pane fields are collected into partial render infos.
+        let mut owned_cells: Vec<Vec<crate::cell_renderer::Cell>> =
+            Vec::with_capacity(pane_data.len());
+        let mut partial_infos: Vec<PaneRenderInfo> = Vec::with_capacity(pane_data.len());
 
-        for (
-            viewport,
-            cells,
-            grid_size,
-            cursor_pos,
-            cursor_opacity,
-            marks,
-            scrollback_len,
-            scroll_offset,
-            pane_background,
-            graphics,
-        ) in pane_data
-        {
-            let cells_boxed = cells.into_boxed_slice();
-            let cells_ptr = Box::into_raw(cells_boxed);
-            leaked_cells.push(cells_ptr);
-
-            pane_render_infos.push(PaneRenderInfo {
-                viewport,
-                // SAFETY: We just allocated this, and we'll free it after rendering
-                cells: unsafe { &*cells_ptr },
-                grid_size,
-                cursor_pos,
-                cursor_opacity,
-                // Only the focused pane shows a scrollbar
-                show_scrollbar: show_scrollbar && viewport.focused,
-                marks,
-                scrollback_len,
-                scroll_offset,
-                background: pane_background,
-                graphics,
+        for pane in pane_data {
+            let focused = pane.viewport.focused;
+            owned_cells.push(pane.cells);
+            partial_infos.push(PaneRenderInfo {
+                viewport: pane.viewport,
+                // Placeholder — will be patched in Phase 2 once owned_cells
+                // is finished growing and its elements have stable addresses.
+                cells: &[],
+                grid_size: pane.grid_size,
+                cursor_pos: pane.cursor_pos,
+                cursor_opacity: pane.cursor_opacity,
+                show_scrollbar: show_scrollbar && focused,
+                marks: pane.marks,
+                scrollback_len: pane.scrollback_len,
+                scroll_offset: pane.scroll_offset,
+                background: pane.background,
+                graphics: pane.graphics,
             });
         }
+
+        // Phase 2: Patch cell references now that owned_cells won't reallocate.
+        // owned_cells lives until scope exit (even on panic), so the borrows
+        // are valid for the lifetime of partial_infos.
+        for (info, cells) in partial_infos.iter_mut().zip(owned_cells.iter()) {
+            info.cells = cells.as_slice();
+        }
+        let pane_render_infos = partial_infos;
 
         // Build divider render info
         let divider_render_infos: Vec<DividerRenderInfo> = dividers
@@ -6079,8 +6015,9 @@ impl WindowState {
             divider_style: config.pane_divider_style,
         };
 
-        // Call the split pane renderer
-        let result = renderer.render_split_panes(
+        // Call the split pane renderer.
+        // owned_cells is dropped automatically at scope exit, even on panic.
+        renderer.render_split_panes(
             &pane_render_infos,
             &divider_render_infos,
             &pane_titles,
@@ -6088,15 +6025,7 @@ impl WindowState {
             &divider_settings,
             egui_data,
             false,
-        );
-
-        // Clean up leaked cell memory
-        for ptr in leaked_cells {
-            // SAFETY: We just allocated these above
-            let _ = unsafe { Box::from_raw(ptr) };
-        }
-
-        result
+        )
     }
 
     /// Handle responses from the integrations welcome dialog

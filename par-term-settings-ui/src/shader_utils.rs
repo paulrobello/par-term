@@ -40,13 +40,11 @@ impl SettingsUI {
     }
 
     /// Invalidate cached metadata for a specific shader (for hot reload).
-    #[allow(dead_code)]
     pub fn invalidate_shader_metadata(&mut self, shader_name: &str) {
         self.shader_metadata_cache.invalidate(shader_name);
     }
 
     /// Invalidate all cached shader metadata.
-    #[allow(dead_code)]
     pub fn invalidate_all_shader_metadata(&mut self) {
         self.shader_metadata_cache.invalidate_all();
     }
@@ -161,7 +159,6 @@ impl SettingsUI {
     }
 
     /// Check if cursor shader editor is visible.
-    #[allow(dead_code)]
     pub fn is_cursor_shader_editor_visible(&self) -> bool {
         self.cursor_shader_editor_visible
     }
@@ -169,7 +166,6 @@ impl SettingsUI {
     /// Open the shader editor directly (without opening settings).
     ///
     /// Returns true if the editor was opened, false if no shader path is configured.
-    #[allow(dead_code)]
     pub fn open_shader_editor(&mut self) -> bool {
         if self.temp_custom_shader.is_empty() {
             log::warn!("Cannot open shader editor: no shader path configured");
@@ -248,7 +244,6 @@ impl SettingsUI {
     }
 
     /// Check if shader editor is visible.
-    #[allow(dead_code)]
     pub fn is_shader_editor_visible(&self) -> bool {
         self.shader_editor_visible
     }

@@ -18,7 +18,6 @@ pub struct ClipboardHistoryUI {
 
 /// Action to take after showing the UI
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum ClipboardHistoryAction {
     /// No action needed
     None,

@@ -2,16 +2,16 @@ use crate::cell_renderer::{Cell, CellRenderer, PaneViewport};
 use crate::custom_shader_renderer::CustomShaderRenderer;
 use crate::graphics_renderer::GraphicsRenderer;
 use anyhow::Result;
-use std::sync::Arc;
 use winit::dpi::PhysicalSize;
-use winit::window::Window;
 
 pub mod graphics;
+pub mod params;
 pub mod shaders;
 
 // Re-export SeparatorMark from par-term-config
 pub use par_term_config::SeparatorMark;
 use par_term_config::color_u8_to_f32;
+pub use params::RendererParams;
 
 /// Compute which separator marks are visible in the current viewport.
 ///
@@ -186,65 +186,55 @@ pub struct Renderer {
     pub(crate) cursor_shader_disabled_for_alt_screen: bool,
 
     // Debug overlay text
-    #[allow(dead_code)]
     pub(crate) debug_text: Option<String>,
 }
 
 impl Renderer {
     /// Create a new renderer
-    #[allow(clippy::too_many_arguments)]
-    pub async fn new(
-        window: Arc<Window>,
-        font_family: Option<&str>,
-        font_family_bold: Option<&str>,
-        font_family_italic: Option<&str>,
-        font_family_bold_italic: Option<&str>,
-        font_ranges: &[par_term_config::FontRange],
-        font_size: f32,
-        window_padding: f32,
-        line_spacing: f32,
-        char_spacing: f32,
-        scrollbar_position: &str,
-        scrollbar_width: f32,
-        scrollbar_thumb_color: [f32; 4],
-        scrollbar_track_color: [f32; 4],
-        enable_text_shaping: bool,
-        enable_ligatures: bool,
-        enable_kerning: bool,
-        font_antialias: bool,
-        font_hinting: bool,
-        font_thin_strokes: par_term_config::ThinStrokesMode,
-        minimum_contrast: f32,
-        vsync_mode: par_term_config::VsyncMode,
-        power_preference: par_term_config::PowerPreference,
-        window_opacity: f32,
-        background_color: [u8; 3],
-        background_image_path: Option<&str>,
-        background_image_enabled: bool,
-        background_image_mode: par_term_config::BackgroundImageMode,
-        background_image_opacity: f32,
-        custom_shader_path: Option<&str>,
-        custom_shader_enabled: bool,
-        custom_shader_animation: bool,
-        custom_shader_animation_speed: f32,
-        custom_shader_full_content: bool,
-        custom_shader_brightness: f32,
-        // Custom shader channel textures (iChannel0-3)
-        custom_shader_channel_paths: &[Option<std::path::PathBuf>; 4],
-        // Cubemap texture path prefix for environment mapping (iCubemap)
-        custom_shader_cubemap_path: Option<&std::path::Path>,
-        // Use background image as iChannel0 for custom shaders
-        use_background_as_channel0: bool,
-        // Inline image scaling mode (nearest vs linear)
-        image_scaling_mode: par_term_config::ImageScalingMode,
-        // Preserve aspect ratio when scaling inline images
-        image_preserve_aspect_ratio: bool,
-        // Cursor shader settings (separate from background shader)
-        cursor_shader_path: Option<&str>,
-        cursor_shader_enabled: bool,
-        cursor_shader_animation: bool,
-        cursor_shader_animation_speed: f32,
-    ) -> Result<Self> {
+    pub async fn new(params: RendererParams<'_>) -> Result<Self> {
+        let window = params.window;
+        let font_family = params.font_family;
+        let font_family_bold = params.font_family_bold;
+        let font_family_italic = params.font_family_italic;
+        let font_family_bold_italic = params.font_family_bold_italic;
+        let font_ranges = params.font_ranges;
+        let font_size = params.font_size;
+        let line_spacing = params.line_spacing;
+        let char_spacing = params.char_spacing;
+        let scrollbar_position = params.scrollbar_position;
+        let scrollbar_thumb_color = params.scrollbar_thumb_color;
+        let scrollbar_track_color = params.scrollbar_track_color;
+        let enable_text_shaping = params.enable_text_shaping;
+        let enable_ligatures = params.enable_ligatures;
+        let enable_kerning = params.enable_kerning;
+        let font_antialias = params.font_antialias;
+        let font_hinting = params.font_hinting;
+        let font_thin_strokes = params.font_thin_strokes;
+        let minimum_contrast = params.minimum_contrast;
+        let vsync_mode = params.vsync_mode;
+        let power_preference = params.power_preference;
+        let window_opacity = params.window_opacity;
+        let background_color = params.background_color;
+        let background_image_path = params.background_image_path;
+        let background_image_enabled = params.background_image_enabled;
+        let background_image_mode = params.background_image_mode;
+        let background_image_opacity = params.background_image_opacity;
+        let custom_shader_path = params.custom_shader_path;
+        let custom_shader_enabled = params.custom_shader_enabled;
+        let custom_shader_animation = params.custom_shader_animation;
+        let custom_shader_animation_speed = params.custom_shader_animation_speed;
+        let custom_shader_full_content = params.custom_shader_full_content;
+        let custom_shader_brightness = params.custom_shader_brightness;
+        let custom_shader_channel_paths = params.custom_shader_channel_paths;
+        let custom_shader_cubemap_path = params.custom_shader_cubemap_path;
+        let use_background_as_channel0 = params.use_background_as_channel0;
+        let image_scaling_mode = params.image_scaling_mode;
+        let image_preserve_aspect_ratio = params.image_preserve_aspect_ratio;
+        let cursor_shader_path = params.cursor_shader_path;
+        let cursor_shader_enabled = params.cursor_shader_enabled;
+        let cursor_shader_animation = params.cursor_shader_animation;
+        let cursor_shader_animation_speed = params.cursor_shader_animation_speed;
+
         let size = window.inner_size();
         let scale_factor = window.scale_factor();
 
@@ -293,8 +283,8 @@ impl Renderer {
 
         // Scale logical pixel values (config) to physical pixels (wgpu surface)
         let scale = scale_factor as f32;
-        let window_padding = window_padding * scale;
-        let scrollbar_width = scrollbar_width * scale;
+        let window_padding = params.window_padding * scale;
+        let scrollbar_width = params.scrollbar_width * scale;
 
         // Calculate available space after padding and scrollbar
         let available_width = (size.width as f32 - window_padding * 2.0 - scrollbar_width).max(0.0);
@@ -526,21 +516,21 @@ impl Renderer {
                 .set_content_inset_bottom(new_physical_inset_bottom);
 
             // Rescale egui_bottom_inset (status bar)
-            if self.cell_renderer.egui_bottom_inset > 0.0 {
-                let logical_egui_bottom = self.cell_renderer.egui_bottom_inset / old_scale;
-                self.cell_renderer.egui_bottom_inset = logical_egui_bottom * new_scale;
+            if self.cell_renderer.grid.egui_bottom_inset > 0.0 {
+                let logical_egui_bottom = self.cell_renderer.grid.egui_bottom_inset / old_scale;
+                self.cell_renderer.grid.egui_bottom_inset = logical_egui_bottom * new_scale;
             }
 
             // Rescale content_inset_right (AI Inspector panel)
-            if self.cell_renderer.content_inset_right > 0.0 {
-                let logical_inset_right = self.cell_renderer.content_inset_right / old_scale;
-                self.cell_renderer.content_inset_right = logical_inset_right * new_scale;
+            if self.cell_renderer.grid.content_inset_right > 0.0 {
+                let logical_inset_right = self.cell_renderer.grid.content_inset_right / old_scale;
+                self.cell_renderer.grid.content_inset_right = logical_inset_right * new_scale;
             }
 
             // Rescale egui_right_inset
-            if self.cell_renderer.egui_right_inset > 0.0 {
-                let logical_egui_right = self.cell_renderer.egui_right_inset / old_scale;
-                self.cell_renderer.egui_right_inset = logical_egui_right * new_scale;
+            if self.cell_renderer.grid.egui_right_inset > 0.0 {
+                let logical_egui_right = self.cell_renderer.grid.egui_right_inset / old_scale;
+                self.cell_renderer.grid.egui_right_inset = logical_egui_right * new_scale;
             }
 
             // Rescale window_padding
@@ -788,7 +778,6 @@ impl Renderer {
     /// Update window padding in real-time without full renderer rebuild.
     /// Accepts logical pixels (from config); scales to physical pixels internally.
     /// Returns Some((cols, rows)) if grid size changed and terminal needs resize.
-    #[allow(dead_code)]
     pub fn update_window_padding(&mut self, logical_padding: f32) -> Option<(usize, usize)> {
         let physical_padding = logical_padding * self.cell_renderer.scale_factor;
         let result = self.cell_renderer.update_window_padding(physical_padding);
@@ -819,7 +808,6 @@ impl Renderer {
     }
 
     /// Enable/disable background image and reload if needed
-    #[allow(dead_code)]
     pub fn set_background_image_enabled(
         &mut self,
         enabled: bool,
@@ -920,14 +908,12 @@ impl Renderer {
     }
 
     /// Update scrollbar position (left/right) in real-time
-    #[allow(dead_code)]
     pub fn update_scrollbar_position(&mut self, position: &str) {
         self.cell_renderer.update_scrollbar_position(position);
         self.dirty = true;
     }
 
     /// Update background image opacity in real-time
-    #[allow(dead_code)]
     pub fn update_background_image_opacity(&mut self, opacity: f32) {
         self.cell_renderer.update_background_image_opacity(opacity);
         self.dirty = true;
@@ -1158,7 +1144,6 @@ impl Renderer {
     ///
     /// # Returns
     /// `true` if rendering was performed, `false` if skipped
-    #[allow(dead_code)]
     pub fn render_panes(
         &mut self,
         panes: &[PaneRenderInfo<'_>],
@@ -1186,11 +1171,11 @@ impl Renderer {
             );
 
             let opacity = self.cell_renderer.window_opacity as f64;
-            let clear_color = if self.cell_renderer.bg_is_solid_color {
+            let clear_color = if self.cell_renderer.bg_state.bg_is_solid_color {
                 wgpu::Color {
-                    r: self.cell_renderer.solid_bg_color[0] as f64 * opacity,
-                    g: self.cell_renderer.solid_bg_color[1] as f64 * opacity,
-                    b: self.cell_renderer.solid_bg_color[2] as f64 * opacity,
+                    r: self.cell_renderer.bg_state.solid_bg_color[0] as f64 * opacity,
+                    g: self.cell_renderer.bg_state.solid_bg_color[1] as f64 * opacity,
+                    b: self.cell_renderer.bg_state.solid_bg_color[2] as f64 * opacity,
                     a: opacity,
                 }
             } else {
@@ -1324,11 +1309,11 @@ impl Renderer {
 
         // Clear the surface with background color (respecting solid color mode)
         let opacity = self.cell_renderer.window_opacity as f64;
-        let clear_color = if self.cell_renderer.bg_is_solid_color {
+        let clear_color = if self.cell_renderer.bg_state.bg_is_solid_color {
             wgpu::Color {
-                r: self.cell_renderer.solid_bg_color[0] as f64 * opacity,
-                g: self.cell_renderer.solid_bg_color[1] as f64 * opacity,
-                b: self.cell_renderer.solid_bg_color[2] as f64 * opacity,
+                r: self.cell_renderer.bg_state.solid_bg_color[0] as f64 * opacity,
+                g: self.cell_renderer.bg_state.solid_bg_color[1] as f64 * opacity,
+                b: self.cell_renderer.bg_state.solid_bg_color[2] as f64 * opacity,
                 a: opacity,
             }
         } else {
@@ -1500,7 +1485,6 @@ impl Renderer {
     /// * `surface_view` - The texture view to render to
     /// * `dividers` - List of dividers to render with hover state
     /// * `settings` - Divider appearance settings
-    #[allow(dead_code)]
     pub fn render_dividers(
         &mut self,
         surface_view: &wgpu::TextureView,
@@ -1749,7 +1733,7 @@ impl Renderer {
 
         // Write instances to GPU buffer
         self.cell_renderer.queue().write_buffer(
-            &self.cell_renderer.bg_instance_buffer,
+            &self.cell_renderer.buffers.bg_instance_buffer,
             0,
             bytemuck::cast_slice(&instances),
         );
@@ -1779,9 +1763,10 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(&self.cell_renderer.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.cell_renderer.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.cell_renderer.bg_instance_buffer.slice(..));
+            render_pass.set_pipeline(&self.cell_renderer.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.cell_renderer.buffers.vertex_buffer.slice(..));
+            render_pass
+                .set_vertex_buffer(1, self.cell_renderer.buffers.bg_instance_buffer.slice(..));
             render_pass.draw(0..4, 0..instances.len() as u32);
         }
 
@@ -1799,7 +1784,6 @@ impl Renderer {
     /// * `surface_view` - The texture view to render to
     /// * `viewport` - The focused pane's viewport
     /// * `settings` - Divider/focus settings
-    #[allow(dead_code)]
     pub fn render_focus_indicator(
         &mut self,
         surface_view: &wgpu::TextureView,
@@ -1873,7 +1857,7 @@ impl Renderer {
 
         // Write instances to GPU buffer
         self.cell_renderer.queue().write_buffer(
-            &self.cell_renderer.bg_instance_buffer,
+            &self.cell_renderer.buffers.bg_instance_buffer,
             0,
             bytemuck::cast_slice(&instances),
         );
@@ -1903,9 +1887,10 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(&self.cell_renderer.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.cell_renderer.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.cell_renderer.bg_instance_buffer.slice(..));
+            render_pass.set_pipeline(&self.cell_renderer.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.cell_renderer.buffers.vertex_buffer.slice(..));
+            render_pass
+                .set_vertex_buffer(1, self.cell_renderer.buffers.bg_instance_buffer.slice(..));
             render_pass.draw(0..4, 0..instances.len() as u32);
         }
 
@@ -1919,7 +1904,6 @@ impl Renderer {
     ///
     /// Title bars are rendered on top of pane content and dividers.
     /// Each title bar consists of a colored background rectangle and centered text.
-    #[allow(dead_code)]
     pub fn render_pane_titles(
         &mut self,
         surface_view: &wgpu::TextureView,
@@ -1958,7 +1942,7 @@ impl Renderer {
 
         // Write background instances to GPU buffer
         self.cell_renderer.queue().write_buffer(
-            &self.cell_renderer.bg_instance_buffer,
+            &self.cell_renderer.buffers.bg_instance_buffer,
             0,
             bytemuck::cast_slice(&bg_instances),
         );
@@ -1988,9 +1972,10 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(&self.cell_renderer.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.cell_renderer.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.cell_renderer.bg_instance_buffer.slice(..));
+            render_pass.set_pipeline(&self.cell_renderer.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.cell_renderer.buffers.vertex_buffer.slice(..));
+            render_pass
+                .set_vertex_buffer(1, self.cell_renderer.buffers.bg_instance_buffer.slice(..));
             render_pass.draw(0..4, 0..bg_instances.len() as u32);
         }
 
@@ -2000,7 +1985,7 @@ impl Renderer {
 
         // Phase 2: Render title text using glyph atlas
         let mut text_instances = Vec::new();
-        let baseline_y = self.cell_renderer.font_ascent;
+        let baseline_y = self.cell_renderer.font.font_ascent;
 
         for title in titles {
             let title_text = &title.title;
@@ -2011,7 +1996,7 @@ impl Renderer {
             // Calculate starting X position (centered in title bar with left padding)
             let padding_x = 8.0;
             let mut x_pos = title.x + padding_x;
-            let y_base = title.y + (title.height - self.cell_renderer.cell_height) / 2.0;
+            let y_base = title.y + (title.height - self.cell_renderer.grid.cell_height) / 2.0;
 
             let text_color = [
                 title.text_color[0],
@@ -2022,7 +2007,7 @@ impl Renderer {
 
             // Truncate title if it would overflow the title bar
             let max_chars =
-                ((title.width - padding_x * 2.0) / self.cell_renderer.cell_width) as usize;
+                ((title.width - padding_x * 2.0) / self.cell_renderer.grid.cell_width) as usize;
             let display_text: String = if title_text.len() > max_chars && max_chars > 3 {
                 let truncated: String = title_text.chars().take(max_chars - 1).collect();
                 format!("{}\u{2026}", truncated) // ellipsis
@@ -2041,10 +2026,16 @@ impl Renderer {
                     let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
                     // Check if this character should be rendered as a monochrome symbol
                     let force_monochrome = crate::cell_renderer::atlas::should_render_as_symbol(ch);
-                    let info = if self.cell_renderer.glyph_cache.contains_key(&cache_key) {
+                    let info = if self
+                        .cell_renderer
+                        .atlas
+                        .glyph_cache
+                        .contains_key(&cache_key)
+                    {
                         self.cell_renderer.lru_remove(cache_key);
                         self.cell_renderer.lru_push_front(cache_key);
                         self.cell_renderer
+                            .atlas
                             .glyph_cache
                             .get(&cache_key)
                             .unwrap()
@@ -2055,12 +2046,13 @@ impl Renderer {
                     {
                         let info = self.cell_renderer.upload_glyph(cache_key, &raster);
                         self.cell_renderer
+                            .atlas
                             .glyph_cache
                             .insert(cache_key, info.clone());
                         self.cell_renderer.lru_push_front(cache_key);
                         info
                     } else {
-                        x_pos += self.cell_renderer.cell_width;
+                        x_pos += self.cell_renderer.grid.cell_width;
                         continue;
                     };
 
@@ -2083,7 +2075,7 @@ impl Renderer {
                     });
                 }
 
-                x_pos += self.cell_renderer.cell_width;
+                x_pos += self.cell_renderer.grid.cell_width;
             }
         }
 
@@ -2093,7 +2085,7 @@ impl Renderer {
 
         // Write text instances to GPU buffer
         self.cell_renderer.queue().write_buffer(
-            &self.cell_renderer.text_instance_buffer,
+            &self.cell_renderer.buffers.text_instance_buffer,
             0,
             bytemuck::cast_slice(&text_instances),
         );
@@ -2123,10 +2115,11 @@ impl Renderer {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(&self.cell_renderer.text_pipeline);
-            render_pass.set_bind_group(0, &self.cell_renderer.text_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.cell_renderer.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.cell_renderer.text_instance_buffer.slice(..));
+            render_pass.set_pipeline(&self.cell_renderer.pipelines.text_pipeline);
+            render_pass.set_bind_group(0, &self.cell_renderer.pipelines.text_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.cell_renderer.buffers.vertex_buffer.slice(..));
+            render_pass
+                .set_vertex_buffer(1, self.cell_renderer.buffers.text_instance_buffer.slice(..));
             render_pass.draw(0..4, 0..text_instances.len() as u32);
         }
 
@@ -2381,8 +2374,8 @@ impl Renderer {
     /// Returns `Some((cols, rows))` if the grid was resized.
     pub fn set_egui_bottom_inset(&mut self, logical_inset: f32) -> Option<(usize, usize)> {
         let physical_inset = logical_inset * self.cell_renderer.scale_factor;
-        if (self.cell_renderer.egui_bottom_inset - physical_inset).abs() > f32::EPSILON {
-            self.cell_renderer.egui_bottom_inset = physical_inset;
+        if (self.cell_renderer.grid.egui_bottom_inset - physical_inset).abs() > f32::EPSILON {
+            self.cell_renderer.grid.egui_bottom_inset = physical_inset;
             let (w, h) = (
                 self.cell_renderer.config.width,
                 self.cell_renderer.config.height,
@@ -2399,7 +2392,7 @@ impl Renderer {
     /// affect the terminal grid sizing.
     pub fn set_egui_right_inset(&mut self, logical_inset: f32) {
         let physical_inset = logical_inset * self.cell_renderer.scale_factor;
-        self.cell_renderer.egui_right_inset = physical_inset;
+        self.cell_renderer.grid.egui_right_inset = physical_inset;
     }
 
     /// Check if a point (in pixel coordinates) is within the scrollbar bounds
@@ -2453,20 +2446,16 @@ impl Renderer {
     }
 
     /// Check if the renderer needs to be redrawn
-    #[allow(dead_code)]
     pub fn is_dirty(&self) -> bool {
         self.dirty
     }
 
     /// Mark the renderer as dirty, forcing a redraw on next render call
-    #[allow(dead_code)]
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }
 
     /// Set debug overlay text to be rendered
-    #[allow(dead_code)]
-    #[allow(dead_code)]
     pub fn render_debug_overlay(&mut self, text: &str) {
         self.debug_text = Some(text.to_string());
         self.dirty = true; // Mark dirty to ensure debug overlay renders
@@ -2498,7 +2487,6 @@ impl Renderer {
     }
 
     /// Get the current vsync mode
-    #[allow(dead_code)]
     pub fn current_vsync_mode(&self) -> par_term_config::VsyncMode {
         self.cell_renderer.current_vsync_mode()
     }

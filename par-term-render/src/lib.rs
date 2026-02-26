@@ -23,7 +23,7 @@ pub use custom_shader_renderer::CustomShaderRenderer;
 pub use graphics_renderer::GraphicsRenderer;
 pub use renderer::{
     DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
-    compute_visible_separator_marks,
+    RendererParams, compute_visible_separator_marks,
 };
 pub use scrollbar::Scrollbar;
 

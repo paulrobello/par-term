@@ -14,7 +14,6 @@ impl Color {
         Self { r, g, b }
     }
 
-    #[allow(dead_code)]
     pub fn as_array(&self) -> [u8; 3] {
         [self.r, self.g, self.b]
     }
@@ -51,7 +50,6 @@ pub struct Theme {
 
 impl Theme {
     /// Get ANSI color by index (0-15)
-    #[allow(dead_code)]
     pub fn ansi_color(&self, index: u8) -> Color {
         match index {
             0 => self.black,
@@ -551,7 +549,6 @@ impl Theme {
     }
 
     /// Get theme by name
-    #[allow(dead_code)]
     pub fn by_name(name: &str) -> Option<Self> {
         let normalized = name.trim().to_lowercase().replace(['_', ' '], "-");
 
@@ -578,7 +575,6 @@ impl Theme {
     }
 
     /// Get all available theme names
-    #[allow(dead_code)]
     pub fn available_themes() -> Vec<&'static str> {
         vec![
             "Dark Background",

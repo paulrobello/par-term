@@ -30,7 +30,10 @@ pub mod watcher;
 
 // Re-export main types for convenience
 pub use cell::Cell;
-pub use config::{Config, CustomAcpAgentActionConfig, CustomAcpAgentConfig, substitute_variables};
+pub use config::{
+    ALLOWED_ENV_VARS, Config, CustomAcpAgentActionConfig, CustomAcpAgentConfig, is_env_var_allowed,
+    substitute_variables, substitute_variables_with_allowlist,
+};
 pub use scrollback_mark::ScrollbackMark;
 pub use themes::{Color, Theme};
 
@@ -55,7 +58,10 @@ pub use types::{
     default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
-pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
+pub use automation::{
+    CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig, TriggerRateLimiter,
+    check_command_denylist,
+};
 // Scripting / observer scripts
 pub use scripting::ScriptConfig;
 // Snippets and custom actions

@@ -216,6 +216,7 @@ impl WindowState {
 
             if is_paste {
                 if let Some(text) = self.input_handler.paste_from_clipboard() {
+                    let text = crate::paste_transform::sanitize_paste_content(&text);
                     log::debug!("Paste: got {} chars of text from clipboard", text.len());
                     if let Some(tab) = self.tab_manager.active_tab() {
                         let terminal_clone = Arc::clone(&tab.terminal);
@@ -759,15 +760,18 @@ impl WindowState {
     }
 
     pub(crate) fn paste_text(&mut self, text: &str) {
+        // Sanitize clipboard content to strip dangerous control characters
+        // (escape sequences, C0/C1 controls) before sending to PTY
+        let text = crate::paste_transform::sanitize_paste_content(text);
+
         // Try to paste via tmux if connected
-        if self.paste_via_tmux(text) {
+        if self.paste_via_tmux(&text) {
             return; // Paste was routed through tmux
         }
 
         // Fall back to direct terminal paste
         if let Some(tab) = self.tab_manager.active_tab() {
             let terminal_clone = Arc::clone(&tab.terminal);
-            let text = text.to_string();
             let delay_ms = self.config.paste_delay_ms;
             self.runtime.spawn(async move {
                 let term = terminal_clone.lock().await;

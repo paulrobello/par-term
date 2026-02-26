@@ -18,10 +18,10 @@ impl CellRenderer {
 
         // Pre-create per-pane background bind group if needed (must happen before render pass)
         // This supports pane 0 background in single-pane (no splits) mode.
-        let pane_bg_resources = if !self.bg_is_solid_color {
+        let pane_bg_resources = if !self.bg_state.bg_is_solid_color {
             if let Some(pane_bg) = pane_background {
                 if let Some(ref path) = pane_bg.image_path {
-                    self.pane_bg_cache.get(path.as_str()).map(|entry| {
+                    self.bg_state.pane_bg_cache.get(path.as_str()).map(|entry| {
                         self.create_pane_bg_bind_group(
                             entry,
                             0.0, // pane_x: full window starts at 0
@@ -58,26 +58,26 @@ impl CellRenderer {
         let (clear_color, use_bg_image_pipeline) = if has_pane_bg {
             // Per-pane background: use transparent clear, pane bg will be rendered first
             (wgpu::Color::TRANSPARENT, false)
-        } else if self.bg_is_solid_color {
+        } else if self.bg_state.bg_is_solid_color {
             // Solid color mode: use clear color directly for proper window transparency
             // This works the same as Default mode - LoadOp::Clear sets alpha correctly
             log::info!(
                 "[BACKGROUND] Solid color mode: RGB({:.3}, {:.3}, {:.3}) * opacity {:.3}",
-                self.solid_bg_color[0],
-                self.solid_bg_color[1],
-                self.solid_bg_color[2],
+                self.bg_state.solid_bg_color[0],
+                self.bg_state.solid_bg_color[1],
+                self.bg_state.solid_bg_color[2],
                 self.window_opacity
             );
             (
                 wgpu::Color {
-                    r: self.solid_bg_color[0] as f64 * self.window_opacity as f64,
-                    g: self.solid_bg_color[1] as f64 * self.window_opacity as f64,
-                    b: self.solid_bg_color[2] as f64 * self.window_opacity as f64,
+                    r: self.bg_state.solid_bg_color[0] as f64 * self.window_opacity as f64,
+                    g: self.bg_state.solid_bg_color[1] as f64 * self.window_opacity as f64,
+                    b: self.bg_state.solid_bg_color[2] as f64 * self.window_opacity as f64,
                     a: self.window_opacity as f64,
                 },
                 false,
             )
-        } else if self.bg_image_bind_group.is_some() {
+        } else if self.pipelines.bg_image_bind_group.is_some() {
             // Image mode: use TRANSPARENT, let bg_image_pipeline handle background
             (wgpu::Color::TRANSPARENT, true)
         } else {
@@ -112,30 +112,32 @@ impl CellRenderer {
 
             // Render per-pane background for single-pane mode (pane 0)
             if let Some((ref bind_group, _)) = pane_bg_resources {
-                render_pass.set_pipeline(&self.bg_image_pipeline);
+                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
                 render_pass.set_bind_group(0, bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
                 render_pass.draw(0..4, 0..1);
             }
 
             // Render global background image if present (not used for solid color or pane bg mode)
-            if use_bg_image_pipeline && let Some(ref bg_bind_group) = self.bg_image_bind_group {
-                render_pass.set_pipeline(&self.bg_image_pipeline);
+            if use_bg_image_pipeline
+                && let Some(ref bg_bind_group) = self.pipelines.bg_image_bind_group
+            {
+                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
                 render_pass.draw(0..4, 0..1);
             }
 
-            render_pass.set_pipeline(&self.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.max_bg_instances as u32);
+            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..self.buffers.max_bg_instances as u32);
 
-            render_pass.set_pipeline(&self.text_pipeline);
-            render_pass.set_bind_group(0, &self.text_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.max_text_instances as u32);
+            render_pass.set_pipeline(&self.pipelines.text_pipeline);
+            render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..self.buffers.max_text_instances as u32);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -161,8 +163,9 @@ impl CellRenderer {
 
         // Only render background IMAGE to intermediate texture (not solid color).
         // Solid colors are handled by the shader's clear color for proper compositing.
-        let render_background_image =
-            !skip_background_image && !self.bg_is_solid_color && self.bg_image_bind_group.is_some();
+        let render_background_image = !skip_background_image
+            && !self.bg_state.bg_is_solid_color
+            && self.pipelines.bg_image_bind_group.is_some();
         let saved_window_opacity = self.window_opacity;
 
         if render_background_image {
@@ -199,27 +202,29 @@ impl CellRenderer {
             });
 
             // Render background IMAGE (not solid color) via bg_image_pipeline at full opacity
-            if render_background_image && let Some(ref bg_bind_group) = self.bg_image_bind_group {
+            if render_background_image
+                && let Some(ref bg_bind_group) = self.pipelines.bg_image_bind_group
+            {
                 log::info!(
                     "[BACKGROUND] render_to_texture: bg_image_pipeline (image, window_opacity={:.3} applied by shader)",
                     saved_window_opacity
                 );
-                render_pass.set_pipeline(&self.bg_image_pipeline);
+                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
                 render_pass.draw(0..4, 0..1);
             }
 
-            render_pass.set_pipeline(&self.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.max_bg_instances as u32);
+            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..self.buffers.max_bg_instances as u32);
 
-            render_pass.set_pipeline(&self.text_pipeline);
-            render_pass.set_bind_group(0, &self.text_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.max_text_instances as u32);
+            render_pass.set_pipeline(&self.pipelines.text_pipeline);
+            render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..self.buffers.max_text_instances as u32);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -256,17 +261,17 @@ impl CellRenderer {
             });
 
         // Determine clear color and whether to use bg_image pipeline
-        let (clear_color, use_bg_image_pipeline) = if self.bg_is_solid_color {
+        let (clear_color, use_bg_image_pipeline) = if self.bg_state.bg_is_solid_color {
             (
                 wgpu::Color {
-                    r: self.solid_bg_color[0] as f64 * self.window_opacity as f64,
-                    g: self.solid_bg_color[1] as f64 * self.window_opacity as f64,
-                    b: self.solid_bg_color[2] as f64 * self.window_opacity as f64,
+                    r: self.bg_state.solid_bg_color[0] as f64 * self.window_opacity as f64,
+                    g: self.bg_state.solid_bg_color[1] as f64 * self.window_opacity as f64,
+                    b: self.bg_state.solid_bg_color[2] as f64 * self.window_opacity as f64,
                     a: self.window_opacity as f64,
                 },
                 false,
             )
-        } else if self.bg_image_bind_group.is_some() {
+        } else if self.pipelines.bg_image_bind_group.is_some() {
             (wgpu::Color::TRANSPARENT, true)
         } else {
             (
@@ -304,10 +309,12 @@ impl CellRenderer {
             });
 
             // Render background image if present
-            if use_bg_image_pipeline && let Some(ref bg_bind_group) = self.bg_image_bind_group {
-                render_pass.set_pipeline(&self.bg_image_pipeline);
+            if use_bg_image_pipeline
+                && let Some(ref bg_bind_group) = self.pipelines.bg_image_bind_group
+            {
+                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
                 render_pass.draw(0..4, 0..1);
             }
         }
@@ -329,17 +336,17 @@ impl CellRenderer {
             });
 
         // Determine clear color and whether to use bg_image pipeline
-        let (clear_color, use_bg_image_pipeline) = if self.bg_is_solid_color {
+        let (clear_color, use_bg_image_pipeline) = if self.bg_state.bg_is_solid_color {
             (
                 wgpu::Color {
-                    r: self.solid_bg_color[0] as f64 * self.window_opacity as f64,
-                    g: self.solid_bg_color[1] as f64 * self.window_opacity as f64,
-                    b: self.solid_bg_color[2] as f64 * self.window_opacity as f64,
+                    r: self.bg_state.solid_bg_color[0] as f64 * self.window_opacity as f64,
+                    g: self.bg_state.solid_bg_color[1] as f64 * self.window_opacity as f64,
+                    b: self.bg_state.solid_bg_color[2] as f64 * self.window_opacity as f64,
                     a: self.window_opacity as f64,
                 },
                 false,
             )
-        } else if self.bg_image_bind_group.is_some() {
+        } else if self.pipelines.bg_image_bind_group.is_some() {
             (wgpu::Color::TRANSPARENT, true)
         } else {
             (
@@ -371,23 +378,25 @@ impl CellRenderer {
             });
 
             // Render background image if present
-            if use_bg_image_pipeline && let Some(ref bg_bind_group) = self.bg_image_bind_group {
-                render_pass.set_pipeline(&self.bg_image_pipeline);
+            if use_bg_image_pipeline
+                && let Some(ref bg_bind_group) = self.pipelines.bg_image_bind_group
+            {
+                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
                 render_pass.draw(0..4, 0..1);
             }
 
-            render_pass.set_pipeline(&self.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.max_bg_instances as u32);
+            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..self.buffers.max_bg_instances as u32);
 
-            render_pass.set_pipeline(&self.text_pipeline);
-            render_pass.set_bind_group(0, &self.text_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.max_text_instances as u32);
+            render_pass.set_pipeline(&self.pipelines.text_pipeline);
+            render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..self.buffers.max_text_instances as u32);
 
             // Render scrollbar
             self.scrollbar.render(&mut render_pass);
@@ -443,19 +452,19 @@ impl CellRenderer {
 
     pub(crate) fn build_instance_buffers(&mut self) -> Result<()> {
         let _shaping_options = ShapingOptions {
-            enable_ligatures: self.enable_ligatures,
-            enable_kerning: self.enable_kerning,
+            enable_ligatures: self.font.enable_ligatures,
+            enable_kerning: self.font.enable_kerning,
             ..Default::default()
         };
 
-        for row in 0..self.rows {
+        for row in 0..self.grid.rows {
             if self.dirty_rows[row] || self.row_cache[row].is_none() {
-                let start = row * self.cols;
-                let end = (row + 1) * self.cols;
+                let start = row * self.grid.cols;
+                let end = (row + 1) * self.grid.cols;
                 let row_cells = &self.cells[start..end];
 
-                let mut row_bg = Vec::with_capacity(self.cols);
-                let mut row_text = Vec::with_capacity(self.cols);
+                let mut row_bg = Vec::with_capacity(self.grid.cols);
+                let mut row_text = Vec::with_capacity(self.grid.cols);
 
                 // Background - use RLE to merge consecutive cells with same color (like iTerm2)
                 // This eliminates seams between adjacent same-colored cells
@@ -468,14 +477,14 @@ impl CellRenderer {
                         && (bg_f[2] - self.background_color[2]).abs() < 0.001;
 
                     // Check for cursor at this position, accounting for unfocused state
-                    let cursor_visible = self.cursor_opacity > 0.0
-                        && !self.cursor_hidden_for_shader
-                        && self.cursor_pos.1 == row
-                        && self.cursor_pos.0 == col;
+                    let cursor_visible = self.cursor.opacity > 0.0
+                        && !self.cursor.hidden_for_shader
+                        && self.cursor.pos.1 == row
+                        && self.cursor.pos.0 == col;
 
                     // Handle unfocused cursor visibility
                     let has_cursor = if cursor_visible && !self.is_focused {
-                        match self.unfocused_cursor_style {
+                        match self.cursor.unfocused_style {
                             par_term_config::UnfocusedCursorStyle::Hidden => false,
                             par_term_config::UnfocusedCursorStyle::Hollow
                             | par_term_config::UnfocusedCursorStyle::Same => true,
@@ -499,15 +508,15 @@ impl CellRenderer {
                     let mut bg_color = color_u8x4_rgb_to_f32_a(cell.bg_color, bg_alpha);
 
                     // Handle cursor at this position
-                    if has_cursor && self.cursor_opacity > 0.0 {
+                    if has_cursor && self.cursor.opacity > 0.0 {
                         use par_term_emu_core_rust::cursor::CursorStyle;
 
                         // Check if we should render hollow cursor (unfocused hollow style)
                         let render_hollow = !self.is_focused
-                            && self.unfocused_cursor_style
+                            && self.cursor.unfocused_style
                                 == par_term_config::UnfocusedCursorStyle::Hollow;
 
-                        match self.cursor_style {
+                        match self.cursor.style {
                             CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
                                 if render_hollow {
                                     // Hollow cursor: don't fill the cell, outline will be added later
@@ -515,27 +524,27 @@ impl CellRenderer {
                                 } else {
                                     // Solid block cursor
                                     for (bg, &cursor) in
-                                        bg_color.iter_mut().take(3).zip(&self.cursor_color)
+                                        bg_color.iter_mut().take(3).zip(&self.cursor.color)
                                     {
-                                        *bg = *bg * (1.0 - self.cursor_opacity)
-                                            + cursor * self.cursor_opacity;
+                                        *bg = *bg * (1.0 - self.cursor.opacity)
+                                            + cursor * self.cursor.opacity;
                                     }
-                                    bg_color[3] = bg_color[3].max(self.cursor_opacity);
+                                    bg_color[3] = bg_color[3].max(self.cursor.opacity);
                                 }
                             }
                             _ => {}
                         }
                         // Cursor cell can't be merged, render it alone
-                        let x0 = self.window_padding
-                            + self.content_offset_x
-                            + col as f32 * self.cell_width;
-                        let x1 = self.window_padding
-                            + self.content_offset_x
-                            + (col + 1) as f32 * self.cell_width;
-                        let y0 = self.window_padding
-                            + self.content_offset_y
-                            + row as f32 * self.cell_height;
-                        let y1 = y0 + self.cell_height;
+                        let x0 = self.grid.window_padding
+                            + self.grid.content_offset_x
+                            + col as f32 * self.grid.cell_width;
+                        let x1 = self.grid.window_padding
+                            + self.grid.content_offset_x
+                            + (col + 1) as f32 * self.grid.cell_width;
+                        let y0 = self.grid.window_padding
+                            + self.grid.content_offset_y
+                            + row as f32 * self.grid.cell_height;
+                        let y1 = y0 + self.grid.cell_height;
                         row_bg.push(BackgroundInstance {
                             position: [
                                 x0 / self.config.width as f32 * 2.0 - 1.0,
@@ -557,10 +566,10 @@ impl CellRenderer {
                     col += 1;
                     while col < row_cells.len() {
                         let next_cell = &row_cells[col];
-                        let next_has_cursor = self.cursor_opacity > 0.0
-                            && !self.cursor_hidden_for_shader
-                            && self.cursor_pos.1 == row
-                            && self.cursor_pos.0 == col;
+                        let next_has_cursor = self.cursor.opacity > 0.0
+                            && !self.cursor.hidden_for_shader
+                            && self.cursor.pos.1 == row
+                            && self.cursor.pos.0 == col;
                         // Stop run if color differs or cursor is here
                         if next_cell.bg_color != run_color || next_has_cursor {
                             break;
@@ -570,15 +579,16 @@ impl CellRenderer {
                     let run_length = col - start_col;
 
                     // Create single quad spanning entire run (no per-cell rounding)
-                    let x0 = self.window_padding
-                        + self.content_offset_x
-                        + start_col as f32 * self.cell_width;
-                    let x1 = self.window_padding
-                        + self.content_offset_x
-                        + (start_col + run_length) as f32 * self.cell_width;
-                    let y0 =
-                        self.window_padding + self.content_offset_y + row as f32 * self.cell_height;
-                    let y1 = y0 + self.cell_height;
+                    let x0 = self.grid.window_padding
+                        + self.grid.content_offset_x
+                        + start_col as f32 * self.grid.cell_width;
+                    let x1 = self.grid.window_padding
+                        + self.grid.content_offset_x
+                        + (start_col + run_length) as f32 * self.grid.cell_width;
+                    let y0 = self.grid.window_padding
+                        + self.grid.content_offset_y
+                        + row as f32 * self.grid.cell_height;
+                    let y1 = y0 + self.grid.cell_height;
 
                     row_bg.push(BackgroundInstance {
                         position: [
@@ -595,7 +605,7 @@ impl CellRenderer {
 
                 // Pad row_bg to expected size with empty instances
                 // (RLE creates fewer instances than cells, but buffer expects cols entries)
-                while row_bg.len() < self.cols {
+                while row_bg.len() < self.grid.cols {
                     row_bg.push(BackgroundInstance {
                         position: [0.0, 0.0],
                         size: [0.0, 0.0],
@@ -630,34 +640,35 @@ impl CellRenderer {
                     .collect();
 
                 // Dynamic baseline calculation based on font metrics
-                let natural_line_height = self.font_ascent + self.font_descent + self.font_leading;
-                let vertical_padding = (self.cell_height - natural_line_height).max(0.0) / 2.0;
-                let baseline_y_unrounded = self.window_padding
-                    + self.content_offset_y
-                    + (row as f32 * self.cell_height)
+                let natural_line_height =
+                    self.font.font_ascent + self.font.font_descent + self.font.font_leading;
+                let vertical_padding = (self.grid.cell_height - natural_line_height).max(0.0) / 2.0;
+                let baseline_y_unrounded = self.grid.window_padding
+                    + self.grid.content_offset_y
+                    + (row as f32 * self.grid.cell_height)
                     + vertical_padding
-                    + self.font_ascent;
+                    + self.font.font_ascent;
 
                 // Check if this row has the cursor and it's a visible block cursor
                 // (for cursor text color override)
                 let cursor_is_block_on_this_row = {
                     use par_term_emu_core_rust::cursor::CursorStyle;
-                    self.cursor_pos.1 == row
-                        && self.cursor_opacity > 0.0
-                        && !self.cursor_hidden_for_shader
+                    self.cursor.pos.1 == row
+                        && self.cursor.opacity > 0.0
+                        && !self.cursor.hidden_for_shader
                         && matches!(
-                            self.cursor_style,
+                            self.cursor.style,
                             CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock
                         )
                         && (self.is_focused
-                            || self.unfocused_cursor_style
+                            || self.cursor.unfocused_style
                                 == par_term_config::UnfocusedCursorStyle::Same)
                 };
 
                 let mut current_col = 0usize;
                 for (grapheme, bold, italic, fg_color, bg_color, is_spacer, is_wide) in cell_data {
                     if is_spacer || grapheme == " " {
-                        x_offset += self.cell_width;
+                        x_offset += self.grid.cell_width;
                         current_col += 1;
                         continue;
                     }
@@ -673,15 +684,15 @@ impl CellRenderer {
                     // Determine text color - use cursor_text_color if this is the cursor position
                     // with a block cursor, otherwise use the cell's foreground color
                     let render_fg_color: [f32; 4] =
-                        if cursor_is_block_on_this_row && current_col == self.cursor_pos.0 {
-                            if let Some(cursor_text) = self.cursor_text_color {
+                        if cursor_is_block_on_this_row && current_col == self.cursor.pos.0 {
+                            if let Some(cursor_text) = self.cursor.text_color {
                                 [cursor_text[0], cursor_text[1], cursor_text[2], text_alpha]
                             } else {
                                 // Auto-contrast: use cursor color as a starting point
                                 // Simple inversion: if cursor is bright, use dark text; if dark, use bright
-                                let cursor_brightness = (self.cursor_color[0]
-                                    + self.cursor_color[1]
-                                    + self.cursor_color[2])
+                                let cursor_brightness = (self.cursor.color[0]
+                                    + self.cursor.color[1]
+                                    + self.cursor.color[2])
                                     / 3.0;
                                 if cursor_brightness > 0.5 {
                                     [0.0, 0.0, 0.0, text_alpha] // Dark text on bright cursor
@@ -722,26 +733,27 @@ impl CellRenderer {
                         // (only for single-char graphemes that are block drawing chars)
                         if chars.len() == 1 && block_chars::should_render_geometrically(char_type) {
                             let char_w = if is_wide {
-                                self.cell_width * 2.0
+                                self.grid.cell_width * 2.0
                             } else {
-                                self.cell_width
+                                self.grid.cell_width
                             };
                             let x0 =
-                                (self.window_padding + self.content_offset_x + x_offset).round();
-                            let y0 = (self.window_padding
-                                + self.content_offset_y
-                                + row as f32 * self.cell_height)
+                                (self.grid.window_padding + self.grid.content_offset_x + x_offset)
+                                    .round();
+                            let y0 = (self.grid.window_padding
+                                + self.grid.content_offset_y
+                                + row as f32 * self.grid.cell_height)
                                 .round();
 
                             // Try box drawing geometry first (for lines, corners, junctions)
                             // Pass aspect ratio so vertical lines have same visual thickness as horizontal
-                            let aspect_ratio = self.cell_height / char_w;
+                            let aspect_ratio = self.grid.cell_height / char_w;
                             if let Some(box_geo) =
                                 block_chars::get_box_drawing_geometry(*ch, aspect_ratio)
                             {
                                 for segment in &box_geo.segments {
                                     let rect = segment
-                                        .to_pixel_rect(x0, y0, char_w, self.cell_height)
+                                        .to_pixel_rect(x0, y0, char_w, self.grid.cell_height)
                                         .snap_to_pixels();
 
                                     // Extend segments that touch cell edges
@@ -774,15 +786,15 @@ impl CellRenderer {
                                             final_h / self.config.height as f32 * 2.0,
                                         ],
                                         tex_offset: [
-                                            self.solid_pixel_offset.0 as f32 / 2048.0,
-                                            self.solid_pixel_offset.1 as f32 / 2048.0,
+                                            self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
+                                            self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
                                         ],
                                         tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
                                         color: render_fg_color,
                                         is_colored: 0,
                                     });
                                 }
-                                x_offset += self.cell_width;
+                                x_offset += self.grid.cell_width;
                                 current_col += 1;
                                 continue;
                             }
@@ -790,7 +802,7 @@ impl CellRenderer {
                             // Try block element geometry (for solid blocks, half blocks, etc.)
                             if let Some(geo_block) = block_chars::get_geometric_block(*ch) {
                                 let rect =
-                                    geo_block.to_pixel_rect(x0, y0, char_w, self.cell_height);
+                                    geo_block.to_pixel_rect(x0, y0, char_w, self.grid.cell_height);
 
                                 // Add small extension to prevent gaps (1 pixel overlap)
                                 let extension = 1.0;
@@ -825,15 +837,15 @@ impl CellRenderer {
                                     ],
                                     // Use solid white pixel from atlas
                                     tex_offset: [
-                                        self.solid_pixel_offset.0 as f32 / 2048.0,
-                                        self.solid_pixel_offset.1 as f32 / 2048.0,
+                                        self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
+                                        self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
                                     ],
                                     tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
                                     color: render_fg_color,
                                     is_colored: 0,
                                 });
 
-                                x_offset += self.cell_width;
+                                x_offset += self.grid.cell_width;
                                 current_col += 1;
                                 continue;
                             }
@@ -844,7 +856,7 @@ impl CellRenderer {
                                 x0,
                                 y0,
                                 char_w,
-                                self.cell_height,
+                                self.grid.cell_height,
                             ) {
                                 row_text.push(TextInstance {
                                     position: [
@@ -856,15 +868,15 @@ impl CellRenderer {
                                         rect.height / self.config.height as f32 * 2.0,
                                     ],
                                     tex_offset: [
-                                        self.solid_pixel_offset.0 as f32 / 2048.0,
-                                        self.solid_pixel_offset.1 as f32 / 2048.0,
+                                        self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
+                                        self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
                                     ],
                                     tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
                                     color: render_fg_color,
                                     is_colored: 0,
                                 });
 
-                                x_offset += self.cell_width;
+                                x_offset += self.grid.cell_width;
                                 current_col += 1;
                                 continue;
                             }
@@ -904,17 +916,17 @@ impl CellRenderer {
                             match glyph_result {
                                 Some((font_idx, glyph_id)) => {
                                     let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
-                                    if self.glyph_cache.contains_key(&cache_key) {
+                                    if self.atlas.glyph_cache.contains_key(&cache_key) {
                                         self.lru_remove(cache_key);
                                         self.lru_push_front(cache_key);
                                         break Some(
-                                            self.glyph_cache.get(&cache_key).unwrap().clone(),
+                                            self.atlas.glyph_cache.get(&cache_key).unwrap().clone(),
                                         );
                                     } else if let Some(raster) =
                                         self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
                                     {
                                         let info = self.upload_glyph(cache_key, &raster);
-                                        self.glyph_cache.insert(cache_key, info.clone());
+                                        self.atlas.glyph_cache.insert(cache_key, info.clone());
                                         self.lru_push_front(cache_key);
                                         break Some(info);
                                     } else {
@@ -951,7 +963,7 @@ impl CellRenderer {
                                             self.rasterize_glyph(font_idx, glyph_id, false)
                                         {
                                             let info = self.upload_glyph(cache_key, &raster);
-                                            self.glyph_cache.insert(cache_key, info.clone());
+                                            self.atlas.glyph_cache.insert(cache_key, info.clone());
                                             self.lru_push_front(cache_key);
                                             break Some(info);
                                         } else {
@@ -974,33 +986,37 @@ impl CellRenderer {
                         let info = match resolved_info {
                             Some(info) => info,
                             None => {
-                                x_offset += self.cell_width;
+                                x_offset += self.grid.cell_width;
                                 continue;
                             }
                         };
 
                         let char_w = if is_wide {
-                            self.cell_width * 2.0
+                            self.grid.cell_width * 2.0
                         } else {
-                            self.cell_width
+                            self.grid.cell_width
                         };
-                        let x0 = (self.window_padding + self.content_offset_x + x_offset).round();
-                        let x1 = (self.window_padding + self.content_offset_x + x_offset + char_w)
+                        let x0 = (self.grid.window_padding + self.grid.content_offset_x + x_offset)
                             .round();
-                        let y0 = (self.window_padding
-                            + self.content_offset_y
-                            + row as f32 * self.cell_height)
+                        let x1 = (self.grid.window_padding
+                            + self.grid.content_offset_x
+                            + x_offset
+                            + char_w)
                             .round();
-                        let y1 = (self.window_padding
-                            + self.content_offset_y
-                            + (row + 1) as f32 * self.cell_height)
+                        let y0 = (self.grid.window_padding
+                            + self.grid.content_offset_y
+                            + row as f32 * self.grid.cell_height)
+                            .round();
+                        let y1 = (self.grid.window_padding
+                            + self.grid.content_offset_y
+                            + (row + 1) as f32 * self.grid.cell_height)
                             .round();
 
                         let cell_w = x1 - x0;
                         let cell_h = y1 - y0;
 
                         let scale_x = cell_w / char_w;
-                        let scale_y = cell_h / self.cell_height;
+                        let scale_y = cell_h / self.grid.cell_height;
 
                         // Position glyph relative to snapped cell top-left.
                         // Round the scaled baseline position once, then subtract
@@ -1009,9 +1025,9 @@ impl CellRenderer {
                         // applied exactly (no scale_y on bearing avoids rounding
                         // artifacts between glyphs with different bearings).
                         let baseline_offset = baseline_y_unrounded
-                            - (self.window_padding
-                                + self.content_offset_y
-                                + row as f32 * self.cell_height);
+                            - (self.grid.window_padding
+                                + self.grid.content_offset_y
+                                + row as f32 * self.grid.cell_height);
                         let glyph_left = x0 + (info.bearing_x * scale_x).round();
                         let baseline_in_cell = (baseline_offset * scale_y).round();
                         let glyph_top = y0 + baseline_in_cell - info.bearing_y;
@@ -1048,21 +1064,21 @@ impl CellRenderer {
                             is_colored: if info.is_colored { 1 } else { 0 },
                         });
                     }
-                    x_offset += self.cell_width;
+                    x_offset += self.grid.cell_width;
                     current_col += 1;
                 }
 
                 // Underlines: emit thin rectangle(s) at the bottom of each underlined cell
                 {
-                    let underline_thickness = (self.cell_height * 0.07).max(1.0).round();
+                    let underline_thickness = (self.grid.cell_height * 0.07).max(1.0).round();
                     let tex_offset = [
-                        self.solid_pixel_offset.0 as f32 / 2048.0,
-                        self.solid_pixel_offset.1 as f32 / 2048.0,
+                        self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
+                        self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
                     ];
                     let tex_size = [1.0 / 2048.0, 1.0 / 2048.0];
-                    let y0 = self.window_padding
-                        + self.content_offset_y
-                        + (row + 1) as f32 * self.cell_height
+                    let y0 = self.grid.window_padding
+                        + self.grid.content_offset_y
+                        + (row + 1) as f32 * self.grid.cell_height
                         - underline_thickness;
                     let ndc_y = 1.0 - (y0 / self.config.height as f32 * 2.0);
                     let ndc_h = underline_thickness / self.config.height as f32 * 2.0;
@@ -1073,9 +1089,9 @@ impl CellRenderer {
                     let stipple_off = 2.0_f32;
                     let stipple_period = stipple_on + stipple_off;
 
-                    for col_idx in 0..self.cols {
+                    for col_idx in 0..self.grid.cols {
                         let cell = &self.cells[start + col_idx];
-                        if !cell.underline || row_text.len() >= self.cols * 2 {
+                        if !cell.underline || row_text.len() >= self.grid.cols * 2 {
                             continue;
                         }
                         let text_alpha = if self.keep_text_opaque {
@@ -1084,15 +1100,15 @@ impl CellRenderer {
                             self.window_opacity
                         };
                         let fg = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
-                        let cell_x0 = self.window_padding
-                            + self.content_offset_x
-                            + col_idx as f32 * self.cell_width;
+                        let cell_x0 = self.grid.window_padding
+                            + self.grid.content_offset_x
+                            + col_idx as f32 * self.grid.cell_width;
 
                         if is_stipple {
                             // Emit alternating dot segments across the cell width
                             let mut px = 0.0;
-                            while px < self.cell_width && row_text.len() < self.cols * 2 {
-                                let seg_w = stipple_on.min(self.cell_width - px);
+                            while px < self.grid.cell_width && row_text.len() < self.grid.cols * 2 {
+                                let seg_w = stipple_on.min(self.grid.cell_width - px);
                                 let x = cell_x0 + px;
                                 row_text.push(TextInstance {
                                     position: [x / self.config.width as f32 * 2.0 - 1.0, ndc_y],
@@ -1107,7 +1123,10 @@ impl CellRenderer {
                         } else {
                             row_text.push(TextInstance {
                                 position: [cell_x0 / self.config.width as f32 * 2.0 - 1.0, ndc_y],
-                                size: [self.cell_width / self.config.width as f32 * 2.0, ndc_h],
+                                size: [
+                                    self.grid.cell_width / self.config.width as f32 * 2.0,
+                                    ndc_h,
+                                ],
                                 tex_offset,
                                 tex_size,
                                 color: fg,
@@ -1118,30 +1137,30 @@ impl CellRenderer {
                 }
 
                 // Update CPU-side buffers
-                let bg_start = row * self.cols;
-                self.bg_instances[bg_start..bg_start + self.cols].copy_from_slice(&row_bg);
+                let bg_start = row * self.grid.cols;
+                self.bg_instances[bg_start..bg_start + self.grid.cols].copy_from_slice(&row_bg);
 
-                let text_start = row * self.cols * 2;
+                let text_start = row * self.grid.cols * 2;
                 // Clear row text segment first
-                for i in 0..(self.cols * 2) {
+                for i in 0..(self.grid.cols * 2) {
                     self.text_instances[text_start + i].size = [0.0, 0.0];
                 }
                 // Copy new text instances
-                let text_count = row_text.len().min(self.cols * 2);
+                let text_count = row_text.len().min(self.grid.cols * 2);
                 self.text_instances[text_start..text_start + text_count]
                     .copy_from_slice(&row_text[..text_count]);
 
                 // Update GPU-side buffers incrementally
                 self.queue.write_buffer(
-                    &self.bg_instance_buffer,
+                    &self.buffers.bg_instance_buffer,
                     (bg_start * std::mem::size_of::<BackgroundInstance>()) as u64,
                     bytemuck::cast_slice(&row_bg),
                 );
                 self.queue.write_buffer(
-                    &self.text_instance_buffer,
+                    &self.buffers.text_instance_buffer,
                     (text_start * std::mem::size_of::<TextInstance>()) as u64,
                     bytemuck::cast_slice(
-                        &self.text_instances[text_start..text_start + self.cols * 2],
+                        &self.text_instances[text_start..text_start + self.grid.cols * 2],
                     ),
                 );
 
@@ -1152,7 +1171,7 @@ impl CellRenderer {
 
         // Write cursor-related overlays to extra slots at the end of bg_instances
         // Slot layout: [0] cursor overlay (beam/underline), [1] guide, [2] shadow, [3-6] boost glow, [7-10] hollow outline
-        let base_overlay_index = self.cols * self.rows;
+        let base_overlay_index = self.grid.cols * self.grid.rows;
         let mut overlay_instances = vec![
             BackgroundInstance {
                 position: [0.0, 0.0],
@@ -1163,33 +1182,35 @@ impl CellRenderer {
         ];
 
         // Check if cursor should be visible
-        let cursor_visible = self.cursor_opacity > 0.0
-            && !self.cursor_hidden_for_shader
+        let cursor_visible = self.cursor.opacity > 0.0
+            && !self.cursor.hidden_for_shader
             && (self.is_focused
-                || self.unfocused_cursor_style != par_term_config::UnfocusedCursorStyle::Hidden);
+                || self.cursor.unfocused_style != par_term_config::UnfocusedCursorStyle::Hidden);
 
         // Calculate cursor pixel positions
-        let cursor_col = self.cursor_pos.0;
-        let cursor_row = self.cursor_pos.1;
-        let cursor_x0 =
-            self.window_padding + self.content_offset_x + cursor_col as f32 * self.cell_width;
-        let cursor_x1 = cursor_x0 + self.cell_width;
-        let cursor_y0 =
-            self.window_padding + self.content_offset_y + cursor_row as f32 * self.cell_height;
-        let cursor_y1 = cursor_y0 + self.cell_height;
+        let cursor_col = self.cursor.pos.0;
+        let cursor_row = self.cursor.pos.1;
+        let cursor_x0 = self.grid.window_padding
+            + self.grid.content_offset_x
+            + cursor_col as f32 * self.grid.cell_width;
+        let cursor_x1 = cursor_x0 + self.grid.cell_width;
+        let cursor_y0 = self.grid.window_padding
+            + self.grid.content_offset_y
+            + cursor_row as f32 * self.grid.cell_height;
+        let cursor_y1 = cursor_y0 + self.grid.cell_height;
 
         // Slot 0: Cursor overlay (beam/underline) - handled by existing cursor_overlay
-        overlay_instances[0] = self.cursor_overlay.unwrap_or(BackgroundInstance {
+        overlay_instances[0] = self.cursor.overlay.unwrap_or(BackgroundInstance {
             position: [0.0, 0.0],
             size: [0.0, 0.0],
             color: [0.0, 0.0, 0.0, 0.0],
         });
 
         // Slot 1: Cursor guide (horizontal line spanning full width at cursor row)
-        if cursor_visible && self.cursor_guide_enabled {
-            let guide_x0 = self.window_padding + self.content_offset_x;
+        if cursor_visible && self.cursor.guide_enabled {
+            let guide_x0 = self.grid.window_padding + self.grid.content_offset_x;
             let guide_x1 =
-                self.config.width as f32 - self.window_padding - self.content_inset_right;
+                self.config.width as f32 - self.grid.window_padding - self.grid.content_inset_right;
             overlay_instances[1] = BackgroundInstance {
                 position: [
                     guide_x0 / self.config.width as f32 * 2.0 - 1.0,
@@ -1199,34 +1220,34 @@ impl CellRenderer {
                     (guide_x1 - guide_x0) / self.config.width as f32 * 2.0,
                     (cursor_y1 - cursor_y0) / self.config.height as f32 * 2.0,
                 ],
-                color: self.cursor_guide_color,
+                color: self.cursor.guide_color,
             };
         }
 
         // Slot 2: Cursor shadow (offset rectangle behind cursor)
-        if cursor_visible && self.cursor_shadow_enabled {
-            let shadow_x0 = cursor_x0 + self.cursor_shadow_offset[0];
-            let shadow_y0 = cursor_y0 + self.cursor_shadow_offset[1];
+        if cursor_visible && self.cursor.shadow_enabled {
+            let shadow_x0 = cursor_x0 + self.cursor.shadow_offset[0];
+            let shadow_y0 = cursor_y0 + self.cursor.shadow_offset[1];
             overlay_instances[2] = BackgroundInstance {
                 position: [
                     shadow_x0 / self.config.width as f32 * 2.0 - 1.0,
                     1.0 - (shadow_y0 / self.config.height as f32 * 2.0),
                 ],
                 size: [
-                    self.cell_width / self.config.width as f32 * 2.0,
-                    self.cell_height / self.config.height as f32 * 2.0,
+                    self.grid.cell_width / self.config.width as f32 * 2.0,
+                    self.grid.cell_height / self.config.height as f32 * 2.0,
                 ],
-                color: self.cursor_shadow_color,
+                color: self.cursor.shadow_color,
             };
         }
 
         // Slot 3: Cursor boost glow (larger rectangle around cursor with low opacity)
-        if cursor_visible && self.cursor_boost > 0.0 {
-            let glow_expand = 4.0 * self.scale_factor * self.cursor_boost; // Expand by up to 4 logical pixels
+        if cursor_visible && self.cursor.boost > 0.0 {
+            let glow_expand = 4.0 * self.scale_factor * self.cursor.boost; // Expand by up to 4 logical pixels
             let glow_x0 = cursor_x0 - glow_expand;
             let glow_y0 = cursor_y0 - glow_expand;
-            let glow_w = self.cell_width + glow_expand * 2.0;
-            let glow_h = self.cell_height + glow_expand * 2.0;
+            let glow_w = self.grid.cell_width + glow_expand * 2.0;
+            let glow_h = self.grid.cell_height + glow_expand * 2.0;
             overlay_instances[3] = BackgroundInstance {
                 position: [
                     glow_x0 / self.config.width as f32 * 2.0 - 1.0,
@@ -1237,10 +1258,10 @@ impl CellRenderer {
                     glow_h / self.config.height as f32 * 2.0,
                 ],
                 color: [
-                    self.cursor_boost_color[0],
-                    self.cursor_boost_color[1],
-                    self.cursor_boost_color[2],
-                    self.cursor_boost * 0.3 * self.cursor_opacity, // Max 30% alpha
+                    self.cursor.boost_color[0],
+                    self.cursor.boost_color[1],
+                    self.cursor.boost_color[2],
+                    self.cursor.boost * 0.3 * self.cursor.opacity, // Max 30% alpha
                 ],
             };
         }
@@ -1249,22 +1270,22 @@ impl CellRenderer {
         // Rendered when unfocused with hollow style and block cursor
         let render_hollow = cursor_visible
             && !self.is_focused
-            && self.unfocused_cursor_style == par_term_config::UnfocusedCursorStyle::Hollow;
+            && self.cursor.unfocused_style == par_term_config::UnfocusedCursorStyle::Hollow;
 
         if render_hollow {
             use par_term_emu_core_rust::cursor::CursorStyle;
             let is_block = matches!(
-                self.cursor_style,
+                self.cursor.style,
                 CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock
             );
 
             if is_block {
                 let border_width = 2.0; // 2 pixel border
                 let color = [
-                    self.cursor_color[0],
-                    self.cursor_color[1],
-                    self.cursor_color[2],
-                    self.cursor_opacity,
+                    self.cursor.color[0],
+                    self.cursor.color[1],
+                    self.cursor.color[2],
+                    self.cursor.opacity,
                 ];
 
                 // Top border
@@ -1274,7 +1295,7 @@ impl CellRenderer {
                         1.0 - (cursor_y0 / self.config.height as f32 * 2.0),
                     ],
                     size: [
-                        self.cell_width / self.config.width as f32 * 2.0,
+                        self.grid.cell_width / self.config.width as f32 * 2.0,
                         border_width / self.config.height as f32 * 2.0,
                     ],
                     color,
@@ -1287,7 +1308,7 @@ impl CellRenderer {
                         1.0 - ((cursor_y1 - border_width) / self.config.height as f32 * 2.0),
                     ],
                     size: [
-                        self.cell_width / self.config.width as f32 * 2.0,
+                        self.grid.cell_width / self.config.width as f32 * 2.0,
                         border_width / self.config.height as f32 * 2.0,
                     ],
                     color,
@@ -1301,7 +1322,8 @@ impl CellRenderer {
                     ],
                     size: [
                         border_width / self.config.width as f32 * 2.0,
-                        (self.cell_height - border_width * 2.0) / self.config.height as f32 * 2.0,
+                        (self.grid.cell_height - border_width * 2.0) / self.config.height as f32
+                            * 2.0,
                     ],
                     color,
                 };
@@ -1314,7 +1336,8 @@ impl CellRenderer {
                     ],
                     size: [
                         border_width / self.config.width as f32 * 2.0,
-                        (self.cell_height - border_width * 2.0) / self.config.height as f32 * 2.0,
+                        (self.grid.cell_height - border_width * 2.0) / self.config.height as f32
+                            * 2.0,
                     ],
                     color,
                 };
@@ -1326,38 +1349,38 @@ impl CellRenderer {
             self.bg_instances[base_overlay_index + i] = *instance;
         }
         self.queue.write_buffer(
-            &self.bg_instance_buffer,
+            &self.buffers.bg_instance_buffer,
             (base_overlay_index * std::mem::size_of::<BackgroundInstance>()) as u64,
             bytemuck::cast_slice(&overlay_instances),
         );
 
         // Write command separator line instances after cursor overlay slots
-        let separator_base = self.cols * self.rows + 10;
+        let separator_base = self.grid.cols * self.grid.rows + 10;
         let mut separator_instances = vec![
             BackgroundInstance {
                 position: [0.0, 0.0],
                 size: [0.0, 0.0],
                 color: [0.0, 0.0, 0.0, 0.0],
             };
-            self.rows
+            self.grid.rows
         ];
 
-        if self.command_separator_enabled {
+        if self.separator.enabled {
             let width_f = self.config.width as f32;
             let height_f = self.config.height as f32;
-            for &(screen_row, exit_code, custom_color) in &self.visible_separator_marks {
-                if screen_row < self.rows {
-                    let x0 = self.window_padding + self.content_offset_x;
-                    let x1 = width_f - self.window_padding - self.content_inset_right;
-                    let y0 = self.window_padding
-                        + self.content_offset_y
-                        + screen_row as f32 * self.cell_height;
+            for &(screen_row, exit_code, custom_color) in &self.separator.visible_marks {
+                if screen_row < self.grid.rows {
+                    let x0 = self.grid.window_padding + self.grid.content_offset_x;
+                    let x1 = width_f - self.grid.window_padding - self.grid.content_inset_right;
+                    let y0 = self.grid.window_padding
+                        + self.grid.content_offset_y
+                        + screen_row as f32 * self.grid.cell_height;
                     let color = self.separator_color(exit_code, custom_color, 1.0);
                     separator_instances[screen_row] = BackgroundInstance {
                         position: [x0 / width_f * 2.0 - 1.0, 1.0 - (y0 / height_f * 2.0)],
                         size: [
                             (x1 - x0) / width_f * 2.0,
-                            self.command_separator_thickness / height_f * 2.0,
+                            self.separator.thickness / height_f * 2.0,
                         ],
                         color,
                     };
@@ -1366,7 +1389,7 @@ impl CellRenderer {
         }
 
         for (i, instance) in separator_instances.iter().enumerate() {
-            if separator_base + i < self.max_bg_instances {
+            if separator_base + i < self.buffers.max_bg_instances {
                 self.bg_instances[separator_base + i] = *instance;
             }
         }
@@ -1374,39 +1397,42 @@ impl CellRenderer {
         let separator_byte_count =
             separator_instances.len() * std::mem::size_of::<BackgroundInstance>();
         if separator_byte_offset + separator_byte_count
-            <= self.max_bg_instances * std::mem::size_of::<BackgroundInstance>()
+            <= self.buffers.max_bg_instances * std::mem::size_of::<BackgroundInstance>()
         {
             self.queue.write_buffer(
-                &self.bg_instance_buffer,
+                &self.buffers.bg_instance_buffer,
                 separator_byte_offset as u64,
                 bytemuck::cast_slice(&separator_instances),
             );
         }
 
         // Write gutter indicator background instances after separator slots
-        let gutter_base = separator_base + self.rows;
+        let gutter_base = separator_base + self.grid.rows;
         let mut gutter_instances = vec![
             BackgroundInstance {
                 position: [0.0, 0.0],
                 size: [0.0, 0.0],
                 color: [0.0, 0.0, 0.0, 0.0],
             };
-            self.rows
+            self.grid.rows
         ];
 
         if !self.gutter_indicators.is_empty() {
             let width_f = self.config.width as f32;
             let height_f = self.config.height as f32;
             for &(screen_row, color) in &self.gutter_indicators {
-                if screen_row < self.rows {
-                    let x0 = self.window_padding + self.content_offset_x;
-                    let x1 = x0 + 2.0 * self.cell_width; // gutter_width = 2 columns
-                    let y0 = self.window_padding
-                        + self.content_offset_y
-                        + screen_row as f32 * self.cell_height;
+                if screen_row < self.grid.rows {
+                    let x0 = self.grid.window_padding + self.grid.content_offset_x;
+                    let x1 = x0 + 2.0 * self.grid.cell_width; // gutter_width = 2 columns
+                    let y0 = self.grid.window_padding
+                        + self.grid.content_offset_y
+                        + screen_row as f32 * self.grid.cell_height;
                     gutter_instances[screen_row] = BackgroundInstance {
                         position: [x0 / width_f * 2.0 - 1.0, 1.0 - (y0 / height_f * 2.0)],
-                        size: [(x1 - x0) / width_f * 2.0, self.cell_height / height_f * 2.0],
+                        size: [
+                            (x1 - x0) / width_f * 2.0,
+                            self.grid.cell_height / height_f * 2.0,
+                        ],
                         color,
                     };
                 }
@@ -1414,17 +1440,17 @@ impl CellRenderer {
         }
 
         for (i, instance) in gutter_instances.iter().enumerate() {
-            if gutter_base + i < self.max_bg_instances {
+            if gutter_base + i < self.buffers.max_bg_instances {
                 self.bg_instances[gutter_base + i] = *instance;
             }
         }
         let gutter_byte_offset = gutter_base * std::mem::size_of::<BackgroundInstance>();
         let gutter_byte_count = gutter_instances.len() * std::mem::size_of::<BackgroundInstance>();
         if gutter_byte_offset + gutter_byte_count
-            <= self.max_bg_instances * std::mem::size_of::<BackgroundInstance>()
+            <= self.buffers.max_bg_instances * std::mem::size_of::<BackgroundInstance>()
         {
             self.queue.write_buffer(
-                &self.bg_instance_buffer,
+                &self.buffers.bg_instance_buffer,
                 gutter_byte_offset as u64,
                 bytemuck::cast_slice(&gutter_instances),
             );
@@ -1485,7 +1511,7 @@ impl CellRenderer {
         let pane_bg_resources = if let Some(pane_bg) = pane_background
             && let Some(ref path) = pane_bg.image_path
         {
-            self.pane_bg_cache.get(path.as_str()).map(|entry| {
+            self.bg_state.pane_bg_cache.get(path.as_str()).map(|entry| {
                 self.create_pane_bg_bind_group(
                     entry,
                     viewport.x,
@@ -1509,15 +1535,15 @@ impl CellRenderer {
 
         // Determine load operation and clear color
         let load_op = if clear_first {
-            let clear_color = if self.bg_is_solid_color {
+            let clear_color = if self.bg_state.bg_is_solid_color {
                 wgpu::Color {
-                    r: self.solid_bg_color[0] as f64
+                    r: self.bg_state.solid_bg_color[0] as f64
                         * self.window_opacity as f64
                         * viewport.opacity as f64,
-                    g: self.solid_bg_color[1] as f64
+                    g: self.bg_state.solid_bg_color[1] as f64
                         * self.window_opacity as f64
                         * viewport.opacity as f64,
-                    b: self.solid_bg_color[2] as f64
+                    b: self.bg_state.solid_bg_color[2] as f64
                         * self.window_opacity as f64
                         * viewport.opacity as f64,
                     a: self.window_opacity as f64 * viewport.opacity as f64,
@@ -1566,24 +1592,24 @@ impl CellRenderer {
             // Per-pane backgrounds are explicit user overrides and always render,
             // even when a custom shader or global background is active.
             if let Some((ref bind_group, ref _buf)) = pane_bg_resources {
-                render_pass.set_pipeline(&self.bg_image_pipeline);
+                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
                 render_pass.set_bind_group(0, bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
                 render_pass.draw(0..4, 0..1);
             }
 
             // Render cell backgrounds
-            render_pass.set_pipeline(&self.bg_pipeline);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.max_bg_instances as u32);
+            render_pass.set_pipeline(&self.pipelines.bg_pipeline);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..self.buffers.max_bg_instances as u32);
 
             // Render text
-            render_pass.set_pipeline(&self.text_pipeline);
-            render_pass.set_bind_group(0, &self.text_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, self.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.max_text_instances as u32);
+            render_pass.set_pipeline(&self.pipelines.text_pipeline);
+            render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
+            render_pass.draw(0..4, 0..self.buffers.max_text_instances as u32);
 
             // Render scrollbar if requested (uses its own scissor rect internally)
             if show_scrollbar {
@@ -1618,8 +1644,8 @@ impl CellRenderer {
         separator_marks: &[SeparatorMark],
     ) -> Result<()> {
         let _shaping_options = ShapingOptions {
-            enable_ligatures: self.enable_ligatures,
-            enable_kerning: self.enable_kerning,
+            enable_ligatures: self.font.enable_ligatures,
+            enable_kerning: self.font.enable_kerning,
             ..Default::default()
         };
 
@@ -1682,7 +1708,7 @@ impl CellRenderer {
                 // Check for cursor at this position
                 let has_cursor = cursor_pos.is_some_and(|(cx, cy)| cx == col && cy == row)
                     && cursor_opacity > 0.0
-                    && !self.cursor_hidden_for_shader;
+                    && !self.cursor.hidden_for_shader;
 
                 if is_default_bg && !has_cursor {
                     col += 1;
@@ -1702,9 +1728,9 @@ impl CellRenderer {
                 // Handle cursor at this position
                 if has_cursor {
                     use par_term_emu_core_rust::cursor::CursorStyle;
-                    match self.cursor_style {
+                    match self.cursor.style {
                         CursorStyle::SteadyBlock | CursorStyle::BlinkingBlock => {
-                            for (bg, &cursor) in bg_color.iter_mut().take(3).zip(&self.cursor_color)
+                            for (bg, &cursor) in bg_color.iter_mut().take(3).zip(&self.cursor.color)
                             {
                                 *bg = *bg * (1.0 - cursor_opacity) + cursor * cursor_opacity;
                             }
@@ -1714,12 +1740,12 @@ impl CellRenderer {
                     }
 
                     // Cursor cell can't be merged
-                    let x0 = content_x + col as f32 * self.cell_width;
-                    let y0 = content_y + row as f32 * self.cell_height;
-                    let x1 = x0 + self.cell_width;
-                    let y1 = y0 + self.cell_height;
+                    let x0 = content_x + col as f32 * self.grid.cell_width;
+                    let y0 = content_y + row as f32 * self.grid.cell_height;
+                    let x1 = x0 + self.grid.cell_width;
+                    let y1 = y0 + self.grid.cell_height;
 
-                    if bg_index < self.max_bg_instances {
+                    if bg_index < self.buffers.max_bg_instances {
                         self.bg_instances[bg_index] = BackgroundInstance {
                             position: [
                                 x0 / self.config.width as f32 * 2.0 - 1.0,
@@ -1753,12 +1779,12 @@ impl CellRenderer {
                 let run_length = col - start_col;
 
                 // Create single quad spanning entire run
-                let x0 = content_x + start_col as f32 * self.cell_width;
-                let x1 = content_x + (start_col + run_length) as f32 * self.cell_width;
-                let y0 = content_y + row as f32 * self.cell_height;
-                let y1 = y0 + self.cell_height;
+                let x0 = content_x + start_col as f32 * self.grid.cell_width;
+                let x1 = content_x + (start_col + run_length) as f32 * self.grid.cell_width;
+                let y0 = content_y + row as f32 * self.grid.cell_height;
+                let y1 = y0 + self.grid.cell_height;
 
-                if bg_index < self.max_bg_instances {
+                if bg_index < self.buffers.max_bg_instances {
                     self.bg_instances[bg_index] = BackgroundInstance {
                         position: [
                             x0 / self.config.width as f32 * 2.0 - 1.0,
@@ -1775,10 +1801,13 @@ impl CellRenderer {
             }
 
             // Text rendering
-            let natural_line_height = self.font_ascent + self.font_descent + self.font_leading;
-            let vertical_padding = (self.cell_height - natural_line_height).max(0.0) / 2.0;
-            let baseline_y =
-                content_y + (row as f32 * self.cell_height) + vertical_padding + self.font_ascent;
+            let natural_line_height =
+                self.font.font_ascent + self.font.font_descent + self.font.font_leading;
+            let vertical_padding = (self.grid.cell_height - natural_line_height).max(0.0) / 2.0;
+            let baseline_y = content_y
+                + (row as f32 * self.grid.cell_height)
+                + vertical_padding
+                + self.font.font_ascent;
 
             // Compute text alpha - force opaque if keep_text_opaque is enabled
             let text_alpha = if self.keep_text_opaque {
@@ -1803,21 +1832,21 @@ impl CellRenderer {
                 let char_type = block_chars::classify_char(ch);
                 if chars.len() == 1 && block_chars::should_render_geometrically(char_type) {
                     let char_w = if cell.wide_char {
-                        self.cell_width * 2.0
+                        self.grid.cell_width * 2.0
                     } else {
-                        self.cell_width
+                        self.grid.cell_width
                     };
-                    let x0 = content_x + col_idx as f32 * self.cell_width;
-                    let y0 = content_y + row as f32 * self.cell_height;
+                    let x0 = content_x + col_idx as f32 * self.grid.cell_width;
+                    let y0 = content_y + row as f32 * self.grid.cell_height;
 
                     let fg_color = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
 
                     // Try box drawing geometry first
-                    let aspect_ratio = self.cell_height / char_w;
+                    let aspect_ratio = self.grid.cell_height / char_w;
                     if let Some(box_geo) = block_chars::get_box_drawing_geometry(ch, aspect_ratio) {
                         for segment in &box_geo.segments {
                             let rect = segment
-                                .to_pixel_rect(x0, y0, char_w, self.cell_height)
+                                .to_pixel_rect(x0, y0, char_w, self.grid.cell_height)
                                 .snap_to_pixels();
 
                             // Extension for seamless lines
@@ -1840,7 +1869,7 @@ impl CellRenderer {
                             let final_w = rect.width + ext_x + ext_w;
                             let final_h = rect.height + ext_y + ext_h;
 
-                            if text_index < self.max_text_instances {
+                            if text_index < self.buffers.max_text_instances {
                                 self.text_instances[text_index] = TextInstance {
                                     position: [
                                         final_x / self.config.width as f32 * 2.0 - 1.0,
@@ -1851,8 +1880,8 @@ impl CellRenderer {
                                         final_h / self.config.height as f32 * 2.0,
                                     ],
                                     tex_offset: [
-                                        self.solid_pixel_offset.0 as f32 / 2048.0,
-                                        self.solid_pixel_offset.1 as f32 / 2048.0,
+                                        self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
+                                        self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
                                     ],
                                     tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
                                     color: fg_color,
@@ -1866,7 +1895,7 @@ impl CellRenderer {
 
                     // Try block element geometry
                     if let Some(geo_block) = block_chars::get_geometric_block(ch) {
-                        let rect = geo_block.to_pixel_rect(x0, y0, char_w, self.cell_height);
+                        let rect = geo_block.to_pixel_rect(x0, y0, char_w, self.grid.cell_height);
 
                         // Extension for seamless blocks
                         let extension = 1.0;
@@ -1888,7 +1917,7 @@ impl CellRenderer {
                         let final_w = rect.width + ext_x + ext_w;
                         let final_h = rect.height + ext_y + ext_h;
 
-                        if text_index < self.max_text_instances {
+                        if text_index < self.buffers.max_text_instances {
                             self.text_instances[text_index] = TextInstance {
                                 position: [
                                     final_x / self.config.width as f32 * 2.0 - 1.0,
@@ -1899,8 +1928,8 @@ impl CellRenderer {
                                     final_h / self.config.height as f32 * 2.0,
                                 ],
                                 tex_offset: [
-                                    self.solid_pixel_offset.0 as f32 / 2048.0,
-                                    self.solid_pixel_offset.1 as f32 / 2048.0,
+                                    self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
+                                    self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
                                 ],
                                 tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
                                 color: fg_color,
@@ -1941,15 +1970,17 @@ impl CellRenderer {
                     match glyph_result {
                         Some((font_idx, glyph_id)) => {
                             let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
-                            if self.glyph_cache.contains_key(&cache_key) {
+                            if self.atlas.glyph_cache.contains_key(&cache_key) {
                                 self.lru_remove(cache_key);
                                 self.lru_push_front(cache_key);
-                                break Some(self.glyph_cache.get(&cache_key).unwrap().clone());
+                                break Some(
+                                    self.atlas.glyph_cache.get(&cache_key).unwrap().clone(),
+                                );
                             } else if let Some(raster) =
                                 self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
                             {
                                 let info = self.upload_glyph(cache_key, &raster);
-                                self.glyph_cache.insert(cache_key, info.clone());
+                                self.atlas.glyph_cache.insert(cache_key, info.clone());
                                 self.lru_push_front(cache_key);
                                 break Some(info);
                             } else {
@@ -1982,7 +2013,7 @@ impl CellRenderer {
                                     self.rasterize_glyph(font_idx, glyph_id, false)
                                 {
                                     let info = self.upload_glyph(cache_key, &raster);
-                                    self.glyph_cache.insert(cache_key, info.clone());
+                                    self.atlas.glyph_cache.insert(cache_key, info.clone());
                                     self.lru_push_front(cache_key);
                                     break Some(info);
                                 } else {
@@ -2004,21 +2035,22 @@ impl CellRenderer {
 
                 if let Some(info) = resolved_info {
                     let char_w = if cell.wide_char {
-                        self.cell_width * 2.0
+                        self.grid.cell_width * 2.0
                     } else {
-                        self.cell_width
+                        self.grid.cell_width
                     };
-                    let x0 = content_x + col_idx as f32 * self.cell_width;
-                    let y0 = content_y + row as f32 * self.cell_height;
+                    let x0 = content_x + col_idx as f32 * self.grid.cell_width;
+                    let y0 = content_y + row as f32 * self.grid.cell_height;
                     let x1 = x0 + char_w;
-                    let y1 = y0 + self.cell_height;
+                    let y1 = y0 + self.grid.cell_height;
 
                     let cell_w = x1 - x0;
                     let cell_h = y1 - y0;
                     let scale_x = cell_w / char_w;
-                    let scale_y = cell_h / self.cell_height;
+                    let scale_y = cell_h / self.grid.cell_height;
 
-                    let baseline_offset = baseline_y - (content_y + row as f32 * self.cell_height);
+                    let baseline_offset =
+                        baseline_y - (content_y + row as f32 * self.grid.cell_height);
                     let glyph_left = x0 + (info.bearing_x * scale_x).round();
                     let baseline_in_cell = (baseline_offset * scale_y).round();
                     let glyph_top = y0 + baseline_in_cell - info.bearing_y;
@@ -2037,7 +2069,7 @@ impl CellRenderer {
 
                     let fg_color = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
 
-                    if text_index < self.max_text_instances {
+                    if text_index < self.buffers.max_text_instances {
                         self.text_instances[text_index] = TextInstance {
                             position: [
                                 final_left / self.config.width as f32 * 2.0 - 1.0,
@@ -2059,21 +2091,21 @@ impl CellRenderer {
         }
 
         // Inject command separator line instances for split panes
-        if self.command_separator_enabled && !separator_marks.is_empty() {
+        if self.separator.enabled && !separator_marks.is_empty() {
             let width_f = self.config.width as f32;
             let height_f = self.config.height as f32;
             let opacity_multiplier = viewport.opacity;
             for &(screen_row, exit_code, custom_color) in separator_marks {
-                if screen_row < rows && bg_index < self.max_bg_instances {
+                if screen_row < rows && bg_index < self.buffers.max_bg_instances {
                     let x0 = content_x;
-                    let x1 = content_x + cols as f32 * self.cell_width;
-                    let y0 = content_y + screen_row as f32 * self.cell_height;
+                    let x1 = content_x + cols as f32 * self.grid.cell_width;
+                    let y0 = content_y + screen_row as f32 * self.grid.cell_height;
                     let color = self.separator_color(exit_code, custom_color, opacity_multiplier);
                     self.bg_instances[bg_index] = BackgroundInstance {
                         position: [x0 / width_f * 2.0 - 1.0, 1.0 - (y0 / height_f * 2.0)],
                         size: [
                             (x1 - x0) / width_f * 2.0,
-                            self.command_separator_thickness / height_f * 2.0,
+                            self.separator.thickness / height_f * 2.0,
                         ],
                         color,
                     };
@@ -2085,12 +2117,12 @@ impl CellRenderer {
 
         // Upload instance buffers to GPU
         self.queue.write_buffer(
-            &self.bg_instance_buffer,
+            &self.buffers.bg_instance_buffer,
             0,
             bytemuck::cast_slice(&self.bg_instances),
         );
         self.queue.write_buffer(
-            &self.text_instance_buffer,
+            &self.buffers.text_instance_buffer,
             0,
             bytemuck::cast_slice(&self.text_instances),
         );

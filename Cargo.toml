@@ -94,7 +94,7 @@ tokio = { version = "1.49", features = ["full"] }
 # Configuration
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-serde_yaml = "0.9"
+serde_yml = "0.0.12"
 toml = "1.0"
 
 # UUID for profile identifiers
@@ -116,6 +116,7 @@ arboard = "3.6.1"
 # URL detection and opening
 regex = "1.12.3"
 open = "5.3.3"  # Cross-platform URL opener
+shell-words = "1.1"  # Safe shell command parsing (prevents argument injection)
 
 # Audio playback for bell sound
 rodio = "0.22.1"

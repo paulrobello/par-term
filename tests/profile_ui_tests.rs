@@ -881,8 +881,8 @@ fn test_profile_serialization_minimal() {
     // Profile with only required fields
     let profile = Profile::new("Minimal");
 
-    let yaml = serde_yaml::to_string(&profile).unwrap();
-    let deserialized: Profile = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&profile).unwrap();
+    let deserialized: Profile = serde_yml::from_str(&yaml).unwrap();
 
     assert_eq!(deserialized.name, "Minimal");
     assert!(deserialized.working_directory.is_none());
@@ -904,8 +904,8 @@ fn test_profile_serialization_with_special_characters() {
         .working_directory("/home/user/my projects")
         .icon("🔐");
 
-    let yaml = serde_yaml::to_string(&profile).unwrap();
-    let deserialized: Profile = serde_yaml::from_str(&yaml).unwrap();
+    let yaml = serde_yml::to_string(&profile).unwrap();
+    let deserialized: Profile = serde_yml::from_str(&yaml).unwrap();
 
     assert_eq!(deserialized.name, "SSH: user@server");
     assert_eq!(deserialized.command.as_deref(), Some("ssh"));
@@ -921,7 +921,7 @@ fn test_profile_serialization_with_special_characters() {
 fn test_profile_serialization_empty_args_not_serialized() {
     let profile = Profile::new("No Args");
 
-    let yaml = serde_yaml::to_string(&profile).unwrap();
+    let yaml = serde_yml::to_string(&profile).unwrap();
 
     // Empty optional fields should not appear in YAML
     assert!(!yaml.contains("command_args"));

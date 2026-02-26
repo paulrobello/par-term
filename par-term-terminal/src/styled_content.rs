@@ -2,7 +2,6 @@ use par_term_emu_core_rust::grid::Grid;
 
 /// A segment of text with consistent styling
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct StyledSegment {
     pub text: String,
     pub fg_color: (u8, u8, u8),
@@ -15,7 +14,6 @@ pub struct StyledSegment {
 }
 
 /// Extract styled segments from a terminal grid
-#[allow(dead_code)]
 pub fn extract_styled_segments(grid: &Grid) -> Vec<StyledSegment> {
     let mut segments = Vec::new();
     let rows = grid.rows();
@@ -100,7 +98,6 @@ pub fn extract_styled_segments(grid: &Grid) -> Vec<StyledSegment> {
 }
 
 /// Convert styled segments to plain text (for simple rendering)
-#[allow(dead_code)]
 pub fn segments_to_plain_text(segments: &[StyledSegment]) -> String {
     let mut result = String::new();
     let mut current_line = 0;

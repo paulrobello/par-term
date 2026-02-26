@@ -25,7 +25,7 @@ pub struct RenderCache {
 struct CacheEntry {
     rendered: RenderedContent,
     /// Stored for future diagnostics (e.g., cache inspection in settings UI).
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Retained for future cache diagnostics UI
     format_id: String,
 }
 

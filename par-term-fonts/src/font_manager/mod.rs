@@ -51,7 +51,7 @@ pub struct FontManager {
     fallbacks: Vec<FontData>,
 
     /// Font database for system font queries
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Retained for future runtime font queries
     font_db: Database,
 
     /// Text shaper for ligatures and complex scripts
@@ -386,7 +386,6 @@ impl FontManager {
     }
 
     /// Find the font index for a character in range fonts.
-    #[allow(dead_code)]
     pub fn find_range_font_index(&self, char_code: u32) -> Option<(usize, u16)> {
         for range_font in &self.range_fonts {
             if char_code >= range_font.start && char_code <= range_font.end {
@@ -424,7 +423,6 @@ impl FontManager {
     }
 
     /// Get the primary font reference.
-    #[allow(dead_code)]
     pub fn primary_font(&self) -> &FontRef<'static> {
         &self.primary.font_ref
     }
@@ -439,7 +437,6 @@ impl FontManager {
     }
 
     /// Get raw font data bytes for a font index.
-    #[allow(dead_code)]
     pub fn get_font_data(&self, font_index: usize) -> Option<&[u8]> {
         match font_index {
             0 => Some(self.primary.data.as_slice()),
@@ -499,7 +496,6 @@ impl FontManager {
     /// Shape text using the appropriate font.
     ///
     /// Uses HarfBuzz (via rustybuzz) for ligatures, kerning, and complex script support.
-    #[allow(dead_code)]
     pub fn shape_text(
         &mut self,
         text: &str,
@@ -514,7 +510,6 @@ impl FontManager {
     }
 
     /// Shape text using a specific font index.
-    #[allow(dead_code)]
     pub fn shape_text_with_font_index(
         &mut self,
         text: &str,
@@ -527,13 +522,11 @@ impl FontManager {
     }
 
     /// Clear the text shaping cache.
-    #[allow(dead_code)]
     pub fn clear_shape_cache(&mut self) {
         self.text_shaper.clear_cache();
     }
 
     /// Get the current size of the shape cache.
-    #[allow(dead_code)]
     pub fn shape_cache_size(&self) -> usize {
         self.text_shaper.cache_size()
     }

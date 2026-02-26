@@ -619,7 +619,6 @@ impl WindowState {
     }
 
     /// Get the active tab's terminal
-    #[allow(dead_code)]
     pub fn active_terminal(
         &self,
     ) -> Option<&Arc<tokio::sync::Mutex<crate::terminal::TerminalManager>>> {

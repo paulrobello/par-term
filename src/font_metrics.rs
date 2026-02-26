@@ -18,19 +18,14 @@ pub struct FontMetrics {
     /// Height of a single cell in pixels
     pub cell_height: f32,
     /// Font ascent (distance from baseline to top)
-    #[allow(dead_code)]
     pub ascent: f32,
     /// Font descent (distance from baseline to bottom, typically negative)
-    #[allow(dead_code)]
     pub descent: f32,
     /// Font leading (extra line spacing)
-    #[allow(dead_code)]
     pub leading: f32,
     /// Character advance width
-    #[allow(dead_code)]
     pub char_advance: f32,
     /// Font size in pixels (after DPI scaling)
-    #[allow(dead_code)]
     pub font_size_pixels: f32,
 }
 

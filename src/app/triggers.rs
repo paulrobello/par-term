@@ -3,12 +3,31 @@
 //! This module handles polling trigger action results from the core library
 //! and executing frontend-handled actions: RunCommand, PlaySound, SendText,
 //! and Prettify (relayed through Notify with magic prefix).
+//!
+//! ## Security
+//!
+//! Triggers fire on terminal output pattern matches, which means an attacker
+//! controlling terminal output (e.g., `cat malicious_file`) could trigger
+//! arbitrary command execution. To mitigate this:
+//!
+//! 1. **`require_user_action` flag** (default: `true`): When set, dangerous
+//!    actions (`RunCommand`, `SendText`) are suppressed since all trigger
+//!    matches come from passive terminal output. Users must opt-in to
+//!    output-triggered dangerous actions by setting this to `false`.
+//!
+//! 2. **Command denylist**: Even when `require_user_action` is `false`,
+//!    `RunCommand` actions are checked against a denylist of dangerous
+//!    patterns (rm -rf, curl|bash, eval, etc.).
+//!
+//! 3. **Rate limiting**: Dangerous actions from output triggers are rate-limited
+//!    to prevent malicious output flooding from rapid-fire execution.
 
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+use par_term_config::check_command_denylist;
 use par_term_emu_core_rust::terminal::ActionResult;
 
 use crate::config::automation::{PRETTIFY_RELAY_PREFIX, PrettifyRelayPayload, PrettifyScope};
@@ -27,6 +46,34 @@ fn expand_tilde(path: &str) -> String {
     path.to_string()
 }
 
+/// Check if a dangerous action from a trigger should be suppressed.
+///
+/// Returns `true` if the action should be blocked, `false` if it should proceed.
+/// This checks the `require_user_action` flag for the trigger. Since all trigger
+/// matches come from passive terminal output, `require_user_action: true` means
+/// the action is always suppressed.
+fn should_suppress_dangerous_action(
+    trigger_id: u64,
+    action_name: &str,
+    trigger_security: &HashMap<u64, bool>,
+) -> bool {
+    // Look up the require_user_action flag for this trigger.
+    // Default to true (suppress) for unknown trigger IDs (safe default).
+    let require_user_action = trigger_security.get(&trigger_id).copied().unwrap_or(true);
+
+    if require_user_action {
+        log::warn!(
+            "Trigger {} {} BLOCKED: require_user_action=true (output-triggered dangerous actions \
+             are suppressed by default; set require_user_action: false in trigger config to allow)",
+            trigger_id,
+            action_name,
+        );
+        return true;
+    }
+
+    false
+}
+
 /// (grid_row, label, color) tuple for a pending MarkLine action.
 type MarkLineEntry = (usize, Option<String>, Option<(u8, u8, u8)>);
 
@@ -35,6 +82,11 @@ impl WindowState {
     ///
     /// Called each frame after check_bell(). Polls the core library for
     /// ActionResult events and executes the appropriate frontend action.
+    ///
+    /// Security restrictions are enforced for dangerous actions:
+    /// - `require_user_action` flag blocks RunCommand/SendText from output triggers
+    /// - Command denylist blocks obviously dangerous RunCommand patterns
+    /// - Rate limiting prevents rapid-fire dangerous action execution
     pub(crate) fn check_trigger_actions(&mut self) {
         let tab = if let Some(t) = self.tab_manager.active_tab() {
             t
@@ -83,6 +135,14 @@ impl WindowState {
             return;
         }
 
+        // Snapshot the trigger security map from the active tab for checking
+        // require_user_action. We clone the reference to avoid borrow issues.
+        let trigger_security = if let Some(t) = self.tab_manager.active_tab() {
+            t.trigger_security.clone()
+        } else {
+            return;
+        };
+
         // Collect MarkLine events for batch deduplication (processed after the loop).
         // Between frames, the core may fire the same trigger multiple times for the
         // same physical line (once per PTY read). Each scan records a different grid
@@ -103,6 +163,36 @@ impl WindowState {
                 } => {
                     let command = expand_tilde(&command);
                     let args: Vec<String> = args.iter().map(|a| expand_tilde(a)).collect();
+
+                    // Security check 1: require_user_action flag
+                    if should_suppress_dangerous_action(trigger_id, "RunCommand", &trigger_security)
+                    {
+                        continue;
+                    }
+
+                    // Security check 2: rate limiting
+                    if let Some(tab) = self.tab_manager.active_tab_mut()
+                        && !tab.trigger_rate_limiter.check_and_update(trigger_id)
+                    {
+                        log::warn!(
+                            "Trigger {} RunCommand RATE-LIMITED: '{}' (too frequent)",
+                            trigger_id,
+                            command,
+                        );
+                        continue;
+                    }
+
+                    // Security check 3: command denylist
+                    if let Some(denied_pattern) = check_command_denylist(&command, &args) {
+                        log::error!(
+                            "Trigger {} RunCommand DENIED: '{}' matches denylist pattern '{}'",
+                            trigger_id,
+                            command,
+                            denied_pattern,
+                        );
+                        continue;
+                    }
+
                     log::info!(
                         "Trigger {} firing RunCommand: {} {:?}",
                         trigger_id,
@@ -143,6 +233,23 @@ impl WindowState {
                     text,
                     delay_ms,
                 } => {
+                    // Security check 1: require_user_action flag
+                    if should_suppress_dangerous_action(trigger_id, "SendText", &trigger_security) {
+                        continue;
+                    }
+
+                    // Security check 2: rate limiting
+                    if let Some(tab) = self.tab_manager.active_tab_mut()
+                        && !tab.trigger_rate_limiter.check_and_update(trigger_id)
+                    {
+                        log::warn!(
+                            "Trigger {} SendText RATE-LIMITED: '{}' (too frequent)",
+                            trigger_id,
+                            text,
+                        );
+                        continue;
+                    }
+
                     log::info!(
                         "Trigger {} firing SendText: '{}' (delay={}ms)",
                         trigger_id,
@@ -212,6 +319,11 @@ impl WindowState {
                         .push((row, label, color));
                 }
             }
+        }
+
+        // Periodically clean up stale rate limiter entries (every ~60 seconds of entries)
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.trigger_rate_limiter.cleanup(60);
         }
 
         // Process collected MarkLine events with deduplication.

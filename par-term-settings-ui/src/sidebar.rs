@@ -873,6 +873,13 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "prettifier",
             "scope",
             "command output",
+            // Trigger security
+            "require user action",
+            "security",
+            "denylist",
+            "rate limit",
+            "dangerous",
+            "safe",
             // Coprocess extras
             "restart",
             "restart policy",
@@ -1113,6 +1120,11 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "log directory",
             "archive",
             "archive on close",
+            "redact",
+            "redact passwords",
+            "password",
+            "sensitive",
+            "credentials",
             // Screenshots
             "screenshot",
             "screenshot format",
@@ -1168,6 +1180,13 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "backup",
             "config",
             "url import",
+            // Security
+            "security",
+            "environment",
+            "env var",
+            "allowlist",
+            "allow all env",
+            "variable substitution",
         ],
     }
 }

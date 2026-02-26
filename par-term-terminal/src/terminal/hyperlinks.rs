@@ -11,7 +11,6 @@ impl TerminalManager {
     }
 
     /// Get the URL for a specific hyperlink ID
-    #[allow(dead_code)]
     pub fn get_hyperlink_url(&self, hyperlink_id: u32) -> Option<String> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();

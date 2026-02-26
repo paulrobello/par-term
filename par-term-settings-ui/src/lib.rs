@@ -463,6 +463,8 @@ pub struct SettingsUI {
     pub temp_trigger_pattern: String,
     /// Temporary trigger actions for edit form
     pub temp_trigger_actions: Vec<par_term_config::automation::TriggerActionConfig>,
+    /// Temporary require_user_action flag for trigger edit form
+    pub temp_trigger_require_user_action: bool,
     /// Whether the add-new-trigger form is active
     pub adding_new_trigger: bool,
     /// Regex validation error for trigger pattern
@@ -796,6 +798,7 @@ impl SettingsUI {
             temp_trigger_name: String::new(),
             temp_trigger_pattern: String::new(),
             temp_trigger_actions: Vec::new(),
+            temp_trigger_require_user_action: true,
             adding_new_trigger: false,
             trigger_pattern_error: None,
             editing_coprocess_index: None,
@@ -915,7 +918,6 @@ impl SettingsUI {
     }
 
     /// Set vsync warning message
-    #[allow(dead_code)]
     pub fn set_vsync_warning(&mut self, warning: Option<String>) {
         self.vsync_warning = warning;
     }
@@ -1222,7 +1224,6 @@ impl SettingsUI {
     }
 
     /// Toggle settings window visibility
-    #[allow(dead_code)]
     pub fn toggle(&mut self) {
         self.visible = !self.visible;
         if self.visible {
@@ -1231,7 +1232,6 @@ impl SettingsUI {
     }
 
     /// Get a reference to the working config (for live sync)
-    #[allow(dead_code)]
     pub fn current_config(&self) -> &Config {
         &self.config
     }
@@ -1274,7 +1274,6 @@ impl SettingsUI {
     }
 
     /// Show the settings window and return results
-    #[allow(dead_code)]
     pub fn show(
         &mut self,
         ctx: &Context,

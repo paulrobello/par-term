@@ -17,6 +17,29 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
+/// Context for divider ratio update operations.
+/// Groups the immutable parameters passed through recursive calls in `update_divider_ratio`.
+#[derive(Clone, Copy)]
+struct DividerUpdateContext {
+    target_index: usize,
+    new_x: f32,
+    new_y: f32,
+    bounds: PaneBounds,
+    divider_width: f32,
+}
+
+/// Context for tmux layout rebuild operations.
+/// Groups the shared parameters passed through `rebuild_layout_node`,
+/// `rebuild_multi_split_to_binary`, and `rebuild_remaining_children`.
+struct TmuxLayoutRebuildContext<'a> {
+    existing_mappings: &'a HashMap<TmuxPaneId, PaneId>,
+    new_tmux_panes: &'a [TmuxPaneId],
+    existing_panes: &'a mut HashMap<PaneId, Pane>,
+    config: &'a Config,
+    runtime: Arc<Runtime>,
+    new_mappings: &'a mut HashMap<TmuxPaneId, PaneId>,
+}
+
 /// Manages the pane tree within a single tab
 pub struct PaneManager {
     /// Root of the pane tree (None if no panes yet)
@@ -780,36 +803,28 @@ impl PaneManager {
     pub fn drag_divider(&mut self, divider_index: usize, new_x: f32, new_y: f32) {
         // Get the divider info first
         let dividers = self.get_dividers();
-        if let Some(divider) = dividers.get(divider_index) {
+        if dividers.get(divider_index).is_some() {
             // Find the split node that owns this divider and update its ratio
             if let Some(ref mut root) = self.root {
                 let mut divider_count = 0;
-                Self::update_divider_ratio(
-                    root,
-                    divider_index,
-                    &mut divider_count,
-                    divider.is_horizontal,
+                let ctx = DividerUpdateContext {
+                    target_index: divider_index,
                     new_x,
                     new_y,
-                    self.total_bounds,
-                    self.divider_width,
-                );
+                    bounds: self.total_bounds,
+                    divider_width: self.divider_width,
+                };
+                Self::update_divider_ratio(root, &mut divider_count, &ctx);
                 self.recalculate_bounds();
             }
         }
     }
 
     /// Recursively find and update the split ratio for a divider
-    #[allow(clippy::only_used_in_recursion, clippy::too_many_arguments)]
     fn update_divider_ratio(
         node: &mut PaneNode,
-        target_index: usize,
         current_index: &mut usize,
-        is_horizontal: bool,
-        new_x: f32,
-        new_y: f32,
-        bounds: PaneBounds,
-        divider_width: f32,
+        ctx: &DividerUpdateContext,
     ) -> bool {
         match node {
             PaneNode::Leaf(_) => false,
@@ -820,16 +835,16 @@ impl PaneManager {
                 second,
             } => {
                 // Check if this is the target divider
-                if *current_index == target_index {
+                if *current_index == ctx.target_index {
                     // Calculate new ratio based on mouse position
                     let new_ratio = match direction {
                         SplitDirection::Horizontal => {
                             // Horizontal split: mouse Y position determines ratio
-                            ((new_y - bounds.y) / bounds.height).clamp(0.1, 0.9)
+                            ((ctx.new_y - ctx.bounds.y) / ctx.bounds.height).clamp(0.1, 0.9)
                         }
                         SplitDirection::Vertical => {
                             // Vertical split: mouse X position determines ratio
-                            ((new_x - bounds.x) / bounds.width).clamp(0.1, 0.9)
+                            ((ctx.new_x - ctx.bounds.x) / ctx.bounds.width).clamp(0.1, 0.9)
                         }
                     };
                     *ratio = new_ratio;
@@ -840,56 +855,56 @@ impl PaneManager {
                 // Calculate child bounds to recurse
                 let (first_bounds, second_bounds) = match direction {
                     SplitDirection::Horizontal => {
-                        let first_height = (bounds.height - divider_width) * *ratio;
-                        let second_height = bounds.height - first_height - divider_width;
+                        let first_height = (ctx.bounds.height - ctx.divider_width) * *ratio;
+                        let second_height = ctx.bounds.height - first_height - ctx.divider_width;
                         (
-                            PaneBounds::new(bounds.x, bounds.y, bounds.width, first_height),
                             PaneBounds::new(
-                                bounds.x,
-                                bounds.y + first_height + divider_width,
-                                bounds.width,
+                                ctx.bounds.x,
+                                ctx.bounds.y,
+                                ctx.bounds.width,
+                                first_height,
+                            ),
+                            PaneBounds::new(
+                                ctx.bounds.x,
+                                ctx.bounds.y + first_height + ctx.divider_width,
+                                ctx.bounds.width,
                                 second_height,
                             ),
                         )
                     }
                     SplitDirection::Vertical => {
-                        let first_width = (bounds.width - divider_width) * *ratio;
-                        let second_width = bounds.width - first_width - divider_width;
+                        let first_width = (ctx.bounds.width - ctx.divider_width) * *ratio;
+                        let second_width = ctx.bounds.width - first_width - ctx.divider_width;
                         (
-                            PaneBounds::new(bounds.x, bounds.y, first_width, bounds.height),
                             PaneBounds::new(
-                                bounds.x + first_width + divider_width,
-                                bounds.y,
+                                ctx.bounds.x,
+                                ctx.bounds.y,
+                                first_width,
+                                ctx.bounds.height,
+                            ),
+                            PaneBounds::new(
+                                ctx.bounds.x + first_width + ctx.divider_width,
+                                ctx.bounds.y,
                                 second_width,
-                                bounds.height,
+                                ctx.bounds.height,
                             ),
                         )
                     }
                 };
 
                 // Try children
-                if Self::update_divider_ratio(
-                    first,
-                    target_index,
-                    current_index,
-                    is_horizontal,
-                    new_x,
-                    new_y,
-                    first_bounds,
-                    divider_width,
-                ) {
+                let first_ctx = DividerUpdateContext {
+                    bounds: first_bounds,
+                    ..*ctx
+                };
+                if Self::update_divider_ratio(first, current_index, &first_ctx) {
                     return true;
                 }
-                Self::update_divider_ratio(
-                    second,
-                    target_index,
-                    current_index,
-                    is_horizontal,
-                    new_x,
-                    new_y,
-                    second_bounds,
-                    divider_width,
-                )
+                let second_ctx = DividerUpdateContext {
+                    bounds: second_bounds,
+                    ..*ctx
+                };
+                Self::update_divider_ratio(second, current_index, &second_ctx)
             }
         }
     }
@@ -1046,15 +1061,15 @@ impl PaneManager {
 
         // Build the new tree structure from the tmux layout
         let mut new_mappings = HashMap::new();
-        let new_root = self.rebuild_layout_node(
-            &layout.root,
+        let mut rebuild_ctx = TmuxLayoutRebuildContext {
             existing_mappings,
             new_tmux_panes,
-            &mut existing_panes,
+            existing_panes: &mut existing_panes,
             config,
-            runtime.clone(),
-            &mut new_mappings,
-        )?;
+            runtime: runtime.clone(),
+            new_mappings: &mut new_mappings,
+        };
+        let new_root = self.rebuild_layout_node(&layout.root, &mut rebuild_ctx)?;
 
         // Replace the root
         self.root = Some(new_root);
@@ -1099,40 +1114,34 @@ impl PaneManager {
     }
 
     /// Rebuild a layout node, reusing existing panes where possible
-    #[allow(clippy::too_many_arguments)]
     fn rebuild_layout_node(
         &mut self,
         node: &LayoutNode,
-        existing_mappings: &HashMap<TmuxPaneId, PaneId>,
-        new_tmux_panes: &[TmuxPaneId],
-        existing_panes: &mut HashMap<PaneId, Pane>,
-        config: &Config,
-        runtime: Arc<Runtime>,
-        new_mappings: &mut HashMap<TmuxPaneId, PaneId>,
+        ctx: &mut TmuxLayoutRebuildContext<'_>,
     ) -> Result<PaneNode> {
         match node {
             LayoutNode::Pane { id: tmux_id, .. } => {
                 // Check if this is an existing pane we can reuse
-                if let Some(&native_id) = existing_mappings.get(tmux_id)
-                    && let Some(pane) = existing_panes.remove(&native_id)
+                if let Some(&native_id) = ctx.existing_mappings.get(tmux_id)
+                    && let Some(pane) = ctx.existing_panes.remove(&native_id)
                 {
                     log::debug!(
                         "Reusing existing pane {} for tmux pane %{}",
                         native_id,
                         tmux_id
                     );
-                    new_mappings.insert(*tmux_id, native_id);
+                    ctx.new_mappings.insert(*tmux_id, native_id);
                     return Ok(PaneNode::leaf(pane));
                 }
 
                 // This is a new pane - create it
-                if new_tmux_panes.contains(tmux_id) {
+                if ctx.new_tmux_panes.contains(tmux_id) {
                     let native_id = self.next_pane_id;
                     self.next_pane_id += 1;
 
-                    let pane = Pane::new_for_tmux(native_id, config, runtime)?;
+                    let pane = Pane::new_for_tmux(native_id, ctx.config, ctx.runtime.clone())?;
                     log::debug!("Created new pane {} for tmux pane %{}", native_id, tmux_id);
-                    new_mappings.insert(*tmux_id, native_id);
+                    ctx.new_mappings.insert(*tmux_id, native_id);
                     return Ok(PaneNode::leaf(pane));
                 }
 
@@ -1140,8 +1149,8 @@ impl PaneManager {
                 log::warn!("Unexpected tmux pane %{} - creating new pane", tmux_id);
                 let native_id = self.next_pane_id;
                 self.next_pane_id += 1;
-                let pane = Pane::new_for_tmux(native_id, config, runtime)?;
-                new_mappings.insert(*tmux_id, native_id);
+                let pane = Pane::new_for_tmux(native_id, ctx.config, ctx.runtime.clone())?;
+                ctx.new_mappings.insert(*tmux_id, native_id);
                 Ok(PaneNode::leaf(pane))
             }
 
@@ -1149,17 +1158,7 @@ impl PaneManager {
                 width, children, ..
             } => {
                 // Vertical split = panes side by side
-                self.rebuild_multi_split_to_binary(
-                    children,
-                    SplitDirection::Vertical,
-                    *width,
-                    existing_mappings,
-                    new_tmux_panes,
-                    existing_panes,
-                    config,
-                    runtime,
-                    new_mappings,
-                )
+                self.rebuild_multi_split_to_binary(children, SplitDirection::Vertical, *width, ctx)
             }
 
             LayoutNode::HorizontalSplit {
@@ -1170,45 +1169,26 @@ impl PaneManager {
                     children,
                     SplitDirection::Horizontal,
                     *height,
-                    existing_mappings,
-                    new_tmux_panes,
-                    existing_panes,
-                    config,
-                    runtime,
-                    new_mappings,
+                    ctx,
                 )
             }
         }
     }
 
     /// Rebuild multi-child split to binary, reusing existing panes
-    #[allow(clippy::too_many_arguments)]
     fn rebuild_multi_split_to_binary(
         &mut self,
         children: &[LayoutNode],
         direction: SplitDirection,
         total_size: usize,
-        existing_mappings: &HashMap<TmuxPaneId, PaneId>,
-        new_tmux_panes: &[TmuxPaneId],
-        existing_panes: &mut HashMap<PaneId, Pane>,
-        config: &Config,
-        runtime: Arc<Runtime>,
-        new_mappings: &mut HashMap<TmuxPaneId, PaneId>,
+        ctx: &mut TmuxLayoutRebuildContext<'_>,
     ) -> Result<PaneNode> {
         if children.is_empty() {
             anyhow::bail!("Empty children list in tmux layout");
         }
 
         if children.len() == 1 {
-            return self.rebuild_layout_node(
-                &children[0],
-                existing_mappings,
-                new_tmux_panes,
-                existing_panes,
-                config,
-                runtime,
-                new_mappings,
-            );
+            return self.rebuild_layout_node(&children[0], ctx);
         }
 
         // Calculate the size of the first child for the ratio
@@ -1216,98 +1196,41 @@ impl PaneManager {
         let ratio = (first_size as f32) / (total_size as f32);
 
         // Rebuild the first child
-        let first = self.rebuild_layout_node(
-            &children[0],
-            existing_mappings,
-            new_tmux_panes,
-            existing_panes,
-            config,
-            runtime.clone(),
-            new_mappings,
-        )?;
+        let first = self.rebuild_layout_node(&children[0], ctx)?;
 
         // Calculate remaining size
         let remaining_size = total_size.saturating_sub(first_size + 1);
 
         // Rebuild the rest recursively
         let second = if children.len() == 2 {
-            self.rebuild_layout_node(
-                &children[1],
-                existing_mappings,
-                new_tmux_panes,
-                existing_panes,
-                config,
-                runtime,
-                new_mappings,
-            )?
+            self.rebuild_layout_node(&children[1], ctx)?
         } else {
-            self.rebuild_remaining_children(
-                &children[1..],
-                direction,
-                remaining_size,
-                existing_mappings,
-                new_tmux_panes,
-                existing_panes,
-                config,
-                runtime,
-                new_mappings,
-            )?
+            self.rebuild_remaining_children(&children[1..], direction, remaining_size, ctx)?
         };
 
         Ok(PaneNode::split(direction, ratio, first, second))
     }
 
     /// Rebuild remaining children into nested binary splits
-    #[allow(clippy::too_many_arguments)]
     fn rebuild_remaining_children(
         &mut self,
         children: &[LayoutNode],
         direction: SplitDirection,
         total_size: usize,
-        existing_mappings: &HashMap<TmuxPaneId, PaneId>,
-        new_tmux_panes: &[TmuxPaneId],
-        existing_panes: &mut HashMap<PaneId, Pane>,
-        config: &Config,
-        runtime: Arc<Runtime>,
-        new_mappings: &mut HashMap<TmuxPaneId, PaneId>,
+        ctx: &mut TmuxLayoutRebuildContext<'_>,
     ) -> Result<PaneNode> {
         if children.len() == 1 {
-            return self.rebuild_layout_node(
-                &children[0],
-                existing_mappings,
-                new_tmux_panes,
-                existing_panes,
-                config,
-                runtime,
-                new_mappings,
-            );
+            return self.rebuild_layout_node(&children[0], ctx);
         }
 
         let first_size = Self::get_node_size(&children[0], direction);
         let ratio = (first_size as f32) / (total_size as f32);
 
-        let first = self.rebuild_layout_node(
-            &children[0],
-            existing_mappings,
-            new_tmux_panes,
-            existing_panes,
-            config,
-            runtime.clone(),
-            new_mappings,
-        )?;
+        let first = self.rebuild_layout_node(&children[0], ctx)?;
 
         let remaining_size = total_size.saturating_sub(first_size + 1);
-        let second = self.rebuild_remaining_children(
-            &children[1..],
-            direction,
-            remaining_size,
-            existing_mappings,
-            new_tmux_panes,
-            existing_panes,
-            config,
-            runtime,
-            new_mappings,
-        )?;
+        let second =
+            self.rebuild_remaining_children(&children[1..], direction, remaining_size, ctx)?;
 
         Ok(PaneNode::split(direction, ratio, first, second))
     }

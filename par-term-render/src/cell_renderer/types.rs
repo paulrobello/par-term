@@ -33,15 +33,13 @@ pub use par_term_config::Cell;
 /// Glyph info for atlas
 #[derive(Clone, Debug)]
 pub(crate) struct GlyphInfo {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Stored for LRU node identity (maps back to HashMap key)
     pub key: u64,
     pub x: u32,
     pub y: u32,
     pub width: u32,
     pub height: u32,
-    #[allow(dead_code)]
     pub bearing_x: f32,
-    #[allow(dead_code)]
     pub bearing_y: f32,
     pub is_colored: bool,
     pub prev: Option<u64>,

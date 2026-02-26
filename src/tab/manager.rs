@@ -407,19 +407,16 @@ impl TabManager {
     }
 
     /// Get a tab by ID
-    #[allow(dead_code)]
     pub fn get_tab(&self, id: TabId) -> Option<&Tab> {
         self.tabs.iter().find(|t| t.id == id)
     }
 
     /// Get a mutable reference to a tab by ID
-    #[allow(dead_code)]
     pub fn get_tab_mut(&mut self, id: TabId) -> Option<&mut Tab> {
         self.tabs.iter_mut().find(|t| t.id == id)
     }
 
     /// Mark non-active tabs as having activity when they receive output
-    #[allow(dead_code)]
     pub fn mark_activity(&mut self, tab_id: TabId) {
         if Some(tab_id) != self.active_tab_id
             && let Some(tab) = self.get_tab_mut(tab_id)
@@ -501,14 +498,12 @@ impl TabManager {
     }
 
     /// Get index of active tab (0-based)
-    #[allow(dead_code)]
     pub fn active_tab_index(&self) -> Option<usize> {
         self.active_tab_id
             .and_then(|id| self.tabs.iter().position(|t| t.id == id))
     }
 
     /// Clean up closed/dead tabs
-    #[allow(dead_code)]
     pub fn cleanup_dead_tabs(&mut self) {
         let dead_tabs: Vec<TabId> = self
             .tabs

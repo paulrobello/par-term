@@ -61,7 +61,7 @@ pub fn read_cache(url: &str) -> anyhow::Result<(Vec<par_term_config::Profile>, C
         .with_context(|| format!("Failed to read cache meta from {meta_path:?}"))?;
 
     let profiles: Vec<par_term_config::Profile> =
-        serde_yaml::from_str(&data).with_context(|| "Failed to parse cached profiles")?;
+        serde_yml::from_str(&data).with_context(|| "Failed to parse cached profiles")?;
     let meta: CacheMeta =
         serde_json::from_str(&meta_str).with_context(|| "Failed to parse cache metadata")?;
 
@@ -82,8 +82,8 @@ pub fn write_cache(
     let data_path = dir.join(format!("{hash}.yaml"));
     let meta_path = dir.join(format!("{hash}.meta"));
 
-    let data = serde_yaml::to_string(profiles)
-        .with_context(|| "Failed to serialize profiles for cache")?;
+    let data =
+        serde_yml::to_string(profiles).with_context(|| "Failed to serialize profiles for cache")?;
     std::fs::write(&data_path, data)
         .with_context(|| format!("Failed to write cache data to {data_path:?}"))?;
 
@@ -217,7 +217,7 @@ fn fetch_profiles_inner(
         .read_to_string()
         .with_context(|| format!("Failed to read response body from {}", source.url))?;
 
-    let profiles: Vec<par_term_config::Profile> = serde_yaml::from_str(&body)
+    let profiles: Vec<par_term_config::Profile> = serde_yml::from_str(&body)
         .with_context(|| format!("Failed to parse YAML from {}", source.url))?;
 
     Ok((profiles, etag))
@@ -587,8 +587,8 @@ mod tests {
             conflict_resolution: ConflictResolution::RemoteWins,
         };
 
-        let yaml = serde_yaml::to_string(&source).expect("serialize");
-        let deserialized: DynamicProfileSource = serde_yaml::from_str(&yaml).expect("deserialize");
+        let yaml = serde_yml::to_string(&source).expect("serialize");
+        let deserialized: DynamicProfileSource = serde_yml::from_str(&yaml).expect("deserialize");
 
         assert_eq!(deserialized.url, source.url);
         assert_eq!(deserialized.headers, source.headers);
@@ -605,7 +605,7 @@ mod tests {
     #[test]
     fn test_deserialize_minimal_yaml() {
         let yaml = "url: https://example.com/profiles.yaml\n";
-        let source: DynamicProfileSource = serde_yaml::from_str(yaml).expect("deserialize minimal");
+        let source: DynamicProfileSource = serde_yml::from_str(yaml).expect("deserialize minimal");
 
         assert_eq!(source.url, "https://example.com/profiles.yaml");
         assert!(source.headers.is_empty());
@@ -661,7 +661,7 @@ mod tests {
         let meta_path = temp.path().join(format!("{hash}.meta"));
 
         // Write
-        let data = serde_yaml::to_string(&profiles).unwrap();
+        let data = serde_yml::to_string(&profiles).unwrap();
         std::fs::write(&data_path, &data).unwrap();
         let meta = super::CacheMeta {
             url: url.to_string(),
@@ -673,7 +673,7 @@ mod tests {
 
         // Read back
         let read_profiles: Vec<par_term_config::Profile> =
-            serde_yaml::from_str(&std::fs::read_to_string(&data_path).unwrap()).unwrap();
+            serde_yml::from_str(&std::fs::read_to_string(&data_path).unwrap()).unwrap();
         assert_eq!(read_profiles.len(), 2);
         assert_eq!(read_profiles[0].name, "Remote Profile 1");
 

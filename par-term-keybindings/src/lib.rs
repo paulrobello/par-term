@@ -113,13 +113,11 @@ impl KeybindingRegistry {
     }
 
     /// Check if the registry has any bindings.
-    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.bindings.is_empty()
     }
 
     /// Get the number of registered bindings.
-    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.bindings.len()
     }
