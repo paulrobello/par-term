@@ -188,16 +188,7 @@ impl WindowState {
         let _ = egui_needs_repaint; // Used above, silence unused warning
 
         // Debug: Log when egui consumes events but we ignore it
-        // Note: Settings are handled by standalone SettingsWindow, not embedded UI
-        // Note: Profile drawer does NOT block input - only modal dialogs do
-        let any_ui_visible = self.help_ui.visible
-            || self.clipboard_history_ui.visible
-            || self.command_history_ui.visible
-            || self.shader_install_ui.visible
-            || self.integrations_ui.visible
-            || self.remote_shell_install_ui.is_visible()
-            || self.quit_confirmation_ui.is_visible()
-            || self.ssh_connect_ui.is_visible();
+        let any_ui_visible = self.any_modal_ui_visible();
         if egui_consumed
             && !any_ui_visible
             && let WindowEvent::KeyboardInput {
@@ -964,17 +955,8 @@ impl WindowState {
                     })
                     .unwrap_or(false);
 
-                // Bypass for UI interactions
-                let any_ui_visible = self.help_ui.visible
-                    || self.clipboard_history_ui.visible
-                    || self.command_history_ui.visible
-                    || self.search_ui.visible
-                    || self.shader_install_ui.visible
-                    || self.integrations_ui.visible
-                    || self.remote_shell_install_ui.is_visible()
-                    || self.quit_confirmation_ui.is_visible()
-                    || self.ssh_connect_ui.is_visible()
-                    || self.resize_overlay_visible;
+                // Bypass for UI interactions (modals + resize overlay)
+                let any_ui_visible = self.any_modal_ui_visible() || self.resize_overlay_visible;
 
                 // Delay unless bypass conditions met
                 !delay_expired && !any_ui_visible

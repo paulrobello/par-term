@@ -6,7 +6,7 @@
 //! for display. Each `PrettifiedBlock` wraps a `DualViewBuffer` for efficient
 //! source/rendered toggling and copy operations.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::ops::Range;
 
 use super::boundary::{BoundaryConfig, BoundaryDetector, DetectionScope};
@@ -91,7 +91,7 @@ pub struct PrettifierPipeline {
     /// Registry of detectors and renderers.
     registry: RendererRegistry,
     /// Blocks that have been detected and (optionally) rendered.
-    active_blocks: Vec<PrettifiedBlock>,
+    active_blocks: VecDeque<PrettifiedBlock>,
     /// Base enabled state from config.
     enabled: bool,
     /// Per-session override for enabled state (from toggle).
@@ -142,7 +142,7 @@ impl PrettifierPipeline {
         Self {
             boundary_detector: BoundaryDetector::new(boundary_config),
             registry,
-            active_blocks: Vec::new(),
+            active_blocks: VecDeque::new(),
             enabled: config.enabled,
             session_override: None,
             next_block_id: 0,
@@ -256,7 +256,7 @@ impl PrettifierPipeline {
         let block_id = self.next_block_id;
         self.next_block_id += 1;
 
-        self.active_blocks.push(PrettifiedBlock {
+        self.active_blocks.push_back(PrettifiedBlock {
             buffer,
             detection,
             block_id,
@@ -280,7 +280,7 @@ impl PrettifierPipeline {
     }
 
     /// Get the list of active prettified blocks.
-    pub fn active_blocks(&self) -> &[PrettifiedBlock] {
+    pub fn active_blocks(&self) -> &VecDeque<PrettifiedBlock> {
         &self.active_blocks
     }
 
@@ -376,7 +376,7 @@ impl PrettifierPipeline {
             let block_id = self.next_block_id;
             self.next_block_id += 1;
 
-            self.active_blocks.push(PrettifiedBlock {
+            self.active_blocks.push_back(PrettifiedBlock {
                 buffer,
                 detection,
                 block_id,
@@ -487,7 +487,7 @@ impl PrettifierPipeline {
                 has_rendered
             );
 
-            self.active_blocks.push(PrettifiedBlock {
+            self.active_blocks.push_back(PrettifiedBlock {
                 buffer,
                 detection,
                 block_id,
@@ -504,11 +504,11 @@ impl PrettifierPipeline {
     /// that reference rows below the oldest remaining block.
     fn evict_excess_blocks(&mut self) {
         while self.active_blocks.len() > MAX_ACTIVE_BLOCKS {
-            self.active_blocks.remove(0);
+            self.active_blocks.pop_front();
         }
 
         // Clean up suppressed_ranges below the oldest remaining block.
-        if let Some(oldest) = self.active_blocks.first() {
+        if let Some(oldest) = self.active_blocks.front() {
             let min_row = oldest.content().start_row;
             self.suppressed_ranges.retain(|r| r.end > min_row);
             self.claude_code.cleanup_stale_entries(min_row);

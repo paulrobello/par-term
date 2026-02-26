@@ -4,7 +4,9 @@ use std::sync::Arc;
 use winit::window::Window;
 
 use crate::scrollbar::Scrollbar;
-use par_term_config::SeparatorMark;
+use par_term_config::{
+    SeparatorMark, color_tuple_to_f32_a, color_u8_to_f32, color_u8_to_f32_a, color_u8x4_to_f32,
+};
 use par_term_fonts::font_manager::FontManager;
 
 pub mod atlas;
@@ -510,12 +512,7 @@ impl CellRenderer {
             unfocused_cursor_style: par_term_config::UnfocusedCursorStyle::default(),
             visual_bell_intensity: 0.0,
             window_opacity,
-            background_color: [
-                background_color[0] as f32 / 255.0,
-                background_color[1] as f32 / 255.0,
-                background_color[2] as f32 / 255.0,
-                1.0,
-            ],
+            background_color: color_u8_to_f32_a(background_color, 1.0),
             base_font_size: font_size,
             line_spacing,
             char_spacing,
@@ -891,23 +888,13 @@ impl CellRenderer {
 
     /// Update cursor color
     pub fn update_cursor_color(&mut self, color: [u8; 3]) {
-        self.cursor_color = [
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0,
-        ];
+        self.cursor_color = color_u8_to_f32(color);
         self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
     }
 
     /// Update cursor text color (color of text under block cursor)
     pub fn update_cursor_text_color(&mut self, color: Option<[u8; 3]>) {
-        self.cursor_text_color = color.map(|c| {
-            [
-                c[0] as f32 / 255.0,
-                c[1] as f32 / 255.0,
-                c[2] as f32 / 255.0,
-            ]
-        });
+        self.cursor_text_color = color.map(color_u8_to_f32);
         self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
     }
 
@@ -936,12 +923,7 @@ impl CellRenderer {
     /// Update cursor guide settings
     pub fn update_cursor_guide(&mut self, enabled: bool, color: [u8; 4]) {
         self.cursor_guide_enabled = enabled;
-        self.cursor_guide_color = [
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0,
-            color[3] as f32 / 255.0,
-        ];
+        self.cursor_guide_color = color_u8x4_to_f32(color);
         if enabled {
             self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
         }
@@ -956,12 +938,7 @@ impl CellRenderer {
         blur: f32,
     ) {
         self.cursor_shadow_enabled = enabled;
-        self.cursor_shadow_color = [
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0,
-            color[3] as f32 / 255.0,
-        ];
+        self.cursor_shadow_color = color_u8x4_to_f32(color);
         self.cursor_shadow_offset = offset;
         self.cursor_shadow_blur = blur;
         if enabled {
@@ -972,11 +949,7 @@ impl CellRenderer {
     /// Update cursor boost settings
     pub fn update_cursor_boost(&mut self, intensity: f32, color: [u8; 3]) {
         self.cursor_boost = intensity.clamp(0.0, 1.0);
-        self.cursor_boost_color = [
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0,
-        ];
+        self.cursor_boost_color = color_u8_to_f32(color);
         if intensity > 0.0 {
             self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
         }
@@ -1118,11 +1091,7 @@ impl CellRenderer {
         self.command_separator_thickness = thickness;
         self.command_separator_opacity = opacity;
         self.command_separator_exit_color = exit_color;
-        self.command_separator_color = [
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0,
-        ];
+        self.command_separator_color = color_u8_to_f32(color);
     }
 
     /// Set the visible separator marks for the current frame.
@@ -1152,7 +1121,7 @@ impl CellRenderer {
         let alpha = self.command_separator_opacity * opacity_mult;
         // Custom color from trigger marks takes priority
         if let Some((r, g, b)) = custom_color {
-            return [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, alpha];
+            return color_tuple_to_f32_a(r, g, b, alpha);
         }
         if self.command_separator_exit_color {
             match exit_code {

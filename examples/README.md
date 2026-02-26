@@ -222,7 +222,7 @@ par-term --config path/to/config.yaml
 ## Further Reading
 
 - [Unicode Character Ranges](https://en.wikipedia.org/wiki/Unicode_block)
-- [Font Configuration Guide](../docs/FONTS.md)
+- [Font Quick Start Guide](../QUICK_START_FONTS.md)
 - [Main README](../README.md)
 
 ## Contributing Examples

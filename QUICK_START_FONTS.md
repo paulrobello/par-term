@@ -342,7 +342,7 @@ RUST_LOG=debug par-term
 
 1. **See examples/** directory for complete configs
 2. **Read examples/README.md** for comprehensive guide
-3. **Check IMPLEMENTATION_SUMMARY.md** for technical details
+3. **Check [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for technical details
 4. **Experiment!** Try different font combinations
 
 ---

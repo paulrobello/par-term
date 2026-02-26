@@ -1,7 +1,7 @@
 use super::block_chars;
 use super::{BackgroundInstance, Cell, CellRenderer, PaneViewport, RowCacheEntry, TextInstance};
 use anyhow::Result;
-use par_term_config::SeparatorMark;
+use par_term_config::{SeparatorMark, color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
 use par_term_fonts::text_shaper::ShapingOptions;
 
 impl CellRenderer {
@@ -462,12 +462,10 @@ impl CellRenderer {
                 let mut col = 0;
                 while col < row_cells.len() {
                     let cell = &row_cells[col];
-                    let is_default_bg =
-                        (cell.bg_color[0] as f32 / 255.0 - self.background_color[0]).abs() < 0.001
-                            && (cell.bg_color[1] as f32 / 255.0 - self.background_color[1]).abs()
-                                < 0.001
-                            && (cell.bg_color[2] as f32 / 255.0 - self.background_color[2]).abs()
-                                < 0.001;
+                    let bg_f = color_u8x4_rgb_to_f32(cell.bg_color);
+                    let is_default_bg = (bg_f[0] - self.background_color[0]).abs() < 0.001
+                        && (bg_f[1] - self.background_color[1]).abs() < 0.001
+                        && (bg_f[2] - self.background_color[2]).abs() < 0.001;
 
                     // Check for cursor at this position, accounting for unfocused state
                     let cursor_visible = self.cursor_opacity > 0.0
@@ -498,12 +496,7 @@ impl CellRenderer {
                         } else {
                             self.window_opacity
                         };
-                    let mut bg_color = [
-                        cell.bg_color[0] as f32 / 255.0,
-                        cell.bg_color[1] as f32 / 255.0,
-                        cell.bg_color[2] as f32 / 255.0,
-                        bg_alpha,
-                    ];
+                    let mut bg_color = color_u8x4_rgb_to_f32_a(cell.bg_color, bg_alpha);
 
                     // Handle cursor at this position
                     if has_cursor && self.cursor_opacity > 0.0 {
@@ -701,12 +694,7 @@ impl CellRenderer {
                             // If the cell has a non-default bg, use that; otherwise use terminal background
                             let effective_bg = if bg_color[3] > 0 {
                                 // Cell has explicit background
-                                [
-                                    bg_color[0] as f32 / 255.0,
-                                    bg_color[1] as f32 / 255.0,
-                                    bg_color[2] as f32 / 255.0,
-                                    1.0,
-                                ]
+                                color_u8x4_rgb_to_f32_a(bg_color, 1.0)
                             } else {
                                 // Use terminal default background
                                 [
@@ -717,12 +705,7 @@ impl CellRenderer {
                                 ]
                             };
 
-                            let base_fg = [
-                                fg_color[0] as f32 / 255.0,
-                                fg_color[1] as f32 / 255.0,
-                                fg_color[2] as f32 / 255.0,
-                                text_alpha,
-                            ];
+                            let base_fg = color_u8x4_rgb_to_f32_a(fg_color, text_alpha);
 
                             // Apply minimum contrast adjustment if enabled
                             self.ensure_minimum_contrast(base_fg, effective_bg)
@@ -1100,12 +1083,7 @@ impl CellRenderer {
                         } else {
                             self.window_opacity
                         };
-                        let fg = [
-                            cell.fg_color[0] as f32 / 255.0,
-                            cell.fg_color[1] as f32 / 255.0,
-                            cell.fg_color[2] as f32 / 255.0,
-                            text_alpha,
-                        ];
+                        let fg = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
                         let cell_x0 = self.window_padding
                             + self.content_offset_x
                             + col_idx as f32 * self.cell_width;
@@ -1696,11 +1674,10 @@ impl CellRenderer {
             let mut col = 0;
             while col < row_cells.len() {
                 let cell = &row_cells[col];
-                let is_default_bg = (cell.bg_color[0] as f32 / 255.0 - self.background_color[0])
-                    .abs()
-                    < 0.001
-                    && (cell.bg_color[1] as f32 / 255.0 - self.background_color[1]).abs() < 0.001
-                    && (cell.bg_color[2] as f32 / 255.0 - self.background_color[2]).abs() < 0.001;
+                let bg_f = color_u8x4_rgb_to_f32(cell.bg_color);
+                let is_default_bg = (bg_f[0] - self.background_color[0]).abs() < 0.001
+                    && (bg_f[1] - self.background_color[1]).abs() < 0.001
+                    && (bg_f[2] - self.background_color[2]).abs() < 0.001;
 
                 // Check for cursor at this position
                 let has_cursor = cursor_pos.is_some_and(|(cx, cy)| cx == col && cy == row)
@@ -1720,12 +1697,7 @@ impl CellRenderer {
                         self.window_opacity
                     };
                 let pane_alpha = bg_alpha * opacity_multiplier;
-                let mut bg_color = [
-                    cell.bg_color[0] as f32 / 255.0,
-                    cell.bg_color[1] as f32 / 255.0,
-                    cell.bg_color[2] as f32 / 255.0,
-                    pane_alpha,
-                ];
+                let mut bg_color = color_u8x4_rgb_to_f32_a(cell.bg_color, pane_alpha);
 
                 // Handle cursor at this position
                 if has_cursor {
@@ -1838,12 +1810,7 @@ impl CellRenderer {
                     let x0 = content_x + col_idx as f32 * self.cell_width;
                     let y0 = content_y + row as f32 * self.cell_height;
 
-                    let fg_color = [
-                        cell.fg_color[0] as f32 / 255.0,
-                        cell.fg_color[1] as f32 / 255.0,
-                        cell.fg_color[2] as f32 / 255.0,
-                        text_alpha,
-                    ];
+                    let fg_color = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
 
                     // Try box drawing geometry first
                     let aspect_ratio = self.cell_height / char_w;
@@ -2068,12 +2035,7 @@ impl CellRenderer {
                             (glyph_left, glyph_top, render_w, render_h)
                         };
 
-                    let fg_color = [
-                        cell.fg_color[0] as f32 / 255.0,
-                        cell.fg_color[1] as f32 / 255.0,
-                        cell.fg_color[2] as f32 / 255.0,
-                        text_alpha,
-                    ];
+                    let fg_color = color_u8x4_rgb_to_f32_a(cell.fg_color, text_alpha);
 
                     if text_index < self.max_text_instances {
                         self.text_instances[text_index] = TextInstance {

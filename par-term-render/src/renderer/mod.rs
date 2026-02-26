@@ -11,6 +11,7 @@ pub mod shaders;
 
 // Re-export SeparatorMark from par-term-config
 pub use par_term_config::SeparatorMark;
+use par_term_config::color_u8_to_f32;
 
 /// Compute which separator marks are visible in the current viewport.
 ///
@@ -185,7 +186,6 @@ pub struct Renderer {
     pub(crate) cursor_shader_disabled_for_alt_screen: bool,
 
     // Debug overlay text
-    #[allow(dead_code)]
     #[allow(dead_code)]
     pub(crate) debug_text: Option<String>,
 }
@@ -863,11 +863,7 @@ impl Renderer {
         // Sync background to shaders for proper compositing
         let is_solid_color = matches!(mode, par_term_config::BackgroundMode::Color);
         let is_image_mode = matches!(mode, par_term_config::BackgroundMode::Image);
-        let normalized_color = [
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0,
-        ];
+        let normalized_color = color_u8_to_f32(color);
 
         // Sync to cursor shader
         if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {

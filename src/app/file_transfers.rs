@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+use parking_lot::Mutex;
+
 use par_term_emu_core_rust::terminal::file_transfer::{
     FileTransfer, TransferDirection, TransferStatus,
 };
@@ -80,7 +82,7 @@ pub(crate) struct ActiveUpload {
     /// Whether the write has finished (success or error)
     pub completed: Arc<AtomicBool>,
     /// Error message if the write failed
-    pub error: Arc<std::sync::Mutex<Option<String>>>,
+    pub error: Arc<Mutex<Option<String>>>,
     /// When the upload started (unix millis)
     pub started_at: u64,
 }
@@ -337,7 +339,7 @@ impl WindowState {
         let mut completed_info: Vec<(String, usize, Option<String>)> = Vec::new();
         self.file_transfer_state.active_uploads.retain(|upload| {
             if upload.completed.load(Ordering::Relaxed) {
-                let error = upload.error.lock().unwrap().take();
+                let error = upload.error.lock().take();
                 completed_info.push((upload.filename.clone(), upload.file_size, error));
                 false
             } else {
@@ -509,8 +511,7 @@ impl WindowState {
                     // Set up shared progress tracking
                     let bytes_written = Arc::new(AtomicUsize::new(0));
                     let completed = Arc::new(AtomicBool::new(false));
-                    let error: Arc<std::sync::Mutex<Option<String>>> =
-                        Arc::new(std::sync::Mutex::new(None));
+                    let error: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
                     let upload_id = now_millis();
 
                     self.file_transfer_state.active_uploads.push(ActiveUpload {
@@ -547,7 +548,7 @@ impl WindowState {
                                         }
                                         Err(e) => {
                                             drop(term);
-                                            *error.lock().unwrap() =
+                                            *error.lock() =
                                                 Some(format!("PTY write failed: {}", e));
                                             completed.store(true, Ordering::Relaxed);
                                             return;

@@ -1,6 +1,7 @@
 use super::CellRenderer;
 use crate::custom_shader_renderer::textures::ChannelTexture;
 use anyhow::Result;
+use par_term_config::color_u8_to_f32;
 
 /// Cached GPU texture for a per-pane background image
 #[allow(dead_code)]
@@ -236,14 +237,15 @@ impl CellRenderer {
     /// Uses Stretch mode for solid colors to fill the entire window.
     /// Transparency is controlled by window_opacity, not the texture alpha.
     pub fn create_solid_color_texture(&mut self, color: [u8; 3]) {
+        let norm = color_u8_to_f32(color);
         log::info!(
             "[BACKGROUND] create_solid_color_texture: RGB({}, {}, {}) -> normalized ({:.3}, {:.3}, {:.3})",
             color[0],
             color[1],
             color[2],
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0
+            norm[0],
+            norm[1],
+            norm[2]
         );
         let size = 4u32; // 4x4 for proper linear filtering
         let mut pixels = Vec::with_capacity((size * size * 4) as usize);
@@ -325,11 +327,7 @@ impl CellRenderer {
         self.bg_image_opacity = 1.0;
         // Mark this as a solid color for tracking purposes
         self.bg_is_solid_color = true;
-        self.solid_bg_color = [
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0,
-        ];
+        self.solid_bg_color = color_u8_to_f32(color);
         self.update_bg_image_uniforms();
     }
 

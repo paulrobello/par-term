@@ -9,6 +9,7 @@ use super::section::collapsing_section;
 use par_term_config::automation::{
     CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
 };
+use par_term_config::color_u8_to_f32;
 use std::collections::HashSet;
 
 /// Show the automation tab content.
@@ -471,11 +472,7 @@ fn show_action_fields(ui: &mut egui::Ui, action: &mut TriggerActionConfig) {
             // Ensure color is always set (backfill for configs created before
             // the color field was added)
             let c = color.get_or_insert([0, 180, 255]);
-            let mut color_f = [
-                c[0] as f32 / 255.0,
-                c[1] as f32 / 255.0,
-                c[2] as f32 / 255.0,
-            ];
+            let mut color_f = color_u8_to_f32(*c);
             if ui.color_edit_button_rgb(&mut color_f).changed() {
                 *c = [
                     (color_f[0] * 255.0) as u8,

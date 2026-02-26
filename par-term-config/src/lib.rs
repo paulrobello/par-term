@@ -34,6 +34,12 @@ pub use config::{Config, CustomAcpAgentActionConfig, CustomAcpAgentConfig, subst
 pub use scrollback_mark::ScrollbackMark;
 pub use themes::{Color, Theme};
 
+// Re-export color conversion helpers
+pub use types::{
+    color_tuple_to_f32_a, color_u8_to_f32, color_u8_to_f32_a, color_u8x4_rgb_to_f32,
+    color_u8x4_rgb_to_f32_a, color_u8x4_to_f32,
+};
+
 // Re-export config types
 pub use types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,

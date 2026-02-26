@@ -3,6 +3,7 @@
 //! This module provides cursor position tracking and style-based dimension
 //! calculations for shader-based cursor animations like trails and glows.
 
+use par_term_config::color_u8_to_f32_a;
 use par_term_emu_core_rust::cursor::CursorStyle;
 
 use super::CustomShaderRenderer;
@@ -157,12 +158,7 @@ impl CustomShaderRenderer {
         glow_radius: f32,
         glow_intensity: f32,
     ) {
-        self.cursor_shader_color = [
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0,
-            1.0,
-        ];
+        self.cursor_shader_color = color_u8_to_f32_a(color, 1.0);
         self.cursor_trail_duration = trail_duration.max(0.0);
         self.cursor_glow_radius = glow_radius.max(0.0);
         self.cursor_glow_intensity = glow_intensity.clamp(0.0, 1.0);

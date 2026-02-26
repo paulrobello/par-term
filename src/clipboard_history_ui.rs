@@ -232,7 +232,8 @@ fn truncate_preview(content: &str, max_len: usize) -> String {
     if single_line.len() <= max_len {
         single_line
     } else {
-        format!("{}...", &single_line[..max_len])
+        let boundary = single_line.floor_char_boundary(max_len);
+        format!("{}...", &single_line[..boundary])
     }
 }
 

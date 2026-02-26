@@ -12,21 +12,13 @@ impl WindowState {
         // Track Alt key press/release for Option key mode detection
         self.input_handler.track_alt_key(&event);
 
-        // Check if any UI panel is visible that should block keyboard input
+        // Check if any modal UI panel is visible that should block keyboard input
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
         // Note: Profile drawer does NOT block input - only modal dialogs do
-        let any_ui_visible = self.help_ui.visible
-            || self.clipboard_history_ui.visible
-            || self.command_history_ui.visible
-            || self.search_ui.visible
-            || self.tmux_session_picker_ui.visible
-            || self.ssh_connect_ui.is_visible()
-            || self.remote_shell_install_ui.is_visible()
-            || self.quit_confirmation_ui.is_visible();
 
         // When UI panels are visible, block ALL keys from going to terminal
         // except for UI control keys (Escape handled by egui, F1/F2/F3 for toggles)
-        if any_ui_visible {
+        if self.any_modal_ui_visible() {
             let is_ui_control_key = matches!(
                 event.logical_key,
                 Key::Named(NamedKey::F1)

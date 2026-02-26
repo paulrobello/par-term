@@ -12,6 +12,7 @@
 
 use super::SettingsUI;
 use super::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section};
+use par_term_config::color_u8x4_to_f32;
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
@@ -980,12 +981,8 @@ fn show_scrollbar_section(
                 )
                 .changed()
                 {
-                    settings.config.scrollbar_thumb_color = [
-                        thumb.r() as f32 / 255.0,
-                        thumb.g() as f32 / 255.0,
-                        thumb.b() as f32 / 255.0,
-                        thumb.a() as f32 / 255.0,
-                    ];
+                    settings.config.scrollbar_thumb_color =
+                        color_u8x4_to_f32([thumb.r(), thumb.g(), thumb.b(), thumb.a()]);
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }
@@ -1006,12 +1003,8 @@ fn show_scrollbar_section(
                 )
                 .changed()
                 {
-                    settings.config.scrollbar_track_color = [
-                        track.r() as f32 / 255.0,
-                        track.g() as f32 / 255.0,
-                        track.b() as f32 / 255.0,
-                        track.a() as f32 / 255.0,
-                    ];
+                    settings.config.scrollbar_track_color =
+                        color_u8x4_to_f32([track.r(), track.g(), track.b(), track.a()]);
                     settings.has_changes = true;
                     *changes_this_frame = true;
                 }

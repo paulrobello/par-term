@@ -206,8 +206,10 @@ mod tests {
 
     #[test]
     fn test_registration_disabled() {
-        let mut config = DiagramRendererConfig::default();
-        config.enabled = false;
+        let config = DiagramRendererConfig {
+            enabled: false,
+            ..Default::default()
+        };
         let mut registry = RendererRegistry::new(0.6);
         register_diagrams(&mut registry, &config);
         assert_eq!(registry.detector_count(), 0);

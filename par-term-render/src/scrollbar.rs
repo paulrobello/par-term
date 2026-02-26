@@ -9,7 +9,7 @@ use wgpu::{
     ShaderModuleDescriptor, ShaderSource, ShaderStages, TextureFormat, VertexState,
 };
 
-use par_term_config::ScrollbackMark;
+use par_term_config::{ScrollbackMark, color_tuple_to_f32_a};
 
 /// Scrollbar renderer using wgpu
 pub struct Scrollbar {
@@ -430,7 +430,7 @@ impl Scrollbar {
             });
 
             let color = if let Some((r, g, b)) = mark.color {
-                [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0]
+                color_tuple_to_f32_a(r, g, b, 1.0)
             } else {
                 match mark.exit_code {
                     Some(0) => [0.2, 0.8, 0.4, 1.0],

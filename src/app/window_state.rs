@@ -17,7 +17,7 @@ use crate::command_history::CommandHistory;
 use crate::command_history_ui::{CommandHistoryAction, CommandHistoryUI};
 use crate::config::{
     Config, CursorShaderMetadataCache, CursorStyle, CustomAcpAgentConfig, ShaderInstallPrompt,
-    ShaderMetadataCache,
+    ShaderMetadataCache, color_u8_to_f32, color_u8_to_f32_a,
 };
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
@@ -180,7 +180,7 @@ pub struct WindowState {
     pub(crate) agent_client: Option<Arc<par_term_acp::JsonRpcClient>>,
     /// Handles for queued send tasks (waiting on agent lock).
     /// Used to abort queued sends when the user cancels a pending message.
-    pub(crate) pending_send_handles: Vec<tokio::task::JoinHandle<()>>,
+    pub(crate) pending_send_handles: std::collections::VecDeque<tokio::task::JoinHandle<()>>,
     /// Tracks whether the current prompt encountered a recoverable local
     /// backend tool failure (for example failed `Skill` or `Write`) or
     /// malformed inline XML-style tool markup.
@@ -752,7 +752,7 @@ impl WindowState {
             agent_tx: None,
             agent: None,
             agent_client: None,
-            pending_send_handles: Vec::new(),
+            pending_send_handles: std::collections::VecDeque::new(),
             agent_skill_failure_detected: false,
             agent_skill_recovery_attempts: 0,
             pending_agent_context_replay: None,
@@ -2383,19 +2383,32 @@ impl WindowState {
         }
     }
 
-    /// Check if any egui overlay with text input is visible.
-    /// Used to route clipboard operations (paste/copy/select-all) to egui
-    /// instead of the terminal when a modal dialog is active.
-    pub(crate) fn has_egui_overlay_visible(&self) -> bool {
-        self.search_ui.visible
+    /// Canonical check: is any modal UI overlay visible?
+    ///
+    /// This is the single source of truth for "should input be blocked from the terminal
+    /// because a modal dialog is open?" When adding a new modal panel, add it here.
+    ///
+    /// Note: Side panels (ai_inspector, profile drawer) and inline edit states
+    /// (tab_bar_ui.is_renaming()) are NOT modals — they are checked separately
+    /// at call sites that need them. The resize overlay is also not a modal.
+    pub(crate) fn any_modal_ui_visible(&self) -> bool {
+        self.help_ui.visible
             || self.clipboard_history_ui.visible
             || self.command_history_ui.visible
+            || self.search_ui.visible
+            || self.tmux_session_picker_ui.visible
             || self.shader_install_ui.visible
             || self.integrations_ui.visible
+            || self.ssh_connect_ui.is_visible()
             || self.remote_shell_install_ui.is_visible()
             || self.quit_confirmation_ui.is_visible()
-            || self.ssh_connect_ui.is_visible()
-            || self.ai_inspector.open
+    }
+
+    /// Check if any egui overlay with text input is visible.
+    /// Used to route clipboard operations (paste/copy/select-all) to egui
+    /// instead of the terminal when a modal dialog or the AI inspector is active.
+    pub(crate) fn has_egui_text_overlay_visible(&self) -> bool {
+        self.any_modal_ui_visible() || self.ai_inspector.open
     }
 
     /// Check if egui is currently using keyboard input (e.g., text input or ComboBox has focus)
@@ -2403,16 +2416,9 @@ impl WindowState {
         // If any UI panel is visible, check if egui wants keyboard input
         // Note: Settings are handled by standalone SettingsWindow, not embedded UI
         // Note: Profile drawer does NOT block input - only modal dialogs do
-        let any_ui_visible = self.help_ui.visible
-            || self.clipboard_history_ui.visible
-            || self.command_history_ui.visible
-            || self.shader_install_ui.visible
-            || self.integrations_ui.visible
-            || self.remote_shell_install_ui.is_visible()
-            || self.quit_confirmation_ui.is_visible()
-            || self.ssh_connect_ui.is_visible()
-            || self.ai_inspector.open
-            || self.tab_bar_ui.is_renaming();
+        // Also check ai_inspector (side panel with text input) and tab rename (inline edit)
+        let any_ui_visible =
+            self.any_modal_ui_visible() || self.ai_inspector.open || self.tab_bar_ui.is_renaming();
         if !any_ui_visible {
             return false;
         }
@@ -2600,9 +2606,9 @@ impl WindowState {
         // Calculate frame time from last render
         if let Some(last_start) = self.debug.last_frame_start {
             let frame_time = frame_start.duration_since(last_start);
-            self.debug.frame_times.push(frame_time);
+            self.debug.frame_times.push_back(frame_time);
             if self.debug.frame_times.len() > 60 {
-                self.debug.frame_times.remove(0);
+                self.debug.frame_times.pop_front();
             }
         }
         self.debug.last_frame_start = Some(frame_start);
@@ -3478,7 +3484,7 @@ impl WindowState {
                         self.ai_inspector.chat.mark_oldest_pending_sent();
                         // Remove the corresponding handle (first in queue).
                         if !self.pending_send_handles.is_empty() {
-                            self.pending_send_handles.remove(0);
+                            self.pending_send_handles.pop_front();
                         }
                         self.needs_redraw = true;
                     }
@@ -3743,7 +3749,7 @@ impl WindowState {
                     let _ = tx.send(AgentMessage::PromptComplete);
                 }
             });
-            self.pending_send_handles.push(handle);
+            self.pending_send_handles.push_back(handle);
             self.needs_redraw = true;
         }
 
@@ -4026,6 +4032,10 @@ impl WindowState {
             }
         }
 
+        // Cache modal visibility before entering the renderer borrow scope.
+        // Method calls borrow all of `self`, which conflicts with `&mut self.renderer`.
+        let any_modal_visible = self.any_modal_ui_visible();
+
         if let Some(renderer) = &mut self.renderer {
             // Status bar inset is handled by sync_status_bar_inset() above,
             // before cell gathering, so the grid height is correct.
@@ -4050,12 +4060,7 @@ impl WindowState {
                 renderer.update_cursor(pos, opacity, style);
                 // Forward cursor state to custom shader for Ghostty-compatible cursor animations
                 // Use the configured cursor color
-                let cursor_color = [
-                    self.config.cursor_color[0] as f32 / 255.0,
-                    self.config.cursor_color[1] as f32 / 255.0,
-                    self.config.cursor_color[2] as f32 / 255.0,
-                    1.0,
-                ];
+                let cursor_color = color_u8_to_f32_a(self.config.cursor_color, 1.0);
                 renderer.update_shader_cursor(pos.0, pos.1, opacity, cursor_color, style);
             } else {
                 renderer.clear_cursor();
@@ -4323,16 +4328,6 @@ impl WindowState {
                 // Tab/Shift+Tab should only cycle focus between egui widgets when a modal is open.
                 // Note: Side panels (ai_inspector, profile drawer) are NOT modals — the terminal
                 // should still receive Tab/Shift+Tab when they are open.
-                let any_modal_visible = self.help_ui.visible
-                    || self.clipboard_history_ui.visible
-                    || self.command_history_ui.visible
-                    || self.shader_install_ui.visible
-                    || self.integrations_ui.visible
-                    || self.search_ui.visible
-                    || self.tmux_session_picker_ui.visible
-                    || self.ssh_connect_ui.is_visible()
-                    || self.quit_confirmation_ui.is_visible()
-                    || self.remote_shell_install_ui.is_visible();
                 if !any_modal_visible {
                     raw_input.events.retain(|e| {
                         !matches!(
@@ -4955,16 +4950,8 @@ impl WindowState {
                             let show_titles = self.config.show_pane_titles;
                             let title_height = self.config.pane_title_height * sizing.scale_factor;
                             let title_position = self.config.pane_title_position;
-                            let title_text_color = [
-                                self.config.pane_title_color[0] as f32 / 255.0,
-                                self.config.pane_title_color[1] as f32 / 255.0,
-                                self.config.pane_title_color[2] as f32 / 255.0,
-                            ];
-                            let title_bg_color = [
-                                self.config.pane_title_bg_color[0] as f32 / 255.0,
-                                self.config.pane_title_bg_color[1] as f32 / 255.0,
-                                self.config.pane_title_bg_color[2] as f32 / 255.0,
-                            ];
+                            let title_text_color = color_u8_to_f32(self.config.pane_title_color);
+                            let title_bg_color = color_u8_to_f32(self.config.pane_title_bg_color);
 
                             let mut pane_data = Vec::new();
                             let mut pane_titles = Vec::new();
@@ -5759,7 +5746,7 @@ impl WindowState {
                             let _ = tx.send(AgentMessage::PromptComplete);
                         }
                     });
-                    self.pending_send_handles.push(handle);
+                    self.pending_send_handles.push_back(handle);
                 }
                 self.needs_redraw = true;
             }
@@ -5857,7 +5844,7 @@ impl WindowState {
             InspectorAction::CancelQueuedPrompt => {
                 if self.ai_inspector.chat.cancel_last_pending() {
                     // Abort the most recent queued send task.
-                    if let Some(handle) = self.pending_send_handles.pop() {
+                    if let Some(handle) = self.pending_send_handles.pop_back() {
                         handle.abort();
                     }
                     self.ai_inspector
@@ -6083,22 +6070,10 @@ impl WindowState {
 
         // Build divider settings from config
         let divider_settings = PaneDividerSettings {
-            divider_color: [
-                config.pane_divider_color[0] as f32 / 255.0,
-                config.pane_divider_color[1] as f32 / 255.0,
-                config.pane_divider_color[2] as f32 / 255.0,
-            ],
-            hover_color: [
-                config.pane_divider_hover_color[0] as f32 / 255.0,
-                config.pane_divider_hover_color[1] as f32 / 255.0,
-                config.pane_divider_hover_color[2] as f32 / 255.0,
-            ],
+            divider_color: color_u8_to_f32(config.pane_divider_color),
+            hover_color: color_u8_to_f32(config.pane_divider_hover_color),
             show_focus_indicator: config.pane_focus_indicator,
-            focus_color: [
-                config.pane_focus_color[0] as f32 / 255.0,
-                config.pane_focus_color[1] as f32 / 255.0,
-                config.pane_focus_color[2] as f32 / 255.0,
-            ],
+            focus_color: color_u8_to_f32(config.pane_focus_color),
             focus_width: config.pane_focus_width * renderer.scale_factor(),
             divider_style: config.pane_divider_style,
         };
