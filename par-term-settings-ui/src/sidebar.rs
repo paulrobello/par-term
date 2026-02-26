@@ -1173,6 +1173,13 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "backup",
             "config",
             "url import",
+            // Security
+            "security",
+            "environment",
+            "env var",
+            "allowlist",
+            "allow all env",
+            "variable substitution",
         ],
     }
 }

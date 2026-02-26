@@ -26,6 +26,62 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+/// Environment variables that are safe to substitute in config files.
+///
+/// Only these variables (and any `PAR_TERM_*` prefixed variables) are resolved
+/// by default. This prevents a shared/downloaded config from exfiltrating
+/// sensitive environment variables (API keys, tokens, etc.) via `${SECRET_KEY}`.
+///
+/// Set `allow_all_env_vars: true` in config to bypass this restriction.
+pub const ALLOWED_ENV_VARS: &[&str] = &[
+    // User / home
+    "HOME",
+    "USER",
+    "USERNAME",
+    "LOGNAME",
+    "USERPROFILE", // Windows
+    // Shell / terminal
+    "SHELL",
+    "TERM",
+    "LANG",
+    "COLORTERM",
+    "TERM_PROGRAM",
+    // XDG directories
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_STATE_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_RUNTIME_DIR",
+    // System paths
+    "PATH",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    // Display
+    "DISPLAY",
+    "WAYLAND_DISPLAY",
+    // Host
+    "HOSTNAME",
+    "HOST",
+    // Editors
+    "EDITOR",
+    "VISUAL",
+    "PAGER",
+    // Windows paths
+    "APPDATA",
+    "LOCALAPPDATA",
+];
+
+/// Check whether a variable name is on the substitution allowlist.
+///
+/// A variable is allowed if it appears in [`ALLOWED_ENV_VARS`], starts with
+/// `PAR_TERM_`, or starts with `LC_` (locale variables).
+pub fn is_env_var_allowed(var_name: &str) -> bool {
+    ALLOWED_ENV_VARS.contains(&var_name)
+        || var_name.starts_with("PAR_TERM_")
+        || var_name.starts_with("LC_")
+}
+
 /// Substitute `${VAR_NAME}` patterns in a string with environment variable values.
 ///
 /// - `${VAR}` is replaced with the value of the environment variable `VAR`.
@@ -33,9 +89,24 @@ use std::path::PathBuf;
 /// - `$${VAR}` (doubled dollar sign) is an escape and produces the literal `${VAR}`.
 /// - Supports `${VAR:-default}` syntax for providing a default value when the variable is unset.
 ///
+/// Only variables on the allowlist (see [`ALLOWED_ENV_VARS`]) and those prefixed
+/// with `PAR_TERM_` or `LC_` are substituted by default. Non-allowlisted
+/// variables are left as-is and a warning is logged. Pass `allow_all = true` to
+/// bypass the allowlist and resolve any environment variable.
+///
 /// This is applied to the raw YAML config string before deserialization, so all
 /// string-typed config values benefit from substitution.
 pub fn substitute_variables(input: &str) -> String {
+    substitute_variables_with_allowlist(input, false)
+}
+
+/// Substitute variables with explicit allowlist control.
+///
+/// When `allow_all` is `true`, **every** environment variable is resolved
+/// (the pre-M3 behaviour). When `false`, only allowlisted variables are
+/// resolved and non-allowlisted references are left as literal text with a
+/// warning logged.
+pub fn substitute_variables_with_allowlist(input: &str, allow_all: bool) -> String {
     // First, replace escaped `$${` with a placeholder that won't match the regex
     let escaped_placeholder = "\x00ESC_DOLLAR\x00";
     let working = input.replace("$${", escaped_placeholder);
@@ -46,6 +117,16 @@ pub fn substitute_variables(input: &str) -> String {
 
     let result = re.replace_all(&working, |caps: &regex::Captures| {
         let var_name = &caps[1];
+
+        // Check allowlist unless the user opted into unrestricted mode
+        if !allow_all && !is_env_var_allowed(var_name) {
+            log::warn!(
+                "Config references non-allowlisted environment variable: ${{{var_name}}} — skipped. \
+                 Add `allow_all_env_vars: true` to your config to allow all variables."
+            );
+            return caps[0].to_string();
+        }
+
         match std::env::var(var_name) {
             Ok(val) => val,
             Err(_) => {
@@ -59,6 +140,16 @@ pub fn substitute_variables(input: &str) -> String {
 
     // Restore escaped dollar signs
     result.replace(escaped_placeholder, "${")
+}
+
+/// Quick pre-scan of raw YAML text for the `allow_all_env_vars: true` setting.
+///
+/// This is intentionally simple: it looks for a top-level YAML key rather than
+/// fully parsing the document, because we need the answer *before* variable
+/// substitution runs (and therefore before serde deserialization).
+fn pre_scan_allow_all_env_vars(raw_yaml: &str) -> bool {
+    let re = Regex::new(r"(?m)^allow_all_env_vars:\s*true\s*$").expect("invalid regex");
+    re.is_match(raw_yaml)
 }
 
 /// Custom deserializer for `ShellExitAction` that supports backward compatibility.
@@ -1842,6 +1933,20 @@ pub struct Config {
     pub dynamic_profile_sources: Vec<crate::profile::DynamicProfileSource>,
 
     // ========================================================================
+    // Security
+    // ========================================================================
+    /// Allow all environment variables in config `${VAR}` substitution.
+    ///
+    /// When `false` (default), only a safe allowlist of environment variables
+    /// (HOME, USER, SHELL, XDG_*, PAR_TERM_*, LC_*, etc.) can be substituted.
+    /// This prevents shared or downloaded config files from exfiltrating
+    /// sensitive environment variables such as API keys or tokens.
+    ///
+    /// Set to `true` to restore the unrestricted pre-0.24 behaviour.
+    #[serde(default = "crate::defaults::bool_false")]
+    pub allow_all_env_vars: bool,
+
+    // ========================================================================
     // AI Inspector
     // ========================================================================
     /// Enable AI Inspector side panel
@@ -2240,6 +2345,8 @@ impl Default for Config {
             content_prettifier: prettifier::PrettifierYamlConfig::default(),
             collapsed_settings_sections: Vec::new(),
             dynamic_profile_sources: Vec::new(),
+            // Security
+            allow_all_env_vars: crate::defaults::bool_false(),
             // AI Inspector
             ai_inspector_enabled: crate::defaults::ai_inspector_enabled(),
             ai_inspector_open_on_startup: crate::defaults::ai_inspector_open_on_startup(),
@@ -2347,7 +2454,11 @@ impl Config {
         if config_path.exists() {
             log::info!("Loading existing config from {:?}", config_path);
             let contents = fs::read_to_string(&config_path)?;
-            let contents = substitute_variables(&contents);
+
+            // Pre-scan the raw YAML for `allow_all_env_vars: true` before
+            // variable substitution, since the config isn't parsed yet.
+            let allow_all = pre_scan_allow_all_env_vars(&contents);
+            let contents = substitute_variables_with_allowlist(&contents, allow_all);
             let mut config: Config = serde_yml::from_str(&contents)?;
 
             // Merge in any new default keybindings that don't exist in user's config

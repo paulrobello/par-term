@@ -21,8 +21,9 @@ pub use par_term_config::watcher;
 
 // --- Types and structs ---
 pub use par_term_config::{
-    Cell, Color, Config, CustomAcpAgentActionConfig, CustomAcpAgentConfig, ScrollbackMark, Theme,
-    substitute_variables,
+    ALLOWED_ENV_VARS, Cell, Color, Config, CustomAcpAgentActionConfig, CustomAcpAgentConfig,
+    ScrollbackMark, Theme, is_env_var_allowed, substitute_variables,
+    substitute_variables_with_allowlist,
 };
 
 // --- Color conversion helpers ---

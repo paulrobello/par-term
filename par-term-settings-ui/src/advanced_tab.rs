@@ -10,6 +10,7 @@
 //! - Update settings
 //! - File transfer settings
 //! - Debug logging settings
+//! - Security settings (env var allowlist)
 
 use super::SettingsUI;
 use super::section::{INPUT_WIDTH, collapsing_section};
@@ -144,6 +145,22 @@ pub fn show(
         ],
     ) {
         show_debug_logging_section(ui, settings, changes_this_frame, collapsed);
+    }
+
+    // Security section
+    if section_matches(
+        &query,
+        "Security",
+        &[
+            "security",
+            "environment",
+            "env var",
+            "allowlist",
+            "allow all env",
+            "variable substitution",
+        ],
+    ) {
+        show_security_section(ui, settings, changes_this_frame, collapsed);
     }
 }
 
@@ -1225,4 +1242,45 @@ fn show_debug_logging_section(
             );
         },
     );
+}
+
+// ============================================================================
+// Security Section
+// ============================================================================
+
+fn show_security_section(
+    ui: &mut egui::Ui,
+    settings: &mut SettingsUI,
+    changes_this_frame: &mut bool,
+    collapsed: &mut HashSet<String>,
+) {
+    collapsing_section(ui, "Security", "advanced_security", true, collapsed, |ui| {
+        ui.label("Environment variable substitution in config files.");
+        ui.add_space(8.0);
+
+        let mut allow_all = settings.config.allow_all_env_vars;
+        if ui
+            .checkbox(
+                &mut allow_all,
+                "Allow all environment variables in config substitution",
+            )
+            .changed()
+        {
+            settings.config.allow_all_env_vars = allow_all;
+            settings.has_changes = true;
+            *changes_this_frame = true;
+        }
+
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(
+                "When disabled (default), only safe environment variables (HOME, USER, \
+                     SHELL, XDG_*, PAR_TERM_*, LC_*, etc.) are substituted in config files. \
+                     Enable this to allow any environment variable — use with caution if \
+                     loading configs from untrusted sources.",
+            )
+            .small()
+            .color(egui::Color32::GRAY),
+        );
+    });
 }
