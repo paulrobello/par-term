@@ -793,7 +793,7 @@ impl WindowState {
                 .config
                 .custom_shader
                 .as_ref()
-                .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+                .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
 
             // Get per-shader overrides
             let shader_override = self

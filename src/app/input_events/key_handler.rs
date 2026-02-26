@@ -85,7 +85,7 @@ impl WindowState {
 
         // Update last key press time for cursor blink reset and shader effects
         if event.state == ElementState::Pressed {
-            self.last_key_press = Some(std::time::Instant::now());
+            self.cursor_anim.last_key_press = Some(std::time::Instant::now());
             // Update shader key press time for visual effects (iTimeKeyPress uniform)
             if let Some(renderer) = &mut self.renderer {
                 renderer.update_key_press_time();

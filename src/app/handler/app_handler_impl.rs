@@ -298,10 +298,10 @@ impl ApplicationHandler for WindowManager {
             }
 
             // Collect shader reload results and clear them from window_state
-            if let Some(result) = window_state.background_shader_reload_result.take() {
+            if let Some(result) = window_state.shader_state.background_shader_reload_result.take() {
                 background_shader_result = Some(result);
             }
-            if let Some(result) = window_state.cursor_shader_reload_result.take() {
+            if let Some(result) = window_state.shader_state.cursor_shader_reload_result.take() {
                 cursor_shader_result = Some(result);
             }
         }

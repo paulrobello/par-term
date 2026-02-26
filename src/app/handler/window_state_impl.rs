@@ -1068,13 +1068,13 @@ impl WindowState {
         // Wake up exactly when the cursor needs to toggle visibility or fade.
         // Skip cursor blinking when unfocused with pause_refresh_on_blur to save power.
         if self.config.cursor_blink && (self.is_focused || !self.config.pause_refresh_on_blur) {
-            if self.cursor_blink_timer.is_none() {
+            if self.cursor_anim.cursor_blink_timer.is_none() {
                 let blink_interval =
                     std::time::Duration::from_millis(self.config.cursor_blink_interval);
-                self.cursor_blink_timer = Some(now + blink_interval);
+                self.cursor_anim.cursor_blink_timer = Some(now + blink_interval);
             }
 
-            if let Some(next_blink) = self.cursor_blink_timer {
+            if let Some(next_blink) = self.cursor_anim.cursor_blink_timer {
                 if now >= next_blink {
                     // Time to toggle: trigger redraw (if throttle allows) and schedule next phase
                     if can_render {
@@ -1082,7 +1082,7 @@ impl WindowState {
                     }
                     let blink_interval =
                         std::time::Duration::from_millis(self.config.cursor_blink_interval);
-                    self.cursor_blink_timer = Some(now + blink_interval);
+                    self.cursor_anim.cursor_blink_timer = Some(now + blink_interval);
                 } else if next_blink < next_wake {
                     // Schedule wake-up for the next toggle
                     next_wake = next_blink;

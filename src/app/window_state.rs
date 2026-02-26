@@ -16,8 +16,8 @@ use crate::close_confirmation_ui::{CloseConfirmAction, CloseConfirmationUI};
 use crate::command_history::CommandHistory;
 use crate::command_history_ui::{CommandHistoryAction, CommandHistoryUI};
 use crate::config::{
-    Config, CursorShaderMetadataCache, CursorStyle, CustomAcpAgentConfig, ShaderInstallPrompt,
-    ShaderMetadataCache, color_u8_to_f32, color_u8_to_f32_a,
+    Config, CursorStyle, CustomAcpAgentConfig, ShaderInstallPrompt, color_u8_to_f32,
+    color_u8_to_f32_a,
 };
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
@@ -133,12 +133,8 @@ pub struct WindowState {
 
     pub(crate) debug: DebugState,
 
-    /// Cursor opacity for smooth fade animation (0.0 = invisible, 1.0 = fully visible)
-    pub(crate) cursor_opacity: f32,
-    /// Time of last cursor blink toggle
-    pub(crate) last_cursor_blink: Option<std::time::Instant>,
-    /// Time of last key press (to reset cursor blink)
-    pub(crate) last_key_press: Option<std::time::Instant>,
+    /// Cursor animation state (opacity, blink timers)
+    pub(crate) cursor_anim: crate::app::cursor_anim_state::CursorAnimState,
     /// Whether window is currently in fullscreen mode
     pub(crate) is_fullscreen: bool,
     /// egui context for GUI rendering
@@ -152,10 +148,8 @@ pub struct WindowState {
     /// Whether egui has completed its first ctx.run() call
     /// Before first run, egui's is_using_pointer() returns unreliable results
     pub(crate) egui_initialized: bool,
-    /// Cache for parsed shader metadata (used for config resolution)
-    pub(crate) shader_metadata_cache: ShaderMetadataCache,
-    /// Cache for parsed cursor shader metadata (used for config resolution)
-    pub(crate) cursor_shader_metadata_cache: CursorShaderMetadataCache,
+    /// Shader hot-reload watcher, metadata caches, and reload-error state
+    pub(crate) shader_state: crate::app::shader_state::ShaderState,
     /// Help UI manager
     pub(crate) help_ui: HelpUI,
     /// Clipboard history UI manager
@@ -233,8 +227,6 @@ pub struct WindowState {
     /// Set when an agent/MCP config update was applied — signals WindowManager to
     /// sync its own config copy so subsequent saves don't overwrite agent changes.
     pub(crate) config_changed_by_agent: bool,
-    /// When to blink cursor next
-    pub(crate) cursor_blink_timer: Option<std::time::Instant>,
     /// Whether we need to rebuild renderer after font-related changes
     pub(crate) pending_font_rebuild: bool,
 
@@ -254,23 +246,13 @@ pub struct WindowState {
     /// When throughput mode batching started (for render interval timing)
     pub(crate) throughput_batch_start: Option<std::time::Instant>,
 
-    // Shader hot reload
-    /// Shader file watcher for hot reload support
-    pub(crate) shader_watcher: Option<ShaderWatcher>,
+    // Config and screenshot watchers
     /// Config file watcher for automatic reload (e.g., when ACP agent modifies config.yaml)
     pub(crate) config_watcher: Option<crate::config::watcher::ConfigWatcher>,
     /// Watcher for `.config-update.json` written by the MCP server
     pub(crate) config_update_watcher: Option<crate::config::watcher::ConfigWatcher>,
     /// Watcher for `.screenshot-request.json` written by the MCP server
     pub(crate) screenshot_request_watcher: Option<crate::config::watcher::ConfigWatcher>,
-    /// Last shader reload error message (for display in UI)
-    pub(crate) shader_reload_error: Option<String>,
-    /// Background shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
-    /// Used to propagate hot reload results to standalone settings window
-    pub(crate) background_shader_reload_result: Option<Option<String>>,
-    /// Cursor shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
-    /// Used to propagate hot reload results to standalone settings window
-    pub(crate) cursor_shader_reload_result: Option<Option<String>>,
 
     /// Flag to signal that the settings window should be opened
     /// This is set by keyboard handlers and consumed by the window manager
@@ -731,16 +713,13 @@ impl WindowState {
 
             debug: DebugState::new(),
 
-            cursor_opacity: 1.0,
-            last_cursor_blink: None,
-            last_key_press: None,
+            cursor_anim: crate::app::cursor_anim_state::CursorAnimState::default(),
             is_fullscreen: false,
             egui_ctx: None,
             egui_state: None,
             pending_egui_events: Vec::new(),
             egui_initialized: false,
-            shader_metadata_cache: ShaderMetadataCache::with_shaders_dir(shaders_dir.clone()),
-            cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
+            shader_state: crate::app::shader_state::ShaderState::new(shaders_dir),
             help_ui: HelpUI::new(),
             clipboard_history_ui: ClipboardHistoryUI::new(),
             command_history_ui: CommandHistoryUI::new(),
@@ -778,7 +757,6 @@ impl WindowState {
 
             needs_redraw: true,
             config_changed_by_agent: false,
-            cursor_blink_timer: None,
             pending_font_rebuild: false,
 
             is_focused: true, // Assume focused on creation
@@ -789,13 +767,9 @@ impl WindowState {
 
             throughput_batch_start: None,
 
-            shader_watcher: None,
             config_watcher: None,
             config_update_watcher: None,
             screenshot_request_watcher: None,
-            shader_reload_error: None,
-            background_shader_reload_result: None,
-            cursor_shader_reload_result: None,
 
             open_settings_window_requested: false,
             pending_arrangement_restore: None,
@@ -943,13 +917,13 @@ impl WindowState {
             .config
             .custom_shader
             .as_ref()
-            .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+            .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
         let cursor_metadata = self
             .config
             .cursor_shader
             .as_ref()
-            .and_then(|name| self.cursor_shader_metadata_cache.get(name).cloned());
+            .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name).cloned());
         let params = RendererInitParams::from_config(
             &self.config,
             &theme,
@@ -1060,13 +1034,13 @@ impl WindowState {
             .config
             .custom_shader
             .as_ref()
-            .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+            .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
         let cursor_metadata = self
             .config
             .cursor_shader
             .as_ref()
-            .and_then(|name| self.cursor_shader_metadata_cache.get(name).cloned());
+            .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name).cloned());
         let params = RendererInitParams::from_config(
             &self.config,
             &theme,
@@ -1537,7 +1511,7 @@ impl WindowState {
                     "Shader hot reload initialized (debounce: {}ms)",
                     self.config.shader_hot_reload_delay
                 );
-                self.shader_watcher = Some(watcher);
+                self.shader_state.shader_watcher = Some(watcher);
             }
             Err(e) => {
                 debug_info!("SHADER", "Failed to initialize shader hot reload: {}", e);
@@ -1554,8 +1528,8 @@ impl WindowState {
             self.config.cursor_shader
         );
         // Drop existing watcher
-        self.shader_watcher = None;
-        self.shader_reload_error = None;
+        self.shader_state.shader_watcher = None;
+        self.shader_state.shader_reload_error = None;
 
         // Reinitialize if hot reload is still enabled
         self.init_shader_watcher();
@@ -1845,7 +1819,7 @@ impl WindowState {
                             .config
                             .custom_shader
                             .as_ref()
-                            .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+                            .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
                         let resolved = crate::config::shader_config::resolve_shader_config(
                             shader_override,
                             metadata.as_ref(),
@@ -1950,7 +1924,7 @@ impl WindowState {
                     .config
                     .custom_shader
                     .as_ref()
-                    .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+                    .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
                 let resolved = crate::config::shader_config::resolve_shader_config(
                     shader_override,
                     metadata.as_ref(),
@@ -2159,7 +2133,7 @@ impl WindowState {
     /// Should be called periodically (e.g., in about_to_wait or render loop).
     /// Returns true if a shader was reloaded.
     pub(crate) fn check_shader_reload(&mut self) -> bool {
-        let Some(watcher) = &self.shader_watcher else {
+        let Some(watcher) = &self.shader_state.shader_watcher else {
             return false;
         };
 
@@ -2193,14 +2167,14 @@ impl WindowState {
             Err(e) => {
                 let error_msg = format!("Cannot read '{}': {}", file_name, e);
                 log::error!("Shader hot reload failed: {}", error_msg);
-                self.shader_reload_error = Some(error_msg.clone());
+                self.shader_state.shader_reload_error = Some(error_msg.clone());
                 // Track error for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.background_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.background_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                     ShaderType::Cursor => {
-                        self.cursor_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.cursor_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                 }
                 // Notify user of the error
@@ -2233,14 +2207,14 @@ impl WindowState {
         match result {
             Ok(()) => {
                 log::info!("{} reloaded successfully from {}", shader_name, file_name);
-                self.shader_reload_error = None;
+                self.shader_state.shader_reload_error = None;
                 // Track success for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.background_shader_reload_result = Some(None);
+                        self.shader_state.background_shader_reload_result = Some(None);
                     }
                     ShaderType::Cursor => {
-                        self.cursor_shader_reload_result = Some(None);
+                        self.shader_state.cursor_shader_reload_result = Some(None);
                     }
                 }
                 self.needs_redraw = true;
@@ -2264,14 +2238,14 @@ impl WindowState {
                 );
                 log::debug!("Full error chain: {:#}", e);
 
-                self.shader_reload_error = Some(error_msg.clone());
+                self.shader_state.shader_reload_error = Some(error_msg.clone());
                 // Track error for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.background_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.background_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                     ShaderType::Cursor => {
-                        self.cursor_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.cursor_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                 }
 
@@ -2426,12 +2400,12 @@ impl WindowState {
         // If cursor style is locked, use the config's blink setting directly
         if self.config.lock_cursor_style {
             if !self.config.cursor_blink {
-                self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
+                self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
                 return;
             }
         } else if self.config.lock_cursor_blink && !self.config.cursor_blink {
             // If blink is locked off, don't blink regardless of terminal style
-            self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
+            self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
             return;
         }
 
@@ -2458,41 +2432,41 @@ impl WindowState {
 
         if !cursor_should_blink {
             // Smoothly fade to full visibility if blinking disabled (by DECSCUSR or config)
-            self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
+            self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
             return;
         }
 
         let now = std::time::Instant::now();
 
         // If key was pressed recently (within 500ms), smoothly fade in cursor and reset blink timer
-        if let Some(last_key) = self.last_key_press
+        if let Some(last_key) = self.cursor_anim.last_key_press
             && now.duration_since(last_key).as_millis() < 500
         {
-            self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
-            self.last_cursor_blink = Some(now);
+            self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
+            self.cursor_anim.last_cursor_blink = Some(now);
             return;
         }
 
         // Smooth cursor blink animation using sine wave for natural fade
         let blink_interval = std::time::Duration::from_millis(self.config.cursor_blink_interval);
 
-        if let Some(last_blink) = self.last_cursor_blink {
+        if let Some(last_blink) = self.cursor_anim.last_cursor_blink {
             let elapsed = now.duration_since(last_blink);
             let progress = (elapsed.as_millis() as f32) / (blink_interval.as_millis() as f32);
 
             // Use cosine wave for smooth fade in/out (starts at 1.0, fades to 0.0, back to 1.0)
-            self.cursor_opacity = ((progress * std::f32::consts::PI).cos())
+            self.cursor_anim.cursor_opacity = ((progress * std::f32::consts::PI).cos())
                 .abs()
                 .clamp(0.0, 1.0);
 
             // Reset timer after full cycle (2x interval for full on+off)
             if elapsed >= blink_interval * 2 {
-                self.last_cursor_blink = Some(now);
+                self.cursor_anim.last_cursor_blink = Some(now);
             }
         } else {
             // First time, start the blink timer with cursor fully visible
-            self.cursor_opacity = 1.0;
-            self.last_cursor_blink = Some(now);
+            self.cursor_anim.cursor_opacity = 1.0;
+            self.cursor_anim.last_cursor_blink = Some(now);
         }
     }
 
@@ -2692,7 +2666,7 @@ impl WindowState {
                     None
                 };
 
-                let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_opacity));
+                let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_anim.cursor_opacity));
 
                 // Get cursor style for geometric rendering
                 // In copy mode, always use SteadyBlock for clear visibility
@@ -2739,7 +2713,7 @@ impl WindowState {
                 log::trace!(
                     "Cursor: pos={:?}, opacity={:.2}, style={:?}, scroll={}, visible={}",
                     current_cursor_pos,
-                    self.cursor_opacity,
+                    self.cursor_anim.cursor_opacity,
                     cursor_style,
                     scroll_offset,
                     term.is_cursor_visible()
@@ -2825,7 +2799,7 @@ impl WindowState {
                 self.config
                     .cursor_shader
                     .as_ref()
-                    .and_then(|name| self.cursor_shader_metadata_cache.get(name))
+                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
                     .and_then(|meta| meta.defaults.hides_cursor)
             })
             .unwrap_or(self.config.cursor_shader_hides_cursor);
@@ -2840,7 +2814,7 @@ impl WindowState {
                 self.config
                     .cursor_shader
                     .as_ref()
-                    .and_then(|name| self.cursor_shader_metadata_cache.get(name))
+                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
                     .and_then(|meta| meta.defaults.disable_in_alt_screen)
             })
             .unwrap_or(self.config.cursor_shader_disable_in_alt_screen);
@@ -3268,532 +3242,8 @@ impl WindowState {
         let mut pending_quit_confirm_action = QuitConfirmAction::None;
         let mut pending_remote_install_action = RemoteShellInstallAction::None;
         let mut pending_ssh_connect_action = SshConnectAction::None;
-        let mut saw_prompt_complete_this_tick = false;
-
-        // Process agent messages
-        let msg_count_before = self.ai_inspector.chat.messages.len();
-        // Config update requests are deferred to avoid double-borrow of self
-        // while iterating agent_rx.
-        type ConfigUpdateEntry = (
-            std::collections::HashMap<String, serde_json::Value>,
-            tokio::sync::oneshot::Sender<Result<(), String>>,
-        );
-        let mut pending_config_updates: Vec<ConfigUpdateEntry> = Vec::new();
-        if let Some(rx) = &mut self.agent_rx {
-            while let Ok(msg) = rx.try_recv() {
-                match msg {
-                    AgentMessage::StatusChanged(status) => {
-                        // Flush any pending agent text on status change.
-                        self.ai_inspector.chat.flush_agent_message();
-                        self.ai_inspector.agent_status = status;
-                        self.needs_redraw = true;
-                    }
-                    AgentMessage::SessionUpdate(update) => {
-                        match &update {
-                            par_term_acp::SessionUpdate::ToolCall(info) => {
-                                let title_l = info.title.to_ascii_lowercase();
-                                if title_l.contains("skill")
-                                    || title_l.contains("todo")
-                                    || title_l.contains("enterplanmode")
-                                {
-                                    self.agent_skill_failure_detected = true;
-                                }
-                            }
-                            par_term_acp::SessionUpdate::ToolCallUpdate(info) => {
-                                if let Some(status) = &info.status {
-                                    let status_l = status.to_ascii_lowercase();
-                                    if status_l.contains("fail") || status_l.contains("error") {
-                                        self.agent_skill_failure_detected = true;
-                                    }
-                                }
-                            }
-                            par_term_acp::SessionUpdate::CurrentModeUpdate { mode_id } => {
-                                if mode_id.eq_ignore_ascii_case("plan") {
-                                    self.agent_skill_failure_detected = true;
-                                    self.ai_inspector.chat.add_system_message(
-                                        "Agent switched to plan mode during an executable task. Requesting default mode and retry guidance."
-                                            .to_string(),
-                                    );
-                                    if let Some(agent) = &self.agent {
-                                        let agent = agent.clone();
-                                        self.runtime.spawn(async move {
-                                            let agent = agent.lock().await;
-                                            if let Err(e) = agent.set_mode("default").await {
-                                                log::error!(
-                                                    "ACP: failed to auto-reset mode from plan to default: {e}"
-                                                );
-                                            }
-                                        });
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                        self.ai_inspector.chat.handle_update(update);
-                        self.needs_redraw = true;
-                    }
-                    AgentMessage::PermissionRequest {
-                        request_id,
-                        tool_call,
-                        options,
-                    } => {
-                        log::info!(
-                            "ACP: permission request id={request_id} options={}",
-                            options.len()
-                        );
-                        let description = tool_call
-                            .get("title")
-                            .and_then(|t| t.as_str())
-                            .unwrap_or("Permission requested")
-                            .to_string();
-                        if is_terminal_screenshot_permission_tool(&tool_call)
-                            && !self.config.ai_inspector_agent_screenshot_access
-                        {
-                            let deny_option_id = options
-                                .iter()
-                                .find(|o| {
-                                    matches!(
-                                        o.kind.as_deref(),
-                                        Some("deny")
-                                            | Some("reject")
-                                            | Some("cancel")
-                                            | Some("disallow")
-                                    ) || o.name.to_lowercase().contains("deny")
-                                        || o.name.to_lowercase().contains("reject")
-                                        || o.name.to_lowercase().contains("cancel")
-                                })
-                                .or_else(|| options.first())
-                                .map(|o| o.option_id.clone());
-
-                            if let Some(client) = &self.agent_client {
-                                let client = client.clone();
-                                self.runtime.spawn(async move {
-                                    use par_term_acp::{
-                                        PermissionOutcome, RequestPermissionResponse,
-                                    };
-                                    let outcome = RequestPermissionResponse {
-                                        outcome: PermissionOutcome {
-                                            outcome: "selected".to_string(),
-                                            option_id: deny_option_id,
-                                        },
-                                    };
-                                    let response_json =
-                                        serde_json::to_value(&outcome).unwrap_or_default();
-                                    if let Err(e) =
-                                        client.respond(request_id, Some(response_json), None).await
-                                    {
-                                        log::error!(
-                                            "ACP: failed to auto-deny screenshot permission: {e}"
-                                        );
-                                    }
-                                });
-                            } else {
-                                log::error!(
-                                    "ACP: cannot auto-deny screenshot permission id={request_id} \
-                                     — agent_client is None!"
-                                );
-                            }
-
-                            self.ai_inspector.chat.add_system_message(format!(
-                                "Blocked screenshot request (`{description}`) because \"Allow Agent Screenshots\" is disabled in Settings > Assistant > Permissions."
-                            ));
-                            self.needs_redraw = true;
-                            continue;
-                        }
-                        self.ai_inspector
-                            .chat
-                            .messages
-                            .push(ChatMessage::Permission {
-                                request_id,
-                                description,
-                                options: options
-                                    .iter()
-                                    .map(|o| (o.option_id.clone(), o.name.clone()))
-                                    .collect(),
-                                resolved: false,
-                            });
-                        self.needs_redraw = true;
-                    }
-                    AgentMessage::PromptStarted => {
-                        self.agent_skill_failure_detected = false;
-                        self.ai_inspector.chat.mark_oldest_pending_sent();
-                        // Remove the corresponding handle (first in queue).
-                        if !self.pending_send_handles.is_empty() {
-                            self.pending_send_handles.pop_front();
-                        }
-                        self.needs_redraw = true;
-                    }
-                    AgentMessage::PromptComplete => {
-                        saw_prompt_complete_this_tick = true;
-                        self.ai_inspector.chat.flush_agent_message();
-                        self.needs_redraw = true;
-                    }
-                    AgentMessage::ConfigUpdate { updates, reply } => {
-                        pending_config_updates.push((updates, reply));
-                    }
-                    AgentMessage::ClientReady(client) => {
-                        log::info!("ACP: agent_client ready");
-                        self.agent_client = Some(client);
-                    }
-                    AgentMessage::AutoApproved(description) => {
-                        self.ai_inspector.chat.add_auto_approved(description);
-                        self.needs_redraw = true;
-                    }
-                }
-            }
-        }
-        // Process deferred config updates now that agent_rx borrow is released.
-        for (updates, reply) in pending_config_updates {
-            let result = self.apply_agent_config_updates(&updates);
-            if result.is_ok() {
-                self.config_changed_by_agent = true;
-            }
-            let _ = reply.send(result);
-            self.needs_redraw = true;
-        }
-
-        // Track recoverable local backend tool failures during the current
-        // prompt (for example failed `Skill`/`Write` calls).
-        if !self.agent_skill_failure_detected {
-            let mut seen_user_boundary = false;
-            for msg in self.ai_inspector.chat.messages.iter().rev() {
-                if matches!(msg, ChatMessage::User { .. }) {
-                    seen_user_boundary = true;
-                    break;
-                }
-                if let ChatMessage::ToolCall { title, status, .. } = msg {
-                    let title_l = title.to_ascii_lowercase();
-                    let status_l = status.to_ascii_lowercase();
-                    let is_failed = status_l.contains("fail") || status_l.contains("error");
-                    let is_recoverable_tool = title_l.contains("skill")
-                        || title_l == "write"
-                        || title_l.starts_with("write ")
-                        || title_l.contains(" write ");
-                    if is_failed && is_recoverable_tool {
-                        self.agent_skill_failure_detected = true;
-                        break;
-                    }
-                }
-            }
-            // If there is no user message yet, ignore stale history.
-            if !seen_user_boundary {
-                self.agent_skill_failure_detected = false;
-            }
-        }
-
-        // Compatibility fallback: some local ACP backends emit literal
-        // `<function=...>` tool markup in chat instead of structured tool calls.
-        // Parse inline `config_update` payloads from newly added agent messages
-        // and apply them so config changes still work.
-        let inline_updates: Vec<(usize, std::collections::HashMap<String, serde_json::Value>)> =
-            self.ai_inspector
-                .chat
-                .messages
-                .iter()
-                .enumerate()
-                .skip(msg_count_before)
-                .filter_map(|(idx, msg)| match msg {
-                    ChatMessage::Agent(text) => {
-                        extract_inline_config_update(text).map(|updates| (idx, updates))
-                    }
-                    _ => None,
-                })
-                .collect();
-
-        for (idx, updates) in inline_updates {
-            match self.apply_agent_config_updates(&updates) {
-                Ok(()) => {
-                    self.config_changed_by_agent = true;
-                    if let Some(ChatMessage::Agent(text)) =
-                        self.ai_inspector.chat.messages.get_mut(idx)
-                    {
-                        *text = "Applied config update request.".to_string();
-                    }
-                    self.ai_inspector.chat.add_system_message(
-                        "Applied inline config_update fallback from agent output.".to_string(),
-                    );
-                }
-                Err(e) => {
-                    self.ai_inspector
-                        .chat
-                        .add_system_message(format!("Inline config_update fallback failed: {e}"));
-                }
-            }
-            self.needs_redraw = true;
-        }
-
-        // Detect other inline XML-style tool markup (we only auto-apply
-        // `config_update`). Treat these as recoverable local backend tool
-        // failures so we can issue a one-shot retry with stricter guidance.
-        for msg in self
-            .ai_inspector
-            .chat
-            .messages
-            .iter()
-            .skip(msg_count_before)
-        {
-            if let ChatMessage::Agent(text) = msg
-                && let Some(function_name) = extract_inline_tool_function_name(text)
-                && function_name != "mcp__par-term-config__config_update"
-            {
-                self.agent_skill_failure_detected = true;
-                self.ai_inspector.chat.add_system_message(format!(
-                    "Agent emitted inline tool markup (`{function_name}`) instead of a structured ACP tool call."
-                ));
-                self.needs_redraw = true;
-                break;
-            }
-        }
-
-        let last_user_text = self
-            .ai_inspector
-            .chat
-            .messages
-            .iter()
-            .rev()
-            .find_map(|msg| {
-                if let ChatMessage::User { text, .. } = msg {
-                    Some(text.clone())
-                } else {
-                    None
-                }
-            });
-
-        let shader_activation_incomplete = if saw_prompt_complete_this_tick {
-            if let Some(user_text) = last_user_text.as_deref() {
-                if crate::ai_inspector::shader_context::is_shader_activation_request(user_text) {
-                    let mut saw_user_boundary = false;
-                    let mut saw_config_update_for_prompt = false;
-                    for msg in self.ai_inspector.chat.messages.iter().rev() {
-                        match msg {
-                            ChatMessage::User { .. } => {
-                                saw_user_boundary = true;
-                                break;
-                            }
-                            ChatMessage::ToolCall { title, .. } => {
-                                let title_l = title.to_ascii_lowercase();
-                                if title_l.contains("config_update") {
-                                    saw_config_update_for_prompt = true;
-                                    break;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    saw_user_boundary && !saw_config_update_for_prompt
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
-        // Bounded recovery: if the prompt failed due to a local backend tool
-        // mismatch (failed Skill/Write or inline tool markup), or if a shader
-        // activation request completed without a config_update call, nudge the
-        // agent to continue the same task with proper ACP tool use.
-        if saw_prompt_complete_this_tick
-            && (self.agent_skill_failure_detected || shader_activation_incomplete)
-            && self.agent_skill_recovery_attempts < 3
-            && let Some(agent) = &self.agent
-        {
-            let had_recoverable_failure = self.agent_skill_failure_detected;
-            self.agent_skill_recovery_attempts =
-                self.agent_skill_recovery_attempts.saturating_add(1);
-            self.agent_skill_failure_detected = false;
-            self.ai_inspector.chat.streaming = true;
-            if shader_activation_incomplete && !had_recoverable_failure {
-                self.ai_inspector.chat.add_system_message(
-                    format!(
-                        "Agent completed a shader task response without activating the shader via \
-                         config_update. Auto-retrying (attempt {}/3) to finish the activation step.",
-                        self.agent_skill_recovery_attempts
-                    ),
-                );
-            } else {
-                self.ai_inspector.chat.add_system_message(
-                    format!(
-                        "Recoverable local-backend tool failure detected (failed Skill/Write or \
-                         inline tool markup). Auto-retrying (attempt {}/3) with stricter ACP tool guidance.",
-                        self.agent_skill_recovery_attempts
-                    ),
-                );
-            }
-
-            let mut content: Vec<par_term_acp::ContentBlock> =
-                vec![par_term_acp::ContentBlock::Text {
-                    text: format!(
-                        "{}[End system instructions]",
-                        crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE
-                    ),
-                }];
-
-            if let Some(ref user_text) = last_user_text
-                && crate::ai_inspector::shader_context::should_inject_shader_context(
-                    user_text,
-                    &self.config,
-                )
-            {
-                content.push(par_term_acp::ContentBlock::Text {
-                    text: crate::ai_inspector::shader_context::build_shader_context(&self.config),
-                });
-            }
-
-            let extra_recovery_strictness = if self.agent_skill_recovery_attempts >= 2 {
-                " Do not explore unrelated files or dependencies. For shader tasks, go directly \
-                 to the shader file write and config_update activation steps."
-            } else {
-                ""
-            };
-            content.push(par_term_acp::ContentBlock::Text {
-                text: format!(
-                    "[Host recovery note]\nContinue the previous user task and stay on the \
-                       same domain/problem (do not switch to unrelated examples/files). Do NOT \
-                       use `Skill`, `Task`, or `TodoWrite`. Do NOT emit XML-style tool markup \
-                       (`<function=...>`). Use normal ACP file/system/MCP tools directly. If \
-                       a `Read` fails because the target is a directory, do not retry `Read` on \
-                       that directory; use a listing/search tool or write the known target file \
-                       path directly. \
-                       Complete the full requested workflow before declaring success (for shader \
-                       tasks: write the requested shader content, then call config_update to \
-                       activate it). \
-                       using `Write`, use exact parameters like `file_path` and `content` (not \
-                       `filepath`). For par-term settings changes use \
-                       `mcp__par-term-config__config_update` / `config_update`. If a tool \
-                       fails, correct the call and retry the same task with the available \
-                       tools. If you have already created the requested shader file, do not \
-                       stop there: call config_update now to activate it before declaring \
-                       success. Do not ask the user to restate the request unless you truly \
-                       need missing information.{}",
-                    extra_recovery_strictness
-                ),
-            });
-
-            let agent = agent.clone();
-            let tx = self.agent_tx.clone();
-            let handle = self.runtime.spawn(async move {
-                let agent = agent.lock().await;
-                if let Some(ref tx) = tx {
-                    let _ = tx.send(AgentMessage::PromptStarted);
-                }
-                let _ = agent.send_prompt(content).await;
-                if let Some(tx) = tx {
-                    let _ = tx.send(AgentMessage::PromptComplete);
-                }
-            });
-            self.pending_send_handles.push_back(handle);
-            self.needs_redraw = true;
-        }
-
-        // Auto-execute new CommandSuggestion messages when terminal access is enabled.
-        if self.config.ai_inspector_agent_terminal_access {
-            let new_messages = &self.ai_inspector.chat.messages[msg_count_before..];
-            let commands_to_run: Vec<String> = new_messages
-                .iter()
-                .filter_map(|msg| {
-                    if let ChatMessage::CommandSuggestion(cmd) = msg {
-                        Some(format!("{cmd}\n"))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            if !commands_to_run.is_empty()
-                && let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_lock()
-            {
-                for cmd in &commands_to_run {
-                    let _ = term.write(cmd.as_bytes());
-                }
-                crate::debug_info!(
-                    "AI_INSPECTOR",
-                    "Auto-executed {} command(s) in terminal",
-                    commands_to_run.len()
-                );
-            }
-        }
-
-        // Detect new command completions and auto-refresh the snapshot.
-        // This is separate from agent auto-context so the panel always shows
-        // up-to-date command history regardless of agent connection state.
-        if self.ai_inspector.open
-            && let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_lock()
-        {
-            let history = term.core_command_history();
-            let current_count = history.len();
-
-            if current_count != self.ai_inspector.last_command_count {
-                // Command count changed — refresh the snapshot
-                let had_commands = self.ai_inspector.last_command_count > 0;
-                self.ai_inspector.last_command_count = current_count;
-                self.ai_inspector.needs_refresh = true;
-
-                // Auto-context feeding: send latest command info to agent
-                if had_commands
-                    && current_count > 0
-                    && self.config.ai_inspector_auto_context
-                    && self.ai_inspector.agent_status == AgentStatus::Connected
-                    && let Some((cmd, exit_code, duration_ms)) = history.last()
-                {
-                    let now = std::time::Instant::now();
-                    let throttled = self.last_auto_context_sent_at.is_some_and(|last_sent| {
-                        now.duration_since(last_sent)
-                            < std::time::Duration::from_millis(AUTO_CONTEXT_MIN_INTERVAL_MS)
-                    });
-
-                    if !throttled {
-                        let exit_code_str = exit_code
-                            .map(|c| c.to_string())
-                            .unwrap_or_else(|| "N/A".to_string());
-                        let duration = duration_ms.unwrap_or(0);
-
-                        let cwd = term.shell_integration_cwd().unwrap_or_default();
-                        let (sanitized_cmd, was_redacted) = redact_auto_context_command(cmd);
-
-                        let context = format!(
-                            "[Auto-context event]\nCommand completed:\n$ {}\nExit code: {}\nDuration: {}ms\nCWD: {}\nSensitive arguments redacted: {}",
-                            sanitized_cmd, exit_code_str, duration, cwd, was_redacted
-                        );
-
-                        if let Some(agent) = &self.agent {
-                            self.last_auto_context_sent_at = Some(now);
-                            self.ai_inspector.chat.add_system_message(if was_redacted {
-                                "Auto-context sent command metadata to the agent (sensitive values redacted).".to_string()
-                            } else {
-                                "Auto-context sent command metadata to the agent.".to_string()
-                            });
-                            self.needs_redraw = true;
-                            let agent = agent.clone();
-                            let content = vec![par_term_acp::ContentBlock::Text { text: context }];
-                            self.runtime.spawn(async move {
-                                let agent = agent.lock().await;
-                                let _ = agent.send_prompt(content).await;
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        // Refresh AI Inspector snapshot if needed
-        if self.ai_inspector.open
-            && self.ai_inspector.needs_refresh
-            && let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_lock()
-        {
-            let snapshot = crate::ai_inspector::snapshot::SnapshotData::gather(
-                &term,
-                &self.ai_inspector.scope,
-                self.config.ai_inspector_context_max_lines,
-            );
-            self.ai_inspector.snapshot = Some(snapshot);
-            self.ai_inspector.needs_refresh = false;
-        }
+        // Process agent messages and refresh AI Inspector snapshot
+        self.process_agent_messages_tick();
 
         // Check tmux gateway state before renderer borrow to avoid borrow conflicts
         // When tmux controls the layout, we don't use pane padding
@@ -3990,7 +3440,7 @@ impl WindowState {
 
             // Update cursor position and style for geometric rendering
             if let (Some(pos), Some(opacity), Some(style)) =
-                (current_cursor_pos, Some(self.cursor_opacity), cursor_style)
+                (current_cursor_pos, Some(self.cursor_anim.cursor_opacity), cursor_style)
             {
                 renderer.update_cursor(pos, opacity, style);
                 // Forward cursor state to custom shader for Ghostty-compatible cursor animations
@@ -4881,7 +4331,7 @@ impl WindowState {
                             } else {
                                 1.0
                             };
-                            let cursor_opacity = self.cursor_opacity;
+                            let cursor_opacity = self.cursor_anim.cursor_opacity;
 
                             // Pane title settings
                             // Scale from logical pixels (config) to physical pixels
@@ -5221,149 +4671,11 @@ impl WindowState {
         self.sync_ai_inspector_width();
 
         // Handle tab bar actions collected during egui rendering
-        // (done here to avoid borrow conflicts with renderer)
-        match pending_tab_action {
-            TabBarAction::SwitchTo(id) => {
-                self.tab_manager.switch_to(id);
-                // Clear renderer cells and invalidate cache to ensure clean switch
-                if let Some(renderer) = &mut self.renderer {
-                    renderer.clear_all_cells();
-                }
-                if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.cache.cells = None;
-                }
-                self.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            TabBarAction::Close(id) => {
-                // Switch to the tab first so close_current_tab() operates on it.
-                // This routes through the full close path: running-jobs confirmation,
-                // session undo capture, and preserve-shell logic.
-                self.tab_manager.switch_to(id);
-                let was_last = self.close_current_tab();
-                if was_last {
-                    self.is_shutting_down = true;
-                }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            TabBarAction::NewTab => {
-                self.new_tab();
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            TabBarAction::SetColor(id, color) => {
-                if let Some(tab) = self.tab_manager.get_tab_mut(id) {
-                    tab.set_custom_color(color);
-                    log::info!(
-                        "Set custom color for tab {}: RGB({}, {}, {})",
-                        id,
-                        color[0],
-                        color[1],
-                        color[2]
-                    );
-                }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            TabBarAction::ClearColor(id) => {
-                if let Some(tab) = self.tab_manager.get_tab_mut(id) {
-                    tab.clear_custom_color();
-                    log::info!("Cleared custom color for tab {}", id);
-                }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            TabBarAction::Reorder(id, target_index) => {
-                if self.tab_manager.move_tab_to_index(id, target_index) {
-                    self.needs_redraw = true;
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
-                }
-            }
-            TabBarAction::NewTabWithProfile(profile_id) => {
-                self.open_profile(profile_id);
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            TabBarAction::RenameTab(id, name) => {
-                if let Some(tab) = self.tab_manager.get_tab_mut(id) {
-                    if name.is_empty() {
-                        // Blank name: revert to auto title mode
-                        tab.user_named = false;
-                        tab.has_default_title = true;
-                        // Trigger immediate title update
-                        tab.update_title(self.config.tab_title_mode);
-                    } else {
-                        tab.title = name;
-                        tab.user_named = true;
-                        tab.has_default_title = false;
-                    }
-                }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            TabBarAction::Duplicate(id) => {
-                self.duplicate_tab_by_id(id);
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            TabBarAction::ToggleAssistantPanel => {
-                let just_opened = self.ai_inspector.toggle();
-                self.sync_ai_inspector_width();
-                if just_opened {
-                    self.try_auto_connect_agent();
-                }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            TabBarAction::SetTabIcon(tab_id, icon) => {
-                if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
-                    tab.custom_icon = icon;
-                }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            TabBarAction::None => {}
-        }
+        self.handle_tab_bar_action_after_render(pending_tab_action);
+
 
         // Handle clipboard actions collected during egui rendering
-        // (done here to avoid borrow conflicts with renderer)
-        match pending_clipboard_action {
-            ClipboardHistoryAction::Paste(content) => {
-                self.paste_text(&content);
-            }
-            ClipboardHistoryAction::ClearAll => {
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
-                {
-                    term.clear_all_clipboard_history();
-                    log::info!("Cleared all clipboard history");
-                }
-                self.clipboard_history_ui.update_entries(Vec::new());
-            }
-            ClipboardHistoryAction::ClearSlot(slot) => {
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
-                {
-                    term.clear_clipboard_history(slot);
-                    log::info!("Cleared clipboard history for slot {:?}", slot);
-                }
-            }
-            ClipboardHistoryAction::None => {}
-        }
+        self.handle_clipboard_history_action_after_render(pending_clipboard_action);
 
         // Handle command history actions collected during egui rendering
         match pending_command_history_action {
@@ -5497,8 +4809,834 @@ impl WindowState {
             crate::search::SearchAction::None => {}
         }
 
+
         // Handle AI Inspector actions collected during egui rendering
-        match pending_inspector_action {
+        self.handle_inspector_action_after_render(pending_inspector_action);
+
+        // Handle tmux session picker actions collected during egui rendering
+        // Uses gateway mode: writes tmux commands to existing PTY instead of spawning process
+        match pending_session_picker_action {
+            SessionPickerAction::Attach(session_name) => {
+                crate::debug_info!(
+                    "TMUX",
+                    "Session picker: attaching to '{}' via gateway",
+                    session_name
+                );
+                if let Err(e) = self.attach_tmux_gateway(&session_name) {
+                    log::error!("Failed to attach to tmux session '{}': {}", session_name, e);
+                    self.show_toast(format!("Failed to attach: {}", e));
+                } else {
+                    crate::debug_info!("TMUX", "Gateway initiated for session '{}'", session_name);
+                    self.show_toast(format!("Connecting to session '{}'...", session_name));
+                }
+                self.needs_redraw = true;
+            }
+            SessionPickerAction::CreateNew(name) => {
+                crate::debug_info!(
+                    "TMUX",
+                    "Session picker: creating new session {:?} via gateway",
+                    name
+                );
+                if let Err(e) = self.initiate_tmux_gateway(name.as_deref()) {
+                    log::error!("Failed to create tmux session: {}", e);
+                    crate::debug_error!("TMUX", "Failed to initiate gateway: {}", e);
+                    self.show_toast(format!("Failed to create session: {}", e));
+                } else {
+                    let msg = match name {
+                        Some(ref n) => format!("Creating session '{}'...", n),
+                        None => "Creating new tmux session...".to_string(),
+                    };
+                    crate::debug_info!("TMUX", "Gateway initiated: {}", msg);
+                    self.show_toast(msg);
+                }
+                self.needs_redraw = true;
+            }
+            SessionPickerAction::None => {}
+        }
+
+        // Check for shader installation completion from background thread
+        if let Some(ref rx) = self.shader_install_receiver
+            && let Ok(result) = rx.try_recv()
+        {
+            match result {
+                Ok(count) => {
+                    log::info!("Successfully installed {} shaders", count);
+                    self.shader_install_ui
+                        .set_success(&format!("Installed {} shaders!", count));
+
+                    // Update config to mark as installed
+                    self.config.shader_install_prompt = ShaderInstallPrompt::Installed;
+                    if let Err(e) = self.config.save() {
+                        log::error!("Failed to save config after shader install: {}", e);
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to install shaders: {}", e);
+                    self.shader_install_ui.set_error(&e);
+                }
+            }
+            self.shader_install_receiver = None;
+            self.needs_redraw = true;
+        }
+
+        // Handle shader install responses
+        match pending_shader_install_response {
+            ShaderInstallResponse::Install => {
+                log::info!("User requested shader installation");
+                self.shader_install_ui
+                    .set_installing("Downloading shaders...");
+                self.needs_redraw = true;
+
+                // Spawn installation in background thread so UI can show progress
+                let (tx, rx) = std::sync::mpsc::channel();
+                self.shader_install_receiver = Some(rx);
+
+                std::thread::spawn(move || {
+                    let result = crate::shader_install_ui::install_shaders_headless();
+                    let _ = tx.send(result);
+                });
+
+                // Request redraw so the spinner shows
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            ShaderInstallResponse::Never => {
+                log::info!("User declined shader installation (never ask again)");
+                self.shader_install_ui.hide();
+
+                // Update config to never ask again
+                self.config.shader_install_prompt = ShaderInstallPrompt::Never;
+                if let Err(e) = self.config.save() {
+                    log::error!("Failed to save config after declining shaders: {}", e);
+                }
+            }
+            ShaderInstallResponse::Later => {
+                log::info!("User deferred shader installation");
+                self.shader_install_ui.hide();
+                // Config remains "ask" - will prompt again on next startup
+            }
+            ShaderInstallResponse::None => {}
+        }
+
+        // Handle integrations welcome dialog responses
+        self.handle_integrations_response(&pending_integrations_response);
+
+        // Handle profile drawer actions
+        match pending_profile_drawer_action {
+            ProfileDrawerAction::OpenProfile(id) => {
+                self.open_profile(id);
+            }
+            ProfileDrawerAction::ManageProfiles => {
+                // Open settings window to Profiles tab instead of terminal-embedded modal
+                self.open_settings_window_requested = true;
+                self.open_settings_profiles_tab = true;
+            }
+            ProfileDrawerAction::None => {}
+        }
+
+        let absolute_total = absolute_start.elapsed();
+        if absolute_total.as_millis() > 10 {
+            log::debug!(
+                "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
+                absolute_total.as_secs_f64() * 1000.0
+            );
+        }
+    }
+
+    /// Render split panes when the active tab has multiple panes
+    #[allow(clippy::too_many_arguments)]
+
+    /// Process incoming ACP agent messages for this render tick and refresh
+    /// the AI Inspector snapshot when needed.
+    ///
+    /// Called once per frame from `render()`. Handles the full agent message
+    /// dispatch loop, deferred config updates, inline tool-markup fallback,
+    /// bounded skill-failure recovery, auto-context feeding, and snapshot refresh.
+    fn process_agent_messages_tick(&mut self) {
+        let mut saw_prompt_complete_this_tick = false;
+
+        // Process agent messages
+        let msg_count_before = self.ai_inspector.chat.messages.len();
+        // Config update requests are deferred to avoid double-borrow of self
+        // while iterating agent_rx.
+        type ConfigUpdateEntry = (
+            std::collections::HashMap<String, serde_json::Value>,
+            tokio::sync::oneshot::Sender<Result<(), String>>,
+        );
+        let mut pending_config_updates: Vec<ConfigUpdateEntry> = Vec::new();
+        if let Some(rx) = &mut self.agent_rx {
+            while let Ok(msg) = rx.try_recv() {
+                match msg {
+                    AgentMessage::StatusChanged(status) => {
+                        // Flush any pending agent text on status change.
+                        self.ai_inspector.chat.flush_agent_message();
+                        self.ai_inspector.agent_status = status;
+                        self.needs_redraw = true;
+                    }
+                    AgentMessage::SessionUpdate(update) => {
+                        match &update {
+                            par_term_acp::SessionUpdate::ToolCall(info) => {
+                                let title_l = info.title.to_ascii_lowercase();
+                                if title_l.contains("skill")
+                                    || title_l.contains("todo")
+                                    || title_l.contains("enterplanmode")
+                                {
+                                    self.agent_skill_failure_detected = true;
+                                }
+                            }
+                            par_term_acp::SessionUpdate::ToolCallUpdate(info) => {
+                                if let Some(status) = &info.status {
+                                    let status_l = status.to_ascii_lowercase();
+                                    if status_l.contains("fail") || status_l.contains("error") {
+                                        self.agent_skill_failure_detected = true;
+                                    }
+                                }
+                            }
+                            par_term_acp::SessionUpdate::CurrentModeUpdate { mode_id } => {
+                                if mode_id.eq_ignore_ascii_case("plan") {
+                                    self.agent_skill_failure_detected = true;
+                                    self.ai_inspector.chat.add_system_message(
+                                        "Agent switched to plan mode during an executable task. Requesting default mode and retry guidance."
+                                            .to_string(),
+                                    );
+                                    if let Some(agent) = &self.agent {
+                                        let agent = agent.clone();
+                                        self.runtime.spawn(async move {
+                                            let agent = agent.lock().await;
+                                            if let Err(e) = agent.set_mode("default").await {
+                                                log::error!(
+                                                    "ACP: failed to auto-reset mode from plan to default: {e}"
+                                                );
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                        self.ai_inspector.chat.handle_update(update);
+                        self.needs_redraw = true;
+                    }
+                    AgentMessage::PermissionRequest {
+                        request_id,
+                        tool_call,
+                        options,
+                    } => {
+                        log::info!(
+                            "ACP: permission request id={request_id} options={}",
+                            options.len()
+                        );
+                        let description = tool_call
+                            .get("title")
+                            .and_then(|t| t.as_str())
+                            .unwrap_or("Permission requested")
+                            .to_string();
+                        if is_terminal_screenshot_permission_tool(&tool_call)
+                            && !self.config.ai_inspector_agent_screenshot_access
+                        {
+                            let deny_option_id = options
+                                .iter()
+                                .find(|o| {
+                                    matches!(
+                                        o.kind.as_deref(),
+                                        Some("deny")
+                                            | Some("reject")
+                                            | Some("cancel")
+                                            | Some("disallow")
+                                    ) || o.name.to_lowercase().contains("deny")
+                                        || o.name.to_lowercase().contains("reject")
+                                        || o.name.to_lowercase().contains("cancel")
+                                })
+                                .or_else(|| options.first())
+                                .map(|o| o.option_id.clone());
+
+                            if let Some(client) = &self.agent_client {
+                                let client = client.clone();
+                                self.runtime.spawn(async move {
+                                    use par_term_acp::{
+                                        PermissionOutcome, RequestPermissionResponse,
+                                    };
+                                    let outcome = RequestPermissionResponse {
+                                        outcome: PermissionOutcome {
+                                            outcome: "selected".to_string(),
+                                            option_id: deny_option_id,
+                                        },
+                                    };
+                                    let response_json =
+                                        serde_json::to_value(&outcome).unwrap_or_default();
+                                    if let Err(e) =
+                                        client.respond(request_id, Some(response_json), None).await
+                                    {
+                                        log::error!(
+                                            "ACP: failed to auto-deny screenshot permission: {e}"
+                                        );
+                                    }
+                                });
+                            } else {
+                                log::error!(
+                                    "ACP: cannot auto-deny screenshot permission id={request_id} \
+                                     — agent_client is None!"
+                                );
+                            }
+
+                            self.ai_inspector.chat.add_system_message(format!(
+                                "Blocked screenshot request (`{description}`) because \"Allow Agent Screenshots\" is disabled in Settings > Assistant > Permissions."
+                            ));
+                            self.needs_redraw = true;
+                            continue;
+                        }
+                        self.ai_inspector
+                            .chat
+                            .messages
+                            .push(ChatMessage::Permission {
+                                request_id,
+                                description,
+                                options: options
+                                    .iter()
+                                    .map(|o| (o.option_id.clone(), o.name.clone()))
+                                    .collect(),
+                                resolved: false,
+                            });
+                        self.needs_redraw = true;
+                    }
+                    AgentMessage::PromptStarted => {
+                        self.agent_skill_failure_detected = false;
+                        self.ai_inspector.chat.mark_oldest_pending_sent();
+                        // Remove the corresponding handle (first in queue).
+                        if !self.pending_send_handles.is_empty() {
+                            self.pending_send_handles.pop_front();
+                        }
+                        self.needs_redraw = true;
+                    }
+                    AgentMessage::PromptComplete => {
+                        saw_prompt_complete_this_tick = true;
+                        self.ai_inspector.chat.flush_agent_message();
+                        self.needs_redraw = true;
+                    }
+                    AgentMessage::ConfigUpdate { updates, reply } => {
+                        pending_config_updates.push((updates, reply));
+                    }
+                    AgentMessage::ClientReady(client) => {
+                        log::info!("ACP: agent_client ready");
+                        self.agent_client = Some(client);
+                    }
+                    AgentMessage::AutoApproved(description) => {
+                        self.ai_inspector.chat.add_auto_approved(description);
+                        self.needs_redraw = true;
+                    }
+                }
+            }
+        }
+        // Process deferred config updates now that agent_rx borrow is released.
+        for (updates, reply) in pending_config_updates {
+            let result = self.apply_agent_config_updates(&updates);
+            if result.is_ok() {
+                self.config_changed_by_agent = true;
+            }
+            let _ = reply.send(result);
+            self.needs_redraw = true;
+        }
+
+        // Track recoverable local backend tool failures during the current
+        // prompt (for example failed `Skill`/`Write` calls).
+        if !self.agent_skill_failure_detected {
+            let mut seen_user_boundary = false;
+            for msg in self.ai_inspector.chat.messages.iter().rev() {
+                if matches!(msg, ChatMessage::User { .. }) {
+                    seen_user_boundary = true;
+                    break;
+                }
+                if let ChatMessage::ToolCall { title, status, .. } = msg {
+                    let title_l = title.to_ascii_lowercase();
+                    let status_l = status.to_ascii_lowercase();
+                    let is_failed = status_l.contains("fail") || status_l.contains("error");
+                    let is_recoverable_tool = title_l.contains("skill")
+                        || title_l == "write"
+                        || title_l.starts_with("write ")
+                        || title_l.contains(" write ");
+                    if is_failed && is_recoverable_tool {
+                        self.agent_skill_failure_detected = true;
+                        break;
+                    }
+                }
+            }
+            // If there is no user message yet, ignore stale history.
+            if !seen_user_boundary {
+                self.agent_skill_failure_detected = false;
+            }
+        }
+
+        // Compatibility fallback: some local ACP backends emit literal
+        // `<function=...>` tool markup in chat instead of structured tool calls.
+        // Parse inline `config_update` payloads from newly added agent messages
+        // and apply them so config changes still work.
+        let inline_updates: Vec<(usize, std::collections::HashMap<String, serde_json::Value>)> =
+            self.ai_inspector
+                .chat
+                .messages
+                .iter()
+                .enumerate()
+                .skip(msg_count_before)
+                .filter_map(|(idx, msg)| match msg {
+                    ChatMessage::Agent(text) => {
+                        extract_inline_config_update(text).map(|updates| (idx, updates))
+                    }
+                    _ => None,
+                })
+                .collect();
+
+        for (idx, updates) in inline_updates {
+            match self.apply_agent_config_updates(&updates) {
+                Ok(()) => {
+                    self.config_changed_by_agent = true;
+                    if let Some(ChatMessage::Agent(text)) =
+                        self.ai_inspector.chat.messages.get_mut(idx)
+                    {
+                        *text = "Applied config update request.".to_string();
+                    }
+                    self.ai_inspector.chat.add_system_message(
+                        "Applied inline config_update fallback from agent output.".to_string(),
+                    );
+                }
+                Err(e) => {
+                    self.ai_inspector
+                        .chat
+                        .add_system_message(format!("Inline config_update fallback failed: {e}"));
+                }
+            }
+            self.needs_redraw = true;
+        }
+
+        // Detect other inline XML-style tool markup (we only auto-apply
+        // `config_update`). Treat these as recoverable local backend tool
+        // failures so we can issue a one-shot retry with stricter guidance.
+        for msg in self
+            .ai_inspector
+            .chat
+            .messages
+            .iter()
+            .skip(msg_count_before)
+        {
+            if let ChatMessage::Agent(text) = msg
+                && let Some(function_name) = extract_inline_tool_function_name(text)
+                && function_name != "mcp__par-term-config__config_update"
+            {
+                self.agent_skill_failure_detected = true;
+                self.ai_inspector.chat.add_system_message(format!(
+                    "Agent emitted inline tool markup (`{function_name}`) instead of a structured ACP tool call."
+                ));
+                self.needs_redraw = true;
+                break;
+            }
+        }
+
+        let last_user_text = self
+            .ai_inspector
+            .chat
+            .messages
+            .iter()
+            .rev()
+            .find_map(|msg| {
+                if let ChatMessage::User { text, .. } = msg {
+                    Some(text.clone())
+                } else {
+                    None
+                }
+            });
+
+        let shader_activation_incomplete = if saw_prompt_complete_this_tick {
+            if let Some(user_text) = last_user_text.as_deref() {
+                if crate::ai_inspector::shader_context::is_shader_activation_request(user_text) {
+                    let mut saw_user_boundary = false;
+                    let mut saw_config_update_for_prompt = false;
+                    for msg in self.ai_inspector.chat.messages.iter().rev() {
+                        match msg {
+                            ChatMessage::User { .. } => {
+                                saw_user_boundary = true;
+                                break;
+                            }
+                            ChatMessage::ToolCall { title, .. } => {
+                                let title_l = title.to_ascii_lowercase();
+                                if title_l.contains("config_update") {
+                                    saw_config_update_for_prompt = true;
+                                    break;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    saw_user_boundary && !saw_config_update_for_prompt
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        // Bounded recovery: if the prompt failed due to a local backend tool
+        // mismatch (failed Skill/Write or inline tool markup), or if a shader
+        // activation request completed without a config_update call, nudge the
+        // agent to continue the same task with proper ACP tool use.
+        if saw_prompt_complete_this_tick
+            && (self.agent_skill_failure_detected || shader_activation_incomplete)
+            && self.agent_skill_recovery_attempts < 3
+            && let Some(agent) = &self.agent
+        {
+            let had_recoverable_failure = self.agent_skill_failure_detected;
+            self.agent_skill_recovery_attempts =
+                self.agent_skill_recovery_attempts.saturating_add(1);
+            self.agent_skill_failure_detected = false;
+            self.ai_inspector.chat.streaming = true;
+            if shader_activation_incomplete && !had_recoverable_failure {
+                self.ai_inspector.chat.add_system_message(
+                    format!(
+                        "Agent completed a shader task response without activating the shader via \
+                         config_update. Auto-retrying (attempt {}/3) to finish the activation step.",
+                        self.agent_skill_recovery_attempts
+                    ),
+                );
+            } else {
+                self.ai_inspector.chat.add_system_message(
+                    format!(
+                        "Recoverable local-backend tool failure detected (failed Skill/Write or \
+                         inline tool markup). Auto-retrying (attempt {}/3) with stricter ACP tool guidance.",
+                        self.agent_skill_recovery_attempts
+                    ),
+                );
+            }
+
+            let mut content: Vec<par_term_acp::ContentBlock> =
+                vec![par_term_acp::ContentBlock::Text {
+                    text: format!(
+                        "{}[End system instructions]",
+                        crate::ai_inspector::chat::AGENT_SYSTEM_GUIDANCE
+                    ),
+                }];
+
+            if let Some(ref user_text) = last_user_text
+                && crate::ai_inspector::shader_context::should_inject_shader_context(
+                    user_text,
+                    &self.config,
+                )
+            {
+                content.push(par_term_acp::ContentBlock::Text {
+                    text: crate::ai_inspector::shader_context::build_shader_context(&self.config),
+                });
+            }
+
+            let extra_recovery_strictness = if self.agent_skill_recovery_attempts >= 2 {
+                " Do not explore unrelated files or dependencies. For shader tasks, go directly \
+                 to the shader file write and config_update activation steps."
+            } else {
+                ""
+            };
+            content.push(par_term_acp::ContentBlock::Text {
+                text: format!(
+                    "[Host recovery note]\nContinue the previous user task and stay on the \
+                       same domain/problem (do not switch to unrelated examples/files). Do NOT \
+                       use `Skill`, `Task`, or `TodoWrite`. Do NOT emit XML-style tool markup \
+                       (`<function=...>`). Use normal ACP file/system/MCP tools directly. If \
+                       a `Read` fails because the target is a directory, do not retry `Read` on \
+                       that directory; use a listing/search tool or write the known target file \
+                       path directly. \
+                       Complete the full requested workflow before declaring success (for shader \
+                       tasks: write the requested shader content, then call config_update to \
+                       activate it). \
+                       using `Write`, use exact parameters like `file_path` and `content` (not \
+                       `filepath`). For par-term settings changes use \
+                       `mcp__par-term-config__config_update` / `config_update`. If a tool \
+                       fails, correct the call and retry the same task with the available \
+                       tools. If you have already created the requested shader file, do not \
+                       stop there: call config_update now to activate it before declaring \
+                       success. Do not ask the user to restate the request unless you truly \
+                       need missing information.{}",
+                    extra_recovery_strictness
+                ),
+            });
+
+            let agent = agent.clone();
+            let tx = self.agent_tx.clone();
+            let handle = self.runtime.spawn(async move {
+                let agent = agent.lock().await;
+                if let Some(ref tx) = tx {
+                    let _ = tx.send(AgentMessage::PromptStarted);
+                }
+                let _ = agent.send_prompt(content).await;
+                if let Some(tx) = tx {
+                    let _ = tx.send(AgentMessage::PromptComplete);
+                }
+            });
+            self.pending_send_handles.push_back(handle);
+            self.needs_redraw = true;
+        }
+
+        // Auto-execute new CommandSuggestion messages when terminal access is enabled.
+        if self.config.ai_inspector_agent_terminal_access {
+            let new_messages = &self.ai_inspector.chat.messages[msg_count_before..];
+            let commands_to_run: Vec<String> = new_messages
+                .iter()
+                .filter_map(|msg| {
+                    if let ChatMessage::CommandSuggestion(cmd) = msg {
+                        Some(format!("{cmd}\n"))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if !commands_to_run.is_empty()
+                && let Some(tab) = self.tab_manager.active_tab()
+                && let Ok(term) = tab.terminal.try_lock()
+            {
+                for cmd in &commands_to_run {
+                    let _ = term.write(cmd.as_bytes());
+                }
+                crate::debug_info!(
+                    "AI_INSPECTOR",
+                    "Auto-executed {} command(s) in terminal",
+                    commands_to_run.len()
+                );
+            }
+        }
+
+        // Detect new command completions and auto-refresh the snapshot.
+        // This is separate from agent auto-context so the panel always shows
+        // up-to-date command history regardless of agent connection state.
+        if self.ai_inspector.open
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Ok(term) = tab.terminal.try_lock()
+        {
+            let history = term.core_command_history();
+            let current_count = history.len();
+
+            if current_count != self.ai_inspector.last_command_count {
+                // Command count changed — refresh the snapshot
+                let had_commands = self.ai_inspector.last_command_count > 0;
+                self.ai_inspector.last_command_count = current_count;
+                self.ai_inspector.needs_refresh = true;
+
+                // Auto-context feeding: send latest command info to agent
+                if had_commands
+                    && current_count > 0
+                    && self.config.ai_inspector_auto_context
+                    && self.ai_inspector.agent_status == AgentStatus::Connected
+                    && let Some((cmd, exit_code, duration_ms)) = history.last()
+                {
+                    let now = std::time::Instant::now();
+                    let throttled = self.last_auto_context_sent_at.is_some_and(|last_sent| {
+                        now.duration_since(last_sent)
+                            < std::time::Duration::from_millis(AUTO_CONTEXT_MIN_INTERVAL_MS)
+                    });
+
+                    if !throttled {
+                        let exit_code_str = exit_code
+                            .map(|c| c.to_string())
+                            .unwrap_or_else(|| "N/A".to_string());
+                        let duration = duration_ms.unwrap_or(0);
+
+                        let cwd = term.shell_integration_cwd().unwrap_or_default();
+                        let (sanitized_cmd, was_redacted) = redact_auto_context_command(cmd);
+
+                        let context = format!(
+                            "[Auto-context event]\nCommand completed:\n$ {}\nExit code: {}\nDuration: {}ms\nCWD: {}\nSensitive arguments redacted: {}",
+                            sanitized_cmd, exit_code_str, duration, cwd, was_redacted
+                        );
+
+                        if let Some(agent) = &self.agent {
+                            self.last_auto_context_sent_at = Some(now);
+                            self.ai_inspector.chat.add_system_message(if was_redacted {
+                                "Auto-context sent command metadata to the agent (sensitive values redacted).".to_string()
+                            } else {
+                                "Auto-context sent command metadata to the agent.".to_string()
+                            });
+                            self.needs_redraw = true;
+                            let agent = agent.clone();
+                            let content = vec![par_term_acp::ContentBlock::Text { text: context }];
+                            self.runtime.spawn(async move {
+                                let agent = agent.lock().await;
+                                let _ = agent.send_prompt(content).await;
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Refresh AI Inspector snapshot if needed
+        if self.ai_inspector.open
+            && self.ai_inspector.needs_refresh
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Ok(term) = tab.terminal.try_lock()
+        {
+            let snapshot = crate::ai_inspector::snapshot::SnapshotData::gather(
+                &term,
+                &self.ai_inspector.scope,
+                self.config.ai_inspector_context_max_lines,
+            );
+            self.ai_inspector.snapshot = Some(snapshot);
+            self.ai_inspector.needs_refresh = false;
+        }
+    }
+
+    /// Handle tab bar actions collected during egui rendering (called after renderer borrow released).
+    fn handle_tab_bar_action_after_render(&mut self, action: crate::tab_bar_ui::TabBarAction) {
+        // Handle tab bar actions collected during egui rendering
+        // (done here to avoid borrow conflicts with renderer)
+        match action {
+            TabBarAction::SwitchTo(id) => {
+                self.tab_manager.switch_to(id);
+                // Clear renderer cells and invalidate cache to ensure clean switch
+                if let Some(renderer) = &mut self.renderer {
+                    renderer.clear_all_cells();
+                }
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.cache.cells = None;
+                }
+                self.needs_redraw = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::Close(id) => {
+                // Switch to the tab first so close_current_tab() operates on it.
+                // This routes through the full close path: running-jobs confirmation,
+                // session undo capture, and preserve-shell logic.
+                self.tab_manager.switch_to(id);
+                let was_last = self.close_current_tab();
+                if was_last {
+                    self.is_shutting_down = true;
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::NewTab => {
+                self.new_tab();
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::SetColor(id, color) => {
+                if let Some(tab) = self.tab_manager.get_tab_mut(id) {
+                    tab.set_custom_color(color);
+                    log::info!(
+                        "Set custom color for tab {}: RGB({}, {}, {})",
+                        id,
+                        color[0],
+                        color[1],
+                        color[2]
+                    );
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::ClearColor(id) => {
+                if let Some(tab) = self.tab_manager.get_tab_mut(id) {
+                    tab.clear_custom_color();
+                    log::info!("Cleared custom color for tab {}", id);
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::Reorder(id, target_index) => {
+                if self.tab_manager.move_tab_to_index(id, target_index) {
+                    self.needs_redraw = true;
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                }
+            }
+            TabBarAction::NewTabWithProfile(profile_id) => {
+                self.open_profile(profile_id);
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::RenameTab(id, name) => {
+                if let Some(tab) = self.tab_manager.get_tab_mut(id) {
+                    if name.is_empty() {
+                        // Blank name: revert to auto title mode
+                        tab.user_named = false;
+                        tab.has_default_title = true;
+                        // Trigger immediate title update
+                        tab.update_title(self.config.tab_title_mode);
+                    } else {
+                        tab.title = name;
+                        tab.user_named = true;
+                        tab.has_default_title = false;
+                    }
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::Duplicate(id) => {
+                self.duplicate_tab_by_id(id);
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::ToggleAssistantPanel => {
+                let just_opened = self.ai_inspector.toggle();
+                self.sync_ai_inspector_width();
+                if just_opened {
+                    self.try_auto_connect_agent();
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::SetTabIcon(tab_id, icon) => {
+                if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
+                    tab.custom_icon = icon;
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            TabBarAction::None => {}
+        }
+    }
+
+    /// Handle clipboard history actions collected during egui rendering.
+    fn handle_clipboard_history_action_after_render(&mut self, action: crate::clipboard_history_ui::ClipboardHistoryAction) {
+        // Handle clipboard actions collected during egui rendering
+        // (done here to avoid borrow conflicts with renderer)
+        match action {
+            ClipboardHistoryAction::Paste(content) => {
+                self.paste_text(&content);
+            }
+            ClipboardHistoryAction::ClearAll => {
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
+                {
+                    term.clear_all_clipboard_history();
+                    log::info!("Cleared all clipboard history");
+                }
+                self.clipboard_history_ui.update_entries(Vec::new());
+            }
+            ClipboardHistoryAction::ClearSlot(slot) => {
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
+                {
+                    term.clear_clipboard_history(slot);
+                    log::info!("Cleared clipboard history for slot {:?}", slot);
+                }
+            }
+            ClipboardHistoryAction::None => {}
+        }
+    }
+
+    /// Handle AI Inspector panel actions collected during egui rendering.
+    fn handle_inspector_action_after_render(&mut self, action: crate::ai_inspector::panel::InspectorAction) {
+        // Handle AI Inspector actions collected during egui rendering
+        match action {
             InspectorAction::Close => {
                 self.ai_inspector.open = false;
                 self.sync_ai_inspector_width();
@@ -5820,140 +5958,7 @@ impl WindowState {
             }
             InspectorAction::None => {}
         }
-
-        // Handle tmux session picker actions collected during egui rendering
-        // Uses gateway mode: writes tmux commands to existing PTY instead of spawning process
-        match pending_session_picker_action {
-            SessionPickerAction::Attach(session_name) => {
-                crate::debug_info!(
-                    "TMUX",
-                    "Session picker: attaching to '{}' via gateway",
-                    session_name
-                );
-                if let Err(e) = self.attach_tmux_gateway(&session_name) {
-                    log::error!("Failed to attach to tmux session '{}': {}", session_name, e);
-                    self.show_toast(format!("Failed to attach: {}", e));
-                } else {
-                    crate::debug_info!("TMUX", "Gateway initiated for session '{}'", session_name);
-                    self.show_toast(format!("Connecting to session '{}'...", session_name));
-                }
-                self.needs_redraw = true;
-            }
-            SessionPickerAction::CreateNew(name) => {
-                crate::debug_info!(
-                    "TMUX",
-                    "Session picker: creating new session {:?} via gateway",
-                    name
-                );
-                if let Err(e) = self.initiate_tmux_gateway(name.as_deref()) {
-                    log::error!("Failed to create tmux session: {}", e);
-                    crate::debug_error!("TMUX", "Failed to initiate gateway: {}", e);
-                    self.show_toast(format!("Failed to create session: {}", e));
-                } else {
-                    let msg = match name {
-                        Some(ref n) => format!("Creating session '{}'...", n),
-                        None => "Creating new tmux session...".to_string(),
-                    };
-                    crate::debug_info!("TMUX", "Gateway initiated: {}", msg);
-                    self.show_toast(msg);
-                }
-                self.needs_redraw = true;
-            }
-            SessionPickerAction::None => {}
-        }
-
-        // Check for shader installation completion from background thread
-        if let Some(ref rx) = self.shader_install_receiver
-            && let Ok(result) = rx.try_recv()
-        {
-            match result {
-                Ok(count) => {
-                    log::info!("Successfully installed {} shaders", count);
-                    self.shader_install_ui
-                        .set_success(&format!("Installed {} shaders!", count));
-
-                    // Update config to mark as installed
-                    self.config.shader_install_prompt = ShaderInstallPrompt::Installed;
-                    if let Err(e) = self.config.save() {
-                        log::error!("Failed to save config after shader install: {}", e);
-                    }
-                }
-                Err(e) => {
-                    log::error!("Failed to install shaders: {}", e);
-                    self.shader_install_ui.set_error(&e);
-                }
-            }
-            self.shader_install_receiver = None;
-            self.needs_redraw = true;
-        }
-
-        // Handle shader install responses
-        match pending_shader_install_response {
-            ShaderInstallResponse::Install => {
-                log::info!("User requested shader installation");
-                self.shader_install_ui
-                    .set_installing("Downloading shaders...");
-                self.needs_redraw = true;
-
-                // Spawn installation in background thread so UI can show progress
-                let (tx, rx) = std::sync::mpsc::channel();
-                self.shader_install_receiver = Some(rx);
-
-                std::thread::spawn(move || {
-                    let result = crate::shader_install_ui::install_shaders_headless();
-                    let _ = tx.send(result);
-                });
-
-                // Request redraw so the spinner shows
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            ShaderInstallResponse::Never => {
-                log::info!("User declined shader installation (never ask again)");
-                self.shader_install_ui.hide();
-
-                // Update config to never ask again
-                self.config.shader_install_prompt = ShaderInstallPrompt::Never;
-                if let Err(e) = self.config.save() {
-                    log::error!("Failed to save config after declining shaders: {}", e);
-                }
-            }
-            ShaderInstallResponse::Later => {
-                log::info!("User deferred shader installation");
-                self.shader_install_ui.hide();
-                // Config remains "ask" - will prompt again on next startup
-            }
-            ShaderInstallResponse::None => {}
-        }
-
-        // Handle integrations welcome dialog responses
-        self.handle_integrations_response(&pending_integrations_response);
-
-        // Handle profile drawer actions
-        match pending_profile_drawer_action {
-            ProfileDrawerAction::OpenProfile(id) => {
-                self.open_profile(id);
-            }
-            ProfileDrawerAction::ManageProfiles => {
-                // Open settings window to Profiles tab instead of terminal-embedded modal
-                self.open_settings_window_requested = true;
-                self.open_settings_profiles_tab = true;
-            }
-            ProfileDrawerAction::None => {}
-        }
-
-        let absolute_total = absolute_start.elapsed();
-        if absolute_total.as_millis() > 10 {
-            log::debug!(
-                "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
-                absolute_total.as_secs_f64() * 1000.0
-            );
-        }
     }
-
-    /// Render split panes when the active tab has multiple panes
-    #[allow(clippy::too_many_arguments)]
     fn render_split_panes_with_data(
         renderer: &mut Renderer,
         pane_data: Vec<PaneRenderData>,
