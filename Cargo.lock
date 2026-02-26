@@ -3948,6 +3948,7 @@ dependencies = [
  "par-term-fonts",
  "parking_lot",
  "swash",
+ "thiserror 2.0.18",
  "wgpu",
  "winit",
 ]

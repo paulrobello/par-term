@@ -2249,7 +2249,7 @@ impl WindowState {
             }
             Err(e) => {
                 // Extract the most relevant error message from the chain
-                let root_cause = e.root_cause().to_string();
+                let root_cause = e.to_string();
                 let error_msg = if root_cause.len() > 200 {
                     // Truncate very long error messages
                     format!("{}...", &root_cause[..200])
@@ -2765,9 +2765,10 @@ impl WindowState {
 
                     (fresh_cells, false)
                 } else {
-                    // Use cached cells - clone is still needed because of apply_url_underlines
-                    // but we track it accurately for debug logging
-                    (cache_cells.as_ref().unwrap().clone(), true)
+                    // Cache hit: clone the Vec through the Arc (one allocation instead of two).
+                    // apply_url_underlines needs a mutable Vec, so we still need an owned copy,
+                    // but the Arc clone that extracted cache_cells from tab.cache was free.
+                    (cache_cells.as_ref().unwrap().as_ref().clone(), true)
                 };
                 self.debug.cache_hit = is_cache_hit;
                 self.debug.cell_gen_time = cell_gen_start.elapsed();
@@ -2785,7 +2786,10 @@ impl WindowState {
             } else if let Some(cached) = cache_cells {
                 // Terminal locked (e.g., upload in progress), use cached cells so the
                 // rest of the render pipeline (including file transfer overlay) can proceed.
-                (cached, cache_cursor_pos, None, false, cache_generation)
+                // Unwrap the Arc: if this is the sole reference the Vec is moved for free,
+                // otherwise a clone is made (rare — only if another Arc clone is live).
+                let cached_vec = Arc::try_unwrap(cached).unwrap_or_else(|a| (*a).clone());
+                (cached_vec, cache_cursor_pos, None, false, cache_generation)
             } else {
                 return; // Terminal locked and no cache available, skip this frame
             };
@@ -2854,7 +2858,7 @@ impl WindowState {
             && let Ok(term) = tab.terminal.try_lock()
         {
             let current_generation = term.update_generation();
-            tab.cache.cells = Some(cells.clone());
+            tab.cache.cells = Some(Arc::new(cells.clone()));
             tab.cache.generation = current_generation;
             tab.cache.scroll_offset = tab.scroll_state.offset;
             tab.cache.cursor_pos = current_cursor_pos;
@@ -4245,33 +4249,33 @@ impl WindowState {
                     Vec::new()
                 };
 
-            let egui_data = if let (Some(egui_ctx), Some(egui_state)) =
-                (&self.egui_ctx, &mut self.egui_state)
-            {
-                let mut raw_input = egui_state.take_egui_input(self.window.as_ref().unwrap());
+            let egui_data = if let Some(window) = self.window.as_ref() {
+                // Window is live; run egui if the context and state are also ready.
+                if let (Some(egui_ctx), Some(egui_state)) = (&self.egui_ctx, &mut self.egui_state) {
+                    let mut raw_input = egui_state.take_egui_input(window);
 
-                // Inject pending events from menu accelerators (Cmd+V/C/A intercepted by muda)
-                // when egui overlays (profile modal, search, etc.) are active
-                raw_input.events.append(&mut self.pending_egui_events);
+                    // Inject pending events from menu accelerators (Cmd+V/C/A intercepted by muda)
+                    // when egui overlays (profile modal, search, etc.) are active
+                    raw_input.events.append(&mut self.pending_egui_events);
 
-                // When no modal UI overlay is visible, filter out Tab key events to prevent
-                // egui's default focus navigation from stealing Tab/Shift+Tab from the terminal.
-                // Tab/Shift+Tab should only cycle focus between egui widgets when a modal is open.
-                // Note: Side panels (ai_inspector, profile drawer) are NOT modals — the terminal
-                // should still receive Tab/Shift+Tab when they are open.
-                if !any_modal_visible {
-                    raw_input.events.retain(|e| {
-                        !matches!(
-                            e,
-                            egui::Event::Key {
-                                key: egui::Key::Tab,
-                                ..
-                            }
-                        )
-                    });
-                }
+                    // When no modal UI overlay is visible, filter out Tab key events to prevent
+                    // egui's default focus navigation from stealing Tab/Shift+Tab from the terminal.
+                    // Tab/Shift+Tab should only cycle focus between egui widgets when a modal is open.
+                    // Note: Side panels (ai_inspector, profile drawer) are NOT modals — the terminal
+                    // should still receive Tab/Shift+Tab when they are open.
+                    if !any_modal_visible {
+                        raw_input.events.retain(|e| {
+                            !matches!(
+                                e,
+                                egui::Event::Key {
+                                    key: egui::Key::Tab,
+                                    ..
+                                }
+                            )
+                        });
+                    }
 
-                let egui_output = egui_ctx.run(raw_input, |ctx| {
+                    let egui_output = egui_ctx.run(raw_input, |ctx| {
                     // Show FPS overlay if enabled (top-right corner)
                     if show_fps {
                         egui::Area::new(egui::Id::new("fps_overlay"))
@@ -4693,15 +4697,18 @@ impl WindowState {
                     }
                 });
 
-                // Handle egui platform output (clipboard, cursor changes, etc.)
-                // This enables cut/copy/paste in egui text editors
-                egui_state.handle_platform_output(
-                    self.window.as_ref().unwrap(),
-                    egui_output.platform_output.clone(),
-                );
+                    // Handle egui platform output (clipboard, cursor changes, etc.)
+                    // This enables cut/copy/paste in egui text editors
+                    egui_state.handle_platform_output(window, egui_output.platform_output.clone());
 
-                Some((egui_output, egui_ctx))
+                    Some((egui_output, egui_ctx))
+                } else {
+                    // egui context/state not yet initialised for this window.
+                    None
+                }
             } else {
+                // Window not yet created; skip egui rendering this frame.
+                crate::debug_error!("RENDER", "egui render skipped: window is None");
                 None
             };
 

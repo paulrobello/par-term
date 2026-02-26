@@ -298,99 +298,107 @@ pub use par_term_config::TabId;
 /// A single terminal tab with its own state (supports split panes)
 pub struct Tab {
     /// Unique identifier for this tab
-    pub id: TabId,
-    /// The terminal session for this tab (legacy - use pane_manager for new code)
-    pub terminal: Arc<Mutex<TerminalManager>>,
+    pub(crate) id: TabId,
+    /// The terminal session for this tab.
+    /// Legacy field: use pane-based state instead. Will be removed in a future version.
+    pub(crate) terminal: Arc<Mutex<TerminalManager>>,
     /// Pane manager for split pane support
-    pub pane_manager: Option<PaneManager>,
+    pub(crate) pane_manager: Option<PaneManager>,
     /// Tab title (from OSC sequences or fallback)
-    pub title: String,
+    pub(crate) title: String,
     /// Whether this tab has unread activity since last viewed
-    pub has_activity: bool,
-    /// Scroll state for this tab (legacy - each pane has its own)
-    pub scroll_state: ScrollState,
-    /// Mouse state for this tab (legacy - each pane has its own)
-    pub mouse: MouseState,
-    /// Bell state for this tab (legacy - each pane has its own)
-    pub bell: BellState,
-    /// Render cache for this tab (legacy - each pane has its own)
-    pub cache: RenderCache,
+    pub(crate) has_activity: bool,
+    /// Scroll state for this tab.
+    /// Legacy field: each pane has its own scroll state. Will be removed in a future version.
+    pub(crate) scroll_state: ScrollState,
+    /// Mouse state for this tab.
+    /// Legacy field: each pane has its own mouse state. Will be removed in a future version.
+    pub(crate) mouse: MouseState,
+    /// Bell state for this tab.
+    /// Legacy field: each pane has its own bell state. Will be removed in a future version.
+    pub(crate) bell: BellState,
+    /// Render cache for this tab.
+    /// Legacy field: each pane has its own render cache. Will be removed in a future version.
+    pub(crate) cache: RenderCache,
     /// Async task for refresh polling
-    pub refresh_task: Option<JoinHandle<()>>,
-    /// Working directory when tab was created (for inheriting)
-    pub working_directory: Option<String>,
+    pub(crate) refresh_task: Option<JoinHandle<()>>,
+    /// Working directory when tab was created (for inheriting).
+    /// Access via [`Tab::get_cwd`] rather than reading this field directly.
+    pub(in crate::tab) working_directory: Option<String>,
     /// Custom tab color [R, G, B] (0-255), overrides config colors when set
-    pub custom_color: Option<[u8; 3]>,
+    pub(crate) custom_color: Option<[u8; 3]>,
     /// Whether the tab has its default "Tab N" title (not set by OSC, CWD, or user)
-    pub has_default_title: bool,
+    pub(crate) has_default_title: bool,
     /// Whether the user has manually named this tab (makes title static)
-    pub user_named: bool,
+    pub(crate) user_named: bool,
     /// Last time terminal output (activity) was detected
-    pub last_activity_time: std::time::Instant,
+    pub(crate) last_activity_time: std::time::Instant,
     /// Last terminal update generation seen (to detect new output)
-    pub last_seen_generation: u64,
+    pub(crate) last_seen_generation: u64,
     /// Last activity time for anti-idle keep-alive
-    pub anti_idle_last_activity: std::time::Instant,
+    pub(crate) anti_idle_last_activity: std::time::Instant,
     /// Last terminal generation recorded for anti-idle tracking
-    pub anti_idle_last_generation: u64,
+    pub(crate) anti_idle_last_generation: u64,
     /// Whether silence notification has been sent for current idle period
-    pub silence_notified: bool,
+    pub(crate) silence_notified: bool,
     /// Whether exit notification has been sent for this tab
-    pub exit_notified: bool,
+    pub(crate) exit_notified: bool,
     /// Session logger for automatic session recording
-    pub session_logger: SharedSessionLogger,
+    pub(crate) session_logger: SharedSessionLogger,
     /// Whether this tab is in tmux gateway mode
-    pub tmux_gateway_active: bool,
+    pub(crate) tmux_gateway_active: bool,
     /// The tmux pane ID this tab represents (when in gateway mode)
-    pub tmux_pane_id: Option<crate::tmux::TmuxPaneId>,
+    pub(crate) tmux_pane_id: Option<crate::tmux::TmuxPaneId>,
     /// Last detected hostname for automatic profile switching (from OSC 7)
-    pub detected_hostname: Option<String>,
-    /// Last detected CWD for automatic profile switching (from OSC 7)
-    pub detected_cwd: Option<String>,
+    pub(crate) detected_hostname: Option<String>,
+    /// Last detected CWD for automatic profile switching (from OSC 7).
+    /// Internal tracking state; access the current CWD via [`Tab::get_cwd`].
+    pub(in crate::tab) detected_cwd: Option<String>,
     /// Profile ID that was auto-applied based on hostname detection
-    pub auto_applied_profile_id: Option<crate::profile::ProfileId>,
+    pub(crate) auto_applied_profile_id: Option<crate::profile::ProfileId>,
     /// Profile ID that was auto-applied based on directory pattern matching
-    pub auto_applied_dir_profile_id: Option<crate::profile::ProfileId>,
+    pub(crate) auto_applied_dir_profile_id: Option<crate::profile::ProfileId>,
     /// Icon from auto-applied profile (displayed in tab bar)
-    pub profile_icon: Option<String>,
+    pub(crate) profile_icon: Option<String>,
     /// Custom icon set by user via context menu (takes precedence over profile_icon)
-    pub custom_icon: Option<String>,
+    pub(crate) custom_icon: Option<String>,
     /// Original tab title saved before auto-profile override (restored when profile clears)
-    pub pre_profile_title: Option<String>,
+    pub(crate) pre_profile_title: Option<String>,
     /// Badge text override from auto-applied profile (overrides global badge_format)
-    pub badge_override: Option<String>,
+    pub(crate) badge_override: Option<String>,
     /// Mapping from config index to coprocess ID (for UI tracking)
-    pub coprocess_ids: Vec<Option<CoprocessId>>,
+    pub(crate) coprocess_ids: Vec<Option<CoprocessId>>,
     /// Script manager for this tab
-    pub script_manager: crate::scripting::manager::ScriptManager,
+    pub(crate) script_manager: crate::scripting::manager::ScriptManager,
     /// Maps config index to ScriptId for running scripts
-    pub script_ids: Vec<Option<crate::scripting::manager::ScriptId>>,
+    pub(crate) script_ids: Vec<Option<crate::scripting::manager::ScriptId>>,
     /// Observer IDs registered with the terminal for script event forwarding
-    pub script_observer_ids: Vec<Option<par_term_emu_core_rust::observer::ObserverId>>,
+    pub(crate) script_observer_ids: Vec<Option<par_term_emu_core_rust::observer::ObserverId>>,
     /// Event forwarders (shared with observer registration)
-    pub script_forwarders:
+    pub(crate) script_forwarders:
         Vec<Option<std::sync::Arc<crate::scripting::observer::ScriptEventForwarder>>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
-    pub trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    pub(crate) trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
     /// Security metadata: maps trigger_id -> require_user_action flag.
     /// When true, dangerous actions (RunCommand, SendText) from that trigger
     /// are suppressed when fired from passive terminal output.
-    pub trigger_security: std::collections::HashMap<u64, bool>,
+    pub(crate) trigger_security: std::collections::HashMap<u64, bool>,
     /// Rate limiter for output-triggered dangerous actions.
-    pub trigger_rate_limiter: par_term_config::TriggerRateLimiter,
+    pub(crate) trigger_rate_limiter: par_term_config::TriggerRateLimiter,
     /// Prettifier pipeline for content detection and rendering (None if disabled)
-    pub prettifier: Option<PrettifierPipeline>,
+    pub(crate) prettifier: Option<PrettifierPipeline>,
     /// Gutter manager for prettifier indicators
-    pub gutter_manager: GutterManager,
+    pub(crate) gutter_manager: GutterManager,
     /// Whether the terminal was on the alt screen last frame (for detecting transitions)
-    pub was_alt_screen: bool,
+    pub(crate) was_alt_screen: bool,
     /// Profile saved before SSH auto-switch (for revert on disconnect)
-    pub pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
+    pub(crate) pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
     /// Whether current profile was auto-applied due to SSH hostname detection
-    pub ssh_auto_switched: bool,
+    pub(crate) ssh_auto_switched: bool,
     /// Whether this tab is the currently active (visible) tab.
     /// Used by the refresh task to dynamically choose polling interval.
-    pub is_active: Arc<AtomicBool>,
+    /// Managed exclusively within the `crate::tab` module.
+    pub(in crate::tab) is_active: Arc<AtomicBool>,
     /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
     pub(crate) shutdown_fast: bool,
 }

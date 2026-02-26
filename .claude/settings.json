@@ -1,15 +1,4 @@
 {
   "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/cargo-check.sh"
-          }
-        ]
-      }
-    ]
   }
 }

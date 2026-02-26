@@ -11,10 +11,10 @@
 
 par-term is a well-architected Rust terminal emulator with a clean 13-crate workspace, GPU-accelerated rendering via wgpu, and comprehensive feature set including inline graphics, custom shaders, ACP agents, tmux integration, and split panes. The project demonstrates strong competence in GPU pipeline design, async I/O, and cross-platform development.
 
-39 findings have been resolved across six phases. The most pressing remaining issues center around:
+51 findings have been resolved across seven phases. The most pressing remaining issues center around:
 - **God Object**: `WindowState` (6,508 lines, ~90 fields, impl across 16 files)
 - **Monolithic render function**: `render()` at 3,462 lines
-- **Documentation gaps**: No centralized config reference, rustdoc coverage below target in several crates
+- **Dual-mutex contention**: 150 `try_lock()` calls with silent skip on contention
 
 All tests pass, clippy produces 0 warnings, and the overall architecture is sound. The issues identified are evolutionary -- the kind that accumulate in a fast-moving, feature-rich project.
 
@@ -34,27 +34,13 @@ All tests pass, clippy produces 0 warnings, and the overall architecture is soun
 | # | Category | Finding | Location |
 |---|----------|---------|----------|
 | H9 | Architecture | 47 files exceed 500-line target; 28 files exceed 800-line refactor threshold | See table in Section 1.2 |
-| H11 | Docs | No unified configuration reference -- 386 config fields scattered across 30+ docs | `par-term-config/src/config/mod.rs` |
-| H12 | Docs | `par-term-acp` rustdoc coverage ~32%; `par-term-config` coverage ~44% | Sub-crate source files |
 
 ### Medium
 
 | # | Category | Finding | Location |
 |---|----------|---------|----------|
-| M6 | Security | Scripting protocol defines `WriteText`/`RunCommand` (unimplemented) -- needs security model when added | `par-term-scripting/src/protocol.rs` |
 | M7 | Architecture | Dual-mutex hierarchy with 150 `try_lock()` calls -- silent skip on contention, undocumented which are safe | `src/app/` (16 files) |
-| M9 | Architecture | Missing typed errors -- only prettifier uses `thiserror`; rest relies on `anyhow` strings | `src/prettifier/traits.rs` |
-| M10 | Architecture | Monolithic `Config` struct (~200+ fields, 3,157 lines) with no internal grouping | `par-term-config/src/config/mod.rs` |
-| M12 | Code Quality | 680 `unwrap()` calls; `self.window.as_ref().unwrap()` in render path would crash with no context | `src/app/window_state.rs` |
-| M13 | Code Quality | `Tab` struct has 40+ public fields including "legacy" fields that conflict with pane-based state | `src/tab/mod.rs` |
-| M15 | Code Quality | Cell vector cloned on every render frame (cache hit + cache store) -- double allocation | `src/app/window_state.rs` |
-| M21 | Docs | `par-term-terminal` rustdoc coverage ~56% | Sub-crate source |
-
-### Low
-
-| # | Category | Finding | Location |
-|---|----------|---------|----------|
-| L11 | Code Quality | No doc-tests (0 documented examples in `cargo test` output) | Project-wide |
+| M12 | Code Quality | ~678 remaining `unwrap()` calls in non-render paths -- no panic context on failure | Project-wide |
 
 ---
 
@@ -94,10 +80,6 @@ The project guideline says "Keep files under 500 lines; refactor files exceeding
 | 1,638 | `src/prettifier/renderers/diff.rs` |
 | 1,633 | `src/tab/mod.rs` |
 
-#### 1.3 Missing Typed Errors (M9)
-
-Only the prettifier subsystem defines `thiserror` error types. The rest relies on `anyhow::Result`. Sub-crates (`par-term-config`, `par-term-render`) would benefit from typed errors for config parsing failures, GPU errors, and terminal failures so callers can match on specific variants.
-
 ---
 
 ### 2. Code Quality
@@ -122,13 +104,9 @@ pub(crate) fn render(&mut self) {
 }
 ```
 
-#### 2.2 Production unwrap() Calls (M12)
+#### 2.2 Remaining unwrap() Calls (M12)
 
-680 `unwrap()` calls across the codebase. Most concerning: `self.window.as_ref().unwrap()` in the render path would crash with no useful error message. Either make `window` non-optional (require at construction) or use early-return patterns.
-
-#### 2.3 Cell Cloning in Render Path (M15)
-
-The cell vector (cols * rows elements) is cloned on every cache hit and cache store, doubling allocation cost. Consider `Arc<Vec<Cell>>` or a double-buffer pattern.
+~678 `unwrap()` calls remain across the codebase. The highest-risk render-path panics (`self.window.as_ref().unwrap()`) have been fixed with early-return guards. The remaining calls are in storage, I/O, and initialization paths -- lower risk but still provide no error context on failure. Audit and convert to `expect("context")` or proper error propagation as encountered.
 
 ---
 
@@ -142,21 +120,16 @@ The cell vector (cols * rows elements) is cloned on every cache hit and cache st
 | par-term-scripting | ~89% | Good |
 | par-term-tmux | ~88% | Good |
 | par-term-ssh | ~85% | Good |
+| par-term-acp | ~85% | Good |
 | par-term-settings-ui | ~73% | Acceptable |
 | par-term-update | ~72% | Acceptable |
 | par-term-input | ~71% | Acceptable |
+| par-term-terminal | ~100% | Good |
+| par-term-config | ~75% | Good |
 | par-term-render | ~69% | Needs improvement |
 | par-term-mcp | ~60% | Needs improvement |
 | par-term-keybindings | ~58% | Needs improvement |
-| par-term-terminal | ~56% | Needs improvement |
 | par-term-fonts | ~52% | Needs improvement |
-| par-term-config | ~44% | Poor -- this is the user-facing config crate |
-| par-term-acp | ~32% | Poor -- architecturally complex crate |
-
-#### 3.2 Remaining Documentation Gaps
-
-- **Centralized config reference** (H11): 386 config fields scattered across 30+ docs with no single reference.
-- **Rustdoc coverage** (H12, M21): Several crates below 70% target.
 
 ---
 
@@ -166,17 +139,11 @@ The cell vector (cols * rows elements) is cloned on every cache hit and cache st
 
 - [ ] **C2**: Extract `AgentState`, `ShaderState`, `TmuxState`, `OverlayUiState` from `WindowState`
 - [ ] **C1**: Break `render()` into coordinator calling focused sub-methods
-- [ ] **M13**: Restrict `Tab` field visibility, deprecate legacy fields
-
-### Phase 4: Documentation (1-2 weeks)
-
-- [ ] **H11**: Create `docs/CONFIG_REFERENCE.md` or add rustdoc to all Config fields
-- [ ] **H12**: Improve rustdoc coverage for `par-term-acp` (32% -> 70%+) and `par-term-config` (44% -> 70%+)
-- [ ] **M21**: Improve `par-term-terminal` rustdoc to 70%+
+- [x] **M13**: Restrict `Tab` field visibility, deprecate legacy fields *(done: 42 fields restricted)*
 
 ### Phase 5: Ongoing (as encountered)
 
-- [ ] **M9**: Add `thiserror` error types to `par-term-config` and `par-term-render`
-- [ ] **M12**: Audit `unwrap()` calls in storage/I/O paths; make `window` non-optional
-- [ ] **M15**: Investigate `Arc<Vec<Cell>>` or double-buffering for cell cache
-- [ ] **L11**: Add doc-tests to key public API items in sub-crates
+- [x] **M9**: Add `thiserror` error types to `par-term-config` and `par-term-render` *(done)*
+- [x] **M15**: `Arc<Vec<Cell>>` for cell cache -- eliminates one full Vec allocation per cache-hit frame *(done)*
+- [ ] **M12**: Continue auditing remaining ~678 `unwrap()` calls; convert to `expect()` with context
+- [x] **L11**: Add doc-tests to key public API items in sub-crates *(done: 20+ doc-tests added)*

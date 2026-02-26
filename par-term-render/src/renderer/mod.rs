@@ -921,7 +921,7 @@ impl Renderer {
 
     /// Load a per-pane background image into the texture cache.
     /// Delegates to CellRenderer::load_pane_background.
-    pub fn load_pane_background(&mut self, path: &str) -> anyhow::Result<bool> {
+    pub fn load_pane_background(&mut self, path: &str) -> Result<bool, crate::error::RenderError> {
         self.cell_renderer.load_pane_background(path)
     }
 
@@ -2575,7 +2575,7 @@ impl Renderer {
     /// Returns an RGBA image that can be saved to disk
     ///
     /// This captures the fully composited output including shader effects.
-    pub fn take_screenshot(&mut self) -> Result<image::RgbaImage> {
+    pub fn take_screenshot(&mut self) -> Result<image::RgbaImage, crate::error::RenderError> {
         log::info!(
             "take_screenshot: Starting screenshot capture ({}x{})",
             self.size.width,
@@ -2627,7 +2627,10 @@ impl Renderer {
                 .intermediate_texture_view()
                 .clone();
             self.cell_renderer
-                .render_to_texture(&intermediate_view, true)?;
+                .render_to_texture(&intermediate_view, true)
+                .map_err(|e| {
+                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                })?;
 
             if use_cursor_shader {
                 // Background shader renders to cursor shader's intermediate texture
@@ -2637,27 +2640,45 @@ impl Renderer {
                     .unwrap()
                     .intermediate_texture_view()
                     .clone();
-                self.custom_shader_renderer.as_mut().unwrap().render(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    &cursor_intermediate,
-                    false,
-                )?;
+                self.custom_shader_renderer
+                    .as_mut()
+                    .unwrap()
+                    .render(
+                        self.cell_renderer.device(),
+                        self.cell_renderer.queue(),
+                        &cursor_intermediate,
+                        false,
+                    )
+                    .map_err(|e| {
+                        crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                    })?;
                 // Cursor shader renders to screenshot texture
-                self.cursor_shader_renderer.as_mut().unwrap().render(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    &screenshot_view,
-                    true,
-                )?;
+                self.cursor_shader_renderer
+                    .as_mut()
+                    .unwrap()
+                    .render(
+                        self.cell_renderer.device(),
+                        self.cell_renderer.queue(),
+                        &screenshot_view,
+                        true,
+                    )
+                    .map_err(|e| {
+                        crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                    })?;
             } else {
                 // Background shader renders directly to screenshot texture
-                self.custom_shader_renderer.as_mut().unwrap().render(
-                    self.cell_renderer.device(),
-                    self.cell_renderer.queue(),
-                    &screenshot_view,
-                    true,
-                )?;
+                self.custom_shader_renderer
+                    .as_mut()
+                    .unwrap()
+                    .render(
+                        self.cell_renderer.device(),
+                        self.cell_renderer.queue(),
+                        &screenshot_view,
+                        true,
+                    )
+                    .map_err(|e| {
+                        crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                    })?;
             }
         } else if use_cursor_shader {
             // Render cells to cursor shader's intermediate texture
@@ -2668,17 +2689,30 @@ impl Renderer {
                 .intermediate_texture_view()
                 .clone();
             self.cell_renderer
-                .render_to_texture(&cursor_intermediate, true)?;
+                .render_to_texture(&cursor_intermediate, true)
+                .map_err(|e| {
+                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                })?;
             // Cursor shader renders to screenshot texture
-            self.cursor_shader_renderer.as_mut().unwrap().render(
-                self.cell_renderer.device(),
-                self.cell_renderer.queue(),
-                &screenshot_view,
-                true,
-            )?;
+            self.cursor_shader_renderer
+                .as_mut()
+                .unwrap()
+                .render(
+                    self.cell_renderer.device(),
+                    self.cell_renderer.queue(),
+                    &screenshot_view,
+                    true,
+                )
+                .map_err(|e| {
+                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                })?;
         } else {
             // No shaders - render directly to screenshot texture
-            self.cell_renderer.render_to_view(&screenshot_view)?;
+            self.cell_renderer
+                .render_to_view(&screenshot_view)
+                .map_err(|e| {
+                    crate::error::RenderError::ScreenshotMap(format!("Render failed: {:#}", e))
+                })?;
         }
 
         log::info!("take_screenshot: Render complete");
@@ -2744,8 +2778,15 @@ impl Renderer {
         let _ = device.poll(wgpu::PollType::wait_indefinitely());
         log::info!("take_screenshot: GPU poll complete, waiting for buffer map...");
         rx.recv()
-            .map_err(|e| anyhow::anyhow!("Failed to receive map result: {}", e))?
-            .map_err(|e| anyhow::anyhow!("Failed to map buffer: {:?}", e))?;
+            .map_err(|e| {
+                crate::error::RenderError::ScreenshotMap(format!(
+                    "Failed to receive map result: {}",
+                    e
+                ))
+            })?
+            .map_err(|e| {
+                crate::error::RenderError::ScreenshotMap(format!("Failed to map buffer: {:?}", e))
+            })?;
         log::info!("take_screenshot: Buffer mapped successfully");
 
         // Read the data
@@ -2783,6 +2824,6 @@ impl Renderer {
 
         // Create image
         image::RgbaImage::from_raw(width, height, pixels)
-            .ok_or_else(|| anyhow::anyhow!("Failed to create image from pixel data"))
+            .ok_or(crate::error::RenderError::ScreenshotImageAssembly)
     }
 }

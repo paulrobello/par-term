@@ -434,17 +434,20 @@ impl Renderer {
     }
 
     /// Reload the cursor shader from source code
-    pub fn reload_cursor_shader_from_source(&mut self, source: &str) -> Result<()> {
+    pub fn reload_cursor_shader_from_source(
+        &mut self,
+        source: &str,
+    ) -> Result<(), crate::error::RenderError> {
         if let Some(ref mut cursor_shader) = self.cursor_shader_renderer {
-            cursor_shader.reload_from_source(
-                self.cell_renderer.device(),
-                source,
-                "cursor_editor",
-            )?;
+            cursor_shader
+                .reload_from_source(self.cell_renderer.device(), source, "cursor_editor")
+                .map_err(|e| crate::error::RenderError::NoActiveShader(format!("{:#}", e)))?;
             self.dirty = true;
             Ok(())
         } else {
-            Err(anyhow::anyhow!("No cursor shader renderer active"))
+            Err(crate::error::RenderError::NoActiveShader(
+                "No cursor shader renderer active".to_string(),
+            ))
         }
     }
 
@@ -458,14 +461,19 @@ impl Renderer {
     ///
     /// # Returns
     /// Ok(()) if successful, Err with error message if compilation fails
-    pub fn reload_shader_from_source(&mut self, source: &str) -> Result<()> {
+    pub fn reload_shader_from_source(
+        &mut self,
+        source: &str,
+    ) -> Result<(), crate::error::RenderError> {
         if let Some(ref mut custom_shader) = self.custom_shader_renderer {
-            custom_shader.reload_from_source(self.cell_renderer.device(), source, "editor")?;
+            custom_shader
+                .reload_from_source(self.cell_renderer.device(), source, "editor")
+                .map_err(|e| crate::error::RenderError::NoActiveShader(format!("{:#}", e)))?;
             self.dirty = true;
             Ok(())
         } else {
-            Err(anyhow::anyhow!(
-                "No custom shader is currently loaded. Enable a custom shader first."
+            Err(crate::error::RenderError::NoActiveShader(
+                "No custom shader is currently loaded. Enable a custom shader first.".to_string(),
             ))
         }
     }
