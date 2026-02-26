@@ -175,7 +175,7 @@ impl FontManager {
                     style_name
                         .chars()
                         .next()
-                        .unwrap()
+                        .expect("style_name is a non-empty internal constant")
                         .to_uppercase()
                         .chain(style_name.chars().skip(1))
                         .collect::<String>(),

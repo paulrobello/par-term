@@ -97,6 +97,8 @@ impl WindowState {
         // Poll action results and custom session variables from core terminal.
         // Also grab the current scrollback_len so our absolute line calculations
         // are consistent with the row values the trigger system produced.
+        // try_lock: intentional — trigger polling in about_to_wait (sync event loop).
+        // On miss: triggers are not processed this frame; they will be on the next poll.
         let (action_results, current_scrollback_len, custom_vars) =
             if let Ok(term) = tab.terminal.try_lock() {
                 let ar = term.poll_action_results();
@@ -258,6 +260,9 @@ impl WindowState {
                     );
                     if let Some(tab) = self.tab_manager.active_tab() {
                         if delay_ms == 0 {
+                            // try_lock: intentional — trigger SendText in sync event loop.
+                            // On miss: the triggered text is not sent this frame. Low risk:
+                            // triggers fire on repeated output patterns and will retry.
                             if let Ok(term) = tab.terminal.try_lock()
                                 && let Err(e) = term.write(text.as_bytes())
                             {
@@ -268,6 +273,9 @@ impl WindowState {
                             let text_owned = text;
                             std::thread::spawn(move || {
                                 std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+                                // try_lock: intentional — delayed SendText from spawned thread.
+                                // On miss: the delayed text is not sent. Acceptable; trigger
+                                // automation has inherent timing flexibility.
                                 if let Ok(term) = terminal.try_lock()
                                     && let Err(e) = term.write(text_owned.as_bytes())
                                 {
@@ -560,6 +568,8 @@ impl WindowState {
 
         let preceding_command;
 
+        // try_lock: intentional — prettify trigger processing in about_to_wait (sync loop).
+        // On miss: prettify is skipped this frame; the pending events are reprocessed next poll.
         if let Ok(term) = tab.terminal.try_lock() {
             // Compute scope ranges for each pending event using scrollback metadata.
             let max_readable = current_scrollback_len + 200; // generous upper bound for visible grid

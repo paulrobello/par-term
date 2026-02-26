@@ -78,6 +78,9 @@ impl WindowState {
         let scrollback_len = tab.cache.scrollback_len;
         let current_top = scrollback_len.saturating_sub(tab.scroll_state.offset);
 
+        // try_lock: intentional — scroll_to_previous_mark is called from keyboard/mouse
+        // handlers in the sync event loop. On miss: scroll-to-mark is skipped this frame.
+        // The user can press the key again.
         let prev = tab
             .terminal
             .try_lock()
@@ -97,6 +100,7 @@ impl WindowState {
         let scrollback_len = tab.cache.scrollback_len;
         let current_top = scrollback_len.saturating_sub(tab.scroll_state.offset);
 
+        // try_lock: intentional — same rationale as scroll_to_previous_mark above.
         let next = tab
             .terminal
             .try_lock()

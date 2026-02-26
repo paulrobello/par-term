@@ -78,7 +78,7 @@ pub fn expand_format(format: &str, ctx: &FormatContext) -> String {
                     found_closing = true;
                     break;
                 }
-                var_name.push(chars.next().unwrap());
+                var_name.push(chars.next().expect("peek confirmed a next char exists"));
             }
 
             if found_closing {
@@ -206,8 +206,8 @@ pub fn sanitize_tmux_output(output: &str) -> String {
     // 1. <'...' not ready> markers (tmux pending command output)
     // 2. #[...] ANSI style codes (tmux color/attribute codes)
     static NOT_READY_RE: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"<'[^']*' not ready>").unwrap());
-    static STYLE_CODE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"#\[[^\]]*\]").unwrap());
+        LazyLock::new(|| Regex::new(r"<'[^']*' not ready>").expect("NOT_READY_RE regex pattern is valid"));
+    static STYLE_CODE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"#\[[^\]]*\]").expect("STYLE_CODE_RE regex pattern is valid"));
 
     let result = NOT_READY_RE.replace_all(output, "");
     let result = STYLE_CODE_RE.replace_all(&result, "");

@@ -186,6 +186,9 @@ impl WindowState {
         // upload thread. poll_active_uploads will re-add upload entries below.
         self.file_transfer_state.active_transfers.clear();
 
+        // try_lock: intentional — file transfer polling in about_to_wait (sync event loop).
+        // On miss: active_transfers stays cleared (cleared above) and no transfer progress
+        // is shown for this frame. The overlay will be repopulated on the next poll.
         if let Ok(term) = tab.terminal.try_lock() {
             // 1. Update active transfers for overlay (terminal-side transfers like downloads)
             let active = term.get_active_transfers();
@@ -210,6 +213,9 @@ impl WindowState {
             // Take each completed download and queue for save dialog
             let terminal_arc = std::sync::Arc::clone(&tab.terminal);
             for id in completed_ids {
+                // try_lock: intentional — taking a completed download from the terminal in
+                // a spawned async task using sync try_lock. On miss: the completed transfer
+                // is not taken this iteration; it will be picked up on the next poll.
                 if let Ok(term) = terminal_arc.try_lock()
                     && let Some(ft) = term.take_completed_transfer(id)
                 {
@@ -249,6 +255,8 @@ impl WindowState {
             }
 
             // 3. Check for failed transfers and notify
+            // try_lock: intentional — checking for failed transfers in a spawned async task.
+            // On miss: failure detection is deferred to the next poll iteration. No data lost.
             if let Ok(term) = terminal_arc.try_lock() {
                 let failed: Vec<(u64, String)> = term
                     .get_completed_transfers()
@@ -277,6 +285,8 @@ impl WindowState {
             }
 
             // 4. Poll for upload requests
+            // try_lock: intentional — upload request polling in spawned async task.
+            // On miss: upload requests are deferred to the next poll. No user data is lost.
             if let Ok(term) = terminal_arc.try_lock() {
                 let upload_requests = term.poll_upload_requests();
                 for format in upload_requests {
@@ -598,6 +608,8 @@ impl WindowState {
                 .or_else(dirs::download_dir),
             DownloadSaveLocation::Cwd => {
                 // Try to get CWD from shell integration
+                // try_lock: intentional — getting download save path in sync event loop.
+                // On miss: falls through to the Downloads fallback below. Acceptable UX.
                 if let Some(tab) = self.tab_manager.active_tab()
                     && let Ok(term) = tab.terminal.try_lock()
                     && let Some(cwd) = term.shell_integration_cwd()

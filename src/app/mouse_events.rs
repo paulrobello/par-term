@@ -41,6 +41,9 @@ impl WindowState {
             (Arc::clone(&tab.terminal), col, row)
         };
 
+        // try_lock: intentional — mouse button handler runs in the sync event loop.
+        // On miss: the mouse event is not forwarded to mouse-tracking apps this click.
+        // The user can click again; no data is permanently lost.
         let Ok(term) = terminal_arc.try_lock() else {
             return false;
         };
@@ -88,6 +91,9 @@ impl WindowState {
             {
                 return false;
             }
+            // try_lock: intentional — querying mouse tracking state from the sync event loop.
+            // On miss: returns false (no mouse tracking), which may cause a missed mouse
+            // event routing. The next mouse move/click will re-query correctly.
             return focused_pane
                 .terminal
                 .try_lock()
@@ -102,6 +108,9 @@ impl WindowState {
             return false;
         }
 
+        // try_lock: intentional — querying mouse tracking state for the single-pane path.
+        // On miss: returns false (no tracking detected). Cosmetically incorrect for this
+        // event only; the next query will succeed.
         tab.terminal
             .try_lock()
             .ok()
@@ -473,6 +482,9 @@ impl WindowState {
                     // Only move cursor if we're at the bottom of scrollback (current view)
                     // and not on the alternate screen (where apps handle their own cursor)
                     let at_bottom = tab.scroll_state.offset == 0;
+                    // try_lock: intentional — double-click cursor-position query in sync loop.
+                    // On miss: defaults to (alt_screen=true, col=0) which skips the arrow-key
+                    // reposition logic. The cursor stays where it was — acceptable UX.
                     let (is_alt_screen, current_col) = tab
                         .terminal
                         .try_lock()
@@ -800,6 +812,9 @@ impl WindowState {
                         }
 
                         // Add to clipboard history (once, regardless of which clipboard was used)
+                        // try_lock: intentional — called from mouse release handler in sync loop.
+                        // On miss: this selection is not added to clipboard history. The clipboard
+                        // content itself was already copied above (separate operation).
                         if let Some(tab) = self.tab_manager.active_tab()
                             && let Ok(term) = tab.terminal.try_lock()
                         {
@@ -974,11 +989,16 @@ impl WindowState {
             };
 
             if let Some((terminal_arc, col, row, button_pressed)) = resolved {
+                // try_lock: intentional — should_report_mouse_motion query from mouse-move
+                // handler in the sync event loop. On miss: assumes no tracking (false) so
+                // the motion event is skipped this frame. High-frequency; acceptable loss.
                 let should_report = terminal_arc
                     .try_lock()
                     .ok()
                     .is_some_and(|term| term.should_report_mouse_motion(button_pressed));
 
+                // try_lock: intentional — second lock attempt to encode/write the event.
+                // On miss: mouse motion encoding is skipped this frame. Same rationale.
                 if should_report
                     && !shift_held
                     && let Ok(term) = terminal_arc.try_lock()
@@ -1081,6 +1101,9 @@ impl WindowState {
 
         // --- 5. Drag Selection Logic ---
         // Perform local text selection if mouse tracking is NOT active
+        // try_lock: intentional — alt-screen query during mouse-move in sync event loop.
+        // On miss: is_some_and returns false, treating as not on alt screen — local
+        // selection will proceed even on alt screen for this one motion event. Benign.
         let alt_screen_active = self.tab_manager.active_tab().is_some_and(|tab| {
             tab.terminal
                 .try_lock()
@@ -1193,6 +1216,8 @@ impl WindowState {
                 if let Some(ref pm) = tab.pane_manager
                     && let Some(focused_pane) = pm.focused_pane()
                 {
+                    // try_lock: intentional — scroll wheel handler in sync event loop.
+                    // On miss: tracking check returns false; scroll is handled locally.
                     let tracking = focused_pane
                         .terminal
                         .try_lock()
@@ -1200,6 +1225,7 @@ impl WindowState {
                         .is_some_and(|term| term.is_mouse_tracking_enabled());
                     (Some(Arc::clone(&focused_pane.terminal)), tracking)
                 } else {
+                    // try_lock: intentional — same rationale as focused_pane path above.
                     let tracking = tab
                         .terminal
                         .try_lock()
@@ -1248,6 +1274,9 @@ impl WindowState {
                 // Limit burst to 10 events to avoid flooding the PTY
                 let count = scroll_y.unsigned_abs().min(10);
 
+                // try_lock: intentional — scroll wheel encoding in sync event loop.
+                // On miss: the scroll events are not encoded for this wheel tick.
+                // The next wheel tick will succeed. Terminal apps may notice skipped ticks.
                 if let Ok(term) = terminal_arc.try_lock() {
                     for _ in 0..count {
                         let encoded = term.encode_mouse_event(button, col, row, true, 0);
@@ -1265,6 +1294,7 @@ impl WindowState {
                 // Limit burst to 10 events to avoid flooding the PTY
                 let count = scroll_x.unsigned_abs().min(10);
 
+                // try_lock: intentional — horizontal scroll encoding, same as vertical above.
                 if let Ok(term) = terminal_arc.try_lock() {
                     for _ in 0..count {
                         let encoded = term.encode_mouse_event(button, col, row, true, 0);
