@@ -372,6 +372,12 @@ pub struct Tab {
         Vec<Option<std::sync::Arc<crate::scripting::observer::ScriptEventForwarder>>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
     pub trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    /// Security metadata: maps trigger_id -> require_user_action flag.
+    /// When true, dangerous actions (RunCommand, SendText) from that trigger
+    /// are suppressed when fired from passive terminal output.
+    pub trigger_security: std::collections::HashMap<u64, bool>,
+    /// Rate limiter for output-triggered dangerous actions.
+    pub trigger_rate_limiter: par_term_config::TriggerRateLimiter,
     /// Prettifier pipeline for content detection and rendering (None if disabled)
     pub prettifier: Option<PrettifierPipeline>,
     /// Gutter manager for prettifier indicators
@@ -442,7 +448,7 @@ impl Tab {
         )?;
 
         // Sync triggers from config into the core TriggerRegistry
-        terminal.sync_triggers(&config.triggers);
+        let trigger_security = terminal.sync_triggers(&config.triggers);
 
         // Auto-start configured coprocesses via the PtySession's built-in manager
         let mut coprocess_ids = Vec::with_capacity(config.coprocesses.len());
@@ -583,6 +589,8 @@ impl Tab {
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
+            trigger_security,
+            trigger_rate_limiter: par_term_config::TriggerRateLimiter::default(),
             prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(
                 config, cols, None,
             ),
@@ -684,7 +692,7 @@ impl Tab {
         )?;
 
         // Sync triggers from config into the core TriggerRegistry
-        terminal.sync_triggers(&config.triggers);
+        let trigger_security = terminal.sync_triggers(&config.triggers);
 
         // Auto-start configured coprocesses via the PtySession's built-in manager
         let mut coprocess_ids = Vec::with_capacity(config.coprocesses.len());
@@ -819,6 +827,8 @@ impl Tab {
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
+            trigger_security,
+            trigger_rate_limiter: par_term_config::TriggerRateLimiter::default(),
             prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(
                 config, cols, None,
             ),
@@ -1556,6 +1566,8 @@ impl Tab {
             script_observer_ids: Vec::new(),
             script_forwarders: Vec::new(),
             trigger_marks: Vec::new(),
+            trigger_security: std::collections::HashMap::new(),
+            trigger_rate_limiter: par_term_config::TriggerRateLimiter::default(),
             prettifier: None,
             gutter_manager: GutterManager::new(),
             was_alt_screen: false,

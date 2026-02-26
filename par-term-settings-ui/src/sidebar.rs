@@ -873,6 +873,13 @@ fn tab_search_keywords(tab: SettingsTab) -> &'static [&'static str] {
             "prettifier",
             "scope",
             "command output",
+            // Trigger security
+            "require user action",
+            "security",
+            "denylist",
+            "rate limit",
+            "dangerous",
+            "safe",
             // Coprocess extras
             "restart",
             "restart policy",

@@ -1355,7 +1355,14 @@ impl TerminalManager {
 
 impl TerminalManager {
     /// Sync trigger configs from Config into the core TriggerRegistry.
-    pub fn sync_triggers(&self, triggers: &[par_term_config::TriggerConfig]) {
+    ///
+    /// Returns a map of `trigger_id -> require_user_action` for each
+    /// successfully registered trigger, so the frontend can enforce
+    /// security restrictions on dangerous actions.
+    pub fn sync_triggers(
+        &self,
+        triggers: &[par_term_config::TriggerConfig],
+    ) -> std::collections::HashMap<u64, bool> {
         let pty = self.pty_session.lock();
         let terminal = pty.terminal();
         let mut term = terminal.lock();
@@ -1364,6 +1371,8 @@ impl TerminalManager {
         for id in existing {
             term.remove_trigger(id);
         }
+
+        let mut security_map = std::collections::HashMap::new();
 
         for trigger_config in triggers {
             let actions: Vec<par_term_emu_core_rust::terminal::TriggerAction> = trigger_config
@@ -1381,7 +1390,13 @@ impl TerminalManager {
                     if !trigger_config.enabled {
                         term.set_trigger_enabled(id, false);
                     }
-                    log::info!("Trigger '{}' registered (id={})", trigger_config.name, id);
+                    security_map.insert(id, trigger_config.require_user_action);
+                    log::info!(
+                        "Trigger '{}' registered (id={}, require_user_action={})",
+                        trigger_config.name,
+                        id,
+                        trigger_config.require_user_action,
+                    );
                 }
                 Err(e) => {
                     log::error!(
@@ -1392,6 +1407,8 @@ impl TerminalManager {
                 }
             }
         }
+
+        security_map
     }
 }
 

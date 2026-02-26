@@ -1992,9 +1992,9 @@ impl WindowManager {
             }
 
             // Resync triggers from config into core registry for all tabs
-            for tab in window_state.tab_manager.tabs() {
+            for tab in window_state.tab_manager.tabs_mut() {
                 if let Ok(term) = tab.terminal.try_lock() {
-                    term.sync_triggers(&config.triggers);
+                    tab.trigger_security = term.sync_triggers(&config.triggers);
                 }
             }
 

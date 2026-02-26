@@ -48,7 +48,10 @@ pub use par_term_config::{
 };
 
 // --- Automation ---
-pub use par_term_config::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
+pub use par_term_config::{
+    CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig, TriggerRateLimiter,
+    check_command_denylist,
+};
 
 // --- Scripting ---
 pub use par_term_config::ScriptConfig;

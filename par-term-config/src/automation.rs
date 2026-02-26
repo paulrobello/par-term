@@ -1,4 +1,4 @@
-//! Configuration types for triggers and coprocesses.
+//! Configuration types for triggers, coprocesses, and trigger security.
 
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +44,15 @@ pub struct TriggerConfig {
     pub enabled: bool,
     #[serde(default)]
     pub actions: Vec<TriggerActionConfig>,
+    /// When true (the default), dangerous actions (`RunCommand`, `SendText`)
+    /// are suppressed when triggered solely by passive terminal output.
+    /// This prevents malicious terminal output (e.g., `cat malicious_file`)
+    /// from executing arbitrary commands via pattern matching.
+    ///
+    /// Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`,
+    /// `PlaySound`, `Prettify`) always fire regardless of this flag.
+    #[serde(default = "crate::defaults::bool_true")]
+    pub require_user_action: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -169,6 +178,15 @@ fn default_volume() -> u8 {
 }
 
 impl TriggerActionConfig {
+    /// Returns true if this action is considered dangerous when triggered by
+    /// passive terminal output (i.e., without explicit user interaction).
+    ///
+    /// Dangerous actions: `RunCommand`, `SendText`
+    /// Safe actions: `Highlight`, `Notify`, `MarkLine`, `SetVariable`, `PlaySound`, `Prettify`
+    pub fn is_dangerous(&self) -> bool {
+        matches!(self, Self::RunCommand { .. } | Self::SendText { .. })
+    }
+
     /// Convert to core library TriggerAction
     pub fn to_core_action(&self) -> par_term_emu_core_rust::terminal::TriggerAction {
         use par_term_emu_core_rust::terminal::TriggerAction;
@@ -219,5 +237,170 @@ impl TriggerActionConfig {
                 }
             }
         }
+    }
+}
+
+// ============================================================================
+// Trigger Security — command denylist and rate limiting
+// ============================================================================
+
+/// Denied command patterns for `RunCommand` trigger actions.
+///
+/// These patterns are checked against the command string (command + args joined).
+/// A match means the command is blocked from execution.
+/// Simple substring-matched denied patterns.
+const DENIED_COMMAND_PATTERNS: &[&str] = &[
+    // Destructive file operations
+    "rm -rf /",
+    "rm -rf ~",
+    "rm -rf .",
+    "mkfs.",
+    "dd if=",
+    // Shell evaluation
+    "eval ",
+    "exec ",
+    // Credential/key exfiltration
+    "ssh-add",
+    ".ssh/id_",
+    ".ssh/authorized_keys",
+    ".gnupg/",
+    // System manipulation
+    "chmod 777",
+    "chown root",
+    "passwd",
+    "sudoers",
+];
+
+/// Pipe-to-shell patterns checked with word-boundary awareness.
+/// These match `| bash`, `|bash`, `| sh`, `|sh` only when `bash`/`sh`
+/// appear as whole words (not as part of longer words like "polish").
+const PIPE_SHELL_TARGETS: &[&str] = &["bash", "sh"];
+
+/// Check if a command string matches any denied pattern.
+///
+/// The check is case-insensitive and looks for substring matches.
+/// Checks both the full joined command and each individual argument
+/// (since shell evaluation like `bash -c "curl ... | bash"` puts the
+/// dangerous content in a single arg).
+///
+/// Returns `Some(pattern)` if denied, `None` if allowed.
+pub fn check_command_denylist(command: &str, args: &[String]) -> Option<&'static str> {
+    // Build full command string for pattern matching
+    let full_command = if args.is_empty() {
+        command.to_lowercase()
+    } else {
+        format!("{} {}", command, args.join(" ")).to_lowercase()
+    };
+
+    // Collect all strings to check: the full command and each individual arg.
+    // Individual arg checking catches `bash -c "curl ... | bash"` where the
+    // pipe-to-shell pattern is within a single argument.
+    let mut check_strings = vec![full_command];
+    for arg in args {
+        let lowered = arg.to_lowercase();
+        if !lowered.is_empty() {
+            check_strings.push(lowered);
+        }
+    }
+
+    // Check simple substring patterns
+    for pattern in DENIED_COMMAND_PATTERNS {
+        let normalized_pattern = pattern.to_lowercase();
+        for check_str in &check_strings {
+            if check_str.contains(&normalized_pattern) {
+                return Some(pattern);
+            }
+        }
+    }
+
+    // Check pipe-to-shell patterns with word boundary awareness.
+    // We look for `|<shell>` or `| <shell>` where <shell> is followed by
+    // end-of-string or a non-alphanumeric character (word boundary).
+    for check_str in &check_strings {
+        for &shell in PIPE_SHELL_TARGETS {
+            if check_pipe_to_shell(check_str, shell) {
+                // Return a static description (we can't construct dynamic strings here)
+                return match shell {
+                    "bash" => Some("| bash"),
+                    "sh" => Some("| sh"),
+                    _ => Some("| <shell>"),
+                };
+            }
+        }
+    }
+
+    None
+}
+
+/// Check if a string contains a pipe-to-shell pattern like `|bash` or `| sh`
+/// with word boundary awareness to avoid false positives (e.g., "polish").
+fn check_pipe_to_shell(s: &str, shell: &str) -> bool {
+    // Check both `|<shell>` and `| <shell>` patterns
+    for sep in &["|", "| "] {
+        let pattern = format!("{}{}", sep, shell);
+        if let Some(pos) = s.find(&pattern) {
+            let end_pos = pos + pattern.len();
+            // Check that `shell` is at a word boundary (end of string or followed by non-alphanumeric)
+            if end_pos >= s.len() || !s.as_bytes()[end_pos].is_ascii_alphanumeric() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Rate limiter for output-triggered actions.
+///
+/// Tracks when actions last fired per trigger_id and enforces a minimum
+/// interval between firings to prevent malicious output flooding.
+pub struct TriggerRateLimiter {
+    /// Map of trigger_id -> last fire time
+    last_fire: std::collections::HashMap<u64, std::time::Instant>,
+    /// Minimum interval between trigger firings (in milliseconds)
+    min_interval_ms: u64,
+}
+
+/// Default minimum interval between output trigger firings (1 second).
+const DEFAULT_TRIGGER_RATE_LIMIT_MS: u64 = 1000;
+
+impl Default for TriggerRateLimiter {
+    fn default() -> Self {
+        Self {
+            last_fire: std::collections::HashMap::new(),
+            min_interval_ms: DEFAULT_TRIGGER_RATE_LIMIT_MS,
+        }
+    }
+}
+
+impl TriggerRateLimiter {
+    /// Create a new rate limiter with a custom minimum interval.
+    pub fn new(min_interval_ms: u64) -> Self {
+        Self {
+            last_fire: std::collections::HashMap::new(),
+            min_interval_ms,
+        }
+    }
+
+    /// Check if a trigger is allowed to fire. Returns true if allowed,
+    /// false if rate-limited. Updates the last fire time on success.
+    pub fn check_and_update(&mut self, trigger_id: u64) -> bool {
+        let now = std::time::Instant::now();
+        if let Some(last) = self.last_fire.get(&trigger_id) {
+            let elapsed = now.duration_since(*last).as_millis() as u64;
+            if elapsed < self.min_interval_ms {
+                return false;
+            }
+        }
+        self.last_fire.insert(trigger_id, now);
+        true
+    }
+
+    /// Remove stale entries for triggers that haven't fired recently.
+    /// Call periodically to prevent unbounded growth.
+    pub fn cleanup(&mut self, max_age_secs: u64) {
+        let now = std::time::Instant::now();
+        let max_age = std::time::Duration::from_secs(max_age_secs);
+        self.last_fire
+            .retain(|_, last| now.duration_since(*last) < max_age);
     }
 }

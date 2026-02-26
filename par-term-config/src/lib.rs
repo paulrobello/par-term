@@ -58,7 +58,10 @@ pub use types::{
     default_smart_selection_rules,
 };
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
-pub use automation::{CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig};
+pub use automation::{
+    CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig, TriggerRateLimiter,
+    check_command_denylist,
+};
 // Scripting / observer scripts
 pub use scripting::ScriptConfig;
 // Snippets and custom actions
