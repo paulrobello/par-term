@@ -16,6 +16,7 @@ pub mod anti_idle;
 pub mod bell;
 pub mod config_updates;
 pub mod copy_mode_handler;
+pub(crate) mod agent_state;
 pub(crate) mod cursor_anim_state;
 pub mod debug_state;
 pub(crate) mod shader_state;

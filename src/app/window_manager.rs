@@ -1423,7 +1423,7 @@ impl WindowManager {
                 // Sync available agents from first window's discovered agents
                 if let Some(ws) = self.windows.values().next() {
                     settings_window.settings_ui.available_agent_ids = ws
-                        .available_agents
+                        .agent_state.available_agents
                         .iter()
                         .map(|a| (a.identity.clone(), a.name.clone()))
                         .collect();
@@ -1528,7 +1528,7 @@ impl WindowManager {
 
             // Sync AI Inspector auto-approve / YOLO mode to connected agent
             if changes.ai_inspector_auto_approve
-                && let Some(agent) = &window_state.agent
+                && let Some(agent) = &window_state.agent_state.agent
             {
                 let agent = agent.clone();
                 let auto_approve = config.ai_inspector_auto_approve;
@@ -2021,7 +2021,7 @@ impl WindowManager {
             && let Some(ws) = self.windows.values().next()
         {
             sw.settings_ui.available_agent_ids = ws
-                .available_agents
+                .agent_state.available_agents
                 .iter()
                 .map(|a| (a.identity.clone(), a.name.clone()))
                 .collect();

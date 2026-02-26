@@ -171,35 +171,8 @@ pub struct WindowState {
     /// Last known AI Inspector panel consumed width (logical pixels).
     /// Used to detect width changes from drag-resizing and trigger terminal reflow.
     pub(crate) last_inspector_width: f32,
-    /// ACP agent message receiver
-    pub(crate) agent_rx: Option<mpsc::UnboundedReceiver<AgentMessage>>,
-    /// ACP agent message sender (kept to signal prompt completion)
-    pub(crate) agent_tx: Option<mpsc::UnboundedSender<AgentMessage>>,
-    /// ACP agent (managed via tokio)
-    pub(crate) agent: Option<Arc<tokio::sync::Mutex<Agent>>>,
-    /// ACP JSON-RPC client for sending responses without locking the agent.
-    /// Stored separately to avoid deadlocks: `send_prompt` holds the agent lock
-    /// while waiting for the prompt response, but the agent's tool calls
-    /// (e.g. `fs/readTextFile`) need us to respond via this same client.
-    pub(crate) agent_client: Option<Arc<par_term_acp::JsonRpcClient>>,
-    /// Handles for queued send tasks (waiting on agent lock).
-    /// Used to abort queued sends when the user cancels a pending message.
-    pub(crate) pending_send_handles: std::collections::VecDeque<tokio::task::JoinHandle<()>>,
-    /// Tracks whether the current prompt encountered a recoverable local
-    /// backend tool failure (for example failed `Skill` or `Write`) or
-    /// malformed inline XML-style tool markup.
-    pub(crate) agent_skill_failure_detected: bool,
-    /// Bounded automatic recovery retries after recoverable ACP tool failures
-    /// or incomplete shader activation completion.
-    pub(crate) agent_skill_recovery_attempts: u8,
-    /// One-shot transcript replay prompt injected into the next user prompt
-    /// after reconnecting/switching agents to preserve local UI conversation
-    /// context in a fresh ACP session.
-    pub(crate) pending_agent_context_replay: Option<String>,
-    /// Timestamp of the last command auto-context sent to the agent.
-    pub(crate) last_auto_context_sent_at: Option<std::time::Instant>,
-    /// Available agent configs
-    pub(crate) available_agents: Vec<AgentConfig>,
+    /// ACP agent connection and runtime state
+    pub(crate) agent_state: crate::app::agent_state::AgentState,
     /// Shader install prompt UI
     pub(crate) shader_install_ui: ShaderInstallUI,
     /// Receiver for shader installation results (from background thread)
@@ -734,16 +707,7 @@ impl WindowState {
             search_ui: SearchUI::new(),
             ai_inspector,
             last_inspector_width: 0.0,
-            agent_rx: None,
-            agent_tx: None,
-            agent: None,
-            agent_client: None,
-            pending_send_handles: std::collections::VecDeque::new(),
-            agent_skill_failure_detected: false,
-            agent_skill_recovery_attempts: 0,
-            pending_agent_context_replay: None,
-            last_auto_context_sent_at: None,
-            available_agents,
+            agent_state: crate::app::agent_state::AgentState::new(available_agents),
             shader_install_ui: ShaderInstallUI::new(),
             shader_install_receiver: None,
             integrations_ui: IntegrationsUI::new(),
@@ -839,7 +803,7 @@ impl WindowState {
     pub(crate) fn refresh_available_agents(&mut self) {
         let config_dir = dirs::config_dir().unwrap_or_default().join("par-term");
         let discovered_agents = discover_agents(&config_dir);
-        self.available_agents = merge_custom_ai_inspector_agents(
+        self.agent_state.available_agents = merge_custom_ai_inspector_agents(
             discovered_agents,
             &self.config.ai_inspector_custom_agents,
         );
@@ -1327,30 +1291,30 @@ impl WindowState {
     /// `InspectorAction::ConnectAgent` and from the auto-connect-on-open path.
     pub(crate) fn connect_agent(&mut self, identity: &str) {
         if let Some(agent_config) = self
-            .available_agents
+            .agent_state.available_agents
             .iter()
             .find(|a| a.identity == identity)
         {
-            self.pending_agent_context_replay =
+            self.agent_state.pending_agent_context_replay =
                 self.ai_inspector.chat.build_context_replay_prompt();
             self.ai_inspector.connected_agent_name = Some(agent_config.name.clone());
             self.ai_inspector.connected_agent_identity = Some(agent_config.identity.clone());
 
             // Clean up any previous agent before starting a new connection.
-            if let Some(old_agent) = self.agent.take() {
+            if let Some(old_agent) = self.agent_state.agent.take() {
                 let runtime = self.runtime.clone();
                 runtime.spawn(async move {
                     let mut agent = old_agent.lock().await;
                     agent.disconnect().await;
                 });
             }
-            self.agent_rx = None;
-            self.agent_tx = None;
-            self.agent_client = None;
+            self.agent_state.agent_rx = None;
+            self.agent_state.agent_tx = None;
+            self.agent_state.agent_client = None;
 
             let (tx, rx) = mpsc::unbounded_channel();
-            self.agent_rx = Some(rx);
-            self.agent_tx = Some(tx.clone());
+            self.agent_state.agent_rx = Some(rx);
+            self.agent_state.agent_tx = Some(tx.clone());
             let ui_tx = tx.clone();
             let safe_paths = SafePaths {
                 config_dir: Config::config_dir(),
@@ -1364,7 +1328,7 @@ impl WindowState {
                 std::sync::atomic::Ordering::Relaxed,
             );
             let agent = Arc::new(tokio::sync::Mutex::new(agent));
-            self.agent = Some(agent.clone());
+            self.agent_state.agent = Some(agent.clone());
 
             // Determine CWD for the agent session
             let fallback_cwd = std::env::current_dir()
@@ -1415,7 +1379,7 @@ impl WindowState {
     pub(crate) fn try_auto_connect_agent(&mut self) {
         if self.config.ai_inspector_auto_launch
             && self.ai_inspector.agent_status == AgentStatus::Disconnected
-            && self.agent.is_none()
+            && self.agent_state.agent.is_none()
         {
             let identity = self.config.ai_inspector_agent.clone();
             if !identity.is_empty() {
@@ -3981,7 +3945,7 @@ impl WindowState {
                     pending_search_action = self.search_ui.show(ctx, visible_lines, scrollback_len);
 
                     // Show AI Inspector panel and collect action
-                    pending_inspector_action = self.ai_inspector.show(ctx, &self.available_agents);
+                    pending_inspector_action = self.ai_inspector.show(ctx, &self.agent_state.available_agents);
 
                     // Show tmux session picker UI and collect action
                     let tmux_path = self.config.resolve_tmux_path();
@@ -4944,9 +4908,6 @@ impl WindowState {
         }
     }
 
-    /// Render split panes when the active tab has multiple panes
-    #[allow(clippy::too_many_arguments)]
-
     /// Process incoming ACP agent messages for this render tick and refresh
     /// the AI Inspector snapshot when needed.
     ///
@@ -4958,16 +4919,15 @@ impl WindowState {
 
         // Process agent messages
         let msg_count_before = self.ai_inspector.chat.messages.len();
-        // Config update requests are deferred to avoid double-borrow of self
-        // while iterating agent_rx.
+        // Config update requests are deferred until message processing completes.
         type ConfigUpdateEntry = (
             std::collections::HashMap<String, serde_json::Value>,
             tokio::sync::oneshot::Sender<Result<(), String>>,
         );
         let mut pending_config_updates: Vec<ConfigUpdateEntry> = Vec::new();
-        if let Some(rx) = &mut self.agent_rx {
-            while let Ok(msg) = rx.try_recv() {
-                match msg {
+        let messages = self.agent_state.drain_messages();
+        for msg in messages {
+            match msg {
                     AgentMessage::StatusChanged(status) => {
                         // Flush any pending agent text on status change.
                         self.ai_inspector.chat.flush_agent_message();
@@ -4982,25 +4942,25 @@ impl WindowState {
                                     || title_l.contains("todo")
                                     || title_l.contains("enterplanmode")
                                 {
-                                    self.agent_skill_failure_detected = true;
+                                    self.agent_state.agent_skill_failure_detected = true;
                                 }
                             }
                             par_term_acp::SessionUpdate::ToolCallUpdate(info) => {
                                 if let Some(status) = &info.status {
                                     let status_l = status.to_ascii_lowercase();
                                     if status_l.contains("fail") || status_l.contains("error") {
-                                        self.agent_skill_failure_detected = true;
+                                        self.agent_state.agent_skill_failure_detected = true;
                                     }
                                 }
                             }
                             par_term_acp::SessionUpdate::CurrentModeUpdate { mode_id } => {
                                 if mode_id.eq_ignore_ascii_case("plan") {
-                                    self.agent_skill_failure_detected = true;
+                                    self.agent_state.agent_skill_failure_detected = true;
                                     self.ai_inspector.chat.add_system_message(
                                         "Agent switched to plan mode during an executable task. Requesting default mode and retry guidance."
                                             .to_string(),
                                     );
-                                    if let Some(agent) = &self.agent {
+                                    if let Some(agent) = &self.agent_state.agent {
                                         let agent = agent.clone();
                                         self.runtime.spawn(async move {
                                             let agent = agent.lock().await;
@@ -5051,7 +5011,7 @@ impl WindowState {
                                 .or_else(|| options.first())
                                 .map(|o| o.option_id.clone());
 
-                            if let Some(client) = &self.agent_client {
+                            if let Some(client) = &self.agent_state.agent_client {
                                 let client = client.clone();
                                 self.runtime.spawn(async move {
                                     use par_term_acp::{
@@ -5101,11 +5061,11 @@ impl WindowState {
                         self.needs_redraw = true;
                     }
                     AgentMessage::PromptStarted => {
-                        self.agent_skill_failure_detected = false;
+                        self.agent_state.agent_skill_failure_detected = false;
                         self.ai_inspector.chat.mark_oldest_pending_sent();
                         // Remove the corresponding handle (first in queue).
-                        if !self.pending_send_handles.is_empty() {
-                            self.pending_send_handles.pop_front();
+                        if !self.agent_state.pending_send_handles.is_empty() {
+                            self.agent_state.pending_send_handles.pop_front();
                         }
                         self.needs_redraw = true;
                     }
@@ -5119,16 +5079,15 @@ impl WindowState {
                     }
                     AgentMessage::ClientReady(client) => {
                         log::info!("ACP: agent_client ready");
-                        self.agent_client = Some(client);
+                        self.agent_state.agent_client = Some(client);
                     }
                     AgentMessage::AutoApproved(description) => {
                         self.ai_inspector.chat.add_auto_approved(description);
                         self.needs_redraw = true;
                     }
                 }
-            }
         }
-        // Process deferred config updates now that agent_rx borrow is released.
+        // Process deferred config updates now that message processing completes.
         for (updates, reply) in pending_config_updates {
             let result = self.apply_agent_config_updates(&updates);
             if result.is_ok() {
@@ -5140,7 +5099,7 @@ impl WindowState {
 
         // Track recoverable local backend tool failures during the current
         // prompt (for example failed `Skill`/`Write` calls).
-        if !self.agent_skill_failure_detected {
+        if !self.agent_state.agent_skill_failure_detected {
             let mut seen_user_boundary = false;
             for msg in self.ai_inspector.chat.messages.iter().rev() {
                 if matches!(msg, ChatMessage::User { .. }) {
@@ -5156,14 +5115,14 @@ impl WindowState {
                         || title_l.starts_with("write ")
                         || title_l.contains(" write ");
                     if is_failed && is_recoverable_tool {
-                        self.agent_skill_failure_detected = true;
+                        self.agent_state.agent_skill_failure_detected = true;
                         break;
                     }
                 }
             }
             // If there is no user message yet, ignore stale history.
             if !seen_user_boundary {
-                self.agent_skill_failure_detected = false;
+                self.agent_state.agent_skill_failure_detected = false;
             }
         }
 
@@ -5222,7 +5181,7 @@ impl WindowState {
                 && let Some(function_name) = extract_inline_tool_function_name(text)
                 && function_name != "mcp__par-term-config__config_update"
             {
-                self.agent_skill_failure_detected = true;
+                self.agent_state.agent_skill_failure_detected = true;
                 self.ai_inspector.chat.add_system_message(format!(
                     "Agent emitted inline tool markup (`{function_name}`) instead of a structured ACP tool call."
                 ));
@@ -5282,21 +5241,21 @@ impl WindowState {
         // activation request completed without a config_update call, nudge the
         // agent to continue the same task with proper ACP tool use.
         if saw_prompt_complete_this_tick
-            && (self.agent_skill_failure_detected || shader_activation_incomplete)
-            && self.agent_skill_recovery_attempts < 3
-            && let Some(agent) = &self.agent
+            && (self.agent_state.agent_skill_failure_detected || shader_activation_incomplete)
+            && self.agent_state.agent_skill_recovery_attempts < 3
+            && let Some(agent) = &self.agent_state.agent
         {
-            let had_recoverable_failure = self.agent_skill_failure_detected;
-            self.agent_skill_recovery_attempts =
-                self.agent_skill_recovery_attempts.saturating_add(1);
-            self.agent_skill_failure_detected = false;
+            let had_recoverable_failure = self.agent_state.agent_skill_failure_detected;
+            self.agent_state.agent_skill_recovery_attempts =
+                self.agent_state.agent_skill_recovery_attempts.saturating_add(1);
+            self.agent_state.agent_skill_failure_detected = false;
             self.ai_inspector.chat.streaming = true;
             if shader_activation_incomplete && !had_recoverable_failure {
                 self.ai_inspector.chat.add_system_message(
                     format!(
                         "Agent completed a shader task response without activating the shader via \
                          config_update. Auto-retrying (attempt {}/3) to finish the activation step.",
-                        self.agent_skill_recovery_attempts
+                        self.agent_state.agent_skill_recovery_attempts
                     ),
                 );
             } else {
@@ -5304,7 +5263,7 @@ impl WindowState {
                     format!(
                         "Recoverable local-backend tool failure detected (failed Skill/Write or \
                          inline tool markup). Auto-retrying (attempt {}/3) with stricter ACP tool guidance.",
-                        self.agent_skill_recovery_attempts
+                        self.agent_state.agent_skill_recovery_attempts
                     ),
                 );
             }
@@ -5328,7 +5287,7 @@ impl WindowState {
                 });
             }
 
-            let extra_recovery_strictness = if self.agent_skill_recovery_attempts >= 2 {
+            let extra_recovery_strictness = if self.agent_state.agent_skill_recovery_attempts >= 2 {
                 " Do not explore unrelated files or dependencies. For shader tasks, go directly \
                  to the shader file write and config_update activation steps."
             } else {
@@ -5359,7 +5318,7 @@ impl WindowState {
             });
 
             let agent = agent.clone();
-            let tx = self.agent_tx.clone();
+            let tx = self.agent_state.agent_tx.clone();
             let handle = self.runtime.spawn(async move {
                 let agent = agent.lock().await;
                 if let Some(ref tx) = tx {
@@ -5370,7 +5329,7 @@ impl WindowState {
                     let _ = tx.send(AgentMessage::PromptComplete);
                 }
             });
-            self.pending_send_handles.push_back(handle);
+            self.agent_state.pending_send_handles.push_back(handle);
             self.needs_redraw = true;
         }
 
@@ -5427,7 +5386,7 @@ impl WindowState {
                     && let Some((cmd, exit_code, duration_ms)) = history.last()
                 {
                     let now = std::time::Instant::now();
-                    let throttled = self.last_auto_context_sent_at.is_some_and(|last_sent| {
+                    let throttled = self.agent_state.last_auto_context_sent_at.is_some_and(|last_sent| {
                         now.duration_since(last_sent)
                             < std::time::Duration::from_millis(AUTO_CONTEXT_MIN_INTERVAL_MS)
                     });
@@ -5446,8 +5405,8 @@ impl WindowState {
                             sanitized_cmd, exit_code_str, duration, cwd, was_redacted
                         );
 
-                        if let Some(agent) = &self.agent {
-                            self.last_auto_context_sent_at = Some(now);
+                        if let Some(agent) = &self.agent_state.agent {
+                            self.agent_state.last_auto_context_sent_at = Some(now);
                             self.ai_inspector.chat.add_system_message(if was_redacted {
                                 "Auto-context sent command metadata to the agent (sensitive values redacted).".to_string()
                             } else {
@@ -5680,9 +5639,9 @@ impl WindowState {
                     .map(|term| term.core_command_history().len())
                     .unwrap_or(0);
                 // Spawn a task that polls for command completion and notifies the agent
-                if let Some(agent) = &self.agent {
+                if let Some(agent) = &self.agent_state.agent {
                     let agent = agent.clone();
-                    let tx = self.agent_tx.clone();
+                    let tx = self.agent_state.agent_tx.clone();
                     let terminal = self
                         .tab_manager
                         .active_tab()
@@ -5730,29 +5689,29 @@ impl WindowState {
                 self.connect_agent(&identity);
             }
             InspectorAction::DisconnectAgent => {
-                if let Some(agent) = self.agent.take() {
+                if let Some(agent) = self.agent_state.agent.take() {
                     self.runtime.spawn(async move {
                         let mut agent = agent.lock().await;
                         agent.disconnect().await;
                     });
                 }
-                self.agent_rx = None;
-                self.agent_tx = None;
-                self.agent_client = None;
+                self.agent_state.agent_rx = None;
+                self.agent_state.agent_tx = None;
+                self.agent_state.agent_client = None;
                 self.ai_inspector.connected_agent_name = None;
                 self.ai_inspector.connected_agent_identity = None;
                 // Abort any queued send tasks.
-                for handle in self.pending_send_handles.drain(..) {
+                for handle in self.agent_state.pending_send_handles.drain(..) {
                     handle.abort();
                 }
                 self.ai_inspector.agent_status = AgentStatus::Disconnected;
-                self.pending_agent_context_replay = None;
+                self.agent_state.pending_agent_context_replay = None;
                 self.needs_redraw = true;
             }
             InspectorAction::RevokeAlwaysAllowSelections => {
                 if let Some(identity) = self.ai_inspector.connected_agent_identity.clone() {
                     // Cancel any queued prompts before replacing the session.
-                    for handle in self.pending_send_handles.drain(..) {
+                    for handle in self.agent_state.pending_send_handles.drain(..) {
                         handle.abort();
                     }
                     self.ai_inspector.chat.add_system_message(
@@ -5769,11 +5728,11 @@ impl WindowState {
             }
             InspectorAction::SendPrompt(text) => {
                 // Reset one-shot local backend recovery for each user prompt.
-                self.agent_skill_failure_detected = false;
-                self.agent_skill_recovery_attempts = 0;
+                self.agent_state.agent_skill_failure_detected = false;
+                self.agent_state.agent_skill_recovery_attempts = 0;
                 self.ai_inspector.chat.add_user_message(text.clone());
                 self.ai_inspector.chat.streaming = true;
-                if let Some(agent) = &self.agent {
+                if let Some(agent) = &self.agent_state.agent {
                     let agent = agent.clone();
                     // Build structured prompt blocks so system/context/user roles
                     // stay explicit and stable on every turn.
@@ -5797,7 +5756,7 @@ impl WindowState {
                         });
                     }
 
-                    if let Some(replay_prompt) = self.pending_agent_context_replay.take() {
+                    if let Some(replay_prompt) = self.agent_state.pending_agent_context_replay.take() {
                         content.push(par_term_acp::ContentBlock::Text {
                             text: replay_prompt,
                         });
@@ -5806,7 +5765,7 @@ impl WindowState {
                     content.push(par_term_acp::ContentBlock::Text {
                         text: format!("[User message]\n{text}"),
                     });
-                    let tx = self.agent_tx.clone();
+                    let tx = self.agent_state.agent_tx.clone();
                     let handle = self.runtime.spawn(async move {
                         let agent = agent.lock().await;
                         // Ensure each user prompt starts in executable mode even if
@@ -5826,7 +5785,7 @@ impl WindowState {
                             let _ = tx.send(AgentMessage::PromptComplete);
                         }
                     });
-                    self.pending_send_handles.push_back(handle);
+                    self.agent_state.pending_send_handles.push_back(handle);
                 }
                 self.needs_redraw = true;
             }
@@ -5839,7 +5798,7 @@ impl WindowState {
                 option_id,
                 cancelled,
             } => {
-                if let Some(client) = &self.agent_client {
+                if let Some(client) = &self.agent_state.agent_client {
                     let client = client.clone();
                     let action = if cancelled { "cancelled" } else { "selected" };
                     log::info!("ACP: sending permission response id={request_id} action={action}");
@@ -5891,7 +5850,7 @@ impl WindowState {
             InspectorAction::SetAgentMode(mode_id) => {
                 let is_yolo = mode_id == "bypassPermissions";
                 self.config.ai_inspector_auto_approve = is_yolo;
-                if let Some(agent) = &self.agent {
+                if let Some(agent) = &self.agent_state.agent {
                     let agent = agent.clone();
                     self.runtime.spawn(async move {
                         let agent = agent.lock().await;
@@ -5906,7 +5865,7 @@ impl WindowState {
                 self.needs_redraw = true;
             }
             InspectorAction::CancelPrompt => {
-                if let Some(agent) = &self.agent {
+                if let Some(agent) = &self.agent_state.agent {
                     let agent = agent.clone();
                     self.runtime.spawn(async move {
                         let agent = agent.lock().await;
@@ -5924,7 +5883,7 @@ impl WindowState {
             InspectorAction::CancelQueuedPrompt => {
                 if self.ai_inspector.chat.cancel_last_pending() {
                     // Abort the most recent queued send task.
-                    if let Some(handle) = self.pending_send_handles.pop_back() {
+                    if let Some(handle) = self.agent_state.pending_send_handles.pop_back() {
                         handle.abort();
                     }
                     self.ai_inspector
@@ -5936,16 +5895,16 @@ impl WindowState {
             InspectorAction::ClearChat => {
                 let reconnect_identity = self.ai_inspector.connected_agent_identity.clone();
                 self.ai_inspector.chat.clear();
-                self.pending_agent_context_replay = None;
-                self.agent_skill_failure_detected = false;
-                self.agent_skill_recovery_attempts = 0;
+                self.agent_state.pending_agent_context_replay = None;
+                self.agent_state.agent_skill_failure_detected = false;
+                self.agent_state.agent_skill_recovery_attempts = 0;
                 // Abort any queued send tasks so stale prompts do not continue
                 // after the conversation/session reset.
-                for handle in self.pending_send_handles.drain(..) {
+                for handle in self.agent_state.pending_send_handles.drain(..) {
                     handle.abort();
                 }
                 if let Some(identity) = reconnect_identity
-                    && (self.agent.is_some()
+                    && (self.agent_state.agent.is_some()
                         || self.ai_inspector.agent_status != AgentStatus::Disconnected)
                 {
                     self.connect_agent(&identity);
@@ -5959,6 +5918,8 @@ impl WindowState {
             InspectorAction::None => {}
         }
     }
+    /// Render split panes when the active tab has multiple panes
+    #[allow(clippy::too_many_arguments)]
     fn render_split_panes_with_data(
         renderer: &mut Renderer,
         pane_data: Vec<PaneRenderData>,
