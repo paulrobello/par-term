@@ -37,6 +37,20 @@ impl Renderer {
             let id = graphic.id;
             let (col, row) = graphic.position;
 
+            // Convert scroll_offset_rows from the core library's cell units (graphic.cell_dimensions.1
+            // pixels per row, defaulting to 2) into display cell rows (self.cell_renderer.cell_height()
+            // pixels per row).
+            let core_cell_height = graphic
+                .cell_dimensions
+                .map(|(_, h)| h as f32)
+                .unwrap_or(2.0)
+                .max(1.0);
+            let display_cell_height = self.cell_renderer.cell_height().max(1.0);
+            let scroll_offset_in_display_rows = (graphic.scroll_offset_rows as f32
+                * core_cell_height
+                / display_cell_height)
+                .round() as usize;
+
             // Calculate screen row based on whether this is a scrollback graphic or current
             let screen_row: isize = if let Some(sb_row) = graphic.scrollback_row {
                 // Scrollback graphic: sb_row is absolute index in scrollback
@@ -44,15 +58,17 @@ impl Renderer {
                 sb_row as isize - view_start as isize
             } else {
                 // Current graphic: position is relative to visible area
-                // Absolute position = scrollback_len + row - scroll_offset_rows
+                // Absolute position = scrollback_len + row - scroll_offset_in_display_rows
                 // This keeps the graphic at its original absolute position as scrollback grows
-                let absolute_row = scrollback_len.saturating_sub(graphic.scroll_offset_rows) + row;
+                let absolute_row =
+                    scrollback_len.saturating_sub(scroll_offset_in_display_rows) + row;
 
                 log::trace!(
-                    "[RENDERER] CALC: scrollback_len={}, row={}, scroll_offset_rows={}, absolute_row={}, view_start={}, screen_row={}",
+                    "[RENDERER] CALC: scrollback_len={}, row={}, scroll_offset_rows={}, scroll_in_display_rows={}, absolute_row={}, view_start={}, screen_row={}",
                     scrollback_len,
                     row,
                     graphic.scroll_offset_rows,
+                    scroll_offset_in_display_rows,
                     absolute_row,
                     view_start,
                     absolute_row as isize - view_start as isize
@@ -197,18 +213,48 @@ impl Renderer {
         let view_end = total_lines.saturating_sub(view_scroll_offset);
         let view_start = view_end.saturating_sub(visible_rows);
 
+        log::debug!(
+            "[PANE_GRAPHICS] update_pane_graphics: scrollback_len={}, visible_rows={}, view_scroll_offset={}, total_lines={}, view_start={}, view_end={}, graphics_count={}",
+            scrollback_len, visible_rows, view_scroll_offset, total_lines, view_start, view_end, graphics.len()
+        );
+
         let mut positioned = Vec::new();
 
         for graphic in graphics {
             let id = graphic.id;
             let (col, row) = graphic.position;
 
+            // Convert scroll_offset_rows from the core library's cell units (graphic.cell_dimensions.1
+            // pixels per row, defaulting to 2) into display cell rows (self.cell_renderer.cell_height()
+            // pixels per row).  Without this conversion, the absolute-row formula is wrong whenever
+            // the graphic was created before set_cell_dimensions() was called on the pane terminal.
+            let core_cell_height = graphic
+                .cell_dimensions
+                .map(|(_, h)| h as f32)
+                .unwrap_or(2.0)
+                .max(1.0);
+            let display_cell_height = self.cell_renderer.cell_height().max(1.0);
+            let scroll_offset_in_display_rows = (graphic.scroll_offset_rows as f32
+                * core_cell_height
+                / display_cell_height)
+                .round() as usize;
+
             let screen_row: isize = if let Some(sb_row) = graphic.scrollback_row {
-                sb_row as isize - view_start as isize
+                let sr = sb_row as isize - view_start as isize;
+                log::debug!(
+                    "[PANE_GRAPHICS] scrollback graphic id={}: sb_row={}, view_start={}, screen_row={}",
+                    id, sb_row, view_start, sr
+                );
+                sr
             } else {
                 let absolute_row =
-                    scrollback_len.saturating_sub(graphic.scroll_offset_rows) + row;
-                absolute_row as isize - view_start as isize
+                    scrollback_len.saturating_sub(scroll_offset_in_display_rows) + row;
+                let sr = absolute_row as isize - view_start as isize;
+                log::debug!(
+                    "[PANE_GRAPHICS] current graphic id={}: scrollback_len={}, scroll_offset_rows={}, core_cell_h={}, disp_cell_h={}, scroll_in_display_rows={}, row={}, absolute_row={}, view_start={}, screen_row={}",
+                    id, scrollback_len, graphic.scroll_offset_rows, core_cell_height, display_cell_height, scroll_offset_in_display_rows, row, absolute_row, view_start, sr
+                );
+                sr
             };
 
             // Upload / refresh texture in the shared cache
@@ -297,6 +343,19 @@ impl Renderer {
             render_pass.set_scissor_rect(sx, sy, sw, sh);
 
             let (ox, oy) = viewport.content_origin();
+
+            log::debug!(
+                "[PANE_GRAPHICS] render_pane_sixel_graphics: scissor=({},{},{},{}), origin=({},{}), window={}x{}, positioned_count={}",
+                sx, sy, sw, sh, ox, oy,
+                self.size.width, self.size.height,
+                positioned.len()
+            );
+            for (id, screen_row, col, wc, hc, _, clip) in &positioned {
+                log::debug!(
+                    "[PANE_GRAPHICS]   positioned: id={}, screen_row={}, col={}, width_cells={}, height_cells={}, clip_rows={}",
+                    id, screen_row, col, wc, hc, clip
+                );
+            }
 
             self.graphics_renderer.render_for_pane(
                 self.cell_renderer.device(),

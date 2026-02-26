@@ -5,15 +5,29 @@
 use super::window_state::WindowState;
 
 impl WindowState {
+    /// Return the scrollback length for the active terminal.
+    ///
+    /// `tab.cache.scrollback_len` is updated every render frame: for single-pane
+    /// mode by the normal PTY-reader path; for split-pane mode by the pane data
+    /// gather loop which caches the focused pane's value.  This means we never
+    /// need to lock the terminal here and won't get a spurious 0 on lock contention.
+    pub(crate) fn get_active_scrollback_len(&self) -> usize {
+        self.tab_manager
+            .active_tab()
+            .map(|t| t.cache.scrollback_len)
+            .unwrap_or(0)
+    }
+
     pub(crate) fn scroll_up_page(&mut self) {
         // Calculate page size based on visible lines
-        let (target_offset, scrollback_len) = {
+        let scrollback_len = self.get_active_scrollback_len();
+        let target_offset = {
             let tab = if let Some(t) = self.tab_manager.active_tab() {
                 t
             } else {
                 return;
             };
-            (tab.scroll_state.target_offset, tab.cache.scrollback_len)
+            tab.scroll_state.target_offset
         };
 
         if let Some(renderer) = &self.renderer {
@@ -46,13 +60,10 @@ impl WindowState {
     }
 
     pub(crate) fn scroll_to_top(&mut self) {
-        let scrollback_len = {
-            if let Some(tab) = self.tab_manager.active_tab() {
-                tab.cache.scrollback_len
-            } else {
-                return;
-            }
-        };
+        let scrollback_len = self.get_active_scrollback_len();
+        if self.tab_manager.active_tab().is_none() {
+            return;
+        }
         self.set_scroll_target(scrollback_len);
     }
 

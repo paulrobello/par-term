@@ -2790,11 +2790,25 @@ impl WindowState {
             (cached_scrollback_len, cached_terminal_title.clone())
         };
 
-        // Update cache scrollback and clamp scroll state
+        // Update cache scrollback and clamp scroll state.
+        //
+        // In pane mode the focused pane's own terminal holds the scrollback, not
+        // `tab.terminal`.  Clamping here with `tab.terminal.scrollback_len()` would
+        // incorrectly cap (or zero-out) the scroll offset every frame.  The correct
+        // clamp happens later in the pane render path once we know the focused pane's
+        // actual scrollback length.
+        let is_pane_mode = self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.pane_manager.as_ref())
+            .map(|pm| pm.pane_count() > 0)
+            .unwrap_or(false);
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             tab.cache.scrollback_len = scrollback_len;
-            tab.scroll_state
-                .clamp_to_scrollback(tab.cache.scrollback_len);
+            if !is_pane_mode {
+                tab.scroll_state
+                    .clamp_to_scrollback(tab.cache.scrollback_len);
+            }
         }
 
         // Keep copy mode dimensions in sync with terminal
@@ -4328,9 +4342,14 @@ impl WindowState {
                     Vec<crate::pane::DividerRect>,
                     Vec<PaneTitleInfo>,
                     Option<PaneViewport>,
+                    usize, // focused pane scrollback_len (for tab.cache update)
                 )> = {
                     let tab = self.tab_manager.active_tab_mut();
                     if let Some(tab) = tab {
+                        // Capture tab-level scroll offset before mutably borrowing pane_manager.
+                        // In split-pane mode the focused pane uses tab.scroll_state.offset;
+                        // non-focused panes always render at offset 0 (bottom).
+                        let tab_scroll_offset = tab.scroll_state.offset;
                         if let Some(pm) = &mut tab.pane_manager {
                             // Update bounds
                             let bounds = crate::pane::PaneBounds::new(
@@ -4390,6 +4409,7 @@ impl WindowState {
 
                             let mut pane_data = Vec::new();
                             let mut pane_titles = Vec::new();
+                            let mut focused_pane_scrollback_len: usize = 0;
                             let mut focused_viewport: Option<PaneViewport> = None;
 
                             for pane_id in &all_pane_ids {
@@ -4457,7 +4477,8 @@ impl WindowState {
                                     }
 
                                     let cells = if let Ok(term) = pane.terminal.try_lock() {
-                                        let scroll_offset = pane.scroll_state.offset;
+                                        let scroll_offset =
+                                            if is_focused { tab_scroll_offset } else { 0 };
                                         let selection =
                                             pane.mouse.selection.map(|sel| sel.normalized());
                                         let rectangular = pane
@@ -4498,7 +4519,17 @@ impl WindowState {
                                         };
                                         (Vec::new(), sb_len)
                                     };
-                                    let pane_scroll_offset = pane.scroll_state.offset;
+                                    let pane_scroll_offset =
+                                        if is_focused { tab_scroll_offset } else { 0 };
+
+                                    // Cache the focused pane's scrollback_len so that scroll
+                                    // operations (mouse wheel, Page Up, etc.) can use it without
+                                    // needing to lock the terminal. Only update when the value is
+                                    // non-zero (lock succeeded) to avoid clobbering a good cached
+                                    // value with a transient lock-failure fallback of 0.
+                                    if is_focused && pane_scrollback_len > 0 {
+                                        focused_pane_scrollback_len = pane_scrollback_len;
+                                    }
 
                                     // Per-pane backgrounds only apply when multiple panes exist
                                     let pane_background = if all_pane_ids.len() > 1
@@ -4539,9 +4570,31 @@ impl WindowState {
                                     let pane_graphics =
                                         if let Ok(term) = pane.terminal.try_lock() {
                                             let mut g = term.get_graphics_with_animations();
-                                            g.extend(term.get_scrollback_graphics());
+                                            let sb = term.get_scrollback_graphics();
+                                            crate::debug_log!(
+                                                "GRAPHICS",
+                                                "pane {:?}: active_graphics={}, scrollback_graphics={}, scrollback_len={}, scroll_offset={}, visible_rows={}, viewport=({},{},{}x{})",
+                                                pane_id,
+                                                g.len(),
+                                                sb.len(),
+                                                pane_scrollback_len,
+                                                pane_scroll_offset,
+                                                rows,
+                                                viewport.x, viewport.y, viewport.width, viewport.height
+                                            );
+                                            for (i, gfx) in g.iter().chain(sb.iter()).enumerate() {
+                                                crate::debug_log!(
+                                                    "GRAPHICS",
+                                                    "  graphic[{}]: id={}, pos=({},{}), scroll_offset_rows={}, scrollback_row={:?}, size={}x{}",
+                                                    i, gfx.id, gfx.position.0, gfx.position.1,
+                                                    gfx.scroll_offset_rows, gfx.scrollback_row,
+                                                    gfx.width, gfx.height
+                                                );
+                                            }
+                                            g.extend(sb);
                                             g
                                         } else {
+                                            crate::debug_log!("GRAPHICS", "pane {:?}: try_lock() failed, no graphics", pane_id);
                                             Vec::new()
                                         };
 
@@ -4560,7 +4613,7 @@ impl WindowState {
                                 }
                             }
 
-                            Some((pane_data, dividers, pane_titles, focused_viewport))
+                            Some((pane_data, dividers, pane_titles, focused_viewport, focused_pane_scrollback_len))
                         } else {
                             None
                         }
@@ -4569,8 +4622,19 @@ impl WindowState {
                     }
                 };
 
-                if let Some((pane_data, dividers, pane_titles, focused_viewport)) = pane_render_data
+                if let Some((pane_data, dividers, pane_titles, focused_viewport, focused_pane_scrollback_len)) = pane_render_data
                 {
+                    // Update tab cache with the focused pane's scrollback_len so that scroll
+                    // operations (mouse wheel, Page Up/Down, etc.) see the correct limit.
+                    // Only update when non-zero to avoid clobbering a good value on lock failure.
+                    // The `apply_scroll` function already clamps the target; we don't call
+                    // `clamp_to_scrollback` here because that would reset an ongoing scroll.
+                    if focused_pane_scrollback_len > 0 {
+                        if let Some(tab) = self.tab_manager.active_tab_mut() {
+                            tab.cache.scrollback_len = focused_pane_scrollback_len;
+                        }
+                    }
+
                     // Get hovered divider index for hover color rendering
                     let hovered_divider_index = self
                         .tab_manager
@@ -4587,6 +4651,7 @@ impl WindowState {
                         &self.config,
                         egui_data,
                         hovered_divider_index,
+                        show_scrollbar,
                     )
                 } else {
                     // Fallback to single pane render
@@ -5387,6 +5452,7 @@ impl WindowState {
         config: &Config,
         egui_data: Option<(egui::FullOutput, &egui::Context)>,
         hovered_divider_index: Option<usize>,
+        show_scrollbar: bool,
     ) -> Result<bool> {
         // Build pane render infos - we need to leak the cells temporarily
         let mut pane_render_infos: Vec<PaneRenderInfo> = Vec::new();
@@ -5416,7 +5482,8 @@ impl WindowState {
                 grid_size,
                 cursor_pos,
                 cursor_opacity,
-                show_scrollbar: false,
+                // Only the focused pane shows a scrollbar
+                show_scrollbar: show_scrollbar && viewport.focused,
                 marks,
                 scrollback_len,
                 scroll_offset,

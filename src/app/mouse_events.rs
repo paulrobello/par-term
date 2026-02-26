@@ -599,6 +599,9 @@ impl WindowState {
                         log::debug!("Focused pane {} via mouse click", pane_id);
                         // Also update tmux focused pane for correct input routing
                         self.set_tmux_focused_pane_from_native(pane_id);
+                        // Reset scroll to bottom when switching pane focus so the
+                        // newly-focused pane doesn't inherit the previous pane's scroll offset.
+                        self.set_scroll_target(0);
                         self.needs_redraw = true;
                     }
 
@@ -1251,11 +1254,7 @@ impl WindowState {
             MouseScrollDelta::PixelDelta(pos) => (pos.y / 20.0) as i32,
         };
 
-        let scrollback_len = self
-            .tab_manager
-            .active_tab()
-            .map(|t| t.cache.scrollback_len)
-            .unwrap_or(0);
+        let scrollback_len = self.get_active_scrollback_len();
 
         // Calculate new scroll target (positive delta = scroll up = increase offset)
         let new_target = if let Some(tab) = self.tab_manager.active_tab_mut() {

@@ -628,6 +628,7 @@ impl PaneManager {
         self.resize_all_terminals_with_padding(cell_width, cell_height, 0.0, 0.0);
     }
 
+
     /// Resize all terminal PTYs to match their pane bounds, accounting for padding.
     ///
     /// The padding reduces the content area where text is rendered, so terminals
@@ -652,7 +653,12 @@ impl PaneManager {
                 let cols = (content_width / cell_width).floor() as usize;
                 let rows = (content_height / cell_height).floor() as usize;
 
-                pane.resize_terminal(cols.max(1), rows.max(1));
+                pane.resize_terminal_with_cell_dims(
+                    cols.max(1),
+                    rows.max(1),
+                    cell_width as u32,
+                    cell_height as u32,
+                );
             }
         }
     }

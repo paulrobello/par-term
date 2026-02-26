@@ -1009,6 +1009,48 @@ impl CellRenderer {
         );
     }
 
+    /// Update scrollbar state constrained to a specific pane's bounds.
+    ///
+    /// Converts the pane viewport (pixel bounds) into the inset parameters
+    /// that `Scrollbar::update` expects, so the track and thumb are confined
+    /// to the pane instead of spanning the full window.
+    pub fn update_scrollbar_for_pane(
+        &mut self,
+        scroll_offset: usize,
+        visible_lines: usize,
+        total_lines: usize,
+        marks: &[par_term_config::ScrollbackMark],
+        viewport: &PaneViewport,
+    ) {
+        let win_w = self.config.width as f32;
+        let win_h = self.config.height as f32;
+
+        // Top inset: space above the pane
+        let pane_content_offset_y = viewport.y;
+
+        // Bottom inset: space below the pane + existing egui bottom inset
+        let pane_bottom_inset =
+            (win_h - (viewport.y + viewport.height)).max(0.0) + self.egui_bottom_inset;
+
+        // Right inset: space to the right of the pane + existing egui/panel right inset
+        let pane_right_inset = (win_w - (viewport.x + viewport.width)).max(0.0)
+            + self.content_inset_right
+            + self.egui_right_inset;
+
+        self.scrollbar.update(
+            &self.queue,
+            scroll_offset,
+            visible_lines,
+            total_lines,
+            self.config.width,
+            self.config.height,
+            pane_content_offset_y,
+            pane_bottom_inset,
+            pane_right_inset,
+            marks,
+        );
+    }
+
     pub fn set_visual_bell_intensity(&mut self, intensity: f32) {
         self.visual_bell_intensity = intensity;
     }

@@ -1400,6 +1400,29 @@ impl Renderer {
             false
         };
 
+        // Update scrollbar state for the focused pane before rendering.
+        // In single-pane mode this is done in the main render loop; in split mode
+        // we must do it here, constrained to the pane's pixel bounds, so the
+        // track and thumb appear inside the focused pane rather than spanning
+        // the full window height/width.
+        for pane in panes.iter() {
+            if pane.viewport.focused && pane.show_scrollbar {
+                let total_lines = pane.scrollback_len + pane.grid_size.1;
+                let new_state = (pane.scroll_offset, pane.grid_size.1, total_lines);
+                if new_state != self.last_scrollbar_state {
+                    self.last_scrollbar_state = new_state;
+                    self.cell_renderer.update_scrollbar_for_pane(
+                        pane.scroll_offset,
+                        pane.grid_size.1,
+                        total_lines,
+                        &pane.marks,
+                        &pane.viewport,
+                    );
+                }
+                break;
+            }
+        }
+
         // Render each pane's content (skip background image since we rendered it full-screen)
         for pane in panes {
             let separator_marks = compute_visible_separator_marks(

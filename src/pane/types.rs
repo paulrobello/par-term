@@ -571,6 +571,27 @@ impl Pane {
             let _ = term.resize(cols, rows);
         }
     }
+
+    /// Resize the terminal and update cell pixel dimensions.
+    ///
+    /// Unlike `resize_terminal`, this also calls `set_cell_dimensions` so that
+    /// the core library tracks `scroll_offset_rows` in display-cell units rather
+    /// than its internal default (2 px per row).  Must be called whenever the
+    /// display cell size is known (e.g., on every layout pass).
+    pub fn resize_terminal_with_cell_dims(
+        &self,
+        cols: usize,
+        rows: usize,
+        cell_width: u32,
+        cell_height: u32,
+    ) {
+        if let Ok(mut term) = self.terminal.try_lock() {
+            term.set_cell_dimensions(cell_width, cell_height);
+            if term.dimensions() != (cols, rows) {
+                let _ = term.resize(cols, rows);
+            }
+        }
+    }
 }
 
 impl Drop for Pane {
