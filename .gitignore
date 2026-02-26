@@ -34,3 +34,4 @@ settings.local.json.bak
 
 # Git worktrees
 .worktrees/
+.claude/worktrees/
