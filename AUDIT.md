@@ -13,7 +13,7 @@ par-term is a well-architected Rust terminal emulator with a clean 13-crate work
 
 Rust's memory safety guarantees eliminate entire vulnerability classes. The codebase shows security awareness in several areas: proper shell quoting, HTML escaping, path canonicalization for ACP agents, credential leak prevention, and zip path traversal protection.
 
-32 findings have been resolved across five phases. The most pressing remaining issues center around:
+39 findings have been resolved across six phases. The most pressing remaining issues center around:
 - **God Object**: `WindowState` (6,508 lines, ~90 fields, impl across 16 files)
 - **Monolithic render function**: `render()` at 3,462 lines
 - **Documentation gaps**: No centralized config reference, rustdoc coverage below target in several crates
@@ -43,9 +43,6 @@ All tests pass, clippy produces 0 warnings, and the overall architecture is soun
 
 | # | Category | Finding | Location |
 |---|----------|---------|----------|
-| M1 | Security | Trigger `RunCommand` can be fired by malicious terminal output matching broad patterns | `src/app/triggers.rs` |
-| M3 | Security | Config variable substitution resolves any `${VAR}` from environment -- info leak risk | `par-term-config/src/config/mod.rs` |
-| M5 | Security | Unsafe cell pointer leak in split-pane render -- memory leak on panic | `src/app/window_state.rs` |
 | M6 | Security | Scripting protocol defines `WriteText`/`RunCommand` (unimplemented) -- needs security model when added | `par-term-scripting/src/protocol.rs` |
 | M7 | Architecture | Dual-mutex hierarchy with 150 `try_lock()` calls -- silent skip on contention, undocumented which are safe | `src/app/` (16 files) |
 | M9 | Architecture | Missing typed errors -- only prettifier uses `thiserror`; rest relies on `anyhow` strings | `src/prettifier/traits.rs` |
@@ -59,8 +56,6 @@ All tests pass, clippy produces 0 warnings, and the overall architecture is soun
 
 | # | Category | Finding | Location |
 |---|----------|---------|----------|
-| L1 | Security | Clipboard paste without control character sanitization (standard terminal behavior) | `src/clipboard_history_ui.rs` |
-| L3 | Security | MCP IPC files permissions not explicitly restrictive | `par-term-mcp/src/lib.rs` |
 | L11 | Code Quality | No doc-tests (0 documented examples in `cargo test` output) | Project-wide |
 
 ### Info (Positive Findings)
