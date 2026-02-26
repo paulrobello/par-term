@@ -12,33 +12,42 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.22.0
+## What's New in 0.23.0
 
 ### ✨ New Features
 
-- **Agent Screenshot Tool**: Added `terminal_screenshot` MCP tool for permission-gated visual terminal capture by ACP agents
-- **Code Block Rendering in Chat**: Agent messages with fenced code blocks now render with dark background, border, language label, and monospace font
-- **Cancel Queued Messages**: Queued user messages show a "(queued)" label and red "Cancel" button to abort before reaching the agent
-- **Cancel Button During Streaming**: Red "Cancel" button next to spinner when agent is streaming — invokes `Agent::cancel()`
-- **Multi-line Chat Input**: Changed assistant panel input to multi-line — Enter sends, Shift+Enter inserts newline, grows up to 6 rows
-- **Clear Conversation Button**: "C" button next to send clears all chat messages without disconnecting
-- **Auto-Approval Chat Notifications**: Auto-approved tool calls now show as "Auto-approved: ..." entries in chat history
-- **Best-Effort Context Restore**: Reconnecting to an agent with existing chat history injects prior context into the next prompt
-- **Glass Sphere Bounce Shader**: New `glass-sphere-bounce.glsl` background shader
+- **Content Prettifier**: Detects structured content in terminal output (Markdown, JSON, YAML, TOML, XML, CSV, diffs, logs, diagrams, SQL results, stack traces) and renders with syntax highlighting, table formatting, and color-coded diffs — pluggable architecture with custom renderer support, per-profile overrides, and Settings UI tab
+- **Font Hinting Enabled by Default**: Improved text sharpness at common display sizes (toggle in Settings → Appearance)
 
 ### 🐛 Bug Fixes
 
-- **Input and Shader Lag**: Fixed responsiveness regressions from idle-throttling — active tabs no longer use exponential backoff
-- **Scrollbar Repositioning**: Scrollbar now repositions when content insets change (e.g., assistant panel open/close)
-- **New Tab Button Clipped**: Fixed new-tab split button pushed off right edge by ~6px overflow in tab bar width budget
-- **Assistant Panel Overlapping Tab Bar**: Tab bar now reserves assistant panel width so tabs shrink instead of rendering underneath
-- **Clipboard Image Loss on Click**: Fixed image clipboard cleared when single-clicking in focused terminal with tmux mouse reporting
-- **Tab Bar Rounded Borders**: Sharpened rounded tab borders for cleaner rendering
+- **Inline Graphics in Split Pane Mode**: Sixel/iTerm2/Kitty graphics now render correctly in split-pane layouts
+- **Scrollback in Split Pane Mode**: Mouse-wheel scroll, Page Up/Down, and keyboard marks navigation now work in split panes
+- **Scrollbar in Split Pane Mode**: Scrollbar now appears inside the focused pane's bounds
+- **`clear` Removes Inline Graphics**: ED 2/ED 3 erase-display sequences now clear all inline graphics
+- **Window Arrangement DPI Fix**: Arrangement restore now works correctly across mixed-DPI multi-monitor setups
+- **Character Rendering Artifacts**: Fixed thin bright lines at cell edges from bilinear sampling bleed
+- **Symbol Rendering**: Fixed symbols from emoji fonts (dingbats, misc symbols) rendering incorrectly
+- **Text Selection in Mouse-Tracking Apps**: Shift+click/drag now bypasses app mouse tracking for local selection
+- **tmux Pane Click Fix**: Clicks no longer blocked by clipboard image guard
+- **Trackpad Jitter Selection**: Increased drag dead-zone to suppress accidental micro-selections
+- **Tab Emoji Rendering**: Sanitized emoji/ZWJ sequences in tab labels to avoid tofu
+- **Settings Search Keywords**: Fixed and expanded search keywords across all settings tabs
+- **Startup Error Message**: par-term now prints clear errors on startup failure (e.g., missing display server)
 
-### 🔧 Changed
+<details>
+<summary><strong>What's New in 0.22.0</strong></summary>
 
-- **Screenshot Permissions Split from YOLO Mode**: Separate "Allow Agent Screenshots" toggle — screenshots not auto-approved by YOLO mode
-- **Claude ACP Bridge Package Name**: Updated to `@zed-industries/claude-agent-acp`
+- **Agent Screenshot Tool**: `terminal_screenshot` MCP tool for visual terminal capture by ACP agents
+- **Code Block Rendering in Chat**: Agent messages with fenced code blocks render with dark background, border, language label, and monospace font
+- **Cancel Queued Messages / Streaming**: Cancel buttons for queued and in-progress messages
+- **Multi-line Chat Input**: Enter sends, Shift+Enter inserts newline, grows up to 6 rows
+- **Auto-Approval Chat Notifications**: Auto-approved tool calls show in chat history
+- **Best-Effort Context Restore**: Reconnecting preserves prior chat context
+- **Glass Sphere Bounce Shader**: New background shader
+- **Fixed**: Input/shader lag, scrollbar repositioning, new-tab button clipping, assistant panel overlap, clipboard image loss, tab bar borders
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.21.0</strong></summary>

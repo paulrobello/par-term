@@ -151,6 +151,10 @@ Jump between command prompts using keyboard shortcuts:
 
 This is useful for quickly navigating through command history in a long terminal session.
 
+### Split Pane Support
+
+Scrollback and scrollbar work correctly in split pane mode. Each pane maintains its own independent scrollback buffer, and the scrollbar tracks the focused pane's scroll position. The scrollbar renders within the focused pane's bounds rather than spanning the full window.
+
 ## Scrollbar
 
 The scrollbar displays both scroll position and command marks.

@@ -153,9 +153,9 @@ Arrangements are designed to work reliably across different monitor configuratio
 
 ### Relative Position Storage
 
-Window positions are stored relative to their monitor's origin rather than as absolute screen coordinates. This means an arrangement saved on a dual-monitor setup can be restored correctly even if the monitors have different absolute positions.
+Window positions are stored in scale-factor-independent **logical pixels** relative to their monitor's origin. This ensures arrangements restore correctly across monitors with different DPI values (e.g., a Retina display alongside a standard monitor). Positions and sizes use `LogicalPosition`/`LogicalSize` so that winit applies the correct per-monitor DPI conversion on restore.
 
-For example, a window at screen coordinates `(2660, 200)` on a monitor whose origin is `(2560, 0)` is stored as relative position `(100, 200)`.
+For example, a window at screen coordinates `(2660, 200)` on a monitor whose origin is `(2560, 0)` is stored as relative position `(100, 200)` in logical pixels.
 
 ### Monitor Matching
 

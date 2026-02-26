@@ -273,6 +273,12 @@ The Input tab in Settings provides:
 
 The following mouse-related issues have been resolved:
 
+- **Text Selection in Mouse-Tracking Apps** -- Holding Shift while clicking or dragging now bypasses application mouse tracking to allow local text selection. This matches the standard behavior of iTerm2, Kitty, and Alacritty for apps like `less`, `vim`, and `htop` that enable mouse tracking on the alternate screen
+
+- **Trackpad Jitter Selection** -- Increased the mouse drag dead-zone threshold from 4 px to 8 px so that trackpad tap-to-click movement noise and minor jitter no longer create unintended micro-selections that overwrite clipboard content
+
+- **tmux Pane Click Through Clipboard Guard** -- Clicking to switch tmux panes no longer fails when an image is in the clipboard. The clipboard-image protection guard now correctly allows mouse-tracked clicks to pass through to the terminal application
+
 - **Clipboard Image Loss on Plain Click** -- When an image was present in the system clipboard, a single left-click inside an already-focused terminal window with mouse reporting (e.g., tmux) could clear the image from the clipboard. par-term now snapshots the clipboard image on mouse-down and restores it after a plain click-like gesture (no drag, no modifier keys) if the image was lost during the click
 
 ## Related Documentation

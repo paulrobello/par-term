@@ -9,15 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.23.0] - 2026-02-25
+
+### Added
+
+- **Content Prettifier**: New content prettifier system that detects structured content in terminal output (Markdown, JSON, YAML, TOML, XML, CSV, diffs, log files, diagrams, SQL results, stack traces) and renders it with syntax highlighting, table formatting, color-coded diffs, and other format-specific enhancements — includes pluggable trait-based architecture with custom renderer support, per-profile overrides, Claude Code integration, clipboard integration, toggle UX between rendered and source views, render caching, and a full Settings UI tab; see `docs/PRETTIFIER.md` for complete documentation
+
 ### Changed
 
 - **Font Hinting Default**: Font hinting is now **enabled** by default (was disabled) — improves text sharpness at common display sizes; can be toggled in Settings → Appearance → Font Hinting
+- **Dependencies Updated**: Updated workspace dependencies to latest versions
 
 ### Fixed
 
 - **Settings Quick Search Keywords**: Fixed and updated search keywords across all settings tabs — removed 12 content-prettifier keywords that were incorrectly placed in the Terminal tab (causing wrong tab matches for searches like "markdown" or "json"); added ~50 missing keywords across ContentPrettifier (engine, kroki, alternate screen, cache), AI Inspector (custom agents, screenshot access, platform-specific), Automation (prettify action), Integrations (detected, version, status), Advanced (homebrew, cargo), and Notifications (audio formats); removed 5 stale keywords from AI Inspector and ContentPrettifier that referenced non-existent settings
-
-### Fixed
 
 - **Inline Graphics in Split Pane Mode (Sixel/iTerm2/Kitty)**: Inline graphics now render correctly in split-pane layouts — previously graphics were invisible in all split panes because the render path read from the shared tab terminal instead of each pane's own PTY, and never issued a graphics draw call; each pane now gathers graphics from its own terminal, uploads textures to the shared GPU cache, and renders them clipped to the pane's scissor rect
 

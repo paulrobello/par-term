@@ -121,6 +121,10 @@ The Window tab provides:
 
 par-term uses the system's monitor list and falls back to the primary monitor if the specified index is out of bounds.
 
+### Mixed-DPI Multi-Monitor
+
+Window positions and sizes are stored in DPI-independent logical coordinates. When restoring windows across monitors with different scale factors (e.g., Retina + standard), positions are correctly converted using each monitor's DPI. This also applies to arrangement and session restore.
+
 ## Window Behavior
 
 ### Always On Top

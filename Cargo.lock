@@ -3737,7 +3737,7 @@ dependencies = [
 
 [[package]]
 name = "par-term"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3814,7 +3814,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-acp"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "log",
  "serde",
@@ -3826,7 +3826,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-config"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "dirs",
@@ -3876,7 +3876,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-fonts"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "fontdb 0.23.0",
@@ -3890,7 +3890,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-input"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "arboard",
  "log",
@@ -3900,7 +3900,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-keybindings"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "log",
  "par-term-config",
@@ -3921,7 +3921,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-render"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -3943,7 +3943,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-scripting"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "log",
  "par-term-config",
@@ -3954,7 +3954,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-settings-ui"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -3991,7 +3991,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-terminal"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -4005,7 +4005,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-tmux"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "chrono",
  "hostname",
@@ -4018,7 +4018,7 @@ dependencies = [
 
 [[package]]
 name = "par-term-update"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "chrono",

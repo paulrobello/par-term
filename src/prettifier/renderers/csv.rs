@@ -289,7 +289,7 @@ pub fn register_csv_renderer(registry: &mut RendererRegistry, config: &CsvRender
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::prettifier::traits::{RendererConfig, ThemeColors};
+    use crate::prettifier::traits::RendererConfig;
     use crate::prettifier::types::ContentBlock;
     use std::time::SystemTime;
 
