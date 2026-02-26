@@ -163,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         eprintln!(
             "Use `cargo run --bin par-term-acp-harness -- --list-agents` to inspect available identities."
         );
-        std::process::exit(2);
+        return Err("Agent not found (exit code 2)".into());
     };
 
     let cwd = args
@@ -215,8 +215,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     };
 
     if let Err(e) = agent.connect(&cwd, capabilities).await {
-        eprintln!("Connect failed: {e}");
-        std::process::exit(1);
+        return Err(format!("Connect failed: {e}").into());
     }
 
     let prompt_text = args

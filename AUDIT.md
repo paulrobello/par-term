@@ -48,7 +48,6 @@ All tests pass, clippy produces 0 warnings, and the overall architecture is soun
 | M5 | Security | Unsafe cell pointer leak in split-pane render -- memory leak on panic | `src/app/window_state.rs` |
 | M6 | Security | Scripting protocol defines `WriteText`/`RunCommand` (unimplemented) -- needs security model when added | `par-term-scripting/src/protocol.rs` |
 | M7 | Architecture | Dual-mutex hierarchy with 150 `try_lock()` calls -- silent skip on contention, undocumented which are safe | `src/app/` (16 files) |
-| M8 | Architecture | Force-exit via `process::exit()` races `Drop` cleanup, may lose buffered writes | `src/main.rs` |
 | M9 | Architecture | Missing typed errors -- only prettifier uses `thiserror`; rest relies on `anyhow` strings | `src/prettifier/traits.rs` |
 | M10 | Architecture | Monolithic `Config` struct (~200+ fields, 3,157 lines) with no internal grouping | `par-term-config/src/config/mod.rs` |
 | M12 | Code Quality | 680 `unwrap()` calls; `self.window.as_ref().unwrap()` in render path would crash with no context | `src/app/window_state.rs` |

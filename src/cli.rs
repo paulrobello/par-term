@@ -189,6 +189,7 @@ pub fn process_cli() -> CliResult {
         }
         Some(Commands::McpServer) => {
             crate::mcp_server::run_mcp_server();
+            CliResult::Exit(0)
         }
         None => {
             // Extract runtime options from CLI flags

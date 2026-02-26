@@ -589,9 +589,10 @@ fn send_response(stdout: &mut impl Write, response: &Response) {
     }
 }
 
-/// Run the MCP server loop. This function never returns normally — it exits
-/// the process when stdin is closed or an unrecoverable error occurs.
-pub fn run_mcp_server() -> ! {
+/// Run the MCP server loop. Reads JSON-RPC messages from stdin until the
+/// stream is closed or an I/O error occurs, then returns normally so that
+/// callers can run destructors and exit cleanly.
+pub fn run_mcp_server() {
     eprintln!("[mcp-server] Starting par-term MCP server v{SERVER_VERSION}");
 
     let stdin = std::io::stdin();
@@ -659,7 +660,6 @@ pub fn run_mcp_server() -> ! {
     }
 
     eprintln!("[mcp-server] stdin closed, exiting");
-    std::process::exit(0);
 }
 
 // ---------------------------------------------------------------------------
