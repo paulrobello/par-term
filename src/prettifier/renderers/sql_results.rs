@@ -40,9 +40,9 @@ impl Default for SqlResultsRendererConfig {
     fn default() -> Self {
         Self {
             table_style: TableStyle::Unicode,
-            border_color: [85, 85, 85],
-            header_fg: [255, 255, 255],
-            null_color: [128, 128, 128],
+            border_color: [108, 112, 134],
+            header_fg: [205, 214, 244],
+            null_color: [108, 112, 134],
         }
     }
 }
@@ -373,7 +373,7 @@ mod tests {
     fn test_config() -> RendererConfig {
         RendererConfig {
             terminal_width: 80,
-            theme_colors: ThemeColors::default(),
+            ..Default::default()
         }
     }
 
@@ -469,7 +469,7 @@ mod tests {
             .find(|s| s.text.trim() == "NULL");
         assert!(null_seg.is_some());
         let null_seg = null_seg.unwrap();
-        assert_eq!(null_seg.fg, Some([128, 128, 128]));
+        assert_eq!(null_seg.fg, Some([108, 112, 134]));
         assert!(null_seg.italic);
     }
 
@@ -562,9 +562,9 @@ mod tests {
     fn test_config_defaults() {
         let config = SqlResultsRendererConfig::default();
         assert_eq!(config.table_style, TableStyle::Unicode);
-        assert_eq!(config.border_color, [85, 85, 85]);
-        assert_eq!(config.header_fg, [255, 255, 255]);
-        assert_eq!(config.null_color, [128, 128, 128]);
+        assert_eq!(config.border_color, [108, 112, 134]);
+        assert_eq!(config.header_fg, [205, 214, 244]);
+        assert_eq!(config.null_color, [108, 112, 134]);
     }
 
     #[test]

@@ -6,7 +6,7 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use super::types::{ContentBlock, RenderedContent, StyledLine, ViewMode};
+use super::types::{ContentBlock, InlineGraphic, RenderedContent, StyledLine, ViewMode};
 
 /// Threshold above which virtual rendering is used (only render the visible portion).
 const VIRTUAL_RENDER_THRESHOLD: usize = 10_000;
@@ -189,6 +189,17 @@ impl DualViewBuffer {
     /// Get a reference to the rendered content, if available.
     pub fn rendered(&self) -> Option<&RenderedContent> {
         self.rendered.as_ref()
+    }
+
+    /// Get inline graphics for the current view mode.
+    ///
+    /// Returns rendered graphics when in `Rendered` mode with available content,
+    /// otherwise returns an empty slice.
+    pub fn rendered_graphics(&self) -> &[InlineGraphic] {
+        match (&self.view_mode, &self.rendered) {
+            (ViewMode::Rendered, Some(r)) => &r.graphics,
+            _ => &[],
+        }
     }
 
     /// Convert source lines to plain `StyledLine`s for display.

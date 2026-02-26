@@ -1,5 +1,6 @@
 //! Core data types for the Content Prettifier framework.
 
+use std::sync::Arc;
 use std::time::SystemTime;
 
 /// A block of raw terminal output to be analyzed for content detection.
@@ -212,8 +213,8 @@ pub struct SourceLineMapping {
 /// An inline graphic to display alongside rendered content.
 #[derive(Debug, Clone)]
 pub struct InlineGraphic {
-    /// The image data (PNG bytes).
-    pub data: Vec<u8>,
+    /// The image data (RGBA pixels when `is_rgba` is true, otherwise PNG bytes).
+    pub data: Arc<Vec<u8>>,
     /// Row position in the rendered output.
     pub row: usize,
     /// Column position in the rendered output.
@@ -222,6 +223,12 @@ pub struct InlineGraphic {
     pub width_cells: usize,
     /// Height in terminal cells.
     pub height_cells: usize,
+    /// Width of the image in pixels.
+    pub pixel_width: u32,
+    /// Height of the image in pixels.
+    pub pixel_height: u32,
+    /// Whether `data` contains pre-decoded RGBA pixels (true) or encoded PNG bytes (false).
+    pub is_rgba: bool,
 }
 
 /// Toggle between rendered and source views of a prettified content block.

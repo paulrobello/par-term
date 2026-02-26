@@ -135,6 +135,11 @@ chrono = "0.4.43"
 # Image loading for background images
 image = "0.25.9"
 
+# Native Mermaid diagram rendering (pure Rust, zero external deps)
+mermaid-rs-renderer = { version = "0.2", default-features = false }
+# SVG rasterization for mermaid diagram PNG output
+resvg = "0.45"
+
 # Half-precision float for HDR cubemap textures
 half = "2.7.1"
 

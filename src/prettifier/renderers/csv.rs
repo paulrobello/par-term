@@ -37,9 +37,9 @@ impl Default for CsvRendererConfig {
     fn default() -> Self {
         Self {
             table_style: TableStyle::Unicode,
-            border_color: [85, 85, 85],
-            header_fg: [255, 255, 255],
-            stripe_color: [30, 30, 30],
+            border_color: [108, 112, 134],
+            header_fg: [205, 214, 244],
+            stripe_color: [45, 45, 61],
         }
     }
 }
@@ -296,7 +296,7 @@ mod tests {
     fn test_config() -> RendererConfig {
         RendererConfig {
             terminal_width: 80,
-            theme_colors: ThemeColors::default(),
+            ..Default::default()
         }
     }
 
@@ -462,8 +462,8 @@ mod tests {
     fn test_config_defaults() {
         let config = CsvRendererConfig::default();
         assert_eq!(config.table_style, TableStyle::Unicode);
-        assert_eq!(config.border_color, [85, 85, 85]);
-        assert_eq!(config.header_fg, [255, 255, 255]);
+        assert_eq!(config.border_color, [108, 112, 134]);
+        assert_eq!(config.header_fg, [205, 214, 244]);
     }
 
     #[test]

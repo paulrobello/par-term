@@ -11,6 +11,10 @@ pub struct RendererConfig {
     pub terminal_width: usize,
     /// Theme colors for styling rendered output.
     pub theme_colors: ThemeColors,
+    /// Cell width in pixels (for sizing inline graphics).
+    pub cell_width_px: Option<f32>,
+    /// Cell height in pixels (for sizing inline graphics).
+    pub cell_height_px: Option<f32>,
 }
 
 /// Color palette from the current terminal theme.
@@ -25,28 +29,28 @@ pub struct ThemeColors {
 }
 
 impl Default for ThemeColors {
-    /// Standard VGA palette.
+    /// Modern Catppuccin Mocha-inspired palette for vibrant, readable output.
     fn default() -> Self {
         Self {
-            fg: [192, 192, 192],
-            bg: [0, 0, 0],
+            fg: [205, 214, 244],
+            bg: [30, 30, 46],
             palette: [
-                [0, 0, 0],       // 0  Black
-                [170, 0, 0],     // 1  Red
-                [0, 170, 0],     // 2  Green
-                [170, 85, 0],    // 3  Yellow (brown)
-                [0, 0, 170],     // 4  Blue
-                [170, 0, 170],   // 5  Magenta
-                [0, 170, 170],   // 6  Cyan
-                [192, 192, 192], // 7  White (light grey)
-                [85, 85, 85],    // 8  Bright black (dark grey)
-                [255, 85, 85],   // 9  Bright red
-                [85, 255, 85],   // 10 Bright green
-                [255, 255, 85],  // 11 Bright yellow
-                [85, 85, 255],   // 12 Bright blue
-                [255, 85, 255],  // 13 Bright magenta
-                [85, 255, 255],  // 14 Bright cyan
-                [255, 255, 255], // 15 Bright white
+                [69, 71, 90],    // 0  Black (Surface0)
+                [243, 139, 168], // 1  Red
+                [166, 227, 161], // 2  Green
+                [249, 226, 175], // 3  Yellow (warm gold)
+                [137, 180, 250], // 4  Blue
+                [203, 166, 247], // 5  Magenta (mauve)
+                [148, 226, 213], // 6  Cyan (teal)
+                [186, 194, 222], // 7  White (Subtext0)
+                [108, 112, 134], // 8  Bright black (Overlay0)
+                [235, 160, 172], // 9  Bright red (maroon)
+                [166, 227, 161], // 10 Bright green
+                [249, 226, 175], // 11 Bright yellow
+                [116, 199, 236], // 12 Bright blue (sapphire)
+                [245, 194, 231], // 13 Bright magenta (pink)
+                [137, 220, 235], // 14 Bright cyan (sky)
+                [205, 214, 244], // 15 Bright white (Text)
             ],
         }
     }
@@ -57,6 +61,8 @@ impl Default for RendererConfig {
         Self {
             terminal_width: 80,
             theme_colors: ThemeColors::default(),
+            cell_width_px: None,
+            cell_height_px: None,
         }
     }
 }

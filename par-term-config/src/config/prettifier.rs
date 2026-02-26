@@ -242,7 +242,9 @@ pub struct DiagramRendererConfig {
     #[serde(default = "default_priority")]
     pub priority: i32,
 
-    /// Rendering engine: "kroki", "mermaid_cli", or "text_fallback".
+    /// Rendering engine: "auto" (default — tries native → local → kroki),
+    /// "native" (pure-Rust mermaid only), "local" (CLI tools), "kroki" (API),
+    /// or "text_fallback" (source display only).
     #[serde(default)]
     pub engine: Option<String>,
 

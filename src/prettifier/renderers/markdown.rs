@@ -10,11 +10,14 @@
 use regex::Regex;
 use std::sync::OnceLock;
 
+use super::diagrams::DiagramRenderer;
 use super::table::{ColumnAlignment, TableRenderer, TableStyle};
+use crate::config::prettifier::DiagramRendererConfig;
 use crate::prettifier::registry::RendererRegistry;
 use crate::prettifier::traits::{ContentRenderer, RendererConfig, ThemeColors};
 use crate::prettifier::types::{
-    ContentBlock, RenderedContent, RendererCapability, SourceLineMapping, StyledLine, StyledSegment,
+    ContentBlock, InlineGraphic, RenderedContent, RendererCapability, SourceLineMapping, StyledLine,
+    StyledSegment,
 };
 
 // ---------------------------------------------------------------------------
@@ -79,7 +82,7 @@ impl Default for MarkdownRendererConfig {
             horizontal_rule_style: HorizontalRuleStyle::Thin,
             code_block_background: true,
             table_style: TableStyle::Unicode,
-            table_border_color: [85, 85, 85],
+            table_border_color: [108, 112, 134],
         }
     }
 }
@@ -724,12 +727,25 @@ fn highlight_code_line(
 /// Renders Markdown content into styled terminal output.
 pub struct MarkdownRenderer {
     config: MarkdownRendererConfig,
+    /// Diagram sub-renderer for fenced code blocks with diagram language tags.
+    diagram_renderer: DiagramRenderer,
 }
 
 impl MarkdownRenderer {
     /// Create a new `MarkdownRenderer` with the given config.
     pub fn new(config: MarkdownRendererConfig) -> Self {
-        Self { config }
+        Self::with_diagram_config(config, DiagramRendererConfig::default())
+    }
+
+    /// Create a new `MarkdownRenderer` with explicit diagram renderer config.
+    pub fn with_diagram_config(
+        config: MarkdownRendererConfig,
+        diagram_config: DiagramRendererConfig,
+    ) -> Self {
+        Self {
+            config,
+            diagram_renderer: DiagramRenderer::new(diagram_config),
+        }
     }
 
     /// Check if a fenced code block language should be sub-rendered by another renderer.
@@ -1162,6 +1178,7 @@ impl ContentRenderer for MarkdownRenderer {
         // Pass 2: render each block element.
         let mut lines = Vec::new();
         let mut line_mapping = Vec::new();
+        let mut graphics: Vec<InlineGraphic> = Vec::new();
 
         for block in &blocks {
             match block {
@@ -1181,36 +1198,80 @@ impl ContentRenderer for MarkdownRenderer {
                     fence_open_idx,
                     fence_close_idx,
                 } => {
-                    // Opening fence maps to the language label (or nothing).
-                    let rendered_code = self.render_code_block(language, code_lines, theme, width);
+                    // Check if this code block is a diagram language — if so,
+                    // delegate to the DiagramRenderer for full backend rendering
+                    // (local CLI / Kroki API / styled text fallback).
+                    let is_diagram = language
+                        .as_deref()
+                        .is_some_and(|lang| self.diagram_renderer.is_diagram_language(lang));
 
-                    if language.is_some() {
-                        // Language label line maps to the opening fence source line.
-                        line_mapping.push(SourceLineMapping {
-                            rendered_line: lines.len(),
-                            source_line: Some(*fence_open_idx),
-                        });
+                    if is_diagram {
+                        let lang = language.as_deref().unwrap();
+                        let source_refs: Vec<&str> =
+                            code_lines.iter().map(String::as_str).collect();
+                        let (diagram_lines, diagram_mappings, diagram_graphics) =
+                            self.diagram_renderer.render_diagram_section(
+                                lang,
+                                &source_refs,
+                                *fence_open_idx,
+                                config,
+                            );
+
+                        // Adjust line mappings to account for current output offset.
+                        let offset = lines.len();
+                        for mut mapping in diagram_mappings {
+                            mapping.rendered_line += offset;
+                            line_mapping.push(mapping);
+                        }
+
+                        // Adjust graphic row positions for current offset.
+                        for mut graphic in diagram_graphics {
+                            graphic.row += offset;
+                            graphics.push(graphic);
+                        }
+
+                        // Closing fence: no rendered line, but record mapping.
+                        if let Some(close_idx) = fence_close_idx {
+                            line_mapping.push(SourceLineMapping {
+                                rendered_line: lines.len() + diagram_lines.len(),
+                                source_line: Some(*close_idx),
+                            });
+                        }
+
+                        lines.extend(diagram_lines);
+                    } else {
+                        // Standard code block with syntax highlighting.
+                        let rendered_code =
+                            self.render_code_block(language, code_lines, theme, width);
+
+                        if language.is_some() {
+                            // Language label line maps to the opening fence source line.
+                            line_mapping.push(SourceLineMapping {
+                                rendered_line: lines.len(),
+                                source_line: Some(*fence_open_idx),
+                            });
+                        }
+
+                        // Code content lines map 1:1 to their source lines.
+                        let content_start = if language.is_some() { 1 } else { 0 };
+                        for (j, _) in rendered_code.iter().enumerate().skip(content_start) {
+                            let source_line = fence_open_idx + 1 + (j - content_start);
+                            line_mapping.push(SourceLineMapping {
+                                rendered_line: lines.len() + j,
+                                source_line: Some(source_line),
+                            });
+                        }
+
+                        // Closing fence: no rendered line, but record mapping.
+                        if let Some(close_idx) = fence_close_idx {
+                            line_mapping.push(SourceLineMapping {
+                                rendered_line: lines.len() + rendered_code.len(),
+                                source_line: Some(*close_idx),
+                            });
+                        }
+
+                        lines.extend(rendered_code);
                     }
-
-                    // Code content lines map 1:1 to their source lines.
-                    let content_start = if language.is_some() { 1 } else { 0 };
-                    for (j, _) in rendered_code.iter().enumerate().skip(content_start) {
-                        let source_line = fence_open_idx + 1 + (j - content_start);
-                        line_mapping.push(SourceLineMapping {
-                            rendered_line: lines.len() + j,
-                            source_line: Some(source_line),
-                        });
-                    }
-
-                    // Closing fence: no rendered line, but record mapping.
-                    if let Some(close_idx) = fence_close_idx {
-                        line_mapping.push(SourceLineMapping {
-                            rendered_line: lines.len() + rendered_code.len(),
-                            source_line: Some(*close_idx),
-                        });
-                    }
-
-                    lines.extend(rendered_code);
                 }
 
                 BlockElement::Table {
@@ -1297,7 +1358,7 @@ impl ContentRenderer for MarkdownRenderer {
         Ok(RenderedContent {
             lines,
             line_mapping,
-            graphics: vec![],
+            graphics,
             format_badge: "\u{1F4DD}".to_string(), // 📝
         })
     }
@@ -1319,6 +1380,21 @@ pub fn register_markdown_renderer(
     registry.register_renderer("markdown", Box::new(MarkdownRenderer::new(config.clone())));
 }
 
+/// Register the markdown renderer with diagram sub-rendering support.
+pub fn register_markdown_renderer_with_diagrams(
+    registry: &mut RendererRegistry,
+    config: &MarkdownRendererConfig,
+    diagram_config: &DiagramRendererConfig,
+) {
+    registry.register_renderer(
+        "markdown",
+        Box::new(MarkdownRenderer::with_diagram_config(
+            config.clone(),
+            diagram_config.clone(),
+        )),
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -1333,7 +1409,7 @@ mod tests {
     fn test_config() -> RendererConfig {
         RendererConfig {
             terminal_width: 80,
-            theme_colors: ThemeColors::default(),
+            ..Default::default()
         }
     }
 
@@ -1832,7 +1908,7 @@ mod tests {
     fn test_subtle_bg() {
         let theme = ThemeColors::default();
         let bg = subtle_bg(&theme);
-        assert_eq!(bg, [25, 25, 25]);
+        assert_eq!(bg, [55, 55, 71]);
     }
 
     #[test]

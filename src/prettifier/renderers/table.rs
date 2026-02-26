@@ -324,8 +324,8 @@ mod tests {
     fn default_renderer() -> TableRenderer {
         TableRenderer::new(
             TableStyle::Unicode,
-            [85, 85, 85],    // dim grey border
-            [255, 255, 255], // white header
+            [108, 112, 134], // overlay border
+            [205, 214, 244], // text header
         )
     }
 
@@ -370,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_ascii_style() {
-        let r = TableRenderer::new(TableStyle::Ascii, [85, 85, 85], [255, 255, 255]);
+        let r = TableRenderer::new(TableStyle::Ascii, [108, 112, 134], [205, 214, 244]);
         let headers = vec!["A".to_string(), "B".to_string()];
         let rows = vec![vec!["1".to_string(), "2".to_string()]];
         let result = r.render_table(&headers, &rows, &[], 80);
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_rounded_style() {
-        let r = TableRenderer::new(TableStyle::Rounded, [85, 85, 85], [255, 255, 255]);
+        let r = TableRenderer::new(TableStyle::Rounded, [108, 112, 134], [205, 214, 244]);
         let headers = vec!["X".to_string()];
         let rows = vec![vec!["Y".to_string()]];
         let result = r.render_table(&headers, &rows, &[], 80);
@@ -436,7 +436,7 @@ mod tests {
     #[test]
     fn test_border_color() {
         let color = [100, 200, 50];
-        let r = TableRenderer::new(TableStyle::Unicode, color, [255, 255, 255]);
+        let r = TableRenderer::new(TableStyle::Unicode, color, [205, 214, 244]);
         let headers = vec!["A".to_string()];
         let result = r.render_table(&headers, &[], &[], 80);
 

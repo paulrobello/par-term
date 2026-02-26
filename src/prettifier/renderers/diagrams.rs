@@ -2,21 +2,24 @@
 //!
 //! Converts fenced code blocks tagged with diagram language identifiers
 //! (Mermaid, PlantUML, GraphViz, D2, etc.) into rendered output using one of
-//! three backends:
+//! four backends:
 //!
+//! - **Native**: pure-Rust mermaid rendering via `mermaid-rs-renderer` (mermaid only,
+//!   500–1400× faster than mmdc, zero external dependencies).
 //! - **Local CLI**: pipes diagram source to a local tool (e.g., `dot`, `mmdc`),
 //!   captures PNG output, and stores it as an `InlineGraphic`.
 //! - **Kroki API**: sends diagram source via HTTP POST to a Kroki server,
 //!   receives PNG output, and stores it as an `InlineGraphic`.
 //! - **Text fallback**: syntax-highlighted source display with a format badge.
 //!
-//! Backend selection follows the `engine` config: `"auto"` tries local CLI first
-//! then Kroki, `"local"` uses only local CLI, `"kroki"` uses only the API,
-//! and `"text_fallback"` skips both.
+//! Backend selection follows the `engine` config: `"auto"` tries native (mermaid
+//! only) then local CLI then Kroki, `"native"` uses only the native renderer,
+//! `"local"` uses only local CLI, `"kroki"` uses only the API, and
+//! `"text_fallback"` skips all backends.
 
 use std::collections::HashMap;
-use std::io::Write;
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 
 use crate::config::prettifier::DiagramRendererConfig;
 use crate::prettifier::traits::{ContentRenderer, RenderError, RendererConfig};
@@ -152,38 +155,93 @@ impl DiagramRenderer {
 
         match backend {
             "text_fallback" => None,
+            "native" => self.try_native_mermaid(tag, source).map(|d| (d, display_name)),
             "local" => self.try_local_cli(lang, source).map(|d| (d, display_name)),
             "kroki" => self.try_kroki(lang, source).map(|d| (d, display_name)),
-            // "auto" or unrecognized: try local first, then Kroki.
+            // "auto" or unrecognized: try native (mermaid only) → local CLI → Kroki.
             _ => self
-                .try_local_cli(lang, source)
+                .try_native_mermaid(tag, source)
+                .or_else(|| self.try_local_cli(lang, source))
                 .or_else(|| self.try_kroki(lang, source))
                 .map(|d| (d, display_name)),
         }
     }
 
+    /// Try to render a mermaid diagram natively using `mermaid-rs-renderer`.
+    ///
+    /// Only works for mermaid diagrams; returns `None` for other diagram types.
+    /// Renders mermaid source → SVG → PNG bytes.
+    fn try_native_mermaid(&self, tag: &str, source: &str) -> Option<Vec<u8>> {
+        if tag != "mermaid" {
+            return None;
+        }
+
+        // Render mermaid source to SVG.
+        let svg = match mermaid_rs_renderer::render(source) {
+            Ok(svg_str) => {
+                crate::debug_info!(
+                    "PRETTIFIER",
+                    "Native Mermaid SVG generated ({} bytes)",
+                    svg_str.len()
+                );
+                svg_str
+            }
+            Err(e) => {
+                crate::debug_info!("PRETTIFIER", "Native Mermaid render failed: {e}");
+                return None;
+            }
+        };
+
+        // Convert SVG to PNG.
+        svg_to_png_bytes(&svg)
+    }
+
     /// Render a diagram via a local CLI command.
     ///
-    /// Pipes diagram source to stdin, expects PNG on stdout.
+    /// Some tools (like `mmdc`) don't support stdout piping and require file
+    /// output, so we use a temp file strategy: write source to a temp input
+    /// file, invoke the CLI with temp output path, then read the result.
     fn try_local_cli(&self, lang: &DiagramLanguage, source: &str) -> Option<Vec<u8>> {
         let cmd = lang.local_command.as_deref()?;
 
-        let mut child = Command::new(cmd)
-            .args(&lang.local_args)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
+        let tmp_dir = std::env::temp_dir();
+        let input_path = tmp_dir.join("par_term_diagram_input.txt");
+        let output_path = tmp_dir.join("par_term_diagram_output.png");
+
+        // Write source to temp input file.
+        std::fs::write(&input_path, source).ok()?;
+
+        // Remove stale output so we can detect fresh generation.
+        let _ = std::fs::remove_file(&output_path);
+
+        // Build args, substituting placeholder paths.
+        let args: Vec<String> = lang
+            .local_args
+            .iter()
+            .map(|a| match a.as_str() {
+                "/dev/stdin" => input_path.to_string_lossy().into_owned(),
+                "/dev/stdout" => output_path.to_string_lossy().into_owned(),
+                other => other.to_string(),
+            })
+            .collect();
+
+        let status = Command::new(cmd)
+            .args(&args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .spawn()
+            .status()
             .ok()?;
 
-        if let Some(mut stdin) = child.stdin.take() {
-            let _ = stdin.write_all(source.as_bytes());
-        }
+        // Clean up input file.
+        let _ = std::fs::remove_file(&input_path);
 
-        let output = child.wait_with_output().ok()?;
-        if output.status.success() && !output.stdout.is_empty() {
-            Some(output.stdout)
+        if status.success() {
+            let data = std::fs::read(&output_path).ok()?;
+            let _ = std::fs::remove_file(&output_path);
+            if data.is_empty() { None } else { Some(data) }
         } else {
+            let _ = std::fs::remove_file(&output_path);
             None
         }
     }
@@ -218,8 +276,14 @@ impl DiagramRenderer {
     }
 
     /// Render a diagram section with backend rendering, producing an InlineGraphic
-    /// and a header line, or falling back to text rendering.
-    fn render_diagram_section(
+    /// and source text with a "(rendered)" badge, or falling back to text rendering.
+    ///
+    /// Render a diagram section using a backend engine, producing an inline graphic.
+    ///
+    /// When a backend succeeds, the PNG is decoded to RGBA pixels and stored in
+    /// an `InlineGraphic`. Blank placeholder rows are emitted sized to the image
+    /// so the GPU renderer can overlay the graphic at the correct position.
+    pub fn render_diagram_section(
         &self,
         tag: &str,
         source_lines: &[&str],
@@ -230,16 +294,34 @@ impl DiagramRenderer {
 
         // Try backend rendering.
         if let Some((png_data, display_name)) = self.try_render_backend(tag, &source) {
+            // Decode PNG → RGBA so the GPU renderer can texture it directly.
+            let decoded = image::load_from_memory(&png_data).ok();
+            let (rgba_data, pixel_width, pixel_height) = match decoded {
+                Some(img) => {
+                    let rgba = img.to_rgba8();
+                    let w = rgba.width();
+                    let h = rgba.height();
+                    (rgba.into_raw(), w, h)
+                }
+                None => {
+                    // PNG decode failed — fall back to text rendering.
+                    let (styled, mappings) =
+                        self.render_diagram_fallback(tag, source_lines, start_line, theme);
+                    return (styled, mappings, vec![]);
+                }
+            };
+
             let mut styled = Vec::new();
             let mut mappings = Vec::new();
 
-            // Estimate image height in cells (assume ~16px per cell row).
-            // We'll use a conservative estimate; the actual display depends on
-            // the terminal's cell size and image protocol.
-            let estimated_height_cells = 20; // Reasonable default
             let width_cells = theme.terminal_width.min(80);
 
-            // Header line indicating rendered diagram.
+            // Compute image height in terminal rows from pixel dimensions.
+            let cell_h = theme.cell_height_px.unwrap_or(16.0);
+            let image_rows = ((pixel_height as f32) / cell_h).ceil() as usize;
+            let height_cells = image_rows + 1; // +1 for header line
+
+            // Header line with green "(rendered)" badge.
             let header = StyledLine::new(vec![
                 StyledSegment {
                     text: format!(" {display_name} "),
@@ -260,24 +342,30 @@ impl DiagramRenderer {
             });
             styled.push(header);
 
-            // Add placeholder lines for the graphic height so cell substitution
-            // reserves vertical space.
-            for row in 0..estimated_height_cells {
+            // Emit blank placeholder rows — the GPU renderer will overlay the
+            // graphic image on top of these rows.
+            for i in 0..image_rows {
+                let source_idx = if i < source_lines.len() {
+                    Some(start_line + 1 + i)
+                } else {
+                    None
+                };
                 mappings.push(SourceLineMapping {
                     rendered_line: styled.len(),
-                    source_line: Some(start_line),
+                    source_line: source_idx,
                 });
                 styled.push(StyledLine::plain(""));
-                // Only the first blank line gets the graphic placed on it.
-                let _ = row;
             }
 
             let graphic = InlineGraphic {
-                data: png_data,
-                row: 1, // Right after the header line
+                data: Arc::new(rgba_data),
+                row: 1, // First row after header
                 col: 0,
                 width_cells,
-                height_cells: estimated_height_cells,
+                height_cells,
+                pixel_width,
+                pixel_height,
+                is_rgba: true,
             };
 
             (styled, mappings, vec![graphic])
@@ -494,6 +582,106 @@ fn render_diagram_source_line(
     }
 }
 
+/// Fix malformed SVG font-family attributes that contain unescaped inner quotes.
+///
+/// Some renderers emit SVG like:
+///   `font-family="Inter, "Segoe UI", sans-serif"`
+/// which is invalid XML. We replace inner `"` within attribute values with `'`.
+fn sanitize_svg_font_family(svg: &str) -> String {
+    let mut result = String::with_capacity(svg.len());
+    let mut chars = svg.char_indices().peekable();
+
+    while let Some((i, c)) = chars.next() {
+        result.push(c);
+
+        // Look for font-family="
+        if svg[i..].starts_with("font-family=\"") {
+            // Push the rest of "font-family=\"" (skip the 'f' already pushed)
+            let attr_start = "font-family=\"";
+            for ch in attr_start[1..].chars() {
+                chars.next();
+                result.push(ch);
+            }
+            // Now inside the attribute value. Find the closing quote.
+            // Inner quotes are replaced with single quotes.
+            while let Some(&(_, next_c)) = chars.peek() {
+                chars.next();
+                if next_c == '"' {
+                    // Is this the closing quote? Check if next char ends the attribute.
+                    if let Some(&(_, after)) = chars.peek() {
+                        if after == ' ' || after == '/' || after == '>' {
+                            result.push('"');
+                            break;
+                        }
+                        // Inner quote — replace with single quote.
+                        result.push('\'');
+                    } else {
+                        // End of string — closing quote.
+                        result.push('"');
+                        break;
+                    }
+                } else {
+                    result.push(next_c);
+                }
+            }
+        }
+    }
+    result
+}
+
+/// Convert an SVG string to PNG bytes using resvg.
+///
+/// Returns `None` if parsing fails, dimensions are invalid (zero or > 4096),
+/// or rasterization/encoding fails.
+pub fn svg_to_png_bytes(svg: &str) -> Option<Vec<u8>> {
+    use image::codecs::png::PngEncoder;
+    use image::ImageEncoder;
+
+    // Some SVG generators produce malformed font-family attributes with
+    // unescaped inner quotes (e.g. font-family="..., "Segoe UI", ...").
+    // Fix these so the XML parser doesn't choke.
+    let svg = sanitize_svg_font_family(svg);
+
+    let opts = resvg::usvg::Options::default();
+    let tree = match resvg::usvg::Tree::from_str(&svg, &opts) {
+        Ok(t) => t,
+        Err(e) => {
+            crate::debug_info!("PRETTIFIER", "SVG parse failed: {e}");
+            return None;
+        }
+    };
+    let size = tree.size();
+    let width = size.width().ceil() as u32;
+    let height = size.height().ceil() as u32;
+
+    if width == 0 || height == 0 || width > 4096 || height > 4096 {
+        crate::debug_info!(
+            "PRETTIFIER",
+            "SVG dimensions out of range: {width}x{height}"
+        );
+        return None;
+    }
+
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height)?;
+    // White background for readability.
+    pixmap.fill(resvg::tiny_skia::Color::WHITE);
+
+    resvg::render(&tree, resvg::tiny_skia::Transform::default(), &mut pixmap.as_mut());
+
+    let mut png_buf = Vec::new();
+    let encoder = PngEncoder::new(&mut png_buf);
+    encoder
+        .write_image(pixmap.data(), width, height, image::ExtendedColorType::Rgba8)
+        .ok()?;
+
+    crate::debug_info!(
+        "PRETTIFIER",
+        "SVG->PNG conversion succeeded: {width}x{height}, {} bytes",
+        png_buf.len()
+    );
+    Some(png_buf)
+}
+
 /// Return the default set of diagram languages.
 pub fn default_diagram_languages() -> Vec<DiagramLanguage> {
     vec![
@@ -662,22 +850,54 @@ mod tests {
     }
 
     #[test]
-    fn test_render_mermaid_fallback() {
+    fn test_render_mermaid_native() {
+        // With "auto" backend, mermaid now renders natively.
         let renderer = test_renderer();
         let block = make_block(&["```mermaid", "graph TD", "  A-->B", "```"]);
         let config = RendererConfig::default();
 
         let result = renderer.render(&block, &config).unwrap();
         assert_eq!(result.format_badge, "DG");
-        // Should have header + 2 source lines = 3 rendered lines.
-        assert_eq!(result.lines.len(), 3);
-        // First line should mention "Mermaid".
+        // Should have header + placeholder rows for the rendered image.
+        assert!(result.lines.len() >= 2, "Expected at least header + placeholder rows");
+        // First line should mention "Mermaid" and "(rendered)".
         let first_text: String = result.lines[0]
             .segments
             .iter()
             .map(|s| s.text.as_str())
             .collect();
         assert!(first_text.contains("Mermaid"));
+        assert!(first_text.contains("rendered"));
+        // Should have an InlineGraphic with pre-decoded RGBA data.
+        assert_eq!(result.graphics.len(), 1);
+        assert!(!result.graphics[0].data.is_empty());
+        assert!(result.graphics[0].is_rgba);
+        assert!(result.graphics[0].pixel_width > 0);
+        assert!(result.graphics[0].pixel_height > 0);
+    }
+
+    #[test]
+    fn test_render_mermaid_text_fallback() {
+        // With "text_fallback" engine, mermaid should produce source-style output.
+        let config = DiagramRendererConfig {
+            engine: Some("text_fallback".into()),
+            ..DiagramRendererConfig::default()
+        };
+        let renderer = DiagramRenderer::new(config);
+        let block = make_block(&["```mermaid", "graph TD", "  A-->B", "```"]);
+        let rc = RendererConfig::default();
+
+        let result = renderer.render(&block, &rc).unwrap();
+        assert_eq!(result.format_badge, "DG");
+        assert_eq!(result.lines.len(), 3);
+        let first_text: String = result.lines[0]
+            .segments
+            .iter()
+            .map(|s| s.text.as_str())
+            .collect();
+        assert!(first_text.contains("Mermaid"));
+        assert!(first_text.contains("source"));
+        assert!(result.graphics.is_empty());
     }
 
     #[test]
@@ -717,11 +937,10 @@ mod tests {
 
         let result = renderer.render(&block, &config).unwrap();
         // Line 0: "Here is a diagram:" (plain text)
-        // Line 1: header (Mermaid badge)
-        // Line 2: "graph LR" (source)
-        // Line 3: "  A-->B" (source)
-        // Line 4: "End of content." (plain text)
-        assert_eq!(result.lines.len(), 5);
+        // Line 1: header (Mermaid badge with "(rendered)" — native backend succeeds)
+        // Lines 2..N: blank placeholder rows for the rendered image
+        // Last line: "End of content." (plain text)
+        assert!(result.lines.len() >= 3, "Expected at least text + header + text");
         assert_eq!(result.lines[0].segments[0].text, "Here is a diagram:");
         assert_eq!(
             result.lines[result.lines.len() - 1].segments[0].text,
@@ -736,8 +955,9 @@ mod tests {
         let config = RendererConfig::default();
 
         let result = renderer.render(&block, &config).unwrap();
-        // Just the header, no source lines.
-        assert_eq!(result.lines.len(), 1);
+        // At least the header line; if native render fails for empty source,
+        // fallback produces just the header. If it succeeds, header + placeholders.
+        assert!(!result.lines.is_empty());
     }
 
     #[test]
@@ -759,33 +979,42 @@ mod tests {
         let config = RendererConfig::default();
 
         let result = renderer.render(&block, &config).unwrap();
-        assert_eq!(result.line_mapping.len(), 3);
+        // With native rendering: header + placeholder rows, all mapped.
+        assert!(!result.line_mapping.is_empty());
         // Header maps to source line 0 (the opening fence).
         assert_eq!(result.line_mapping[0].source_line, Some(0));
-        // First source line maps to source line 1.
-        assert_eq!(result.line_mapping[1].source_line, Some(1));
-        // Second source line maps to source line 2.
-        assert_eq!(result.line_mapping[2].source_line, Some(2));
+        // Mapping count matches line count.
+        assert_eq!(result.line_mapping.len(), result.lines.len());
     }
 
     #[test]
     fn test_syntax_highlight_comments() {
-        let renderer = test_renderer();
+        // Use text_fallback to test source-line styling without native rendering.
+        let config = DiagramRendererConfig {
+            engine: Some("text_fallback".into()),
+            ..DiagramRendererConfig::default()
+        };
+        let renderer = DiagramRenderer::new(config);
         let block = make_block(&["```mermaid", "%% This is a comment", "graph TD", "```"]);
-        let config = RendererConfig::default();
+        let rc = RendererConfig::default();
 
-        let result = renderer.render(&block, &config).unwrap();
+        let result = renderer.render(&block, &rc).unwrap();
         // Comment line (index 1) should be italic.
         assert!(result.lines[1].segments[0].italic);
     }
 
     #[test]
     fn test_syntax_highlight_keywords() {
-        let renderer = test_renderer();
+        // Use text_fallback to test source-line styling without native rendering.
+        let config = DiagramRendererConfig {
+            engine: Some("text_fallback".into()),
+            ..DiagramRendererConfig::default()
+        };
+        let renderer = DiagramRenderer::new(config);
         let block = make_block(&["```mermaid", "graph TD", "  A-->B", "```"]);
-        let config = RendererConfig::default();
+        let rc = RendererConfig::default();
 
-        let result = renderer.render(&block, &config).unwrap();
+        let result = renderer.render(&block, &rc).unwrap();
         // Keyword line (index 1 = "graph TD") should be bold.
         assert!(result.lines[1].segments[0].bold);
     }
@@ -915,9 +1144,9 @@ mod tests {
         let config = RendererConfig::default();
 
         let result = renderer.render(&block, &config).unwrap();
-        // Mermaid: header + 1 source = 2
+        // Mermaid (native rendered): header + 1 source = 2
         // Text: 1
-        // D2: header + 1 source = 2
+        // D2 (fallback): header + 1 source = 2
         // Total: 5
         assert_eq!(result.lines.len(), 5);
 
@@ -930,5 +1159,109 @@ mod tests {
             .collect();
         assert!(all_text.contains("Mermaid"));
         assert!(all_text.contains("D2"));
+        // Mermaid should have a graphic, D2 should not.
+        assert_eq!(result.graphics.len(), 1);
+    }
+
+    // ===================================================================
+    // Native mermaid rendering tests
+    // ===================================================================
+
+    #[test]
+    fn test_native_mermaid_basic_flowchart() {
+        let renderer = test_renderer();
+        let source = "graph TD\n  A-->B\n  B-->C";
+        let result = renderer.try_native_mermaid("mermaid", source);
+        assert!(result.is_some(), "Native mermaid should render a basic flowchart");
+        let png = result.unwrap();
+        // PNG signature: first 8 bytes.
+        assert!(png.len() > 8);
+        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    }
+
+    #[test]
+    fn test_native_mermaid_handles_garbage_gracefully() {
+        let renderer = test_renderer();
+        // The mermaid-rs-renderer is tolerant of unusual input.
+        // This test verifies it doesn't panic on garbage — the result can be
+        // either Some (rendered as best-effort) or None (parse error).
+        let _ = renderer.try_native_mermaid("mermaid", "");
+        let _ = renderer.try_native_mermaid("mermaid", "this is not valid mermaid %%!@#$");
+        let _ = renderer.try_native_mermaid("mermaid", "\x00\x01\x02");
+        // If we get here without panicking, the test passes.
+    }
+
+    #[test]
+    fn test_native_mermaid_sequence_diagram() {
+        let renderer = test_renderer();
+        let source = "sequenceDiagram\n  Alice->>Bob: Hello\n  Bob-->>Alice: Hi";
+        let result = renderer.try_native_mermaid("mermaid", source);
+        assert!(result.is_some(), "Native mermaid should render a sequence diagram");
+        let png = result.unwrap();
+        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    }
+
+    #[test]
+    fn test_native_mermaid_non_mermaid_tag() {
+        let renderer = test_renderer();
+        // Native renderer should return None for non-mermaid tags.
+        assert!(renderer.try_native_mermaid("plantuml", "anything").is_none());
+        assert!(renderer.try_native_mermaid("dot", "anything").is_none());
+    }
+
+    #[test]
+    fn test_svg_to_png_bytes_basic() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+            <rect width="100" height="100" fill="red"/>
+        </svg>"#;
+        let result = svg_to_png_bytes(svg);
+        assert!(result.is_some(), "Simple SVG should convert to PNG");
+        let png = result.unwrap();
+        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    }
+
+    #[test]
+    fn test_svg_to_png_bytes_invalid() {
+        let result = svg_to_png_bytes("this is not svg at all");
+        assert!(result.is_none(), "Invalid SVG should return None");
+    }
+
+    #[test]
+    fn test_native_engine_explicit() {
+        // Test "native" engine setting.
+        let config = DiagramRendererConfig {
+            engine: Some("native".into()),
+            ..DiagramRendererConfig::default()
+        };
+        let renderer = DiagramRenderer::new(config);
+        let block = make_block(&["```mermaid", "graph TD", "  A-->B", "```"]);
+        let result = renderer.render(&block, &RendererConfig::default()).unwrap();
+        let first_text: String = result.lines[0]
+            .segments
+            .iter()
+            .map(|s| s.text.as_str())
+            .collect();
+        assert!(first_text.contains("rendered"));
+        assert!(!result.graphics.is_empty());
+    }
+
+    #[test]
+    fn test_native_engine_non_mermaid_falls_back() {
+        // "native" engine should fall back for non-mermaid diagrams.
+        let config = DiagramRendererConfig {
+            engine: Some("native".into()),
+            ..DiagramRendererConfig::default()
+        };
+        let renderer = DiagramRenderer::new(config);
+        let block = make_block(&["```plantuml", "@startuml", "Alice -> Bob", "@enduml", "```"]);
+        let result = renderer.render(&block, &RendererConfig::default()).unwrap();
+        // Native can't handle plantuml, so should fall back to text.
+        let first_text: String = result.lines[0]
+            .segments
+            .iter()
+            .map(|s| s.text.as_str())
+            .collect();
+        assert!(first_text.contains("source"));
+        assert!(result.graphics.is_empty());
     }
 }

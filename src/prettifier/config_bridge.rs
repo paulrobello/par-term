@@ -52,7 +52,11 @@ pub fn build_default_registry(resolved: &ResolvedPrettifierConfig) -> RendererRe
     detectors::sql_results::register_sql_results(&mut registry, &resolved.renderers);
 
     // Register built-in renderers
-    renderers::markdown::register_markdown_renderer(&mut registry, &Default::default());
+    renderers::markdown::register_markdown_renderer_with_diagrams(
+        &mut registry,
+        &Default::default(),
+        &resolved.renderers.diagrams,
+    );
     renderers::json::register_json_renderer(&mut registry, &Default::default());
     renderers::yaml::register_yaml_renderer(&mut registry, &Default::default());
     renderers::toml::register_toml_renderer(&mut registry, &Default::default());
@@ -75,9 +79,14 @@ pub fn build_default_registry(resolved: &ResolvedPrettifierConfig) -> RendererRe
 
 /// Create a [`PrettifierPipeline`] from the application [`Config`], or `None` if
 /// the prettifier is disabled.
+///
+/// Optional `cell_dims` provides `(cell_width_px, cell_height_px)` for sizing
+/// inline graphics (diagrams). When `None`, graphics sizing falls back to
+/// estimated values.
 pub fn create_pipeline_from_config(
     config: &Config,
     terminal_width: usize,
+    cell_dims: Option<(f32, f32)>,
 ) -> Option<PrettifierPipeline> {
     if !config.enable_prettifier {
         return None;
@@ -92,6 +101,8 @@ pub fn create_pipeline_from_config(
     let registry = build_default_registry(&resolved);
     let renderer_config = RendererConfig {
         terminal_width,
+        cell_width_px: cell_dims.map(|(w, _)| w),
+        cell_height_px: cell_dims.map(|(_, h)| h),
         ..Default::default()
     };
     Some(PrettifierPipeline::new(

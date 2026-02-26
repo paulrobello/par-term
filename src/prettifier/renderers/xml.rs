@@ -489,7 +489,7 @@ mod tests {
     fn test_config() -> RendererConfig {
         RendererConfig {
             terminal_width: 80,
-            theme_colors: ThemeColors::default(),
+            ..Default::default()
         }
     }
 

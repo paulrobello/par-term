@@ -2006,6 +2006,7 @@ impl WindowManager {
                     tab.prettifier = crate::prettifier::config_bridge::create_pipeline_from_config(
                         config,
                         config.cols,
+                        None,
                     );
                 }
             }

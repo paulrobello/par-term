@@ -1960,6 +1960,7 @@ impl WindowState {
                             crate::prettifier::config_bridge::create_pipeline_from_config(
                                 &self.config,
                                 self.config.cols,
+                                None,
                             );
                     }
                 }
@@ -2062,6 +2063,7 @@ impl WindowState {
                 tab.prettifier = crate::prettifier::config_bridge::create_pipeline_from_config(
                     &self.config,
                     self.config.cols,
+                    None,
                 );
             }
         }
@@ -3902,13 +3904,25 @@ impl WindowState {
         // position uses the current panel width on this frame (not the previous one).
         self.sync_ai_inspector_width();
 
-        // Prettifier cell substitution — replace raw cells with rendered content
-        if !self.debug.cache_hit && !is_alt_screen {
+        // Prettifier cell substitution — replace raw cells with rendered content.
+        // Always run when blocks exist: the cell cache stores raw terminal cells
+        // (set before this point), so we must re-apply styled content every frame.
+        //
+        // Also collect inline graphics (rendered diagrams) for GPU compositing.
+        let mut prettifier_graphics: Vec<(u64, std::sync::Arc<Vec<u8>>, u32, u32, isize, usize)> =
+            Vec::new();
+        if !is_alt_screen {
             if let Some(tab) = self.tab_manager.active_tab() {
                 if let Some(ref pipeline) = tab.prettifier {
                     if pipeline.is_enabled() {
                         let scroll_off = tab.scroll_state.offset;
                         let gutter_w = tab.gutter_manager.gutter_width;
+
+                        // Track which blocks we've already collected graphics from
+                        // to avoid duplicates when multiple viewport rows fall in
+                        // the same block.
+                        let mut collected_block_ids = std::collections::HashSet::new();
+
                         for viewport_row in 0..visible_lines {
                             let absolute_row =
                                 scrollback_len.saturating_sub(scroll_off) + viewport_row;
@@ -3916,6 +3930,54 @@ impl WindowState {
                                 if !block.has_rendered() {
                                     continue;
                                 }
+
+                                // Collect inline graphics from this block (once per block).
+                                if collected_block_ids.insert(block.block_id) {
+                                    let block_start = block.content().start_row;
+                                    for graphic in block.buffer.rendered_graphics() {
+                                        if !graphic.is_rgba
+                                            || graphic.data.is_empty()
+                                            || graphic.pixel_width == 0
+                                            || graphic.pixel_height == 0
+                                        {
+                                            continue;
+                                        }
+                                        // Compute screen row: block_start + graphic.row within block,
+                                        // then convert to viewport coordinates.
+                                        let abs_graphic_row = block_start + graphic.row;
+                                        let view_start =
+                                            scrollback_len.saturating_sub(scroll_off);
+                                        let screen_row =
+                                            abs_graphic_row as isize - view_start as isize;
+
+                                        // Use block_id + graphic row as a stable texture ID
+                                        // (offset to avoid colliding with terminal graphic IDs).
+                                        let texture_id = 0x8000_0000_0000_0000_u64
+                                            | ((block.block_id as u64) << 16)
+                                            | (graphic.row as u64);
+
+                                        crate::debug_info!(
+                                            "PRETTIFIER",
+                                            "uploading graphic: block={}, row={}, screen_row={}, {}x{} px, {} bytes RGBA",
+                                            block.block_id,
+                                            graphic.row,
+                                            screen_row,
+                                            graphic.pixel_width,
+                                            graphic.pixel_height,
+                                            graphic.data.len()
+                                        );
+
+                                        prettifier_graphics.push((
+                                            texture_id,
+                                            graphic.data.clone(),
+                                            graphic.pixel_width,
+                                            graphic.pixel_height,
+                                            screen_row,
+                                            graphic.col + gutter_w,
+                                        ));
+                                    }
+                                }
+
                                 let display_lines = block.buffer.display_lines();
                                 let block_start = block.content().start_row;
                                 let line_offset = absolute_row.saturating_sub(block_start);
@@ -4136,6 +4198,23 @@ impl WindowState {
                 }
             }
             debug_graphics_time = graphics_start.elapsed();
+
+            // Upload prettifier diagram graphics (rendered Mermaid, etc.) to the GPU.
+            // These are appended to the sixel_graphics render list and composited in
+            // the same pass as Sixel/iTerm2/Kitty graphics.
+            if !prettifier_graphics.is_empty() {
+                let refs: Vec<(u64, &[u8], u32, u32, isize, usize)> = prettifier_graphics
+                    .iter()
+                    .map(|(id, data, w, h, row, col)| (*id, data.as_slice(), *w, *h, *row, *col))
+                    .collect();
+                if let Err(e) = renderer.update_prettifier_graphics(&refs) {
+                    crate::debug_error!(
+                        "PRETTIFIER",
+                        "Failed to upload prettifier graphics: {}",
+                        e
+                    );
+                }
+            }
 
             // Calculate visual bell flash intensity (0.0 = no flash, 1.0 = full flash)
             let visual_bell_flash = self

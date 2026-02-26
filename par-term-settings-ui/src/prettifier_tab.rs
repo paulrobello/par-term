@@ -526,7 +526,7 @@ fn show_renderers_section(
                         egui::ComboBox::from_id_salt("diagram_engine")
                             .selected_text(&current)
                             .show_ui(ui, |ui| {
-                                for opt in &["auto", "kroki", "mermaid_cli", "text_fallback"] {
+                                for opt in &["auto", "native", "local", "kroki", "text_fallback"] {
                                     if ui.selectable_label(current == *opt, *opt).clicked() {
                                         settings
                                             .config
