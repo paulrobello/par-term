@@ -883,11 +883,12 @@ impl WindowState {
             .as_ref()
             .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
-        let cursor_metadata = self
-            .config
-            .cursor_shader
-            .as_ref()
-            .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name).cloned());
+        let cursor_metadata = self.config.cursor_shader.as_ref().and_then(|name| {
+            self.shader_state
+                .cursor_shader_metadata_cache
+                .get(name)
+                .cloned()
+        });
         let params = RendererInitParams::from_config(
             &self.config,
             &theme,
@@ -1000,11 +1001,12 @@ impl WindowState {
             .as_ref()
             .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
-        let cursor_metadata = self
-            .config
-            .cursor_shader
-            .as_ref()
-            .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name).cloned());
+        let cursor_metadata = self.config.cursor_shader.as_ref().and_then(|name| {
+            self.shader_state
+                .cursor_shader_metadata_cache
+                .get(name)
+                .cloned()
+        });
         let params = RendererInitParams::from_config(
             &self.config,
             &theme,
@@ -1291,7 +1293,8 @@ impl WindowState {
     /// `InspectorAction::ConnectAgent` and from the auto-connect-on-open path.
     pub(crate) fn connect_agent(&mut self, identity: &str) {
         if let Some(agent_config) = self
-            .agent_state.available_agents
+            .agent_state
+            .available_agents
             .iter()
             .find(|a| a.identity == identity)
         {
@@ -1779,11 +1782,9 @@ impl WindowState {
                             .custom_shader
                             .as_ref()
                             .and_then(|name| self.config.shader_configs.get(name));
-                        let metadata = self
-                            .config
-                            .custom_shader
-                            .as_ref()
-                            .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
+                        let metadata = self.config.custom_shader.as_ref().and_then(|name| {
+                            self.shader_state.shader_metadata_cache.get(name).cloned()
+                        });
                         let resolved = crate::config::shader_config::resolve_shader_config(
                             shader_override,
                             metadata.as_ref(),
@@ -1884,11 +1885,10 @@ impl WindowState {
                     .custom_shader
                     .as_ref()
                     .and_then(|name| self.config.shader_configs.get(name));
-                let metadata = self
-                    .config
-                    .custom_shader
-                    .as_ref()
-                    .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
+                let metadata =
+                    self.config.custom_shader.as_ref().and_then(|name| {
+                        self.shader_state.shader_metadata_cache.get(name).cloned()
+                    });
                 let resolved = crate::config::shader_config::resolve_shader_config(
                     shader_override,
                     metadata.as_ref(),
@@ -2135,10 +2135,12 @@ impl WindowState {
                 // Track error for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.shader_state.background_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.background_shader_reload_result =
+                            Some(Some(error_msg.clone()));
                     }
                     ShaderType::Cursor => {
-                        self.shader_state.cursor_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.cursor_shader_reload_result =
+                            Some(Some(error_msg.clone()));
                     }
                 }
                 // Notify user of the error
@@ -2206,10 +2208,12 @@ impl WindowState {
                 // Track error for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.shader_state.background_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.background_shader_reload_result =
+                            Some(Some(error_msg.clone()));
                     }
                     ShaderType::Cursor => {
-                        self.shader_state.cursor_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.cursor_shader_reload_result =
+                            Some(Some(error_msg.clone()));
                     }
                 }
 
@@ -3403,9 +3407,11 @@ impl WindowState {
             }
 
             // Update cursor position and style for geometric rendering
-            if let (Some(pos), Some(opacity), Some(style)) =
-                (current_cursor_pos, Some(self.cursor_anim.cursor_opacity), cursor_style)
-            {
+            if let (Some(pos), Some(opacity), Some(style)) = (
+                current_cursor_pos,
+                Some(self.cursor_anim.cursor_opacity),
+                cursor_style,
+            ) {
                 renderer.update_cursor(pos, opacity, style);
                 // Forward cursor state to custom shader for Ghostty-compatible cursor animations
                 // Use the configured cursor color
@@ -4637,7 +4643,6 @@ impl WindowState {
         // Handle tab bar actions collected during egui rendering
         self.handle_tab_bar_action_after_render(pending_tab_action);
 
-
         // Handle clipboard actions collected during egui rendering
         self.handle_clipboard_history_action_after_render(pending_clipboard_action);
 
@@ -4772,7 +4777,6 @@ impl WindowState {
             }
             crate::search::SearchAction::None => {}
         }
-
 
         // Handle AI Inspector actions collected during egui rendering
         self.handle_inspector_action_after_render(pending_inspector_action);
@@ -4928,41 +4932,41 @@ impl WindowState {
         let messages = self.agent_state.drain_messages();
         for msg in messages {
             match msg {
-                    AgentMessage::StatusChanged(status) => {
-                        // Flush any pending agent text on status change.
-                        self.ai_inspector.chat.flush_agent_message();
-                        self.ai_inspector.agent_status = status;
-                        self.needs_redraw = true;
-                    }
-                    AgentMessage::SessionUpdate(update) => {
-                        match &update {
-                            par_term_acp::SessionUpdate::ToolCall(info) => {
-                                let title_l = info.title.to_ascii_lowercase();
-                                if title_l.contains("skill")
-                                    || title_l.contains("todo")
-                                    || title_l.contains("enterplanmode")
-                                {
+                AgentMessage::StatusChanged(status) => {
+                    // Flush any pending agent text on status change.
+                    self.ai_inspector.chat.flush_agent_message();
+                    self.ai_inspector.agent_status = status;
+                    self.needs_redraw = true;
+                }
+                AgentMessage::SessionUpdate(update) => {
+                    match &update {
+                        par_term_acp::SessionUpdate::ToolCall(info) => {
+                            let title_l = info.title.to_ascii_lowercase();
+                            if title_l.contains("skill")
+                                || title_l.contains("todo")
+                                || title_l.contains("enterplanmode")
+                            {
+                                self.agent_state.agent_skill_failure_detected = true;
+                            }
+                        }
+                        par_term_acp::SessionUpdate::ToolCallUpdate(info) => {
+                            if let Some(status) = &info.status {
+                                let status_l = status.to_ascii_lowercase();
+                                if status_l.contains("fail") || status_l.contains("error") {
                                     self.agent_state.agent_skill_failure_detected = true;
                                 }
                             }
-                            par_term_acp::SessionUpdate::ToolCallUpdate(info) => {
-                                if let Some(status) = &info.status {
-                                    let status_l = status.to_ascii_lowercase();
-                                    if status_l.contains("fail") || status_l.contains("error") {
-                                        self.agent_state.agent_skill_failure_detected = true;
-                                    }
-                                }
-                            }
-                            par_term_acp::SessionUpdate::CurrentModeUpdate { mode_id } => {
-                                if mode_id.eq_ignore_ascii_case("plan") {
-                                    self.agent_state.agent_skill_failure_detected = true;
-                                    self.ai_inspector.chat.add_system_message(
+                        }
+                        par_term_acp::SessionUpdate::CurrentModeUpdate { mode_id } => {
+                            if mode_id.eq_ignore_ascii_case("plan") {
+                                self.agent_state.agent_skill_failure_detected = true;
+                                self.ai_inspector.chat.add_system_message(
                                         "Agent switched to plan mode during an executable task. Requesting default mode and retry guidance."
                                             .to_string(),
                                     );
-                                    if let Some(agent) = &self.agent_state.agent {
-                                        let agent = agent.clone();
-                                        self.runtime.spawn(async move {
+                                if let Some(agent) = &self.agent_state.agent {
+                                    let agent = agent.clone();
+                                    self.runtime.spawn(async move {
                                             let agent = agent.lock().await;
                                             if let Err(e) = agent.set_mode("default").await {
                                                 log::error!(
@@ -4970,122 +4974,120 @@ impl WindowState {
                                                 );
                                             }
                                         });
-                                    }
                                 }
                             }
-                            _ => {}
                         }
-                        self.ai_inspector.chat.handle_update(update);
-                        self.needs_redraw = true;
+                        _ => {}
                     }
-                    AgentMessage::PermissionRequest {
-                        request_id,
-                        tool_call,
-                        options,
-                    } => {
-                        log::info!(
-                            "ACP: permission request id={request_id} options={}",
-                            options.len()
-                        );
-                        let description = tool_call
-                            .get("title")
-                            .and_then(|t| t.as_str())
-                            .unwrap_or("Permission requested")
-                            .to_string();
-                        if is_terminal_screenshot_permission_tool(&tool_call)
-                            && !self.config.ai_inspector_agent_screenshot_access
-                        {
-                            let deny_option_id = options
-                                .iter()
-                                .find(|o| {
-                                    matches!(
-                                        o.kind.as_deref(),
-                                        Some("deny")
-                                            | Some("reject")
-                                            | Some("cancel")
-                                            | Some("disallow")
-                                    ) || o.name.to_lowercase().contains("deny")
-                                        || o.name.to_lowercase().contains("reject")
-                                        || o.name.to_lowercase().contains("cancel")
-                                })
-                                .or_else(|| options.first())
-                                .map(|o| o.option_id.clone());
+                    self.ai_inspector.chat.handle_update(update);
+                    self.needs_redraw = true;
+                }
+                AgentMessage::PermissionRequest {
+                    request_id,
+                    tool_call,
+                    options,
+                } => {
+                    log::info!(
+                        "ACP: permission request id={request_id} options={}",
+                        options.len()
+                    );
+                    let description = tool_call
+                        .get("title")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("Permission requested")
+                        .to_string();
+                    if is_terminal_screenshot_permission_tool(&tool_call)
+                        && !self.config.ai_inspector_agent_screenshot_access
+                    {
+                        let deny_option_id = options
+                            .iter()
+                            .find(|o| {
+                                matches!(
+                                    o.kind.as_deref(),
+                                    Some("deny")
+                                        | Some("reject")
+                                        | Some("cancel")
+                                        | Some("disallow")
+                                ) || o.name.to_lowercase().contains("deny")
+                                    || o.name.to_lowercase().contains("reject")
+                                    || o.name.to_lowercase().contains("cancel")
+                            })
+                            .or_else(|| options.first())
+                            .map(|o| o.option_id.clone());
 
-                            if let Some(client) = &self.agent_state.agent_client {
-                                let client = client.clone();
-                                self.runtime.spawn(async move {
-                                    use par_term_acp::{
-                                        PermissionOutcome, RequestPermissionResponse,
-                                    };
-                                    let outcome = RequestPermissionResponse {
-                                        outcome: PermissionOutcome {
-                                            outcome: "selected".to_string(),
-                                            option_id: deny_option_id,
-                                        },
-                                    };
-                                    let response_json =
-                                        serde_json::to_value(&outcome).unwrap_or_default();
-                                    if let Err(e) =
-                                        client.respond(request_id, Some(response_json), None).await
-                                    {
-                                        log::error!(
-                                            "ACP: failed to auto-deny screenshot permission: {e}"
-                                        );
-                                    }
-                                });
-                            } else {
-                                log::error!(
-                                    "ACP: cannot auto-deny screenshot permission id={request_id} \
+                        if let Some(client) = &self.agent_state.agent_client {
+                            let client = client.clone();
+                            self.runtime.spawn(async move {
+                                use par_term_acp::{PermissionOutcome, RequestPermissionResponse};
+                                let outcome = RequestPermissionResponse {
+                                    outcome: PermissionOutcome {
+                                        outcome: "selected".to_string(),
+                                        option_id: deny_option_id,
+                                    },
+                                };
+                                let response_json =
+                                    serde_json::to_value(&outcome).unwrap_or_default();
+                                if let Err(e) =
+                                    client.respond(request_id, Some(response_json), None).await
+                                {
+                                    log::error!(
+                                        "ACP: failed to auto-deny screenshot permission: {e}"
+                                    );
+                                }
+                            });
+                        } else {
+                            log::error!(
+                                "ACP: cannot auto-deny screenshot permission id={request_id} \
                                      — agent_client is None!"
-                                );
-                            }
+                            );
+                        }
 
-                            self.ai_inspector.chat.add_system_message(format!(
+                        self.ai_inspector.chat.add_system_message(format!(
                                 "Blocked screenshot request (`{description}`) because \"Allow Agent Screenshots\" is disabled in Settings > Assistant > Permissions."
                             ));
-                            self.needs_redraw = true;
-                            continue;
-                        }
-                        self.ai_inspector
-                            .chat
-                            .messages
-                            .push(ChatMessage::Permission {
-                                request_id,
-                                description,
-                                options: options
-                                    .iter()
-                                    .map(|o| (o.option_id.clone(), o.name.clone()))
-                                    .collect(),
-                                resolved: false,
-                            });
                         self.needs_redraw = true;
+                        continue;
                     }
-                    AgentMessage::PromptStarted => {
-                        self.agent_state.agent_skill_failure_detected = false;
-                        self.ai_inspector.chat.mark_oldest_pending_sent();
-                        // Remove the corresponding handle (first in queue).
-                        if !self.agent_state.pending_send_handles.is_empty() {
-                            self.agent_state.pending_send_handles.pop_front();
-                        }
-                        self.needs_redraw = true;
-                    }
-                    AgentMessage::PromptComplete => {
-                        saw_prompt_complete_this_tick = true;
-                        self.ai_inspector.chat.flush_agent_message();
-                        self.needs_redraw = true;
-                    }
-                    AgentMessage::ConfigUpdate { updates, reply } => {
-                        pending_config_updates.push((updates, reply));
-                    }
-                    AgentMessage::ClientReady(client) => {
-                        log::info!("ACP: agent_client ready");
-                        self.agent_state.agent_client = Some(client);
-                    }
-                    AgentMessage::AutoApproved(description) => {
-                        self.ai_inspector.chat.add_auto_approved(description);
-                        self.needs_redraw = true;
-                    }
+                    self.ai_inspector
+                        .chat
+                        .messages
+                        .push(ChatMessage::Permission {
+                            request_id,
+                            description,
+                            options: options
+                                .iter()
+                                .map(|o| (o.option_id.clone(), o.name.clone()))
+                                .collect(),
+                            resolved: false,
+                        });
+                    self.needs_redraw = true;
                 }
+                AgentMessage::PromptStarted => {
+                    self.agent_state.agent_skill_failure_detected = false;
+                    self.ai_inspector.chat.mark_oldest_pending_sent();
+                    // Remove the corresponding handle (first in queue).
+                    if !self.agent_state.pending_send_handles.is_empty() {
+                        self.agent_state.pending_send_handles.pop_front();
+                    }
+                    self.needs_redraw = true;
+                }
+                AgentMessage::PromptComplete => {
+                    saw_prompt_complete_this_tick = true;
+                    self.ai_inspector.chat.flush_agent_message();
+                    self.needs_redraw = true;
+                }
+                AgentMessage::ConfigUpdate { updates, reply } => {
+                    pending_config_updates.push((updates, reply));
+                }
+                AgentMessage::ClientReady(client) => {
+                    log::info!("ACP: agent_client ready");
+                    self.agent_state.agent_client = Some(client);
+                }
+                AgentMessage::AutoApproved(description) => {
+                    self.ai_inspector.chat.add_auto_approved(description);
+                    self.needs_redraw = true;
+                }
+            }
         }
         // Process deferred config updates now that message processing completes.
         for (updates, reply) in pending_config_updates {
@@ -5246,8 +5248,10 @@ impl WindowState {
             && let Some(agent) = &self.agent_state.agent
         {
             let had_recoverable_failure = self.agent_state.agent_skill_failure_detected;
-            self.agent_state.agent_skill_recovery_attempts =
-                self.agent_state.agent_skill_recovery_attempts.saturating_add(1);
+            self.agent_state.agent_skill_recovery_attempts = self
+                .agent_state
+                .agent_skill_recovery_attempts
+                .saturating_add(1);
             self.agent_state.agent_skill_failure_detected = false;
             self.ai_inspector.chat.streaming = true;
             if shader_activation_incomplete && !had_recoverable_failure {
@@ -5386,10 +5390,13 @@ impl WindowState {
                     && let Some((cmd, exit_code, duration_ms)) = history.last()
                 {
                     let now = std::time::Instant::now();
-                    let throttled = self.agent_state.last_auto_context_sent_at.is_some_and(|last_sent| {
-                        now.duration_since(last_sent)
-                            < std::time::Duration::from_millis(AUTO_CONTEXT_MIN_INTERVAL_MS)
-                    });
+                    let throttled =
+                        self.agent_state
+                            .last_auto_context_sent_at
+                            .is_some_and(|last_sent| {
+                                now.duration_since(last_sent)
+                                    < std::time::Duration::from_millis(AUTO_CONTEXT_MIN_INTERVAL_MS)
+                            });
 
                     if !throttled {
                         let exit_code_str = exit_code
@@ -5564,7 +5571,10 @@ impl WindowState {
     }
 
     /// Handle clipboard history actions collected during egui rendering.
-    fn handle_clipboard_history_action_after_render(&mut self, action: crate::clipboard_history_ui::ClipboardHistoryAction) {
+    fn handle_clipboard_history_action_after_render(
+        &mut self,
+        action: crate::clipboard_history_ui::ClipboardHistoryAction,
+    ) {
         // Handle clipboard actions collected during egui rendering
         // (done here to avoid borrow conflicts with renderer)
         match action {
@@ -5593,7 +5603,10 @@ impl WindowState {
     }
 
     /// Handle AI Inspector panel actions collected during egui rendering.
-    fn handle_inspector_action_after_render(&mut self, action: crate::ai_inspector::panel::InspectorAction) {
+    fn handle_inspector_action_after_render(
+        &mut self,
+        action: crate::ai_inspector::panel::InspectorAction,
+    ) {
         // Handle AI Inspector actions collected during egui rendering
         match action {
             InspectorAction::Close => {
@@ -5756,7 +5769,9 @@ impl WindowState {
                         });
                     }
 
-                    if let Some(replay_prompt) = self.agent_state.pending_agent_context_replay.take() {
+                    if let Some(replay_prompt) =
+                        self.agent_state.pending_agent_context_replay.take()
+                    {
                         content.push(par_term_acp::ContentBlock::Text {
                             text: replay_prompt,
                         });

@@ -53,22 +53,31 @@ impl Default for SqlResultsRendererConfig {
 
 fn re_mysql_border() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\+[-+]+\+$").expect("regex pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^\+[-+]+\+$").expect("regex pattern is valid and should always compile")
+    })
 }
 
 fn re_psql_separator() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[-+]+$").expect("regex pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^[-+]+$").expect("regex pattern is valid and should always compile")
+    })
 }
 
 fn re_row_count() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\(?(\d+) rows?\)?").expect("re_row_count: pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^\(?(\d+) rows?\)?")
+            .expect("re_row_count: pattern is valid and should always compile")
+    })
 }
 
 fn re_pipe_row() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\|.*\|$").expect("regex pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^\|.*\|$").expect("regex pattern is valid and should always compile")
+    })
 }
 
 // ---------------------------------------------------------------------------

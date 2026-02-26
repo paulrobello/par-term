@@ -293,7 +293,10 @@ fn show_dynamic_sources_section(
 
             // Show "add new" form if editing index is set to a new entry sentinel
             let is_adding = settings.dynamic_source_editing.is_some()
-                && settings.dynamic_source_editing.expect("dynamic_source_editing checked is_some() above") >= source_count;
+                && settings
+                    .dynamic_source_editing
+                    .expect("dynamic_source_editing checked is_some() above")
+                    >= source_count;
             if is_adding {
                 show_dynamic_source_edit_form(ui, settings, changes_this_frame, None, collapsed);
             } else if settings.dynamic_source_editing.is_none()

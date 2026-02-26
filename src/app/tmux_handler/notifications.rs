@@ -18,9 +18,7 @@
 //! 5. Route input via `send-keys` commands back to the same PTY
 
 use crate::app::window_state::WindowState;
-use crate::tmux::{
-    ParserBridge, SyncAction, TmuxLayout, TmuxNotification, TmuxWindowId,
-};
+use crate::tmux::{ParserBridge, SyncAction, TmuxLayout, TmuxNotification, TmuxWindowId};
 
 impl WindowState {
     /// Poll and process tmux notifications from the control mode session.

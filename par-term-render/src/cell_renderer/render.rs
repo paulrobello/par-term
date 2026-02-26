@@ -446,5 +446,4 @@ impl CellRenderer {
         self.queue.submit(std::iter::once(encoder.finish()));
         Ok(())
     }
-
 }

@@ -1033,7 +1033,8 @@ impl WindowState {
 
             let interval =
                 std::time::Duration::from_millis(self.config.throughput_render_interval_ms as u64);
-            let batch_start = self.throughput_batch_start
+            let batch_start = self
+                .throughput_batch_start
                 .expect("throughput_batch_start is Some: set to Some on the line above when None");
 
             // Check if interval has elapsed

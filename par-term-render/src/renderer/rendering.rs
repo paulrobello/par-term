@@ -86,7 +86,9 @@ impl Renderer {
                     self.cell_renderer.queue(),
                     self.cursor_shader_renderer
                         .as_ref()
-                        .expect("Cursor shader renderer must be Some when use_cursor_shader is true")
+                        .expect(
+                            "Cursor shader renderer must be Some when use_cursor_shader is true",
+                        )
                         .intermediate_texture_view(),
                     false, // Don't apply opacity - cursor shader will do it
                 )?;
@@ -112,7 +114,10 @@ impl Renderer {
         let t_cursor = std::time::Instant::now();
         let cursor_shader_time = if use_cursor_shader {
             log::trace!("Rendering cursor shader");
-            let cursor_shader = self.cursor_shader_renderer.as_mut().expect("Cursor shader renderer must be Some when use_cursor_shader is true");
+            let cursor_shader = self
+                .cursor_shader_renderer
+                .as_mut()
+                .expect("Cursor shader renderer must be Some when use_cursor_shader is true");
             let surface_view = surface_texture
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());

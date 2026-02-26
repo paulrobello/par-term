@@ -5,19 +5,19 @@
 //! serde defaults so that `Config::default()` and a deserialized empty
 //! config are always equivalent.
 
+use crate::config::acp::CustomAcpAgentConfig;
 use crate::snippets::{CustomActionConfig, SnippetConfig};
 use crate::types::{
     AlertEvent, AlertSoundConfig, BackgroundImageMode, BackgroundMode, CursorShaderConfig,
     CursorStyle, DividerStyle, DownloadSaveLocation, DroppedFileQuoteStyle, FontRange,
     ImageScalingMode, InstallPromptState, IntegrationVersions, KeyBinding, LogLevel,
-    ModifierRemapping, OptionKeyMode, PaneTitlePosition, PowerPreference,
-    ProgressBarPosition, ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat,
-    ShaderConfig, ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode,
+    ModifierRemapping, OptionKeyMode, PaneTitlePosition, PowerPreference, ProgressBarPosition,
+    ProgressBarStyle, SemanticHistoryEditorMode, SessionLogFormat, ShaderConfig,
+    ShaderInstallPrompt, ShellExitAction, SmartSelectionRule, StartupDirectoryMode,
     StatusBarPosition, TabBarMode, TabBarPosition, TabStyle, TabTitleMode, ThinStrokesMode,
     UnfocusedCursorStyle, UpdateCheckFrequency, VsyncMode, WindowType,
     default_smart_selection_rules,
 };
-use crate::config::acp::CustomAcpAgentConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

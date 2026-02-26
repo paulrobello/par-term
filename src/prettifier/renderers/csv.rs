@@ -105,7 +105,9 @@ fn parse_csv_line(line: &str, delimiter: char) -> Vec<String> {
                         chars.next();
                         break;
                     }
-                    Some(_) => field.push(chars.next().expect("chars.peek() returned Some, so chars.next() must also return Some")),
+                    Some(_) => field.push(chars.next().expect(
+                        "chars.peek() returned Some, so chars.next() must also return Some",
+                    )),
                     None => break,
                 }
             }

@@ -520,7 +520,13 @@ impl CellRenderer {
                                 self.lru_remove(cache_key);
                                 self.lru_push_front(cache_key);
                                 break Some(
-                                    self.atlas.glyph_cache.get(&cache_key).expect("Glyph cache entry must exist after contains_key check").clone(),
+                                    self.atlas
+                                        .glyph_cache
+                                        .get(&cache_key)
+                                        .expect(
+                                            "Glyph cache entry must exist after contains_key check",
+                                        )
+                                        .clone(),
                                 );
                             } else if let Some(raster) =
                                 self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
@@ -607,8 +613,7 @@ impl CellRenderer {
                     let (final_left, final_top, final_w, final_h) =
                         if chars.len() == 1 && block_chars::should_snap_to_boundaries(char_type) {
                             block_chars::snap_glyph_to_cell(
-                                glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1, 3.0,
-                                0.5,
+                                glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1, 3.0, 0.5,
                             )
                         } else {
                             (glyph_left, glyph_top, render_w, render_h)

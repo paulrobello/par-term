@@ -142,10 +142,8 @@ fn re_ordered_list() -> &'static Regex {
 fn re_horizontal_rule() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(
-            r"^(?:-[\s-]*-[\s-]*-[\s-]*|\*[\s*]*\*[\s*]*\*[\s*]*|_[\s_]*_[\s_]*_[\s_]*)$",
-        )
-        .expect("re_horizontal_rule: pattern is valid and should always compile")
+        Regex::new(r"^(?:-[\s-]*-[\s-]*-[\s-]*|\*[\s*]*\*[\s*]*\*[\s*]*|_[\s_]*_[\s_]*_[\s_]*)$")
+            .expect("re_horizontal_rule: pattern is valid and should always compile")
     })
 }
 
@@ -229,15 +227,11 @@ impl MarkdownRenderer {
         if let Some(caps) = re_unordered_list().captures(line) {
             let indent = caps
                 .get(1)
-                .expect(
-                    "re_unordered_list capture group 1 (indent) must be present after a match",
-                )
+                .expect("re_unordered_list capture group 1 (indent) must be present after a match")
                 .as_str();
             let content = caps
                 .get(3)
-                .expect(
-                    "re_unordered_list capture group 3 (content) must be present after a match",
-                )
+                .expect("re_unordered_list capture group 3 (content) must be present after a match")
                 .as_str();
             return self.render_unordered_list(indent, content, theme, footnote_links);
         }
@@ -254,9 +248,7 @@ impl MarkdownRenderer {
                 .as_str();
             let content = caps
                 .get(3)
-                .expect(
-                    "re_ordered_list capture group 3 (content) must be present after a match",
-                )
+                .expect("re_ordered_list capture group 3 (content) must be present after a match")
                 .as_str();
             return self.render_ordered_list(indent, number, content, theme, footnote_links);
         }

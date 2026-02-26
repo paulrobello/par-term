@@ -9,7 +9,6 @@ mod initial_text;
 mod manager;
 mod setup;
 
-pub use manager::TabManager;
 use crate::app::bell::BellState;
 use crate::app::mouse::MouseState;
 use crate::app::render_cache::RenderCache;
@@ -22,6 +21,7 @@ use crate::scroll_state::ScrollState;
 use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_logger};
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
+pub use manager::TabManager;
 use par_term_emu_core_rust::coprocess::CoprocessId;
 pub(crate) use setup::build_shell_env;
 use setup::{apply_login_shell_flag, configure_terminal_from_config, get_shell_command};
@@ -30,7 +30,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-
 
 // Re-export TabId from par-term-config for shared access across subcrates
 pub use par_term_config::TabId;

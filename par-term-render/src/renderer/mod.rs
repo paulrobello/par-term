@@ -262,7 +262,9 @@ impl Renderer {
         )?;
 
         let (font_ascent, font_descent, font_leading, char_advance) = {
-            let primary_font = font_manager.get_font(0).expect("Primary font at index 0 must exist after FontManager initialization");
+            let primary_font = font_manager
+                .get_font(0)
+                .expect("Primary font at index 0 must exist after FontManager initialization");
             let metrics = primary_font.metrics(&[]);
             let scale = font_size_pixels / metrics.units_per_em as f32;
 
@@ -552,5 +554,4 @@ impl Renderer {
 
         self.resize(new_size)
     }
-
 }

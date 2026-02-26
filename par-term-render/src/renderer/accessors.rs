@@ -4,7 +4,6 @@ use winit::dpi::PhysicalSize;
 use super::Renderer;
 
 impl Renderer {
-
     /// Get the current size
     pub fn size(&self) -> PhysicalSize<u32> {
         self.size

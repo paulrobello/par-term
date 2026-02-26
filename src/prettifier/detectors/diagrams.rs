@@ -37,7 +37,8 @@ pub fn create_diagram_detector() -> crate::prettifier::regex_detector::RegexDete
         .definitive_rule_shortcircuit(true)
         .rule(DetectionRule {
             id: "diagram_fenced_block".into(),
-            pattern: Regex::new(&pattern).expect("regex pattern is valid and should always compile"),
+            pattern: Regex::new(&pattern)
+                .expect("regex pattern is valid and should always compile"),
             weight: 1.0,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Definitive,

@@ -65,17 +65,26 @@ enum TomlLineType {
 
 fn re_section_header() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\[([\w.-]+)\]\s*$").expect("re_section_header: pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^\[([\w.-]+)\]\s*$")
+            .expect("re_section_header: pattern is valid and should always compile")
+    })
 }
 
 fn re_array_table() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\[\[([\w.-]+)\]\]\s*$").expect("re_array_table: pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^\[\[([\w.-]+)\]\]\s*$")
+            .expect("re_array_table: pattern is valid and should always compile")
+    })
 }
 
 fn re_key_value() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^([\w.-]+)\s*=\s*(.*)$").expect("re_key_value: pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^([\w.-]+)\s*=\s*(.*)$")
+            .expect("re_key_value: pattern is valid and should always compile")
+    })
 }
 
 fn classify_toml_line(line: &str) -> TomlLineType {
@@ -243,8 +252,10 @@ impl TomlRenderer {
 /// Check if a value looks like a TOML datetime.
 fn is_toml_datetime(s: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re =
-        RE.get_or_init(|| Regex::new(r"^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?").expect("is_toml_datetime: pattern is valid and should always compile"));
+    let re = RE.get_or_init(|| {
+        Regex::new(r"^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?)?")
+            .expect("is_toml_datetime: pattern is valid and should always compile")
+    });
     re.is_match(s)
 }
 

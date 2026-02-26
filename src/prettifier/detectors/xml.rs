@@ -26,7 +26,8 @@ pub fn create_xml_detector() -> crate::prettifier::regex_detector::RegexDetector
         .definitive_rule_shortcircuit(true)
         .rule(DetectionRule {
             id: "xml_declaration".into(),
-            pattern: Regex::new(r"^<\?xml\s+").expect("regex pattern is valid and should always compile"),
+            pattern: Regex::new(r"^<\?xml\s+")
+                .expect("regex pattern is valid and should always compile"),
             weight: 0.9,
             scope: RuleScope::FirstLines(3),
             strength: RuleStrength::Definitive,
@@ -37,7 +38,8 @@ pub fn create_xml_detector() -> crate::prettifier::regex_detector::RegexDetector
         })
         .rule(DetectionRule {
             id: "xml_doctype".into(),
-            pattern: Regex::new(r"^<!DOCTYPE\s+").expect("regex pattern is valid and should always compile"),
+            pattern: Regex::new(r"^<!DOCTYPE\s+")
+                .expect("regex pattern is valid and should always compile"),
             weight: 0.8,
             scope: RuleScope::FirstLines(5),
             strength: RuleStrength::Definitive,
@@ -48,7 +50,8 @@ pub fn create_xml_detector() -> crate::prettifier::regex_detector::RegexDetector
         })
         .rule(DetectionRule {
             id: "xml_opening_tag".into(),
-            pattern: Regex::new(r"^\s*<[a-zA-Z][\w:-]*(\s+[\w:-]+=)?").expect("xml_opening_tag: pattern is valid and should always compile"),
+            pattern: Regex::new(r"^\s*<[a-zA-Z][\w:-]*(\s+[\w:-]+=)?")
+                .expect("xml_opening_tag: pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -59,7 +62,8 @@ pub fn create_xml_detector() -> crate::prettifier::regex_detector::RegexDetector
         })
         .rule(DetectionRule {
             id: "xml_closing_tag".into(),
-            pattern: Regex::new(r"^\s*</[a-zA-Z][\w:-]*>").expect("regex pattern is valid and should always compile"),
+            pattern: Regex::new(r"^\s*</[a-zA-Z][\w:-]*>")
+                .expect("regex pattern is valid and should always compile"),
             weight: 0.2,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -70,7 +74,8 @@ pub fn create_xml_detector() -> crate::prettifier::regex_detector::RegexDetector
         })
         .rule(DetectionRule {
             id: "xml_self_closing".into(),
-            pattern: Regex::new(r"/>\s*$").expect("regex pattern is valid and should always compile"),
+            pattern: Regex::new(r"/>\s*$")
+                .expect("regex pattern is valid and should always compile"),
             weight: 0.15,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,

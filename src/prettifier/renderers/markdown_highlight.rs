@@ -251,8 +251,7 @@ pub(super) fn highlight_code_line(
         if ch.is_ascii_digit() {
             let start = byte_pos;
             while let Some(&(_, c)) = chars.peek() {
-                if c.is_ascii_digit() || c == '.' || c == 'x' || c == 'o' || c == 'b' || c == '_'
-                {
+                if c.is_ascii_digit() || c == '.' || c == 'x' || c == 'o' || c == 'b' || c == '_' {
                     chars.next();
                 } else {
                     break;

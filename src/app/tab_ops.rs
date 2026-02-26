@@ -1268,7 +1268,8 @@ impl WindowState {
 
             // Apply profile badge settings (color, font, margins, etc.)
             self.apply_profile_badge(
-                &self.profile_manager
+                &self
+                    .profile_manager
                     .get(&profile_id)
                     .expect("profile_id obtained from profile_manager.find_by_name above")
                     .clone(),
@@ -1438,7 +1439,8 @@ impl WindowState {
 
             // Apply profile badge settings (color, font, margins, etc.)
             self.apply_profile_badge(
-                &self.profile_manager
+                &self
+                    .profile_manager
                     .get(&profile_id)
                     .expect("profile_id obtained from profile_manager.find_by_name above")
                     .clone(),
