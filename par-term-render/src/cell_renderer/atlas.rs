@@ -179,14 +179,16 @@ impl CellRenderer {
 
         // Detect degenerate outlines: some fonts (e.g., Apple Color Emoji) have charmap
         // entries but produce empty outlines (all-zero alpha) when the font only has
-        // bitmap data (sbix). When this happens for monochrome symbol rendering, retry
-        // with color bitmap sources and convert to alpha mask. This allows characters
-        // like ✔ ❄ ⭐ to render from emoji fonts as a last resort.
-        if force_monochrome
-            && matches!(image.content, Content::Mask)
-            && image.data.iter().all(|&b| b == 0)
-        {
-            // Outline produced empty pixels — retry with color bitmap
+        // bitmap data (sbix).
+        if matches!(image.content, Content::Mask) && image.data.iter().all(|&b| b == 0) {
+            if force_monochrome {
+                // For monochrome symbol rendering, don't fall back to color bitmaps.
+                // Return None so the caller can try the next font in the fallback
+                // chain. If no text font has the character, the caller's last resort
+                // will retry with force_monochrome=false to get colored emoji.
+                return None;
+            }
+            // For normal (non-monochrome) rendering, try color bitmap sources.
             let mut retry_ctx = ScaleContext::new();
             let mut retry_scaler = retry_ctx
                 .builder(*font)
@@ -209,10 +211,11 @@ impl CellRenderer {
 
         let (pixels, is_colored) = match image.content {
             Content::Color => {
-                // If this is a symbol character that should be monochrome,
-                // convert the color image to a monochrome alpha mask using
-                // luminance as the alpha channel.
                 if force_monochrome {
+                    // Convert color emoji to monochrome using the original alpha channel.
+                    // This is more accurate than luminance-based conversion: colored
+                    // symbols (e.g., yellow ⭐, colored ✨) keep full opacity, while
+                    // luminance would make non-white colors appear faint.
                     let pixels = convert_color_to_alpha_mask(&image);
                     (pixels, false)
                 } else {
@@ -417,31 +420,24 @@ fn convert_subpixel_mask_to_rgba(image: &swash::scale::image::Image) -> Vec<u8> 
 
 /// Convert a color RGBA image to a monochrome alpha mask.
 ///
-/// This is used when a symbol character (like dingbats ✳ ✴ ❇) is rendered
+/// This is used when a symbol character (like dingbats ✨ ⭐ ✔) is rendered
 /// from a color emoji font but should be displayed as a monochrome glyph
 /// using the terminal foreground color.
 ///
-/// The alpha channel is derived from the luminance of the original color,
-/// preserving the shape while discarding the color information.
+/// Uses the original alpha channel directly rather than luminance-derived alpha.
+/// This produces more accurate results: colored symbols (e.g., yellow ⭐,
+/// multi-colored ✨) retain full opacity, whereas luminance-based conversion
+/// makes non-white colors appear faint (a red symbol would only be ~30% visible).
 fn convert_color_to_alpha_mask(image: &swash::scale::image::Image) -> Vec<u8> {
     let width = image.placement.width as usize;
     let height = image.placement.height as usize;
     let mut pixels = Vec::with_capacity(width * height * 4);
 
-    // Color emoji images are typically RGBA (4 bytes per pixel)
+    // Color emoji images are RGBA (4 bytes per pixel).
+    // Use the original alpha channel directly to preserve the symbol shape.
     for chunk in image.data.chunks_exact(4) {
-        let r = chunk[0];
-        let g = chunk[1];
-        let b = chunk[2];
         let a = chunk[3];
-
-        // Use luminance as alpha, multiplied by original alpha
-        // This preserves the shape of colored emoji while making them monochrome
-        let luminance = ((r as u32 * 299 + g as u32 * 587 + b as u32 * 114) / 1000) as u8;
-        // Blend luminance with original alpha
-        let alpha = ((luminance as u32 * a as u32) / 255) as u8;
-
-        pixels.extend_from_slice(&[255, 255, 255, alpha]);
+        pixels.extend_from_slice(&[255, 255, 255, a]);
     }
 
     pixels

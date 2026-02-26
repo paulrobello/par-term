@@ -1,0 +1,48 @@
+== Claude Code Thinking Spinner Characters ==
+These are the 6 characters Claude Code cycles through during thinking:
+
+·  U+00B7  MIDDLE DOT
+✢  U+2722  FOUR TEARDROP-SPOKED ASTERISK
+✳  U+2733  EIGHT SPOKED ASTERISK
+✶  U+2736  SIX POINTED BLACK STAR
+✻  U+273B  TEARDROP-SPOKED ASTERISK
+✽  U+273D  HEAVY TEARDROP-SPOKED ASTERISK
+
+All together (no spaces): ·✢✳✶✻✽
+All together (spaced):    · ✢ ✳ ✶ ✻ ✽
+
+== With VS16 Emoji Presentation Selector (U+FE0F) ==
+✢️  U+2722 + FE0F
+✳️  U+2733 + FE0F
+✶️  U+2736 + FE0F
+✻️  U+273B + FE0F
+✽️  U+273D + FE0F
+
+== Claude Code Bullet / Status Indicators ==
+⏺  U+23FA  BLACK CIRCLE FOR RECORD
+⏺️  U+23FA + FE0F  (with VS16)
+
+== Dot Characters ==
+·  U+00B7  MIDDLE DOT
+•  U+2022  BULLET
+●  U+25CF  BLACK CIRCLE
+◉  U+25C9  FISHEYE
+◦  U+25E6  WHITE BULLET
+⦁  U+2981  Z NOTATION SPOT
+⏣  U+23E3  BENZENE RING WITH CIRCLE
+
+== Other Common Symbol Characters ==
+✔  U+2714  HEAVY CHECK MARK
+✔️  U+2714 + FE0F
+✖  U+2716  HEAVY MULTIPLICATION X
+✨  U+2728  SPARKLES
+✨️  U+2728 + FE0F
+❄  U+2744  SNOWFLAKE
+❄️  U+2744 + FE0F
+⭐  U+2B50  WHITE MEDIUM STAR
+⭐️  U+2B50 + FE0F
+❇  U+2747  SPARKLE
+❇️  U+2747 + FE0F
+
+== Braille Spinner (for comparison) ==
+⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏

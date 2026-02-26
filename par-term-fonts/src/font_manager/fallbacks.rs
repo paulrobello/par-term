@@ -39,6 +39,8 @@ pub const FALLBACK_FAMILIES: &[&str] = &[
     // Monochrome symbol fonts (before emoji to prefer outline rendering for dingbats/symbols)
     "Symbols Nerd Font",
     "Apple Symbols",
+    "Zapf Dingbats",
+    "STIX Two Math",
     "Segoe UI Symbol",
     "Noto Sans Symbols",
     "Noto Sans Symbols 2",

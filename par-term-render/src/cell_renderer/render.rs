@@ -886,19 +886,31 @@ impl CellRenderer {
                             }
                         }
 
-                        // Use grapheme-aware glyph lookup for multi-character sequences
-                        // (flags, emoji with skin tones, ZWJ sequences, combining chars)
-                        let mut glyph_result = if chars.len() > 1 {
-                            self.font_manager
-                                .find_grapheme_glyph(&grapheme, bold, italic)
+                        // Check if this character should be rendered as a monochrome symbol
+                        // (dingbats, etc.) rather than colorful emoji.
+                        // Also handle symbol + VS16 (U+FE0F emoji presentation selector):
+                        // in terminal contexts, symbols should remain monochrome even with VS16.
+                        let (force_monochrome, base_char) = if chars.len() == 1 {
+                            (super::atlas::should_render_as_symbol(*ch), *ch)
+                        } else if chars.len() == 2
+                            && chars[1] == '\u{FE0F}'
+                            && super::atlas::should_render_as_symbol(chars[0])
+                        {
+                            // Symbol + VS16: strip VS16 and render base char as monochrome
+                            (true, chars[0])
                         } else {
-                            self.font_manager.find_glyph(*ch, bold, italic)
+                            (false, *ch)
                         };
 
-                        // Check if this character should be rendered as a monochrome symbol
-                        // (dingbats, etc.) rather than colorful emoji
-                        let force_monochrome =
-                            chars.len() == 1 && super::atlas::should_render_as_symbol(*ch);
+                        // Use grapheme-aware glyph lookup for multi-character sequences
+                        // (flags, emoji with skin tones, ZWJ sequences, combining chars).
+                        // When force_monochrome strips VS16, use single-char lookup instead.
+                        let mut glyph_result = if force_monochrome || chars.len() == 1 {
+                            self.font_manager.find_glyph(base_char, bold, italic)
+                        } else {
+                            self.font_manager
+                                .find_grapheme_glyph(&grapheme, bold, italic)
+                        };
 
                         // Try to find a renderable glyph. Some fonts (e.g., Apple Color
                         // Emoji) have charmap entries for characters but produce empty
@@ -907,41 +919,74 @@ impl CellRenderer {
                         let resolved_info = loop {
                             match glyph_result {
                                 Some((font_idx, glyph_id)) => {
-                                    let cache_key =
-                                        ((font_idx as u64) << 32) | (glyph_id as u64);
+                                    let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
                                     if self.glyph_cache.contains_key(&cache_key) {
                                         self.lru_remove(cache_key);
                                         self.lru_push_front(cache_key);
                                         break Some(
                                             self.glyph_cache.get(&cache_key).unwrap().clone(),
                                         );
-                                    } else if let Some(raster) = self.rasterize_glyph(
-                                        font_idx,
-                                        glyph_id,
-                                        force_monochrome,
-                                    ) {
+                                    } else if let Some(raster) =
+                                        self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
+                                    {
                                         let info = self.upload_glyph(cache_key, &raster);
                                         self.glyph_cache.insert(cache_key, info.clone());
                                         self.lru_push_front(cache_key);
                                         break Some(info);
-                                    } else if chars.len() == 1 {
+                                    } else {
                                         // Rasterization failed — try next font
                                         excluded_fonts.push(font_idx);
-                                        glyph_result =
-                                            self.font_manager.find_glyph_excluding(
-                                                *ch,
-                                                bold,
-                                                italic,
-                                                &excluded_fonts,
-                                            );
+                                        glyph_result = self.font_manager.find_glyph_excluding(
+                                            base_char,
+                                            bold,
+                                            italic,
+                                            &excluded_fonts,
+                                        );
                                         continue;
-                                    } else {
-                                        break None;
                                     }
                                 }
                                 None => break None,
                             }
                         };
+
+                        // Last resort: if monochrome rendering failed across all fonts
+                        // (no font has vector outlines for this character), retry with
+                        // colored emoji rendering. Characters like ✨ only exist in
+                        // Apple Color Emoji — rendering them colored is better than
+                        // rendering nothing.
+                        let resolved_info = if resolved_info.is_none() && force_monochrome {
+                            let mut glyph_result2 =
+                                self.font_manager.find_glyph(base_char, bold, italic);
+                            loop {
+                                match glyph_result2 {
+                                    Some((font_idx, glyph_id)) => {
+                                        let cache_key = ((font_idx as u64) << 32)
+                                            | (glyph_id as u64)
+                                            | (1u64 << 63); // different cache key for colored
+                                        if let Some(raster) =
+                                            self.rasterize_glyph(font_idx, glyph_id, false)
+                                        {
+                                            let info = self.upload_glyph(cache_key, &raster);
+                                            self.glyph_cache.insert(cache_key, info.clone());
+                                            self.lru_push_front(cache_key);
+                                            break Some(info);
+                                        } else {
+                                            glyph_result2 = self.font_manager.find_glyph_excluding(
+                                                base_char,
+                                                bold,
+                                                italic,
+                                                &[font_idx],
+                                            );
+                                            continue;
+                                        }
+                                    }
+                                    None => break None,
+                                }
+                            }
+                        } else {
+                            resolved_info
+                        };
+
                         let info = match resolved_info {
                             Some(info) => info,
                             None => {
@@ -955,11 +1000,9 @@ impl CellRenderer {
                         } else {
                             self.cell_width
                         };
-                        let x0 =
-                            (self.window_padding + self.content_offset_x + x_offset).round();
-                        let x1 =
-                            (self.window_padding + self.content_offset_x + x_offset + char_w)
-                                .round();
+                        let x0 = (self.window_padding + self.content_offset_x + x_offset).round();
+                        let x1 = (self.window_padding + self.content_offset_x + x_offset + char_w)
+                            .round();
                         let y0 = (self.window_padding
                             + self.content_offset_y
                             + row as f32 * self.cell_height)
@@ -1000,8 +1043,7 @@ impl CellRenderer {
                         {
                             // Snap threshold of 3 pixels, extension of 0.5 pixels
                             block_chars::snap_glyph_to_cell(
-                                glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1,
-                                3.0, 0.5,
+                                glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1, 3.0, 0.5,
                             )
                         } else {
                             (glyph_left, glyph_top, render_w, render_h)
@@ -1017,10 +1059,7 @@ impl CellRenderer {
                                 final_h / self.config.height as f32 * 2.0,
                             ],
                             tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
-                            tex_size: [
-                                info.width as f32 / 2048.0,
-                                info.height as f32 / 2048.0,
-                            ],
+                            tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
                             color: render_fg_color,
                             is_colored: if info.is_colored { 1 } else { 0 },
                         });
@@ -1856,35 +1895,97 @@ impl CellRenderer {
                     }
                 }
 
-                // Regular glyph rendering
-                let glyph_result = if chars.len() > 1 {
-                    self.font_manager
-                        .find_grapheme_glyph(&cell.grapheme, cell.bold, cell.italic)
+                // Check if this character should be rendered as a monochrome symbol.
+                // Also handle symbol + VS16 (U+FE0F): strip VS16, render monochrome.
+                let (force_monochrome, base_char) = if chars.len() == 1 {
+                    (super::atlas::should_render_as_symbol(ch), ch)
+                } else if chars.len() == 2
+                    && chars[1] == '\u{FE0F}'
+                    && super::atlas::should_render_as_symbol(chars[0])
+                {
+                    (true, chars[0])
                 } else {
-                    self.font_manager.find_glyph(ch, cell.bold, cell.italic)
+                    (false, ch)
                 };
 
-                if let Some((font_idx, glyph_id)) = glyph_result {
-                    let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
-                    // Check if this character should be rendered as a monochrome symbol
-                    // (dingbats, etc.) rather than colorful emoji
-                    let force_monochrome =
-                        chars.len() == 1 && super::atlas::should_render_as_symbol(ch);
-                    let info = if self.glyph_cache.contains_key(&cache_key) {
-                        self.lru_remove(cache_key);
-                        self.lru_push_front(cache_key);
-                        self.glyph_cache.get(&cache_key).unwrap().clone()
-                    } else if let Some(raster) =
-                        self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
-                    {
-                        let info = self.upload_glyph(cache_key, &raster);
-                        self.glyph_cache.insert(cache_key, info.clone());
-                        self.lru_push_front(cache_key);
-                        info
-                    } else {
-                        continue;
-                    };
+                // Regular glyph rendering — use single-char lookup when force_monochrome
+                // strips VS16, otherwise grapheme-aware lookup for multi-char sequences.
+                let mut glyph_result = if force_monochrome || chars.len() == 1 {
+                    self.font_manager
+                        .find_glyph(base_char, cell.bold, cell.italic)
+                } else {
+                    self.font_manager
+                        .find_grapheme_glyph(&cell.grapheme, cell.bold, cell.italic)
+                };
 
+                // Try to find a renderable glyph with font fallback for failures.
+                let mut excluded_fonts: Vec<usize> = Vec::new();
+                let resolved_info = loop {
+                    match glyph_result {
+                        Some((font_idx, glyph_id)) => {
+                            let cache_key = ((font_idx as u64) << 32) | (glyph_id as u64);
+                            if self.glyph_cache.contains_key(&cache_key) {
+                                self.lru_remove(cache_key);
+                                self.lru_push_front(cache_key);
+                                break Some(self.glyph_cache.get(&cache_key).unwrap().clone());
+                            } else if let Some(raster) =
+                                self.rasterize_glyph(font_idx, glyph_id, force_monochrome)
+                            {
+                                let info = self.upload_glyph(cache_key, &raster);
+                                self.glyph_cache.insert(cache_key, info.clone());
+                                self.lru_push_front(cache_key);
+                                break Some(info);
+                            } else {
+                                // Rasterization failed — try next font
+                                excluded_fonts.push(font_idx);
+                                glyph_result = self.font_manager.find_glyph_excluding(
+                                    base_char,
+                                    cell.bold,
+                                    cell.italic,
+                                    &excluded_fonts,
+                                );
+                                continue;
+                            }
+                        }
+                        None => break None,
+                    }
+                };
+
+                // Last resort: colored emoji when no font has vector outlines
+                let resolved_info = if resolved_info.is_none() && force_monochrome {
+                    let mut glyph_result2 =
+                        self.font_manager
+                            .find_glyph(base_char, cell.bold, cell.italic);
+                    loop {
+                        match glyph_result2 {
+                            Some((font_idx, glyph_id)) => {
+                                let cache_key =
+                                    ((font_idx as u64) << 32) | (glyph_id as u64) | (1u64 << 63);
+                                if let Some(raster) =
+                                    self.rasterize_glyph(font_idx, glyph_id, false)
+                                {
+                                    let info = self.upload_glyph(cache_key, &raster);
+                                    self.glyph_cache.insert(cache_key, info.clone());
+                                    self.lru_push_front(cache_key);
+                                    break Some(info);
+                                } else {
+                                    glyph_result2 = self.font_manager.find_glyph_excluding(
+                                        base_char,
+                                        cell.bold,
+                                        cell.italic,
+                                        &[font_idx],
+                                    );
+                                    continue;
+                                }
+                            }
+                            None => break None,
+                        }
+                    }
+                } else {
+                    resolved_info
+                };
+
+                if let Some(info) = resolved_info {
                     let char_w = if cell.wide_char {
                         self.cell_width * 2.0
                     } else {
