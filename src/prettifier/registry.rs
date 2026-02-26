@@ -72,7 +72,9 @@ impl RendererRegistry {
     ///    and we only replace on strictly greater confidence).
     /// 4. Return the best result if its confidence meets the threshold, else `None`.
     pub fn detect(&self, content: &ContentBlock) -> Option<DetectionResult> {
-        let first_lines = content.first_lines(5);
+        // Sample more lines for quick_match: 5 was too few for content that
+        // has preamble (e.g. Claude Code UI) before the structured data.
+        let first_lines = content.first_lines(30);
         let mut best: Option<DetectionResult> = None;
 
         for (_priority, detector) in &self.detectors {

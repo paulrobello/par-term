@@ -571,10 +571,97 @@ fn is_terminal_screenshot_permission_tool(tool_call: &serde_json::Value) -> bool
 
 /// Reconstruct markdown syntax from cell attributes for Claude Code output.
 ///
-/// Claude Code pre-renders markdown with ANSI sequences (bold for headers/emphasis,
-/// italic for emphasis), stripping the original syntax markers. This function
-/// reconstructs markdown syntax from cell attributes so the prettifier's markdown
-/// detector can recognize patterns like `# Header` and `**bold**`.
+/// Preprocess lines collected from a Claude Code viewport segment for detection.
+///
+/// Claude Code's file previews prefix content with line numbers (`    1 `, `   10 `)
+/// and wrap tool output in UI chrome (headers like `## Write(...)`, tree connectors
+/// like `└ Done`). These prefixes break all content detectors since their regex rules
+/// use `^` anchors (e.g., `^#{1,6}\s+` for markdown headers, `^\{` for JSON).
+///
+/// This function:
+/// 1. Detects if lines have a common line-number prefix and strips it.
+/// 2. Filters out Claude Code UI chrome (tool headers, result indicators).
+///
+/// Only called for Claude Code sessions; normal terminal output is unaffected.
+fn preprocess_claude_code_segment(lines: &mut Vec<(String, usize)>) {
+    use std::sync::LazyLock;
+
+    /// Matches Claude Code line-number prefixes: leading whitespace + digits + space.
+    /// Examples: "    1 ", "   10 ", "  100 "
+    static LINE_NUMBER_RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"^\s+\d+\s").unwrap());
+
+    /// Captures the line-number prefix for stripping.
+    static LINE_NUMBER_STRIP_RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"^(\s+\d+) ").unwrap());
+
+    if lines.is_empty() {
+        return;
+    }
+
+    // Detect line-numbered content: if ≥50% of non-empty lines have a line-number
+    // prefix, this is a file preview. Strip the prefix so detectors see raw content.
+    let non_empty: Vec<&(String, usize)> = lines
+        .iter()
+        .filter(|(l, _)| !l.trim().is_empty())
+        .collect();
+    if !non_empty.is_empty() {
+        let numbered_count = non_empty
+            .iter()
+            .filter(|(l, _)| LINE_NUMBER_RE.is_match(l))
+            .count();
+        if numbered_count * 2 >= non_empty.len() {
+            for (line, _) in lines.iter_mut() {
+                if let Some(m) = LINE_NUMBER_STRIP_RE.find(line) {
+                    *line = line[m.end()..].to_string();
+                }
+            }
+        }
+    }
+
+    // Filter out Claude Code UI chrome lines that would confuse detectors:
+    // - Tool headers reconstructed as ## headers: "## Write(", "## Bash(", "## Read("
+    // - Result indicators with tree connectors: starts with "└"
+    // - "Wrote N lines to..." result summaries
+    lines.retain(|(line, _)| {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            return true; // Keep blank lines (they serve as block separators)
+        }
+        // Skip tool headers that were reconstructed as markdown headers.
+        if trimmed.starts_with("## ") {
+            let after_header = &trimmed[3..];
+            if after_header.starts_with("Write(")
+                || after_header.starts_with("Bash(")
+                || after_header.starts_with("Read(")
+                || after_header.starts_with("Glob(")
+                || after_header.starts_with("Grep(")
+                || after_header.starts_with("Edit(")
+                || after_header.starts_with("Task(")
+                || after_header.starts_with("Wrote ")
+                || after_header.starts_with("Done")
+            {
+                return false;
+            }
+        }
+        // Skip tree-connector result lines.
+        if trimmed.starts_with('└') || trimmed.starts_with('├') {
+            return false;
+        }
+        true
+    });
+}
+
+/// Reconstruct inline markdown syntax from cell ANSI attributes.
+///
+/// Claude Code pre-renders markdown with ANSI sequences (bold, italic).
+/// This function reconstructs inline markers (`**bold**`, `*italic*`) from
+/// cell attributes so the prettifier's regex rules can match them.
+///
+/// We deliberately do NOT fabricate ATX headers (`## `) from all-bold lines.
+/// Fenced code blocks (`` ``` ``) — the primary detection signal — are preserved
+/// literally in terminal text. Fabricating headers from bold causes false
+/// positives on non-markdown bold text (AskUserQuestion prompts, status lines).
 fn reconstruct_markdown_from_cells(cells: &[par_term_config::Cell]) -> String {
     // First, extract plain text and trim trailing whitespace.
     let trimmed_len = cells
@@ -592,27 +679,6 @@ fn reconstruct_markdown_from_cells(cells: &[par_term_config::Cell]) -> String {
 
     let cells = &cells[..trimmed_len];
 
-    // Find the first non-whitespace cell index.
-    let first_nonws = cells
-        .iter()
-        .position(|c| {
-            let g = c.grapheme.as_str();
-            !(g.is_empty() || g == "\0" || g == " ")
-        })
-        .unwrap_or(0);
-
-    // Check if all non-whitespace cells share the same attribute pattern (for header detection).
-    let all_bold = cells[first_nonws..].iter().all(|c| {
-        let g = c.grapheme.as_str();
-        (g.is_empty() || g == "\0" || g == " ") || c.bold
-    });
-
-    let all_underline = all_bold
-        && cells[first_nonws..].iter().all(|c| {
-            let g = c.grapheme.as_str();
-            (g.is_empty() || g == "\0" || g == " ") || c.underline
-        });
-
     // Extract the plain text content.
     let plain_text: String = cells
         .iter()
@@ -624,25 +690,12 @@ fn reconstruct_markdown_from_cells(cells: &[par_term_config::Cell]) -> String {
         .trim_end()
         .to_string();
 
-    // Header detection: if every non-ws cell is bold, it's a header.
-    // Bold + underline → H1 (`# `), bold only → H2 (`## `).
-    if all_bold && !plain_text.trim().is_empty() {
-        let trimmed = plain_text.trim_start();
-        // Don't add header markers to lines that already look like list items, tables, etc.
-        if !trimmed.starts_with('-')
-            && !trimmed.starts_with('*')
-            && !trimmed.starts_with('|')
-            && !trimmed.starts_with('#')
-        {
-            return if all_underline {
-                format!("# {trimmed}")
-            } else {
-                format!("## {trimmed}")
-            };
-        }
-    }
-
     // Inline bold/italic reconstruction: track attribute transitions.
+    // We deliberately do NOT fabricate `## ` headers from all-bold lines.
+    // Claude Code's real markdown headers emit `#` in the terminal text
+    // (which detectors match directly), while non-markdown bold text
+    // (AskUserQuestion prompts, status lines) would cause false positives
+    // if promoted to headers.
     let mut result = String::with_capacity(plain_text.len() + 32);
     let mut in_bold = false;
     let mut in_italic = false;
@@ -651,15 +704,13 @@ fn reconstruct_markdown_from_cells(cells: &[par_term_config::Cell]) -> String {
         let g = cell.grapheme.as_str();
         let ch = if g.is_empty() || g == "\0" { " " } else { g };
 
-        // Bold transitions (skip if whole line is bold — already handled as header).
-        if !all_bold {
-            if cell.bold && !in_bold {
-                result.push_str("**");
-                in_bold = true;
-            } else if !cell.bold && in_bold {
-                result.push_str("**");
-                in_bold = false;
-            }
+        // Bold transitions.
+        if cell.bold && !in_bold {
+            result.push_str("**");
+            in_bold = true;
+        } else if !cell.bold && in_bold {
+            result.push_str("**");
+            in_bold = false;
         }
 
         // Italic transitions.
@@ -2966,9 +3017,22 @@ impl WindowState {
             && !is_alt_screen
             && pipeline.detection_scope()
                 != crate::prettifier::boundary::DetectionScope::CommandOutput
-            && current_generation != tab.cache.prettifier_feed_generation
+            && (current_generation != tab.cache.prettifier_feed_generation
+                || scroll_offset != tab.cache.prettifier_feed_scroll_offset)
         {
+            // Detect whether terminal content actually changed in a meaningful way.
+            // Generation changes on every cursor blink / spinner update, but we only
+            // want to reset prettifier state when the scrollback grows (real new output).
+            let generation_changed =
+                current_generation != tab.cache.prettifier_feed_generation;
+            let scrollback_grew =
+                scrollback_len != tab.cache.prettifier_cc_last_dump_rows.0;
+            let content_changed = generation_changed && scrollback_grew;
+            if content_changed {
+                tab.cache.prettifier_cc_last_dump_rows.0 = scrollback_len;
+            }
             tab.cache.prettifier_feed_generation = current_generation;
+            tab.cache.prettifier_feed_scroll_offset = scroll_offset;
 
             // Heuristic Claude Code session detection from visible output.
             // One-time: scan for signature patterns if not yet detected.
@@ -3008,20 +3072,31 @@ impl WindowState {
             let is_claude_session = pipeline.claude_code().is_active();
 
             if is_claude_session {
-                // Claude Code session: collect segments between collapse markers
-                // and submit each directly as a content block. This bypasses the
-                // boundary detector's line-by-line accumulation which doesn't work
-                // well with per-frame viewport feeds (reset_boundary + re-feed
-                // prevents debounce from ever firing). The deduplication in
-                // handle_block prevents duplicate blocks across frames.
+                // When real content changes (scrollback grew), clear all blocks.
+                // Claude Code's dynamic output means old blocks at fixed absolute
+                // rows become stale as new output shifts the viewport. Re-detect
+                // fresh from the current viewport.
+                if content_changed {
+                    pipeline.clear_blocks();
+                    crate::debug_log!(
+                        "PRETTIFIER",
+                        "CC content changed (scrollback grew), cleared all blocks"
+                    );
+                }
+
+                // Claude Code session: segment the viewport by action bullets
+                // (⏺) and collapse markers. Each segment is submitted independently
+                // so detection sees focused content blocks rather than the entire
+                // viewport (which mixes UI chrome with markdown and causes false
+                // positives). Deduplication in handle_block prevents duplicates.
                 pipeline.reset_boundary();
 
-                let mut current_segment: Vec<(String, usize)> = Vec::new();
+                // Collect all rows with raw + reconstructed text.
+                let mut rows: Vec<(String, String, usize)> = Vec::new(); // (raw, recon, abs_row)
 
                 for row_idx in 0..visible_lines {
                     let absolute_row =
                         scrollback_len.saturating_sub(scroll_offset) + row_idx;
-
                     let start = row_idx * grid_cols;
                     let end = (start + grid_cols).min(cells.len());
                     if start >= cells.len() {
@@ -3036,27 +3111,80 @@ impl WindowState {
                         })
                         .collect();
 
-                    // Collapse markers split content into separate segments.
-                    if row_text.contains("lines (ctrl+o to expand)")
-                        || row_text.contains("files (ctrl+o to expand)")
+                    let line = reconstruct_markdown_from_cells(&cells[start..end]);
+                    rows.push((row_text, line, absolute_row));
+                }
+
+                // Split into segments at action bullets (⏺) and collapse markers.
+                // Each segment is the content between two boundaries.
+                let mut segments: Vec<Vec<(String, usize)>> = Vec::new();
+                let mut current: Vec<(String, usize)> = Vec::new();
+
+                for (raw, recon, abs_row) in &rows {
+                    let trimmed = raw.trim();
+                    // Collapse markers — boundary, include the line in the
+                    // preceding segment so row alignment is preserved (skipping
+                    // it would cause the overlay to render wrong content at this row).
+                    if raw.contains("(ctrl+o to expand)") {
+                        current.push((recon.clone(), *abs_row));
+                        segments.push(std::mem::take(&mut current));
+                        continue;
+                    }
+                    // Action bullets (⏺) start a new segment
+                    if trimmed.starts_with('⏺') || trimmed.starts_with("● ") {
+                        if !current.is_empty() {
+                            segments.push(std::mem::take(&mut current));
+                        }
+                        // Include this line in the new segment
+                        current.push((recon.clone(), *abs_row));
+                        continue;
+                    }
+                    // Horizontal rules (─────) are boundaries
+                    if trimmed.len() > 10
+                        && trimmed.chars().all(|c| c == '─' || c == '━')
                     {
-                        if !current_segment.is_empty() {
-                            pipeline.submit_command_output(
-                                std::mem::take(&mut current_segment),
-                                None,
-                            );
+                        if !current.is_empty() {
+                            segments.push(std::mem::take(&mut current));
                         }
                         continue;
                     }
-
-                    let line = reconstruct_markdown_from_cells(&cells[start..end]);
-                    current_segment.push((line, absolute_row));
+                    current.push((recon.clone(), *abs_row));
+                }
+                if !current.is_empty() {
+                    segments.push(current);
                 }
 
-                // Submit trailing segment (after last collapse marker).
-                if !current_segment.is_empty() {
-                    pipeline
-                        .submit_command_output(std::mem::take(&mut current_segment), None);
+                // Submit each segment that has enough content for detection.
+                // Short segments (tool call one-liners) are skipped.
+                // The pipeline's handle_block() deduplicates by content hash,
+                // so resubmitting the same segment on successive frames is cheap.
+                let min_segment_lines = 5;
+                for mut segment in segments {
+                    let non_empty = segment
+                        .iter()
+                        .filter(|(l, _)| !l.trim().is_empty())
+                        .count();
+                    if non_empty < min_segment_lines {
+                        continue;
+                    }
+
+                    preprocess_claude_code_segment(&mut segment);
+                    if segment.is_empty() {
+                        continue;
+                    }
+
+                    crate::debug_log!(
+                        "PRETTIFIER",
+                        "CC segment: {} lines, rows={}..{}",
+                        segment.len(),
+                        segment.first().map(|(_, r)| *r).unwrap_or(0),
+                        segment.last().map(|(_, r)| *r + 1).unwrap_or(0)
+                    );
+
+                    pipeline.submit_command_output(
+                        std::mem::take(&mut segment),
+                        Some("claude".to_string()),
+                    );
                 }
             } else {
                 // Non-Claude session: use boundary detector with blank-line
@@ -3860,6 +3988,29 @@ impl WindowState {
             // to avoid duplicates when multiple viewport rows fall in
             // the same block.
             let mut collected_block_ids = std::collections::HashSet::new();
+
+            // Log block overlay coverage once per frame for debugging.
+            if !pipeline.active_blocks().is_empty() {
+                let view_start = scrollback_len.saturating_sub(scroll_off);
+                let view_end = view_start + visible_lines;
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "overlay: {} active blocks, viewport rows={}..{}, blocks={:?}",
+                    pipeline.active_blocks().len(),
+                    view_start,
+                    view_end,
+                    pipeline
+                        .active_blocks()
+                        .iter()
+                        .map(|b| format!(
+                            "id={} rows={}..{}",
+                            b.block_id,
+                            b.content().start_row,
+                            b.content().end_row
+                        ))
+                        .collect::<Vec<_>>()
+                );
+            }
 
             for viewport_row in 0..visible_lines {
                 let absolute_row = scrollback_len.saturating_sub(scroll_off) + viewport_row;

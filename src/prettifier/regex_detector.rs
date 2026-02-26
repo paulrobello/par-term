@@ -189,13 +189,50 @@ impl ContentDetector for RegexDetector {
 
         // Check thresholds.
         if match_count < self.min_matching_rules {
+            crate::debug_log!(
+                "PRETTIFIER",
+                "detect {}: 0 rules matched (need {}), lines={}",
+                self.format_id,
+                self.min_matching_rules,
+                content.lines.len()
+            );
             return None;
         }
 
         let confidence = total_weight.min(1.0);
         if confidence < self.confidence_threshold {
+            // Log all rule results (matched and missed) for diagnosis
+            let mut rule_detail = String::new();
+            for rule in &self.rules {
+                if !rule.enabled {
+                    continue;
+                }
+                let hit = matched_rules.contains(&rule.id);
+                rule_detail.push_str(&format!(
+                    " {}({:.2})={}",
+                    rule.id,
+                    rule.weight,
+                    if hit { "HIT" } else { "miss" }
+                ));
+            }
+            crate::debug_log!(
+                "PRETTIFIER",
+                "detect {}: conf={:.2} < thresh={:.2}, rules:{}",
+                self.format_id,
+                confidence,
+                self.confidence_threshold,
+                rule_detail
+            );
             return None;
         }
+
+        crate::debug_info!(
+            "PRETTIFIER",
+            "detect {} PASS: conf={:.2}, matched=[{}]",
+            self.format_id,
+            confidence,
+            matched_rules.join(", ")
+        );
 
         Some(DetectionResult {
             format_id: self.format_id.clone(),
@@ -206,9 +243,11 @@ impl ContentDetector for RegexDetector {
     }
 
     fn quick_match(&self, first_lines: &[&str]) -> bool {
-        // Only check Strong/Definitive rules with AnyLine or FirstLines scope,
-        // tested against at most the first 5 lines.
-        let max_lines = 5;
+        // Check Strong/Definitive rules with AnyLine or FirstLines scope
+        // against the first N lines. We sample up to 30 lines because
+        // some content (e.g. Claude Code output) has preamble before
+        // the actual structured content begins.
+        let max_lines = 30;
         let lines: Vec<&str> = first_lines.iter().take(max_lines).copied().collect();
 
         for rule in &self.rules {

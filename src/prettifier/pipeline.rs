@@ -460,7 +460,34 @@ impl PrettifierPipeline {
             return;
         }
 
-        if let Some(detection) = self.registry.detect(&content) {
+        let detection_result = self.registry.detect(&content);
+        if detection_result.is_none() {
+            // Remove stale blocks: if an existing block overlaps this range
+            // but the content has changed (e.g., approval prompt replaced markdown),
+            // the old block must be removed so it doesn't cover the new content.
+            let content_hash = {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                content.lines.hash(&mut hasher);
+                hasher.finish()
+            };
+            let stale_idx = self.active_blocks.iter().position(|b| {
+                let c = b.content();
+                c.start_row < row_range.end
+                    && c.end_row > row_range.start
+                    && b.buffer.content_hash() != content_hash
+            });
+            if let Some(idx) = stale_idx {
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "removing stale block rows={}..{} (content changed)",
+                    self.active_blocks[idx].content().start_row,
+                    self.active_blocks[idx].content().end_row
+                );
+                self.active_blocks.remove(idx);
+            }
+        }
+        if let Some(detection) = detection_result {
             let format_id = detection.format_id.clone();
             let mut buffer = DualViewBuffer::new(content);
             let content_hash = buffer.content_hash();
