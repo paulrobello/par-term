@@ -11,7 +11,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{BufRead, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// MCP protocol version.
@@ -185,6 +185,29 @@ fn resolve_ipc_path(env_var: &str, default_filename: &str) -> PathBuf {
 }
 
 // ---------------------------------------------------------------------------
+// IPC file permission helpers
+// ---------------------------------------------------------------------------
+
+/// Set restrictive permissions (owner read/write only) on an IPC file.
+///
+/// On Unix systems this sets mode 0o600 so that only the file owner can
+/// read or write. On non-Unix platforms this is a no-op.
+fn set_ipc_file_permissions(path: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = std::fs::Permissions::from_mode(0o600);
+        std::fs::set_permissions(path, perms)
+            .map_err(|e| format!("Failed to set permissions on {}: {e}", path.display()))?;
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path; // suppress unused warning
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Request handlers
 // ---------------------------------------------------------------------------
 
@@ -294,8 +317,9 @@ fn handle_terminal_screenshot(params: &Value) -> Value {
     while start.elapsed() < timeout {
         match try_read_screenshot_response(&response_path) {
             Ok(Some(response)) if response.request_id == request_id => {
-                // Clear response file after consuming
+                // Clear response file after consuming and restrict permissions
                 let _ = std::fs::write(&response_path, "");
+                let _ = set_ipc_file_permissions(&response_path);
                 if !response.ok {
                     return tool_error(
                         response
@@ -384,6 +408,11 @@ fn write_config_updates(updates: &Value, path: &std::path::Path) -> Value {
         ));
     }
 
+    // Restrict IPC file to owner-only access (0o600 on Unix)
+    if let Err(e) = set_ipc_file_permissions(path) {
+        return tool_error(&e);
+    }
+
     let keys: Vec<&str> = updates
         .as_object()
         .map(|obj| obj.keys().map(|k| k.as_str()).collect())
@@ -433,6 +462,10 @@ fn write_json_atomic<T: Serialize>(payload: &T, path: &std::path::Path) -> Resul
             path.to_string_lossy()
         )
     })?;
+
+    // Restrict IPC file to owner-only access (0o600 on Unix)
+    set_ipc_file_permissions(path)?;
+
     Ok(())
 }
 
@@ -866,5 +899,63 @@ mod tests {
                 .unwrap();
         assert!(msg.id.is_some());
         assert_eq!(msg.method.as_deref(), Some("initialize"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_set_ipc_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ipc-test.json");
+        std::fs::write(&path, "{}").unwrap();
+
+        set_ipc_file_permissions(&path).unwrap();
+
+        let metadata = std::fs::metadata(&path).unwrap();
+        let mode = metadata.permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o600,
+            "IPC file should have mode 0o600, got {mode:#o}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_write_config_updates_sets_restrictive_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let update_path = dir.path().join("config-update.json");
+
+        let updates = serde_json::json!({"font_size": 14.0});
+        let result = write_config_updates(&updates, &update_path);
+        assert!(result.get("isError").is_none(), "Expected success result");
+
+        let metadata = std::fs::metadata(&update_path).unwrap();
+        let mode = metadata.permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o600,
+            "Config update IPC file should have mode 0o600, got {mode:#o}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_write_json_atomic_sets_restrictive_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("atomic-test.json");
+
+        let payload = serde_json::json!({"request_id": "test-123"});
+        write_json_atomic(&payload, &path).unwrap();
+
+        let metadata = std::fs::metadata(&path).unwrap();
+        let mode = metadata.permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o600,
+            "Atomically written IPC file should have mode 0o600, got {mode:#o}"
+        );
     }
 }
