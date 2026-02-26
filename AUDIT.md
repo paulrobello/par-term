@@ -123,11 +123,7 @@ The project guideline says "Keep files under 500 lines; refactor files exceeding
 | 1,638 | `src/prettifier/renderers/diff.rs` |
 | 1,633 | `src/tab/mod.rs` |
 
-#### 1.3 Renderer Constructor (H4) -- RESOLVED
-
-`Renderer::new()` now accepts a `RendererParams` struct (defined in `par-term-render/src/renderer/params.rs`) with 44 fields organized into 8 logical groups. The `#[allow(clippy::too_many_arguments)]` annotation was removed.
-
-#### 1.4 Design Patterns Identified
+#### 1.3 Design Patterns Identified
 
 | Pattern | Where Used | Assessment |
 |---------|-----------|------------|
@@ -141,7 +137,7 @@ The project guideline says "Keep files under 500 lines; refactor files exceeding
 | RAII/Drop | Tab, Pane, SessionLogger, SystemMonitor | Well-implemented with fast-shutdown flag |
 | Tree Structure | `PaneNode` for pane splitting | Appropriate for arbitrary nesting |
 
-#### 1.5 Missing Typed Errors (M9)
+#### 1.4 Missing Typed Errors (M9)
 
 Only the prettifier subsystem defines `thiserror` error types. The rest relies on `anyhow::Result`. Sub-crates (`par-term-config`, `par-term-render`) would benefit from typed errors for config parsing failures, GPU errors, and terminal failures so callers can match on specific variants.
 
@@ -228,9 +224,6 @@ The project has exceptionally strong documentation for a Rust project of its siz
 
 ### Phase 3: Structural Refactoring (2-4 weeks)
 
-- [x] **H4**: Refactor `Renderer::new()` to accept config struct -- created `RendererParams` struct
-- [x] **L6**: Transition glob re-exports to explicit symbol lists -- 18 files updated
-- [x] **L7**: Group `CellRenderer` pub(crate) fields into 8 sub-structs
 - [ ] **C2**: Extract `AgentState`, `ShaderState`, `TmuxState`, `OverlayUiState` from `WindowState`
 - [ ] **C1**: Break `render()` into coordinator calling focused sub-methods
 - [ ] **M13**: Restrict `Tab` field visibility, deprecate legacy fields
