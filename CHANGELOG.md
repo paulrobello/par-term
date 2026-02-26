@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Box-Drawing Line Thickness Inconsistency (Tmux Pane Borders)**: Fixed tmux pane borders (and other box-drawing characters) rendering inconsistently as single or double lines — the geometric renderer produced fractional pixel coordinates for thin lines (e.g. `│` width ≈ 1.7–2.4px), and depending on sub-pixel cell position the GPU rasterizer would cover either 1 or 2 fragment centers; box-drawing pixel rectangles are now snapped to integer pixel boundaries ensuring consistent line thickness regardless of cell position
+
 ---
 
 ## [0.23.0] - 2026-02-25

@@ -757,8 +757,9 @@ impl CellRenderer {
                                 block_chars::get_box_drawing_geometry(*ch, aspect_ratio)
                             {
                                 for segment in &box_geo.segments {
-                                    let rect =
-                                        segment.to_pixel_rect(x0, y0, char_w, self.cell_height);
+                                    let rect = segment
+                                        .to_pixel_rect(x0, y0, char_w, self.cell_height)
+                                        .snap_to_pixels();
 
                                     // Extend segments that touch cell edges
                                     let extension = 1.0;
@@ -1848,7 +1849,9 @@ impl CellRenderer {
                     let aspect_ratio = self.cell_height / char_w;
                     if let Some(box_geo) = block_chars::get_box_drawing_geometry(ch, aspect_ratio) {
                         for segment in &box_geo.segments {
-                            let rect = segment.to_pixel_rect(x0, y0, char_w, self.cell_height);
+                            let rect = segment
+                                .to_pixel_rect(x0, y0, char_w, self.cell_height)
+                                .snap_to_pixels();
 
                             // Extension for seamless lines
                             let extension = 1.0;

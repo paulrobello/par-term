@@ -1112,6 +1112,27 @@ pub struct PixelRect {
     pub height: f32,
 }
 
+impl PixelRect {
+    /// Snap rectangle coordinates to the pixel grid for crisp, consistent rendering.
+    ///
+    /// Without snapping, thin geometric lines (e.g. box-drawing characters) can
+    /// straddle pixel boundaries and appear as 1 pixel in some positions and 2 pixels
+    /// in others, causing visual inconsistency (e.g. tmux pane borders flickering
+    /// between single and double lines).
+    pub fn snap_to_pixels(self) -> Self {
+        let x = self.x.round();
+        let y = self.y.round();
+        let w = self.width.round().max(1.0);
+        let h = self.height.round().max(1.0);
+        Self {
+            x,
+            y,
+            width: w,
+            height: h,
+        }
+    }
+}
+
 /// Get the geometric representation of a block element character
 /// Returns None if the character should use font rendering
 pub fn get_geometric_block(ch: char) -> Option<GeometricBlock> {
