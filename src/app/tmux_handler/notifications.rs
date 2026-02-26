@@ -34,13 +34,13 @@ impl WindowState {
         }
 
         // Check if we have an active gateway session
-        let _session = match &self.tmux_session {
+        let _session = match &self.tmux_state.tmux_session {
             Some(s) if s.is_gateway_active() => s,
             _ => return false,
         };
 
         // Get the gateway tab ID - this is where the tmux control connection lives
-        let gateway_tab_id = match self.tmux_gateway_tab_id {
+        let gateway_tab_id = match self.tmux_state.tmux_gateway_tab_id {
             Some(id) => id,
             None => return false,
         };
@@ -95,7 +95,7 @@ impl WindowState {
         // First, update gateway state based on notifications
         for notification in &notifications {
             crate::debug_trace!("TMUX", "Processing notification: {:?}", notification);
-            if let Some(session) = &mut self.tmux_session
+            if let Some(session) = &mut self.tmux_state.tmux_session
                 && session.process_gateway_notification(notification)
             {
                 crate::debug_info!(
@@ -225,7 +225,7 @@ impl WindowState {
         crate::debug_info!("TMUX", "Session started: {}", session_name);
 
         // Store the session name for later use (e.g., window title updates)
-        self.tmux_session_name = Some(session_name.to_string());
+        self.tmux_state.tmux_session_name = Some(session_name.to_string());
 
         // Update window title with session name: "par-term - [tmux: session_name]"
         self.update_window_title_with_tmux();
@@ -234,7 +234,7 @@ impl WindowState {
         self.apply_tmux_session_profile(session_name);
 
         // Update the gateway tab's title to show tmux session
-        if let Some(gateway_tab_id) = self.tmux_gateway_tab_id
+        if let Some(gateway_tab_id) = self.tmux_state.tmux_gateway_tab_id
             && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
         {
             tab.set_title(&format!("[tmux: {}]", session_name));
@@ -247,7 +247,7 @@ impl WindowState {
         }
 
         // Enable sync now that session is connected
-        self.tmux_sync.enable();
+        self.tmux_state.tmux_sync.enable();
 
         // Note: tmux_gateway_active was already set on the gateway tab during initiate_tmux_gateway()
 
@@ -340,7 +340,7 @@ impl WindowState {
     /// Format: "window_title - [tmux: session_name]"
     pub(crate) fn update_window_title_with_tmux(&self) {
         if let Some(window) = &self.window {
-            let title = if let Some(session_name) = &self.tmux_session_name {
+            let title = if let Some(session_name) = &self.tmux_state.tmux_session_name {
                 format!("{} - [tmux: {}]", self.config.window_title, session_name)
             } else {
                 self.config.window_title.clone()
@@ -354,7 +354,7 @@ impl WindowState {
         crate::debug_info!("TMUX", "Session renamed to: {}", session_name);
 
         // Update stored session name
-        self.tmux_session_name = Some(session_name.to_string());
+        self.tmux_state.tmux_session_name = Some(session_name.to_string());
 
         // Update window title with new session name
         self.update_window_title_with_tmux();
@@ -394,7 +394,7 @@ impl WindowState {
                 );
 
                 // Register the mapping
-                self.tmux_sync.map_window(window_id, tab_id);
+                self.tmux_state.tmux_sync.map_window(window_id, tab_id);
 
                 // Set initial title based on tmux window ID
                 // Note: These tabs are for displaying tmux windows, but the gateway tab
@@ -457,7 +457,7 @@ impl WindowState {
         crate::debug_info!("TMUX", "Window closed: @{}", window_id);
 
         // Find the corresponding tab
-        if let Some(tab_id) = self.tmux_sync.get_tab(window_id) {
+        if let Some(tab_id) = self.tmux_state.tmux_sync.get_tab(window_id) {
             crate::debug_info!(
                 "TMUX",
                 "Closing tab {} for tmux window @{}",
@@ -469,7 +469,7 @@ impl WindowState {
             let was_last = self.tab_manager.close_tab(tab_id);
 
             // Remove the mapping
-            self.tmux_sync.unmap_window(window_id);
+            self.tmux_state.tmux_sync.unmap_window(window_id);
 
             if was_last {
                 // Last tab closed - trigger session end handling
@@ -490,7 +490,7 @@ impl WindowState {
         crate::debug_info!("TMUX", "Window @{} renamed to: {}", window_id, name);
 
         // Find the corresponding tab and update its title
-        if let Some(tab_id) = self.tmux_sync.get_tab(window_id) {
+        if let Some(tab_id) = self.tmux_state.tmux_sync.get_tab(window_id) {
             if let Some(tab) = self.tab_manager.get_tab_mut(tab_id) {
                 tab.set_title(name);
                 crate::debug_info!("TMUX", "Updated tab {} title to '{}'", tab_id, name);
@@ -542,7 +542,7 @@ impl WindowState {
 
         // Update focused pane in session if we have one
         if !pane_ids.is_empty()
-            && let Some(session) = &mut self.tmux_session
+            && let Some(session) = &mut self.tmux_state.tmux_session
         {
             // Default to first pane if no focused pane set
             if session.focused_pane().is_none() {
@@ -551,7 +551,7 @@ impl WindowState {
         }
 
         // Find the corresponding tab and create window mapping if needed
-        let tab_id = if let Some(id) = self.tmux_sync.get_tab(window_id) {
+        let tab_id = if let Some(id) = self.tmux_state.tmux_sync.get_tab(window_id) {
             Some(id)
         } else {
             // No window mapping exists - try to find a tab that has one of our panes
@@ -579,7 +579,7 @@ impl WindowState {
 
             // If we found a tab, create the window mapping
             if let Some(tid) = found_tab_id {
-                self.tmux_sync.map_window(window_id, tid);
+                self.tmux_state.tmux_sync.map_window(window_id, tid);
                 crate::debug_info!(
                     "TMUX",
                     "Created window mapping: @{} -> tab {}",
@@ -677,8 +677,12 @@ impl WindowState {
 
                 // Check if we already have mappings for these exact tmux pane IDs
                 // If so, we should preserve the existing native panes/terminals
-                let existing_tmux_ids: std::collections::HashSet<_> =
-                    self.tmux_pane_to_native_pane.keys().copied().collect();
+                let existing_tmux_ids: std::collections::HashSet<_> = self
+                    .tmux_state
+                    .tmux_pane_to_native_pane
+                    .keys()
+                    .copied()
+                    .collect();
                 let new_tmux_ids: std::collections::HashSet<_> = pane_ids.iter().copied().collect();
 
                 if existing_tmux_ids == new_tmux_ids && !existing_tmux_ids.is_empty() {
@@ -692,7 +696,10 @@ impl WindowState {
                     // Update the pane tree structure from the new layout without recreating terminals
                     if let Some(pm) = tab.pane_manager_mut() {
                         // Update layout structure (ratios, positions) from tmux layout
-                        pm.update_layout_from_tmux(&parsed_layout, &self.tmux_pane_to_native_pane);
+                        pm.update_layout_from_tmux(
+                            &parsed_layout,
+                            &self.tmux_state.tmux_pane_to_native_pane,
+                        );
                         pm.recalculate_bounds();
 
                         // Resize terminals to match new bounds
@@ -734,7 +741,11 @@ impl WindowState {
                     );
 
                     // Check if any of the removed panes was the focused pane
-                    let current_focused = self.tmux_session.as_ref().and_then(|s| s.focused_pane());
+                    let current_focused = self
+                        .tmux_state
+                        .tmux_session
+                        .as_ref()
+                        .and_then(|s| s.focused_pane());
                     let focused_pane_removed = current_focused
                         .map(|fp| panes_to_remove.contains(&fp))
                         .unwrap_or(false);
@@ -743,7 +754,7 @@ impl WindowState {
                     if let Some(pm) = tab.pane_manager_mut() {
                         for tmux_pane_id in &panes_to_remove {
                             if let Some(native_pane_id) =
-                                self.tmux_pane_to_native_pane.get(tmux_pane_id)
+                                self.tmux_state.tmux_pane_to_native_pane.get(tmux_pane_id)
                             {
                                 crate::debug_info!(
                                     "TMUX",
@@ -758,6 +769,7 @@ impl WindowState {
                         // Update layout structure for remaining panes
                         // Build new mappings with only the kept panes
                         let kept_mappings: std::collections::HashMap<_, _> = self
+                            .tmux_state
                             .tmux_pane_to_native_pane
                             .iter()
                             .filter(|(tmux_id, _)| panes_to_keep.contains(tmux_id))
@@ -775,9 +787,12 @@ impl WindowState {
 
                     // Update mappings - remove closed panes
                     for tmux_pane_id in &panes_to_remove {
-                        if let Some(native_id) = self.tmux_pane_to_native_pane.remove(tmux_pane_id)
+                        if let Some(native_id) = self
+                            .tmux_state
+                            .tmux_pane_to_native_pane
+                            .remove(tmux_pane_id)
                         {
-                            self.native_pane_to_tmux_pane.remove(&native_id);
+                            self.tmux_state.native_pane_to_tmux_pane.remove(&native_id);
                         }
                     }
 
@@ -790,7 +805,7 @@ impl WindowState {
                             "Focused pane was removed, updating tmux session focus to %{}",
                             new_focus
                         );
-                        if let Some(session) = &mut self.tmux_session {
+                        if let Some(session) = &mut self.tmux_state.tmux_session {
                             session.set_focused_pane(Some(new_focus));
                         }
                     }
@@ -798,7 +813,7 @@ impl WindowState {
                     crate::debug_info!(
                         "TMUX",
                         "After pane removal, mappings: {:?}",
-                        self.tmux_pane_to_native_pane
+                        self.tmux_state.tmux_pane_to_native_pane
                     );
 
                     self.needs_redraw = true;
@@ -825,7 +840,8 @@ impl WindowState {
                         let existing_mappings: std::collections::HashMap<_, _> = panes_to_keep
                             .iter()
                             .filter_map(|tmux_id| {
-                                self.tmux_pane_to_native_pane
+                                self.tmux_state
+                                    .tmux_pane_to_native_pane
                                     .get(tmux_id)
                                     .map(|native_id| (*tmux_id, *native_id))
                             })
@@ -840,8 +856,8 @@ impl WindowState {
                         ) {
                             Ok(new_mappings) => {
                                 // Update our mappings with the new ones
-                                self.tmux_pane_to_native_pane = new_mappings.clone();
-                                self.native_pane_to_tmux_pane = new_mappings
+                                self.tmux_state.tmux_pane_to_native_pane = new_mappings.clone();
+                                self.tmux_state.native_pane_to_tmux_pane = new_mappings
                                     .iter()
                                     .map(|(tmux_id, native_id)| (*native_id, *tmux_id))
                                     .collect();
@@ -871,7 +887,7 @@ impl WindowState {
                     crate::debug_info!(
                         "TMUX",
                         "After pane addition, mappings: {:?}",
-                        self.tmux_pane_to_native_pane
+                        self.tmux_state.tmux_pane_to_native_pane
                     );
 
                     self.needs_redraw = true;
@@ -901,8 +917,8 @@ impl WindowState {
                                 pane_mappings
                             );
                             // Store both forward and reverse mappings
-                            self.tmux_pane_to_native_pane = pane_mappings.clone();
-                            self.native_pane_to_tmux_pane = pane_mappings
+                            self.tmux_state.tmux_pane_to_native_pane = pane_mappings.clone();
+                            self.tmux_state.native_pane_to_tmux_pane = pane_mappings
                                 .iter()
                                 .map(|(tmux_id, native_id)| (*native_id, *tmux_id))
                                 .collect();
@@ -977,7 +993,7 @@ impl WindowState {
                         );
 
                         // Register the window mapping
-                        self.tmux_sync.map_window(window_id, new_tab_id);
+                        self.tmux_state.tmux_sync.map_window(window_id, new_tab_id);
 
                         // Now apply the layout to this tab
                         if let Some(tab) = self.tab_manager.get_tab_mut(new_tab_id) {
@@ -1035,11 +1051,11 @@ impl WindowState {
                                             pane_mappings
                                         );
                                         // Store both forward and reverse mappings
-                                        self.native_pane_to_tmux_pane = pane_mappings
+                                        self.tmux_state.native_pane_to_tmux_pane = pane_mappings
                                             .iter()
                                             .map(|(tmux_id, native_id)| (*native_id, *tmux_id))
                                             .collect();
-                                        self.tmux_pane_to_native_pane = pane_mappings;
+                                        self.tmux_state.tmux_pane_to_native_pane = pane_mappings;
 
                                         // Set tab's tmux_pane_id to first pane
                                         if !pane_ids.is_empty() {
@@ -1169,7 +1185,7 @@ impl WindowState {
         }
 
         // Check if output is paused - buffer if so
-        if self.tmux_sync.buffer_output(pane_id, data) {
+        if self.tmux_state.tmux_sync.buffer_output(pane_id, data) {
             crate::debug_trace!(
                 "TMUX",
                 "Buffered {} bytes for pane %{} (paused)",
@@ -1180,15 +1196,20 @@ impl WindowState {
         }
 
         // Debug: log the current mapping state
-        crate::debug_trace!("TMUX", "Pane mappings: {:?}", self.tmux_pane_to_native_pane);
+        crate::debug_trace!(
+            "TMUX",
+            "Pane mappings: {:?}",
+            self.tmux_state.tmux_pane_to_native_pane
+        );
 
         // First, try to find a native pane mapping (for split panes)
         // Check our direct mapping first, then fall back to tmux_sync
         let native_pane_id = self
+            .tmux_state
             .tmux_pane_to_native_pane
             .get(&pane_id)
             .copied()
-            .or_else(|| self.tmux_sync.get_native_pane(pane_id));
+            .or_else(|| self.tmux_state.tmux_sync.get_native_pane(pane_id));
 
         if let Some(native_pane_id) = native_pane_id {
             // Find the pane across all tabs and route output to it
@@ -1273,7 +1294,7 @@ impl WindowState {
 
         // Don't route to the gateway tab - that shows raw protocol
         // Instead, create a new tab for this tmux pane
-        if self.tmux_gateway_tab_id.is_some() {
+        if self.tmux_state.tmux_gateway_tab_id.is_some() {
             // Check if we can create a new tab
             if self.config.max_tabs == 0 || self.tab_manager.tab_count() < self.config.max_tabs {
                 let grid_size = self.renderer.as_ref().map(|r| r.grid_size());
@@ -1292,7 +1313,7 @@ impl WindowState {
                         );
 
                         // Set the focused pane if not already set
-                        if let Some(session) = &mut self.tmux_session
+                        if let Some(session) = &mut self.tmux_state.tmux_session
                             && session.focused_pane().is_none()
                         {
                             session.set_focused_pane(Some(pane_id));
@@ -1350,12 +1371,12 @@ impl WindowState {
         crate::debug_info!("TMUX", "Pane focus changed to %{}", tmux_pane_id);
 
         // Update the tmux session's focused pane
-        if let Some(session) = &mut self.tmux_session {
+        if let Some(session) = &mut self.tmux_state.tmux_session {
             session.set_focused_pane(Some(tmux_pane_id));
         }
 
         // Update the native pane focus to match
-        if let Some(native_pane_id) = self.tmux_pane_to_native_pane.get(&tmux_pane_id) {
+        if let Some(native_pane_id) = self.tmux_state.tmux_pane_to_native_pane.get(&tmux_pane_id) {
             // Find the tab containing this pane and update its focus
             if let Some(tab) = self.tab_manager.active_tab_mut()
                 && let Some(pm) = tab.pane_manager_mut()
@@ -1376,7 +1397,7 @@ impl WindowState {
         crate::debug_info!("TMUX", "Session ended");
 
         // Collect tmux display tabs to close (tabs with tmux_pane_id set, excluding gateway)
-        let gateway_tab_id = self.tmux_gateway_tab_id;
+        let gateway_tab_id = self.tmux_state.tmux_gateway_tab_id;
         let tmux_tabs_to_close: Vec<crate::tab::TabId> = self
             .tab_manager
             .tabs()
@@ -1399,7 +1420,7 @@ impl WindowState {
         }
 
         // Disable tmux control mode on the gateway tab and clear auto-applied profile
-        if let Some(gateway_tab_id) = self.tmux_gateway_tab_id
+        if let Some(gateway_tab_id) = self.tmux_state.tmux_gateway_tab_id
             && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
             && tab.tmux_gateway_active
         {
@@ -1416,23 +1437,23 @@ impl WindowState {
                 term.set_tmux_control_mode(false);
             }
         }
-        self.tmux_gateway_tab_id = None;
+        self.tmux_state.tmux_gateway_tab_id = None;
 
         // Clean up tmux session state
-        if let Some(mut session) = self.tmux_session.take() {
+        if let Some(mut session) = self.tmux_state.tmux_session.take() {
             session.disconnect();
         }
-        self.tmux_session_name = None;
+        self.tmux_state.tmux_session_name = None;
 
         // Clear pane mappings
-        self.tmux_pane_to_native_pane.clear();
-        self.native_pane_to_tmux_pane.clear();
+        self.tmux_state.tmux_pane_to_native_pane.clear();
+        self.tmux_state.native_pane_to_tmux_pane.clear();
 
         // Reset window title (now without tmux info)
         self.update_window_title_with_tmux();
 
         // Clear sync state
-        self.tmux_sync = crate::tmux::TmuxSync::new();
+        self.tmux_state.tmux_sync = crate::tmux::TmuxSync::new();
 
         // Show toast
         self.show_toast("tmux: Session ended");
@@ -1451,7 +1472,7 @@ impl WindowState {
         crate::debug_info!("TMUX", "Received pause notification - buffering output");
 
         // Set paused state in sync manager
-        self.tmux_sync.pause();
+        self.tmux_state.tmux_sync.pause();
 
         // Show toast notification to user
         self.show_toast("tmux: Output paused (slow connection)");
@@ -1462,7 +1483,7 @@ impl WindowState {
         crate::debug_info!("TMUX", "Received continue notification - resuming output");
 
         // Get and flush buffered output
-        let buffered = self.tmux_sync.resume();
+        let buffered = self.tmux_state.tmux_sync.resume();
 
         // Flush buffered data to each pane
         for (tmux_pane_id, data) in buffered {
@@ -1475,7 +1496,9 @@ impl WindowState {
                 );
 
                 // Find the native pane and send the buffered data
-                if let Some(native_pane_id) = self.tmux_sync.get_native_pane(tmux_pane_id) {
+                if let Some(native_pane_id) =
+                    self.tmux_state.tmux_sync.get_native_pane(tmux_pane_id)
+                {
                     // Find the pane across all tabs
                     for tab in self.tab_manager.tabs_mut() {
                         if let Some(pane_manager) = tab.pane_manager_mut()

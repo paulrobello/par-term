@@ -34,6 +34,7 @@ pub(crate) mod shader_state;
 pub mod tab_ops;
 pub mod text_selection;
 mod tmux_handler;
+pub(crate) mod tmux_state;
 mod triggers;
 pub mod url_hover;
 pub mod window_manager;

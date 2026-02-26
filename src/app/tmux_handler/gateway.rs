@@ -28,7 +28,7 @@ impl WindowState {
             anyhow::bail!("tmux integration is disabled");
         }
 
-        if self.tmux_session.is_some() && self.is_tmux_connected() {
+        if self.tmux_state.tmux_session.is_some() && self.is_tmux_connected() {
             anyhow::bail!("Already connected to a tmux session");
         }
 
@@ -82,7 +82,7 @@ impl WindowState {
         tab.tmux_gateway_active = true;
 
         // Store the gateway tab ID so we know where to send commands
-        self.tmux_gateway_tab_id = Some(gateway_tab_id);
+        self.tmux_state.tmux_gateway_tab_id = Some(gateway_tab_id);
         crate::debug_info!(
             "TMUX",
             "Gateway tab set to {}, state: Initiating",
@@ -92,7 +92,7 @@ impl WindowState {
         // Create session and set gateway state
         let mut session = TmuxSession::new();
         session.set_gateway_initiating();
-        self.tmux_session = Some(session);
+        self.tmux_state.tmux_session = Some(session);
 
         // Show toast
         self.show_toast("tmux: Connecting...");
@@ -108,7 +108,7 @@ impl WindowState {
             anyhow::bail!("tmux integration is disabled");
         }
 
-        if self.tmux_session.is_some() && self.is_tmux_connected() {
+        if self.tmux_state.tmux_session.is_some() && self.is_tmux_connected() {
             anyhow::bail!("Already connected to a tmux session");
         }
 
@@ -153,7 +153,7 @@ impl WindowState {
         tab.tmux_gateway_active = true;
 
         // Store the gateway tab ID so we know where to send commands
-        self.tmux_gateway_tab_id = Some(gateway_tab_id);
+        self.tmux_state.tmux_gateway_tab_id = Some(gateway_tab_id);
         crate::debug_info!(
             "TMUX",
             "Gateway tab set to {}, state: Initiating",
@@ -163,7 +163,7 @@ impl WindowState {
         // Create session and set gateway state
         let mut session = TmuxSession::new();
         session.set_gateway_initiating();
-        self.tmux_session = Some(session);
+        self.tmux_state.tmux_session = Some(session);
 
         // Show toast
         self.show_toast(format!("tmux: Attaching to '{}'...", session_name));
@@ -174,7 +174,7 @@ impl WindowState {
     /// Disconnect from the current tmux session
     pub fn disconnect_tmux_session(&mut self) {
         // Clear the gateway tab ID
-        self.tmux_gateway_tab_id = None;
+        self.tmux_state.tmux_gateway_tab_id = None;
 
         // First, disable tmux control mode on any gateway tabs
         for tab in self.tab_manager.tabs_mut() {
@@ -189,16 +189,16 @@ impl WindowState {
             }
         }
 
-        if let Some(mut session) = self.tmux_session.take() {
+        if let Some(mut session) = self.tmux_state.tmux_session.take() {
             crate::debug_info!("TMUX", "Disconnecting from tmux session");
             session.disconnect();
         }
 
         // Clear session name
-        self.tmux_session_name = None;
+        self.tmux_state.tmux_session_name = None;
 
         // Reset sync state
-        self.tmux_sync = crate::tmux::TmuxSync::new();
+        self.tmux_state.tmux_sync = crate::tmux::TmuxSync::new();
 
         // Reset window title (now without tmux info)
         self.update_window_title_with_tmux();
@@ -206,14 +206,16 @@ impl WindowState {
 
     /// Check if tmux session is active
     pub fn is_tmux_connected(&self) -> bool {
-        self.tmux_session
+        self.tmux_state
+            .tmux_session
             .as_ref()
             .is_some_and(|s| s.state() == SessionState::Connected)
     }
 
     /// Check if gateway mode is active (connected or connecting)
     pub fn is_gateway_active(&self) -> bool {
-        self.tmux_session
+        self.tmux_state
+            .tmux_session
             .as_ref()
             .is_some_and(|s| s.is_gateway_active())
     }
@@ -223,8 +225,11 @@ impl WindowState {
     /// This should be called when the user clicks on a pane to ensure
     /// input is routed to the correct tmux pane.
     pub fn set_tmux_focused_pane_from_native(&mut self, native_pane_id: crate::pane::PaneId) {
-        if let Some(tmux_pane_id) = self.native_pane_to_tmux_pane.get(&native_pane_id)
-            && let Some(session) = &mut self.tmux_session
+        if let Some(tmux_pane_id) = self
+            .tmux_state
+            .native_pane_to_tmux_pane
+            .get(&native_pane_id)
+            && let Some(session) = &mut self.tmux_state.tmux_session
         {
             crate::debug_info!(
                 "TMUX",
@@ -245,7 +250,7 @@ impl WindowState {
     /// The gateway tab is where the tmux control mode connection lives.
     /// All tmux commands must be written to this tab, not the active tab.
     pub(crate) fn write_to_gateway(&self, cmd: &str) -> bool {
-        let gateway_tab_id = match self.tmux_gateway_tab_id {
+        let gateway_tab_id = match self.tmux_state.tmux_gateway_tab_id {
             Some(id) => id,
             None => {
                 crate::debug_trace!("TMUX", "No gateway tab ID set");
@@ -287,7 +292,7 @@ impl WindowState {
             return false;
         }
 
-        let session = match &self.tmux_session {
+        let session = match &self.tmux_state.tmux_session {
             Some(s) => s,
             None => return false,
         };
@@ -327,7 +332,7 @@ impl WindowState {
         let active_tab_id = self.tab_manager.active_tab_id()?;
 
         // Find the tmux window for this tab
-        let tmux_window_id = self.tmux_sync.get_window(active_tab_id)?;
+        let tmux_window_id = self.tmux_state.tmux_sync.get_window(active_tab_id)?;
 
         // Format send-keys command with window target using proper escaping
         let escaped = crate::tmux::escape_keys_for_tmux(data);
@@ -343,7 +348,7 @@ impl WindowState {
         };
 
         // Find the tmux window for this tab
-        let tmux_window_id = match self.tmux_sync.get_window(active_tab_id) {
+        let tmux_window_id = match self.tmux_state.tmux_sync.get_window(active_tab_id) {
             Some(id) => id,
             None => {
                 crate::debug_trace!(
@@ -381,7 +386,7 @@ impl WindowState {
             return false;
         }
 
-        let session = match &self.tmux_session {
+        let session = match &self.tmux_state.tmux_session {
             Some(s) => s,
             None => return false,
         };
@@ -414,7 +419,7 @@ impl WindowState {
             return false;
         }
 
-        let session = match &self.tmux_session {
+        let session = match &self.tmux_state.tmux_session {
             Some(s) => s,
             None => return false,
         };
@@ -458,7 +463,7 @@ impl WindowState {
             return false;
         }
 
-        let session = match &self.tmux_session {
+        let session = match &self.tmux_state.tmux_session {
             Some(s) => s,
             None => return false,
         };
@@ -553,7 +558,7 @@ impl WindowState {
                 .iter()
                 .filter_map(|pane| {
                     // Get the tmux pane ID for this native pane
-                    let tmux_pane_id = self.native_pane_to_tmux_pane.get(&pane.id)?;
+                    let tmux_pane_id = self.tmux_state.native_pane_to_tmux_pane.get(&pane.id)?;
                     // Calculate size in columns/rows
                     let cols = (pane.bounds.width / cell_width).floor() as usize;
                     let rows = (pane.bounds.height / cell_height).floor() as usize;
@@ -662,7 +667,7 @@ impl WindowState {
             )
         });
 
-        if let Some(gateway_tab_id) = self.tmux_gateway_tab_id
+        if let Some(gateway_tab_id) = self.tmux_state.tmux_gateway_tab_id
             && let Some(tab) = self.tab_manager.get_tab_mut(gateway_tab_id)
         {
             // Mark the auto-applied profile
@@ -747,7 +752,7 @@ impl WindowState {
         let modifiers = self.input_handler.modifiers.state();
 
         // Check if we're in prefix mode (waiting for command key)
-        if self.tmux_prefix_state.is_active() {
+        if self.tmux_state.tmux_prefix_state.is_active() {
             // Ignore modifier-only key presses (Shift, Ctrl, Alt, Super)
             // These are needed to type shifted characters like " and %
             use winit::keyboard::{Key, NamedKey};
@@ -771,10 +776,14 @@ impl WindowState {
             }
 
             // Exit prefix mode
-            self.tmux_prefix_state.exit();
+            self.tmux_state.tmux_prefix_state.exit();
 
             // Get focused pane ID for targeted commands
-            let focused_pane = self.tmux_session.as_ref().and_then(|s| s.focused_pane());
+            let focused_pane = self
+                .tmux_state
+                .tmux_session
+                .as_ref()
+                .and_then(|s| s.focused_pane());
 
             // Translate the command key to a tmux command
             if let Some(cmd) =
@@ -814,11 +823,11 @@ impl WindowState {
         }
 
         // Check if this is the prefix key
-        if let Some(ref prefix_key) = self.tmux_prefix_key
+        if let Some(ref prefix_key) = self.tmux_state.tmux_prefix_key
             && prefix_key.matches(&event.logical_key, modifiers)
         {
             crate::debug_info!("TMUX", "Prefix key pressed, entering prefix mode");
-            self.tmux_prefix_state.enter();
+            self.tmux_state.tmux_prefix_state.enter();
             self.show_toast("tmux: prefix...");
             return true;
         }

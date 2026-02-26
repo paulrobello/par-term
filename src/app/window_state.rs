@@ -40,9 +40,8 @@ use crate::shader_watcher::{ShaderReloadEvent, ShaderType, ShaderWatcher};
 use crate::smart_selection::SmartSelectionCache;
 use crate::ssh_connect_ui::{SshConnectAction, SshConnectUI};
 use crate::status_bar::StatusBarUI;
-use crate::tab::{TabId, TabManager};
+use crate::tab::TabManager;
 use crate::tab_bar_ui::{TabBarAction, TabBarUI};
-use crate::tmux::{TmuxSession, TmuxSync};
 use crate::tmux_session_picker_ui::{SessionPickerAction, TmuxSessionPickerUI};
 use crate::tmux_status_bar_ui::TmuxStatusBarUI;
 use anyhow::Result;
@@ -289,24 +288,8 @@ pub struct WindowState {
     pub(crate) smart_selection_cache: SmartSelectionCache,
 
     // tmux integration state
-    /// tmux control mode session (if connected)
-    pub(crate) tmux_session: Option<TmuxSession>,
-    /// tmux state synchronization manager
-    pub(crate) tmux_sync: TmuxSync,
-    /// Current tmux session name (for window title display)
-    pub(crate) tmux_session_name: Option<String>,
-    /// Tab ID where the tmux gateway connection lives (where we write commands)
-    pub(crate) tmux_gateway_tab_id: Option<TabId>,
-    /// Parsed prefix key from config (cached for performance)
-    pub(crate) tmux_prefix_key: Option<crate::tmux::PrefixKey>,
-    /// Prefix key state (whether we're waiting for command key)
-    pub(crate) tmux_prefix_state: crate::tmux::PrefixState,
-    /// Mapping from tmux pane IDs to native pane IDs for output routing
-    pub(crate) tmux_pane_to_native_pane:
-        std::collections::HashMap<crate::tmux::TmuxPaneId, crate::pane::PaneId>,
-    /// Reverse mapping from native pane IDs to tmux pane IDs for input routing
-    pub(crate) native_pane_to_tmux_pane:
-        std::collections::HashMap<crate::pane::PaneId, crate::tmux::TmuxPaneId>,
+    /// tmux integration state (session, sync, pane mappings, prefix key)
+    pub(crate) tmux_state: crate::app::tmux_state::TmuxState,
 
     // Broadcast input mode
     /// Whether keyboard input is broadcast to all panes in current tab
@@ -761,14 +744,7 @@ impl WindowState {
 
             smart_selection_cache: SmartSelectionCache::new(),
 
-            tmux_session: None,
-            tmux_sync: TmuxSync::new(),
-            tmux_session_name: None,
-            tmux_gateway_tab_id: None,
-            tmux_prefix_key,
-            tmux_prefix_state: crate::tmux::PrefixState::new(),
-            tmux_pane_to_native_pane: std::collections::HashMap::new(),
-            native_pane_to_tmux_pane: std::collections::HashMap::new(),
+            tmux_state: crate::app::tmux_state::TmuxState::new(tmux_prefix_key),
 
             broadcast_input: false,
 
@@ -3913,8 +3889,8 @@ impl WindowState {
                     self.tmux_status_bar_ui.render(
                         ctx,
                         &self.config,
-                        self.tmux_session.as_ref(),
-                        self.tmux_session_name.as_deref(),
+                        self.tmux_state.tmux_session.as_ref(),
+                        self.tmux_state.tmux_session_name.as_deref(),
                     );
 
                     // Render custom status bar
