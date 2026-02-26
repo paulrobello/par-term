@@ -73,47 +73,47 @@ pub fn should_render_as_symbol(ch: char) -> bool {
 
 impl CellRenderer {
     pub fn clear_glyph_cache(&mut self) {
-        self.glyph_cache.clear();
-        self.lru_head = None;
-        self.lru_tail = None;
-        self.atlas_next_x = 0;
-        self.atlas_next_y = 0;
-        self.atlas_row_height = 0;
+        self.atlas.glyph_cache.clear();
+        self.atlas.lru_head = None;
+        self.atlas.lru_tail = None;
+        self.atlas.atlas_next_x = 0;
+        self.atlas.atlas_next_y = 0;
+        self.atlas.atlas_row_height = 0;
         self.dirty_rows.fill(true);
         // Re-upload the solid white pixel for geometric block rendering
         self.upload_solid_pixel();
     }
 
     pub(crate) fn lru_remove(&mut self, key: u64) {
-        let info = self.glyph_cache.get(&key).unwrap();
+        let info = self.atlas.glyph_cache.get(&key).unwrap();
         let prev = info.prev;
         let next = info.next;
 
         if let Some(p) = prev {
-            self.glyph_cache.get_mut(&p).unwrap().next = next;
+            self.atlas.glyph_cache.get_mut(&p).unwrap().next = next;
         } else {
-            self.lru_head = next;
+            self.atlas.lru_head = next;
         }
 
         if let Some(n) = next {
-            self.glyph_cache.get_mut(&n).unwrap().prev = prev;
+            self.atlas.glyph_cache.get_mut(&n).unwrap().prev = prev;
         } else {
-            self.lru_tail = prev;
+            self.atlas.lru_tail = prev;
         }
     }
 
     pub(crate) fn lru_push_front(&mut self, key: u64) {
-        let next = self.lru_head;
+        let next = self.atlas.lru_head;
         if let Some(n) = next {
-            self.glyph_cache.get_mut(&n).unwrap().prev = Some(key);
+            self.atlas.glyph_cache.get_mut(&n).unwrap().prev = Some(key);
         } else {
-            self.lru_tail = Some(key);
+            self.atlas.lru_tail = Some(key);
         }
 
-        let info = self.glyph_cache.get_mut(&key).unwrap();
+        let info = self.atlas.glyph_cache.get_mut(&key).unwrap();
         info.prev = None;
         info.next = next;
-        self.lru_head = Some(key);
+        self.atlas.lru_head = Some(key);
     }
 
     pub(crate) fn rasterize_glyph(
@@ -133,13 +133,13 @@ impl CellRenderer {
         // Apply hinting based on config setting
         let mut scaler = context
             .builder(*font)
-            .size(self.font_size_pixels)
-            .hint(self.font_hinting)
+            .size(self.font.font_size_pixels)
+            .hint(self.font.font_hinting)
             .build();
 
         // Determine render format based on anti-aliasing and thin strokes settings
         let use_thin_strokes = self.should_use_thin_strokes();
-        let render_format = if !self.font_antialias {
+        let render_format = if !self.font.font_antialias {
             // No anti-aliasing: render as alpha mask (will be thresholded)
             Format::Alpha
         } else if use_thin_strokes {
@@ -190,8 +190,8 @@ impl CellRenderer {
             let mut retry_ctx = ScaleContext::new();
             let mut retry_scaler = retry_ctx
                 .builder(*font)
-                .size(self.font_size_pixels)
-                .hint(self.font_hinting)
+                .size(self.font.font_size_pixels)
+                .hint(self.font.font_hinting)
                 .build();
             let color_sources = [
                 swash::scale::Source::ColorBitmap(swash::scale::StrikeWith::BestFit),
@@ -224,7 +224,7 @@ impl CellRenderer {
                 let mut pixels = Vec::with_capacity(image.data.len() * 4);
                 for &mask in &image.data {
                     // If anti-aliasing is disabled, threshold the alpha to create crisp edges
-                    let alpha = if !self.font_antialias {
+                    let alpha = if !self.font.font_antialias {
                         if mask > 127 { 255 } else { 0 }
                     } else {
                         mask
@@ -257,20 +257,20 @@ impl CellRenderer {
 
     pub(crate) fn upload_glyph(&mut self, _key: u64, raster: &RasterizedGlyph) -> GlyphInfo {
         let padding = 2;
-        if self.atlas_next_x + raster.width + padding > 2048 {
-            self.atlas_next_x = 0;
-            self.atlas_next_y += self.atlas_row_height + padding;
-            self.atlas_row_height = 0;
+        if self.atlas.atlas_next_x + raster.width + padding > 2048 {
+            self.atlas.atlas_next_x = 0;
+            self.atlas.atlas_next_y += self.atlas.atlas_row_height + padding;
+            self.atlas.atlas_row_height = 0;
         }
 
-        if self.atlas_next_y + raster.height + padding > 2048 {
+        if self.atlas.atlas_next_y + raster.height + padding > 2048 {
             self.clear_glyph_cache();
         }
 
         let info = GlyphInfo {
             key: _key,
-            x: self.atlas_next_x,
-            y: self.atlas_next_y,
+            x: self.atlas.atlas_next_x,
+            y: self.atlas.atlas_next_y,
             width: raster.width,
             height: raster.height,
             bearing_x: raster.bearing_x,
@@ -282,7 +282,7 @@ impl CellRenderer {
 
         self.queue.write_texture(
             wgpu::TexelCopyTextureInfo {
-                texture: &self.atlas_texture,
+                texture: &self.atlas.atlas_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d {
                     x: info.x,
@@ -314,7 +314,7 @@ impl CellRenderer {
             let zero = vec![0u8; (padding * raster.height * 4) as usize];
             self.queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
-                    texture: &self.atlas_texture,
+                    texture: &self.atlas.atlas_texture,
                     mip_level: 0,
                     origin: wgpu::Origin3d {
                         x: pad_right_x,
@@ -342,7 +342,7 @@ impl CellRenderer {
             let zero = vec![0u8; (raster.width * padding * 4) as usize];
             self.queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
-                    texture: &self.atlas_texture,
+                    texture: &self.atlas.atlas_texture,
                     mip_level: 0,
                     origin: wgpu::Origin3d {
                         x: info.x,
@@ -365,8 +365,8 @@ impl CellRenderer {
             );
         }
 
-        self.atlas_next_x += raster.width + padding;
-        self.atlas_row_height = self.atlas_row_height.max(raster.height);
+        self.atlas.atlas_next_x += raster.width + padding;
+        self.atlas.atlas_row_height = self.atlas.atlas_row_height.max(raster.height);
 
         info
     }

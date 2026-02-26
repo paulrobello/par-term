@@ -20,30 +20,13 @@ pub use types::{Cell, PaneViewport};
 // Re-export internal types for use within the cell_renderer module
 pub(crate) use types::{BackgroundInstance, GlyphInfo, RowCacheEntry, TextInstance};
 
-pub struct CellRenderer {
-    pub(crate) device: Arc<wgpu::Device>,
-    pub(crate) queue: Arc<wgpu::Queue>,
-    pub(crate) surface: wgpu::Surface<'static>,
-    pub(crate) config: wgpu::SurfaceConfiguration,
-    /// Supported present modes for this surface (for vsync mode validation)
-    pub(crate) supported_present_modes: Vec<wgpu::PresentMode>,
-
-    // Pipelines
+/// GPU render pipelines and their associated bind group layouts.
+pub(crate) struct GpuPipelines {
     pub(crate) bg_pipeline: wgpu::RenderPipeline,
     pub(crate) text_pipeline: wgpu::RenderPipeline,
     pub(crate) bg_image_pipeline: wgpu::RenderPipeline,
     #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
     pub(crate) visual_bell_pipeline: wgpu::RenderPipeline,
-
-    // Buffers
-    pub(crate) vertex_buffer: wgpu::Buffer,
-    pub(crate) bg_instance_buffer: wgpu::Buffer,
-    pub(crate) text_instance_buffer: wgpu::Buffer,
-    pub(crate) bg_image_uniform_buffer: wgpu::Buffer,
-    #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
-    pub(crate) visual_bell_uniform_buffer: wgpu::Buffer,
-
-    // Bind groups
     pub(crate) text_bind_group: wgpu::BindGroup,
     #[allow(dead_code)] // GPU lifetime: must outlive bind groups created from this layout
     pub(crate) text_bind_group_layout: wgpu::BindGroupLayout,
@@ -51,8 +34,22 @@ pub struct CellRenderer {
     pub(crate) bg_image_bind_group_layout: wgpu::BindGroupLayout,
     #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
     pub(crate) visual_bell_bind_group: wgpu::BindGroup,
+}
 
-    // Glyph atlas
+/// GPU vertex, instance, and uniform buffers with capacity tracking.
+pub(crate) struct GpuBuffers {
+    pub(crate) vertex_buffer: wgpu::Buffer,
+    pub(crate) bg_instance_buffer: wgpu::Buffer,
+    pub(crate) text_instance_buffer: wgpu::Buffer,
+    pub(crate) bg_image_uniform_buffer: wgpu::Buffer,
+    #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
+    pub(crate) visual_bell_uniform_buffer: wgpu::Buffer,
+    pub(crate) max_bg_instances: usize,
+    pub(crate) max_text_instances: usize,
+}
+
+/// Glyph atlas texture, cache, and LRU eviction state.
+pub(crate) struct GlyphAtlas {
     pub(crate) atlas_texture: wgpu::Texture,
     #[allow(dead_code)] // GPU lifetime: must outlive text_bind_group which references this view
     pub(crate) atlas_view: wgpu::TextureView,
@@ -62,8 +59,12 @@ pub struct CellRenderer {
     pub(crate) atlas_next_x: u32,
     pub(crate) atlas_next_y: u32,
     pub(crate) atlas_row_height: u32,
+    /// Solid white pixel offset in atlas for geometric block rendering
+    pub(crate) solid_pixel_offset: (u32, u32),
+}
 
-    // Grid state
+/// Terminal grid dimensions, cell sizes, padding, and content offsets.
+pub(crate) struct GridLayout {
     pub(crate) cols: usize,
     pub(crate) rows: usize,
     pub(crate) cell_width: f32,
@@ -89,66 +90,72 @@ pub struct CellRenderer {
     /// This is added to content_inset_right for scrollbar bounds only,
     /// since egui panels already claim space before wgpu rendering.
     pub(crate) egui_right_inset: f32,
-    pub(crate) scale_factor: f32,
+}
 
-    // Components
-    pub(crate) font_manager: FontManager,
-    pub(crate) scrollbar: Scrollbar,
-
-    // Dynamic state
-    pub(crate) cells: Vec<Cell>,
-    pub(crate) dirty_rows: Vec<bool>,
-    pub(crate) row_cache: Vec<Option<RowCacheEntry>>,
-    pub(crate) cursor_pos: (usize, usize),
-    pub(crate) cursor_opacity: f32,
-    pub(crate) cursor_style: par_term_emu_core_rust::cursor::CursorStyle,
+/// Cursor position, style, colors, and visual enhancement settings.
+pub(crate) struct CursorState {
+    pub(crate) pos: (usize, usize),
+    pub(crate) opacity: f32,
+    pub(crate) style: par_term_emu_core_rust::cursor::CursorStyle,
     /// Separate cursor instance for beam/underline styles (rendered as overlay)
-    pub(crate) cursor_overlay: Option<BackgroundInstance>,
+    pub(crate) overlay: Option<BackgroundInstance>,
     /// Cursor color [R, G, B] as floats (0.0-1.0)
-    pub(crate) cursor_color: [f32; 3],
+    pub(crate) color: [f32; 3],
     /// Text color under block cursor [R, G, B] as floats (0.0-1.0), or None for auto-contrast
-    pub(crate) cursor_text_color: Option<[f32; 3]>,
+    pub(crate) text_color: Option<[f32; 3]>,
     /// Hide cursor when cursor shader is active (let shader handle cursor rendering)
-    pub(crate) cursor_hidden_for_shader: bool,
-    /// Whether the window is currently focused (for unfocused cursor style)
-    pub(crate) is_focused: bool,
-
-    // Cursor enhancement settings
+    pub(crate) hidden_for_shader: bool,
     /// Enable cursor guide (horizontal line at cursor row)
-    pub(crate) cursor_guide_enabled: bool,
+    pub(crate) guide_enabled: bool,
     /// Cursor guide color [R, G, B, A] as floats (0.0-1.0)
-    pub(crate) cursor_guide_color: [f32; 4],
+    pub(crate) guide_color: [f32; 4],
     /// Enable cursor shadow
-    pub(crate) cursor_shadow_enabled: bool,
+    pub(crate) shadow_enabled: bool,
     /// Cursor shadow color [R, G, B, A] as floats (0.0-1.0)
-    pub(crate) cursor_shadow_color: [f32; 4],
+    pub(crate) shadow_color: [f32; 4],
     /// Cursor shadow offset in pixels [x, y]
-    pub(crate) cursor_shadow_offset: [f32; 2],
+    pub(crate) shadow_offset: [f32; 2],
     /// Cursor shadow blur radius (not fully supported yet, but stores config)
-    pub(crate) cursor_shadow_blur: f32,
+    pub(crate) shadow_blur: f32,
     /// Cursor boost (glow) intensity (0.0-1.0)
-    pub(crate) cursor_boost: f32,
+    pub(crate) boost: f32,
     /// Cursor boost glow color [R, G, B] as floats (0.0-1.0)
-    pub(crate) cursor_boost_color: [f32; 3],
+    pub(crate) boost_color: [f32; 3],
     /// Unfocused cursor style (hollow, same, hidden)
-    pub(crate) unfocused_cursor_style: par_term_config::UnfocusedCursorStyle,
-    pub(crate) visual_bell_intensity: f32,
-    pub(crate) window_opacity: f32,
-    pub(crate) background_color: [f32; 4],
+    pub(crate) unfocused_style: par_term_config::UnfocusedCursorStyle,
+}
 
-    // Font configuration (base values, before scale factor)
+/// Font configuration (base values), scaled metrics, shaping, and rendering options.
+pub(crate) struct FontState {
+    // Base configuration (before scale factor)
     pub(crate) base_font_size: f32,
     pub(crate) line_spacing: f32,
     pub(crate) char_spacing: f32,
-
-    // Font metrics (scaled by current scale_factor)
+    // Scaled metrics (scaled by current scale_factor)
     pub(crate) font_ascent: f32,
     pub(crate) font_descent: f32,
     pub(crate) font_leading: f32,
     pub(crate) font_size_pixels: f32,
     pub(crate) char_advance: f32,
+    // Shaping options
+    #[allow(dead_code)] // Config stored for future text shaping pipeline integration
+    pub(crate) enable_text_shaping: bool,
+    pub(crate) enable_ligatures: bool,
+    pub(crate) enable_kerning: bool,
+    // Rendering options
+    /// Enable anti-aliasing for font rendering
+    pub(crate) font_antialias: bool,
+    /// Enable hinting for font rendering
+    pub(crate) font_hinting: bool,
+    /// Thin strokes mode for font rendering
+    pub(crate) font_thin_strokes: par_term_config::ThinStrokesMode,
+    /// Minimum contrast ratio for text against background (WCAG standard)
+    /// 1.0 = disabled, 4.5 = WCAG AA, 7.0 = WCAG AAA
+    pub(crate) minimum_contrast: f32,
+}
 
-    // Background image
+/// Background image/solid-color texture state and per-pane cache.
+pub(crate) struct BackgroundImageState {
     pub(crate) bg_image_texture: Option<wgpu::Texture>,
     pub(crate) bg_image_mode: par_term_config::BackgroundImageMode,
     pub(crate) bg_image_opacity: f32,
@@ -161,62 +168,77 @@ pub struct CellRenderer {
     /// The solid background color [R, G, B] as floats (0.0-1.0).
     /// Only used when bg_is_solid_color is true.
     pub(crate) solid_bg_color: [f32; 3],
-
     /// Cache of per-pane background textures keyed by image path
     pub(crate) pane_bg_cache: HashMap<String, background::PaneBackgroundEntry>,
+}
 
-    // Metrics
-    pub(crate) max_bg_instances: usize,
-    pub(crate) max_text_instances: usize,
+/// Command separator line settings and visible marks.
+pub(crate) struct SeparatorConfig {
+    /// Whether to render separator lines between commands
+    pub(crate) enabled: bool,
+    /// Thickness of separator lines in pixels
+    pub(crate) thickness: f32,
+    /// Opacity of separator lines (0.0-1.0)
+    pub(crate) opacity: f32,
+    /// Whether to color separator lines by exit code
+    pub(crate) exit_color: bool,
+    /// Custom separator color [R, G, B] as floats (0.0-1.0)
+    pub(crate) color: [f32; 3],
+    /// Visible separator marks for current frame: (screen_row, exit_code, custom_color)
+    pub(crate) visible_marks: Vec<SeparatorMark>,
+}
+
+pub struct CellRenderer {
+    // Core wgpu state
+    pub(crate) device: Arc<wgpu::Device>,
+    pub(crate) queue: Arc<wgpu::Queue>,
+    pub(crate) surface: wgpu::Surface<'static>,
+    pub(crate) config: wgpu::SurfaceConfiguration,
+    /// Supported present modes for this surface (for vsync mode validation)
+    pub(crate) supported_present_modes: Vec<wgpu::PresentMode>,
+
+    // Sub-structs grouping related GPU and rendering state
+    pub(crate) pipelines: GpuPipelines,
+    pub(crate) buffers: GpuBuffers,
+    pub(crate) atlas: GlyphAtlas,
+    pub(crate) grid: GridLayout,
+    pub(crate) cursor: CursorState,
+    pub(crate) font: FontState,
+    pub(crate) bg_state: BackgroundImageState,
+    pub(crate) separator: SeparatorConfig,
+
+    /// Display scale factor (accessed directly from renderer module)
+    pub(crate) scale_factor: f32,
+
+    // Components
+    pub(crate) font_manager: FontManager,
+    pub(crate) scrollbar: Scrollbar,
+
+    // Dynamic state
+    pub(crate) cells: Vec<Cell>,
+    pub(crate) dirty_rows: Vec<bool>,
+    pub(crate) row_cache: Vec<Option<RowCacheEntry>>,
+
+    // Rendering state
+    pub(crate) visual_bell_intensity: f32,
+    pub(crate) window_opacity: f32,
+    pub(crate) background_color: [f32; 4],
+    /// Whether the window is currently focused (for unfocused cursor style)
+    pub(crate) is_focused: bool,
 
     // CPU-side instance buffers for incremental updates
     pub(crate) bg_instances: Vec<BackgroundInstance>,
     pub(crate) text_instances: Vec<TextInstance>,
 
-    // Shaping options
-    #[allow(dead_code)] // Config stored for future text shaping pipeline integration
-    pub(crate) enable_text_shaping: bool,
-    pub(crate) enable_ligatures: bool,
-    pub(crate) enable_kerning: bool,
-
-    // Font rendering options
-    /// Enable anti-aliasing for font rendering
-    pub(crate) font_antialias: bool,
-    /// Enable hinting for font rendering
-    pub(crate) font_hinting: bool,
-    /// Thin strokes mode for font rendering
-    pub(crate) font_thin_strokes: par_term_config::ThinStrokesMode,
-    /// Minimum contrast ratio for text against background (WCAG standard)
-    /// 1.0 = disabled, 4.5 = WCAG AA, 7.0 = WCAG AAA
-    pub(crate) minimum_contrast: f32,
-
-    // Solid white pixel in atlas for geometric block rendering
-    pub(crate) solid_pixel_offset: (u32, u32),
-
     // Transparency mode
     /// When true, only default background cells are transparent.
     /// Non-default (colored) backgrounds remain opaque for readability.
     pub(crate) transparency_affects_only_default_background: bool,
-
     /// When true, text is always rendered at full opacity regardless of window transparency.
     pub(crate) keep_text_opaque: bool,
-
     /// Style for link underlines (solid or stipple)
     pub(crate) link_underline_style: par_term_config::LinkUnderlineStyle,
 
-    // Command separator line settings
-    /// Whether to render separator lines between commands
-    pub(crate) command_separator_enabled: bool,
-    /// Thickness of separator lines in pixels
-    pub(crate) command_separator_thickness: f32,
-    /// Opacity of separator lines (0.0-1.0)
-    pub(crate) command_separator_opacity: f32,
-    /// Whether to color separator lines by exit code
-    pub(crate) command_separator_exit_color: bool,
-    /// Custom separator color [R, G, B] as floats (0.0-1.0)
-    pub(crate) command_separator_color: [f32; 3],
-    /// Visible separator marks for current frame: (screen_row, exit_code, custom_color)
-    pub(crate) visible_separator_marks: Vec<SeparatorMark>,
     /// Gutter indicator marks for current frame: (screen_row, rgba_color)
     pub(crate) gutter_indicators: Vec<(usize, [f32; 4])>,
 }
@@ -452,83 +474,113 @@ impl CellRenderer {
             surface,
             config,
             supported_present_modes,
-            bg_pipeline,
-            text_pipeline,
-            bg_image_pipeline,
-            visual_bell_pipeline,
-            vertex_buffer,
-            bg_instance_buffer,
-            text_instance_buffer,
-            bg_image_uniform_buffer,
-            visual_bell_uniform_buffer,
-            text_bind_group,
-            text_bind_group_layout,
-            bg_image_bind_group: None,
-            bg_image_bind_group_layout,
-            visual_bell_bind_group,
-            atlas_texture,
-            atlas_view,
-            glyph_cache: HashMap::new(),
-            lru_head: None,
-            lru_tail: None,
-            atlas_next_x: 0,
-            atlas_next_y: 0,
-            atlas_row_height: 0,
-            cols,
-            rows,
-            cell_width,
-            cell_height,
-            window_padding,
-            content_offset_y: 0.0,
-            content_offset_x: 0.0,
-            content_inset_bottom: 0.0,
-            content_inset_right: 0.0,
-            egui_bottom_inset: 0.0,
-            egui_right_inset: 0.0,
+            pipelines: GpuPipelines {
+                bg_pipeline,
+                text_pipeline,
+                bg_image_pipeline,
+                visual_bell_pipeline,
+                text_bind_group,
+                text_bind_group_layout,
+                bg_image_bind_group: None,
+                bg_image_bind_group_layout,
+                visual_bell_bind_group,
+            },
+            buffers: GpuBuffers {
+                vertex_buffer,
+                bg_instance_buffer,
+                text_instance_buffer,
+                bg_image_uniform_buffer,
+                visual_bell_uniform_buffer,
+                max_bg_instances,
+                max_text_instances,
+            },
+            atlas: GlyphAtlas {
+                atlas_texture,
+                atlas_view,
+                glyph_cache: HashMap::new(),
+                lru_head: None,
+                lru_tail: None,
+                atlas_next_x: 0,
+                atlas_next_y: 0,
+                atlas_row_height: 0,
+                solid_pixel_offset: (0, 0),
+            },
+            grid: GridLayout {
+                cols,
+                rows,
+                cell_width,
+                cell_height,
+                window_padding,
+                content_offset_y: 0.0,
+                content_offset_x: 0.0,
+                content_inset_bottom: 0.0,
+                content_inset_right: 0.0,
+                egui_bottom_inset: 0.0,
+                egui_right_inset: 0.0,
+            },
+            cursor: CursorState {
+                pos: (0, 0),
+                opacity: 0.0,
+                style: par_term_emu_core_rust::cursor::CursorStyle::SteadyBlock,
+                overlay: None,
+                color: [1.0, 1.0, 1.0],
+                text_color: None,
+                hidden_for_shader: false,
+                guide_enabled: false,
+                guide_color: [1.0, 1.0, 1.0, 0.08],
+                shadow_enabled: false,
+                shadow_color: [0.0, 0.0, 0.0, 0.5],
+                shadow_offset: [2.0, 2.0],
+                shadow_blur: 3.0,
+                boost: 0.0,
+                boost_color: [1.0, 1.0, 1.0],
+                unfocused_style: par_term_config::UnfocusedCursorStyle::default(),
+            },
+            font: FontState {
+                base_font_size: font_size,
+                line_spacing,
+                char_spacing,
+                font_ascent,
+                font_descent,
+                font_leading,
+                font_size_pixels,
+                char_advance,
+                enable_text_shaping,
+                enable_ligatures,
+                enable_kerning,
+                font_antialias,
+                font_hinting,
+                font_thin_strokes,
+                minimum_contrast: minimum_contrast.clamp(1.0, 21.0),
+            },
+            bg_state: BackgroundImageState {
+                bg_image_texture: None,
+                bg_image_mode: background_image_mode,
+                bg_image_opacity: background_image_opacity,
+                bg_image_width: 0,
+                bg_image_height: 0,
+                bg_is_solid_color: false,
+                solid_bg_color: [0.0, 0.0, 0.0],
+                pane_bg_cache: HashMap::new(),
+            },
+            separator: SeparatorConfig {
+                enabled: false,
+                thickness: 1.0,
+                opacity: 0.4,
+                exit_color: true,
+                color: [0.5, 0.5, 0.5],
+                visible_marks: Vec::new(),
+            },
             scale_factor,
             font_manager,
             scrollbar,
             cells: vec![Cell::default(); cols * rows],
             dirty_rows: vec![true; rows],
             row_cache: (0..rows).map(|_| None).collect(),
-            cursor_pos: (0, 0),
-            cursor_opacity: 0.0,
-            cursor_style: par_term_emu_core_rust::cursor::CursorStyle::SteadyBlock,
-            cursor_overlay: None,
-            cursor_color: [1.0, 1.0, 1.0],
-            cursor_text_color: None,
-            cursor_hidden_for_shader: false,
             is_focused: true,
-            cursor_guide_enabled: false,
-            cursor_guide_color: [1.0, 1.0, 1.0, 0.08],
-            cursor_shadow_enabled: false,
-            cursor_shadow_color: [0.0, 0.0, 0.0, 0.5],
-            cursor_shadow_offset: [2.0, 2.0],
-            cursor_shadow_blur: 3.0,
-            cursor_boost: 0.0,
-            cursor_boost_color: [1.0, 1.0, 1.0],
-            unfocused_cursor_style: par_term_config::UnfocusedCursorStyle::default(),
             visual_bell_intensity: 0.0,
             window_opacity,
             background_color: color_u8_to_f32_a(background_color, 1.0),
-            base_font_size: font_size,
-            line_spacing,
-            char_spacing,
-            font_ascent,
-            font_descent,
-            font_leading,
-            font_size_pixels,
-            char_advance,
-            bg_image_texture: None,
-            bg_image_mode: background_image_mode,
-            bg_image_opacity: background_image_opacity,
-            bg_image_width: 0,
-            bg_image_height: 0,
-            bg_is_solid_color: false,
-            solid_bg_color: [0.0, 0.0, 0.0],
-            pane_bg_cache: HashMap::new(),
-            max_bg_instances,
-            max_text_instances,
             bg_instances: vec![
                 BackgroundInstance {
                     position: [0.0, 0.0],
@@ -548,23 +600,9 @@ impl CellRenderer {
                 };
                 max_text_instances
             ],
-            enable_text_shaping,
-            enable_ligatures,
-            enable_kerning,
-            font_antialias,
-            font_hinting,
-            font_thin_strokes,
-            minimum_contrast: minimum_contrast.clamp(1.0, 21.0),
-            solid_pixel_offset: (0, 0),
             transparency_affects_only_default_background: false,
             keep_text_opaque: true,
             link_underline_style: par_term_config::LinkUnderlineStyle::default(),
-            command_separator_enabled: false,
-            command_separator_thickness: 1.0,
-            command_separator_opacity: 0.4,
-            command_separator_exit_color: true,
-            command_separator_color: [0.5, 0.5, 0.5],
-            visible_separator_marks: Vec::new(),
             gutter_indicators: Vec::new(),
         };
 
@@ -596,11 +634,11 @@ impl CellRenderer {
 
         self.queue.write_texture(
             wgpu::TexelCopyTextureInfo {
-                texture: &self.atlas_texture,
+                texture: &self.atlas.atlas_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d {
-                    x: self.atlas_next_x,
-                    y: self.atlas_next_y,
+                    x: self.atlas.atlas_next_x,
+                    y: self.atlas.atlas_next_y,
                     z: 0,
                 },
                 aspect: wgpu::TextureAspect::All,
@@ -618,9 +656,9 @@ impl CellRenderer {
             },
         );
 
-        self.solid_pixel_offset = (self.atlas_next_x, self.atlas_next_y);
-        self.atlas_next_x += size + 2; // padding
-        self.atlas_row_height = self.atlas_row_height.max(size);
+        self.atlas.solid_pixel_offset = (self.atlas.atlas_next_x, self.atlas.atlas_next_y);
+        self.atlas.atlas_next_x += size + 2; // padding
+        self.atlas.atlas_row_height = self.atlas.atlas_row_height.max(size);
     }
 
     pub fn device(&self) -> &wgpu::Device {
@@ -633,73 +671,73 @@ impl CellRenderer {
         self.config.format
     }
     pub fn cell_width(&self) -> f32 {
-        self.cell_width
+        self.grid.cell_width
     }
     pub fn cell_height(&self) -> f32 {
-        self.cell_height
+        self.grid.cell_height
     }
     pub fn window_padding(&self) -> f32 {
-        self.window_padding
+        self.grid.window_padding
     }
     pub fn content_offset_y(&self) -> f32 {
-        self.content_offset_y
+        self.grid.content_offset_y
     }
     /// Set the vertical content offset (e.g., tab bar height at top).
     /// Returns Some((cols, rows)) if grid size changed, None otherwise.
     pub fn set_content_offset_y(&mut self, offset: f32) -> Option<(usize, usize)> {
-        if (self.content_offset_y - offset).abs() > f32::EPSILON {
-            self.content_offset_y = offset;
+        if (self.grid.content_offset_y - offset).abs() > f32::EPSILON {
+            self.grid.content_offset_y = offset;
             let size = (self.config.width, self.config.height);
             return Some(self.resize(size.0, size.1));
         }
         None
     }
     pub fn content_offset_x(&self) -> f32 {
-        self.content_offset_x
+        self.grid.content_offset_x
     }
     /// Set the horizontal content offset (e.g., tab bar on left).
     /// Returns Some((cols, rows)) if grid size changed, None otherwise.
     pub fn set_content_offset_x(&mut self, offset: f32) -> Option<(usize, usize)> {
-        if (self.content_offset_x - offset).abs() > f32::EPSILON {
-            self.content_offset_x = offset;
+        if (self.grid.content_offset_x - offset).abs() > f32::EPSILON {
+            self.grid.content_offset_x = offset;
             let size = (self.config.width, self.config.height);
             return Some(self.resize(size.0, size.1));
         }
         None
     }
     pub fn content_inset_bottom(&self) -> f32 {
-        self.content_inset_bottom
+        self.grid.content_inset_bottom
     }
     /// Set the bottom content inset (e.g., tab bar at bottom).
     /// Returns Some((cols, rows)) if grid size changed, None otherwise.
     pub fn set_content_inset_bottom(&mut self, inset: f32) -> Option<(usize, usize)> {
-        if (self.content_inset_bottom - inset).abs() > f32::EPSILON {
-            self.content_inset_bottom = inset;
+        if (self.grid.content_inset_bottom - inset).abs() > f32::EPSILON {
+            self.grid.content_inset_bottom = inset;
             let size = (self.config.width, self.config.height);
             return Some(self.resize(size.0, size.1));
         }
         None
     }
     pub fn content_inset_right(&self) -> f32 {
-        self.content_inset_right
+        self.grid.content_inset_right
     }
     /// Set the right content inset (e.g., AI Inspector panel).
     /// Returns Some((cols, rows)) if grid size changed, None otherwise.
     pub fn set_content_inset_right(&mut self, inset: f32) -> Option<(usize, usize)> {
-        if (self.content_inset_right - inset).abs() > f32::EPSILON {
+        if (self.grid.content_inset_right - inset).abs() > f32::EPSILON {
             log::info!(
                 "[SCROLLBAR] set_content_inset_right: {:.1} -> {:.1} (physical px)",
-                self.content_inset_right,
+                self.grid.content_inset_right,
                 inset
             );
-            self.content_inset_right = inset;
+            self.grid.content_inset_right = inset;
             let size = (self.config.width, self.config.height);
             return Some(self.resize(size.0, size.1));
         }
         None
     }
     pub fn grid_size(&self) -> (usize, usize) {
-        (self.cols, self.rows)
+        (self.grid.cols, self.grid.rows)
     }
     pub fn keep_text_opaque(&self) -> bool {
         self.keep_text_opaque
@@ -707,50 +745,51 @@ impl CellRenderer {
 
     pub fn resize(&mut self, width: u32, height: u32) -> (usize, usize) {
         if width == 0 || height == 0 {
-            return (self.cols, self.rows);
+            return (self.grid.cols, self.grid.rows);
         }
         self.config.width = width;
         self.config.height = height;
         self.surface.configure(&self.device, &self.config);
 
         let available_width = (width as f32
-            - self.window_padding * 2.0
-            - self.content_offset_x
-            - self.content_inset_right
+            - self.grid.window_padding * 2.0
+            - self.grid.content_offset_x
+            - self.grid.content_inset_right
             - self.scrollbar.width())
         .max(0.0);
         let available_height = (height as f32
-            - self.window_padding * 2.0
-            - self.content_offset_y
-            - self.content_inset_bottom
-            - self.egui_bottom_inset)
+            - self.grid.window_padding * 2.0
+            - self.grid.content_offset_y
+            - self.grid.content_inset_bottom
+            - self.grid.egui_bottom_inset)
             .max(0.0);
-        let new_cols = (available_width / self.cell_width).max(1.0) as usize;
-        let new_rows = (available_height / self.cell_height).max(1.0) as usize;
+        let new_cols = (available_width / self.grid.cell_width).max(1.0) as usize;
+        let new_rows = (available_height / self.grid.cell_height).max(1.0) as usize;
 
-        if new_cols != self.cols || new_rows != self.rows {
-            self.cols = new_cols;
-            self.rows = new_rows;
-            self.cells = vec![Cell::default(); self.cols * self.rows];
-            self.dirty_rows = vec![true; self.rows];
-            self.row_cache = (0..self.rows).map(|_| None).collect();
+        if new_cols != self.grid.cols || new_rows != self.grid.rows {
+            self.grid.cols = new_cols;
+            self.grid.rows = new_rows;
+            self.cells = vec![Cell::default(); self.grid.cols * self.grid.rows];
+            self.dirty_rows = vec![true; self.grid.rows];
+            self.row_cache = (0..self.grid.rows).map(|_| None).collect();
             self.recreate_instance_buffers();
         }
 
         self.update_bg_image_uniforms();
-        (self.cols, self.rows)
+        (self.grid.cols, self.grid.rows)
     }
 
     fn recreate_instance_buffers(&mut self) {
-        self.max_bg_instances = self.cols * self.rows + 10 + self.rows + self.rows; // Extra slots for cursor overlays + separator lines + gutter indicators
-        self.max_text_instances = self.cols * self.rows * 2;
+        self.buffers.max_bg_instances =
+            self.grid.cols * self.grid.rows + 10 + self.grid.rows + self.grid.rows; // Extra slots for cursor overlays + separator lines + gutter indicators
+        self.buffers.max_text_instances = self.grid.cols * self.grid.rows * 2;
         let (bg_buf, text_buf) = pipeline::create_instance_buffers(
             &self.device,
-            self.max_bg_instances,
-            self.max_text_instances,
+            self.buffers.max_bg_instances,
+            self.buffers.max_text_instances,
         );
-        self.bg_instance_buffer = bg_buf;
-        self.text_instance_buffer = text_buf;
+        self.buffers.bg_instance_buffer = bg_buf;
+        self.buffers.text_instance_buffer = text_buf;
 
         self.bg_instances = vec![
             BackgroundInstance {
@@ -758,7 +797,7 @@ impl CellRenderer {
                 size: [0.0, 0.0],
                 color: [0.0, 0.0, 0.0, 0.0],
             };
-            self.max_bg_instances
+            self.buffers.max_bg_instances
         ];
         self.text_instances = vec![
             TextInstance {
@@ -769,16 +808,16 @@ impl CellRenderer {
                 color: [0.0, 0.0, 0.0, 0.0],
                 is_colored: 0,
             };
-            self.max_text_instances
+            self.buffers.max_text_instances
         ];
     }
 
     /// Update cells. Returns `true` if any row actually changed.
     pub fn update_cells(&mut self, new_cells: &[Cell]) -> bool {
         let mut changed = false;
-        for row in 0..self.rows {
-            let start = row * self.cols;
-            let end = (row + 1) * self.cols;
+        for row in 0..self.grid.rows {
+            let start = row * self.grid.cols;
+            let end = (row + 1) * self.grid.cols;
             if start < new_cells.len() && end <= new_cells.len() {
                 let row_slice = &new_cells[start..end];
                 if row_slice != &self.cells[start..end] {
@@ -808,31 +847,33 @@ impl CellRenderer {
         opacity: f32,
         style: par_term_emu_core_rust::cursor::CursorStyle,
     ) -> bool {
-        if self.cursor_pos != pos || self.cursor_opacity != opacity || self.cursor_style != style {
-            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
-            self.cursor_pos = pos;
-            self.cursor_opacity = opacity;
-            self.cursor_style = style;
-            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+        if self.cursor.pos != pos || self.cursor.opacity != opacity || self.cursor.style != style {
+            self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
+            self.cursor.pos = pos;
+            self.cursor.opacity = opacity;
+            self.cursor.style = style;
+            self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
 
             // Compute cursor overlay for beam/underline styles
             use par_term_emu_core_rust::cursor::CursorStyle;
-            self.cursor_overlay = if opacity > 0.0 {
+            self.cursor.overlay = if opacity > 0.0 {
                 let col = pos.0;
                 let row = pos.1;
-                let x0 =
-                    (self.window_padding + self.content_offset_x + col as f32 * self.cell_width)
-                        .round();
-                let x1 = (self.window_padding
-                    + self.content_offset_x
-                    + (col + 1) as f32 * self.cell_width)
+                let x0 = (self.grid.window_padding
+                    + self.grid.content_offset_x
+                    + col as f32 * self.grid.cell_width)
                     .round();
-                let y0 =
-                    (self.window_padding + self.content_offset_y + row as f32 * self.cell_height)
-                        .round();
-                let y1 = (self.window_padding
-                    + self.content_offset_y
-                    + (row + 1) as f32 * self.cell_height)
+                let x1 = (self.grid.window_padding
+                    + self.grid.content_offset_x
+                    + (col + 1) as f32 * self.grid.cell_width)
+                    .round();
+                let y0 = (self.grid.window_padding
+                    + self.grid.content_offset_y
+                    + row as f32 * self.grid.cell_height)
+                    .round();
+                let y1 = (self.grid.window_padding
+                    + self.grid.content_offset_y
+                    + (row + 1) as f32 * self.grid.cell_height)
                     .round();
 
                 match style {
@@ -847,9 +888,9 @@ impl CellRenderer {
                             (y1 - y0) / self.config.height as f32 * 2.0,
                         ],
                         color: [
-                            self.cursor_color[0],
-                            self.cursor_color[1],
-                            self.cursor_color[2],
+                            self.cursor.color[0],
+                            self.cursor.color[1],
+                            self.cursor.color[2],
                             opacity,
                         ],
                     }),
@@ -864,9 +905,9 @@ impl CellRenderer {
                                 2.0 / self.config.height as f32 * 2.0,
                             ],
                             color: [
-                                self.cursor_color[0],
-                                self.cursor_color[1],
-                                self.cursor_color[2],
+                                self.cursor.color[0],
+                                self.cursor.color[1],
+                                self.cursor.color[2],
                                 opacity,
                             ],
                         })
@@ -881,27 +922,29 @@ impl CellRenderer {
     }
 
     pub fn clear_cursor(&mut self) -> bool {
-        self.update_cursor(self.cursor_pos, 0.0, self.cursor_style)
+        let pos = self.cursor.pos;
+        let style = self.cursor.style;
+        self.update_cursor(pos, 0.0, style)
     }
 
     /// Update cursor color
     pub fn update_cursor_color(&mut self, color: [u8; 3]) {
-        self.cursor_color = color_u8_to_f32(color);
-        self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+        self.cursor.color = color_u8_to_f32(color);
+        self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
     }
 
     /// Update cursor text color (color of text under block cursor)
     pub fn update_cursor_text_color(&mut self, color: Option<[u8; 3]>) {
-        self.cursor_text_color = color.map(color_u8_to_f32);
-        self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+        self.cursor.text_color = color.map(color_u8_to_f32);
+        self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
     }
 
     /// Set whether cursor should be hidden when cursor shader is active.
     /// Returns `true` if the value changed.
     pub fn set_cursor_hidden_for_shader(&mut self, hidden: bool) -> bool {
-        if self.cursor_hidden_for_shader != hidden {
-            self.cursor_hidden_for_shader = hidden;
-            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+        if self.cursor.hidden_for_shader != hidden {
+            self.cursor.hidden_for_shader = hidden;
+            self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
             return true;
         }
         false
@@ -912,7 +955,7 @@ impl CellRenderer {
     pub fn set_focused(&mut self, focused: bool) -> bool {
         if self.is_focused != focused {
             self.is_focused = focused;
-            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+            self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
             return true;
         }
         false
@@ -920,10 +963,10 @@ impl CellRenderer {
 
     /// Update cursor guide settings
     pub fn update_cursor_guide(&mut self, enabled: bool, color: [u8; 4]) {
-        self.cursor_guide_enabled = enabled;
-        self.cursor_guide_color = color_u8x4_to_f32(color);
+        self.cursor.guide_enabled = enabled;
+        self.cursor.guide_color = color_u8x4_to_f32(color);
         if enabled {
-            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+            self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
         }
     }
 
@@ -935,29 +978,29 @@ impl CellRenderer {
         offset: [f32; 2],
         blur: f32,
     ) {
-        self.cursor_shadow_enabled = enabled;
-        self.cursor_shadow_color = color_u8x4_to_f32(color);
-        self.cursor_shadow_offset = offset;
-        self.cursor_shadow_blur = blur;
+        self.cursor.shadow_enabled = enabled;
+        self.cursor.shadow_color = color_u8x4_to_f32(color);
+        self.cursor.shadow_offset = offset;
+        self.cursor.shadow_blur = blur;
         if enabled {
-            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+            self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
         }
     }
 
     /// Update cursor boost settings
     pub fn update_cursor_boost(&mut self, intensity: f32, color: [u8; 3]) {
-        self.cursor_boost = intensity.clamp(0.0, 1.0);
-        self.cursor_boost_color = color_u8_to_f32(color);
+        self.cursor.boost = intensity.clamp(0.0, 1.0);
+        self.cursor.boost_color = color_u8_to_f32(color);
         if intensity > 0.0 {
-            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+            self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
         }
     }
 
     /// Update unfocused cursor style
     pub fn update_unfocused_cursor_style(&mut self, style: par_term_config::UnfocusedCursorStyle) {
-        self.unfocused_cursor_style = style;
+        self.cursor.unfocused_style = style;
         if !self.is_focused {
-            self.dirty_rows[self.cursor_pos.1.min(self.rows - 1)] = true;
+            self.dirty_rows[self.cursor.pos.1.min(self.grid.rows - 1)] = true;
         }
     }
 
@@ -968,7 +1011,7 @@ impl CellRenderer {
         total_lines: usize,
         marks: &[par_term_config::ScrollbackMark],
     ) {
-        let right_inset = self.content_inset_right + self.egui_right_inset;
+        let right_inset = self.grid.content_inset_right + self.grid.egui_right_inset;
         self.scrollbar.update(
             &self.queue,
             scroll_offset,
@@ -976,8 +1019,8 @@ impl CellRenderer {
             total_lines,
             self.config.width,
             self.config.height,
-            self.content_offset_y,
-            self.content_inset_bottom + self.egui_bottom_inset,
+            self.grid.content_offset_y,
+            self.grid.content_inset_bottom + self.grid.egui_bottom_inset,
             right_inset,
             marks,
         );
@@ -1004,12 +1047,12 @@ impl CellRenderer {
 
         // Bottom inset: space below the pane + existing egui bottom inset
         let pane_bottom_inset =
-            (win_h - (viewport.y + viewport.height)).max(0.0) + self.egui_bottom_inset;
+            (win_h - (viewport.y + viewport.height)).max(0.0) + self.grid.egui_bottom_inset;
 
         // Right inset: space to the right of the pane + existing egui/panel right inset
         let pane_right_inset = (win_w - (viewport.x + viewport.width)).max(0.0)
-            + self.content_inset_right
-            + self.egui_right_inset;
+            + self.grid.content_inset_right
+            + self.grid.egui_right_inset;
 
         self.scrollbar.update(
             &self.queue,
@@ -1085,18 +1128,18 @@ impl CellRenderer {
         exit_color: bool,
         color: [u8; 3],
     ) {
-        self.command_separator_enabled = enabled;
-        self.command_separator_thickness = thickness;
-        self.command_separator_opacity = opacity;
-        self.command_separator_exit_color = exit_color;
-        self.command_separator_color = color_u8_to_f32(color);
+        self.separator.enabled = enabled;
+        self.separator.thickness = thickness;
+        self.separator.opacity = opacity;
+        self.separator.exit_color = exit_color;
+        self.separator.color = color_u8_to_f32(color);
     }
 
     /// Set the visible separator marks for the current frame.
     /// Returns `true` if the marks changed.
     pub fn set_separator_marks(&mut self, marks: Vec<SeparatorMark>) -> bool {
-        if self.visible_separator_marks != marks {
-            self.visible_separator_marks = marks;
+        if self.separator.visible_marks != marks {
+            self.separator.visible_marks = marks;
             return true;
         }
         false
@@ -1116,12 +1159,12 @@ impl CellRenderer {
         custom_color: Option<(u8, u8, u8)>,
         opacity_mult: f32,
     ) -> [f32; 4] {
-        let alpha = self.command_separator_opacity * opacity_mult;
+        let alpha = self.separator.opacity * opacity_mult;
         // Custom color from trigger marks takes priority
         if let Some((r, g, b)) = custom_color {
             return color_tuple_to_f32_a(r, g, b, alpha);
         }
-        if self.command_separator_exit_color {
+        if self.separator.exit_color {
             match exit_code {
                 Some(0) => [0.3, 0.75, 0.3, alpha],   // Green for success
                 Some(_) => [0.85, 0.25, 0.25, alpha], // Red for failure
@@ -1129,9 +1172,9 @@ impl CellRenderer {
             }
         } else {
             [
-                self.command_separator_color[0],
-                self.command_separator_color[1],
-                self.command_separator_color[2],
+                self.separator.color[0],
+                self.separator.color[1],
+                self.separator.color[2],
                 alpha,
             ]
         }
@@ -1161,14 +1204,14 @@ impl CellRenderer {
         } else {
             96.0
         };
-        let base_font_pixels = self.base_font_size * platform_dpi / 72.0;
-        self.font_size_pixels = (base_font_pixels * new_scale).max(1.0);
+        let base_font_pixels = self.font.base_font_size * platform_dpi / 72.0;
+        self.font.font_size_pixels = (base_font_pixels * new_scale).max(1.0);
 
         // Re-extract font metrics at new scale
         let (font_ascent, font_descent, font_leading, char_advance) = {
             let primary_font = self.font_manager.get_font(0).unwrap();
             let metrics = primary_font.metrics(&[]);
-            let scale = self.font_size_pixels / metrics.units_per_em as f32;
+            let scale = self.font.font_size_pixels / metrics.units_per_em as f32;
             let glyph_id = primary_font.charmap().map('m');
             let advance = primary_font.glyph_metrics(&[]).advance_width(glyph_id) * scale;
             (
@@ -1179,21 +1222,21 @@ impl CellRenderer {
             )
         };
 
-        self.font_ascent = font_ascent;
-        self.font_descent = font_descent;
-        self.font_leading = font_leading;
-        self.char_advance = char_advance;
+        self.font.font_ascent = font_ascent;
+        self.font.font_descent = font_descent;
+        self.font.font_leading = font_leading;
+        self.font.char_advance = char_advance;
 
         // Recalculate cell dimensions
         let natural_line_height = font_ascent + font_descent + font_leading;
-        self.cell_height = (natural_line_height * self.line_spacing).max(1.0);
-        self.cell_width = (char_advance * self.char_spacing).max(1.0);
+        self.grid.cell_height = (natural_line_height * self.font.line_spacing).max(1.0);
+        self.grid.cell_width = (char_advance * self.font.char_spacing).max(1.0);
 
         log::info!(
             "New cell dimensions: {}x{} (font_size_pixels: {})",
-            self.cell_width,
-            self.cell_height,
-            self.font_size_pixels
+            self.grid.cell_width,
+            self.grid.cell_height,
+            self.font.font_size_pixels
         );
 
         // Clear glyph cache - glyphs need to be re-rasterized at new DPI
@@ -1204,8 +1247,8 @@ impl CellRenderer {
     }
 
     pub fn update_window_padding(&mut self, padding: f32) -> Option<(usize, usize)> {
-        if (self.window_padding - padding).abs() > f32::EPSILON {
-            self.window_padding = padding;
+        if (self.grid.window_padding - padding).abs() > f32::EPSILON {
+            self.grid.window_padding = padding;
             let size = (self.config.width, self.config.height);
             return Some(self.resize(size.0, size.1));
         }
@@ -1260,8 +1303,8 @@ impl CellRenderer {
     /// Update font anti-aliasing setting
     /// Returns true if the setting changed (requiring glyph cache clear)
     pub fn update_font_antialias(&mut self, enabled: bool) -> bool {
-        if self.font_antialias != enabled {
-            self.font_antialias = enabled;
+        if self.font.font_antialias != enabled {
+            self.font.font_antialias = enabled;
             self.clear_glyph_cache();
             self.dirty_rows.fill(true);
             true
@@ -1273,8 +1316,8 @@ impl CellRenderer {
     /// Update font hinting setting
     /// Returns true if the setting changed (requiring glyph cache clear)
     pub fn update_font_hinting(&mut self, enabled: bool) -> bool {
-        if self.font_hinting != enabled {
-            self.font_hinting = enabled;
+        if self.font.font_hinting != enabled {
+            self.font.font_hinting = enabled;
             self.clear_glyph_cache();
             self.dirty_rows.fill(true);
             true
@@ -1286,8 +1329,8 @@ impl CellRenderer {
     /// Update thin strokes mode
     /// Returns true if the setting changed (requiring glyph cache clear)
     pub fn update_font_thin_strokes(&mut self, mode: par_term_config::ThinStrokesMode) -> bool {
-        if self.font_thin_strokes != mode {
-            self.font_thin_strokes = mode;
+        if self.font.font_thin_strokes != mode {
+            self.font.font_thin_strokes = mode;
             self.clear_glyph_cache();
             self.dirty_rows.fill(true);
             true
@@ -1301,8 +1344,8 @@ impl CellRenderer {
     pub fn update_minimum_contrast(&mut self, ratio: f32) -> bool {
         // Clamp to valid range: 1.0 (disabled) to 21.0 (max possible contrast)
         let ratio = ratio.clamp(1.0, 21.0);
-        if (self.minimum_contrast - ratio).abs() > 0.001 {
-            self.minimum_contrast = ratio;
+        if (self.font.minimum_contrast - ratio).abs() > 0.001 {
+            self.font.minimum_contrast = ratio;
             self.dirty_rows.fill(true);
             true
         } else {
@@ -1315,7 +1358,7 @@ impl CellRenderer {
     /// Returns the adjusted color [R, G, B, A] with preserved alpha.
     pub(crate) fn ensure_minimum_contrast(&self, fg: [f32; 4], bg: [f32; 4]) -> [f32; 4] {
         // If minimum_contrast is 1.0 (disabled) or less, no adjustment needed
-        if self.minimum_contrast <= 1.0 {
+        if self.font.minimum_contrast <= 1.0 {
             return fg;
         }
 
@@ -1337,7 +1380,7 @@ impl CellRenderer {
         let current_ratio = contrast_ratio(fg_lum, bg_lum);
 
         // If already meets minimum contrast, return unchanged
-        if current_ratio >= self.minimum_contrast {
+        if current_ratio >= self.font.minimum_contrast {
             return fg;
         }
 
@@ -1374,7 +1417,7 @@ impl CellRenderer {
             let adjusted_lum = luminance(adjusted);
             let new_ratio = contrast_ratio(adjusted_lum, bg_lum);
 
-            if new_ratio >= self.minimum_contrast {
+            if new_ratio >= self.font.minimum_contrast {
                 high = mid;
             } else {
                 low = mid;
@@ -1411,7 +1454,7 @@ impl CellRenderer {
             (self.background_color[0] + self.background_color[1] + self.background_color[2]) / 3.0;
         let is_dark_background = bg_brightness < 0.5;
 
-        match self.font_thin_strokes {
+        match self.font.font_thin_strokes {
             ThinStrokesMode::Never => false,
             ThinStrokesMode::Always => true,
             ThinStrokesMode::RetinaOnly => is_retina,

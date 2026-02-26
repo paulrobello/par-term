@@ -65,10 +65,10 @@ impl CellRenderer {
             ..Default::default()
         });
 
-        self.bg_image_bind_group =
+        self.pipelines.bg_image_bind_group =
             Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("bg image bind group"),
-                layout: &self.bg_image_bind_group_layout,
+                layout: &self.pipelines.bg_image_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -80,14 +80,14 @@ impl CellRenderer {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: self.bg_image_uniform_buffer.as_entire_binding(),
+                        resource: self.buffers.bg_image_uniform_buffer.as_entire_binding(),
                     },
                 ],
             }));
-        self.bg_image_texture = Some(texture);
-        self.bg_image_width = width;
-        self.bg_image_height = height;
-        self.bg_is_solid_color = false; // This is an image, not a solid color
+        self.bg_state.bg_image_texture = Some(texture);
+        self.bg_state.bg_image_width = width;
+        self.bg_state.bg_image_height = height;
+        self.bg_state.bg_is_solid_color = false; // This is an image, not a solid color
         self.update_bg_image_uniforms();
         Ok(())
     }
@@ -107,18 +107,18 @@ impl CellRenderer {
         let h = self.config.height as f32;
 
         // image_size (vec2<f32>)
-        data[0..4].copy_from_slice(&(self.bg_image_width as f32).to_le_bytes());
-        data[4..8].copy_from_slice(&(self.bg_image_height as f32).to_le_bytes());
+        data[0..4].copy_from_slice(&(self.bg_state.bg_image_width as f32).to_le_bytes());
+        data[4..8].copy_from_slice(&(self.bg_state.bg_image_height as f32).to_le_bytes());
 
         // window_size (vec2<f32>)
         data[8..12].copy_from_slice(&w.to_le_bytes());
         data[12..16].copy_from_slice(&h.to_le_bytes());
 
         // mode (u32)
-        data[16..20].copy_from_slice(&(self.bg_image_mode as u32).to_le_bytes());
+        data[16..20].copy_from_slice(&(self.bg_state.bg_image_mode as u32).to_le_bytes());
 
         // opacity (f32) - combine bg_image_opacity with window_opacity
-        let effective_opacity = self.bg_image_opacity * self.window_opacity;
+        let effective_opacity = self.bg_state.bg_image_opacity * self.window_opacity;
         data[20..24].copy_from_slice(&effective_opacity.to_le_bytes());
 
         // pane_offset (vec2<f32>) - (0,0) for global background
@@ -132,7 +132,7 @@ impl CellRenderer {
         // bytes 40..44 are already zeros
 
         self.queue
-            .write_buffer(&self.bg_image_uniform_buffer, 0, &data);
+            .write_buffer(&self.buffers.bg_image_uniform_buffer, 0, &data);
     }
 
     pub fn set_background_image(
@@ -141,8 +141,8 @@ impl CellRenderer {
         mode: par_term_config::BackgroundImageMode,
         opacity: f32,
     ) {
-        self.bg_image_mode = mode;
-        self.bg_image_opacity = opacity;
+        self.bg_state.bg_image_mode = mode;
+        self.bg_state.bg_image_opacity = opacity;
         if let Some(p) = path {
             log::info!("Loading background image: {}", p);
             if let Err(e) = self.load_background_image(p) {
@@ -150,22 +150,22 @@ impl CellRenderer {
             }
             // Note: bg_is_solid_color is set in load_background_image
         } else {
-            self.bg_image_texture = None;
-            self.bg_image_bind_group = None;
-            self.bg_image_width = 0;
-            self.bg_image_height = 0;
-            self.bg_is_solid_color = false;
+            self.bg_state.bg_image_texture = None;
+            self.pipelines.bg_image_bind_group = None;
+            self.bg_state.bg_image_width = 0;
+            self.bg_state.bg_image_height = 0;
+            self.bg_state.bg_is_solid_color = false;
         }
         self.update_bg_image_uniforms();
     }
 
     pub fn update_background_image_opacity(&mut self, opacity: f32) {
-        self.bg_image_opacity = opacity;
+        self.bg_state.bg_image_opacity = opacity;
         self.update_bg_image_uniforms();
     }
 
     pub fn update_background_image_opacity_only(&mut self, opacity: f32) {
-        self.bg_image_opacity = opacity;
+        self.bg_state.bg_image_opacity = opacity;
         self.update_bg_image_uniforms();
     }
 
@@ -175,7 +175,7 @@ impl CellRenderer {
     /// The returned ChannelTexture shares the same underlying texture data with the
     /// cell renderer's background image - no copy is made.
     pub fn get_background_as_channel_texture(&self) -> Option<ChannelTexture> {
-        let texture = self.bg_image_texture.as_ref()?;
+        let texture = self.bg_state.bg_image_texture.as_ref()?;
 
         // Create a new view and sampler for use by the custom shader
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -191,35 +191,35 @@ impl CellRenderer {
         Some(ChannelTexture::from_view(
             view,
             sampler,
-            self.bg_image_width,
-            self.bg_image_height,
+            self.bg_state.bg_image_width,
+            self.bg_state.bg_image_height,
         ))
     }
 
     /// Check if a background image is currently loaded.
     pub fn has_background_image(&self) -> bool {
-        self.bg_image_texture.is_some()
+        self.bg_state.bg_image_texture.is_some()
     }
 
     /// Check if a solid color background is currently set.
     pub fn is_solid_color_background(&self) -> bool {
-        self.bg_is_solid_color
+        self.bg_state.bg_is_solid_color
     }
 
     /// Get the solid background color as normalized RGB values.
     /// Returns the color even if not in solid color mode.
     pub fn solid_background_color(&self) -> [f32; 3] {
-        self.solid_bg_color
+        self.bg_state.solid_bg_color
     }
 
     /// Get the solid background color as a wgpu::Color with window_opacity applied.
     /// Returns None if not in solid color mode.
     pub fn get_solid_color_as_clear(&self) -> Option<wgpu::Color> {
-        if self.bg_is_solid_color {
+        if self.bg_state.bg_is_solid_color {
             Some(wgpu::Color {
-                r: self.solid_bg_color[0] as f64 * self.window_opacity as f64,
-                g: self.solid_bg_color[1] as f64 * self.window_opacity as f64,
-                b: self.solid_bg_color[2] as f64 * self.window_opacity as f64,
+                r: self.bg_state.solid_bg_color[0] as f64 * self.window_opacity as f64,
+                g: self.bg_state.solid_bg_color[1] as f64 * self.window_opacity as f64,
+                b: self.bg_state.solid_bg_color[2] as f64 * self.window_opacity as f64,
                 a: self.window_opacity as f64,
             })
         } else {
@@ -294,10 +294,10 @@ impl CellRenderer {
             ..Default::default()
         });
 
-        self.bg_image_bind_group =
+        self.pipelines.bg_image_bind_group =
             Some(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("bg solid color bind group"),
-                layout: &self.bg_image_bind_group_layout,
+                layout: &self.pipelines.bg_image_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -309,21 +309,21 @@ impl CellRenderer {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: self.bg_image_uniform_buffer.as_entire_binding(),
+                        resource: self.buffers.bg_image_uniform_buffer.as_entire_binding(),
                     },
                 ],
             }));
 
-        self.bg_image_texture = Some(texture);
-        self.bg_image_width = size;
-        self.bg_image_height = size;
+        self.bg_state.bg_image_texture = Some(texture);
+        self.bg_state.bg_image_width = size;
+        self.bg_state.bg_image_height = size;
         // Use Stretch mode for solid colors to fill the window
-        self.bg_image_mode = par_term_config::BackgroundImageMode::Stretch;
+        self.bg_state.bg_image_mode = par_term_config::BackgroundImageMode::Stretch;
         // Use 1.0 as base opacity - window_opacity is applied in update_bg_image_uniforms()
-        self.bg_image_opacity = 1.0;
+        self.bg_state.bg_image_opacity = 1.0;
         // Mark this as a solid color for tracking purposes
-        self.bg_is_solid_color = true;
-        self.solid_bg_color = color_u8_to_f32(color);
+        self.bg_state.bg_is_solid_color = true;
+        self.bg_state.solid_bg_color = color_u8_to_f32(color);
         self.update_bg_image_uniforms();
     }
 
@@ -420,11 +420,11 @@ impl CellRenderer {
         match mode {
             par_term_config::BackgroundMode::Default => {
                 // Clear background texture - use theme default
-                self.bg_image_texture = None;
-                self.bg_image_bind_group = None;
-                self.bg_image_width = 0;
-                self.bg_image_height = 0;
-                self.bg_is_solid_color = false;
+                self.bg_state.bg_image_texture = None;
+                self.pipelines.bg_image_bind_group = None;
+                self.bg_state.bg_image_width = 0;
+                self.bg_state.bg_image_height = 0;
+                self.bg_state.bg_is_solid_color = false;
             }
             par_term_config::BackgroundMode::Color => {
                 // create_solid_color_texture sets bg_is_solid_color = true
@@ -436,11 +436,11 @@ impl CellRenderer {
                     self.set_background_image(image_path, image_mode, image_opacity);
                 } else {
                     // Image disabled - clear texture
-                    self.bg_image_texture = None;
-                    self.bg_image_bind_group = None;
-                    self.bg_image_width = 0;
-                    self.bg_image_height = 0;
-                    self.bg_is_solid_color = false;
+                    self.bg_state.bg_image_texture = None;
+                    self.pipelines.bg_image_bind_group = None;
+                    self.bg_state.bg_image_width = 0;
+                    self.bg_state.bg_image_height = 0;
+                    self.bg_state.bg_is_solid_color = false;
                 }
             }
         }
@@ -449,7 +449,7 @@ impl CellRenderer {
     /// Load a per-pane background image into the texture cache.
     /// Returns Ok(true) if the image was newly loaded, Ok(false) if already cached.
     pub(crate) fn load_pane_background(&mut self, path: &str) -> Result<bool> {
-        if self.pane_bg_cache.contains_key(path) {
+        if self.bg_state.pane_bg_cache.contains_key(path) {
             return Ok(false);
         }
 
@@ -515,7 +515,7 @@ impl CellRenderer {
             ..Default::default()
         });
 
-        self.pane_bg_cache.insert(
+        self.bg_state.pane_bg_cache.insert(
             path.to_string(),
             super::background::PaneBackgroundEntry {
                 texture,
@@ -585,7 +585,7 @@ impl CellRenderer {
 
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("pane bg bind group"),
-            layout: &self.bg_image_bind_group_layout,
+            layout: &self.pipelines.bg_image_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,

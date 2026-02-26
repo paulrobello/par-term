@@ -2,4 +2,6 @@
 //!
 //! This module re-exports types from the par-term-render crate for backward compatibility.
 
-pub use par_term_render::custom_shader_renderer::*;
+pub use par_term_render::custom_shader_renderer::{
+    CustomShaderRenderer, pipeline, textures, transpiler, types,
+};

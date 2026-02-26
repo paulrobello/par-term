@@ -2,4 +2,4 @@
 //!
 //! This module re-exports types from the par-term-render crate for backward compatibility.
 
-pub use par_term_render::graphics_renderer::*;
+pub use par_term_render::graphics_renderer::GraphicsRenderer;
