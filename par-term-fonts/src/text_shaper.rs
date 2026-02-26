@@ -135,7 +135,7 @@ impl TextShaper {
     pub fn with_cache_size(max_cache_size: usize) -> Self {
         Self {
             shape_cache: LruCache::new(
-                NonZeroUsize::new(max_cache_size).unwrap_or(NonZeroUsize::new(1000).unwrap()),
+                NonZeroUsize::new(max_cache_size).unwrap_or(NonZeroUsize::new(1000).expect("1000 is a valid NonZeroUsize fallback cache size")),
             ),
         }
     }

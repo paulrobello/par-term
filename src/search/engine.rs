@@ -169,7 +169,7 @@ impl SearchEngine {
             self.cached_regex = Some((pattern.to_string(), case_sensitive, regex));
         }
 
-        Ok(&self.cached_regex.as_ref().unwrap().2)
+        Ok(&self.cached_regex.as_ref().expect("cached_regex was just set to Some above if it was None").2)
     }
 
     /// Check if a match at the given position is a whole word.

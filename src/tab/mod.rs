@@ -7,9 +7,9 @@
 
 mod initial_text;
 mod manager;
+mod setup;
 
 pub use manager::TabManager;
-
 use crate::app::bell::BellState;
 use crate::app::mouse::MouseState;
 use crate::app::render_cache::RenderCache;
@@ -23,274 +23,14 @@ use crate::session_logger::{SessionLogger, SharedSessionLogger, create_shared_lo
 use crate::tab::initial_text::build_initial_text_payload;
 use crate::terminal::TerminalManager;
 use par_term_emu_core_rust::coprocess::CoprocessId;
+pub(crate) use setup::build_shell_env;
+use setup::{apply_login_shell_flag, configure_terminal_from_config, get_shell_command};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-/// Configure a terminal with settings from config (theme, clipboard limits, cursor style, unicode)
-fn configure_terminal_from_config(terminal: &mut TerminalManager, config: &Config) {
-    // Set theme from config
-    terminal.set_theme(config.load_theme());
-
-    // Apply clipboard history limits from config
-    terminal.set_max_clipboard_sync_events(config.clipboard_max_sync_events);
-    terminal.set_max_clipboard_event_bytes(config.clipboard_max_event_bytes);
-
-    // Set answerback string for ENQ response (if configured)
-    if !config.answerback_string.is_empty() {
-        terminal.set_answerback_string(Some(config.answerback_string.clone()));
-    }
-
-    // Apply Unicode width configuration
-    let width_config =
-        par_term_emu_core_rust::WidthConfig::new(config.unicode_version, config.ambiguous_width);
-    terminal.set_width_config(width_config);
-
-    // Apply Unicode normalization form
-    terminal.set_normalization_form(config.normalization_form);
-
-    // Initialize cursor style from config
-    use crate::config::CursorStyle as ConfigCursorStyle;
-    use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
-    let term_style = if config.cursor_blink {
-        match config.cursor_style {
-            ConfigCursorStyle::Block => TermCursorStyle::BlinkingBlock,
-            ConfigCursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
-            ConfigCursorStyle::Beam => TermCursorStyle::BlinkingBar,
-        }
-    } else {
-        match config.cursor_style {
-            ConfigCursorStyle::Block => TermCursorStyle::SteadyBlock,
-            ConfigCursorStyle::Underline => TermCursorStyle::SteadyUnderline,
-            ConfigCursorStyle::Beam => TermCursorStyle::SteadyBar,
-        }
-    };
-    terminal.set_cursor_style(term_style);
-}
-
-/// Get the platform-specific PATH separator
-#[cfg(target_os = "windows")]
-const PATH_SEPARATOR: char = ';';
-#[cfg(not(target_os = "windows"))]
-const PATH_SEPARATOR: char = ':';
-
-/// Build environment variables with an augmented PATH
-///
-/// When launched from Finder on macOS (or similar on other platforms), the PATH may be minimal.
-/// This function augments the PATH with common directories where user tools are installed.
-pub(crate) fn build_shell_env(
-    config_env: Option<&std::collections::HashMap<String, String>>,
-) -> Option<std::collections::HashMap<String, String>> {
-    // Advertise as iTerm.app for maximum compatibility with tools that check
-    // TERM_PROGRAM for feature detection (progress bars, hyperlinks, clipboard, etc.)
-    // par-term supports all the relevant iTerm2 protocols (OSC 8, 9;4, 52, 1337).
-    let mut env = std::collections::HashMap::new();
-    env.insert("TERM_PROGRAM".to_string(), "iTerm.app".to_string());
-    env.insert("TERM_PROGRAM_VERSION".to_string(), "3.6.6".to_string());
-    env.insert("LC_TERMINAL".to_string(), "iTerm2".to_string());
-    env.insert("LC_TERMINAL_VERSION".to_string(), "3.6.6".to_string());
-    // par-term identity marker for shell integration scripts to detect
-    env.insert("__PAR_TERM".to_string(), "1".to_string());
-
-    // ITERM_SESSION_ID: used by Claude Code and other tools for OSC 52 clipboard detection
-    // Format: w{window}t{tab}p{pane}:{UUID}
-    let session_uuid = uuid::Uuid::new_v4();
-    env.insert(
-        "ITERM_SESSION_ID".to_string(),
-        format!("w0t0p0:{session_uuid}"),
-    );
-
-    // Merge user-configured shell_env (user values take precedence)
-    if let Some(config) = config_env {
-        for (key, value) in config {
-            env.insert(key.clone(), value.clone());
-        }
-    }
-
-    // Build augmented PATH with platform-specific extra directories
-    let current_path = std::env::var("PATH").unwrap_or_default();
-    let extra_paths = build_platform_extra_paths();
-    let new_paths: Vec<String> = extra_paths
-        .into_iter()
-        .filter(|p| !p.is_empty() && !current_path.contains(p) && std::path::Path::new(p).exists())
-        .collect();
-
-    let augmented_path = if new_paths.is_empty() {
-        current_path
-    } else {
-        format!(
-            "{}{}{}",
-            new_paths.join(&PATH_SEPARATOR.to_string()),
-            PATH_SEPARATOR,
-            current_path
-        )
-    };
-    env.insert("PATH".to_string(), augmented_path);
-
-    Some(env)
-}
-
-/// Build the list of extra PATH directories for the current platform
-#[cfg(target_os = "windows")]
-fn build_platform_extra_paths() -> Vec<String> {
-    let mut paths = Vec::new();
-
-    if let Some(home) = dirs::home_dir() {
-        // Cargo bin
-        paths.push(
-            home.join(".cargo")
-                .join("bin")
-                .to_string_lossy()
-                .to_string(),
-        );
-        // Scoop
-        paths.push(
-            home.join("scoop")
-                .join("shims")
-                .to_string_lossy()
-                .to_string(),
-        );
-        // Go bin
-        paths.push(home.join("go").join("bin").to_string_lossy().to_string());
-    }
-
-    // Chocolatey
-    paths.push(r"C:\ProgramData\chocolatey\bin".to_string());
-
-    // Common program locations
-    if let Some(local_app_data) = dirs::data_local_dir() {
-        // Python (common location)
-        paths.push(
-            local_app_data
-                .join("Programs")
-                .join("Python")
-                .join("Python312")
-                .join("Scripts")
-                .to_string_lossy()
-                .to_string(),
-        );
-        paths.push(
-            local_app_data
-                .join("Programs")
-                .join("Python")
-                .join("Python311")
-                .join("Scripts")
-                .to_string_lossy()
-                .to_string(),
-        );
-    }
-
-    paths
-}
-
-/// Build the list of extra PATH directories for Unix platforms (macOS/Linux)
-#[cfg(not(target_os = "windows"))]
-fn build_platform_extra_paths() -> Vec<String> {
-    let mut paths = Vec::new();
-
-    if let Some(home) = dirs::home_dir() {
-        // User's home .local/bin (common for pip, pipx, etc.)
-        paths.push(
-            home.join(".local")
-                .join("bin")
-                .to_string_lossy()
-                .to_string(),
-        );
-        // Cargo bin
-        paths.push(
-            home.join(".cargo")
-                .join("bin")
-                .to_string_lossy()
-                .to_string(),
-        );
-        // Go bin
-        paths.push(home.join("go").join("bin").to_string_lossy().to_string());
-        // Nix user profile
-        paths.push(
-            home.join(".nix-profile")
-                .join("bin")
-                .to_string_lossy()
-                .to_string(),
-        );
-    }
-
-    // Nix system profile
-    paths.push("/nix/var/nix/profiles/default/bin".to_string());
-
-    // macOS-specific paths
-    #[cfg(target_os = "macos")]
-    {
-        // Homebrew on Apple Silicon
-        paths.push("/opt/homebrew/bin".to_string());
-        paths.push("/opt/homebrew/sbin".to_string());
-        // Homebrew on Intel Mac
-        paths.push("/usr/local/bin".to_string());
-        paths.push("/usr/local/sbin".to_string());
-        // MacPorts
-        paths.push("/opt/local/bin".to_string());
-    }
-
-    // Linux-specific paths
-    #[cfg(target_os = "linux")]
-    {
-        // Common system paths that might be missing
-        paths.push("/usr/local/bin".to_string());
-        // Snap
-        paths.push("/snap/bin".to_string());
-        // Flatpak exports
-        if let Some(home) = dirs::home_dir() {
-            paths.push(
-                home.join(".local")
-                    .join("share")
-                    .join("flatpak")
-                    .join("exports")
-                    .join("bin")
-                    .to_string_lossy()
-                    .to_string(),
-            );
-        }
-        paths.push("/var/lib/flatpak/exports/bin".to_string());
-    }
-
-    paths
-}
-
-/// Determine the shell command and arguments to use based on config
-fn get_shell_command(config: &Config) -> (String, Option<Vec<String>>) {
-    if let Some(ref custom) = config.custom_shell {
-        (custom.clone(), config.shell_args.clone())
-    } else {
-        #[cfg(target_os = "windows")]
-        {
-            ("powershell.exe".to_string(), None)
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            (
-                std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()),
-                None,
-            )
-        }
-    }
-}
-
-/// Apply login shell flag if configured (Unix only)
-#[cfg(not(target_os = "windows"))]
-fn apply_login_shell_flag(shell_args: &mut Option<Vec<String>>, config: &Config) {
-    if config.login_shell {
-        let args = shell_args.get_or_insert_with(Vec::new);
-        if !args.iter().any(|a| a == "-l" || a == "--login") {
-            args.insert(0, "-l".to_string());
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn apply_login_shell_flag(_shell_args: &mut Option<Vec<String>>, _config: &Config) {
-    // No-op on Windows
-}
 
 // Re-export TabId from par-term-config for shared access across subcrates
 pub use par_term_config::TabId;
@@ -298,99 +38,107 @@ pub use par_term_config::TabId;
 /// A single terminal tab with its own state (supports split panes)
 pub struct Tab {
     /// Unique identifier for this tab
-    pub id: TabId,
-    /// The terminal session for this tab (legacy - use pane_manager for new code)
-    pub terminal: Arc<Mutex<TerminalManager>>,
+    pub(crate) id: TabId,
+    /// The terminal session for this tab.
+    /// Legacy field: use pane-based state instead. Will be removed in a future version.
+    pub(crate) terminal: Arc<Mutex<TerminalManager>>,
     /// Pane manager for split pane support
-    pub pane_manager: Option<PaneManager>,
+    pub(crate) pane_manager: Option<PaneManager>,
     /// Tab title (from OSC sequences or fallback)
-    pub title: String,
+    pub(crate) title: String,
     /// Whether this tab has unread activity since last viewed
-    pub has_activity: bool,
-    /// Scroll state for this tab (legacy - each pane has its own)
-    pub scroll_state: ScrollState,
-    /// Mouse state for this tab (legacy - each pane has its own)
-    pub mouse: MouseState,
-    /// Bell state for this tab (legacy - each pane has its own)
-    pub bell: BellState,
-    /// Render cache for this tab (legacy - each pane has its own)
-    pub cache: RenderCache,
+    pub(crate) has_activity: bool,
+    /// Scroll state for this tab.
+    /// Legacy field: each pane has its own scroll state. Will be removed in a future version.
+    pub(crate) scroll_state: ScrollState,
+    /// Mouse state for this tab.
+    /// Legacy field: each pane has its own mouse state. Will be removed in a future version.
+    pub(crate) mouse: MouseState,
+    /// Bell state for this tab.
+    /// Legacy field: each pane has its own bell state. Will be removed in a future version.
+    pub(crate) bell: BellState,
+    /// Render cache for this tab.
+    /// Legacy field: each pane has its own render cache. Will be removed in a future version.
+    pub(crate) cache: RenderCache,
     /// Async task for refresh polling
-    pub refresh_task: Option<JoinHandle<()>>,
-    /// Working directory when tab was created (for inheriting)
-    pub working_directory: Option<String>,
+    pub(crate) refresh_task: Option<JoinHandle<()>>,
+    /// Working directory when tab was created (for inheriting).
+    /// Access via [`Tab::get_cwd`] rather than reading this field directly.
+    pub(in crate::tab) working_directory: Option<String>,
     /// Custom tab color [R, G, B] (0-255), overrides config colors when set
-    pub custom_color: Option<[u8; 3]>,
+    pub(crate) custom_color: Option<[u8; 3]>,
     /// Whether the tab has its default "Tab N" title (not set by OSC, CWD, or user)
-    pub has_default_title: bool,
+    pub(crate) has_default_title: bool,
     /// Whether the user has manually named this tab (makes title static)
-    pub user_named: bool,
+    pub(crate) user_named: bool,
     /// Last time terminal output (activity) was detected
-    pub last_activity_time: std::time::Instant,
+    pub(crate) last_activity_time: std::time::Instant,
     /// Last terminal update generation seen (to detect new output)
-    pub last_seen_generation: u64,
+    pub(crate) last_seen_generation: u64,
     /// Last activity time for anti-idle keep-alive
-    pub anti_idle_last_activity: std::time::Instant,
+    pub(crate) anti_idle_last_activity: std::time::Instant,
     /// Last terminal generation recorded for anti-idle tracking
-    pub anti_idle_last_generation: u64,
+    pub(crate) anti_idle_last_generation: u64,
     /// Whether silence notification has been sent for current idle period
-    pub silence_notified: bool,
+    pub(crate) silence_notified: bool,
     /// Whether exit notification has been sent for this tab
-    pub exit_notified: bool,
+    pub(crate) exit_notified: bool,
     /// Session logger for automatic session recording
-    pub session_logger: SharedSessionLogger,
+    pub(crate) session_logger: SharedSessionLogger,
     /// Whether this tab is in tmux gateway mode
-    pub tmux_gateway_active: bool,
+    pub(crate) tmux_gateway_active: bool,
     /// The tmux pane ID this tab represents (when in gateway mode)
-    pub tmux_pane_id: Option<crate::tmux::TmuxPaneId>,
+    pub(crate) tmux_pane_id: Option<crate::tmux::TmuxPaneId>,
     /// Last detected hostname for automatic profile switching (from OSC 7)
-    pub detected_hostname: Option<String>,
-    /// Last detected CWD for automatic profile switching (from OSC 7)
-    pub detected_cwd: Option<String>,
+    pub(crate) detected_hostname: Option<String>,
+    /// Last detected CWD for automatic profile switching (from OSC 7).
+    /// Internal tracking state; access the current CWD via [`Tab::get_cwd`].
+    pub(in crate::tab) detected_cwd: Option<String>,
     /// Profile ID that was auto-applied based on hostname detection
-    pub auto_applied_profile_id: Option<crate::profile::ProfileId>,
+    pub(crate) auto_applied_profile_id: Option<crate::profile::ProfileId>,
     /// Profile ID that was auto-applied based on directory pattern matching
-    pub auto_applied_dir_profile_id: Option<crate::profile::ProfileId>,
+    pub(crate) auto_applied_dir_profile_id: Option<crate::profile::ProfileId>,
     /// Icon from auto-applied profile (displayed in tab bar)
-    pub profile_icon: Option<String>,
+    pub(crate) profile_icon: Option<String>,
     /// Custom icon set by user via context menu (takes precedence over profile_icon)
-    pub custom_icon: Option<String>,
+    pub(crate) custom_icon: Option<String>,
     /// Original tab title saved before auto-profile override (restored when profile clears)
-    pub pre_profile_title: Option<String>,
+    pub(crate) pre_profile_title: Option<String>,
     /// Badge text override from auto-applied profile (overrides global badge_format)
-    pub badge_override: Option<String>,
+    pub(crate) badge_override: Option<String>,
     /// Mapping from config index to coprocess ID (for UI tracking)
-    pub coprocess_ids: Vec<Option<CoprocessId>>,
+    pub(crate) coprocess_ids: Vec<Option<CoprocessId>>,
     /// Script manager for this tab
-    pub script_manager: crate::scripting::manager::ScriptManager,
+    pub(crate) script_manager: crate::scripting::manager::ScriptManager,
     /// Maps config index to ScriptId for running scripts
-    pub script_ids: Vec<Option<crate::scripting::manager::ScriptId>>,
+    pub(crate) script_ids: Vec<Option<crate::scripting::manager::ScriptId>>,
     /// Observer IDs registered with the terminal for script event forwarding
-    pub script_observer_ids: Vec<Option<par_term_emu_core_rust::observer::ObserverId>>,
+    pub(crate) script_observer_ids: Vec<Option<par_term_emu_core_rust::observer::ObserverId>>,
     /// Event forwarders (shared with observer registration)
-    pub script_forwarders:
+    pub(crate) script_forwarders:
         Vec<Option<std::sync::Arc<crate::scripting::observer::ScriptEventForwarder>>>,
     /// Trigger-generated scrollbar marks (from MarkLine actions)
-    pub trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    pub(crate) trigger_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
     /// Security metadata: maps trigger_id -> require_user_action flag.
     /// When true, dangerous actions (RunCommand, SendText) from that trigger
     /// are suppressed when fired from passive terminal output.
-    pub trigger_security: std::collections::HashMap<u64, bool>,
+    pub(crate) trigger_security: std::collections::HashMap<u64, bool>,
     /// Rate limiter for output-triggered dangerous actions.
-    pub trigger_rate_limiter: par_term_config::TriggerRateLimiter,
+    pub(crate) trigger_rate_limiter: par_term_config::TriggerRateLimiter,
     /// Prettifier pipeline for content detection and rendering (None if disabled)
-    pub prettifier: Option<PrettifierPipeline>,
+    pub(crate) prettifier: Option<PrettifierPipeline>,
     /// Gutter manager for prettifier indicators
-    pub gutter_manager: GutterManager,
+    pub(crate) gutter_manager: GutterManager,
     /// Whether the terminal was on the alt screen last frame (for detecting transitions)
-    pub was_alt_screen: bool,
+    pub(crate) was_alt_screen: bool,
     /// Profile saved before SSH auto-switch (for revert on disconnect)
-    pub pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
+    pub(crate) pre_ssh_switch_profile: Option<crate::profile::ProfileId>,
     /// Whether current profile was auto-applied due to SSH hostname detection
-    pub ssh_auto_switched: bool,
+    pub(crate) ssh_auto_switched: bool,
     /// Whether this tab is the currently active (visible) tab.
     /// Used by the refresh task to dynamically choose polling interval.
-    pub is_active: Arc<AtomicBool>,
+    /// Managed exclusively within the `crate::tab` module.
+    pub(in crate::tab) is_active: Arc<AtomicBool>,
     /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
     pub(crate) shutdown_fast: bool,
 }

@@ -93,52 +93,52 @@ enum TraceLine {
 
 fn re_java_frame() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\s+at\s+([\w.$]+)\(([\w.]+):(\d+)\)").unwrap())
+    RE.get_or_init(|| Regex::new(r"^\s+at\s+([\w.$]+)\(([\w.]+):(\d+)\)").expect("re_java_frame: pattern is valid and should always compile"))
 }
 
 fn re_python_frame() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r#"^\s+File "([^"]+)", line (\d+)"#).unwrap())
+    RE.get_or_init(|| Regex::new(r#"^\s+File "([^"]+)", line (\d+)"#).expect("re_python_frame: pattern is valid and should always compile"))
 }
 
 fn re_js_frame() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\s+at\s+\S+\s+\((.+):(\d+):(\d+)\)").unwrap())
+    RE.get_or_init(|| Regex::new(r"^\s+at\s+\S+\s+\((.+):(\d+):(\d+)\)").expect("re_js_frame: pattern is valid and should always compile"))
 }
 
 fn re_rust_location() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"([\w/\\.-]+\.rs):(\d+)").unwrap())
+    RE.get_or_init(|| Regex::new(r"([\w/\\.-]+\.rs):(\d+)").expect("re_rust_location: pattern is valid and should always compile"))
 }
 
 fn re_go_location() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"([\w/\\.-]+\.go):(\d+)").unwrap())
+    RE.get_or_init(|| Regex::new(r"([\w/\\.-]+\.go):(\d+)").expect("re_go_location: pattern is valid and should always compile"))
 }
 
 fn re_error_header() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^([\w.]+(?:Error|Exception|Panic)):?\s").unwrap())
+    RE.get_or_init(|| Regex::new(r"^([\w.]+(?:Error|Exception|Panic)):?\s").expect("re_error_header: pattern is valid and should always compile"))
 }
 
 fn re_caused_by() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^Caused by:").unwrap())
+    RE.get_or_init(|| Regex::new(r"^Caused by:").expect("regex pattern is valid and should always compile"))
 }
 
 fn re_python_traceback_header() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^Traceback \(most recent call last\):").unwrap())
+    RE.get_or_init(|| Regex::new(r"^Traceback \(most recent call last\):").expect("re_python_traceback_header: pattern is valid and should always compile"))
 }
 
 fn re_rust_panic() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^thread '.*' panicked at").unwrap())
+    RE.get_or_init(|| Regex::new(r"^thread '.*' panicked at").expect("regex pattern is valid and should always compile"))
 }
 
 fn re_go_panic() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^goroutine \d+ \[").unwrap())
+    RE.get_or_init(|| Regex::new(r"^goroutine \d+ \[").expect("regex pattern is valid and should always compile"))
 }
 
 // ---------------------------------------------------------------------------
@@ -167,7 +167,7 @@ fn extract_file_path(line: &str) -> Option<FilePath> {
     // Java: at package.Class(FileName.java:42)
     if let Some(caps) = re_java_frame().captures(line) {
         return Some(FilePath {
-            path: caps.get(2).unwrap().as_str().to_string(),
+            path: caps.get(2).expect("re_java_frame capture group 2 (filename) must be present after a match").as_str().to_string(),
             line: caps.get(3).and_then(|m| m.as_str().parse().ok()),
             column: None,
         });
@@ -176,7 +176,7 @@ fn extract_file_path(line: &str) -> Option<FilePath> {
     // Python: File "path/to/file.py", line 42
     if let Some(caps) = re_python_frame().captures(line) {
         return Some(FilePath {
-            path: caps.get(1).unwrap().as_str().to_string(),
+            path: caps.get(1).expect("re_python_frame capture group 1 (file path) must be present after a match").as_str().to_string(),
             line: caps.get(2).and_then(|m| m.as_str().parse().ok()),
             column: None,
         });
@@ -185,7 +185,7 @@ fn extract_file_path(line: &str) -> Option<FilePath> {
     // JavaScript/Node.js: at Function (file.js:42:10)
     if let Some(caps) = re_js_frame().captures(line) {
         return Some(FilePath {
-            path: caps.get(1).unwrap().as_str().to_string(),
+            path: caps.get(1).expect("re_js_frame capture group 1 (file path) must be present after a match").as_str().to_string(),
             line: caps.get(2).and_then(|m| m.as_str().parse().ok()),
             column: caps.get(3).and_then(|m| m.as_str().parse().ok()),
         });
@@ -194,7 +194,7 @@ fn extract_file_path(line: &str) -> Option<FilePath> {
     // Rust: src/main.rs:42
     if let Some(caps) = re_rust_location().captures(line) {
         return Some(FilePath {
-            path: caps.get(1).unwrap().as_str().to_string(),
+            path: caps.get(1).expect("re_rust_location capture group 1 (file path) must be present after a match").as_str().to_string(),
             line: caps.get(2).and_then(|m| m.as_str().parse().ok()),
             column: None,
         });
@@ -203,7 +203,7 @@ fn extract_file_path(line: &str) -> Option<FilePath> {
     // Go: /home/user/app/main.go:42
     if let Some(caps) = re_go_location().captures(line) {
         return Some(FilePath {
-            path: caps.get(1).unwrap().as_str().to_string(),
+            path: caps.get(1).expect("re_go_location capture group 1 (file path) must be present after a match").as_str().to_string(),
             line: caps.get(2).and_then(|m| m.as_str().parse().ok()),
             column: None,
         });

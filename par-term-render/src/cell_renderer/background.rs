@@ -1,6 +1,6 @@
 use super::CellRenderer;
 use crate::custom_shader_renderer::textures::ChannelTexture;
-use anyhow::Result;
+use crate::error::RenderError;
 use par_term_config::color_u8_to_f32;
 
 /// Cached GPU texture for a per-pane background image
@@ -14,12 +14,15 @@ pub(crate) struct PaneBackgroundEntry {
 }
 
 impl CellRenderer {
-    pub(crate) fn load_background_image(&mut self, path: &str) -> Result<()> {
+    pub(crate) fn load_background_image(&mut self, path: &str) -> Result<(), RenderError> {
         log::info!("Loading background image from: {}", path);
         let img = image::open(path)
             .map_err(|e| {
                 log::error!("Failed to open background image '{}': {}", path, e);
-                e
+                RenderError::ImageLoad {
+                    path: path.to_string(),
+                    source: e,
+                }
             })?
             .to_rgba8();
         log::info!("Background image loaded: {}x{}", img.width(), img.height());
@@ -448,7 +451,7 @@ impl CellRenderer {
 
     /// Load a per-pane background image into the texture cache.
     /// Returns Ok(true) if the image was newly loaded, Ok(false) if already cached.
-    pub(crate) fn load_pane_background(&mut self, path: &str) -> Result<bool> {
+    pub(crate) fn load_pane_background(&mut self, path: &str) -> Result<bool, RenderError> {
         if self.bg_state.pane_bg_cache.contains_key(path) {
             return Ok(false);
         }
@@ -468,7 +471,10 @@ impl CellRenderer {
         let img = image::open(&expanded)
             .map_err(|e| {
                 log::error!("Failed to open pane background image '{}': {}", path, e);
-                e
+                RenderError::ImageLoad {
+                    path: expanded.clone(),
+                    source: e,
+                }
             })?
             .to_rgba8();
 

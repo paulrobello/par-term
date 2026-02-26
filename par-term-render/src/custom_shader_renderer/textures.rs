@@ -3,7 +3,7 @@
 //! Provides loading and management of texture channels (iChannel0-3)
 //! that can be used by custom shaders alongside the terminal content (iChannel4).
 
-use anyhow::{Context, Result};
+use crate::error::RenderError;
 use std::path::Path;
 use wgpu::*;
 
@@ -144,10 +144,13 @@ impl ChannelTexture {
     ///
     /// # Returns
     /// The loaded texture, or an error if loading fails
-    pub fn from_file(device: &Device, queue: &Queue, path: &Path) -> Result<Self> {
+    pub fn from_file(device: &Device, queue: &Queue, path: &Path) -> Result<Self, RenderError> {
         // Load image and convert to RGBA8
         let img = image::open(path)
-            .with_context(|| format!("Failed to open image: {}", path.display()))?
+            .map_err(|e| RenderError::ImageLoad {
+                path: path.display().to_string(),
+                source: e,
+            })?
             .to_rgba8();
 
         let (width, height) = img.dimensions();

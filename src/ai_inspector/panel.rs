@@ -7,6 +7,7 @@
 use egui::{Color32, Context, CursorIcon, Frame, Id, Key, Label, Order, Pos2, RichText, Stroke};
 
 use crate::ai_inspector::chat::{ChatMessage, ChatState, TextSegment, parse_text_segments};
+use crate::ai_inspector::panel_helpers::{format_duration, truncate_chars, truncate_output};
 use crate::ai_inspector::snapshot::{CommandEntry, SnapshotData, SnapshotScope};
 use crate::config::Config;
 use par_term_acp::{AgentConfig, AgentStatus};
@@ -1171,7 +1172,7 @@ impl AIInspectorPanel {
                 );
                 ui.horizontal_wrapped(|ui| {
                     for agent in installable {
-                        let cmd = agent.install_command.as_deref().unwrap();
+                        let cmd = agent.install_command.as_deref().expect("agent was filtered to only include those with install_command.is_some()");
                         if ui
                             .button(RichText::new(format!("Install {}", agent.short_name)).small())
                             .on_hover_text(format!("Paste '{cmd}' into terminal"))
@@ -1618,45 +1619,6 @@ impl AIInspectorPanel {
         });
 
         action
-    }
-}
-
-/// Format a duration in milliseconds to a human-readable string.
-fn format_duration(ms: u64) -> String {
-    if ms < 1000 {
-        format!("{ms}ms")
-    } else if ms < 60_000 {
-        format!("{:.1}s", ms as f64 / 1000.0)
-    } else {
-        let minutes = ms / 60_000;
-        let seconds = (ms % 60_000) / 1000;
-        format!("{minutes}m {seconds}s")
-    }
-}
-
-/// Truncate a string to at most `max_chars` characters, respecting UTF-8
-/// char boundaries (never panics on multi-byte characters like emoji or CJK).
-fn truncate_chars(s: &str, max_chars: usize) -> &str {
-    if s.len() <= max_chars {
-        return s;
-    }
-    // Find the last char boundary at or before max_chars bytes
-    let mut end = max_chars.min(s.len());
-    while end > 0 && !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
-}
-
-/// Truncate output text to a maximum number of lines.
-fn truncate_output(output: &str, max_lines: usize) -> String {
-    let lines: Vec<&str> = output.lines().take(max_lines + 1).collect();
-    if lines.len() > max_lines {
-        let mut result: String = lines[..max_lines].join("\n");
-        result.push_str("\n... (truncated)");
-        result
-    } else {
-        output.to_string()
     }
 }
 

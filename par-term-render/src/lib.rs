@@ -12,6 +12,7 @@
 
 pub mod cell_renderer;
 pub mod custom_shader_renderer;
+pub mod error;
 pub mod gpu_utils;
 pub mod graphics_renderer;
 pub mod renderer;
@@ -20,6 +21,7 @@ pub mod scrollbar;
 // Re-export main public types
 pub use cell_renderer::{Cell, CellRenderer, PaneViewport};
 pub use custom_shader_renderer::CustomShaderRenderer;
+pub use error::RenderError;
 pub use graphics_renderer::GraphicsRenderer;
 pub use renderer::{
     DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,

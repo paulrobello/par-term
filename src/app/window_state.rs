@@ -16,8 +16,8 @@ use crate::close_confirmation_ui::{CloseConfirmAction, CloseConfirmationUI};
 use crate::command_history::CommandHistory;
 use crate::command_history_ui::{CommandHistoryAction, CommandHistoryUI};
 use crate::config::{
-    Config, CursorShaderMetadataCache, CursorStyle, CustomAcpAgentConfig, ShaderInstallPrompt,
-    ShaderMetadataCache, color_u8_to_f32, color_u8_to_f32_a,
+    Config, CursorStyle, CustomAcpAgentConfig, ShaderInstallPrompt, color_u8_to_f32,
+    color_u8_to_f32_a,
 };
 use crate::help_ui::HelpUI;
 use crate::input::InputHandler;
@@ -133,12 +133,8 @@ pub struct WindowState {
 
     pub(crate) debug: DebugState,
 
-    /// Cursor opacity for smooth fade animation (0.0 = invisible, 1.0 = fully visible)
-    pub(crate) cursor_opacity: f32,
-    /// Time of last cursor blink toggle
-    pub(crate) last_cursor_blink: Option<std::time::Instant>,
-    /// Time of last key press (to reset cursor blink)
-    pub(crate) last_key_press: Option<std::time::Instant>,
+    /// Cursor animation state (opacity, blink timers)
+    pub(crate) cursor_anim: crate::app::cursor_anim_state::CursorAnimState,
     /// Whether window is currently in fullscreen mode
     pub(crate) is_fullscreen: bool,
     /// egui context for GUI rendering
@@ -152,10 +148,8 @@ pub struct WindowState {
     /// Whether egui has completed its first ctx.run() call
     /// Before first run, egui's is_using_pointer() returns unreliable results
     pub(crate) egui_initialized: bool,
-    /// Cache for parsed shader metadata (used for config resolution)
-    pub(crate) shader_metadata_cache: ShaderMetadataCache,
-    /// Cache for parsed cursor shader metadata (used for config resolution)
-    pub(crate) cursor_shader_metadata_cache: CursorShaderMetadataCache,
+    /// Shader hot-reload watcher, metadata caches, and reload-error state
+    pub(crate) shader_state: crate::app::shader_state::ShaderState,
     /// Help UI manager
     pub(crate) help_ui: HelpUI,
     /// Clipboard history UI manager
@@ -233,8 +227,6 @@ pub struct WindowState {
     /// Set when an agent/MCP config update was applied — signals WindowManager to
     /// sync its own config copy so subsequent saves don't overwrite agent changes.
     pub(crate) config_changed_by_agent: bool,
-    /// When to blink cursor next
-    pub(crate) cursor_blink_timer: Option<std::time::Instant>,
     /// Whether we need to rebuild renderer after font-related changes
     pub(crate) pending_font_rebuild: bool,
 
@@ -254,23 +246,13 @@ pub struct WindowState {
     /// When throughput mode batching started (for render interval timing)
     pub(crate) throughput_batch_start: Option<std::time::Instant>,
 
-    // Shader hot reload
-    /// Shader file watcher for hot reload support
-    pub(crate) shader_watcher: Option<ShaderWatcher>,
+    // Config and screenshot watchers
     /// Config file watcher for automatic reload (e.g., when ACP agent modifies config.yaml)
     pub(crate) config_watcher: Option<crate::config::watcher::ConfigWatcher>,
     /// Watcher for `.config-update.json` written by the MCP server
     pub(crate) config_update_watcher: Option<crate::config::watcher::ConfigWatcher>,
     /// Watcher for `.screenshot-request.json` written by the MCP server
     pub(crate) screenshot_request_watcher: Option<crate::config::watcher::ConfigWatcher>,
-    /// Last shader reload error message (for display in UI)
-    pub(crate) shader_reload_error: Option<String>,
-    /// Background shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
-    /// Used to propagate hot reload results to standalone settings window
-    pub(crate) background_shader_reload_result: Option<Option<String>>,
-    /// Cursor shader reload result: None = no change, Some(None) = success, Some(Some(err)) = error
-    /// Used to propagate hot reload results to standalone settings window
-    pub(crate) cursor_shader_reload_result: Option<Option<String>>,
 
     /// Flag to signal that the settings window should be opened
     /// This is set by keyboard handlers and consumed by the window manager
@@ -782,16 +764,13 @@ impl WindowState {
 
             debug: DebugState::new(),
 
-            cursor_opacity: 1.0,
-            last_cursor_blink: None,
-            last_key_press: None,
+            cursor_anim: crate::app::cursor_anim_state::CursorAnimState::default(),
             is_fullscreen: false,
             egui_ctx: None,
             egui_state: None,
             pending_egui_events: Vec::new(),
             egui_initialized: false,
-            shader_metadata_cache: ShaderMetadataCache::with_shaders_dir(shaders_dir.clone()),
-            cursor_shader_metadata_cache: CursorShaderMetadataCache::with_shaders_dir(shaders_dir),
+            shader_state: crate::app::shader_state::ShaderState::new(shaders_dir),
             help_ui: HelpUI::new(),
             clipboard_history_ui: ClipboardHistoryUI::new(),
             command_history_ui: CommandHistoryUI::new(),
@@ -829,7 +808,6 @@ impl WindowState {
 
             needs_redraw: true,
             config_changed_by_agent: false,
-            cursor_blink_timer: None,
             pending_font_rebuild: false,
 
             is_focused: true, // Assume focused on creation
@@ -840,13 +818,9 @@ impl WindowState {
 
             throughput_batch_start: None,
 
-            shader_watcher: None,
             config_watcher: None,
             config_update_watcher: None,
             screenshot_request_watcher: None,
-            shader_reload_error: None,
-            background_shader_reload_result: None,
-            cursor_shader_reload_result: None,
 
             open_settings_window_requested: false,
             pending_arrangement_restore: None,
@@ -994,13 +968,13 @@ impl WindowState {
             .config
             .custom_shader
             .as_ref()
-            .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+            .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
         let cursor_metadata = self
             .config
             .cursor_shader
             .as_ref()
-            .and_then(|name| self.cursor_shader_metadata_cache.get(name).cloned());
+            .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name).cloned());
         let params = RendererInitParams::from_config(
             &self.config,
             &theme,
@@ -1111,13 +1085,13 @@ impl WindowState {
             .config
             .custom_shader
             .as_ref()
-            .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+            .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
         // Get cursor shader metadata from cache for full 3-tier resolution
         let cursor_metadata = self
             .config
             .cursor_shader
             .as_ref()
-            .and_then(|name| self.cursor_shader_metadata_cache.get(name).cloned());
+            .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name).cloned());
         let params = RendererInitParams::from_config(
             &self.config,
             &theme,
@@ -1588,7 +1562,7 @@ impl WindowState {
                     "Shader hot reload initialized (debounce: {}ms)",
                     self.config.shader_hot_reload_delay
                 );
-                self.shader_watcher = Some(watcher);
+                self.shader_state.shader_watcher = Some(watcher);
             }
             Err(e) => {
                 debug_info!("SHADER", "Failed to initialize shader hot reload: {}", e);
@@ -1605,8 +1579,8 @@ impl WindowState {
             self.config.cursor_shader
         );
         // Drop existing watcher
-        self.shader_watcher = None;
-        self.shader_reload_error = None;
+        self.shader_state.shader_watcher = None;
+        self.shader_state.shader_reload_error = None;
 
         // Reinitialize if hot reload is still enabled
         self.init_shader_watcher();
@@ -1896,7 +1870,7 @@ impl WindowState {
                             .config
                             .custom_shader
                             .as_ref()
-                            .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+                            .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
                         let resolved = crate::config::shader_config::resolve_shader_config(
                             shader_override,
                             metadata.as_ref(),
@@ -2001,7 +1975,7 @@ impl WindowState {
                     .config
                     .custom_shader
                     .as_ref()
-                    .and_then(|name| self.shader_metadata_cache.get(name).cloned());
+                    .and_then(|name| self.shader_state.shader_metadata_cache.get(name).cloned());
                 let resolved = crate::config::shader_config::resolve_shader_config(
                     shader_override,
                     metadata.as_ref(),
@@ -2210,7 +2184,7 @@ impl WindowState {
     /// Should be called periodically (e.g., in about_to_wait or render loop).
     /// Returns true if a shader was reloaded.
     pub(crate) fn check_shader_reload(&mut self) -> bool {
-        let Some(watcher) = &self.shader_watcher else {
+        let Some(watcher) = &self.shader_state.shader_watcher else {
             return false;
         };
 
@@ -2244,14 +2218,14 @@ impl WindowState {
             Err(e) => {
                 let error_msg = format!("Cannot read '{}': {}", file_name, e);
                 log::error!("Shader hot reload failed: {}", error_msg);
-                self.shader_reload_error = Some(error_msg.clone());
+                self.shader_state.shader_reload_error = Some(error_msg.clone());
                 // Track error for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.background_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.background_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                     ShaderType::Cursor => {
-                        self.cursor_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.cursor_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                 }
                 // Notify user of the error
@@ -2284,14 +2258,14 @@ impl WindowState {
         match result {
             Ok(()) => {
                 log::info!("{} reloaded successfully from {}", shader_name, file_name);
-                self.shader_reload_error = None;
+                self.shader_state.shader_reload_error = None;
                 // Track success for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.background_shader_reload_result = Some(None);
+                        self.shader_state.background_shader_reload_result = Some(None);
                     }
                     ShaderType::Cursor => {
-                        self.cursor_shader_reload_result = Some(None);
+                        self.shader_state.cursor_shader_reload_result = Some(None);
                     }
                 }
                 self.needs_redraw = true;
@@ -2300,7 +2274,7 @@ impl WindowState {
             }
             Err(e) => {
                 // Extract the most relevant error message from the chain
-                let root_cause = e.root_cause().to_string();
+                let root_cause = e.to_string();
                 let error_msg = if root_cause.len() > 200 {
                     // Truncate very long error messages
                     format!("{}...", &root_cause[..200])
@@ -2315,14 +2289,14 @@ impl WindowState {
                 );
                 log::debug!("Full error chain: {:#}", e);
 
-                self.shader_reload_error = Some(error_msg.clone());
+                self.shader_state.shader_reload_error = Some(error_msg.clone());
                 // Track error for standalone settings window propagation
                 match event.shader_type {
                     ShaderType::Background => {
-                        self.background_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.background_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                     ShaderType::Cursor => {
-                        self.cursor_shader_reload_result = Some(Some(error_msg.clone()));
+                        self.shader_state.cursor_shader_reload_result = Some(Some(error_msg.clone()));
                     }
                 }
 
@@ -2477,12 +2451,12 @@ impl WindowState {
         // If cursor style is locked, use the config's blink setting directly
         if self.config.lock_cursor_style {
             if !self.config.cursor_blink {
-                self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
+                self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
                 return;
             }
         } else if self.config.lock_cursor_blink && !self.config.cursor_blink {
             // If blink is locked off, don't blink regardless of terminal style
-            self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
+            self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
             return;
         }
 
@@ -2509,41 +2483,41 @@ impl WindowState {
 
         if !cursor_should_blink {
             // Smoothly fade to full visibility if blinking disabled (by DECSCUSR or config)
-            self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
+            self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
             return;
         }
 
         let now = std::time::Instant::now();
 
         // If key was pressed recently (within 500ms), smoothly fade in cursor and reset blink timer
-        if let Some(last_key) = self.last_key_press
+        if let Some(last_key) = self.cursor_anim.last_key_press
             && now.duration_since(last_key).as_millis() < 500
         {
-            self.cursor_opacity = (self.cursor_opacity + 0.1).min(1.0);
-            self.last_cursor_blink = Some(now);
+            self.cursor_anim.cursor_opacity = (self.cursor_anim.cursor_opacity + 0.1).min(1.0);
+            self.cursor_anim.last_cursor_blink = Some(now);
             return;
         }
 
         // Smooth cursor blink animation using sine wave for natural fade
         let blink_interval = std::time::Duration::from_millis(self.config.cursor_blink_interval);
 
-        if let Some(last_blink) = self.last_cursor_blink {
+        if let Some(last_blink) = self.cursor_anim.last_cursor_blink {
             let elapsed = now.duration_since(last_blink);
             let progress = (elapsed.as_millis() as f32) / (blink_interval.as_millis() as f32);
 
             // Use cosine wave for smooth fade in/out (starts at 1.0, fades to 0.0, back to 1.0)
-            self.cursor_opacity = ((progress * std::f32::consts::PI).cos())
+            self.cursor_anim.cursor_opacity = ((progress * std::f32::consts::PI).cos())
                 .abs()
                 .clamp(0.0, 1.0);
 
             // Reset timer after full cycle (2x interval for full on+off)
             if elapsed >= blink_interval * 2 {
-                self.last_cursor_blink = Some(now);
+                self.cursor_anim.last_cursor_blink = Some(now);
             }
         } else {
             // First time, start the blink timer with cursor fully visible
-            self.cursor_opacity = 1.0;
-            self.last_cursor_blink = Some(now);
+            self.cursor_anim.cursor_opacity = 1.0;
+            self.cursor_anim.last_cursor_blink = Some(now);
         }
     }
 
@@ -2743,7 +2717,7 @@ impl WindowState {
                     None
                 };
 
-                let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_opacity));
+                let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_anim.cursor_opacity));
 
                 // Get cursor style for geometric rendering
                 // In copy mode, always use SteadyBlock for clear visibility
@@ -2790,7 +2764,7 @@ impl WindowState {
                 log::trace!(
                     "Cursor: pos={:?}, opacity={:.2}, style={:?}, scroll={}, visible={}",
                     current_cursor_pos,
-                    self.cursor_opacity,
+                    self.cursor_anim.cursor_opacity,
                     cursor_style,
                     scroll_offset,
                     term.is_cursor_visible()
@@ -2816,9 +2790,10 @@ impl WindowState {
 
                     (fresh_cells, false)
                 } else {
-                    // Use cached cells - clone is still needed because of apply_url_underlines
-                    // but we track it accurately for debug logging
-                    (cache_cells.as_ref().unwrap().clone(), true)
+                    // Cache hit: clone the Vec through the Arc (one allocation instead of two).
+                    // apply_url_underlines needs a mutable Vec, so we still need an owned copy,
+                    // but the Arc clone that extracted cache_cells from tab.cache was free.
+                    (cache_cells.as_ref().unwrap().as_ref().clone(), true)
                 };
                 self.debug.cache_hit = is_cache_hit;
                 self.debug.cell_gen_time = cell_gen_start.elapsed();
@@ -2836,7 +2811,10 @@ impl WindowState {
             } else if let Some(cached) = cache_cells {
                 // Terminal locked (e.g., upload in progress), use cached cells so the
                 // rest of the render pipeline (including file transfer overlay) can proceed.
-                (cached, cache_cursor_pos, None, false, cache_generation)
+                // Unwrap the Arc: if this is the sole reference the Vec is moved for free,
+                // otherwise a clone is made (rare — only if another Arc clone is live).
+                let cached_vec = Arc::try_unwrap(cached).unwrap_or_else(|a| (*a).clone());
+                (cached_vec, cache_cursor_pos, None, false, cache_generation)
             } else {
                 return; // Terminal locked and no cache available, skip this frame
             };
@@ -2872,7 +2850,7 @@ impl WindowState {
                 self.config
                     .cursor_shader
                     .as_ref()
-                    .and_then(|name| self.cursor_shader_metadata_cache.get(name))
+                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
                     .and_then(|meta| meta.defaults.hides_cursor)
             })
             .unwrap_or(self.config.cursor_shader_hides_cursor);
@@ -2887,7 +2865,7 @@ impl WindowState {
                 self.config
                     .cursor_shader
                     .as_ref()
-                    .and_then(|name| self.cursor_shader_metadata_cache.get(name))
+                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
                     .and_then(|meta| meta.defaults.disable_in_alt_screen)
             })
             .unwrap_or(self.config.cursor_shader_disable_in_alt_screen);
@@ -2905,7 +2883,7 @@ impl WindowState {
             && let Ok(term) = tab.terminal.try_lock()
         {
             let current_generation = term.update_generation();
-            tab.cache.cells = Some(cells.clone());
+            tab.cache.cells = Some(Arc::new(cells.clone()));
             tab.cache.generation = current_generation;
             tab.cache.scroll_offset = tab.scroll_state.offset;
             tab.cache.cursor_pos = current_cursor_pos;
@@ -3393,6 +3371,1715 @@ impl WindowState {
         let mut pending_quit_confirm_action = QuitConfirmAction::None;
         let mut pending_remote_install_action = RemoteShellInstallAction::None;
         let mut pending_ssh_connect_action = SshConnectAction::None;
+        // Process agent messages and refresh AI Inspector snapshot
+        self.process_agent_messages_tick();
+
+        // Check tmux gateway state before renderer borrow to avoid borrow conflicts
+        // When tmux controls the layout, we don't use pane padding
+        // Note: pane_padding is in logical pixels (config); we defer DPI scaling to
+        // where it's used with physical pixel coordinates (via sizing.scale_factor).
+        let is_tmux_gateway = self.is_gateway_active();
+        let effective_pane_padding = if is_tmux_gateway {
+            0.0
+        } else {
+            self.config.pane_padding
+        };
+
+        // Calculate status bar height before mutable renderer borrow
+        // Note: This is in logical pixels; it gets scaled to physical in RendererSizing.
+        let is_tmux_connected = self.is_tmux_connected();
+        let status_bar_height =
+            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
+
+        // Calculate custom status bar height
+        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
+
+        // Capture window size before mutable borrow (for badge rendering in egui)
+        let window_size_for_badge = self.renderer.as_ref().map(|r| r.size());
+
+        // Capture progress bar snapshot before mutable borrow
+        let progress_snapshot = if self.config.progress_bar_enabled {
+            self.tab_manager.active_tab().and_then(|tab| {
+                tab.terminal
+                    .try_lock()
+                    .ok()
+                    .map(|term| ProgressBarSnapshot {
+                        simple: term.progress_bar(),
+                        named: term.named_progress_bars(),
+                    })
+            })
+        } else {
+            None
+        };
+
+        // Sync AI Inspector panel width before scrollbar update so the scrollbar
+        // position uses the current panel width on this frame (not the previous one).
+        self.sync_ai_inspector_width();
+
+        // Prettifier cell substitution — replace raw cells with rendered content.
+        // Always run when blocks exist: the cell cache stores raw terminal cells
+        // (set before this point), so we must re-apply styled content every frame.
+        //
+        // Also collect inline graphics (rendered diagrams) for GPU compositing.
+        #[allow(clippy::type_complexity)]
+        let mut prettifier_graphics: Vec<(
+            u64,
+            std::sync::Arc<Vec<u8>>,
+            u32,
+            u32,
+            isize,
+            usize,
+        )> = Vec::new();
+        if !is_alt_screen
+            && let Some(tab) = self.tab_manager.active_tab()
+            && let Some(ref pipeline) = tab.prettifier
+            && pipeline.is_enabled()
+        {
+            let scroll_off = tab.scroll_state.offset;
+            let gutter_w = tab.gutter_manager.gutter_width;
+
+            // Track which blocks we've already collected graphics from
+            // to avoid duplicates when multiple viewport rows fall in
+            // the same block.
+            let mut collected_block_ids = std::collections::HashSet::new();
+
+            for viewport_row in 0..visible_lines {
+                let absolute_row = scrollback_len.saturating_sub(scroll_off) + viewport_row;
+                if let Some(block) = pipeline.block_at_row(absolute_row) {
+                    if !block.has_rendered() {
+                        continue;
+                    }
+
+                    // Collect inline graphics from this block (once per block).
+                    if collected_block_ids.insert(block.block_id) {
+                        let block_start = block.content().start_row;
+                        for graphic in block.buffer.rendered_graphics() {
+                            if !graphic.is_rgba
+                                || graphic.data.is_empty()
+                                || graphic.pixel_width == 0
+                                || graphic.pixel_height == 0
+                            {
+                                continue;
+                            }
+                            // Compute screen row: block_start + graphic.row within block,
+                            // then convert to viewport coordinates.
+                            let abs_graphic_row = block_start + graphic.row;
+                            let view_start = scrollback_len.saturating_sub(scroll_off);
+                            let screen_row = abs_graphic_row as isize - view_start as isize;
+
+                            // Use block_id + graphic row as a stable texture ID
+                            // (offset to avoid colliding with terminal graphic IDs).
+                            let texture_id = 0x8000_0000_0000_0000_u64
+                                | (block.block_id << 16)
+                                | (graphic.row as u64);
+
+                            crate::debug_info!(
+                                "PRETTIFIER",
+                                "uploading graphic: block={}, row={}, screen_row={}, {}x{} px, {} bytes RGBA",
+                                block.block_id,
+                                graphic.row,
+                                screen_row,
+                                graphic.pixel_width,
+                                graphic.pixel_height,
+                                graphic.data.len()
+                            );
+
+                            prettifier_graphics.push((
+                                texture_id,
+                                graphic.data.clone(),
+                                graphic.pixel_width,
+                                graphic.pixel_height,
+                                screen_row,
+                                graphic.col + gutter_w,
+                            ));
+                        }
+                    }
+
+                    let display_lines = block.buffer.display_lines();
+                    let block_start = block.content().start_row;
+                    let line_offset = absolute_row.saturating_sub(block_start);
+                    if let Some(styled_line) = display_lines.get(line_offset) {
+                        crate::debug_trace!(
+                            "PRETTIFIER",
+                            "cell sub: vp_row={}, abs_row={}, block_id={}, line_off={}, segs={}",
+                            viewport_row,
+                            absolute_row,
+                            block.block_id,
+                            line_offset,
+                            styled_line.segments.len()
+                        );
+                        let cell_start = viewport_row * grid_cols;
+                        let cell_end = (cell_start + grid_cols).min(cells.len());
+                        if cell_start >= cells.len() {
+                            break;
+                        }
+                        // Clear row
+                        for cell in &mut cells[cell_start..cell_end] {
+                            *cell = par_term_config::Cell::default();
+                        }
+                        // Write styled segments (offset by gutter width to avoid clipping)
+                        let mut col = gutter_w;
+                        for segment in &styled_line.segments {
+                            for ch in segment.text.chars() {
+                                if col >= grid_cols {
+                                    break;
+                                }
+                                let idx = cell_start + col;
+                                if idx < cells.len() {
+                                    cells[idx].grapheme = ch.to_string();
+                                    if let Some([r, g, b]) = segment.fg {
+                                        cells[idx].fg_color = [r, g, b, 0xFF];
+                                    }
+                                    if let Some([r, g, b]) = segment.bg {
+                                        cells[idx].bg_color = [r, g, b, 0xFF];
+                                    }
+                                    cells[idx].bold = segment.bold;
+                                    cells[idx].italic = segment.italic;
+                                    cells[idx].underline = segment.underline;
+                                    cells[idx].strikethrough = segment.strikethrough;
+                                }
+                                col += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Cache modal visibility before entering the renderer borrow scope.
+        // Method calls borrow all of `self`, which conflicts with `&mut self.renderer`.
+        let any_modal_visible = self.any_modal_ui_visible();
+
+        if let Some(renderer) = &mut self.renderer {
+            // Status bar inset is handled by sync_status_bar_inset() above,
+            // before cell gathering, so the grid height is correct.
+
+            // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
+            let disable_cursor_shader =
+                self.config.cursor_shader_disable_in_alt_screen && is_alt_screen;
+            renderer.set_cursor_shader_disabled_for_alt_screen(disable_cursor_shader);
+
+            // Only update renderer with cells if they changed (cache MISS)
+            // This avoids re-uploading the same cell data to GPU on every frame
+            if !self.debug.cache_hit {
+                let t = std::time::Instant::now();
+                renderer.update_cells(&cells);
+                debug_update_cells_time = t.elapsed();
+            }
+
+            // Update cursor position and style for geometric rendering
+            if let (Some(pos), Some(opacity), Some(style)) =
+                (current_cursor_pos, Some(self.cursor_anim.cursor_opacity), cursor_style)
+            {
+                renderer.update_cursor(pos, opacity, style);
+                // Forward cursor state to custom shader for Ghostty-compatible cursor animations
+                // Use the configured cursor color
+                let cursor_color = color_u8_to_f32_a(self.config.cursor_color, 1.0);
+                renderer.update_shader_cursor(pos.0, pos.1, opacity, cursor_color, style);
+            } else {
+                renderer.clear_cursor();
+            }
+
+            // Update progress bar state for shader uniforms
+            if let Some(ref snap) = progress_snapshot {
+                use par_term_emu_core_rust::terminal::ProgressState;
+                let state_val = match snap.simple.state {
+                    ProgressState::Hidden => 0.0,
+                    ProgressState::Normal => 1.0,
+                    ProgressState::Error => 2.0,
+                    ProgressState::Indeterminate => 3.0,
+                    ProgressState::Warning => 4.0,
+                };
+                let active_count = (if snap.simple.is_active() { 1 } else { 0 })
+                    + snap.named.values().filter(|b| b.state.is_active()).count();
+                renderer.update_shader_progress(
+                    state_val,
+                    snap.simple.progress as f32 / 100.0,
+                    if snap.has_active() { 1.0 } else { 0.0 },
+                    active_count as f32,
+                );
+            } else {
+                renderer.update_shader_progress(0.0, 0.0, 0.0, 0.0);
+            }
+
+            // Update scrollbar
+            let scroll_offset = self
+                .tab_manager
+                .active_tab()
+                .map(|t| t.scroll_state.offset)
+                .unwrap_or(0);
+            renderer.update_scrollbar(scroll_offset, visible_lines, total_lines, &scrollback_marks);
+
+            // Compute and set command separator marks for single-pane rendering
+            if self.config.command_separator_enabled {
+                let separator_marks = crate::renderer::compute_visible_separator_marks(
+                    &scrollback_marks,
+                    scrollback_len,
+                    scroll_offset,
+                    visible_lines,
+                );
+                renderer.set_separator_marks(separator_marks);
+            } else {
+                renderer.set_separator_marks(Vec::new());
+            }
+
+            // Compute and set gutter indicators for prettified blocks
+            {
+                let gutter_data = if let Some(tab) = self.tab_manager.active_tab() {
+                    if let Some(ref pipeline) = tab.prettifier {
+                        if pipeline.is_enabled() {
+                            let indicators = tab.gutter_manager.indicators_for_viewport(
+                                pipeline,
+                                scroll_offset,
+                                visible_lines,
+                            );
+                            // Default gutter indicator color: semi-transparent highlight
+                            let gutter_color = [0.3, 0.5, 0.8, 0.15];
+                            indicators
+                                .iter()
+                                .flat_map(|ind| {
+                                    (ind.row..ind.row + ind.height).map(move |r| (r, gutter_color))
+                                })
+                                .collect::<Vec<_>>()
+                        } else {
+                            Vec::new()
+                        }
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                };
+                renderer.set_gutter_indicators(gutter_data);
+            }
+
+            // Update animations and request redraw if frames changed
+            // Use try_lock() to avoid blocking the event loop when PTY reader holds the lock
+            let anim_start = std::time::Instant::now();
+            if let Some(tab) = self.tab_manager.active_tab()
+                && let Ok(terminal) = tab.terminal.try_lock()
+                && terminal.update_animations()
+            {
+                // Animation frame changed - request continuous redraws while animations are playing
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            let debug_anim_time = anim_start.elapsed();
+
+            // Update graphics from terminal (pass scroll_offset for view adjustment)
+            // Include both current screen graphics and scrollback graphics
+            // Use get_graphics_with_animations() to get current animation frames
+            // Use try_lock() to avoid blocking the event loop when PTY reader holds the lock
+            //
+            // In split-pane mode each pane has its own PTY terminal; graphics are collected
+            // per-pane inside the pane data gather loop below and do not go through here.
+            let graphics_start = std::time::Instant::now();
+            let has_pane_manager_for_graphics = self
+                .tab_manager
+                .active_tab()
+                .and_then(|t| t.pane_manager.as_ref())
+                .map(|pm| pm.pane_count() > 0)
+                .unwrap_or(false);
+            if !has_pane_manager_for_graphics
+                && let Some(tab) = self.tab_manager.active_tab()
+                && let Ok(terminal) = tab.terminal.try_lock()
+            {
+                let mut graphics = terminal.get_graphics_with_animations();
+                let scrollback_len = terminal.scrollback_len();
+
+                // Always include scrollback graphics (renderer will calculate visibility)
+                let scrollback_graphics = terminal.get_scrollback_graphics();
+                let scrollback_count = scrollback_graphics.len();
+                graphics.extend(scrollback_graphics);
+
+                debug_info!(
+                    "APP",
+                    "Got {} graphics ({} scrollback) from terminal (scroll_offset={}, scrollback_len={})",
+                    graphics.len(),
+                    scrollback_count,
+                    scroll_offset,
+                    scrollback_len
+                );
+                if let Err(e) = renderer.update_graphics(
+                    &graphics,
+                    scroll_offset,
+                    scrollback_len,
+                    visible_lines,
+                ) {
+                    log::error!("Failed to update graphics: {}", e);
+                }
+            }
+            debug_graphics_time = graphics_start.elapsed();
+
+            // Upload prettifier diagram graphics (rendered Mermaid, etc.) to the GPU.
+            // These are appended to the sixel_graphics render list and composited in
+            // the same pass as Sixel/iTerm2/Kitty graphics.
+            if !prettifier_graphics.is_empty() {
+                #[allow(clippy::type_complexity)]
+                let refs: Vec<(u64, &[u8], u32, u32, isize, usize)> = prettifier_graphics
+                    .iter()
+                    .map(|(id, data, w, h, row, col)| (*id, data.as_slice(), *w, *h, *row, *col))
+                    .collect();
+                if let Err(e) = renderer.update_prettifier_graphics(&refs) {
+                    crate::debug_error!(
+                        "PRETTIFIER",
+                        "Failed to upload prettifier graphics: {}",
+                        e
+                    );
+                }
+            }
+
+            // Calculate visual bell flash intensity (0.0 = no flash, 1.0 = full flash)
+            let visual_bell_flash = self
+                .tab_manager
+                .active_tab()
+                .and_then(|t| t.bell.visual_flash);
+            let visual_bell_intensity = if let Some(flash_start) = visual_bell_flash {
+                const FLASH_DURATION_MS: u128 = 150;
+                let elapsed = flash_start.elapsed().as_millis();
+                if elapsed < FLASH_DURATION_MS {
+                    // Request continuous redraws while flash is active
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
+                    // Fade out: start at 0.3 intensity, fade to 0
+                    0.3 * (1.0 - (elapsed as f32 / FLASH_DURATION_MS as f32))
+                } else {
+                    // Flash complete - clear it
+                    if let Some(tab) = self.tab_manager.active_tab_mut() {
+                        tab.bell.visual_flash = None;
+                    }
+                    0.0
+                }
+            } else {
+                0.0
+            };
+
+            // Update renderer with visual bell intensity
+            renderer.set_visual_bell_intensity(visual_bell_intensity);
+
+            // Prepare egui output if settings UI is visible
+            let egui_start = std::time::Instant::now();
+
+            // Capture values for FPS overlay before closure
+            let show_fps = self.debug.show_fps_overlay;
+            let fps_value = self.debug.fps_value;
+            let frame_time_ms = if !self.debug.frame_times.is_empty() {
+                let avg = self.debug.frame_times.iter().sum::<std::time::Duration>()
+                    / self.debug.frame_times.len() as u32;
+                avg.as_secs_f64() * 1000.0
+            } else {
+                0.0
+            };
+
+            // Capture badge state for closure (uses window_size_for_badge captured earlier)
+            let badge_enabled = self.badge_state.enabled;
+            let badge_state = if badge_enabled {
+                // Update variables if dirty
+                if self.badge_state.is_dirty() {
+                    self.badge_state.interpolate();
+                }
+                Some(self.badge_state.clone())
+            } else {
+                None
+            };
+
+            // Capture session variables for status bar rendering (skip if bar is hidden)
+            let status_bar_session_vars = if self.config.status_bar_enabled
+                && !self
+                    .status_bar_ui
+                    .should_hide(&self.config, self.is_fullscreen)
+            {
+                Some(self.badge_state.variables.read().clone())
+            } else {
+                None
+            };
+
+            // Capture hovered scrollbar mark for tooltip display
+            let hovered_mark: Option<crate::scrollback_metadata::ScrollbackMark> =
+                if self.config.scrollbar_mark_tooltips && self.config.scrollbar_command_marks {
+                    self.tab_manager
+                        .active_tab()
+                        .map(|tab| tab.mouse.position)
+                        .and_then(|(mx, my)| {
+                            renderer.scrollbar_mark_at_position(mx as f32, my as f32, 8.0)
+                        })
+                        .cloned()
+                } else {
+                    None
+                };
+
+            // Collect pane bounds for identify overlay (before egui borrow)
+            let pane_identify_bounds: Vec<(usize, crate::pane::PaneBounds)> =
+                if self.pane_identify_hide_time.is_some() {
+                    self.tab_manager
+                        .active_tab()
+                        .and_then(|tab| tab.pane_manager())
+                        .map(|pm| {
+                            pm.all_panes()
+                                .iter()
+                                .enumerate()
+                                .map(|(i, pane)| (i, pane.bounds))
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+
+            let egui_data = if let Some(window) = self.window.as_ref() {
+                // Window is live; run egui if the context and state are also ready.
+                if let (Some(egui_ctx), Some(egui_state)) = (&self.egui_ctx, &mut self.egui_state) {
+                    let mut raw_input = egui_state.take_egui_input(window);
+
+                    // Inject pending events from menu accelerators (Cmd+V/C/A intercepted by muda)
+                    // when egui overlays (profile modal, search, etc.) are active
+                    raw_input.events.append(&mut self.pending_egui_events);
+
+                    // When no modal UI overlay is visible, filter out Tab key events to prevent
+                    // egui's default focus navigation from stealing Tab/Shift+Tab from the terminal.
+                    // Tab/Shift+Tab should only cycle focus between egui widgets when a modal is open.
+                    // Note: Side panels (ai_inspector, profile drawer) are NOT modals — the terminal
+                    // should still receive Tab/Shift+Tab when they are open.
+                    if !any_modal_visible {
+                        raw_input.events.retain(|e| {
+                            !matches!(
+                                e,
+                                egui::Event::Key {
+                                    key: egui::Key::Tab,
+                                    ..
+                                }
+                            )
+                        });
+                    }
+
+                    let egui_output = egui_ctx.run(raw_input, |ctx| {
+                    // Show FPS overlay if enabled (top-right corner)
+                    if show_fps {
+                        egui::Area::new(egui::Id::new("fps_overlay"))
+                            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-30.0, 10.0))
+                            .order(egui::Order::Foreground)
+                            .show(ctx, |ui| {
+                                egui::Frame::NONE
+                                    .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200))
+                                    .inner_margin(egui::Margin::same(8))
+                                    .corner_radius(4.0)
+                                    .show(ui, |ui| {
+                                        ui.style_mut().visuals.override_text_color =
+                                            Some(egui::Color32::from_rgb(0, 255, 0));
+                                        ui.label(
+                                            egui::RichText::new(format!(
+                                                "FPS: {:.1}\nFrame: {:.2}ms",
+                                                fps_value, frame_time_ms
+                                            ))
+                                            .monospace()
+                                            .size(14.0),
+                                        );
+                                    });
+                            });
+                    }
+
+                    // Show resize overlay if active (centered)
+                    if self.resize_overlay_visible
+                        && let Some((width_px, height_px, cols, rows)) = self.resize_dimensions
+                    {
+                        egui::Area::new(egui::Id::new("resize_overlay"))
+                            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                            .order(egui::Order::Foreground)
+                            .show(ctx, |ui| {
+                                egui::Frame::NONE
+                                    .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 220))
+                                    .inner_margin(egui::Margin::same(16))
+                                    .corner_radius(8.0)
+                                    .show(ui, |ui| {
+                                        ui.style_mut().visuals.override_text_color =
+                                            Some(egui::Color32::from_rgb(255, 255, 255));
+                                        ui.label(
+                                            egui::RichText::new(format!(
+                                                "{}×{}\n{}×{} px",
+                                                cols, rows, width_px, height_px
+                                            ))
+                                            .monospace()
+                                            .size(24.0),
+                                        );
+                                    });
+                            });
+                    }
+
+                    // Show copy mode status bar overlay (when enabled in config)
+                    if self.copy_mode.active && self.config.copy_mode_show_status {
+                        let status = self.copy_mode.status_text();
+                        let (mode_text, color) = if self.copy_mode.is_searching {
+                            ("SEARCH", egui::Color32::from_rgb(255, 165, 0))
+                        } else {
+                            match self.copy_mode.visual_mode {
+                                crate::copy_mode::VisualMode::None => {
+                                    ("COPY", egui::Color32::from_rgb(100, 200, 100))
+                                }
+                                crate::copy_mode::VisualMode::Char => {
+                                    ("VISUAL", egui::Color32::from_rgb(100, 150, 255))
+                                }
+                                crate::copy_mode::VisualMode::Line => {
+                                    ("V-LINE", egui::Color32::from_rgb(100, 150, 255))
+                                }
+                                crate::copy_mode::VisualMode::Block => {
+                                    ("V-BLOCK", egui::Color32::from_rgb(100, 150, 255))
+                                }
+                            }
+                        };
+
+                        egui::Area::new(egui::Id::new("copy_mode_status_bar"))
+                            .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(0.0, 0.0))
+                            .order(egui::Order::Foreground)
+                            .show(ctx, |ui| {
+                                let available_width = ui.available_width();
+                                egui::Frame::NONE
+                                    .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 40, 230))
+                                    .inner_margin(egui::Margin::symmetric(12, 6))
+                                    .show(ui, |ui| {
+                                        ui.set_min_width(available_width);
+                                        ui.horizontal(|ui| {
+                                            ui.label(
+                                                egui::RichText::new(mode_text)
+                                                    .monospace()
+                                                    .size(13.0)
+                                                    .color(color)
+                                                    .strong(),
+                                            );
+                                            ui.separator();
+                                            ui.label(
+                                                egui::RichText::new(&status)
+                                                    .monospace()
+                                                    .size(12.0)
+                                                    .color(egui::Color32::from_rgb(200, 200, 200)),
+                                            );
+                                        });
+                                    });
+                            });
+                    }
+
+                    // Show toast notification if active (top center)
+                    if let Some(ref message) = self.toast_message {
+                        egui::Area::new(egui::Id::new("toast_notification"))
+                            .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 60.0))
+                            .order(egui::Order::Foreground)
+                            .show(ctx, |ui| {
+                                egui::Frame::NONE
+                                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 240))
+                                    .inner_margin(egui::Margin::symmetric(20, 12))
+                                    .corner_radius(8.0)
+                                    .stroke(egui::Stroke::new(
+                                        1.0,
+                                        egui::Color32::from_rgb(80, 80, 80),
+                                    ))
+                                    .show(ui, |ui| {
+                                        ui.style_mut().visuals.override_text_color =
+                                            Some(egui::Color32::from_rgb(255, 255, 255));
+                                        ui.label(egui::RichText::new(message).size(16.0));
+                                    });
+                            });
+                    }
+
+                    // Show scrollbar mark tooltip if hovering over a mark
+                    if let Some(ref mark) = hovered_mark {
+                        // Format the tooltip content
+                        let mut lines = Vec::new();
+
+                        if let Some(ref cmd) = mark.command {
+                            let truncated = if cmd.len() > 50 {
+                                format!("{}...", &cmd[..47])
+                            } else {
+                                cmd.clone()
+                            };
+                            lines.push(format!("Command: {}", truncated));
+                        }
+
+                        if let Some(start_time) = mark.start_time {
+                            use chrono::{DateTime, Local, Utc};
+                            let dt =
+                                DateTime::<Utc>::from_timestamp_millis(start_time as i64).unwrap();
+                            let local: DateTime<Local> = dt.into();
+                            lines.push(format!("Time: {}", local.format("%H:%M:%S")));
+                        }
+
+                        if let Some(duration_ms) = mark.duration_ms {
+                            if duration_ms < 1000 {
+                                lines.push(format!("Duration: {}ms", duration_ms));
+                            } else if duration_ms < 60000 {
+                                lines
+                                    .push(format!("Duration: {:.1}s", duration_ms as f64 / 1000.0));
+                            } else {
+                                let mins = duration_ms / 60000;
+                                let secs = (duration_ms % 60000) / 1000;
+                                lines.push(format!("Duration: {}m {}s", mins, secs));
+                            }
+                        }
+
+                        if let Some(exit_code) = mark.exit_code {
+                            lines.push(format!("Exit: {}", exit_code));
+                        }
+
+                        let tooltip_text = lines.join("\n");
+
+                        // Calculate tooltip position, clamped to stay on screen
+                        let mouse_pos = ctx.pointer_hover_pos().unwrap_or(egui::pos2(100.0, 100.0));
+                        let tooltip_x = (mouse_pos.x - 180.0).max(10.0);
+                        let tooltip_y = (mouse_pos.y - 20.0).max(10.0);
+
+                        // Show tooltip near mouse position (offset to the left of scrollbar)
+                        egui::Area::new(egui::Id::new("scrollbar_mark_tooltip"))
+                            .order(egui::Order::Tooltip)
+                            .fixed_pos(egui::pos2(tooltip_x, tooltip_y))
+                            .show(ctx, |ui| {
+                                ui.set_min_width(150.0);
+                                egui::Frame::NONE
+                                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 240))
+                                    .inner_margin(egui::Margin::same(8))
+                                    .corner_radius(4.0)
+                                    .stroke(egui::Stroke::new(
+                                        1.0,
+                                        egui::Color32::from_rgb(80, 80, 80),
+                                    ))
+                                    .show(ui, |ui| {
+                                        ui.set_min_width(140.0);
+                                        ui.style_mut().visuals.override_text_color =
+                                            Some(egui::Color32::from_rgb(220, 220, 220));
+                                        ui.label(
+                                            egui::RichText::new(&tooltip_text)
+                                                .monospace()
+                                                .size(12.0),
+                                        );
+                                    });
+                            });
+                    }
+
+                    // Render tab bar if visible (action handled after closure)
+                    let tab_bar_right_reserved = if self.ai_inspector.open {
+                        self.ai_inspector.consumed_width()
+                    } else {
+                        0.0
+                    };
+                    pending_tab_action = self.tab_bar_ui.render(
+                        ctx,
+                        &self.tab_manager,
+                        &self.config,
+                        &self.profile_manager,
+                        tab_bar_right_reserved,
+                    );
+
+                    // Render tmux status bar if connected
+                    self.tmux_status_bar_ui.render(
+                        ctx,
+                        &self.config,
+                        self.tmux_session.as_ref(),
+                        self.tmux_session_name.as_deref(),
+                    );
+
+                    // Render custom status bar
+                    if let Some(ref session_vars) = status_bar_session_vars {
+                        let (_bar_height, status_bar_action) = self.status_bar_ui.render(
+                            ctx,
+                            &self.config,
+                            session_vars,
+                            self.is_fullscreen,
+                        );
+                        if status_bar_action
+                            == Some(crate::status_bar::StatusBarAction::ShowUpdateDialog)
+                        {
+                            self.show_update_dialog = true;
+                        }
+                    }
+
+                    // Settings are now handled by standalone SettingsWindow only
+                    // No overlay settings UI rendering needed
+
+                    // Show help UI
+                    self.help_ui.show(ctx);
+
+                    // Show clipboard history UI and collect action
+                    pending_clipboard_action = self.clipboard_history_ui.show(ctx);
+
+                    // Show command history UI and collect action
+                    pending_command_history_action = self.command_history_ui.show(ctx);
+
+                    // Show paste special UI and collect action
+                    pending_paste_special_action = self.paste_special_ui.show(ctx);
+
+                    // Show search UI and collect action
+                    pending_search_action = self.search_ui.show(ctx, visible_lines, scrollback_len);
+
+                    // Show AI Inspector panel and collect action
+                    pending_inspector_action = self.ai_inspector.show(ctx, &self.available_agents);
+
+                    // Show tmux session picker UI and collect action
+                    let tmux_path = self.config.resolve_tmux_path();
+                    pending_session_picker_action =
+                        self.tmux_session_picker_ui.show(ctx, &tmux_path);
+
+                    // Show shader install dialog if visible
+                    pending_shader_install_response = self.shader_install_ui.show(ctx);
+
+                    // Show integrations welcome dialog if visible
+                    pending_integrations_response = self.integrations_ui.show(ctx);
+
+                    // Show close confirmation dialog if visible
+                    pending_close_confirm_action = self.close_confirmation_ui.show(ctx);
+
+                    // Show quit confirmation dialog if visible
+                    pending_quit_confirm_action = self.quit_confirmation_ui.show(ctx);
+
+                    // Show remote shell install dialog if visible
+                    pending_remote_install_action = self.remote_shell_install_ui.show(ctx);
+
+                    // Show SSH Quick Connect dialog if visible
+                    pending_ssh_connect_action = self.ssh_connect_ui.show(ctx);
+
+                    // Render update dialog overlay
+                    if self.show_update_dialog {
+                        // Poll for update install completion
+                        if let Some(ref rx) = self.update_install_receiver
+                            && let Ok(result) = rx.try_recv()
+                        {
+                            match result {
+                                Ok(update_result) => {
+                                    self.update_install_status = Some(format!(
+                                        "Updated to v{}! Restart par-term to use the new version.",
+                                        update_result.new_version
+                                    ));
+                                    self.update_installing = false;
+                                    self.status_bar_ui.update_available_version = None;
+                                }
+                                Err(e) => {
+                                    self.update_install_status =
+                                        Some(format!("Update failed: {}", e));
+                                    self.update_installing = false;
+                                }
+                            }
+                            self.update_install_receiver = None;
+                        }
+
+                        if let Some(ref update_result) = self.last_update_result {
+                            let dialog_action = crate::update_dialog::render(
+                                ctx,
+                                update_result,
+                                env!("CARGO_PKG_VERSION"),
+                                self.installation_type,
+                                self.update_installing,
+                                self.update_install_status.as_deref(),
+                            );
+                            match dialog_action {
+                                crate::update_dialog::UpdateDialogAction::Dismiss => {
+                                    if !self.update_installing {
+                                        self.show_update_dialog = false;
+                                        self.update_install_status = None;
+                                    }
+                                }
+                                crate::update_dialog::UpdateDialogAction::SkipVersion(v) => {
+                                    self.config.skipped_version = Some(v);
+                                    self.show_update_dialog = false;
+                                    self.status_bar_ui.update_available_version = None;
+                                    self.update_install_status = None;
+                                    let _ = self.config.save();
+                                }
+                                crate::update_dialog::UpdateDialogAction::InstallUpdate(v) => {
+                                    if !self.update_installing {
+                                        self.update_installing = true;
+                                        self.update_install_status =
+                                            Some("Downloading update...".to_string());
+                                        let (tx, rx) = std::sync::mpsc::channel();
+                                        self.update_install_receiver = Some(rx);
+                                        let version = v.clone();
+                                        std::thread::spawn(move || {
+                                            let result =
+                                                crate::self_updater::perform_update(&version);
+                                            let _ = tx.send(result);
+                                        });
+                                    }
+                                    // Don't close dialog while installing
+                                }
+                                crate::update_dialog::UpdateDialogAction::None => {}
+                            }
+                        } else {
+                            // No update result, close dialog
+                            self.show_update_dialog = false;
+                        }
+                    }
+
+                    // Render profile drawer (right side panel)
+                    pending_profile_drawer_action = self.profile_drawer_ui.render(
+                        ctx,
+                        &self.profile_manager,
+                        &self.config,
+                        false, // profile modal is no longer in the terminal window
+                    );
+
+                    // Render progress bar overlay
+                    if let (Some(snap), Some(size)) = (&progress_snapshot, window_size_for_badge) {
+                        let tab_count = self.tab_manager.tab_count();
+                        let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config);
+                        let (top_inset, bottom_inset) = match self.config.tab_bar_position {
+                            par_term_config::TabBarPosition::Top => (tb_height, 0.0),
+                            par_term_config::TabBarPosition::Bottom => (0.0, tb_height),
+                            par_term_config::TabBarPosition::Left => (0.0, 0.0),
+                        };
+                        render_progress_bars(
+                            ctx,
+                            snap,
+                            &self.config,
+                            size.width as f32,
+                            size.height as f32,
+                            top_inset,
+                            bottom_inset,
+                        );
+                    }
+
+                    // Render pane identify overlay (large index numbers centered on each pane)
+                    if !pane_identify_bounds.is_empty() {
+                        for (index, bounds) in &pane_identify_bounds {
+                            let center_x = bounds.x + bounds.width / 2.0;
+                            let center_y = bounds.y + bounds.height / 2.0;
+                            egui::Area::new(egui::Id::new(format!("pane_identify_{}", index)))
+                                .fixed_pos(egui::pos2(center_x - 30.0, center_y - 30.0))
+                                .order(egui::Order::Foreground)
+                                .interactable(false)
+                                .show(ctx, |ui| {
+                                    egui::Frame::NONE
+                                        .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200))
+                                        .inner_margin(egui::Margin::symmetric(16, 8))
+                                        .corner_radius(8.0)
+                                        .stroke(egui::Stroke::new(
+                                            2.0,
+                                            egui::Color32::from_rgb(100, 200, 255),
+                                        ))
+                                        .show(ui, |ui| {
+                                            ui.label(
+                                                egui::RichText::new(format!("Pane {}", index))
+                                                    .monospace()
+                                                    .size(28.0)
+                                                    .color(egui::Color32::from_rgb(100, 200, 255)),
+                                            );
+                                        });
+                                });
+                        }
+                    }
+
+                    // Render file transfer progress overlay (bottom-right corner)
+                    crate::app::file_transfers::render_file_transfer_overlay(
+                        &self.file_transfer_state,
+                        ctx,
+                    );
+
+                    // Render badge overlay (top-right corner)
+                    if let (Some(badge), Some(size)) = (&badge_state, window_size_for_badge) {
+                        render_badge(ctx, badge, size.width as f32, size.height as f32);
+                    }
+                });
+
+                    // Handle egui platform output (clipboard, cursor changes, etc.)
+                    // This enables cut/copy/paste in egui text editors
+                    egui_state.handle_platform_output(window, egui_output.platform_output.clone());
+
+                    Some((egui_output, egui_ctx))
+                } else {
+                    // egui context/state not yet initialised for this window.
+                    None
+                }
+            } else {
+                // Window not yet created; skip egui rendering this frame.
+                crate::debug_error!("RENDER", "egui render skipped: window is None");
+                None
+            };
+
+            // Mark egui as initialized after first ctx.run() - makes is_using_pointer() reliable
+            if !self.egui_initialized && egui_data.is_some() {
+                self.egui_initialized = true;
+            }
+
+            // Settings are now handled exclusively by standalone SettingsWindow
+            // Config changes are applied via window_manager.apply_config_to_windows()
+
+            let debug_egui_time = egui_start.elapsed();
+
+            // Calculate FPS and timing stats
+            let avg_frame_time = if !self.debug.frame_times.is_empty() {
+                self.debug.frame_times.iter().sum::<std::time::Duration>()
+                    / self.debug.frame_times.len() as u32
+            } else {
+                std::time::Duration::ZERO
+            };
+            let fps = if avg_frame_time.as_secs_f64() > 0.0 {
+                1.0 / avg_frame_time.as_secs_f64()
+            } else {
+                0.0
+            };
+
+            // Update FPS value for overlay display
+            self.debug.fps_value = fps;
+
+            // Log debug info every 60 frames (about once per second at 60 FPS)
+            if self.debug.frame_times.len() >= 60 {
+                let (cache_gen, cache_has_cells) = self
+                    .tab_manager
+                    .active_tab()
+                    .map(|t| (t.cache.generation, t.cache.cells.is_some()))
+                    .unwrap_or((0, false));
+                log::info!(
+                    "PERF: FPS={:.1} Frame={:.2}ms CellGen={:.2}ms({}) URLDetect={:.2}ms Anim={:.2}ms Graphics={:.2}ms egui={:.2}ms UpdateCells={:.2}ms ActualRender={:.2}ms Total={:.2}ms Cells={} Gen={} Cache={}",
+                    fps,
+                    avg_frame_time.as_secs_f64() * 1000.0,
+                    self.debug.cell_gen_time.as_secs_f64() * 1000.0,
+                    if self.debug.cache_hit { "HIT" } else { "MISS" },
+                    debug_url_detect_time.as_secs_f64() * 1000.0,
+                    debug_anim_time.as_secs_f64() * 1000.0,
+                    debug_graphics_time.as_secs_f64() * 1000.0,
+                    debug_egui_time.as_secs_f64() * 1000.0,
+                    debug_update_cells_time.as_secs_f64() * 1000.0,
+                    debug_actual_render_time.as_secs_f64() * 1000.0,
+                    self.debug.render_time.as_secs_f64() * 1000.0,
+                    cells.len(),
+                    cache_gen,
+                    if cache_has_cells { "YES" } else { "NO" }
+                );
+            }
+
+            // Render (with dirty tracking optimization)
+            let actual_render_start = std::time::Instant::now();
+            // Settings are handled by standalone SettingsWindow, not embedded UI
+
+            // Extract renderer sizing info for split pane calculations
+            let sizing = RendererSizing {
+                size: renderer.size(),
+                content_offset_y: renderer.content_offset_y(),
+                content_offset_x: renderer.content_offset_x(),
+                content_inset_bottom: renderer.content_inset_bottom(),
+                content_inset_right: renderer.content_inset_right(),
+                cell_width: renderer.cell_width(),
+                cell_height: renderer.cell_height(),
+                padding: renderer.window_padding(),
+                status_bar_height: (status_bar_height + custom_status_bar_height)
+                    * renderer.scale_factor(),
+                scale_factor: renderer.scale_factor(),
+            };
+
+            // Check if we have a pane manager with panes - this just checks without modifying
+            // We use pane_count() > 0 instead of has_multiple_panes() because even with a
+            // single pane in the manager (e.g., after closing one tmux split), we need to
+            // render via the pane manager path since cells are in the pane's terminal,
+            // not the main renderer buffer.
+            let (has_pane_manager, pane_count) = self
+                .tab_manager
+                .active_tab()
+                .and_then(|t| t.pane_manager.as_ref())
+                .map(|pm| (pm.pane_count() > 0, pm.pane_count()))
+                .unwrap_or((false, 0));
+
+            crate::debug_trace!(
+                "RENDER",
+                "has_pane_manager={}, pane_count={}",
+                has_pane_manager,
+                pane_count
+            );
+
+            // Per-pane backgrounds only take effect when splits are active.
+            // In single-pane mode, skip per-pane background lookup.
+            let pane_0_bg: Option<crate::pane::PaneBackground> = None;
+
+            let render_result = if has_pane_manager {
+                // When splits are active and hide_window_padding_on_split is enabled,
+                // use 0 padding so panes extend to the window edges
+                let effective_padding =
+                    if pane_count > 1 && self.config.hide_window_padding_on_split {
+                        0.0
+                    } else {
+                        sizing.padding
+                    };
+
+                // Render panes from pane manager - inline data gathering to avoid borrow conflicts
+                let content_width = sizing.size.width as f32
+                    - effective_padding * 2.0
+                    - sizing.content_offset_x
+                    - sizing.content_inset_right;
+                let content_height = sizing.size.height as f32
+                    - sizing.content_offset_y
+                    - sizing.content_inset_bottom
+                    - effective_padding
+                    - sizing.status_bar_height;
+
+                // Gather all necessary data upfront while we can borrow tab_manager
+                #[allow(clippy::type_complexity)]
+                let pane_render_data: Option<(
+                    Vec<PaneRenderData>,
+                    Vec<crate::pane::DividerRect>,
+                    Vec<PaneTitleInfo>,
+                    Option<PaneViewport>,
+                    usize, // focused pane scrollback_len (for tab.cache update)
+                )> = {
+                    let tab = self.tab_manager.active_tab_mut();
+                    if let Some(tab) = tab {
+                        // Capture tab-level scroll offset before mutably borrowing pane_manager.
+                        // In split-pane mode the focused pane uses tab.scroll_state.offset;
+                        // non-focused panes always render at offset 0 (bottom).
+                        let tab_scroll_offset = tab.scroll_state.offset;
+                        if let Some(pm) = &mut tab.pane_manager {
+                            // Update bounds
+                            let bounds = crate::pane::PaneBounds::new(
+                                effective_padding + sizing.content_offset_x,
+                                sizing.content_offset_y,
+                                content_width,
+                                content_height,
+                            );
+                            pm.set_bounds(bounds);
+
+                            // Calculate title bar height offset for terminal sizing
+                            // Scale from logical pixels (config) to physical pixels
+                            let title_height_offset = if self.config.show_pane_titles {
+                                self.config.pane_title_height * sizing.scale_factor
+                            } else {
+                                0.0
+                            };
+
+                            // Resize all pane terminals to match their new bounds
+                            // Scale pane_padding from logical to physical pixels
+                            pm.resize_all_terminals_with_padding(
+                                sizing.cell_width,
+                                sizing.cell_height,
+                                effective_pane_padding * sizing.scale_factor,
+                                title_height_offset,
+                            );
+
+                            // Gather pane info
+                            let focused_pane_id = pm.focused_pane_id();
+                            let all_pane_ids: Vec<_> =
+                                pm.all_panes().iter().map(|p| p.id).collect();
+                            let dividers = pm.get_dividers();
+
+                            let pane_bg_opacity = self.config.pane_background_opacity;
+                            let inactive_opacity = if self.config.dim_inactive_panes {
+                                self.config.inactive_pane_opacity
+                            } else {
+                                1.0
+                            };
+                            let cursor_opacity = self.cursor_anim.cursor_opacity;
+
+                            // Pane title settings
+                            // Scale from logical pixels (config) to physical pixels
+                            let show_titles = self.config.show_pane_titles;
+                            let title_height = self.config.pane_title_height * sizing.scale_factor;
+                            let title_position = self.config.pane_title_position;
+                            let title_text_color = color_u8_to_f32(self.config.pane_title_color);
+                            let title_bg_color = color_u8_to_f32(self.config.pane_title_bg_color);
+
+                            let mut pane_data = Vec::new();
+                            let mut pane_titles = Vec::new();
+                            let mut focused_pane_scrollback_len: usize = 0;
+                            let mut focused_viewport: Option<PaneViewport> = None;
+
+                            for pane_id in &all_pane_ids {
+                                if let Some(pane) = pm.get_pane(*pane_id) {
+                                    let is_focused = Some(*pane_id) == focused_pane_id;
+                                    let bounds = pane.bounds;
+
+                                    // Calculate viewport, adjusting for title bar if shown
+                                    let (viewport_y, viewport_height) = if show_titles {
+                                        use crate::config::PaneTitlePosition;
+                                        match title_position {
+                                            PaneTitlePosition::Top => (
+                                                bounds.y + title_height,
+                                                (bounds.height - title_height).max(0.0),
+                                            ),
+                                            PaneTitlePosition::Bottom => {
+                                                (bounds.y, (bounds.height - title_height).max(0.0))
+                                            }
+                                        }
+                                    } else {
+                                        (bounds.y, bounds.height)
+                                    };
+
+                                    // Create viewport with padding for content inset
+                                    // Scale pane_padding from logical to physical pixels
+                                    let physical_pane_padding =
+                                        effective_pane_padding * sizing.scale_factor;
+                                    let viewport = PaneViewport::with_padding(
+                                        bounds.x,
+                                        viewport_y,
+                                        bounds.width,
+                                        viewport_height,
+                                        is_focused,
+                                        if is_focused {
+                                            pane_bg_opacity
+                                        } else {
+                                            pane_bg_opacity * inactive_opacity
+                                        },
+                                        physical_pane_padding,
+                                    );
+
+                                    if is_focused {
+                                        focused_viewport = Some(viewport);
+                                    }
+
+                                    // Build pane title info
+                                    if show_titles {
+                                        use crate::config::PaneTitlePosition;
+                                        let title_y = match title_position {
+                                            PaneTitlePosition::Top => bounds.y,
+                                            PaneTitlePosition::Bottom => {
+                                                bounds.y + bounds.height - title_height
+                                            }
+                                        };
+                                        pane_titles.push(PaneTitleInfo {
+                                            x: bounds.x,
+                                            y: title_y,
+                                            width: bounds.width,
+                                            height: title_height,
+                                            title: pane.get_title(),
+                                            focused: is_focused,
+                                            text_color: title_text_color,
+                                            bg_color: title_bg_color,
+                                        });
+                                    }
+
+                                    let cells = if let Ok(term) = pane.terminal.try_lock() {
+                                        let scroll_offset =
+                                            if is_focused { tab_scroll_offset } else { 0 };
+                                        let selection =
+                                            pane.mouse.selection.map(|sel| sel.normalized());
+                                        let rectangular = pane
+                                            .mouse
+                                            .selection
+                                            .map(|sel| sel.mode == SelectionMode::Rectangular)
+                                            .unwrap_or(false);
+                                        term.get_cells_with_scrollback(
+                                            scroll_offset,
+                                            selection,
+                                            rectangular,
+                                            None,
+                                        )
+                                    } else {
+                                        Vec::new()
+                                    };
+
+                                    let need_marks = self.config.scrollbar_command_marks
+                                        || self.config.command_separator_enabled;
+                                    let (marks, pane_scrollback_len) = if need_marks {
+                                        if let Ok(mut term) = pane.terminal.try_lock() {
+                                            // Use cursor row 0 when unknown in split panes
+                                            let sb_len = term.scrollback_len();
+                                            term.update_scrollback_metadata(sb_len, 0);
+                                            (term.scrollback_marks(), sb_len)
+                                        } else {
+                                            (Vec::new(), 0)
+                                        }
+                                    } else {
+                                        // Still need the actual scrollback_len even without marks:
+                                        // it's used for graphics position math (tex_v_start
+                                        // cropping when graphic is partially off-top, and
+                                        // view_start when showing scrollback graphics).
+                                        let sb_len = if let Ok(term) = pane.terminal.try_lock() {
+                                            term.scrollback_len()
+                                        } else {
+                                            0
+                                        };
+                                        (Vec::new(), sb_len)
+                                    };
+                                    let pane_scroll_offset =
+                                        if is_focused { tab_scroll_offset } else { 0 };
+
+                                    // Cache the focused pane's scrollback_len so that scroll
+                                    // operations (mouse wheel, Page Up, etc.) can use it without
+                                    // needing to lock the terminal. Only update when the value is
+                                    // non-zero (lock succeeded) to avoid clobbering a good cached
+                                    // value with a transient lock-failure fallback of 0.
+                                    if is_focused && pane_scrollback_len > 0 {
+                                        focused_pane_scrollback_len = pane_scrollback_len;
+                                    }
+
+                                    // Per-pane backgrounds only apply when multiple panes exist
+                                    let pane_background = if all_pane_ids.len() > 1
+                                        && pane.background().has_image()
+                                    {
+                                        Some(pane.background().clone())
+                                    } else {
+                                        None
+                                    };
+
+                                    let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
+                                        if term.is_cursor_visible() {
+                                            Some(term.cursor_position())
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    };
+
+                                    // Grid size must match the terminal's actual size
+                                    // (accounting for padding and title bar, same as resize_all_terminals_with_padding)
+                                    let content_width = (bounds.width
+                                        - physical_pane_padding * 2.0)
+                                        .max(sizing.cell_width);
+                                    let content_height = (viewport_height
+                                        - physical_pane_padding * 2.0)
+                                        .max(sizing.cell_height);
+                                    let cols = (content_width / sizing.cell_width).floor() as usize;
+                                    let rows =
+                                        (content_height / sizing.cell_height).floor() as usize;
+                                    let cols = cols.max(1);
+                                    let rows = rows.max(1);
+
+                                    // Collect inline graphics (Sixel/iTerm2/Kitty) from this
+                                    // pane's PTY terminal.  Each pane has its own PTY so graphics
+                                    // are never in the shared tab.terminal.
+                                    let pane_graphics = if let Ok(term) = pane.terminal.try_lock() {
+                                        let mut g = term.get_graphics_with_animations();
+                                        let sb = term.get_scrollback_graphics();
+                                        crate::debug_log!(
+                                            "GRAPHICS",
+                                            "pane {:?}: active_graphics={}, scrollback_graphics={}, scrollback_len={}, scroll_offset={}, visible_rows={}, viewport=({},{},{}x{})",
+                                            pane_id,
+                                            g.len(),
+                                            sb.len(),
+                                            pane_scrollback_len,
+                                            pane_scroll_offset,
+                                            rows,
+                                            viewport.x,
+                                            viewport.y,
+                                            viewport.width,
+                                            viewport.height
+                                        );
+                                        for (i, gfx) in g.iter().chain(sb.iter()).enumerate() {
+                                            crate::debug_log!(
+                                                "GRAPHICS",
+                                                "  graphic[{}]: id={}, pos=({},{}), scroll_offset_rows={}, scrollback_row={:?}, size={}x{}",
+                                                i,
+                                                gfx.id,
+                                                gfx.position.0,
+                                                gfx.position.1,
+                                                gfx.scroll_offset_rows,
+                                                gfx.scrollback_row,
+                                                gfx.width,
+                                                gfx.height
+                                            );
+                                        }
+                                        g.extend(sb);
+                                        g
+                                    } else {
+                                        crate::debug_log!(
+                                            "GRAPHICS",
+                                            "pane {:?}: try_lock() failed, no graphics",
+                                            pane_id
+                                        );
+                                        Vec::new()
+                                    };
+
+                                    pane_data.push(PaneRenderData {
+                                        viewport,
+                                        cells,
+                                        grid_size: (cols, rows),
+                                        cursor_pos,
+                                        cursor_opacity: if is_focused {
+                                            cursor_opacity
+                                        } else {
+                                            0.0
+                                        },
+                                        marks,
+                                        scrollback_len: pane_scrollback_len,
+                                        scroll_offset: pane_scroll_offset,
+                                        background: pane_background,
+                                        graphics: pane_graphics,
+                                    });
+                                }
+                            }
+
+                            Some((
+                                pane_data,
+                                dividers,
+                                pane_titles,
+                                focused_viewport,
+                                focused_pane_scrollback_len,
+                            ))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                };
+
+                if let Some((
+                    pane_data,
+                    dividers,
+                    pane_titles,
+                    focused_viewport,
+                    focused_pane_scrollback_len,
+                )) = pane_render_data
+                {
+                    // Update tab cache with the focused pane's scrollback_len so that scroll
+                    // operations (mouse wheel, Page Up/Down, etc.) see the correct limit.
+                    // Only update when non-zero to avoid clobbering a good value on lock failure.
+                    // The `apply_scroll` function already clamps the target; we don't call
+                    // `clamp_to_scrollback` here because that would reset an ongoing scroll.
+                    if focused_pane_scrollback_len > 0
+                        && let Some(tab) = self.tab_manager.active_tab_mut()
+                    {
+                        tab.cache.scrollback_len = focused_pane_scrollback_len;
+                    }
+
+                    // Get hovered divider index for hover color rendering
+                    let hovered_divider_index = self
+                        .tab_manager
+                        .active_tab()
+                        .and_then(|t| t.mouse.hovered_divider_index);
+
+                    // Render split panes
+                    Self::render_split_panes_with_data(
+                        renderer,
+                        pane_data,
+                        dividers,
+                        pane_titles,
+                        focused_viewport,
+                        &self.config,
+                        egui_data,
+                        hovered_divider_index,
+                        show_scrollbar,
+                    )
+                } else {
+                    // Fallback to single pane render
+                    renderer.render(egui_data, false, show_scrollbar, pane_0_bg.as_ref())
+                }
+            } else {
+                // Single pane - use standard render path
+                renderer.render(egui_data, false, show_scrollbar, pane_0_bg.as_ref())
+            };
+
+            match render_result {
+                Ok(rendered) => {
+                    if !rendered {
+                        log::trace!("Skipped rendering - no changes");
+                    }
+                }
+                Err(e) => {
+                    // Check if this is a wgpu surface error that requires reconfiguration
+                    // This commonly happens when dragging windows between displays
+                    if let Some(surface_error) = e.downcast_ref::<SurfaceError>() {
+                        match surface_error {
+                            SurfaceError::Outdated | SurfaceError::Lost => {
+                                log::warn!(
+                                    "Surface error detected ({:?}), reconfiguring...",
+                                    surface_error
+                                );
+                                self.force_surface_reconfigure();
+                            }
+                            SurfaceError::Timeout => {
+                                log::warn!("Surface timeout, will retry next frame");
+                                if let Some(window) = &self.window {
+                                    window.request_redraw();
+                                }
+                            }
+                            SurfaceError::OutOfMemory => {
+                                log::error!("Surface out of memory: {:?}", surface_error);
+                            }
+                            _ => {
+                                log::error!("Surface error: {:?}", surface_error);
+                            }
+                        }
+                    } else {
+                        log::error!("Render error: {}", e);
+                    }
+                }
+            }
+            debug_actual_render_time = actual_render_start.elapsed();
+            let _ = debug_actual_render_time;
+
+            self.debug.render_time = render_start.elapsed();
+        }
+
+        // Sync AI Inspector panel width after the render pass.
+        // This catches drag-resize changes that update self.ai_inspector.width during show().
+        // Done here to avoid borrow conflicts with the renderer block above.
+        self.sync_ai_inspector_width();
+
+        // Handle tab bar actions collected during egui rendering
+        self.handle_tab_bar_action_after_render(pending_tab_action);
+
+
+        // Handle clipboard actions collected during egui rendering
+        self.handle_clipboard_history_action_after_render(pending_clipboard_action);
+
+        // Handle command history actions collected during egui rendering
+        match pending_command_history_action {
+            CommandHistoryAction::Insert(command) => {
+                self.paste_text(&command);
+                log::info!(
+                    "Inserted command from history: {}",
+                    &command[..command.len().min(60)]
+                );
+            }
+            CommandHistoryAction::None => {}
+        }
+
+        // Handle close confirmation dialog actions
+        match pending_close_confirm_action {
+            CloseConfirmAction::Close { tab_id, pane_id } => {
+                // User confirmed close - close the tab/pane
+                if let Some(pane_id) = pane_id {
+                    // Close specific pane
+                    if let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
+                        && let Some(pm) = tab.pane_manager_mut()
+                    {
+                        pm.close_pane(pane_id);
+                        log::info!("Force-closed pane {} in tab {}", pane_id, tab_id);
+                    }
+                } else {
+                    // Close entire tab
+                    self.tab_manager.close_tab(tab_id);
+                    log::info!("Force-closed tab {}", tab_id);
+                }
+                self.needs_redraw = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            CloseConfirmAction::Cancel => {
+                // User cancelled - do nothing, dialog already hidden
+                log::debug!("Close confirmation cancelled");
+            }
+            CloseConfirmAction::None => {}
+        }
+
+        // Handle quit confirmation dialog actions
+        match pending_quit_confirm_action {
+            QuitConfirmAction::Quit => {
+                // User confirmed quit - proceed with shutdown
+                log::info!("Quit confirmed by user");
+                self.perform_shutdown();
+            }
+            QuitConfirmAction::Cancel => {
+                log::debug!("Quit confirmation cancelled");
+            }
+            QuitConfirmAction::None => {}
+        }
+
+        // Handle remote shell integration install action
+        match pending_remote_install_action {
+            RemoteShellInstallAction::Install => {
+                // Send the install command via paste_text() which uses the same
+                // code path as Cmd+V paste — handles bracketed paste mode and
+                // correctly forwards through SSH sessions.
+                let command = RemoteShellInstallUI::install_command();
+                // paste_text appends \r internally via term.paste()
+                self.paste_text(&format!("{}\n", command));
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            RemoteShellInstallAction::Cancel => {
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            RemoteShellInstallAction::None => {}
+        }
+
+        // Handle SSH Quick Connect actions
+        match pending_ssh_connect_action {
+            SshConnectAction::Connect {
+                host,
+                profile_override: _,
+            } => {
+                // Build SSH command and write it to the active terminal's PTY
+                let args = host.ssh_args();
+                let ssh_cmd = format!("ssh {}\n", args.join(" "));
+                if let Some(tab) = self.tab_manager.active_tab()
+                    && let Ok(term) = tab.terminal.try_lock()
+                {
+                    let _ = term.write_str(&ssh_cmd);
+                }
+                log::info!(
+                    "SSH Quick Connect: connecting to {}",
+                    host.connection_string()
+                );
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            SshConnectAction::Cancel => {
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            SshConnectAction::None => {}
+        }
+
+        // Handle paste special actions collected during egui rendering
+        match pending_paste_special_action {
+            PasteSpecialAction::Paste(content) => {
+                self.paste_text(&content);
+                log::debug!("Pasted transformed text ({} chars)", content.len());
+            }
+            PasteSpecialAction::None => {}
+        }
+
+        // Handle search actions collected during egui rendering
+        match pending_search_action {
+            crate::search::SearchAction::ScrollToMatch(offset) => {
+                self.set_scroll_target(offset);
+                self.needs_redraw = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            crate::search::SearchAction::Close => {
+                self.needs_redraw = true;
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            crate::search::SearchAction::None => {}
+        }
+
+
+        // Handle AI Inspector actions collected during egui rendering
+        self.handle_inspector_action_after_render(pending_inspector_action);
+
+        // Handle tmux session picker actions collected during egui rendering
+        // Uses gateway mode: writes tmux commands to existing PTY instead of spawning process
+        match pending_session_picker_action {
+            SessionPickerAction::Attach(session_name) => {
+                crate::debug_info!(
+                    "TMUX",
+                    "Session picker: attaching to '{}' via gateway",
+                    session_name
+                );
+                if let Err(e) = self.attach_tmux_gateway(&session_name) {
+                    log::error!("Failed to attach to tmux session '{}': {}", session_name, e);
+                    self.show_toast(format!("Failed to attach: {}", e));
+                } else {
+                    crate::debug_info!("TMUX", "Gateway initiated for session '{}'", session_name);
+                    self.show_toast(format!("Connecting to session '{}'...", session_name));
+                }
+                self.needs_redraw = true;
+            }
+            SessionPickerAction::CreateNew(name) => {
+                crate::debug_info!(
+                    "TMUX",
+                    "Session picker: creating new session {:?} via gateway",
+                    name
+                );
+                if let Err(e) = self.initiate_tmux_gateway(name.as_deref()) {
+                    log::error!("Failed to create tmux session: {}", e);
+                    crate::debug_error!("TMUX", "Failed to initiate gateway: {}", e);
+                    self.show_toast(format!("Failed to create session: {}", e));
+                } else {
+                    let msg = match name {
+                        Some(ref n) => format!("Creating session '{}'...", n),
+                        None => "Creating new tmux session...".to_string(),
+                    };
+                    crate::debug_info!("TMUX", "Gateway initiated: {}", msg);
+                    self.show_toast(msg);
+                }
+                self.needs_redraw = true;
+            }
+            SessionPickerAction::None => {}
+        }
+
+        // Check for shader installation completion from background thread
+        if let Some(ref rx) = self.shader_install_receiver
+            && let Ok(result) = rx.try_recv()
+        {
+            match result {
+                Ok(count) => {
+                    log::info!("Successfully installed {} shaders", count);
+                    self.shader_install_ui
+                        .set_success(&format!("Installed {} shaders!", count));
+
+                    // Update config to mark as installed
+                    self.config.shader_install_prompt = ShaderInstallPrompt::Installed;
+                    if let Err(e) = self.config.save() {
+                        log::error!("Failed to save config after shader install: {}", e);
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to install shaders: {}", e);
+                    self.shader_install_ui.set_error(&e);
+                }
+            }
+            self.shader_install_receiver = None;
+            self.needs_redraw = true;
+        }
+
+        // Handle shader install responses
+        match pending_shader_install_response {
+            ShaderInstallResponse::Install => {
+                log::info!("User requested shader installation");
+                self.shader_install_ui
+                    .set_installing("Downloading shaders...");
+                self.needs_redraw = true;
+
+                // Spawn installation in background thread so UI can show progress
+                let (tx, rx) = std::sync::mpsc::channel();
+                self.shader_install_receiver = Some(rx);
+
+                std::thread::spawn(move || {
+                    let result = crate::shader_install_ui::install_shaders_headless();
+                    let _ = tx.send(result);
+                });
+
+                // Request redraw so the spinner shows
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            ShaderInstallResponse::Never => {
+                log::info!("User declined shader installation (never ask again)");
+                self.shader_install_ui.hide();
+
+                // Update config to never ask again
+                self.config.shader_install_prompt = ShaderInstallPrompt::Never;
+                if let Err(e) = self.config.save() {
+                    log::error!("Failed to save config after declining shaders: {}", e);
+                }
+            }
+            ShaderInstallResponse::Later => {
+                log::info!("User deferred shader installation");
+                self.shader_install_ui.hide();
+                // Config remains "ask" - will prompt again on next startup
+            }
+            ShaderInstallResponse::None => {}
+        }
+
+        // Handle integrations welcome dialog responses
+        self.handle_integrations_response(&pending_integrations_response);
+
+        // Handle profile drawer actions
+        match pending_profile_drawer_action {
+            ProfileDrawerAction::OpenProfile(id) => {
+                self.open_profile(id);
+            }
+            ProfileDrawerAction::ManageProfiles => {
+                // Open settings window to Profiles tab instead of terminal-embedded modal
+                self.open_settings_window_requested = true;
+                self.open_settings_profiles_tab = true;
+            }
+            ProfileDrawerAction::None => {}
+        }
+
+        let absolute_total = absolute_start.elapsed();
+        if absolute_total.as_millis() > 10 {
+            log::debug!(
+                "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
+                absolute_total.as_secs_f64() * 1000.0
+            );
+        }
+    }
+
+    /// Process incoming ACP agent messages for this render tick and refresh
+    /// the AI Inspector snapshot when needed.
+    ///
+    /// Called once per frame from `render()`. Handles the full agent message
+    /// dispatch loop, deferred config updates, inline tool-markup fallback,
+    /// bounded skill-failure recovery, auto-context feeding, and snapshot refresh.
+    fn process_agent_messages_tick(&mut self) {
         let mut saw_prompt_complete_this_tick = false;
 
         // Process agent messages
@@ -3919,1455 +5606,13 @@ impl WindowState {
             self.ai_inspector.snapshot = Some(snapshot);
             self.ai_inspector.needs_refresh = false;
         }
+    }
 
-        // Check tmux gateway state before renderer borrow to avoid borrow conflicts
-        // When tmux controls the layout, we don't use pane padding
-        // Note: pane_padding is in logical pixels (config); we defer DPI scaling to
-        // where it's used with physical pixel coordinates (via sizing.scale_factor).
-        let is_tmux_gateway = self.is_gateway_active();
-        let effective_pane_padding = if is_tmux_gateway {
-            0.0
-        } else {
-            self.config.pane_padding
-        };
-
-        // Calculate status bar height before mutable renderer borrow
-        // Note: This is in logical pixels; it gets scaled to physical in RendererSizing.
-        let is_tmux_connected = self.is_tmux_connected();
-        let status_bar_height =
-            crate::tmux_status_bar_ui::TmuxStatusBarUI::height(&self.config, is_tmux_connected);
-
-        // Calculate custom status bar height
-        let custom_status_bar_height = self.status_bar_ui.height(&self.config, self.is_fullscreen);
-
-        // Capture window size before mutable borrow (for badge rendering in egui)
-        let window_size_for_badge = self.renderer.as_ref().map(|r| r.size());
-
-        // Capture progress bar snapshot before mutable borrow
-        let progress_snapshot = if self.config.progress_bar_enabled {
-            self.tab_manager.active_tab().and_then(|tab| {
-                tab.terminal
-                    .try_lock()
-                    .ok()
-                    .map(|term| ProgressBarSnapshot {
-                        simple: term.progress_bar(),
-                        named: term.named_progress_bars(),
-                    })
-            })
-        } else {
-            None
-        };
-
-        // Sync AI Inspector panel width before scrollbar update so the scrollbar
-        // position uses the current panel width on this frame (not the previous one).
-        self.sync_ai_inspector_width();
-
-        // Prettifier cell substitution — replace raw cells with rendered content.
-        // Always run when blocks exist: the cell cache stores raw terminal cells
-        // (set before this point), so we must re-apply styled content every frame.
-        //
-        // Also collect inline graphics (rendered diagrams) for GPU compositing.
-        #[allow(clippy::type_complexity)]
-        let mut prettifier_graphics: Vec<(
-            u64,
-            std::sync::Arc<Vec<u8>>,
-            u32,
-            u32,
-            isize,
-            usize,
-        )> = Vec::new();
-        if !is_alt_screen
-            && let Some(tab) = self.tab_manager.active_tab()
-            && let Some(ref pipeline) = tab.prettifier
-            && pipeline.is_enabled()
-        {
-            let scroll_off = tab.scroll_state.offset;
-            let gutter_w = tab.gutter_manager.gutter_width;
-
-            // Track which blocks we've already collected graphics from
-            // to avoid duplicates when multiple viewport rows fall in
-            // the same block.
-            let mut collected_block_ids = std::collections::HashSet::new();
-
-            // Log block overlay coverage once per frame for debugging.
-            if !pipeline.active_blocks().is_empty() {
-                let view_start = scrollback_len.saturating_sub(scroll_off);
-                let view_end = view_start + visible_lines;
-                crate::debug_log!(
-                    "PRETTIFIER",
-                    "overlay: {} active blocks, viewport rows={}..{}, blocks={:?}",
-                    pipeline.active_blocks().len(),
-                    view_start,
-                    view_end,
-                    pipeline
-                        .active_blocks()
-                        .iter()
-                        .map(|b| format!(
-                            "id={} rows={}..{}",
-                            b.block_id,
-                            b.content().start_row,
-                            b.content().end_row
-                        ))
-                        .collect::<Vec<_>>()
-                );
-            }
-
-            for viewport_row in 0..visible_lines {
-                let absolute_row = scrollback_len.saturating_sub(scroll_off) + viewport_row;
-                if let Some(block) = pipeline.block_at_row(absolute_row) {
-                    if !block.has_rendered() {
-                        continue;
-                    }
-
-                    // Collect inline graphics from this block (once per block).
-                    if collected_block_ids.insert(block.block_id) {
-                        let block_start = block.content().start_row;
-                        for graphic in block.buffer.rendered_graphics() {
-                            if !graphic.is_rgba
-                                || graphic.data.is_empty()
-                                || graphic.pixel_width == 0
-                                || graphic.pixel_height == 0
-                            {
-                                continue;
-                            }
-                            // Compute screen row: block_start + graphic.row within block,
-                            // then convert to viewport coordinates.
-                            let abs_graphic_row = block_start + graphic.row;
-                            let view_start = scrollback_len.saturating_sub(scroll_off);
-                            let screen_row = abs_graphic_row as isize - view_start as isize;
-
-                            // Use block_id + graphic row as a stable texture ID
-                            // (offset to avoid colliding with terminal graphic IDs).
-                            let texture_id = 0x8000_0000_0000_0000_u64
-                                | (block.block_id << 16)
-                                | (graphic.row as u64);
-
-                            crate::debug_info!(
-                                "PRETTIFIER",
-                                "uploading graphic: block={}, row={}, screen_row={}, {}x{} px, {} bytes RGBA",
-                                block.block_id,
-                                graphic.row,
-                                screen_row,
-                                graphic.pixel_width,
-                                graphic.pixel_height,
-                                graphic.data.len()
-                            );
-
-                            prettifier_graphics.push((
-                                texture_id,
-                                graphic.data.clone(),
-                                graphic.pixel_width,
-                                graphic.pixel_height,
-                                screen_row,
-                                graphic.col + gutter_w,
-                            ));
-                        }
-                    }
-
-                    let display_lines = block.buffer.display_lines();
-                    let block_start = block.content().start_row;
-                    let line_offset = absolute_row.saturating_sub(block_start);
-                    if let Some(styled_line) = display_lines.get(line_offset) {
-                        crate::debug_trace!(
-                            "PRETTIFIER",
-                            "cell sub: vp_row={}, abs_row={}, block_id={}, line_off={}, segs={}",
-                            viewport_row,
-                            absolute_row,
-                            block.block_id,
-                            line_offset,
-                            styled_line.segments.len()
-                        );
-                        let cell_start = viewport_row * grid_cols;
-                        let cell_end = (cell_start + grid_cols).min(cells.len());
-                        if cell_start >= cells.len() {
-                            break;
-                        }
-                        // Clear row
-                        for cell in &mut cells[cell_start..cell_end] {
-                            *cell = par_term_config::Cell::default();
-                        }
-                        // Write styled segments (offset by gutter width to avoid clipping)
-                        let mut col = gutter_w;
-                        for segment in &styled_line.segments {
-                            for ch in segment.text.chars() {
-                                if col >= grid_cols {
-                                    break;
-                                }
-                                let idx = cell_start + col;
-                                if idx < cells.len() {
-                                    cells[idx].grapheme = ch.to_string();
-                                    if let Some([r, g, b]) = segment.fg {
-                                        cells[idx].fg_color = [r, g, b, 0xFF];
-                                    }
-                                    if let Some([r, g, b]) = segment.bg {
-                                        cells[idx].bg_color = [r, g, b, 0xFF];
-                                    }
-                                    cells[idx].bold = segment.bold;
-                                    cells[idx].italic = segment.italic;
-                                    cells[idx].underline = segment.underline;
-                                    cells[idx].strikethrough = segment.strikethrough;
-                                }
-                                col += 1;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Cache modal visibility before entering the renderer borrow scope.
-        // Method calls borrow all of `self`, which conflicts with `&mut self.renderer`.
-        let any_modal_visible = self.any_modal_ui_visible();
-
-        if let Some(renderer) = &mut self.renderer {
-            // Status bar inset is handled by sync_status_bar_inset() above,
-            // before cell gathering, so the grid height is correct.
-
-            // Disable cursor shader when alt screen is active (TUI apps like vim, htop)
-            let disable_cursor_shader =
-                self.config.cursor_shader_disable_in_alt_screen && is_alt_screen;
-            renderer.set_cursor_shader_disabled_for_alt_screen(disable_cursor_shader);
-
-            // Only update renderer with cells if they changed (cache MISS)
-            // This avoids re-uploading the same cell data to GPU on every frame
-            if !self.debug.cache_hit {
-                let t = std::time::Instant::now();
-                renderer.update_cells(&cells);
-                debug_update_cells_time = t.elapsed();
-            }
-
-            // Update cursor position and style for geometric rendering
-            if let (Some(pos), Some(opacity), Some(style)) =
-                (current_cursor_pos, Some(self.cursor_opacity), cursor_style)
-            {
-                renderer.update_cursor(pos, opacity, style);
-                // Forward cursor state to custom shader for Ghostty-compatible cursor animations
-                // Use the configured cursor color
-                let cursor_color = color_u8_to_f32_a(self.config.cursor_color, 1.0);
-                renderer.update_shader_cursor(pos.0, pos.1, opacity, cursor_color, style);
-            } else {
-                renderer.clear_cursor();
-            }
-
-            // Update progress bar state for shader uniforms
-            if let Some(ref snap) = progress_snapshot {
-                use par_term_emu_core_rust::terminal::ProgressState;
-                let state_val = match snap.simple.state {
-                    ProgressState::Hidden => 0.0,
-                    ProgressState::Normal => 1.0,
-                    ProgressState::Error => 2.0,
-                    ProgressState::Indeterminate => 3.0,
-                    ProgressState::Warning => 4.0,
-                };
-                let active_count = (if snap.simple.is_active() { 1 } else { 0 })
-                    + snap.named.values().filter(|b| b.state.is_active()).count();
-                renderer.update_shader_progress(
-                    state_val,
-                    snap.simple.progress as f32 / 100.0,
-                    if snap.has_active() { 1.0 } else { 0.0 },
-                    active_count as f32,
-                );
-            } else {
-                renderer.update_shader_progress(0.0, 0.0, 0.0, 0.0);
-            }
-
-            // Update scrollbar
-            let scroll_offset = self
-                .tab_manager
-                .active_tab()
-                .map(|t| t.scroll_state.offset)
-                .unwrap_or(0);
-            renderer.update_scrollbar(scroll_offset, visible_lines, total_lines, &scrollback_marks);
-
-            // Compute and set command separator marks for single-pane rendering
-            if self.config.command_separator_enabled {
-                let separator_marks = crate::renderer::compute_visible_separator_marks(
-                    &scrollback_marks,
-                    scrollback_len,
-                    scroll_offset,
-                    visible_lines,
-                );
-                renderer.set_separator_marks(separator_marks);
-            } else {
-                renderer.set_separator_marks(Vec::new());
-            }
-
-            // Compute and set gutter indicators for prettified blocks
-            {
-                let gutter_data = if let Some(tab) = self.tab_manager.active_tab() {
-                    if let Some(ref pipeline) = tab.prettifier {
-                        if pipeline.is_enabled() {
-                            let indicators = tab.gutter_manager.indicators_for_viewport(
-                                pipeline,
-                                scroll_offset,
-                                visible_lines,
-                            );
-                            // Default gutter indicator color: semi-transparent highlight
-                            let gutter_color = [0.3, 0.5, 0.8, 0.15];
-                            indicators
-                                .iter()
-                                .flat_map(|ind| {
-                                    (ind.row..ind.row + ind.height).map(move |r| (r, gutter_color))
-                                })
-                                .collect::<Vec<_>>()
-                        } else {
-                            Vec::new()
-                        }
-                    } else {
-                        Vec::new()
-                    }
-                } else {
-                    Vec::new()
-                };
-                renderer.set_gutter_indicators(gutter_data);
-            }
-
-            // Update animations and request redraw if frames changed
-            // Use try_lock() to avoid blocking the event loop when PTY reader holds the lock
-            let anim_start = std::time::Instant::now();
-            if let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(terminal) = tab.terminal.try_lock()
-                && terminal.update_animations()
-            {
-                // Animation frame changed - request continuous redraws while animations are playing
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            let debug_anim_time = anim_start.elapsed();
-
-            // Update graphics from terminal (pass scroll_offset for view adjustment)
-            // Include both current screen graphics and scrollback graphics
-            // Use get_graphics_with_animations() to get current animation frames
-            // Use try_lock() to avoid blocking the event loop when PTY reader holds the lock
-            //
-            // In split-pane mode each pane has its own PTY terminal; graphics are collected
-            // per-pane inside the pane data gather loop below and do not go through here.
-            let graphics_start = std::time::Instant::now();
-            let has_pane_manager_for_graphics = self
-                .tab_manager
-                .active_tab()
-                .and_then(|t| t.pane_manager.as_ref())
-                .map(|pm| pm.pane_count() > 0)
-                .unwrap_or(false);
-            if !has_pane_manager_for_graphics
-                && let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(terminal) = tab.terminal.try_lock()
-            {
-                let mut graphics = terminal.get_graphics_with_animations();
-                let scrollback_len = terminal.scrollback_len();
-
-                // Always include scrollback graphics (renderer will calculate visibility)
-                let scrollback_graphics = terminal.get_scrollback_graphics();
-                let scrollback_count = scrollback_graphics.len();
-                graphics.extend(scrollback_graphics);
-
-                debug_info!(
-                    "APP",
-                    "Got {} graphics ({} scrollback) from terminal (scroll_offset={}, scrollback_len={})",
-                    graphics.len(),
-                    scrollback_count,
-                    scroll_offset,
-                    scrollback_len
-                );
-                if let Err(e) = renderer.update_graphics(
-                    &graphics,
-                    scroll_offset,
-                    scrollback_len,
-                    visible_lines,
-                ) {
-                    log::error!("Failed to update graphics: {}", e);
-                }
-            }
-            debug_graphics_time = graphics_start.elapsed();
-
-            // Upload prettifier diagram graphics (rendered Mermaid, etc.) to the GPU.
-            // These are appended to the sixel_graphics render list and composited in
-            // the same pass as Sixel/iTerm2/Kitty graphics.
-            if !prettifier_graphics.is_empty() {
-                #[allow(clippy::type_complexity)]
-                let refs: Vec<(u64, &[u8], u32, u32, isize, usize)> = prettifier_graphics
-                    .iter()
-                    .map(|(id, data, w, h, row, col)| (*id, data.as_slice(), *w, *h, *row, *col))
-                    .collect();
-                if let Err(e) = renderer.update_prettifier_graphics(&refs) {
-                    crate::debug_error!(
-                        "PRETTIFIER",
-                        "Failed to upload prettifier graphics: {}",
-                        e
-                    );
-                }
-            }
-
-            // Calculate visual bell flash intensity (0.0 = no flash, 1.0 = full flash)
-            let visual_bell_flash = self
-                .tab_manager
-                .active_tab()
-                .and_then(|t| t.bell.visual_flash);
-            let visual_bell_intensity = if let Some(flash_start) = visual_bell_flash {
-                const FLASH_DURATION_MS: u128 = 150;
-                let elapsed = flash_start.elapsed().as_millis();
-                if elapsed < FLASH_DURATION_MS {
-                    // Request continuous redraws while flash is active
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
-                    // Fade out: start at 0.3 intensity, fade to 0
-                    0.3 * (1.0 - (elapsed as f32 / FLASH_DURATION_MS as f32))
-                } else {
-                    // Flash complete - clear it
-                    if let Some(tab) = self.tab_manager.active_tab_mut() {
-                        tab.bell.visual_flash = None;
-                    }
-                    0.0
-                }
-            } else {
-                0.0
-            };
-
-            // Update renderer with visual bell intensity
-            renderer.set_visual_bell_intensity(visual_bell_intensity);
-
-            // Prepare egui output if settings UI is visible
-            let egui_start = std::time::Instant::now();
-
-            // Capture values for FPS overlay before closure
-            let show_fps = self.debug.show_fps_overlay;
-            let fps_value = self.debug.fps_value;
-            let frame_time_ms = if !self.debug.frame_times.is_empty() {
-                let avg = self.debug.frame_times.iter().sum::<std::time::Duration>()
-                    / self.debug.frame_times.len() as u32;
-                avg.as_secs_f64() * 1000.0
-            } else {
-                0.0
-            };
-
-            // Capture badge state for closure (uses window_size_for_badge captured earlier)
-            let badge_enabled = self.badge_state.enabled;
-            let badge_state = if badge_enabled {
-                // Update variables if dirty
-                if self.badge_state.is_dirty() {
-                    self.badge_state.interpolate();
-                }
-                Some(self.badge_state.clone())
-            } else {
-                None
-            };
-
-            // Capture session variables for status bar rendering (skip if bar is hidden)
-            let status_bar_session_vars = if self.config.status_bar_enabled
-                && !self
-                    .status_bar_ui
-                    .should_hide(&self.config, self.is_fullscreen)
-            {
-                Some(self.badge_state.variables.read().clone())
-            } else {
-                None
-            };
-
-            // Capture hovered scrollbar mark for tooltip display
-            let hovered_mark: Option<crate::scrollback_metadata::ScrollbackMark> =
-                if self.config.scrollbar_mark_tooltips && self.config.scrollbar_command_marks {
-                    self.tab_manager
-                        .active_tab()
-                        .map(|tab| tab.mouse.position)
-                        .and_then(|(mx, my)| {
-                            renderer.scrollbar_mark_at_position(mx as f32, my as f32, 8.0)
-                        })
-                        .cloned()
-                } else {
-                    None
-                };
-
-            // Collect pane bounds for identify overlay (before egui borrow)
-            let pane_identify_bounds: Vec<(usize, crate::pane::PaneBounds)> =
-                if self.pane_identify_hide_time.is_some() {
-                    self.tab_manager
-                        .active_tab()
-                        .and_then(|tab| tab.pane_manager())
-                        .map(|pm| {
-                            pm.all_panes()
-                                .iter()
-                                .enumerate()
-                                .map(|(i, pane)| (i, pane.bounds))
-                                .collect()
-                        })
-                        .unwrap_or_default()
-                } else {
-                    Vec::new()
-                };
-
-            let egui_data = if let (Some(egui_ctx), Some(egui_state)) =
-                (&self.egui_ctx, &mut self.egui_state)
-            {
-                let mut raw_input = egui_state.take_egui_input(self.window.as_ref().unwrap());
-
-                // Inject pending events from menu accelerators (Cmd+V/C/A intercepted by muda)
-                // when egui overlays (profile modal, search, etc.) are active
-                raw_input.events.append(&mut self.pending_egui_events);
-
-                // When no modal UI overlay is visible, filter out Tab key events to prevent
-                // egui's default focus navigation from stealing Tab/Shift+Tab from the terminal.
-                // Tab/Shift+Tab should only cycle focus between egui widgets when a modal is open.
-                // Note: Side panels (ai_inspector, profile drawer) are NOT modals — the terminal
-                // should still receive Tab/Shift+Tab when they are open.
-                if !any_modal_visible {
-                    raw_input.events.retain(|e| {
-                        !matches!(
-                            e,
-                            egui::Event::Key {
-                                key: egui::Key::Tab,
-                                ..
-                            }
-                        )
-                    });
-                }
-
-                let egui_output = egui_ctx.run(raw_input, |ctx| {
-                    // Show FPS overlay if enabled (top-right corner)
-                    if show_fps {
-                        egui::Area::new(egui::Id::new("fps_overlay"))
-                            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-30.0, 10.0))
-                            .order(egui::Order::Foreground)
-                            .show(ctx, |ui| {
-                                egui::Frame::NONE
-                                    .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200))
-                                    .inner_margin(egui::Margin::same(8))
-                                    .corner_radius(4.0)
-                                    .show(ui, |ui| {
-                                        ui.style_mut().visuals.override_text_color =
-                                            Some(egui::Color32::from_rgb(0, 255, 0));
-                                        ui.label(
-                                            egui::RichText::new(format!(
-                                                "FPS: {:.1}\nFrame: {:.2}ms",
-                                                fps_value, frame_time_ms
-                                            ))
-                                            .monospace()
-                                            .size(14.0),
-                                        );
-                                    });
-                            });
-                    }
-
-                    // Show resize overlay if active (centered)
-                    if self.resize_overlay_visible
-                        && let Some((width_px, height_px, cols, rows)) = self.resize_dimensions
-                    {
-                        egui::Area::new(egui::Id::new("resize_overlay"))
-                            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-                            .order(egui::Order::Foreground)
-                            .show(ctx, |ui| {
-                                egui::Frame::NONE
-                                    .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 220))
-                                    .inner_margin(egui::Margin::same(16))
-                                    .corner_radius(8.0)
-                                    .show(ui, |ui| {
-                                        ui.style_mut().visuals.override_text_color =
-                                            Some(egui::Color32::from_rgb(255, 255, 255));
-                                        ui.label(
-                                            egui::RichText::new(format!(
-                                                "{}×{}\n{}×{} px",
-                                                cols, rows, width_px, height_px
-                                            ))
-                                            .monospace()
-                                            .size(24.0),
-                                        );
-                                    });
-                            });
-                    }
-
-                    // Show copy mode status bar overlay (when enabled in config)
-                    if self.copy_mode.active && self.config.copy_mode_show_status {
-                        let status = self.copy_mode.status_text();
-                        let (mode_text, color) = if self.copy_mode.is_searching {
-                            ("SEARCH", egui::Color32::from_rgb(255, 165, 0))
-                        } else {
-                            match self.copy_mode.visual_mode {
-                                crate::copy_mode::VisualMode::None => {
-                                    ("COPY", egui::Color32::from_rgb(100, 200, 100))
-                                }
-                                crate::copy_mode::VisualMode::Char => {
-                                    ("VISUAL", egui::Color32::from_rgb(100, 150, 255))
-                                }
-                                crate::copy_mode::VisualMode::Line => {
-                                    ("V-LINE", egui::Color32::from_rgb(100, 150, 255))
-                                }
-                                crate::copy_mode::VisualMode::Block => {
-                                    ("V-BLOCK", egui::Color32::from_rgb(100, 150, 255))
-                                }
-                            }
-                        };
-
-                        egui::Area::new(egui::Id::new("copy_mode_status_bar"))
-                            .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(0.0, 0.0))
-                            .order(egui::Order::Foreground)
-                            .show(ctx, |ui| {
-                                let available_width = ui.available_width();
-                                egui::Frame::NONE
-                                    .fill(egui::Color32::from_rgba_unmultiplied(40, 40, 40, 230))
-                                    .inner_margin(egui::Margin::symmetric(12, 6))
-                                    .show(ui, |ui| {
-                                        ui.set_min_width(available_width);
-                                        ui.horizontal(|ui| {
-                                            ui.label(
-                                                egui::RichText::new(mode_text)
-                                                    .monospace()
-                                                    .size(13.0)
-                                                    .color(color)
-                                                    .strong(),
-                                            );
-                                            ui.separator();
-                                            ui.label(
-                                                egui::RichText::new(&status)
-                                                    .monospace()
-                                                    .size(12.0)
-                                                    .color(egui::Color32::from_rgb(200, 200, 200)),
-                                            );
-                                        });
-                                    });
-                            });
-                    }
-
-                    // Show toast notification if active (top center)
-                    if let Some(ref message) = self.toast_message {
-                        egui::Area::new(egui::Id::new("toast_notification"))
-                            .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 60.0))
-                            .order(egui::Order::Foreground)
-                            .show(ctx, |ui| {
-                                egui::Frame::NONE
-                                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 240))
-                                    .inner_margin(egui::Margin::symmetric(20, 12))
-                                    .corner_radius(8.0)
-                                    .stroke(egui::Stroke::new(
-                                        1.0,
-                                        egui::Color32::from_rgb(80, 80, 80),
-                                    ))
-                                    .show(ui, |ui| {
-                                        ui.style_mut().visuals.override_text_color =
-                                            Some(egui::Color32::from_rgb(255, 255, 255));
-                                        ui.label(egui::RichText::new(message).size(16.0));
-                                    });
-                            });
-                    }
-
-                    // Show scrollbar mark tooltip if hovering over a mark
-                    if let Some(ref mark) = hovered_mark {
-                        // Format the tooltip content
-                        let mut lines = Vec::new();
-
-                        if let Some(ref cmd) = mark.command {
-                            let truncated = if cmd.len() > 50 {
-                                format!("{}...", &cmd[..47])
-                            } else {
-                                cmd.clone()
-                            };
-                            lines.push(format!("Command: {}", truncated));
-                        }
-
-                        if let Some(start_time) = mark.start_time {
-                            use chrono::{DateTime, Local, Utc};
-                            let dt =
-                                DateTime::<Utc>::from_timestamp_millis(start_time as i64).unwrap();
-                            let local: DateTime<Local> = dt.into();
-                            lines.push(format!("Time: {}", local.format("%H:%M:%S")));
-                        }
-
-                        if let Some(duration_ms) = mark.duration_ms {
-                            if duration_ms < 1000 {
-                                lines.push(format!("Duration: {}ms", duration_ms));
-                            } else if duration_ms < 60000 {
-                                lines
-                                    .push(format!("Duration: {:.1}s", duration_ms as f64 / 1000.0));
-                            } else {
-                                let mins = duration_ms / 60000;
-                                let secs = (duration_ms % 60000) / 1000;
-                                lines.push(format!("Duration: {}m {}s", mins, secs));
-                            }
-                        }
-
-                        if let Some(exit_code) = mark.exit_code {
-                            lines.push(format!("Exit: {}", exit_code));
-                        }
-
-                        let tooltip_text = lines.join("\n");
-
-                        // Calculate tooltip position, clamped to stay on screen
-                        let mouse_pos = ctx.pointer_hover_pos().unwrap_or(egui::pos2(100.0, 100.0));
-                        let tooltip_x = (mouse_pos.x - 180.0).max(10.0);
-                        let tooltip_y = (mouse_pos.y - 20.0).max(10.0);
-
-                        // Show tooltip near mouse position (offset to the left of scrollbar)
-                        egui::Area::new(egui::Id::new("scrollbar_mark_tooltip"))
-                            .order(egui::Order::Tooltip)
-                            .fixed_pos(egui::pos2(tooltip_x, tooltip_y))
-                            .show(ctx, |ui| {
-                                ui.set_min_width(150.0);
-                                egui::Frame::NONE
-                                    .fill(egui::Color32::from_rgba_unmultiplied(30, 30, 30, 240))
-                                    .inner_margin(egui::Margin::same(8))
-                                    .corner_radius(4.0)
-                                    .stroke(egui::Stroke::new(
-                                        1.0,
-                                        egui::Color32::from_rgb(80, 80, 80),
-                                    ))
-                                    .show(ui, |ui| {
-                                        ui.set_min_width(140.0);
-                                        ui.style_mut().visuals.override_text_color =
-                                            Some(egui::Color32::from_rgb(220, 220, 220));
-                                        ui.label(
-                                            egui::RichText::new(&tooltip_text)
-                                                .monospace()
-                                                .size(12.0),
-                                        );
-                                    });
-                            });
-                    }
-
-                    // Render tab bar if visible (action handled after closure)
-                    let tab_bar_right_reserved = if self.ai_inspector.open {
-                        self.ai_inspector.consumed_width()
-                    } else {
-                        0.0
-                    };
-                    pending_tab_action = self.tab_bar_ui.render(
-                        ctx,
-                        &self.tab_manager,
-                        &self.config,
-                        &self.profile_manager,
-                        tab_bar_right_reserved,
-                    );
-
-                    // Render tmux status bar if connected
-                    self.tmux_status_bar_ui.render(
-                        ctx,
-                        &self.config,
-                        self.tmux_session.as_ref(),
-                        self.tmux_session_name.as_deref(),
-                    );
-
-                    // Render custom status bar
-                    if let Some(ref session_vars) = status_bar_session_vars {
-                        let (_bar_height, status_bar_action) = self.status_bar_ui.render(
-                            ctx,
-                            &self.config,
-                            session_vars,
-                            self.is_fullscreen,
-                        );
-                        if status_bar_action
-                            == Some(crate::status_bar::StatusBarAction::ShowUpdateDialog)
-                        {
-                            self.show_update_dialog = true;
-                        }
-                    }
-
-                    // Settings are now handled by standalone SettingsWindow only
-                    // No overlay settings UI rendering needed
-
-                    // Show help UI
-                    self.help_ui.show(ctx);
-
-                    // Show clipboard history UI and collect action
-                    pending_clipboard_action = self.clipboard_history_ui.show(ctx);
-
-                    // Show command history UI and collect action
-                    pending_command_history_action = self.command_history_ui.show(ctx);
-
-                    // Show paste special UI and collect action
-                    pending_paste_special_action = self.paste_special_ui.show(ctx);
-
-                    // Show search UI and collect action
-                    pending_search_action = self.search_ui.show(ctx, visible_lines, scrollback_len);
-
-                    // Show AI Inspector panel and collect action
-                    pending_inspector_action = self.ai_inspector.show(ctx, &self.available_agents);
-
-                    // Show tmux session picker UI and collect action
-                    let tmux_path = self.config.resolve_tmux_path();
-                    pending_session_picker_action =
-                        self.tmux_session_picker_ui.show(ctx, &tmux_path);
-
-                    // Show shader install dialog if visible
-                    pending_shader_install_response = self.shader_install_ui.show(ctx);
-
-                    // Show integrations welcome dialog if visible
-                    pending_integrations_response = self.integrations_ui.show(ctx);
-
-                    // Show close confirmation dialog if visible
-                    pending_close_confirm_action = self.close_confirmation_ui.show(ctx);
-
-                    // Show quit confirmation dialog if visible
-                    pending_quit_confirm_action = self.quit_confirmation_ui.show(ctx);
-
-                    // Show remote shell install dialog if visible
-                    pending_remote_install_action = self.remote_shell_install_ui.show(ctx);
-
-                    // Show SSH Quick Connect dialog if visible
-                    pending_ssh_connect_action = self.ssh_connect_ui.show(ctx);
-
-                    // Render update dialog overlay
-                    if self.show_update_dialog {
-                        // Poll for update install completion
-                        if let Some(ref rx) = self.update_install_receiver
-                            && let Ok(result) = rx.try_recv()
-                        {
-                            match result {
-                                Ok(update_result) => {
-                                    self.update_install_status = Some(format!(
-                                        "Updated to v{}! Restart par-term to use the new version.",
-                                        update_result.new_version
-                                    ));
-                                    self.update_installing = false;
-                                    self.status_bar_ui.update_available_version = None;
-                                }
-                                Err(e) => {
-                                    self.update_install_status =
-                                        Some(format!("Update failed: {}", e));
-                                    self.update_installing = false;
-                                }
-                            }
-                            self.update_install_receiver = None;
-                        }
-
-                        if let Some(ref update_result) = self.last_update_result {
-                            let dialog_action = crate::update_dialog::render(
-                                ctx,
-                                update_result,
-                                env!("CARGO_PKG_VERSION"),
-                                self.installation_type,
-                                self.update_installing,
-                                self.update_install_status.as_deref(),
-                            );
-                            match dialog_action {
-                                crate::update_dialog::UpdateDialogAction::Dismiss => {
-                                    if !self.update_installing {
-                                        self.show_update_dialog = false;
-                                        self.update_install_status = None;
-                                    }
-                                }
-                                crate::update_dialog::UpdateDialogAction::SkipVersion(v) => {
-                                    self.config.skipped_version = Some(v);
-                                    self.show_update_dialog = false;
-                                    self.status_bar_ui.update_available_version = None;
-                                    self.update_install_status = None;
-                                    let _ = self.config.save();
-                                }
-                                crate::update_dialog::UpdateDialogAction::InstallUpdate(v) => {
-                                    if !self.update_installing {
-                                        self.update_installing = true;
-                                        self.update_install_status =
-                                            Some("Downloading update...".to_string());
-                                        let (tx, rx) = std::sync::mpsc::channel();
-                                        self.update_install_receiver = Some(rx);
-                                        let version = v.clone();
-                                        std::thread::spawn(move || {
-                                            let result =
-                                                crate::self_updater::perform_update(&version);
-                                            let _ = tx.send(result);
-                                        });
-                                    }
-                                    // Don't close dialog while installing
-                                }
-                                crate::update_dialog::UpdateDialogAction::None => {}
-                            }
-                        } else {
-                            // No update result, close dialog
-                            self.show_update_dialog = false;
-                        }
-                    }
-
-                    // Render profile drawer (right side panel)
-                    pending_profile_drawer_action = self.profile_drawer_ui.render(
-                        ctx,
-                        &self.profile_manager,
-                        &self.config,
-                        false, // profile modal is no longer in the terminal window
-                    );
-
-                    // Render progress bar overlay
-                    if let (Some(snap), Some(size)) = (&progress_snapshot, window_size_for_badge) {
-                        let tab_count = self.tab_manager.tab_count();
-                        let tb_height = self.tab_bar_ui.get_height(tab_count, &self.config);
-                        let (top_inset, bottom_inset) = match self.config.tab_bar_position {
-                            par_term_config::TabBarPosition::Top => (tb_height, 0.0),
-                            par_term_config::TabBarPosition::Bottom => (0.0, tb_height),
-                            par_term_config::TabBarPosition::Left => (0.0, 0.0),
-                        };
-                        render_progress_bars(
-                            ctx,
-                            snap,
-                            &self.config,
-                            size.width as f32,
-                            size.height as f32,
-                            top_inset,
-                            bottom_inset,
-                        );
-                    }
-
-                    // Render pane identify overlay (large index numbers centered on each pane)
-                    if !pane_identify_bounds.is_empty() {
-                        for (index, bounds) in &pane_identify_bounds {
-                            let center_x = bounds.x + bounds.width / 2.0;
-                            let center_y = bounds.y + bounds.height / 2.0;
-                            egui::Area::new(egui::Id::new(format!("pane_identify_{}", index)))
-                                .fixed_pos(egui::pos2(center_x - 30.0, center_y - 30.0))
-                                .order(egui::Order::Foreground)
-                                .interactable(false)
-                                .show(ctx, |ui| {
-                                    egui::Frame::NONE
-                                        .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, 200))
-                                        .inner_margin(egui::Margin::symmetric(16, 8))
-                                        .corner_radius(8.0)
-                                        .stroke(egui::Stroke::new(
-                                            2.0,
-                                            egui::Color32::from_rgb(100, 200, 255),
-                                        ))
-                                        .show(ui, |ui| {
-                                            ui.label(
-                                                egui::RichText::new(format!("Pane {}", index))
-                                                    .monospace()
-                                                    .size(28.0)
-                                                    .color(egui::Color32::from_rgb(100, 200, 255)),
-                                            );
-                                        });
-                                });
-                        }
-                    }
-
-                    // Render file transfer progress overlay (bottom-right corner)
-                    crate::app::file_transfers::render_file_transfer_overlay(
-                        &self.file_transfer_state,
-                        ctx,
-                    );
-
-                    // Render badge overlay (top-right corner)
-                    if let (Some(badge), Some(size)) = (&badge_state, window_size_for_badge) {
-                        render_badge(ctx, badge, size.width as f32, size.height as f32);
-                    }
-                });
-
-                // Handle egui platform output (clipboard, cursor changes, etc.)
-                // This enables cut/copy/paste in egui text editors
-                egui_state.handle_platform_output(
-                    self.window.as_ref().unwrap(),
-                    egui_output.platform_output.clone(),
-                );
-
-                Some((egui_output, egui_ctx))
-            } else {
-                None
-            };
-
-            // Mark egui as initialized after first ctx.run() - makes is_using_pointer() reliable
-            if !self.egui_initialized && egui_data.is_some() {
-                self.egui_initialized = true;
-            }
-
-            // Settings are now handled exclusively by standalone SettingsWindow
-            // Config changes are applied via window_manager.apply_config_to_windows()
-
-            let debug_egui_time = egui_start.elapsed();
-
-            // Calculate FPS and timing stats
-            let avg_frame_time = if !self.debug.frame_times.is_empty() {
-                self.debug.frame_times.iter().sum::<std::time::Duration>()
-                    / self.debug.frame_times.len() as u32
-            } else {
-                std::time::Duration::ZERO
-            };
-            let fps = if avg_frame_time.as_secs_f64() > 0.0 {
-                1.0 / avg_frame_time.as_secs_f64()
-            } else {
-                0.0
-            };
-
-            // Update FPS value for overlay display
-            self.debug.fps_value = fps;
-
-            // Log debug info every 60 frames (about once per second at 60 FPS)
-            if self.debug.frame_times.len() >= 60 {
-                let (cache_gen, cache_has_cells) = self
-                    .tab_manager
-                    .active_tab()
-                    .map(|t| (t.cache.generation, t.cache.cells.is_some()))
-                    .unwrap_or((0, false));
-                log::info!(
-                    "PERF: FPS={:.1} Frame={:.2}ms CellGen={:.2}ms({}) URLDetect={:.2}ms Anim={:.2}ms Graphics={:.2}ms egui={:.2}ms UpdateCells={:.2}ms ActualRender={:.2}ms Total={:.2}ms Cells={} Gen={} Cache={}",
-                    fps,
-                    avg_frame_time.as_secs_f64() * 1000.0,
-                    self.debug.cell_gen_time.as_secs_f64() * 1000.0,
-                    if self.debug.cache_hit { "HIT" } else { "MISS" },
-                    debug_url_detect_time.as_secs_f64() * 1000.0,
-                    debug_anim_time.as_secs_f64() * 1000.0,
-                    debug_graphics_time.as_secs_f64() * 1000.0,
-                    debug_egui_time.as_secs_f64() * 1000.0,
-                    debug_update_cells_time.as_secs_f64() * 1000.0,
-                    debug_actual_render_time.as_secs_f64() * 1000.0,
-                    self.debug.render_time.as_secs_f64() * 1000.0,
-                    cells.len(),
-                    cache_gen,
-                    if cache_has_cells { "YES" } else { "NO" }
-                );
-            }
-
-            // Render (with dirty tracking optimization)
-            let actual_render_start = std::time::Instant::now();
-            // Settings are handled by standalone SettingsWindow, not embedded UI
-
-            // Extract renderer sizing info for split pane calculations
-            let sizing = RendererSizing {
-                size: renderer.size(),
-                content_offset_y: renderer.content_offset_y(),
-                content_offset_x: renderer.content_offset_x(),
-                content_inset_bottom: renderer.content_inset_bottom(),
-                content_inset_right: renderer.content_inset_right(),
-                cell_width: renderer.cell_width(),
-                cell_height: renderer.cell_height(),
-                padding: renderer.window_padding(),
-                status_bar_height: (status_bar_height + custom_status_bar_height)
-                    * renderer.scale_factor(),
-                scale_factor: renderer.scale_factor(),
-            };
-
-            // Check if we have a pane manager with panes - this just checks without modifying
-            // We use pane_count() > 0 instead of has_multiple_panes() because even with a
-            // single pane in the manager (e.g., after closing one tmux split), we need to
-            // render via the pane manager path since cells are in the pane's terminal,
-            // not the main renderer buffer.
-            let (has_pane_manager, pane_count) = self
-                .tab_manager
-                .active_tab()
-                .and_then(|t| t.pane_manager.as_ref())
-                .map(|pm| (pm.pane_count() > 0, pm.pane_count()))
-                .unwrap_or((false, 0));
-
-            crate::debug_trace!(
-                "RENDER",
-                "has_pane_manager={}, pane_count={}",
-                has_pane_manager,
-                pane_count
-            );
-
-            // Per-pane backgrounds only take effect when splits are active.
-            // In single-pane mode, skip per-pane background lookup.
-            let pane_0_bg: Option<crate::pane::PaneBackground> = None;
-
-            let render_result = if has_pane_manager {
-                // When splits are active and hide_window_padding_on_split is enabled,
-                // use 0 padding so panes extend to the window edges
-                let effective_padding =
-                    if pane_count > 1 && self.config.hide_window_padding_on_split {
-                        0.0
-                    } else {
-                        sizing.padding
-                    };
-
-                // Render panes from pane manager - inline data gathering to avoid borrow conflicts
-                let content_width = sizing.size.width as f32
-                    - effective_padding * 2.0
-                    - sizing.content_offset_x
-                    - sizing.content_inset_right;
-                let content_height = sizing.size.height as f32
-                    - sizing.content_offset_y
-                    - sizing.content_inset_bottom
-                    - effective_padding
-                    - sizing.status_bar_height;
-
-                // Gather all necessary data upfront while we can borrow tab_manager
-                #[allow(clippy::type_complexity)]
-                let pane_render_data: Option<(
-                    Vec<PaneRenderData>,
-                    Vec<crate::pane::DividerRect>,
-                    Vec<PaneTitleInfo>,
-                    Option<PaneViewport>,
-                    usize, // focused pane scrollback_len (for tab.cache update)
-                )> = {
-                    let tab = self.tab_manager.active_tab_mut();
-                    if let Some(tab) = tab {
-                        // Capture tab-level scroll offset before mutably borrowing pane_manager.
-                        // In split-pane mode the focused pane uses tab.scroll_state.offset;
-                        // non-focused panes always render at offset 0 (bottom).
-                        let tab_scroll_offset = tab.scroll_state.offset;
-                        if let Some(pm) = &mut tab.pane_manager {
-                            // Update bounds
-                            let bounds = crate::pane::PaneBounds::new(
-                                effective_padding + sizing.content_offset_x,
-                                sizing.content_offset_y,
-                                content_width,
-                                content_height,
-                            );
-                            pm.set_bounds(bounds);
-
-                            // Calculate title bar height offset for terminal sizing
-                            // Scale from logical pixels (config) to physical pixels
-                            let title_height_offset = if self.config.show_pane_titles {
-                                self.config.pane_title_height * sizing.scale_factor
-                            } else {
-                                0.0
-                            };
-
-                            // Resize all pane terminals to match their new bounds
-                            // Scale pane_padding from logical to physical pixels
-                            pm.resize_all_terminals_with_padding(
-                                sizing.cell_width,
-                                sizing.cell_height,
-                                effective_pane_padding * sizing.scale_factor,
-                                title_height_offset,
-                            );
-
-                            // Gather pane info
-                            let focused_pane_id = pm.focused_pane_id();
-                            let all_pane_ids: Vec<_> =
-                                pm.all_panes().iter().map(|p| p.id).collect();
-                            let dividers = pm.get_dividers();
-
-                            let pane_bg_opacity = self.config.pane_background_opacity;
-                            let inactive_opacity = if self.config.dim_inactive_panes {
-                                self.config.inactive_pane_opacity
-                            } else {
-                                1.0
-                            };
-                            let cursor_opacity = self.cursor_opacity;
-
-                            // Pane title settings
-                            // Scale from logical pixels (config) to physical pixels
-                            let show_titles = self.config.show_pane_titles;
-                            let title_height = self.config.pane_title_height * sizing.scale_factor;
-                            let title_position = self.config.pane_title_position;
-                            let title_text_color = color_u8_to_f32(self.config.pane_title_color);
-                            let title_bg_color = color_u8_to_f32(self.config.pane_title_bg_color);
-
-                            let mut pane_data = Vec::new();
-                            let mut pane_titles = Vec::new();
-                            let mut focused_pane_scrollback_len: usize = 0;
-                            let mut focused_viewport: Option<PaneViewport> = None;
-
-                            for pane_id in &all_pane_ids {
-                                if let Some(pane) = pm.get_pane(*pane_id) {
-                                    let is_focused = Some(*pane_id) == focused_pane_id;
-                                    let bounds = pane.bounds;
-
-                                    // Calculate viewport, adjusting for title bar if shown
-                                    let (viewport_y, viewport_height) = if show_titles {
-                                        use crate::config::PaneTitlePosition;
-                                        match title_position {
-                                            PaneTitlePosition::Top => (
-                                                bounds.y + title_height,
-                                                (bounds.height - title_height).max(0.0),
-                                            ),
-                                            PaneTitlePosition::Bottom => {
-                                                (bounds.y, (bounds.height - title_height).max(0.0))
-                                            }
-                                        }
-                                    } else {
-                                        (bounds.y, bounds.height)
-                                    };
-
-                                    // Create viewport with padding for content inset
-                                    // Scale pane_padding from logical to physical pixels
-                                    let physical_pane_padding =
-                                        effective_pane_padding * sizing.scale_factor;
-                                    let viewport = PaneViewport::with_padding(
-                                        bounds.x,
-                                        viewport_y,
-                                        bounds.width,
-                                        viewport_height,
-                                        is_focused,
-                                        if is_focused {
-                                            pane_bg_opacity
-                                        } else {
-                                            pane_bg_opacity * inactive_opacity
-                                        },
-                                        physical_pane_padding,
-                                    );
-
-                                    if is_focused {
-                                        focused_viewport = Some(viewport);
-                                    }
-
-                                    // Build pane title info
-                                    if show_titles {
-                                        use crate::config::PaneTitlePosition;
-                                        let title_y = match title_position {
-                                            PaneTitlePosition::Top => bounds.y,
-                                            PaneTitlePosition::Bottom => {
-                                                bounds.y + bounds.height - title_height
-                                            }
-                                        };
-                                        pane_titles.push(PaneTitleInfo {
-                                            x: bounds.x,
-                                            y: title_y,
-                                            width: bounds.width,
-                                            height: title_height,
-                                            title: pane.get_title(),
-                                            focused: is_focused,
-                                            text_color: title_text_color,
-                                            bg_color: title_bg_color,
-                                        });
-                                    }
-
-                                    let cells = if let Ok(term) = pane.terminal.try_lock() {
-                                        let scroll_offset =
-                                            if is_focused { tab_scroll_offset } else { 0 };
-                                        let selection =
-                                            pane.mouse.selection.map(|sel| sel.normalized());
-                                        let rectangular = pane
-                                            .mouse
-                                            .selection
-                                            .map(|sel| sel.mode == SelectionMode::Rectangular)
-                                            .unwrap_or(false);
-                                        term.get_cells_with_scrollback(
-                                            scroll_offset,
-                                            selection,
-                                            rectangular,
-                                            None,
-                                        )
-                                    } else {
-                                        Vec::new()
-                                    };
-
-                                    let need_marks = self.config.scrollbar_command_marks
-                                        || self.config.command_separator_enabled;
-                                    let (marks, pane_scrollback_len) = if need_marks {
-                                        if let Ok(mut term) = pane.terminal.try_lock() {
-                                            // Use cursor row 0 when unknown in split panes
-                                            let sb_len = term.scrollback_len();
-                                            term.update_scrollback_metadata(sb_len, 0);
-                                            (term.scrollback_marks(), sb_len)
-                                        } else {
-                                            (Vec::new(), 0)
-                                        }
-                                    } else {
-                                        // Still need the actual scrollback_len even without marks:
-                                        // it's used for graphics position math (tex_v_start
-                                        // cropping when graphic is partially off-top, and
-                                        // view_start when showing scrollback graphics).
-                                        let sb_len = if let Ok(term) = pane.terminal.try_lock() {
-                                            term.scrollback_len()
-                                        } else {
-                                            0
-                                        };
-                                        (Vec::new(), sb_len)
-                                    };
-                                    let pane_scroll_offset =
-                                        if is_focused { tab_scroll_offset } else { 0 };
-
-                                    // Cache the focused pane's scrollback_len so that scroll
-                                    // operations (mouse wheel, Page Up, etc.) can use it without
-                                    // needing to lock the terminal. Only update when the value is
-                                    // non-zero (lock succeeded) to avoid clobbering a good cached
-                                    // value with a transient lock-failure fallback of 0.
-                                    if is_focused && pane_scrollback_len > 0 {
-                                        focused_pane_scrollback_len = pane_scrollback_len;
-                                    }
-
-                                    // Per-pane backgrounds only apply when multiple panes exist
-                                    let pane_background = if all_pane_ids.len() > 1
-                                        && pane.background().has_image()
-                                    {
-                                        Some(pane.background().clone())
-                                    } else {
-                                        None
-                                    };
-
-                                    let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
-                                        if term.is_cursor_visible() {
-                                            Some(term.cursor_position())
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
-                                    };
-
-                                    // Grid size must match the terminal's actual size
-                                    // (accounting for padding and title bar, same as resize_all_terminals_with_padding)
-                                    let content_width = (bounds.width
-                                        - physical_pane_padding * 2.0)
-                                        .max(sizing.cell_width);
-                                    let content_height = (viewport_height
-                                        - physical_pane_padding * 2.0)
-                                        .max(sizing.cell_height);
-                                    let cols = (content_width / sizing.cell_width).floor() as usize;
-                                    let rows =
-                                        (content_height / sizing.cell_height).floor() as usize;
-                                    let cols = cols.max(1);
-                                    let rows = rows.max(1);
-
-                                    // Collect inline graphics (Sixel/iTerm2/Kitty) from this
-                                    // pane's PTY terminal.  Each pane has its own PTY so graphics
-                                    // are never in the shared tab.terminal.
-                                    let pane_graphics = if let Ok(term) = pane.terminal.try_lock() {
-                                        let mut g = term.get_graphics_with_animations();
-                                        let sb = term.get_scrollback_graphics();
-                                        crate::debug_log!(
-                                            "GRAPHICS",
-                                            "pane {:?}: active_graphics={}, scrollback_graphics={}, scrollback_len={}, scroll_offset={}, visible_rows={}, viewport=({},{},{}x{})",
-                                            pane_id,
-                                            g.len(),
-                                            sb.len(),
-                                            pane_scrollback_len,
-                                            pane_scroll_offset,
-                                            rows,
-                                            viewport.x,
-                                            viewport.y,
-                                            viewport.width,
-                                            viewport.height
-                                        );
-                                        for (i, gfx) in g.iter().chain(sb.iter()).enumerate() {
-                                            crate::debug_log!(
-                                                "GRAPHICS",
-                                                "  graphic[{}]: id={}, pos=({},{}), scroll_offset_rows={}, scrollback_row={:?}, size={}x{}",
-                                                i,
-                                                gfx.id,
-                                                gfx.position.0,
-                                                gfx.position.1,
-                                                gfx.scroll_offset_rows,
-                                                gfx.scrollback_row,
-                                                gfx.width,
-                                                gfx.height
-                                            );
-                                        }
-                                        g.extend(sb);
-                                        g
-                                    } else {
-                                        crate::debug_log!(
-                                            "GRAPHICS",
-                                            "pane {:?}: try_lock() failed, no graphics",
-                                            pane_id
-                                        );
-                                        Vec::new()
-                                    };
-
-                                    pane_data.push(PaneRenderData {
-                                        viewport,
-                                        cells,
-                                        grid_size: (cols, rows),
-                                        cursor_pos,
-                                        cursor_opacity: if is_focused {
-                                            cursor_opacity
-                                        } else {
-                                            0.0
-                                        },
-                                        marks,
-                                        scrollback_len: pane_scrollback_len,
-                                        scroll_offset: pane_scroll_offset,
-                                        background: pane_background,
-                                        graphics: pane_graphics,
-                                    });
-                                }
-                            }
-
-                            Some((
-                                pane_data,
-                                dividers,
-                                pane_titles,
-                                focused_viewport,
-                                focused_pane_scrollback_len,
-                            ))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                };
-
-                if let Some((
-                    pane_data,
-                    dividers,
-                    pane_titles,
-                    focused_viewport,
-                    focused_pane_scrollback_len,
-                )) = pane_render_data
-                {
-                    // Update tab cache with the focused pane's scrollback_len so that scroll
-                    // operations (mouse wheel, Page Up/Down, etc.) see the correct limit.
-                    // Only update when non-zero to avoid clobbering a good value on lock failure.
-                    // The `apply_scroll` function already clamps the target; we don't call
-                    // `clamp_to_scrollback` here because that would reset an ongoing scroll.
-                    if focused_pane_scrollback_len > 0
-                        && let Some(tab) = self.tab_manager.active_tab_mut()
-                    {
-                        tab.cache.scrollback_len = focused_pane_scrollback_len;
-                    }
-
-                    // Get hovered divider index for hover color rendering
-                    let hovered_divider_index = self
-                        .tab_manager
-                        .active_tab()
-                        .and_then(|t| t.mouse.hovered_divider_index);
-
-                    // Render split panes
-                    Self::render_split_panes_with_data(
-                        renderer,
-                        pane_data,
-                        dividers,
-                        pane_titles,
-                        focused_viewport,
-                        &self.config,
-                        egui_data,
-                        hovered_divider_index,
-                        show_scrollbar,
-                    )
-                } else {
-                    // Fallback to single pane render
-                    renderer.render(egui_data, false, show_scrollbar, pane_0_bg.as_ref())
-                }
-            } else {
-                // Single pane - use standard render path
-                renderer.render(egui_data, false, show_scrollbar, pane_0_bg.as_ref())
-            };
-
-            match render_result {
-                Ok(rendered) => {
-                    if !rendered {
-                        log::trace!("Skipped rendering - no changes");
-                    }
-                }
-                Err(e) => {
-                    // Check if this is a wgpu surface error that requires reconfiguration
-                    // This commonly happens when dragging windows between displays
-                    if let Some(surface_error) = e.downcast_ref::<SurfaceError>() {
-                        match surface_error {
-                            SurfaceError::Outdated | SurfaceError::Lost => {
-                                log::warn!(
-                                    "Surface error detected ({:?}), reconfiguring...",
-                                    surface_error
-                                );
-                                self.force_surface_reconfigure();
-                            }
-                            SurfaceError::Timeout => {
-                                log::warn!("Surface timeout, will retry next frame");
-                                if let Some(window) = &self.window {
-                                    window.request_redraw();
-                                }
-                            }
-                            SurfaceError::OutOfMemory => {
-                                log::error!("Surface out of memory: {:?}", surface_error);
-                            }
-                            _ => {
-                                log::error!("Surface error: {:?}", surface_error);
-                            }
-                        }
-                    } else {
-                        log::error!("Render error: {}", e);
-                    }
-                }
-            }
-            debug_actual_render_time = actual_render_start.elapsed();
-            let _ = debug_actual_render_time;
-
-            self.debug.render_time = render_start.elapsed();
-        }
-
-        // Sync AI Inspector panel width after the render pass.
-        // This catches drag-resize changes that update self.ai_inspector.width during show().
-        // Done here to avoid borrow conflicts with the renderer block above.
-        self.sync_ai_inspector_width();
-
+    /// Handle tab bar actions collected during egui rendering (called after renderer borrow released).
+    fn handle_tab_bar_action_after_render(&mut self, action: crate::tab_bar_ui::TabBarAction) {
         // Handle tab bar actions collected during egui rendering
         // (done here to avoid borrow conflicts with renderer)
-        match pending_tab_action {
+        match action {
             TabBarAction::SwitchTo(id) => {
                 self.tab_manager.switch_to(id);
                 // Clear renderer cells and invalidate cache to ensure clean switch
@@ -5483,10 +5728,13 @@ impl WindowState {
             }
             TabBarAction::None => {}
         }
+    }
 
+    /// Handle clipboard history actions collected during egui rendering.
+    fn handle_clipboard_history_action_after_render(&mut self, action: crate::clipboard_history_ui::ClipboardHistoryAction) {
         // Handle clipboard actions collected during egui rendering
         // (done here to avoid borrow conflicts with renderer)
-        match pending_clipboard_action {
+        match action {
             ClipboardHistoryAction::Paste(content) => {
                 self.paste_text(&content);
             }
@@ -5509,141 +5757,12 @@ impl WindowState {
             }
             ClipboardHistoryAction::None => {}
         }
+    }
 
-        // Handle command history actions collected during egui rendering
-        match pending_command_history_action {
-            CommandHistoryAction::Insert(command) => {
-                self.paste_text(&command);
-                log::info!(
-                    "Inserted command from history: {}",
-                    &command[..command.len().min(60)]
-                );
-            }
-            CommandHistoryAction::None => {}
-        }
-
-        // Handle close confirmation dialog actions
-        match pending_close_confirm_action {
-            CloseConfirmAction::Close { tab_id, pane_id } => {
-                // User confirmed close - close the tab/pane
-                if let Some(pane_id) = pane_id {
-                    // Close specific pane
-                    if let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
-                        && let Some(pm) = tab.pane_manager_mut()
-                    {
-                        pm.close_pane(pane_id);
-                        log::info!("Force-closed pane {} in tab {}", pane_id, tab_id);
-                    }
-                } else {
-                    // Close entire tab
-                    self.tab_manager.close_tab(tab_id);
-                    log::info!("Force-closed tab {}", tab_id);
-                }
-                self.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            CloseConfirmAction::Cancel => {
-                // User cancelled - do nothing, dialog already hidden
-                log::debug!("Close confirmation cancelled");
-            }
-            CloseConfirmAction::None => {}
-        }
-
-        // Handle quit confirmation dialog actions
-        match pending_quit_confirm_action {
-            QuitConfirmAction::Quit => {
-                // User confirmed quit - proceed with shutdown
-                log::info!("Quit confirmed by user");
-                self.perform_shutdown();
-            }
-            QuitConfirmAction::Cancel => {
-                log::debug!("Quit confirmation cancelled");
-            }
-            QuitConfirmAction::None => {}
-        }
-
-        // Handle remote shell integration install action
-        match pending_remote_install_action {
-            RemoteShellInstallAction::Install => {
-                // Send the install command via paste_text() which uses the same
-                // code path as Cmd+V paste — handles bracketed paste mode and
-                // correctly forwards through SSH sessions.
-                let command = RemoteShellInstallUI::install_command();
-                // paste_text appends \r internally via term.paste()
-                self.paste_text(&format!("{}\n", command));
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            RemoteShellInstallAction::Cancel => {
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            RemoteShellInstallAction::None => {}
-        }
-
-        // Handle SSH Quick Connect actions
-        match pending_ssh_connect_action {
-            SshConnectAction::Connect {
-                host,
-                profile_override: _,
-            } => {
-                // Build SSH command and write it to the active terminal's PTY
-                let args = host.ssh_args();
-                let ssh_cmd = format!("ssh {}\n", args.join(" "));
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
-                {
-                    let _ = term.write_str(&ssh_cmd);
-                }
-                log::info!(
-                    "SSH Quick Connect: connecting to {}",
-                    host.connection_string()
-                );
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            SshConnectAction::Cancel => {
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            SshConnectAction::None => {}
-        }
-
-        // Handle paste special actions collected during egui rendering
-        match pending_paste_special_action {
-            PasteSpecialAction::Paste(content) => {
-                self.paste_text(&content);
-                log::debug!("Pasted transformed text ({} chars)", content.len());
-            }
-            PasteSpecialAction::None => {}
-        }
-
-        // Handle search actions collected during egui rendering
-        match pending_search_action {
-            crate::search::SearchAction::ScrollToMatch(offset) => {
-                self.set_scroll_target(offset);
-                self.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            crate::search::SearchAction::Close => {
-                self.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            crate::search::SearchAction::None => {}
-        }
-
+    /// Handle AI Inspector panel actions collected during egui rendering.
+    fn handle_inspector_action_after_render(&mut self, action: crate::ai_inspector::panel::InspectorAction) {
         // Handle AI Inspector actions collected during egui rendering
-        match pending_inspector_action {
+        match action {
             InspectorAction::Close => {
                 self.ai_inspector.open = false;
                 self.sync_ai_inspector_width();
@@ -5965,138 +6084,7 @@ impl WindowState {
             }
             InspectorAction::None => {}
         }
-
-        // Handle tmux session picker actions collected during egui rendering
-        // Uses gateway mode: writes tmux commands to existing PTY instead of spawning process
-        match pending_session_picker_action {
-            SessionPickerAction::Attach(session_name) => {
-                crate::debug_info!(
-                    "TMUX",
-                    "Session picker: attaching to '{}' via gateway",
-                    session_name
-                );
-                if let Err(e) = self.attach_tmux_gateway(&session_name) {
-                    log::error!("Failed to attach to tmux session '{}': {}", session_name, e);
-                    self.show_toast(format!("Failed to attach: {}", e));
-                } else {
-                    crate::debug_info!("TMUX", "Gateway initiated for session '{}'", session_name);
-                    self.show_toast(format!("Connecting to session '{}'...", session_name));
-                }
-                self.needs_redraw = true;
-            }
-            SessionPickerAction::CreateNew(name) => {
-                crate::debug_info!(
-                    "TMUX",
-                    "Session picker: creating new session {:?} via gateway",
-                    name
-                );
-                if let Err(e) = self.initiate_tmux_gateway(name.as_deref()) {
-                    log::error!("Failed to create tmux session: {}", e);
-                    crate::debug_error!("TMUX", "Failed to initiate gateway: {}", e);
-                    self.show_toast(format!("Failed to create session: {}", e));
-                } else {
-                    let msg = match name {
-                        Some(ref n) => format!("Creating session '{}'...", n),
-                        None => "Creating new tmux session...".to_string(),
-                    };
-                    crate::debug_info!("TMUX", "Gateway initiated: {}", msg);
-                    self.show_toast(msg);
-                }
-                self.needs_redraw = true;
-            }
-            SessionPickerAction::None => {}
-        }
-
-        // Check for shader installation completion from background thread
-        if let Some(ref rx) = self.shader_install_receiver
-            && let Ok(result) = rx.try_recv()
-        {
-            match result {
-                Ok(count) => {
-                    log::info!("Successfully installed {} shaders", count);
-                    self.shader_install_ui
-                        .set_success(&format!("Installed {} shaders!", count));
-
-                    // Update config to mark as installed
-                    self.config.shader_install_prompt = ShaderInstallPrompt::Installed;
-                    if let Err(e) = self.config.save() {
-                        log::error!("Failed to save config after shader install: {}", e);
-                    }
-                }
-                Err(e) => {
-                    log::error!("Failed to install shaders: {}", e);
-                    self.shader_install_ui.set_error(&e);
-                }
-            }
-            self.shader_install_receiver = None;
-            self.needs_redraw = true;
-        }
-
-        // Handle shader install responses
-        match pending_shader_install_response {
-            ShaderInstallResponse::Install => {
-                log::info!("User requested shader installation");
-                self.shader_install_ui
-                    .set_installing("Downloading shaders...");
-                self.needs_redraw = true;
-
-                // Spawn installation in background thread so UI can show progress
-                let (tx, rx) = std::sync::mpsc::channel();
-                self.shader_install_receiver = Some(rx);
-
-                std::thread::spawn(move || {
-                    let result = crate::shader_install_ui::install_shaders_headless();
-                    let _ = tx.send(result);
-                });
-
-                // Request redraw so the spinner shows
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            ShaderInstallResponse::Never => {
-                log::info!("User declined shader installation (never ask again)");
-                self.shader_install_ui.hide();
-
-                // Update config to never ask again
-                self.config.shader_install_prompt = ShaderInstallPrompt::Never;
-                if let Err(e) = self.config.save() {
-                    log::error!("Failed to save config after declining shaders: {}", e);
-                }
-            }
-            ShaderInstallResponse::Later => {
-                log::info!("User deferred shader installation");
-                self.shader_install_ui.hide();
-                // Config remains "ask" - will prompt again on next startup
-            }
-            ShaderInstallResponse::None => {}
-        }
-
-        // Handle integrations welcome dialog responses
-        self.handle_integrations_response(&pending_integrations_response);
-
-        // Handle profile drawer actions
-        match pending_profile_drawer_action {
-            ProfileDrawerAction::OpenProfile(id) => {
-                self.open_profile(id);
-            }
-            ProfileDrawerAction::ManageProfiles => {
-                // Open settings window to Profiles tab instead of terminal-embedded modal
-                self.open_settings_window_requested = true;
-                self.open_settings_profiles_tab = true;
-            }
-            ProfileDrawerAction::None => {}
-        }
-
-        let absolute_total = absolute_start.elapsed();
-        if absolute_total.as_millis() > 10 {
-            log::debug!(
-                "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
-                absolute_total.as_secs_f64() * 1000.0
-            );
-        }
     }
-
     /// Render split panes when the active tab has multiple panes
     #[allow(clippy::too_many_arguments)]
     fn render_split_panes_with_data(

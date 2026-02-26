@@ -231,7 +231,7 @@ impl CubemapTexture {
             }
         }
 
-        Ok(paths.map(|p| p.unwrap()))
+        Ok(paths.map(|p| p.expect("All cubemap face paths must be Some after validation above")))
     }
 
     /// Upload a single face to the GPU texture

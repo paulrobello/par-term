@@ -546,7 +546,7 @@ impl ProfileModalUI {
 
     /// Render delete confirmation dialog
     fn render_delete_confirmation(&mut self, ctx: &egui::Context) {
-        let (_, profile_name) = self.pending_delete.as_ref().unwrap();
+        let (_, profile_name) = self.pending_delete.as_ref().expect("render_delete_confirmation called only when pending_delete is Some");
         let name = profile_name.clone();
 
         egui::Window::new("Confirm Delete")

@@ -71,22 +71,22 @@ enum YamlLineType {
 
 fn re_anchor() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"&\w+").unwrap())
+    RE.get_or_init(|| Regex::new(r"&\w+").expect("regex pattern is valid and should always compile"))
 }
 
 fn re_alias() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\*\w+").unwrap())
+    RE.get_or_init(|| Regex::new(r"\*\w+").expect("regex pattern is valid and should always compile"))
 }
 
 fn re_tag() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"!!\w+").unwrap())
+    RE.get_or_init(|| Regex::new(r"!!\w+").expect("regex pattern is valid and should always compile"))
 }
 
 fn re_key_value() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^(\s*)([\w./-]+)\s*:\s*(.*)$").unwrap())
+    RE.get_or_init(|| Regex::new(r"^(\s*)([\w./-]+)\s*:\s*(.*)$").expect("re_key_value: pattern is valid and should always compile"))
 }
 
 fn classify_yaml_line(line: &str) -> YamlLineType {

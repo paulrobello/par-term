@@ -12,6 +12,8 @@ use par_term_fonts::font_manager::FontManager;
 pub mod atlas;
 pub mod background;
 pub mod block_chars;
+mod instance_buffers;
+mod pane_render;
 pub mod pipeline;
 pub mod render;
 pub mod types;
@@ -409,7 +411,7 @@ impl CellRenderer {
 
         // Extract font metrics
         let (font_ascent, font_descent, font_leading, char_advance) = {
-            let primary_font = font_manager.get_font(0).unwrap();
+            let primary_font = font_manager.get_font(0).expect("Primary font at index 0 must exist after FontManager initialization");
             let metrics = primary_font.metrics(&[]);
             let scale = font_size_pixels / metrics.units_per_em as f32;
             let glyph_id = primary_font.charmap().map('m');
@@ -1209,7 +1211,7 @@ impl CellRenderer {
 
         // Re-extract font metrics at new scale
         let (font_ascent, font_descent, font_leading, char_advance) = {
-            let primary_font = self.font_manager.get_font(0).unwrap();
+            let primary_font = self.font_manager.get_font(0).expect("Primary font at index 0 must exist in FontManager when updating scale factor");
             let metrics = primary_font.metrics(&[]);
             let scale = self.font.font_size_pixels / metrics.units_per_em as f32;
             let glyph_id = primary_font.charmap().map('m');

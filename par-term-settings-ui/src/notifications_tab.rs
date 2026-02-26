@@ -507,7 +507,7 @@ fn show_alert_sounds_section(
                             .get(event)
                             .is_some_and(|c| c.enabled)
                     {
-                        let cfg = settings.config.alert_sounds.get_mut(event).unwrap();
+                        let cfg = settings.config.alert_sounds.get_mut(event).expect("alert_sounds entry verified present by get().is_some_and() guard above");
 
                         ui.horizontal(|ui| {
                             ui.label("  Volume:");

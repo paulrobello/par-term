@@ -1,9 +1,8 @@
-use anyhow::Result;
-use std::collections::HashMap;
-use wgpu::*;
-
+use crate::error::RenderError;
 use crate::gpu_utils;
 use par_term_config::ImageScalingMode;
+use std::collections::HashMap;
+use wgpu::*;
 
 /// Instance data for a single sixel graphic
 #[repr(C)]
@@ -63,7 +62,7 @@ impl GraphicsRenderer {
         window_padding: f32,
         scaling_mode: ImageScalingMode,
         preserve_aspect_ratio: bool,
-    ) -> Result<Self> {
+    ) -> Result<Self, RenderError> {
         // Create bind group layout for sixel textures
         let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: Some("Sixel Bind Group Layout"),
@@ -129,7 +128,7 @@ impl GraphicsRenderer {
         device: &Device,
         format: TextureFormat,
         bind_group_layout: &BindGroupLayout,
-    ) -> Result<RenderPipeline> {
+    ) -> Result<RenderPipeline, RenderError> {
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Sixel Shader"),
             source: ShaderSource::Wgsl(include_str!("shaders/sixel.wgsl").into()),
@@ -198,7 +197,7 @@ impl GraphicsRenderer {
         rgba_data: &[u8],
         width: u32,
         height: u32,
-    ) -> Result<()> {
+    ) -> Result<(), RenderError> {
         // Check if texture already exists in cache
         // For animations, we need to update the texture data even if it exists
         if let Some(tex_info) = self.texture_cache.get(&id) {
@@ -206,11 +205,10 @@ impl GraphicsRenderer {
             // Validate data size
             let expected_size = (width * height * 4) as usize;
             if rgba_data.len() != expected_size {
-                return Err(anyhow::anyhow!(
-                    "Invalid RGBA data size: expected {}, got {}",
-                    expected_size,
-                    rgba_data.len()
-                ));
+                return Err(RenderError::InvalidTextureData {
+                    expected: expected_size,
+                    actual: rgba_data.len(),
+                });
             }
 
             // Update existing texture with new pixel data (for animations)
@@ -240,11 +238,10 @@ impl GraphicsRenderer {
         // Validate data size
         let expected_size = (width * height * 4) as usize;
         if rgba_data.len() != expected_size {
-            return Err(anyhow::anyhow!(
-                "Invalid RGBA data size: expected {}, got {}",
-                expected_size,
-                rgba_data.len()
-            ));
+            return Err(RenderError::InvalidTextureData {
+                expected: expected_size,
+                actual: rgba_data.len(),
+            });
         }
 
         // Create texture
@@ -343,7 +340,7 @@ impl GraphicsRenderer {
         graphics: &[(u64, isize, usize, usize, usize, f32, usize)],
         window_width: f32,
         window_height: f32,
-    ) -> Result<()> {
+    ) -> Result<(), RenderError> {
         if graphics.is_empty() {
             return Ok(());
         }
@@ -484,7 +481,7 @@ impl GraphicsRenderer {
         window_height: f32,
         pane_origin_x: f32,
         pane_origin_y: f32,
-    ) -> Result<()> {
+    ) -> Result<(), RenderError> {
         if graphics.is_empty() {
             return Ok(());
         }

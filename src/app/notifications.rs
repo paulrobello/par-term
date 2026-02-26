@@ -15,6 +15,9 @@ impl WindowState {
             return;
         };
 
+        // try_lock: intentional — OSC notification polling in about_to_wait (sync loop).
+        // On miss: notifications are deferred to the next poll frame. Low risk; OSC
+        // notifications are informational and a one-frame delay is imperceptible.
         if let Ok(term) = tab.terminal.try_lock() {
             // Check for OSC 9/777 notifications
             if term.has_notifications() {
@@ -44,6 +47,9 @@ impl WindowState {
                 return;
             };
 
+            // try_lock: intentional — bell count polling in about_to_wait (sync event loop).
+            // On miss: bell detection is skipped this frame. The bell event will be seen
+            // on the next poll. A one-frame delay in bell feedback is imperceptible.
             if let Ok(term) = tab.terminal.try_lock() {
                 (term.bell_count(), tab.bell.last_count)
             } else {
@@ -165,6 +171,8 @@ impl WindowState {
             }
 
             // Check if the terminal has exited
+            // try_lock: intentional — exit check in about_to_wait (sync event loop).
+            // On miss: this tab's exit is not detected this frame; it will be on the next.
             let has_exited = if let Ok(term) = tab.terminal.try_lock() {
                 !term.is_running()
             } else {
@@ -210,6 +218,8 @@ impl WindowState {
 
         for tab in self.tab_manager.tabs_mut() {
             // Get current terminal generation to detect new output
+            // try_lock: intentional — activity/generation check in about_to_wait (sync loop).
+            // On miss: activity tracking skipped for this tab this frame. Harmless.
             let current_generation = if let Ok(term) = tab.terminal.try_lock() {
                 term.update_generation()
             } else {

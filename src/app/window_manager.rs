@@ -1787,7 +1787,7 @@ impl WindowManager {
                 let metadata = config
                     .custom_shader
                     .as_ref()
-                    .and_then(|name| window_state.shader_metadata_cache.get(name).cloned());
+                    .and_then(|name| window_state.shader_state.shader_metadata_cache.get(name).cloned());
                 let resolved = resolve_shader_config(shader_override, metadata.as_ref(), config);
 
                 // Apply shader changes - track if change was attempted and result

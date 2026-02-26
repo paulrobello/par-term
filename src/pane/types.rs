@@ -880,7 +880,7 @@ impl PaneNode {
                     NavigationDirection::Up | NavigationDirection::Down => dy + dx * 2.0,
                 };
 
-                if best.is_none() || distance < best.unwrap().1 {
+                if best.is_none_or(|(_, d)| distance < d) {
                     best = Some((pane.id, distance));
                 }
             }

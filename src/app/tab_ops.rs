@@ -89,6 +89,9 @@ impl WindowState {
                     // Resize all EXISTING tabs (not including the new one yet)
                     for tab in self.tab_manager.tabs_mut() {
                         if tab.id != tab_id {
+                            // try_lock: intentional — resize during new-tab creation in sync
+                            // event loop. On miss: this tab keeps old dimensions; corrected
+                            // on the next Resized event.
                             if let Ok(mut term) = tab.terminal.try_lock() {
                                 term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                                 let _ = term
@@ -118,6 +121,9 @@ impl WindowState {
 
                     // Resize terminal to match current renderer dimensions
                     // (which now has the correct content offset)
+                    // try_lock: intentional — new-tab initialization in sync event loop.
+                    // On miss: the new tab starts with default PTY dimensions; corrected
+                    // on the next Resized event.
                     if let Some(renderer) = &self.renderer
                         && let Ok(mut term) = tab.terminal.try_lock()
                     {
@@ -300,6 +306,8 @@ impl WindowState {
 
                     // Resize all remaining tabs
                     for tab in self.tab_manager.tabs_mut() {
+                        // try_lock: intentional — tab close resize in sync event loop.
+                        // On miss: tab keeps old dimensions; fixed on the next Resized event.
                         if let Ok(mut term) = tab.terminal.try_lock() {
                             term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                             let _ =
@@ -380,6 +388,8 @@ impl WindowState {
                 // Invalidate cell cache so content is re-rendered
                 tab.cache.cells = None;
 
+                // try_lock: intentional — tab switch resize in sync event loop.
+                // On miss: the newly active tab uses previous dimensions until next Resized.
                 if let Some(renderer) = &self.renderer
                     && let Ok(mut term) = tab.terminal.try_lock()
                 {
@@ -434,6 +444,8 @@ impl WindowState {
                             self.config.inactive_tab_fps,
                         );
 
+                        // try_lock: intentional — new pane initialization in sync event loop.
+                        // On miss: pane terminal keeps default dimensions; fixed on next Resized.
                         if let Some(renderer) = &self.renderer
                             && let Ok(mut term) = tab.terminal.try_lock()
                         {
@@ -501,6 +513,8 @@ impl WindowState {
 
             for tab in self.tab_manager.tabs_mut() {
                 if tab.id != new_tab_id {
+                    // try_lock: intentional — tab bar resize loop in sync event loop.
+                    // On miss: this tab is not resized; corrected on the next Resized event.
                     if let Ok(mut term) = tab.terminal.try_lock() {
                         term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                         let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
@@ -860,6 +874,10 @@ impl WindowState {
     /// Returns Some(command_name) if confirmation should be shown, None otherwise.
     fn check_current_tab_running_job(&self) -> Option<String> {
         let tab = self.tab_manager.active_tab()?;
+        // try_lock: intentional — called from sync event loop before showing close dialog.
+        // On miss (.ok() returns None): no job confirmation is shown, so tab closes without
+        // prompting. This is safe: users are extremely unlikely to close exactly when the
+        // lock is held by the PTY reader.
         let term = tab.terminal.try_lock().ok()?;
         term.should_confirm_close(&self.config.jobs_to_ignore)
     }
@@ -875,11 +893,14 @@ impl WindowState {
             let pane_manager = tab.pane_manager()?;
             let focused_id = pane_manager.focused_pane_id()?;
             let pane = pane_manager.get_pane(focused_id)?;
+            // try_lock: intentional — same rationale as check_current_tab_running_job.
+            // On miss: pane closes without confirmation. Safe in practice.
             let term = pane.terminal.try_lock().ok()?;
             return term.should_confirm_close(&self.config.jobs_to_ignore);
         }
 
         // Single pane - use the tab's terminal
+        // try_lock: intentional — same rationale as above.
         let term = tab.terminal.try_lock().ok()?;
         term.should_confirm_close(&self.config.jobs_to_ignore)
     }
@@ -989,6 +1010,9 @@ impl WindowState {
                     );
 
                     // Resize terminal to match current renderer dimensions
+                    // try_lock: intentional — duplicate tab initialization in sync event loop.
+                    // On miss: duplicate tab starts with default dimensions; corrected on next
+                    // Resized event.
                     if let Some(renderer) = &self.renderer
                         && let Ok(mut term) = tab.terminal.try_lock()
                     {
@@ -1243,7 +1267,12 @@ impl WindowState {
             }
 
             // Apply profile badge settings (color, font, margins, etc.)
-            self.apply_profile_badge(&self.profile_manager.get(&profile_id).unwrap().clone());
+            self.apply_profile_badge(
+                &self.profile_manager
+                    .get(&profile_id)
+                    .expect("profile_id obtained from profile_manager.find_by_name above")
+                    .clone(),
+            );
 
             log::info!(
                 "Auto-applied profile '{}' for hostname '{}'",
@@ -1274,6 +1303,9 @@ impl WindowState {
                 None => return false,
             };
 
+            // try_lock: intentional — SSH command check in about_to_wait (sync event loop).
+            // On miss: returns None (no command seen), skipping SSH profile switch this frame.
+            // Will be evaluated again next frame.
             let cmd = if let Ok(term) = tab.terminal.try_lock() {
                 term.get_running_command_name()
             } else {
@@ -1405,7 +1437,12 @@ impl WindowState {
             }
 
             // Apply profile badge settings (color, font, margins, etc.)
-            self.apply_profile_badge(&self.profile_manager.get(&profile_id).unwrap().clone());
+            self.apply_profile_badge(
+                &self.profile_manager
+                    .get(&profile_id)
+                    .expect("profile_id obtained from profile_manager.find_by_name above")
+                    .clone(),
+            );
 
             log::info!(
                 "Auto-applied profile '{}' for directory '{}'",

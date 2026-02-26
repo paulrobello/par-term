@@ -22,6 +22,8 @@ impl WindowState {
 
         let (cursor_col, cursor_row, cols, rows, scrollback_len) =
             if let Some(tab) = self.tab_manager.active_tab() {
+                // try_lock: intentional — copy mode initialization in sync event loop.
+                // On miss: copy mode is not entered this keypress. User can try again.
                 if let Ok(term) = tab.terminal.try_lock() {
                     let (col, row) = term.cursor_position();
                     let (cols, rows) = term.dimensions();
@@ -409,6 +411,8 @@ impl WindowState {
         let current_col = self.copy_mode.cursor_col;
 
         // Get all lines from terminal for searching
+        // try_lock: intentional — copy mode search in sync event loop.
+        // On miss: search is skipped this keypress; result stays at current position.
         let found = if let Some(tab) = self.tab_manager.active_tab() {
             if let Ok(term) = tab.terminal.try_lock() {
                 let total = self.copy_mode.scrollback_len + self.copy_mode.rows;
@@ -515,6 +519,8 @@ impl WindowState {
     /// Get the text of the line at the copy mode cursor's current absolute line
     fn get_copy_mode_line_text(&self) -> Option<String> {
         let abs_line = self.copy_mode.cursor_absolute_line;
+        // try_lock: intentional — reading line text for copy mode in sync event loop.
+        // On miss: returns None (no text). The line action (yank/open) is skipped.
         if let Some(tab) = self.tab_manager.active_tab()
             && let Ok(term) = tab.terminal.try_lock()
         {
