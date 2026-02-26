@@ -217,6 +217,8 @@ pub struct CellRenderer {
     pub(crate) command_separator_color: [f32; 3],
     /// Visible separator marks for current frame: (screen_row, exit_code, custom_color)
     pub(crate) visible_separator_marks: Vec<SeparatorMark>,
+    /// Gutter indicator marks for current frame: (screen_row, rgba_color)
+    pub(crate) gutter_indicators: Vec<(usize, [f32; 4])>,
 }
 
 impl CellRenderer {
@@ -439,7 +441,7 @@ impl CellRenderer {
         let vertex_buffer = pipeline::create_vertex_buffer(&device);
 
         // Instance buffers
-        let max_bg_instances = cols * rows + 10 + rows; // Extra slots for cursor overlays + separator lines
+        let max_bg_instances = cols * rows + 10 + rows + rows; // Extra slots for cursor overlays + separator lines + gutter indicators
         let max_text_instances = cols * rows * 2;
         let (bg_instance_buffer, text_instance_buffer) =
             pipeline::create_instance_buffers(&device, max_bg_instances, max_text_instances);
@@ -568,6 +570,7 @@ impl CellRenderer {
             command_separator_exit_color: true,
             command_separator_color: [0.5, 0.5, 0.5],
             visible_separator_marks: Vec::new(),
+            gutter_indicators: Vec::new(),
         };
 
         // Upload a solid white 2x2 pixel block to the atlas for geometric block rendering
@@ -744,7 +747,7 @@ impl CellRenderer {
     }
 
     fn recreate_instance_buffers(&mut self) {
-        self.max_bg_instances = self.cols * self.rows + 10 + self.rows; // Extra slots for cursor overlays + separator lines
+        self.max_bg_instances = self.cols * self.rows + 10 + self.rows + self.rows; // Extra slots for cursor overlays + separator lines + gutter indicators
         self.max_text_instances = self.cols * self.rows * 2;
         let (bg_buf, text_buf) = pipeline::create_instance_buffers(
             &self.device,
@@ -1130,6 +1133,13 @@ impl CellRenderer {
             return true;
         }
         false
+    }
+
+    /// Set the gutter indicator data for the current frame.
+    ///
+    /// Each entry is `(screen_row, [r, g, b, a])` for the gutter background.
+    pub fn set_gutter_indicators(&mut self, indicators: Vec<(usize, [f32; 4])>) {
+        self.gutter_indicators = indicators;
     }
 
     /// Compute separator color based on exit code and settings

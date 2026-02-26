@@ -364,6 +364,27 @@ impl SettingsWindow {
             cursor_shader_apply = cursor_shader;
         });
 
+        // Bridge: test detection request from settings UI → config_bridge
+        if self.settings_ui.test_detection_requested {
+            self.settings_ui.test_detection_requested = false;
+            let preceding_cmd = if self.settings_ui.test_detection_command.is_empty() {
+                None
+            } else {
+                Some(self.settings_ui.test_detection_command.as_str())
+            };
+            let result = crate::prettifier::config_bridge::test_detection(
+                &self.settings_ui.config,
+                &self.settings_ui.test_detection_content,
+                preceding_cmd,
+            );
+            self.settings_ui.test_detection_result = Some((
+                result.format_id,
+                result.confidence,
+                result.matched_rules,
+                result.threshold,
+            ));
+        }
+
         // Handle platform output (clipboard, cursor)
         // Manually handle clipboard copy as a fallback for macOS menu accelerator issues.
         // In egui 0.33, copy commands are in platform_output.commands as OutputCommand::CopyText.

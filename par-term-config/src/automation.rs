@@ -2,6 +2,39 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Scope for a prettify trigger action.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrettifyScope {
+    /// Apply to the matched line only.
+    Line,
+    /// Apply to a delimited block (start pattern → block_end pattern).
+    Block,
+    /// Apply to the entire command output containing the match.
+    #[default]
+    CommandOutput,
+}
+
+/// Payload packed into a Notify relay for prettify trigger actions.
+///
+/// When the core trigger system fires, the frontend intercepts Notify actions
+/// with the `__prettify__` title prefix and deserializes this from the message.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrettifyRelayPayload {
+    pub format: String,
+    pub scope: PrettifyScope,
+    #[serde(default)]
+    pub block_end: Option<String>,
+    #[serde(default)]
+    pub sub_format: Option<String>,
+    #[serde(default)]
+    pub command_filter: Option<String>,
+}
+
+/// Magic label prefix used to relay prettify actions through the core MarkLine system.
+/// Using MarkLine (instead of Notify) because it carries the matched `row`.
+pub const PRETTIFY_RELAY_PREFIX: &str = "__prettify__";
+
 /// A trigger definition that matches terminal output and fires actions.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TriggerConfig {
@@ -53,6 +86,23 @@ pub enum TriggerActionConfig {
         text: String,
         #[serde(default)]
         delay_ms: u64,
+    },
+    /// Invoke a specific prettifier renderer on matched content.
+    Prettify {
+        /// Which renderer to invoke (e.g., "json", "markdown", "none").
+        format: String,
+        /// What scope to apply the renderer to.
+        #[serde(default)]
+        scope: PrettifyScope,
+        /// Optional regex for block end (for block-scoped rendering).
+        #[serde(default)]
+        block_end: Option<String>,
+        /// Optional sub-format (e.g., "plantuml" for diagrams).
+        #[serde(default)]
+        sub_format: Option<String>,
+        /// Optional regex to filter by preceding command.
+        #[serde(default)]
+        command_filter: Option<String>,
     },
 }
 
@@ -141,6 +191,33 @@ impl TriggerActionConfig {
             Self::RunCommand { command, args } => TriggerAction::RunCommand { command, args },
             Self::PlaySound { sound_id, volume } => TriggerAction::PlaySound { sound_id, volume },
             Self::SendText { text, delay_ms } => TriggerAction::SendText { text, delay_ms },
+            Self::Prettify {
+                format,
+                scope,
+                block_end,
+                sub_format,
+                command_filter,
+            } => {
+                // Relay through the core MarkLine mechanism. MarkLine carries the
+                // matched `row`, which we need for scope handling. The frontend
+                // intercepts ActionResult::MarkLine with the __prettify__ label
+                // prefix and dispatches to the PrettifierPipeline.
+                let payload = PrettifyRelayPayload {
+                    format,
+                    scope,
+                    block_end,
+                    sub_format,
+                    command_filter,
+                };
+                TriggerAction::MarkLine {
+                    label: Some(format!(
+                        "{}{}",
+                        PRETTIFY_RELAY_PREFIX,
+                        serde_json::to_string(&payload).unwrap_or_default()
+                    )),
+                    color: None,
+                }
+            }
         }
     }
 }

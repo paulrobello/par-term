@@ -404,6 +404,67 @@ impl Renderer {
         Ok(())
     }
 
+    /// Upload prettifier diagram graphics and append them to the sixel render list.
+    ///
+    /// Each graphic is specified by:
+    /// - `id`: Unique texture ID (should not collide with terminal graphic IDs)
+    /// - `rgba_data`: Pre-decoded RGBA pixel data
+    /// - `pixel_width`, `pixel_height`: Image dimensions in pixels
+    /// - `screen_row`: Row on screen where the graphic starts (0-based)
+    /// - `col`: Column on screen where the graphic starts
+    ///
+    /// Graphics are composited on top of terminal cells in the same pass as
+    /// sixel/iTerm2/Kitty graphics.
+    pub fn update_prettifier_graphics(
+        &mut self,
+        graphics: &[(u64, &[u8], u32, u32, isize, usize)],
+    ) -> Result<()> {
+        for &(id, rgba_data, pixel_width, pixel_height, screen_row, col) in graphics {
+            if rgba_data.is_empty() || pixel_width == 0 || pixel_height == 0 {
+                continue;
+            }
+
+            // Upload / refresh texture in the shared cache
+            self.graphics_renderer.get_or_create_texture(
+                self.cell_renderer.device(),
+                self.cell_renderer.queue(),
+                id,
+                rgba_data,
+                pixel_width,
+                pixel_height,
+            )?;
+
+            // Calculate size in cells
+            let width_cells =
+                ((pixel_width as f32 / self.cell_renderer.cell_width()).ceil() as usize).max(1);
+            let height_cells =
+                ((pixel_height as f32 / self.cell_renderer.cell_height()).ceil() as usize).max(1);
+
+            // Clip rows if graphic extends above the viewport
+            let effective_clip_rows = if screen_row < 0 {
+                (-screen_row) as usize
+            } else {
+                0
+            };
+
+            self.sixel_graphics.push((
+                id,
+                screen_row,
+                col,
+                width_cells,
+                height_cells,
+                1.0,                 // Full opacity
+                effective_clip_rows,
+            ));
+        }
+
+        if !graphics.is_empty() {
+            self.dirty = true;
+        }
+
+        Ok(())
+    }
+
     /// Clear all cached sixel textures
     #[allow(dead_code)]
     pub fn clear_sixel_cache(&mut self) {

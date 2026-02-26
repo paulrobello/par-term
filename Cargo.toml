@@ -102,6 +102,7 @@ uuid = { version = "1.21", features = ["v4", "serde"] }
 
 # Error handling
 anyhow = "1.0.101"
+thiserror = "2"
 
 # Logging
 log = "0.4.29"
@@ -133,6 +134,11 @@ chrono = "0.4.43"
 
 # Image loading for background images
 image = "0.25.9"
+
+# Native Mermaid diagram rendering (pure Rust, zero external deps)
+mermaid-rs-renderer = { version = "0.2", default-features = false }
+# SVG rasterization for mermaid diagram PNG output
+resvg = "0.45"
 
 # Half-precision float for HDR cubemap textures
 half = "2.7.1"

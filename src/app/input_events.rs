@@ -273,7 +273,11 @@ impl WindowState {
             };
 
             if is_copy {
-                if let Some(selected_text) = self.get_selected_text_for_copy() {
+                // Try prettifier-aware copy first, then fall back to normal selection copy.
+                let text = self
+                    .get_prettifier_copy_text()
+                    .or_else(|| self.get_selected_text_for_copy());
+                if let Some(selected_text) = text {
                     if let Err(e) = self.input_handler.copy_to_clipboard(&selected_text) {
                         log::error!("Failed to copy to clipboard: {}", e);
                     } else {
@@ -1203,6 +1207,23 @@ impl WindowState {
             }
             "toggle_cursor_shader" => {
                 self.toggle_cursor_shader();
+                true
+            }
+            "toggle_prettifier" => {
+                if let Some(tab) = self.tab_manager.active_tab_mut()
+                    && let Some(ref mut pipeline) = tab.prettifier
+                {
+                    pipeline.toggle_global();
+                    log::info!(
+                        "Prettifier toggled: {}",
+                        if pipeline.is_enabled() {
+                            "enabled"
+                        } else {
+                            "disabled"
+                        }
+                    );
+                }
+                self.needs_redraw = true;
                 true
             }
             "reload_config" => {
