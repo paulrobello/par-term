@@ -9,9 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **UI Constants Module**: New `src/ui_constants.rs` centralizes 80 named constants for window sizes, spacing, padding, and layout dimensions across 13 UI components — replaces inline magic numbers, enabling future DPI scaling and theming
+
+### Fixed
+
+- **MCP IPC File Permissions**: IPC files (config-update, screenshot request/response) are now created with `0o600` permissions atomically at creation time — eliminates the world-readable race window that existed when `std::fs::write` + post-write `chmod` was used
+- **Status Bar Thread Spawn Panics**: Replaced `expect()` on OS thread spawning in the system monitor and git branch poller — spawn failures now log a debug error and degrade gracefully instead of crashing the terminal session
+- **tmux Terminal Stuck in Control Mode**: Fixed a race where `handle_tmux_session_ended` could fail to acquire the terminal lock and silently leave the parser stuck in tmux control mode; the fix uses a per-tab `pending_tmux_mode_disable` flag that is retried each frame via `retry_pending_tmux_mode_disable()`, guaranteeing cleanup without blocking the winit event loop
+
 ### Changed
 
 - **Prettifier Disabled by Default**: The content prettifier is now disabled by default; enable it via `enable_prettifier: true` in `config.yaml` or the Settings UI
+- **CI Workflow Auto-Triggers**: CI now runs automatically on all pushes to `main` and on all pull requests targeting `main` (previously manual-only)
+- **render_pipeline Refactored into Sub-Modules**: `render_pipeline.rs` (2,941 lines) split into a directory module — `frame_setup.rs` (frame lifecycle helpers), `pane_render.rs` (split-pane rendering), `post_render.rs` (post-render action dispatch), and `mod.rs` (orchestrator); zero behavior changes
 
 ---
 
