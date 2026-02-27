@@ -60,7 +60,7 @@ pub use types::{
 // KeyModifier is exported for potential future use (e.g., custom keybinding UI)
 pub use automation::{
     CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig, TriggerRateLimiter,
-    check_command_denylist,
+    check_command_denylist, warn_require_user_action_false,
 };
 // Scripting / observer scripts
 pub use scripting::ScriptConfig;

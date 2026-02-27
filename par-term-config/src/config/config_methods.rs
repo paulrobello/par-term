@@ -107,6 +107,10 @@ impl Config {
                 super::env_vars::substitute_variables_with_allowlist(&contents, allow_all);
             let mut config: Config = serde_yml::from_str(&contents)?;
 
+            // Warn about triggers with require_user_action: false, since the
+            // denylist is the only protection in that mode and it is bypassable.
+            config.warn_insecure_triggers();
+
             // Merge in any new default keybindings that don't exist in user's config
             config.merge_default_keybindings();
 
@@ -910,6 +914,26 @@ impl Config {
     }
 
     /// Load the last working directory from state file
+    /// Emit security warnings for any triggers configured with
+    /// `require_user_action: false` that also contain dangerous actions
+    /// (`RunCommand` or `SendText`).
+    ///
+    /// Called during config load so that users are immediately informed when
+    /// their configuration reduces the security posture. The warning is written
+    /// to stderr via [`crate::automation::warn_require_user_action_false`].
+    fn warn_insecure_triggers(&self) {
+        for trigger in &self.triggers {
+            if !trigger.require_user_action
+                && trigger
+                    .actions
+                    .iter()
+                    .any(|a| a.is_dangerous())
+            {
+                crate::automation::warn_require_user_action_false(&trigger.name);
+            }
+        }
+    }
+
     pub fn load_last_working_directory(&mut self) {
         let state_path = Self::state_file_path();
         if !state_path.exists() {
