@@ -13,23 +13,25 @@ impl CellRenderer {
             .create_view(&wgpu::TextureViewDescriptor::default());
         self.build_instance_buffers()?;
 
-        // Pre-create per-pane background bind group if needed (must happen before render pass)
+        // Pre-update per-pane background uniform buffer and bind group if needed (must happen
+        // before render pass). Buffers are allocated once and reused across frames.
         // This supports pane 0 background in single-pane (no splits) mode.
-        let pane_bg_resources = if !self.bg_state.bg_is_solid_color {
+        let pane_bg_path: Option<String> = if !self.bg_state.bg_is_solid_color {
             if let Some(pane_bg) = pane_background {
-                if let Some(ref path) = pane_bg.image_path {
-                    self.bg_state.pane_bg_cache.get(path.as_str()).map(|entry| {
-                        self.create_pane_bg_bind_group(
-                            entry,
-                            0.0, // pane_x: full window starts at 0
-                            0.0, // pane_y: full window starts at 0
-                            self.config.width as f32,
-                            self.config.height as f32,
-                            pane_bg.mode,
-                            pane_bg.opacity,
-                            pane_bg.darken,
-                        )
-                    })
+                if let Some(ref path) = pane_bg.image_path
+                    && self.bg_state.pane_bg_cache.contains_key(path.as_str())
+                {
+                    self.prepare_pane_bg_bind_group(
+                        path.as_str(),
+                        0.0, // pane_x: full window starts at 0
+                        0.0, // pane_y: full window starts at 0
+                        self.config.width as f32,
+                        self.config.height as f32,
+                        pane_bg.mode,
+                        pane_bg.opacity,
+                        pane_bg.darken,
+                    );
+                    Some(path.to_string())
                 } else {
                     None
                 }
@@ -51,7 +53,7 @@ impl CellRenderer {
         // - Image mode: use TRANSPARENT clear, let bg_image_pipeline handle background
         // - Default mode: use theme background with window_opacity
         // - Per-pane bg: use TRANSPARENT clear, render pane bg before global bg
-        let has_pane_bg = pane_bg_resources.is_some();
+        let has_pane_bg = pane_bg_path.is_some();
         let (clear_color, use_bg_image_pipeline) = if has_pane_bg {
             // Per-pane background: use transparent clear, pane bg will be rendered first
             (wgpu::Color::TRANSPARENT, false)
@@ -108,11 +110,13 @@ impl CellRenderer {
             });
 
             // Render per-pane background for single-pane mode (pane 0)
-            if let Some((ref bind_group, _)) = pane_bg_resources {
-                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
-                render_pass.set_bind_group(0, bind_group, &[]);
-                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-                render_pass.draw(0..4, 0..1);
+            if let Some(ref path) = pane_bg_path {
+                if let Some(cached) = self.bg_state.pane_bg_uniform_cache.get(path.as_str()) {
+                    render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
+                    render_pass.set_bind_group(0, &cached.bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+                    render_pass.draw(0..4, 0..1);
+                }
             }
 
             // Render global background image if present (not used for solid color or pane bg mode)
