@@ -610,7 +610,7 @@ impl WindowState {
     pub(crate) fn apply_tmux_session_profile(&mut self, session_name: &str) {
         // First, check if there's a fixed tmux_profile configured
         if let Some(ref profile_name) = self.config.tmux_profile {
-            if let Some(profile) = self.profile_manager.find_by_name(profile_name) {
+            if let Some(profile) = self.overlay_ui.profile_manager.find_by_name(profile_name) {
                 let profile_id = profile.id;
                 let profile_display = profile.name.clone();
                 crate::debug_info!(
@@ -631,7 +631,11 @@ impl WindowState {
         }
 
         // Then, check for pattern-based matching
-        if let Some(profile) = self.profile_manager.find_by_tmux_session(session_name) {
+        if let Some(profile) = self
+            .overlay_ui
+            .profile_manager
+            .find_by_tmux_session(session_name)
+        {
             let profile_id = profile.id;
             let profile_display = profile.name.clone();
             crate::debug_info!(
@@ -657,7 +661,7 @@ impl WindowState {
         profile_name: &str,
     ) {
         // Extract profile settings before borrowing tab_manager
-        let profile_settings = self.profile_manager.get(&profile_id).map(|p| {
+        let profile_settings = self.overlay_ui.profile_manager.get(&profile_id).map(|p| {
             (
                 p.tab_name.clone(),
                 p.icon.clone(),
@@ -726,7 +730,7 @@ impl WindowState {
         }
 
         // Apply profile badge settings (color, font, margins, etc.)
-        if let Some(profile) = self.profile_manager.get(&profile_id) {
+        if let Some(profile) = self.overlay_ui.profile_manager.get(&profile_id) {
             let profile_clone = profile.clone();
             self.apply_profile_badge(&profile_clone);
         }

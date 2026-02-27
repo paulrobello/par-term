@@ -88,13 +88,13 @@ impl WindowState {
                 true
             }
             "toggle_help" => {
-                self.help_ui.toggle();
+                self.overlay_ui.help_ui.toggle();
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
                 log::info!(
                     "Help UI toggled via keybinding: {}",
-                    if self.help_ui.visible {
+                    if self.overlay_ui.help_ui.visible {
                         "visible"
                     } else {
                         "hidden"
@@ -118,9 +118,9 @@ impl WindowState {
                 true
             }
             "toggle_search" => {
-                self.search_ui.toggle();
-                if self.search_ui.visible {
-                    self.search_ui.init_from_config(
+                self.overlay_ui.search_ui.toggle();
+                if self.overlay_ui.search_ui.visible {
+                    self.overlay_ui.search_ui.init_from_config(
                         self.config.search_case_sensitive,
                         self.config.search_regex,
                     );
@@ -131,7 +131,7 @@ impl WindowState {
                 }
                 log::info!(
                     "Search UI toggled via keybinding: {}",
-                    if self.search_ui.visible {
+                    if self.overlay_ui.search_ui.visible {
                         "visible"
                     } else {
                         "hidden"
@@ -141,7 +141,7 @@ impl WindowState {
             }
             "toggle_ai_inspector" => {
                 if self.config.ai_inspector_enabled {
-                    let just_opened = self.ai_inspector.toggle();
+                    let just_opened = self.overlay_ui.ai_inspector.toggle();
                     self.sync_ai_inspector_width();
                     if just_opened {
                         self.try_auto_connect_agent();
@@ -176,7 +176,7 @@ impl WindowState {
             "paste_special" => {
                 // Get clipboard content and open paste special UI
                 if let Some(text) = self.input_handler.paste_from_clipboard() {
-                    self.paste_special_ui.open(text);
+                    self.overlay_ui.paste_special_ui.open(text);
                     self.needs_redraw = true;
                     if let Some(window) = &self.window {
                         window.request_redraw();
@@ -256,13 +256,13 @@ impl WindowState {
                 true
             }
             "toggle_tmux_session_picker" => {
-                self.tmux_session_picker_ui.toggle();
+                self.overlay_ui.tmux_session_picker_ui.toggle();
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
                 log::info!(
                     "tmux session picker toggled via keybinding: {}",
-                    if self.tmux_session_picker_ui.visible {
+                    if self.overlay_ui.tmux_session_picker_ui.visible {
                         "visible"
                     } else {
                         "hidden"
@@ -300,7 +300,7 @@ impl WindowState {
                 self.toggle_profile_drawer();
                 log::info!(
                     "Profile drawer toggled via keybinding: {}",
-                    if self.profile_drawer_ui.expanded {
+                    if self.overlay_ui.profile_drawer_ui.expanded {
                         "expanded"
                     } else {
                         "collapsed"
@@ -312,7 +312,7 @@ impl WindowState {
                 self.toggle_clipboard_history();
                 log::info!(
                     "Clipboard history toggled via keybinding: {}",
-                    if self.clipboard_history_ui.visible {
+                    if self.overlay_ui.clipboard_history_ui.visible {
                         "visible"
                     } else {
                         "hidden"
@@ -324,7 +324,7 @@ impl WindowState {
                 self.toggle_command_history();
                 log::info!(
                     "Command history toggled via keybinding: {}",
-                    if self.command_history_ui.visible {
+                    if self.overlay_ui.command_history_ui.visible {
                         "visible"
                     } else {
                         "hidden"
@@ -508,7 +508,7 @@ impl WindowState {
                 true
             }
             "ssh_quick_connect" => {
-                self.ssh_connect_ui.open(
+                self.overlay_ui.ssh_connect_ui.open(
                     self.config.enable_mdns_discovery,
                     self.config.mdns_scan_timeout_secs,
                 );

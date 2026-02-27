@@ -20,12 +20,12 @@ impl WindowState {
         scrollback_len: usize,
         visible_lines: usize,
     ) {
-        let matches = self.search_ui.matches();
+        let matches = self.overlay_ui.search_ui.matches();
         if matches.is_empty() {
             return;
         }
 
-        let current_match_idx = self.search_ui.current_match_index();
+        let current_match_idx = self.overlay_ui.search_ui.current_match_index();
         let highlight_color = self.config.search_highlight_color;
         let current_highlight_color = self.config.search_current_highlight_color;
 

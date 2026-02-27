@@ -21,25 +21,28 @@ par-term is a well-architected Rust terminal emulator with a clean 13-crate work
 
 | # | Category | Finding | Location |
 |---|----------|---------|----------|
-| C2 | Architecture | `WindowState` still has ~82 top-level fields. `AgentState`, `TmuxState`, `OverlayUiState` not yet extracted. | `src/app/window_state.rs` |
 | C1 | Code Quality | `render()` still 2,482 lines after initial decomposition (-28%). Further extraction needed. | `src/app/window_state.rs` |
 
 ### High
 
 | # | Category | Finding | Location |
 |---|----------|---------|----------|
-| H9 | Architecture | `window_state.rs` (~6,300L) and `window_manager.rs` (~3,022L) still exceed thresholds; will reduce as C2 progresses | `src/app/` |
+| H9 | Architecture | `window_state.rs` (~6,348L) and `window_manager.rs` (~3,022L) still exceed thresholds; C2 is resolved but C1 extraction remains | `src/app/` |
 
 ---
 
 ## Detailed Findings
 
-### C2 — WindowState God Object (partial)
+### C2 — WindowState God Object (RESOLVED)
 
-`CursorAnimState` (4 fields) and `ShaderState` (6 fields) have been extracted. Still pending:
-- `AgentState` -- agent, agent_rx, agent_tx, agent_client, pending_send_handles, agent_skill_*
-- `TmuxState` -- tmux_session, tmux_sync, tmux_pane_to_native_pane, etc.
-- `OverlayUiState` -- help_ui, clipboard_history_ui, search_ui, and 12 more panels
+All three sub-struct extractions are complete:
+- `CursorAnimState` (4 fields) — extracted earlier
+- `ShaderState` (6 fields) — extracted earlier
+- `AgentState` (10 fields) — `src/app/agent_state.rs`, accessed as `self.agent_state.*`
+- `TmuxState` (7 fields) — `src/app/tmux_state.rs`, accessed as `self.tmux_state.*`
+- `OverlayUiState` (20 fields) — `src/app/overlay_ui_state.rs`, accessed as `self.overlay_ui.*`
+
+`WindowState` now has ~47 top-level fields (down from ~82). All tests pass, clippy is clean.
 
 ### C1 — Monolithic render() (partial)
 
@@ -73,7 +76,7 @@ Remaining above 800-line threshold (will decrease as C2 extraction continues):
 
 ## Remediation Roadmap
 
-- [ ] **C2**: Extract `AgentState`, `TmuxState`, `OverlayUiState` from `WindowState`
+- [x] **C2**: Extract `AgentState`, `TmuxState`, `OverlayUiState` from `WindowState` — COMPLETE
 - [ ] **C1**: Continue extracting render phases until render() is ~50 lines
 - [ ] **M12**: Convert remaining `unwrap()` calls in `window_state.rs` / `window_manager.rs` to `expect()` with context
-- [ ] **H9**: Further split oversized sub-files as C2 progresses; tackle `window_manager.rs`
+- [ ] **H9**: Further split oversized sub-files; tackle `window_manager.rs`

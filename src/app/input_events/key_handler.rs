@@ -583,34 +583,34 @@ impl WindowState {
 
     fn handle_clipboard_history_keys(&mut self, event: &KeyEvent) -> bool {
         // Handle Escape to close clipboard history UI
-        if self.clipboard_history_ui.visible {
+        if self.overlay_ui.clipboard_history_ui.visible {
             if event.state == ElementState::Pressed {
                 match &event.logical_key {
                     Key::Named(winit::keyboard::NamedKey::Escape) => {
-                        self.clipboard_history_ui.visible = false;
+                        self.overlay_ui.clipboard_history_ui.visible = false;
                         self.needs_redraw = true;
                         return true;
                     }
                     Key::Named(winit::keyboard::NamedKey::ArrowUp) => {
-                        self.clipboard_history_ui.select_previous();
+                        self.overlay_ui.clipboard_history_ui.select_previous();
                         self.needs_redraw = true;
                         return true;
                     }
                     Key::Named(winit::keyboard::NamedKey::ArrowDown) => {
-                        self.clipboard_history_ui.select_next();
+                        self.overlay_ui.clipboard_history_ui.select_next();
                         self.needs_redraw = true;
                         return true;
                     }
                     Key::Named(winit::keyboard::NamedKey::Enter) => {
                         // Check if Shift is held for paste special
                         let shift = self.input_handler.modifiers.state().shift_key();
-                        if let Some(entry) = self.clipboard_history_ui.selected_entry() {
+                        if let Some(entry) = self.overlay_ui.clipboard_history_ui.selected_entry() {
                             let content = entry.content.clone();
-                            self.clipboard_history_ui.visible = false;
+                            self.overlay_ui.clipboard_history_ui.visible = false;
 
                             if shift {
                                 // Shift+Enter: Open paste special UI with the selected content
-                                self.paste_special_ui.open(content);
+                                self.overlay_ui.paste_special_ui.open(content);
                                 log::info!("Paste special UI opened from clipboard history");
                             } else {
                                 // Enter: Paste directly
@@ -661,42 +661,46 @@ impl WindowState {
             // Sort by timestamp (newest first)
             all_entries.sort_by_key(|e| std::cmp::Reverse(e.timestamp));
 
-            self.clipboard_history_ui.update_entries(all_entries);
+            self.overlay_ui
+                .clipboard_history_ui
+                .update_entries(all_entries);
         }
 
-        self.clipboard_history_ui.toggle();
+        self.overlay_ui.clipboard_history_ui.toggle();
         self.needs_redraw = true;
         log::debug!(
             "Clipboard history UI toggled: {}",
-            self.clipboard_history_ui.visible
+            self.overlay_ui.clipboard_history_ui.visible
         );
     }
 
     fn handle_command_history_keys(&mut self, event: &KeyEvent) -> bool {
         // Handle keys when command history UI is visible
-        if self.command_history_ui.visible {
+        if self.overlay_ui.command_history_ui.visible {
             if event.state == ElementState::Pressed {
                 match &event.logical_key {
                     Key::Named(NamedKey::Escape) => {
-                        self.command_history_ui.close();
+                        self.overlay_ui.command_history_ui.close();
                         self.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::ArrowUp) => {
-                        self.command_history_ui.select_previous();
+                        self.overlay_ui.command_history_ui.select_previous();
                         self.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::ArrowDown) => {
-                        self.command_history_ui
-                            .select_next(self.command_history.len());
+                        self.overlay_ui
+                            .command_history_ui
+                            .select_next(self.overlay_ui.command_history.len());
                         self.needs_redraw = true;
                         return true;
                     }
                     Key::Named(NamedKey::Enter) => {
                         // Insert the selected command into the terminal
-                        if let Some(command) = self.command_history_ui.selected_command() {
-                            self.command_history_ui.close();
+                        if let Some(command) = self.overlay_ui.command_history_ui.selected_command()
+                        {
+                            self.overlay_ui.command_history_ui.close();
                             self.paste_text(&command);
                         }
                         self.needs_redraw = true;
@@ -731,40 +735,41 @@ impl WindowState {
 
     pub(crate) fn toggle_command_history(&mut self) {
         // Refresh entries from persistent history before showing
-        self.command_history_ui
-            .update_entries(self.command_history.entries());
-        self.command_history_ui.toggle();
+        self.overlay_ui
+            .command_history_ui
+            .update_entries(self.overlay_ui.command_history.entries());
+        self.overlay_ui.command_history_ui.toggle();
         self.needs_redraw = true;
         log::debug!(
             "Command history UI toggled: {}",
-            self.command_history_ui.visible
+            self.overlay_ui.command_history_ui.visible
         );
     }
 
     fn handle_paste_special_keys(&mut self, event: &KeyEvent) -> bool {
         // Handle keys when paste special UI is visible
-        if self.paste_special_ui.visible {
+        if self.overlay_ui.paste_special_ui.visible {
             if event.state == ElementState::Pressed {
                 match &event.logical_key {
                     Key::Named(winit::keyboard::NamedKey::Escape) => {
-                        self.paste_special_ui.close();
+                        self.overlay_ui.paste_special_ui.close();
                         self.needs_redraw = true;
                         return true;
                     }
                     Key::Named(winit::keyboard::NamedKey::ArrowUp) => {
-                        self.paste_special_ui.select_previous();
+                        self.overlay_ui.paste_special_ui.select_previous();
                         self.needs_redraw = true;
                         return true;
                     }
                     Key::Named(winit::keyboard::NamedKey::ArrowDown) => {
-                        self.paste_special_ui.select_next();
+                        self.overlay_ui.paste_special_ui.select_next();
                         self.needs_redraw = true;
                         return true;
                     }
                     Key::Named(winit::keyboard::NamedKey::Enter) => {
                         // Apply the selected transformation and paste
-                        if let Some(result) = self.paste_special_ui.apply_selected() {
-                            self.paste_special_ui.close();
+                        if let Some(result) = self.overlay_ui.paste_special_ui.apply_selected() {
+                            self.overlay_ui.paste_special_ui.close();
                             self.paste_text(&result);
                             self.needs_redraw = true;
                         }
@@ -808,11 +813,11 @@ impl WindowState {
 
     fn handle_search_keys(&mut self, event: &KeyEvent) -> bool {
         // Handle keys when search UI is visible
-        if self.search_ui.visible {
+        if self.overlay_ui.search_ui.visible {
             if event.state == ElementState::Pressed
                 && let Key::Named(winit::keyboard::NamedKey::Escape) = &event.logical_key
             {
-                self.search_ui.close();
+                self.overlay_ui.search_ui.close();
                 self.needs_redraw = true;
                 return true;
             }
@@ -840,9 +845,10 @@ impl WindowState {
             };
 
             if is_search {
-                self.search_ui.open();
+                self.overlay_ui.search_ui.open();
                 // Initialize from config
-                self.search_ui
+                self.overlay_ui
+                    .search_ui
                     .init_from_config(self.config.search_case_sensitive, self.config.search_regex);
                 self.needs_redraw = true;
                 log::debug!("Search UI opened");
@@ -879,7 +885,7 @@ impl WindowState {
         };
 
         if is_inspector {
-            let just_opened = self.ai_inspector.toggle();
+            let just_opened = self.overlay_ui.ai_inspector.toggle();
             self.sync_ai_inspector_width();
             if just_opened {
                 self.try_auto_connect_agent();
@@ -887,7 +893,10 @@ impl WindowState {
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
-            log::debug!("Assistant panel toggled: {}", self.ai_inspector.open);
+            log::debug!(
+                "Assistant panel toggled: {}",
+                self.overlay_ui.ai_inspector.open
+            );
             return true;
         }
 
@@ -1234,7 +1243,7 @@ impl WindowState {
         }
 
         // Look up profile by shortcut
-        if let Some(profile) = self.profile_manager.find_by_shortcut(&shortcut) {
+        if let Some(profile) = self.overlay_ui.profile_manager.find_by_shortcut(&shortcut) {
             let profile_id = profile.id;
             let profile_name = profile.name.clone();
 

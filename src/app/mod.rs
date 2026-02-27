@@ -26,6 +26,7 @@ pub mod keyboard_handlers;
 pub mod mouse;
 pub mod mouse_events;
 mod notifications;
+pub(crate) mod overlay_ui_state;
 pub mod render_cache;
 pub mod renderer_init;
 pub mod scroll_ops;

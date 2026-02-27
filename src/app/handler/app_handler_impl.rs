@@ -284,7 +284,7 @@ impl ApplicationHandler for WindowManager {
             if window_state.profiles_menu_needs_update {
                 window_state.profiles_menu_needs_update = false;
                 // Get a copy of the profiles for menu update
-                profiles_to_update = Some(window_state.profile_manager.to_vec());
+                profiles_to_update = Some(window_state.overlay_ui.profile_manager.to_vec());
             }
 
             window_state.about_to_wait(event_loop);
@@ -330,7 +330,7 @@ impl ApplicationHandler for WindowManager {
             // Merge into all window profile managers
             for window_state in self.windows.values_mut() {
                 crate::profile::dynamic::merge_dynamic_profiles(
-                    &mut window_state.profile_manager,
+                    &mut window_state.overlay_ui.profile_manager,
                     &update.profiles,
                     &update.url,
                     &update.conflict_resolution,
@@ -350,7 +350,7 @@ impl ApplicationHandler for WindowManager {
 
             // Ensure profiles_to_update is refreshed after dynamic merge
             if let Some(window_state) = self.windows.values().next() {
-                profiles_to_update = Some(window_state.profile_manager.to_vec());
+                profiles_to_update = Some(window_state.overlay_ui.profile_manager.to_vec());
             }
         }
 

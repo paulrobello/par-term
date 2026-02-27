@@ -75,10 +75,10 @@ impl WindowState {
 
         // F1: Toggle help UI
         if matches!(event.logical_key, Key::Named(NamedKey::F1)) {
-            self.help_ui.toggle();
+            self.overlay_ui.help_ui.toggle();
             log::info!(
                 "Help UI toggled: {}",
-                if self.help_ui.visible {
+                if self.overlay_ui.help_ui.visible {
                     "visible"
                 } else {
                     "hidden"
@@ -94,8 +94,10 @@ impl WindowState {
         }
 
         // Escape: Close help UI if visible
-        if matches!(event.logical_key, Key::Named(NamedKey::Escape)) && self.help_ui.visible {
-            self.help_ui.visible = false;
+        if matches!(event.logical_key, Key::Named(NamedKey::Escape))
+            && self.overlay_ui.help_ui.visible
+        {
+            self.overlay_ui.help_ui.visible = false;
             log::info!("Help UI closed via Escape");
 
             if let Some(window) = &self.window {
@@ -107,10 +109,10 @@ impl WindowState {
 
         // Escape: Close shader install UI if visible (only when not installing)
         if matches!(event.logical_key, Key::Named(NamedKey::Escape))
-            && self.shader_install_ui.visible
-            && !self.shader_install_ui.installing
+            && self.overlay_ui.shader_install_ui.visible
+            && !self.overlay_ui.shader_install_ui.installing
         {
-            self.shader_install_ui.visible = false;
+            self.overlay_ui.shader_install_ui.visible = false;
             log::info!("Shader install UI closed via Escape");
 
             if let Some(window) = &self.window {
@@ -122,10 +124,10 @@ impl WindowState {
 
         // Escape: Close integrations welcome dialog if visible (only when not installing)
         if matches!(event.logical_key, Key::Named(NamedKey::Escape))
-            && self.integrations_ui.visible
-            && !self.integrations_ui.installing
+            && self.overlay_ui.integrations_ui.visible
+            && !self.overlay_ui.integrations_ui.installing
         {
-            self.integrations_ui.visible = false;
+            self.overlay_ui.integrations_ui.visible = false;
             log::info!("Integrations dialog closed via Escape");
 
             if let Some(window) = &self.window {
@@ -200,7 +202,7 @@ impl WindowState {
             self.toggle_profile_drawer();
             log::info!(
                 "Profile drawer toggled: {}",
-                if self.profile_drawer_ui.expanded {
+                if self.overlay_ui.profile_drawer_ui.expanded {
                     "expanded"
                 } else {
                     "collapsed"

@@ -324,7 +324,7 @@ impl WindowState {
             .should_suppress_terminal_mouse_click_for_image_guard(button, state, mouse_position);
 
         // Check if profile drawer is open - let egui handle all mouse events
-        if self.profile_drawer_ui.expanded {
+        if self.overlay_ui.profile_drawer_ui.expanded {
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
@@ -334,7 +334,7 @@ impl WindowState {
         // Check if click is on the profile drawer toggle button
         if let Some(window) = &self.window {
             let size = window.inner_size();
-            if self.profile_drawer_ui.is_point_in_toggle_button(
+            if self.overlay_ui.profile_drawer_ui.is_point_in_toggle_button(
                 mouse_position.0 as f32,
                 mouse_position.1 as f32,
                 size.width as f32,
@@ -870,7 +870,7 @@ impl WindowState {
         self.status_bar_ui.on_mouse_activity();
 
         // Check if profile drawer is open - let egui handle mouse events
-        if self.profile_drawer_ui.expanded {
+        if self.overlay_ui.profile_drawer_ui.expanded {
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
@@ -1200,7 +1200,7 @@ impl WindowState {
 
     pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
         // Check if profile drawer is open - let egui handle scroll events
-        if self.profile_drawer_ui.expanded {
+        if self.overlay_ui.profile_drawer_ui.expanded {
             if let Some(window) = &self.window {
                 window.request_redraw();
             }
