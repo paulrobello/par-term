@@ -1885,6 +1885,95 @@ impl TabBarUI {
     pub fn is_renaming(&self) -> bool {
         self.renaming_tab && self.context_menu_tab.is_some()
     }
+
+    /// Calculate the drop target insert index for a horizontal drag given a pointer x position.
+    ///
+    /// Returns `None` if the drop would be a no-op (same position as source), or
+    /// `Some(insert_index)` for a valid insertion point.
+    ///
+    /// This is a pure helper that can be tested without egui rendering.
+    pub fn calculate_drop_target_horizontal(
+        tab_rects: &[(TabId, egui::Rect)],
+        drag_source_index: Option<usize>,
+        pointer_x: f32,
+    ) -> Option<usize> {
+        let mut insert_index = tab_rects.len();
+        for (i, (_id, rect)) in tab_rects.iter().enumerate() {
+            if pointer_x < rect.center().x {
+                insert_index = i;
+                break;
+            }
+        }
+        let is_noop =
+            drag_source_index.is_some_and(|src| insert_index == src || insert_index == src + 1);
+        if is_noop { None } else { Some(insert_index) }
+    }
+
+    /// Convert an insertion index to an effective target index, accounting for source removal.
+    ///
+    /// When a tab is removed from `source_index` and re-inserted at `insert_index`, indices
+    /// after the source shift down by one.  This helper applies that adjustment.
+    pub fn insertion_to_target_index(
+        insert_index: usize,
+        drag_source_index: Option<usize>,
+    ) -> usize {
+        if let Some(src) = drag_source_index {
+            if insert_index > src {
+                insert_index - 1
+            } else {
+                insert_index
+            }
+        } else {
+            insert_index
+        }
+    }
+
+    /// Set drag state directly; used by integration tests to exercise state transitions
+    /// without requiring a live egui render loop.
+    pub fn test_set_drag_state(&mut self, tab_id: Option<TabId>, in_progress: bool) {
+        self.drag_in_progress = in_progress;
+        self.dragging_tab = tab_id;
+    }
+
+    /// Set the drop target index directly; used by integration tests.
+    pub fn test_set_drop_target(&mut self, index: Option<usize>) {
+        self.drop_target_index = index;
+    }
+
+    /// Get the current drop target index; used by integration tests.
+    pub fn test_drop_target_index(&self) -> Option<usize> {
+        self.drop_target_index
+    }
+
+    /// Get the id of the tab currently being dragged; used by integration tests.
+    pub fn test_dragging_tab(&self) -> Option<TabId> {
+        self.dragging_tab
+    }
+
+    /// Open the context menu for a specific tab; used by integration tests.
+    pub fn test_open_context_menu(&mut self, tab_id: TabId) {
+        self.context_menu_tab = Some(tab_id);
+        self.context_menu_opened_frame = 0;
+        self.renaming_tab = false;
+        self.picking_icon = false;
+    }
+
+    /// Close the context menu; used by integration tests.
+    pub fn test_close_context_menu(&mut self) {
+        self.context_menu_tab = None;
+        self.renaming_tab = false;
+        self.picking_icon = false;
+    }
+
+    /// Get the context menu tab id; used by integration tests.
+    pub fn test_context_menu_tab(&self) -> Option<TabId> {
+        self.context_menu_tab
+    }
+
+    /// Set rename mode active/inactive; used by integration tests.
+    pub fn test_set_renaming(&mut self, value: bool) {
+        self.renaming_tab = value;
+    }
 }
 
 impl Default for TabBarUI {
