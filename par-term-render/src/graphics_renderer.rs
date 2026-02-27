@@ -20,6 +20,29 @@ struct SixelInstance {
     _padding: f32,        // Padding to align to 16 bytes
 }
 
+/// Parameters describing a single inline graphic to render.
+///
+/// Passed as a slice to [`GraphicsRenderer::render`] and
+/// [`GraphicsRenderer::render_for_pane`] so that callers use named fields
+/// rather than a positional 7-element tuple.
+#[derive(Debug, Clone, Copy)]
+pub struct GraphicRenderInfo {
+    /// Unique identifier for this graphic (used to look up the cached texture)
+    pub id: u64,
+    /// Screen row at which the graphic starts (can be negative when scrolled partially off top)
+    pub screen_row: isize,
+    /// Screen column at which the graphic starts
+    pub col: usize,
+    /// Width of the graphic in terminal cells
+    pub width_cells: usize,
+    /// Height of the graphic in terminal cells
+    pub height_cells: usize,
+    /// Global alpha multiplier (0.0 = fully transparent, 1.0 = fully opaque)
+    pub alpha: f32,
+    /// Number of rows clipped from the top when the graphic is partially scrolled off-screen
+    pub scroll_offset_rows: usize,
+}
+
 /// Metadata for a cached sixel texture
 struct SixelTextureInfo {
     texture: Texture,
@@ -362,8 +385,7 @@ impl GraphicsRenderer {
     /// * `device` - WGPU device for creating buffers
     /// * `queue` - WGPU queue for writing buffer data
     /// * `render_pass` - Active render pass to render into
-    /// * `graphics` - Slice of sixel graphics to render with their positions
-    ///   Each tuple contains: (id, row, col, width_in_cells, height_in_cells, alpha, scroll_offset_rows)
+    /// * `graphics` - Slice of [`GraphicRenderInfo`] describing each graphic's position and dimensions
     /// * `window_width` - Window width in pixels
     /// * `window_height` - Window height in pixels
     pub fn render(
@@ -371,7 +393,7 @@ impl GraphicsRenderer {
         device: &Device,
         queue: &Queue,
         render_pass: &mut RenderPass,
-        graphics: &[(u64, isize, usize, usize, usize, f32, usize)],
+        graphics: &[GraphicRenderInfo],
         window_width: f32,
         window_height: f32,
     ) -> Result<(), RenderError> {
@@ -381,7 +403,16 @@ impl GraphicsRenderer {
 
         // Build instance data
         let mut instances = Vec::with_capacity(graphics.len());
-        for &(id, row, col, _width_cells, _height_cells, alpha, scroll_offset_rows) in graphics {
+        for g in graphics {
+            let (id, row, col, _width_cells, _height_cells, alpha, scroll_offset_rows) = (
+                g.id,
+                g.screen_row,
+                g.col,
+                g.width_cells,
+                g.height_cells,
+                g.alpha,
+                g.scroll_offset_rows,
+            );
             // Check if texture exists and update LRU timestamp
             if let Some(cached) = self.texture_cache.get_mut(&id) {
                 cached.last_used = Instant::now();
@@ -481,8 +512,8 @@ impl GraphicsRenderer {
 
         // Use separate counter for instance index since we filtered out graphics without textures
         let mut instance_idx = 0u32;
-        for &(id, _, _, _, _, _, _) in graphics {
-            if let Some(cached) = self.texture_cache.get(&id) {
+        for g in graphics {
+            if let Some(cached) = self.texture_cache.get(&g.id) {
                 render_pass.set_bind_group(0, &cached.texture.bind_group, &[]);
                 render_pass.draw(0..4, instance_idx..(instance_idx + 1));
                 instance_idx += 1;
@@ -502,7 +533,7 @@ impl GraphicsRenderer {
     /// * `device` - WGPU device for creating buffers
     /// * `queue` - WGPU queue for writing buffer data
     /// * `render_pass` - Active render pass to render into
-    /// * `graphics` - Slice of sixel graphics to render with their positions
+    /// * `graphics` - Slice of [`GraphicRenderInfo`] describing each graphic's position and dimensions
     /// * `window_width` - Window width in pixels
     /// * `window_height` - Window height in pixels
     /// * `pane_origin_x` - X pixel coordinate of the pane's content origin
@@ -513,7 +544,7 @@ impl GraphicsRenderer {
         device: &Device,
         queue: &Queue,
         render_pass: &mut RenderPass,
-        graphics: &[(u64, isize, usize, usize, usize, f32, usize)],
+        graphics: &[GraphicRenderInfo],
         window_width: f32,
         window_height: f32,
         pane_origin_x: f32,
@@ -525,7 +556,16 @@ impl GraphicsRenderer {
 
         // Build instance data
         let mut instances = Vec::with_capacity(graphics.len());
-        for &(id, row, col, _width_cells, _height_cells, alpha, scroll_offset_rows) in graphics {
+        for g in graphics {
+            let (id, row, col, _width_cells, _height_cells, alpha, scroll_offset_rows) = (
+                g.id,
+                g.screen_row,
+                g.col,
+                g.width_cells,
+                g.height_cells,
+                g.alpha,
+                g.scroll_offset_rows,
+            );
             // Check if texture exists and update LRU timestamp
             if let Some(cached) = self.texture_cache.get_mut(&id) {
                 cached.last_used = Instant::now();
@@ -602,8 +642,8 @@ impl GraphicsRenderer {
         render_pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
 
         let mut instance_idx = 0u32;
-        for &(id, _, _, _, _, _, _) in graphics {
-            if let Some(cached) = self.texture_cache.get(&id) {
+        for g in graphics {
+            if let Some(cached) = self.texture_cache.get(&g.id) {
                 render_pass.set_bind_group(0, &cached.texture.bind_group, &[]);
                 render_pass.draw(0..4, instance_idx..(instance_idx + 1));
                 instance_idx += 1;
