@@ -161,7 +161,7 @@ impl PrettifierPipeline {
                 "PRETTIFIER",
                 "pipeline::process_output SKIPPED (disabled) row={}: {:?}",
                 row,
-                &line[..line.len().min(60)]
+                &line[..line.floor_char_boundary(60)]
             );
             return;
         }
@@ -213,9 +213,9 @@ impl PrettifierPipeline {
             lines.len(),
             start_row,
             end_row,
-            command.as_deref().map(|c| &c[..c.len().min(40)]),
-            lines.first().map(|(l, _)| &l[..l.len().min(60)]),
-            lines.last().map(|(l, _)| &l[..l.len().min(60)])
+            command.as_deref().map(|c| &c[..c.floor_char_boundary(40)]),
+            lines.first().map(|(l, _)| &l[..l.floor_char_boundary(60)]),
+            lines.last().map(|(l, _)| &l[..l.floor_char_boundary(60)])
         );
 
         let text_lines: Vec<String> = lines.into_iter().map(|(text, _)| text).collect();
@@ -526,7 +526,7 @@ impl PrettifierPipeline {
                 "PRETTIFIER",
                 "pipeline::handle_block: content[{}]={:?}",
                 i,
-                &line[..line.len().min(100)]
+                &line[..line.floor_char_boundary(100)]
             );
         }
         if content.lines.len() > 5 {
@@ -706,7 +706,7 @@ impl PrettifierPipeline {
                             "PRETTIFIER",
                             "pipeline::render_into_buffer: output[{}]={:?} (segs={})",
                             i,
-                            &text[..text.len().min(100)],
+                            &text[..text.floor_char_boundary(100)],
                             line.segments.len()
                         );
                     }

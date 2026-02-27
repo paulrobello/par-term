@@ -3068,7 +3068,7 @@ impl WindowState {
                         pre_len,
                         segment.first().map(|(_, r)| *r).unwrap_or(0),
                         segment.last().map(|(_, r)| *r + 1).unwrap_or(0),
-                        segment.first().map(|(l, _)| &l[..l.len().min(60)])
+                        segment.first().map(|(l, _)| &l[..l.floor_char_boundary(60)])
                     );
 
                     submitted += 1;
@@ -3516,7 +3516,7 @@ impl WindowState {
                             line_offset,
                             display_lines.len(),
                             styled_line.segments.len(),
-                            &output_text[..output_text.len().min(80)]
+                            &output_text[..output_text.floor_char_boundary(80)]
                         );
                         let cell_start = viewport_row * grid_cols;
                         let cell_end = (cell_start + grid_cols).min(cells.len());
@@ -4855,7 +4855,7 @@ impl WindowState {
                 self.paste_text(&command);
                 log::info!(
                     "Inserted command from history: {}",
-                    &command[..command.len().min(60)]
+                    &command[..command.floor_char_boundary(60)]
                 );
             }
             CommandHistoryAction::None => {}

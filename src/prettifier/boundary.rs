@@ -104,7 +104,7 @@ impl BoundaryDetector {
                         "PRETTIFIER",
                         "boundary::push_line IGNORED (CommandOutput, not in_cmd) row={}: {:?}",
                         row,
-                        &line[..line.len().min(80)]
+                        &line[..line.floor_char_boundary(80)]
                     );
                     return None;
                 }
@@ -112,7 +112,7 @@ impl BoundaryDetector {
                     "PRETTIFIER",
                     "boundary::push_line (CommandOutput, in_cmd=true) row={}: {:?}",
                     row,
-                    &line[..line.len().min(80)]
+                    &line[..line.floor_char_boundary(80)]
                 );
             }
             DetectionScope::ManualOnly => {
@@ -127,7 +127,7 @@ impl BoundaryDetector {
                     "boundary::push_line (ManualOnly) row={}, accumulated={}: {:?}",
                     row,
                     self.current_lines.len(),
-                    &line[..line.len().min(80)]
+                    &line[..line.floor_char_boundary(80)]
                 );
                 return None;
             }
@@ -137,7 +137,7 @@ impl BoundaryDetector {
                     "boundary::push_line (All) row={}, accumulated={}: {:?}",
                     row,
                     self.current_lines.len(),
-                    &line[..line.len().min(80)]
+                    &line[..line.floor_char_boundary(80)]
                 );
             }
         }
@@ -205,7 +205,7 @@ impl BoundaryDetector {
         crate::debug_info!(
             "PRETTIFIER",
             "on_command_start: {:?}",
-            &command[..command.len().min(80)]
+            &command[..command.floor_char_boundary(80)]
         );
         self.current_command = Some(command.to_string());
         self.in_command_output = true;
@@ -405,8 +405,8 @@ impl BoundaryDetector {
             original_count,
             start_row,
             end_row,
-            command.as_deref().map(|c| &c[..c.len().min(40)]),
-            lines.first().map(|l| &l[..l.len().min(80)])
+            command.as_deref().map(|c| &c[..c.floor_char_boundary(40)]),
+            lines.first().map(|l| &l[..l.floor_char_boundary(80)])
         );
 
         self.block_start_row = 0;
