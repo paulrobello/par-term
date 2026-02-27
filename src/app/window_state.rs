@@ -2349,33 +2349,11 @@ impl WindowState {
             return;
         }
 
-        // FPS throttling to enforce max_fps (focused) or unfocused_fps (unfocused)
-        // This ensures rendering is capped even if VSync runs at a higher rate
-        // or multiple sources are requesting redraws (refresh task, shader animations, etc.)
-        let target_fps = if self.config.pause_refresh_on_blur && !self.is_focused {
-            self.config.unfocused_fps
-        } else {
-            self.config.max_fps
-        };
-        let frame_interval_ms = 1000 / target_fps.max(1);
-        let frame_interval = std::time::Duration::from_millis(frame_interval_ms as u64);
-
-        if let Some(last_render) = self.last_render_time {
-            let elapsed = last_render.elapsed();
-            if elapsed < frame_interval {
-                // Not enough time has passed, skip this render
-                return;
-            }
+        if !self.should_render_frame() {
+            return;
         }
 
-        // Update last render time for FPS throttling
-        self.last_render_time = Some(std::time::Instant::now());
-
         let absolute_start = std::time::Instant::now();
-
-        // Reset redraw flag after rendering
-        // This flag will be set again in about_to_wait if another redraw is needed
-        self.needs_redraw = false;
 
         // Track frame timing
         let frame_start = std::time::Instant::now();
@@ -4821,6 +4799,27 @@ impl WindowState {
                 absolute_total.as_secs_f64() * 1000.0
             );
         }
+    }
+
+    /// Returns true if enough time has elapsed since the last frame and rendering should proceed.
+    /// Updates last_render_time and resets needs_redraw on success.
+    fn should_render_frame(&mut self) -> bool {
+        let target_fps = if self.config.pause_refresh_on_blur && !self.is_focused {
+            self.config.unfocused_fps
+        } else {
+            self.config.max_fps
+        };
+        let frame_interval = std::time::Duration::from_millis(
+            (1000 / target_fps.max(1)) as u64,
+        );
+        if let Some(last_render) = self.last_render_time
+            && last_render.elapsed() < frame_interval
+        {
+            return false;
+        }
+        self.last_render_time = Some(std::time::Instant::now());
+        self.needs_redraw = false;
+        true
     }
 
     /// Process incoming ACP agent messages for this render tick and refresh
