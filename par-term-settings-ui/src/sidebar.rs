@@ -171,7 +171,7 @@ pub fn show(ui: &mut egui::Ui, current_tab: &mut SettingsTab, search_query: &str
 }
 
 /// Check if a tab matches the search query.
-fn tab_matches_search(tab: SettingsTab, query: &str) -> bool {
+pub fn tab_matches_search(tab: SettingsTab, query: &str) -> bool {
     let query = query.to_lowercase();
     let keywords = tab_search_keywords(tab);
 
