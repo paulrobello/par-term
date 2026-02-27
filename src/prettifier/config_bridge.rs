@@ -632,6 +632,7 @@ mod tests {
         let mut pipeline = super::super::pipeline::PrettifierPipeline::new(
             super::super::pipeline::PrettifierConfig {
                 detection_scope: super::super::boundary::DetectionScope::All,
+                enabled: true,
                 ..pipeline_config
             },
             registry,
@@ -680,6 +681,7 @@ mod tests {
         let mut pipeline = super::super::pipeline::PrettifierPipeline::new(
             super::super::pipeline::PrettifierConfig {
                 detection_scope: super::super::boundary::DetectionScope::CommandOutput,
+                enabled: true,
                 ..pipeline_config
             },
             registry,
