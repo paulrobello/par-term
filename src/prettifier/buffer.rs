@@ -44,6 +44,10 @@ impl DualViewBuffer {
     ///
     /// Returns rendered lines if in `Rendered` mode and rendered content exists,
     /// otherwise falls back to plain source lines.
+    ///
+    /// **Performance note**: this clones all styled lines on every call.
+    /// Prefer [`display_lines_ref`] when only read-only access is needed (e.g.
+    /// in a rendering loop) to avoid per-frame heap allocations.
     pub fn display_lines(&self) -> Vec<StyledLine> {
         match self.view_mode {
             ViewMode::Rendered => {
@@ -54,6 +58,22 @@ impl DualViewBuffer {
                 }
             }
             ViewMode::Source => self.source_as_styled_lines(),
+        }
+    }
+
+    /// Borrow the display lines without cloning.
+    ///
+    /// Returns `Some(&[StyledLine])` when rendered content is available in
+    /// `Rendered` view mode, borrowing directly from the cached render — zero
+    /// allocation.
+    ///
+    /// Returns `None` when falling back to plain source lines (no rendered
+    /// content yet, or `Source` view mode).  Callers that need owned data in
+    /// the `None` case can fall back to [`display_lines`].
+    pub fn display_lines_ref(&self) -> Option<&[StyledLine]> {
+        match self.view_mode {
+            ViewMode::Rendered => self.rendered.as_ref().map(|r| r.lines.as_slice()),
+            ViewMode::Source => None,
         }
     }
 
