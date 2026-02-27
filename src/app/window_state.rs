@@ -123,39 +123,39 @@ struct FrameRenderData {
 
 /// Actions collected during the egui/GPU render pass to be handled after the renderer borrow ends.
 struct PostRenderActions {
-    clipboard:       ClipboardHistoryAction,
+    clipboard: ClipboardHistoryAction,
     command_history: CommandHistoryAction,
-    paste_special:   PasteSpecialAction,
-    session_picker:  SessionPickerAction,
-    tab_action:      TabBarAction,
-    shader_install:  ShaderInstallResponse,
-    integrations:    IntegrationsResponse,
-    search:          crate::search::SearchAction,
-    inspector:       InspectorAction,
-    profile_drawer:  ProfileDrawerAction,
-    close_confirm:   CloseConfirmAction,
-    quit_confirm:    QuitConfirmAction,
-    remote_install:  RemoteShellInstallAction,
-    ssh_connect:     SshConnectAction,
+    paste_special: PasteSpecialAction,
+    session_picker: SessionPickerAction,
+    tab_action: TabBarAction,
+    shader_install: ShaderInstallResponse,
+    integrations: IntegrationsResponse,
+    search: crate::search::SearchAction,
+    inspector: InspectorAction,
+    profile_drawer: ProfileDrawerAction,
+    close_confirm: CloseConfirmAction,
+    quit_confirm: QuitConfirmAction,
+    remote_install: RemoteShellInstallAction,
+    ssh_connect: SshConnectAction,
 }
 
 impl Default for PostRenderActions {
     fn default() -> Self {
         Self {
-            clipboard:       ClipboardHistoryAction::None,
+            clipboard: ClipboardHistoryAction::None,
             command_history: CommandHistoryAction::None,
-            paste_special:   PasteSpecialAction::None,
-            session_picker:  SessionPickerAction::None,
-            tab_action:      TabBarAction::None,
-            shader_install:  ShaderInstallResponse::None,
-            integrations:    IntegrationsResponse::default(),
-            search:          crate::search::SearchAction::None,
-            inspector:       InspectorAction::None,
-            profile_drawer:  ProfileDrawerAction::None,
-            close_confirm:   CloseConfirmAction::None,
-            quit_confirm:    QuitConfirmAction::None,
-            remote_install:  RemoteShellInstallAction::None,
-            ssh_connect:     SshConnectAction::None,
+            paste_special: PasteSpecialAction::None,
+            session_picker: SessionPickerAction::None,
+            tab_action: TabBarAction::None,
+            shader_install: ShaderInstallResponse::None,
+            integrations: IntegrationsResponse::default(),
+            search: crate::search::SearchAction::None,
+            inspector: InspectorAction::None,
+            profile_drawer: ProfileDrawerAction::None,
+            close_confirm: CloseConfirmAction::None,
+            quit_confirm: QuitConfirmAction::None,
+            remote_install: RemoteShellInstallAction::None,
+            ssh_connect: SshConnectAction::None,
         }
     }
 }
@@ -4939,7 +4939,7 @@ impl WindowState {
     /// Process incoming ACP agent messages for this render tick and refresh
     /// the AI Inspector snapshot when needed.
     ///
-    /// Called once per frame from `render()`. Handles the full agent message
+    /// Called once per frame from `submit_gpu_frame()`. Handles the full agent message
     /// dispatch loop, deferred config updates, inline tool-markup fallback,
     /// bounded skill-failure recovery, auto-context feeding, and snapshot refresh.
     fn process_agent_messages_tick(&mut self) {
