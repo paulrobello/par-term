@@ -3086,7 +3086,7 @@ impl WindowState {
                         if let Some(start_time) = mark.start_time {
                             use chrono::{DateTime, Local, Utc};
                             let dt =
-                                DateTime::<Utc>::from_timestamp_millis(start_time as i64).unwrap();
+                                DateTime::<Utc>::from_timestamp_millis(start_time as i64).expect("window_state: start_time millis out of valid timestamp range");
                             let local: DateTime<Local> = dt.into();
                             lines.push(format!("Time: {}", local.format("%H:%M:%S")));
                         }
@@ -4340,7 +4340,7 @@ impl WindowState {
                     // Cache hit: clone the Vec through the Arc (one allocation instead of two).
                     // apply_url_underlines needs a mutable Vec, so we still need an owned copy,
                     // but the Arc clone that extracted cache_cells from tab.cache was free.
-                    (cache_cells.as_ref().unwrap().as_ref().clone(), true)
+                    (cache_cells.as_ref().expect("window_state: cache_cells must be Some when needs_regeneration is false").as_ref().clone(), true)
                 };
                 self.debug.cache_hit = is_cache_hit;
                 self.debug.cell_gen_time = cell_gen_start.elapsed();
@@ -5876,7 +5876,7 @@ impl WindowState {
                         if let Err(e) = client
                             .respond(
                                 request_id,
-                                Some(serde_json::to_value(&result).unwrap()),
+                                Some(serde_json::to_value(&result).expect("window_state: RequestPermissionResponse must be serializable to JSON")),
                                 None,
                             )
                             .await
