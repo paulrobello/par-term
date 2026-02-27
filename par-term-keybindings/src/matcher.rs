@@ -6,7 +6,7 @@
 
 use super::parser::{KeyCombo, Modifiers, ParsedKey};
 use winit::event::{KeyEvent, Modifiers as WinitModifiers};
-use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
+use winit::keyboard::{Key, KeyCode, ModifiersKeyState, NamedKey, PhysicalKey};
 
 /// Matcher for comparing winit key events against keybindings.
 #[derive(Debug)]
@@ -109,15 +109,49 @@ impl KeybindingMatcher {
             || remapping.right_super != ModifierTarget::None;
 
         if has_remapping {
-            // Get the physical key to determine which specific modifier was pressed
-            if let PhysicalKey::Code(code) = event.physical_key {
-                // Reset modifiers if we're remapping - we'll rebuild from physical keys
-                let orig_ctrl = ctrl;
-                let orig_alt = alt;
-                let _orig_shift = shift; // Shift is not remappable, but kept for consistency
-                let orig_super = super_key;
+            // Get the physical key to determine which specific modifier was pressed.
+            // We only proceed if we have a known physical key code.
+            if let PhysicalKey::Code(_code) = event.physical_key {
+                // Use winit's per-side modifier state to determine which specific modifier
+                // keys are currently held. ModifiersKeyState::Pressed means that side is
+                // held; ModifiersKeyState::Unknown means the platform cannot distinguish
+                // sides (in that case we treat the modifier as active on both sides so
+                // that at least one remapping fires).
+                let left_ctrl_held =
+                    modifiers.lcontrol_state() == ModifiersKeyState::Pressed
+                        || (ctrl
+                            && modifiers.lcontrol_state() == ModifiersKeyState::Unknown
+                            && modifiers.rcontrol_state() == ModifiersKeyState::Unknown);
+                let right_ctrl_held =
+                    modifiers.rcontrol_state() == ModifiersKeyState::Pressed
+                        || (ctrl
+                            && modifiers.lcontrol_state() == ModifiersKeyState::Unknown
+                            && modifiers.rcontrol_state() == ModifiersKeyState::Unknown);
 
-                // Clear modifiers that are being remapped
+                let left_alt_held =
+                    modifiers.lalt_state() == ModifiersKeyState::Pressed
+                        || (alt
+                            && modifiers.lalt_state() == ModifiersKeyState::Unknown
+                            && modifiers.ralt_state() == ModifiersKeyState::Unknown);
+                let right_alt_held =
+                    modifiers.ralt_state() == ModifiersKeyState::Pressed
+                        || (alt
+                            && modifiers.lalt_state() == ModifiersKeyState::Unknown
+                            && modifiers.ralt_state() == ModifiersKeyState::Unknown);
+
+                let left_super_held =
+                    modifiers.lsuper_state() == ModifiersKeyState::Pressed
+                        || (super_key
+                            && modifiers.lsuper_state() == ModifiersKeyState::Unknown
+                            && modifiers.rsuper_state() == ModifiersKeyState::Unknown);
+                let right_super_held =
+                    modifiers.rsuper_state() == ModifiersKeyState::Pressed
+                        || (super_key
+                            && modifiers.lsuper_state() == ModifiersKeyState::Unknown
+                            && modifiers.rsuper_state() == ModifiersKeyState::Unknown);
+
+                // Clear modifiers that are being remapped — we will re-apply them
+                // side-by-side from the individual left/right states below.
                 if remapping.left_ctrl != ModifierTarget::None
                     || remapping.right_ctrl != ModifierTarget::None
                 {
@@ -134,12 +168,12 @@ impl KeybindingMatcher {
                     super_key = false;
                 }
 
-                // Re-apply based on remapping
-                // Note: We use the original modifier state to detect which modifiers are held
-                // The physical key code tells us which specific key this event is for
+                // Re-apply each side independently so that when both left and right of
+                // the same modifier type are held, both remappings take effect (rather
+                // than the left mapping unconditionally winning).
 
-                // For Ctrl keys
-                if orig_ctrl {
+                // Left Ctrl
+                if left_ctrl_held {
                     if remapping.left_ctrl != ModifierTarget::None {
                         apply_remap(
                             remapping.left_ctrl,
@@ -149,7 +183,14 @@ impl KeybindingMatcher {
                             &mut super_key,
                             true,
                         );
-                    } else if remapping.right_ctrl != ModifierTarget::None {
+                    } else {
+                        ctrl = true; // No remap configured for left ctrl — keep it
+                    }
+                }
+
+                // Right Ctrl
+                if right_ctrl_held {
+                    if remapping.right_ctrl != ModifierTarget::None {
                         apply_remap(
                             remapping.right_ctrl,
                             &mut ctrl,
@@ -159,12 +200,12 @@ impl KeybindingMatcher {
                             true,
                         );
                     } else {
-                        ctrl = true; // No remap, keep original
+                        ctrl = true; // No remap configured for right ctrl — keep it
                     }
                 }
 
-                // For Alt keys
-                if orig_alt {
+                // Left Alt
+                if left_alt_held {
                     if remapping.left_alt != ModifierTarget::None {
                         apply_remap(
                             remapping.left_alt,
@@ -174,7 +215,14 @@ impl KeybindingMatcher {
                             &mut super_key,
                             true,
                         );
-                    } else if remapping.right_alt != ModifierTarget::None {
+                    } else {
+                        alt = true; // No remap configured for left alt — keep it
+                    }
+                }
+
+                // Right Alt
+                if right_alt_held {
+                    if remapping.right_alt != ModifierTarget::None {
                         apply_remap(
                             remapping.right_alt,
                             &mut ctrl,
@@ -184,12 +232,12 @@ impl KeybindingMatcher {
                             true,
                         );
                     } else {
-                        alt = true; // No remap, keep original
+                        alt = true; // No remap configured for right alt — keep it
                     }
                 }
 
-                // For Super keys
-                if orig_super {
+                // Left Super
+                if left_super_held {
                     if remapping.left_super != ModifierTarget::None {
                         apply_remap(
                             remapping.left_super,
@@ -199,7 +247,14 @@ impl KeybindingMatcher {
                             &mut super_key,
                             true,
                         );
-                    } else if remapping.right_super != ModifierTarget::None {
+                    } else {
+                        super_key = true; // No remap configured for left super — keep it
+                    }
+                }
+
+                // Right Super
+                if right_super_held {
+                    if remapping.right_super != ModifierTarget::None {
                         apply_remap(
                             remapping.right_super,
                             &mut ctrl,
@@ -209,21 +264,8 @@ impl KeybindingMatcher {
                             true,
                         );
                     } else {
-                        super_key = true; // No remap, keep original
+                        super_key = true; // No remap configured for right super — keep it
                     }
-                }
-
-                // Handle specific physical key remaps (for when this key IS a modifier being pressed)
-                match code {
-                    KeyCode::ControlLeft if remapping.left_ctrl != ModifierTarget::None => {
-                        // This key itself is being remapped
-                    }
-                    KeyCode::ControlRight if remapping.right_ctrl != ModifierTarget::None => {}
-                    KeyCode::AltLeft if remapping.left_alt != ModifierTarget::None => {}
-                    KeyCode::AltRight if remapping.right_alt != ModifierTarget::None => {}
-                    KeyCode::SuperLeft if remapping.left_super != ModifierTarget::None => {}
-                    KeyCode::SuperRight if remapping.right_super != ModifierTarget::None => {}
-                    _ => {}
                 }
             }
         }
@@ -587,6 +629,71 @@ mod tests {
             physical_key: Some(KeyCode::KeyW),
         };
         assert!(!matcher_wrong.matches(&combo));
+    }
+
+    /// Test that modifier remapping applied to left-only uses left remapping,
+    /// and right-only uses right remapping (using manually constructed matchers
+    /// that represent the post-remapping state).
+    ///
+    /// Note: from_event_with_remapping() uses winit's lcontrol_state() /
+    /// rcontrol_state() (etc.) to distinguish sides. When both return Unknown
+    /// (platforms that cannot distinguish sides), it treats the modifier as
+    /// active on both sides, which matches existing behaviour. We verify the
+    /// matcher output here via manually-constructed KeybindingMatcher instances
+    /// because winit::KeyEvent has private fields that prevent construction in
+    /// tests.
+    #[test]
+    fn test_modifier_remapping_left_right_distinction() {
+        // Simulate: RightCtrl remapped to Alt, LeftCtrl kept as Ctrl.
+        // When only RightCtrl is held the result should be Alt=true, Ctrl=false.
+        let matcher_right_ctrl_as_alt = KeybindingMatcher {
+            modifiers: Modifiers {
+                ctrl: false,
+                alt: true, // right ctrl remapped to alt
+                shift: false,
+                super_key: false,
+                cmd_or_ctrl: false,
+            },
+            key: Some(MatchKey::Character('A')),
+            physical_key: Some(KeyCode::KeyA),
+        };
+        let combo_alt_a = parse_key_combo("Alt+A").unwrap();
+        let combo_ctrl_a = parse_key_combo("Ctrl+A").unwrap();
+        assert!(matcher_right_ctrl_as_alt.matches(&combo_alt_a));
+        assert!(!matcher_right_ctrl_as_alt.matches(&combo_ctrl_a));
+
+        // Simulate: LeftCtrl remapped to Super, RightCtrl kept as Ctrl.
+        // When only LeftCtrl is held the result should be super_key=true, ctrl=false.
+        let matcher_left_ctrl_as_super = KeybindingMatcher {
+            modifiers: Modifiers {
+                ctrl: false,
+                alt: false,
+                shift: false,
+                super_key: true, // left ctrl remapped to super
+                cmd_or_ctrl: false,
+            },
+            key: Some(MatchKey::Character('A')),
+            physical_key: Some(KeyCode::KeyA),
+        };
+        let combo_super_a = parse_key_combo("Super+A").unwrap();
+        assert!(matcher_left_ctrl_as_super.matches(&combo_super_a));
+        assert!(!matcher_left_ctrl_as_super.matches(&combo_ctrl_a));
+
+        // Simulate: both LeftCtrl (→ Super) and RightCtrl (→ Alt) held simultaneously.
+        // Both remappings apply: super_key=true AND alt=true.
+        let matcher_both_ctrl_remapped = KeybindingMatcher {
+            modifiers: Modifiers {
+                ctrl: false,
+                alt: true,
+                shift: false,
+                super_key: true,
+                cmd_or_ctrl: false,
+            },
+            key: Some(MatchKey::Character('A')),
+            physical_key: Some(KeyCode::KeyA),
+        };
+        let combo_super_alt_a = parse_key_combo("Super+Alt+A").unwrap();
+        assert!(matcher_both_ctrl_remapped.matches(&combo_super_alt_a));
     }
 
     /// Test physical key preference mode
