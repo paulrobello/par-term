@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CONTRIBUTING.md**: Comprehensive contributor guide covering development setup, build commands (with compile-time estimates), testing, code quality tools, debug logging macros, architecture overview, macOS/Linux platform specifics, PR guidelines, and commit message format
+- **Mutex Patterns Documentation**: New `docs/MUTEX_PATTERNS.md` documents the `tokio::sync::Mutex` vs `parking_lot::Mutex` decision matrix, all three access patterns for `Tab.terminal` from sync contexts, anti-patterns, and the `record_try_lock_failure()` telemetry; inline `# Mutex Strategy` doc sections added to `Tab`, `Pane`, `AgentState`, and `SharedSessionLogger`
+
+### Security
+
+- **Config Path Traversal Prevention (H-1)**: `Config::validate_config_path()` canonicalizes paths and rejects anything outside `~/.config/par-term/`; `validate_shader_name()` blocks `..` components in shader names; new `checked_shader_path()` for strict callers; `PathTraversal` variant added to `ConfigError`
+- **Update URL Allowlist (H-3)**: Update checker now enforces an HTTPS-only allowlist of four permitted GitHub domains (`github.com`, `api.github.com`, `objects.githubusercontent.com`, `github-releases.githubusercontent.com`); `validate_binary_content()` checks platform magic bytes (ZIP/ELF/MZ) before SHA256 verification; 14 new unit tests
+
+### Refactored
+
+- **Oversized File Splits (C-1)**: All 12 files exceeding the 800-line threshold split into 80+ focused sub-modules — `background_tab.rs` (2,482→6 files), `render_pipeline/mod.rs` (2,443→8 files), `config_struct.rs` (2,201→2 files), `types.rs` (1,749→11 domain files), `markdown.rs` (1,766→8 files), `ai_inspector/panel.rs` (1,763→4 files), `window_tab.rs` (1,755→7 files), `lib.rs` (1,723→4 files), `block_chars.rs` (1,674→6 files), `pane/manager.rs` (1,627→6 files), `profile_modal_ui.rs` (1,423→5 files), `window_state/mod.rs` (1,420→5 files); all public APIs unchanged
+- **Named Renderer Constants (L-6)**: 23 named constants extracted across `cell_renderer`, `scrollbar`, and `graphics_renderer`; atlas coordinate divisor corrected from hardcoded `2048.0` to `atlas_size` (fixes rendering on GPUs with smaller texture limits)
+
+### Fixed
+
+- **SAFETY Comments (M-1)**: All 11 unsafe blocks in `macos_metal.rs`, `macos_blur.rs`, and `macos_space.rs` annotated with `// SAFETY:` comments documenting invariants
+
+### Chore
+
+- **TODO Tracking**: Two previously untracked TODO comments converted to GitHub issues — #202 (tmux `process_sync_actions` integration) and #203 (scripting protocol commands WriteText/Notify/SetBadge/SetVariable/RunCommand/ChangeConfig)
+
 - **Try-Lock Failure Telemetry (M-7)**: Global `TRY_LOCK_FAILURE_COUNT` AtomicU64 counter tracks silently-dropped operations (resize, theme change, focus events) with per-site labels; periodic summary logged each event-loop iteration via `maybe_log_try_lock_telemetry()`
 - **Drag/Context-Menu Tests (L-15)**: Tab bar UI test suite expanded from 30 → 59 tests covering drag state transitions, context menu lifecycle, and drop target calculation; new `calculate_drop_target_horizontal()` pure-logic helper extracted for testability
 - **Settings UI Tests (L-14)**: Settings window test suite expanded from 5 → 33 tests covering `section_matches` logic, `tab_matches_search`, config validation ranges, and `has_changes` state machine transitions
