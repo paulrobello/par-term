@@ -2,14 +2,17 @@
 //!
 //! Contains:
 //! - `PaneRenderData`: per-pane snapshot used during `submit_gpu_frame`
+//! - `gather_pane_render_data`: collects per-pane cells/graphics/metadata from the pane manager
 //! - `render_split_panes_with_data`: drives the GPU split-pane render pass
 
+use super::types::RendererSizing;
 use crate::cell_renderer::PaneViewport;
-use crate::config::{Config, color_u8_to_f32};
+use crate::config::{Config, PaneTitlePosition, color_u8_to_f32};
 use crate::renderer::{
     DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
 };
 use crate::scrollback_metadata::ScrollbackMark;
+use crate::selection::SelectionMode;
 use anyhow::Result;
 
 /// Pane render data for split pane rendering
@@ -34,6 +37,285 @@ pub(super) struct PaneRenderData {
     pub(super) background: Option<crate::pane::PaneBackground>,
     /// Inline graphics (Sixel/iTerm2/Kitty) to render for this pane
     pub(super) graphics: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
+}
+
+/// Result of `gather_pane_render_data`.
+pub(super) type PaneRenderDataResult = Option<(
+    Vec<PaneRenderData>,
+    Vec<crate::pane::DividerRect>,
+    Vec<PaneTitleInfo>,
+    Option<PaneViewport>,
+    usize, // focused pane scrollback_len (for tab.cache update)
+)>;
+
+/// Gather per-pane render data from the active tab's pane manager.
+///
+/// This is a free function (not a `&mut self` method) so it can be called while
+/// `self.renderer` is mutably borrowed.  The caller must already hold `&mut Tab`
+/// from `tab_manager.active_tab_mut()`.
+///
+/// Returns `None` when no pane manager is present or the tab is absent.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn gather_pane_render_data(
+    tab: &mut crate::tab::Tab,
+    config: &Config,
+    sizing: &RendererSizing,
+    effective_pane_padding: f32,
+    cursor_opacity: f32,
+    pane_count: usize,
+) -> PaneRenderDataResult {
+    let effective_padding = if pane_count > 1 && config.hide_window_padding_on_split {
+        0.0
+    } else {
+        sizing.padding
+    };
+
+    let content_width = sizing.size.width as f32
+        - effective_padding * 2.0
+        - sizing.content_offset_x
+        - sizing.content_inset_right;
+    let content_height = sizing.size.height as f32
+        - sizing.content_offset_y
+        - sizing.content_inset_bottom
+        - effective_padding
+        - sizing.status_bar_height;
+
+    let tab_scroll_offset = tab.scroll_state.offset;
+
+    let pm = tab.pane_manager.as_mut()?;
+
+    // Update pane bounds
+    let bounds = crate::pane::PaneBounds::new(
+        effective_padding + sizing.content_offset_x,
+        sizing.content_offset_y,
+        content_width,
+        content_height,
+    );
+    pm.set_bounds(bounds);
+
+    // Scale title bar height from logical to physical pixels
+    let title_height_offset = if config.show_pane_titles {
+        config.pane_title_height * sizing.scale_factor
+    } else {
+        0.0
+    };
+
+    // Resize all pane terminals to match their new bounds
+    pm.resize_all_terminals_with_padding(
+        sizing.cell_width,
+        sizing.cell_height,
+        effective_pane_padding * sizing.scale_factor,
+        title_height_offset,
+    );
+
+    let focused_pane_id = pm.focused_pane_id();
+    let all_pane_ids: Vec<_> = pm.all_panes().iter().map(|p| p.id).collect();
+    let dividers = pm.get_dividers();
+
+    let pane_bg_opacity = config.pane_background_opacity;
+    let inactive_opacity = if config.dim_inactive_panes {
+        config.inactive_pane_opacity
+    } else {
+        1.0
+    };
+
+    // Title settings (all in physical pixels)
+    let show_titles = config.show_pane_titles;
+    let title_height = config.pane_title_height * sizing.scale_factor;
+    let title_position = config.pane_title_position;
+    let title_text_color = color_u8_to_f32(config.pane_title_color);
+    let title_bg_color = color_u8_to_f32(config.pane_title_bg_color);
+    let need_marks = config.scrollbar_command_marks || config.command_separator_enabled;
+
+    let mut pane_data: Vec<PaneRenderData> = Vec::new();
+    let mut pane_titles: Vec<PaneTitleInfo> = Vec::new();
+    let mut focused_pane_scrollback_len: usize = 0;
+    let mut focused_viewport: Option<PaneViewport> = None;
+
+    for pane_id in &all_pane_ids {
+        let Some(pane) = pm.get_pane(*pane_id) else {
+            continue;
+        };
+        let is_focused = Some(*pane_id) == focused_pane_id;
+        let bounds = pane.bounds;
+
+        // Viewport y and height accounting for title bar position
+        let (viewport_y, viewport_height) = if show_titles {
+            match title_position {
+                PaneTitlePosition::Top => (
+                    bounds.y + title_height,
+                    (bounds.height - title_height).max(0.0),
+                ),
+                PaneTitlePosition::Bottom => (bounds.y, (bounds.height - title_height).max(0.0)),
+            }
+        } else {
+            (bounds.y, bounds.height)
+        };
+
+        let physical_pane_padding = effective_pane_padding * sizing.scale_factor;
+        let viewport = PaneViewport::with_padding(
+            bounds.x,
+            viewport_y,
+            bounds.width,
+            viewport_height,
+            is_focused,
+            if is_focused {
+                pane_bg_opacity
+            } else {
+                pane_bg_opacity * inactive_opacity
+            },
+            physical_pane_padding,
+        );
+
+        if is_focused {
+            focused_viewport = Some(viewport);
+        }
+
+        // Build pane title info
+        if show_titles {
+            let title_y = match title_position {
+                PaneTitlePosition::Top => bounds.y,
+                PaneTitlePosition::Bottom => bounds.y + bounds.height - title_height,
+            };
+            pane_titles.push(PaneTitleInfo {
+                x: bounds.x,
+                y: title_y,
+                width: bounds.width,
+                height: title_height,
+                title: pane.get_title(),
+                focused: is_focused,
+                text_color: title_text_color,
+                bg_color: title_bg_color,
+            });
+        }
+
+        // Gather cells
+        let scroll_offset = if is_focused { tab_scroll_offset } else { 0 };
+        let cells = if let Ok(term) = pane.terminal.try_lock() {
+            let selection = pane.mouse.selection.map(|sel| sel.normalized());
+            let rectangular = pane
+                .mouse
+                .selection
+                .map(|sel| sel.mode == SelectionMode::Rectangular)
+                .unwrap_or(false);
+            term.get_cells_with_scrollback(scroll_offset, selection, rectangular, None)
+        } else {
+            Vec::new()
+        };
+
+        // Gather marks and scrollback length
+        let (marks, pane_scrollback_len) = if need_marks {
+            if let Ok(mut term) = pane.terminal.try_lock() {
+                let sb_len = term.scrollback_len();
+                term.update_scrollback_metadata(sb_len, 0);
+                (term.scrollback_marks(), sb_len)
+            } else {
+                (Vec::new(), 0)
+            }
+        } else {
+            // Still need scrollback_len for graphics position math
+            let sb_len = if let Ok(term) = pane.terminal.try_lock() {
+                term.scrollback_len()
+            } else {
+                0
+            };
+            (Vec::new(), sb_len)
+        };
+        let pane_scroll_offset = if is_focused { tab_scroll_offset } else { 0 };
+
+        // Cache focused pane scrollback_len for scroll operations
+        if is_focused && pane_scrollback_len > 0 {
+            focused_pane_scrollback_len = pane_scrollback_len;
+        }
+
+        // Per-pane backgrounds only apply when multiple panes exist
+        let pane_background = if all_pane_ids.len() > 1 && pane.background().has_image() {
+            Some(pane.background().clone())
+        } else {
+            None
+        };
+
+        // Cursor position
+        let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
+            if term.is_cursor_visible() {
+                Some(term.cursor_position())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Grid size must match the terminal's actual size
+        let content_w = (bounds.width - physical_pane_padding * 2.0).max(sizing.cell_width);
+        let content_h = (viewport_height - physical_pane_padding * 2.0).max(sizing.cell_height);
+        let cols = ((content_w / sizing.cell_width).floor() as usize).max(1);
+        let rows = ((content_h / sizing.cell_height).floor() as usize).max(1);
+
+        // Collect inline graphics (Sixel/iTerm2/Kitty)
+        let pane_graphics = if let Ok(term) = pane.terminal.try_lock() {
+            let mut g = term.get_graphics_with_animations();
+            let sb = term.get_scrollback_graphics();
+            crate::debug_log!(
+                "GRAPHICS",
+                "pane {:?}: active_graphics={}, scrollback_graphics={}, scrollback_len={}, scroll_offset={}, visible_rows={}, viewport=({},{},{}x{})",
+                pane_id,
+                g.len(),
+                sb.len(),
+                pane_scrollback_len,
+                pane_scroll_offset,
+                rows,
+                viewport.x,
+                viewport.y,
+                viewport.width,
+                viewport.height
+            );
+            for (i, gfx) in g.iter().chain(sb.iter()).enumerate() {
+                crate::debug_log!(
+                    "GRAPHICS",
+                    "  graphic[{}]: id={}, pos=({},{}), scroll_offset_rows={}, scrollback_row={:?}, size={}x{}",
+                    i,
+                    gfx.id,
+                    gfx.position.0,
+                    gfx.position.1,
+                    gfx.scroll_offset_rows,
+                    gfx.scrollback_row,
+                    gfx.width,
+                    gfx.height
+                );
+            }
+            g.extend(sb);
+            g
+        } else {
+            crate::debug_log!(
+                "GRAPHICS",
+                "pane {:?}: try_lock() failed, no graphics",
+                pane_id
+            );
+            Vec::new()
+        };
+
+        pane_data.push(PaneRenderData {
+            viewport,
+            cells,
+            grid_size: (cols, rows),
+            cursor_pos,
+            cursor_opacity: if is_focused { cursor_opacity } else { 0.0 },
+            marks,
+            scrollback_len: pane_scrollback_len,
+            scroll_offset: pane_scroll_offset,
+            background: pane_background,
+            graphics: pane_graphics,
+        });
+    }
+
+    Some((
+        pane_data,
+        dividers,
+        pane_titles,
+        focused_viewport,
+        focused_pane_scrollback_len,
+    ))
 }
 
 impl crate::app::window_state::WindowState {
