@@ -4818,33 +4818,28 @@ impl WindowState {
                     segments.len()
                 );
 
-                // Submit each segment individually.
-                let mut submitted = 0;
-                let mut skipped_short = 0;
-                let mut skipped_empty = 0;
-                for segment in &segments {
-                    if segment.is_empty() {
-                        skipped_empty += 1;
-                        continue;
-                    }
-                    // Skip very short segments (UI chrome, single lines).
-                    if segment.len() < 5 {
+                // Submit each segment that has enough content for detection.
+                // Short segments (tool call one-liners) are skipped.
+                // The pipeline's handle_block() deduplicates by content hash,
+                // so resubmitting the same segment on successive frames is cheap.
+                let min_segment_lines = 5;
+                let mut submitted = 0usize;
+                let mut skipped_short = 0usize;
+                let mut skipped_empty = 0usize;
+                for mut segment in segments {
+                    let non_empty = segment
+                        .iter()
+                        .filter(|(l, _)| !l.trim().is_empty())
+                        .count();
+                    if non_empty < min_segment_lines {
                         skipped_short += 1;
                         continue;
                     }
 
-                    // Preprocess: strip leading/trailing blank lines within the segment.
-                    let first_non_blank = segment.iter().position(|(_l, _)| !_l.trim().is_empty());
-                    let last_non_blank = segment.iter().rposition(|(_l, _)| !_l.trim().is_empty());
-                    let segment = if let (Some(first), Some(last)) = (first_non_blank, last_non_blank)
-                    {
-                        &segment[first..=last]
-                    } else {
+                    let pre_len = segment.len();
+                    preprocess_claude_code_segment(&mut segment);
+                    if segment.is_empty() {
                         skipped_empty += 1;
-                        continue;
-                    };
-                    if segment.len() < 5 {
-                        skipped_short += 1;
                         continue;
                     }
 
@@ -4852,16 +4847,17 @@ impl WindowState {
                         "PRETTIFIER",
                         "CC segment: {} lines (was {} before preprocess), rows={}..{}, first={:?}",
                         segment.len(),
-                        segment.len(),
-                        segment.first().map(|(_, r)| r).unwrap_or(&0),
-                        segment.last().map(|(_, r)| r + 1).unwrap_or(0),
+                        pre_len,
+                        segment.first().map(|(_, r)| *r).unwrap_or(0),
+                        segment.last().map(|(_, r)| *r + 1).unwrap_or(0),
                         segment.first().map(|(l, _)| &l[..l.floor_char_boundary(60)])
                     );
+
+                    submitted += 1;
                     pipeline.submit_command_output(
-                        segment.to_vec(),
+                        std::mem::take(&mut segment),
                         Some("claude".to_string()),
                     );
-                    submitted += 1;
                 }
 
                 crate::debug_log!(
