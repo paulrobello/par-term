@@ -551,8 +551,8 @@ impl WindowState {
                                         (offset + UPLOAD_CHUNK_SIZE).min(response_bytes.len());
                                     let chunk = &response_bytes[offset..end];
 
-                                    // Safe: called from a std thread (not a Tokio async context),
-                                    // so blocking_lock() will not deadlock the runtime.
+                                    // Acceptable risk: blocking_lock() from std thread (not Tokio).
+                                    // See docs/CONCURRENCY.md for mutex strategy.
                                     let term = terminal_arc.blocking_lock();
                                     match term.write(chunk) {
                                         Ok(()) => {
@@ -594,7 +594,8 @@ impl WindowState {
     /// Cancel an upload by writing abort directly to the PTY.
     fn cancel_upload_direct(&self) {
         if let Some(tab) = self.tab_manager.active_tab() {
-            // Safe: called from the sync winit event loop (not a Tokio async context).
+            // Acceptable risk: blocking_lock() from sync winit event loop.
+            // See docs/CONCURRENCY.md for mutex strategy.
             let term = tab.terminal.blocking_lock();
             let _ = term.write(b"abort\n");
         }

@@ -70,7 +70,8 @@ impl WindowManager {
                 crate::scripting::observer::ScriptEventForwarder::new(subscription_filter),
             );
 
-            // Register observer with terminal (user-initiated, use blocking_lock)
+            // Acceptable risk: blocking_lock() from sync event loop for infrequent
+            // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
             let observer_id = {
                 let term = tab.terminal.blocking_lock();
                 term.add_observer(forwarder.clone())
@@ -111,7 +112,8 @@ impl WindowManager {
                         e
                     );
 
-                    // Remove observer since script failed to start
+                    // Acceptable risk: blocking_lock() in error cleanup path.
+                    // See docs/CONCURRENCY.md for mutex strategy.
                     let term = tab.terminal.blocking_lock();
                     term.remove_observer(observer_id);
                     drop(term);
@@ -156,7 +158,8 @@ impl WindowManager {
                 );
             }
 
-            // Remove observer from terminal
+            // Acceptable risk: blocking_lock() from sync event loop for infrequent
+            // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
             if let Some(Some(observer_id)) = tab.script_observer_ids.get(config_index).copied() {
                 let term = tab.terminal.blocking_lock();
                 term.remove_observer(observer_id);

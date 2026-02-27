@@ -28,7 +28,8 @@ impl WindowManager {
                 restart_policy: coproc_config.restart_policy.to_core(),
                 restart_delay_ms: coproc_config.restart_delay_ms,
             };
-            // Use blocking_lock since this is an infrequent user-initiated operation
+            // Acceptable risk: blocking_lock() from sync event loop for infrequent
+            // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
             let term = tab.terminal.blocking_lock();
             match term.start_coprocess(core_config) {
                 Ok(id) => {
@@ -71,7 +72,8 @@ impl WindowManager {
             && let Some(tab) = ws.tab_manager.active_tab_mut()
         {
             if let Some(Some(id)) = tab.coprocess_ids.get(config_index).copied() {
-                // Use blocking_lock since this is an infrequent user-initiated operation
+                // Acceptable risk: blocking_lock() from sync event loop for infrequent
+                // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
                 let term = tab.terminal.blocking_lock();
                 if let Err(e) = term.stop_coprocess(id) {
                     log::error!("Failed to stop coprocess at index {}: {}", config_index, e);
