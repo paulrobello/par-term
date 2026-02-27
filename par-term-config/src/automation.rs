@@ -44,13 +44,28 @@ pub struct TriggerConfig {
     pub enabled: bool,
     #[serde(default)]
     pub actions: Vec<TriggerActionConfig>,
-    /// When true (the default), dangerous actions (`RunCommand`, `SendText`)
-    /// are suppressed when triggered solely by passive terminal output.
-    /// This prevents malicious terminal output (e.g., `cat malicious_file`)
-    /// from executing arbitrary commands via pattern matching.
+    /// When true (the default and **recommended** setting), dangerous actions
+    /// (`RunCommand`, `SendText`) are suppressed when triggered solely by
+    /// passive terminal output. This prevents malicious terminal output
+    /// (e.g., `cat malicious_file`) from executing arbitrary commands via
+    /// pattern matching.
     ///
     /// Safe actions (`Highlight`, `Notify`, `MarkLine`, `SetVariable`,
     /// `PlaySound`, `Prettify`) always fire regardless of this flag.
+    ///
+    /// # SECURITY WARNING
+    ///
+    /// Setting this to `false` allows terminal output to directly trigger
+    /// `RunCommand` and `SendText` actions. When `false`, the only automated
+    /// protection is the command denylist (`check_command_denylist`), which
+    /// uses **substring matching only** and can be bypassed by:
+    ///
+    /// - Shell wrappers: `sh -c "..."`, `bash -c "..."` (partially mitigated)
+    /// - Environment wrappers: `/usr/bin/env <cmd>` (partially mitigated)
+    /// - Encoding/obfuscation, variable indirection, path variations, etc.
+    ///
+    /// **Only set `require_user_action: false` if you fully trust the commands
+    /// configured and the environment in which the trigger will fire.**
     #[serde(default = "crate::defaults::bool_true")]
     pub require_user_action: bool,
 }
@@ -249,6 +264,22 @@ impl TriggerActionConfig {
 /// These patterns are checked against the command string (command + args joined).
 /// A match means the command is blocked from execution.
 /// Simple substring-matched denied patterns.
+///
+/// # Known Bypass Vectors
+///
+/// This denylist uses **substring matching only** and is **not a security boundary**.
+/// It is a best-effort heuristic to catch obviously dangerous patterns, not a
+/// comprehensive security solution. Known bypass techniques include (but are not
+/// limited to):
+///
+/// - Encoding/obfuscation: `$'\x72\x6d' -rf /`
+/// - Variable indirection: `CMD=rm; $CMD -rf /`
+/// - Path variations: `/usr/bin/rm -rf /` vs `rm -rf /`
+/// - Argument reordering: `rm / -rf`
+///
+/// **The recommended security setting is `require_user_action: true` (the default).**
+/// The denylist is a secondary defense layer for triggers that opt in to
+/// `require_user_action: false`, not a substitute for user confirmation.
 const DENIED_COMMAND_PATTERNS: &[&str] = &[
     // Destructive file operations
     "rm -rf /",
@@ -271,10 +302,37 @@ const DENIED_COMMAND_PATTERNS: &[&str] = &[
     "sudoers",
 ];
 
+/// Command wrapper prefixes that are used to bypass simple command-name checks.
+///
+/// Patterns like `/usr/bin/env rm -rf /` or `sh -c "rm -rf /"` can bypass a
+/// check that only looks at the first word of the command. These prefixes are
+/// detected in [`check_command_denylist`] so that the full reconstructed command
+/// string (after stripping the wrapper) is re-checked against
+/// [`DENIED_COMMAND_PATTERNS`].
+///
+/// # Limitations
+///
+/// Detecting wrappers via substring matching is still bypassable (e.g. through
+/// quoting, encoding, or unusual shell invocations). This is a best-effort
+/// heuristic only. **Use `require_user_action: true` for real protection.**
+const BYPASS_WRAPPER_PATTERNS: &[&str] = &[
+    "env ",
+    "/usr/bin/env ",
+    "/bin/env ",
+    "sh -c ",
+    "bash -c ",
+    "zsh -c ",
+    "fish -c ",
+    "dash -c ",
+    "ksh -c ",
+    "csh -c ",
+    "tcsh -c ",
+];
+
 /// Pipe-to-shell patterns checked with word-boundary awareness.
 /// These match `| bash`, `|bash`, `| sh`, `|sh` only when `bash`/`sh`
 /// appear as whole words (not as part of longer words like "polish").
-const PIPE_SHELL_TARGETS: &[&str] = &["bash", "sh"];
+const PIPE_SHELL_TARGETS: &[&str] = &["bash", "sh", "zsh", "fish", "dash", "ksh"];
 
 /// Check if a command string matches any denied pattern.
 ///
@@ -282,6 +340,27 @@ const PIPE_SHELL_TARGETS: &[&str] = &["bash", "sh"];
 /// Checks both the full joined command and each individual argument
 /// (since shell evaluation like `bash -c "curl ... | bash"` puts the
 /// dangerous content in a single arg).
+///
+/// # SECURITY WARNING
+///
+/// This function implements a **best-effort heuristic denylist**, not a security
+/// boundary. The following bypass techniques are known to exist and are **not**
+/// fully mitigated by this check:
+///
+/// - **Shell wrapper bypass**: `sh -c "rm -rf /"`, `bash -c "..."`, `zsh -c "..."`
+///   (partially mitigated by [`BYPASS_WRAPPER_PATTERNS`])
+/// - **env wrapper bypass**: `/usr/bin/env rm -rf /` (partially mitigated)
+/// - **Encoding/obfuscation**: `$'\x72\x6d' -rf /` — the raw bytes bypass substring matching
+/// - **Variable indirection**: `CMD=rm; $CMD -rf /` — shell variables are opaque
+/// - **Path variations**: `/bin/rm -rf /` vs `rm -rf /` (full absolute paths may bypass)
+/// - **Argument reordering**: `rm / -rf` — patterns that depend on argument order
+/// - **Commands not on the list**: Anything not explicitly enumerated is allowed
+///
+/// **The recommended and default setting is `require_user_action: true`.**
+/// When `require_user_action` is `false`, the denylist is the only automated
+/// protection against malicious terminal output triggering dangerous commands.
+/// For any trigger that uses `require_user_action: false`, users should
+/// carefully audit the command and args to ensure they cannot be exploited.
 ///
 /// Returns `Some(pattern)` if denied, `None` if allowed.
 pub fn check_command_denylist(command: &str, args: &[String]) -> Option<&'static str> {
@@ -295,11 +374,45 @@ pub fn check_command_denylist(command: &str, args: &[String]) -> Option<&'static
     // Collect all strings to check: the full command and each individual arg.
     // Individual arg checking catches `bash -c "curl ... | bash"` where the
     // pipe-to-shell pattern is within a single argument.
-    let mut check_strings = vec![full_command];
+    let mut check_strings = vec![full_command.clone()];
     for arg in args {
         let lowered = arg.to_lowercase();
         if !lowered.is_empty() {
             check_strings.push(lowered);
+        }
+    }
+
+    // Check for bypass wrapper patterns (env, sh -c, bash -c, etc.).
+    // When a wrapper is detected, also add the de-wrapped remainder to the
+    // check list so that patterns like `/usr/bin/env rm -rf /` are caught
+    // by the standard DENIED_COMMAND_PATTERNS check below.
+    //
+    // NOTE: This is a best-effort mitigation only. Sufficiently obfuscated
+    // wrappers (e.g. using variable indirection, encoding, or unusual quoting)
+    // will still bypass this check. See the SECURITY WARNING on this function.
+    for wrapper in BYPASS_WRAPPER_PATTERNS {
+        let normalized_wrapper = wrapper.to_lowercase();
+        if full_command.starts_with(&normalized_wrapper) {
+            let remainder = full_command[normalized_wrapper.len()..].trim().to_string();
+            if !remainder.is_empty() {
+                check_strings.push(remainder);
+            }
+            // Also flag any `sh -c`, `bash -c`, etc. usage directly as denied,
+            // since shell invocation with `-c` allows arbitrary code execution
+            // and cannot be safely filtered by substring matching alone.
+            if normalized_wrapper.contains(" -c ") || normalized_wrapper.ends_with(" -c") {
+                return Some("shell -c wrapper");
+            }
+        }
+        // Also check each individual arg for wrapper patterns, since the
+        // wrapper might appear in an argument (e.g., `sudo bash -c "..."`)
+        for arg in args {
+            let lowered_arg = arg.to_lowercase();
+            if lowered_arg.starts_with(&normalized_wrapper)
+                && (normalized_wrapper.contains(" -c ") || normalized_wrapper.ends_with(" -c"))
+            {
+                return Some("shell -c wrapper");
+            }
         }
     }
 
@@ -323,6 +436,10 @@ pub fn check_command_denylist(command: &str, args: &[String]) -> Option<&'static
                 return match shell {
                     "bash" => Some("| bash"),
                     "sh" => Some("| sh"),
+                    "zsh" => Some("| zsh"),
+                    "fish" => Some("| fish"),
+                    "dash" => Some("| dash"),
+                    "ksh" => Some("| ksh"),
                     _ => Some("| <shell>"),
                 };
             }
@@ -347,6 +464,34 @@ fn check_pipe_to_shell(s: &str, shell: &str) -> bool {
         }
     }
     false
+}
+
+/// Emit a security warning when a trigger is configured with `require_user_action: false`.
+///
+/// This function should be called during config load or validation for any trigger
+/// that has `require_user_action: false` **and** contains dangerous actions
+/// (`RunCommand` or `SendText`). It writes a prominent warning to stderr so that
+/// users are aware of the security implications.
+///
+/// # Security Model
+///
+/// When `require_user_action` is `false`, terminal output pattern matches can
+/// directly execute commands or send text to the PTY. The only remaining automated
+/// protection is the command denylist, which is a best-effort heuristic and can
+/// be bypassed. Users should treat `require_user_action: false` as an advanced
+/// opt-in feature and audit all associated commands carefully.
+///
+/// **Recommendation**: Keep `require_user_action: true` (the default) unless you
+/// have a specific use case that requires output-driven automation and you fully
+/// understand and accept the security trade-offs.
+pub fn warn_require_user_action_false(trigger_name: &str) {
+    eprintln!(
+        "[par-term SECURITY WARNING] Trigger '{trigger_name}' has `require_user_action: false`.\n\
+         This allows terminal output to directly trigger RunCommand/SendText actions.\n\
+         The command denylist provides only limited protection and can be bypassed.\n\
+         Only use this setting if you fully trust the configured commands and environment.\n\
+         Recommendation: set `require_user_action: true` (the default) for safety."
+    );
 }
 
 /// Rate limiter for output-triggered actions.
