@@ -27,29 +27,6 @@ par-term is a well-architected Rust terminal emulator with a clean 13-crate work
 
 ## Detailed Findings
 
-### C1 — Monolithic render() (resolved)
-
-Fully extracted. `render()` is now 21 lines — well under the 50-line target.
-
-Extracted phases: `should_render_frame()`, `update_frame_metrics()`, `update_animations()`, `sync_layout()`, `gather_render_data()`, `submit_gpu_frame()`, `update_post_render_state()`.
-
-Earlier extractions: `process_agent_messages_tick()` (524L), `handle_tab_bar_action_after_render()` (118L), `handle_clipboard_history_action_after_render()` (25L), `handle_inspector_action_after_render()` (323L).
-
-Final `render()`:
-
-```rust
-pub(crate) fn render(&mut self) {
-    if self.is_shutting_down { return; }
-    if !self.should_render_frame() { return; }
-    self.update_frame_metrics();
-    self.update_animations();
-    self.sync_layout();
-    let Some(frame_data) = self.gather_render_data() else { return; };
-    let actions = self.submit_gpu_frame(frame_data);
-    self.update_post_render_state(actions);
-}
-```
-
 ### H9 — Oversized Files (partial)
 
 Remaining above 800-line threshold (window_state.rs will continue to decrease as further extraction continues):
@@ -61,6 +38,5 @@ Remaining above 800-line threshold (window_state.rs will continue to decrease as
 
 ## Remediation Roadmap
 
-- [x] **C1**: Continue extracting render phases until render() is ~50 lines
 - [ ] **M12**: Convert remaining `unwrap()` calls in `window_state.rs` / `window_manager.rs` to `expect()` with context
 - [ ] **H9**: Further split oversized sub-files; tackle `window_manager.rs`
