@@ -190,7 +190,6 @@ impl Tab {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::tab::Tab;
 
     #[test]

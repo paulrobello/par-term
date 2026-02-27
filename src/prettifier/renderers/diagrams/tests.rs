@@ -7,8 +7,8 @@ mod tests {
     use crate::prettifier::types::{ContentBlock, RendererCapability};
     use std::time::SystemTime;
 
-    use super::super::renderer::{DiagramRenderer, register_diagram_renderer};
     use super::super::languages::default_diagram_languages;
+    use super::super::renderer::DiagramRenderer;
     use super::super::svg_utils::svg_to_png_bytes;
 
     fn test_config() -> DiagramRendererConfig {
