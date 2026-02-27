@@ -299,6 +299,85 @@ pub fn set_log_level(level: log::LevelFilter) {
 }
 
 // ============================================================================
+// try_lock failure telemetry
+// ============================================================================
+
+/// Total number of `try_lock()` calls that returned `Err` (lock contended) across all
+/// call sites in the application.  Incremented via [`record_try_lock_failure`].
+///
+/// Deliberately a module-level static so it is zero-cost when the counter is never
+/// read — the increment itself is a single `fetch_add(Relaxed)`.
+pub static TRY_LOCK_FAILURE_COUNT: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// The value of [`TRY_LOCK_FAILURE_COUNT`] at the time of the last periodic telemetry
+/// log.  Used by [`maybe_log_try_lock_telemetry`] to avoid emitting redundant log lines.
+static TRY_LOCK_LAST_REPORTED: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Record one `try_lock()` failure.
+///
+/// Increments [`TRY_LOCK_FAILURE_COUNT`] and emits a `CONCURRENCY` debug-log entry
+/// (visible at `DEBUG_LEVEL >= 3`).
+///
+/// # Arguments
+/// * `site` - A short, human-readable label identifying the call site
+///            (e.g., `"resize"`, `"theme_change"`, `"focus_event"`).
+#[inline]
+pub fn record_try_lock_failure(site: &str) {
+    let total = TRY_LOCK_FAILURE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    logf(
+        DebugLevel::Debug,
+        "CONCURRENCY",
+        format_args!("try_lock() miss at '{}' (lifetime total: {})", site, total),
+    );
+}
+
+/// Return the current lifetime total of `try_lock()` failures.
+///
+/// Intended for periodic telemetry reporting (e.g., once per second in
+/// [`about_to_wait`][`crate::app::handler::window_state_impl::about_to_wait`]).
+#[inline]
+pub fn try_lock_failure_count() -> u64 {
+    TRY_LOCK_FAILURE_COUNT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Emit a periodic telemetry summary if new `try_lock()` failures have been recorded
+/// since the last call.
+///
+/// This is designed to be called from `about_to_wait` (once per event-loop iteration)
+/// so that lock-contention pressure is surfaced in the debug log without generating
+/// per-failure log spam at higher rates.  The log entry is only written when at least
+/// one new failure occurred since the previous call.
+pub fn maybe_log_try_lock_telemetry() {
+    let current = TRY_LOCK_FAILURE_COUNT.load(std::sync::atomic::Ordering::Relaxed);
+    let last = TRY_LOCK_LAST_REPORTED.load(std::sync::atomic::Ordering::Relaxed);
+    if current > last {
+        // Use compare_exchange to ensure only one caller logs when there are
+        // multiple windows.  The "loser" simply skips this cycle.
+        if TRY_LOCK_LAST_REPORTED
+            .compare_exchange(
+                last,
+                current,
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+            )
+            .is_ok()
+        {
+            let new_since_last = current - last;
+            logf(
+                DebugLevel::Info,
+                "CONCURRENCY",
+                format_args!(
+                    "try_lock telemetry: {} new failure(s) this interval, {} lifetime total",
+                    new_since_last, current
+                ),
+            );
+        }
+    }
+}
+
+// ============================================================================
 // Custom debug macros (unchanged, controlled by DEBUG_LEVEL)
 // ============================================================================
 
