@@ -130,14 +130,13 @@ impl ApplicationHandler for WindowManager {
                         self.delete_arrangement(id);
                     }
                     SettingsWindowAction::RenameArrangement(id, new_name) => {
-                        // Special sentinel values for reorder operations
-                        if new_name == "__move_up__" {
-                            self.move_arrangement_up(id);
-                        } else if new_name == "__move_down__" {
-                            self.move_arrangement_down(id);
-                        } else {
-                            self.rename_arrangement(id, new_name);
-                        }
+                        self.rename_arrangement(id, new_name);
+                    }
+                    SettingsWindowAction::MoveArrangementUp(id) => {
+                        self.move_arrangement_up(id);
+                    }
+                    SettingsWindowAction::MoveArrangementDown(id) => {
+                        self.move_arrangement_down(id);
                     }
                     SettingsWindowAction::ForceUpdateCheck => {
                         self.force_update_check_for_settings();

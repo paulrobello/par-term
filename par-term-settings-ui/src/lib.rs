@@ -134,6 +134,10 @@ pub enum SettingsWindowAction {
     DeleteArrangement(ArrangementId),
     /// Rename a saved window arrangement
     RenameArrangement(ArrangementId, String),
+    /// Move a saved window arrangement one position up in the list
+    MoveArrangementUp(ArrangementId),
+    /// Move a saved window arrangement one position down in the list
+    MoveArrangementDown(ArrangementId),
     /// User requested an immediate update check
     ForceUpdateCheck,
     /// User requested to install the available update

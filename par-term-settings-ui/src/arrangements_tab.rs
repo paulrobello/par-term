@@ -179,14 +179,14 @@ pub fn show_arrangements_with_manager(
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Reorder buttons
                 if i < arrangements.len() - 1 && ui.small_button("▼").clicked() {
-                    settings.pending_arrangement_actions.push(
-                        SettingsWindowAction::RenameArrangement(id, "__move_down__".to_string()),
-                    );
+                    settings
+                        .pending_arrangement_actions
+                        .push(SettingsWindowAction::MoveArrangementDown(id));
                 }
                 if i > 0 && ui.small_button("▲").clicked() {
-                    settings.pending_arrangement_actions.push(
-                        SettingsWindowAction::RenameArrangement(id, "__move_up__".to_string()),
-                    );
+                    settings
+                        .pending_arrangement_actions
+                        .push(SettingsWindowAction::MoveArrangementUp(id));
                 }
 
                 if ui.small_button("Delete").clicked() {
