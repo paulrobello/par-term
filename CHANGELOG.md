@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Try-Lock Failure Telemetry (M-7)**: Global `TRY_LOCK_FAILURE_COUNT` AtomicU64 counter tracks silently-dropped operations (resize, theme change, focus events) with per-site labels; periodic summary logged each event-loop iteration via `maybe_log_try_lock_telemetry()`
+- **Drag/Context-Menu Tests (L-15)**: Tab bar UI test suite expanded from 30 → 59 tests covering drag state transitions, context menu lifecycle, and drop target calculation; new `calculate_drop_target_horizontal()` pure-logic helper extracted for testability
+- **Settings UI Tests (L-14)**: Settings window test suite expanded from 5 → 33 tests covering `section_matches` logic, `tab_matches_search`, config validation ranges, and `has_changes` state machine transitions
 - **UI Constants Module**: New `src/ui_constants.rs` centralizes 80 named constants for window sizes, spacing, padding, and layout dimensions across 13 UI components — replaces inline magic numbers, enabling future DPI scaling and theming
 - **Scripting Permission Model**: Added `requires_permission()`, `permission_flag_name()`, `is_rate_limited()` helper methods to `ScriptCommand` for future permission checking infrastructure
 - **Shell Command Timeout**: Custom snippet shell commands now have configurable `timeout_secs` field (default 30s) to prevent hung commands
@@ -21,12 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **Trigger Denylist Bypass Patterns (M-2)**: Denylist now detects common bypass wrappers (`env`, `/usr/bin/env`, `sh -c`, `bash -c`, `zsh -c`, `fish -c`, `dash -c`, etc.) and shell `-c` patterns are immediately denied regardless of payload; startup warning emitted to stderr when any trigger has `require_user_action: false`
+
 - **Self-Update Integrity (C-1)**: Checksum verification now fails the update when checksum URL exists but download fails — prevents MITM attacks from bypassing verification
 - **AppleScript Injection (H-1)**: macOS notifications now properly escape backslashes, quotes, and newlines in AppleScript strings to prevent command injection via terminal output
 - **ACP Recursive Search (H-6)**: Added `MAX_SEARCH_DEPTH` (20) and symlink skipping to prevent stack overflow from symlink loops
 - **Session Log Permissions (M-4)**: Session log files now created with `0o600` permissions (owner read/write only) on Unix
 - **ACP File Size Limit (M-5)**: Added `MAX_FILE_SIZE` (50MB) check to prevent memory exhaustion from large file reads
 - **Debug Shader Permissions (L-1)**: Debug shader files now only written in debug builds with restricted permissions
+
+### Performance
+
+- **Per-Frame GPU Buffer Elimination (L-3)**: Pane background bind groups now use a `HashMap`-keyed uniform buffer cache — `queue.write_buffer()` reuse replaces `device.create_buffer()` + `device.create_bind_group()` per frame per pane
+- **Scratch Vec Reuse (L-6)**: `CellRenderer` now holds `scratch_row_bg` and `scratch_row_text` fields; per-dirty-row `Vec::with_capacity()` allocations replaced with `.clear()` + reuse
+- **Regex Cache (L-9)**: `trigger_regex_cache: HashMap<String, Regex>` on `WindowState` — prettify trigger patterns compiled once and reused across frames
+- **Borrowed Display Lines (M-15)**: New `display_lines_ref() -> Option<&[StyledLine]>` borrows directly from `RenderedContent.lines` in the render hot path — eliminates per-frame `Vec<StyledLine>` clone
+- **Native Filesystem Watcher (L-17)**: Config file watcher now tries `notify::RecommendedWatcher` (inotify/FSEvents/ReadDirectoryChanges) first, falling back to `PollWatcher` on failure — replaces 500ms polling with native OS events
 
 ### Fixed
 
@@ -54,6 +67,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MCP IPC File Permissions**: IPC files (config-update, screenshot request/response) are now created with `0o600` permissions atomically at creation time — eliminates the world-readable race window that existed when `std::fs::write` + post-write `chmod` was used
 - **Status Bar Thread Spawn Panics**: Replaced `expect()` on OS thread spawning in the system monitor and git branch poller — spawn failures now log a debug error and degrade gracefully instead of crashing the terminal session
 - **tmux Terminal Stuck in Control Mode**: Fixed a race where `handle_tmux_session_ended` could fail to acquire the terminal lock and silently leave the parser stuck in tmux control mode; the fix uses a per-tab `pending_tmux_mode_disable` flag that is retried each frame via `retry_pending_tmux_mode_disable()`, guaranteeing cleanup without blocking the winit event loop
+
+### Fixed
+
+- **window_opacity State Mutation (M-9)**: `render_to_texture` no longer temporarily mutates `self.window_opacity` — opacity override now passed as `Option<f32>` parameter to `update_bg_image_uniforms()`, preventing corruption on early `?` returns
+- **Left/Right Modifier Remapping (M-18)**: Modifier remapping now uses winit's `lcontrol_state()`/`rcontrol_state()`, `lalt_state()`/`ralt_state()`, `lsuper_state()`/`rsuper_state()` to apply per-side remappings correctly when both sides are held; backward-compatible fallback for platforms that don't distinguish sides
+
+### Refactored
+
+- **GLSL Transpiler Deduplication (M-10)**: Extracted ~300 lines of shared GLSL wrapper template and post-processing into `transpile_impl()` — both public `transpile_glsl_to_wgsl()` functions are now 5-line thin wrappers
+- **WGSL Injection Validation (M-11)**: String-based `@builtin(position)` injection now validates the replacement actually occurred via `replace_required()` — returns a descriptive error if naga output doesn't match the expected pattern
+- **`section_matches` Extraction (M-16)**: Function extracted from all 19 `par-term-settings-ui/src/*_tab.rs` files into shared `section.rs` module — 152 lines of duplication removed
+- **`GraphicRenderInfo` Struct (L-5)**: Opaque 7-element tuple `(u64, isize, usize, usize, usize, f32, usize)` replaced with named `GraphicRenderInfo` struct across renderer and graphics pipeline
+- **`MoveArrangementUp/Down` Variants (M-20)**: `RenameArrangement` sentinel strings `"__move_up__"`/`"__move_down__"` replaced with dedicated `MoveArrangementUp(id)` and `MoveArrangementDown(id)` action variants
+- **Tab Bar File Split (L-12)**: `src/tab_bar_ui/mod.rs` (1895 lines) split into focused sub-modules: `tab_rendering.rs` (641), `drag_drop.rs` (292), `context_menu.rs` (298), `profile_menu.rs` (84); `mod.rs` reduced to 619 lines
+- **Tab Bar Rendering Helpers (M-17)**: Shared bg-color computation extracted from `render_tab_with_width` and `render_vertical_tab` into `compute_tab_bg_color()` helper
 
 ### Changed
 
