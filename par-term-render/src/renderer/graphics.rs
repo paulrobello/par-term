@@ -1,4 +1,5 @@
 use super::Renderer;
+use crate::graphics_renderer::GraphicRenderInfo;
 use anyhow::Result;
 
 impl Renderer {
@@ -117,15 +118,15 @@ impl Renderer {
                 0
             };
 
-            self.sixel_graphics.push((
+            self.sixel_graphics.push(GraphicRenderInfo {
                 id,
-                screen_row, // row position (can be negative if scrolled off top)
-                col,        // col position
+                screen_row,
+                col,
                 width_cells,
                 height_cells,
-                1.0,                 // Full opacity by default
-                effective_clip_rows, // Rows to clip from top for partial rendering
-            ));
+                alpha: 1.0,
+                scroll_offset_rows: effective_clip_rows,
+            });
         }
 
         // Mark dirty when graphics change (added or removed)
@@ -197,17 +198,15 @@ impl Renderer {
     ///
     /// Shares the same texture cache as the global path so textures are never duplicated.
     ///
-    /// Returns a `Vec` of `(id, screen_row, col, width_cells, height_cells, alpha,
-    /// effective_clip_rows)` tuples ready to pass to
+    /// Returns a `Vec` of [`GraphicRenderInfo`] ready to pass to
     /// [`GraphicsRenderer::render_for_pane`].
-    #[allow(clippy::type_complexity)]
     pub fn update_pane_graphics(
         &mut self,
         graphics: &[par_term_emu_core_rust::graphics::TerminalGraphic],
         view_scroll_offset: usize,
         scrollback_len: usize,
         visible_rows: usize,
-    ) -> Result<Vec<(u64, isize, usize, usize, usize, f32, usize)>> {
+    ) -> Result<Vec<GraphicRenderInfo>> {
         let total_lines = scrollback_len + visible_rows;
         let view_end = total_lines.saturating_sub(view_scroll_offset);
         let view_start = view_end.saturating_sub(visible_rows);
@@ -295,15 +294,15 @@ impl Renderer {
                 0
             };
 
-            positioned.push((
+            positioned.push(GraphicRenderInfo {
                 id,
                 screen_row,
                 col,
                 width_cells,
                 height_cells,
-                1.0,
-                effective_clip_rows,
-            ));
+                alpha: 1.0,
+                scroll_offset_rows: effective_clip_rows,
+            });
         }
 
         Ok(positioned)
@@ -372,15 +371,15 @@ impl Renderer {
                 self.size.height,
                 positioned.len()
             );
-            for (id, screen_row, col, wc, hc, _, clip) in &positioned {
+            for g in &positioned {
                 log::debug!(
                     "[PANE_GRAPHICS]   positioned: id={}, screen_row={}, col={}, width_cells={}, height_cells={}, clip_rows={}",
-                    id,
-                    screen_row,
-                    col,
-                    wc,
-                    hc,
-                    clip
+                    g.id,
+                    g.screen_row,
+                    g.col,
+                    g.width_cells,
+                    g.height_cells,
+                    g.scroll_offset_rows
                 );
             }
 
@@ -447,15 +446,15 @@ impl Renderer {
                 0
             };
 
-            self.sixel_graphics.push((
+            self.sixel_graphics.push(GraphicRenderInfo {
                 id,
                 screen_row,
                 col,
                 width_cells,
                 height_cells,
-                1.0, // Full opacity
-                effective_clip_rows,
-            ));
+                alpha: 1.0,
+                scroll_offset_rows: effective_clip_rows,
+            });
         }
 
         if !graphics.is_empty() {
@@ -480,8 +479,7 @@ impl Renderer {
     /// Remove a specific sixel texture from cache
     pub fn remove_sixel_texture(&mut self, id: u64) {
         self.graphics_renderer.remove_texture(id);
-        self.sixel_graphics
-            .retain(|(gid, _, _, _, _, _, _)| *gid != id);
+        self.sixel_graphics.retain(|g| g.id != id);
         self.dirty = true;
     }
 }

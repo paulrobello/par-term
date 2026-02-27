@@ -158,9 +158,9 @@ pub struct Renderer {
     // Graphics renderer for sixel images
     pub(crate) graphics_renderer: GraphicsRenderer,
 
-    // Current sixel graphics to render: (id, row, col, width_cells, height_cells, alpha, scroll_offset_rows)
-    // Note: row is isize to allow negative values for graphics scrolled off top
-    pub(crate) sixel_graphics: Vec<(u64, isize, usize, usize, usize, f32, usize)>,
+    // Current sixel graphics to render.
+    // Note: screen_row is isize to allow negative values for graphics scrolled off top
+    pub(crate) sixel_graphics: Vec<crate::graphics_renderer::GraphicRenderInfo>,
 
     // egui renderer for settings UI
     pub(crate) egui_renderer: egui_wgpu::Renderer,
