@@ -6,9 +6,10 @@
 
 use chrono::{DateTime, Utc};
 use par_term_config::{Config, UpdateCheckFrequency};
+use parking_lot::Mutex;
 use semver::Version;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// Repository for update checks
@@ -77,7 +78,7 @@ impl UpdateChecker {
 
     /// Get the last check result
     pub fn last_result(&self) -> Option<UpdateCheckResult> {
-        self.last_result.lock().ok()?.clone()
+        self.last_result.lock().clone()
     }
 
     /// Check if it's time to perform an update check based on config
@@ -114,9 +115,8 @@ impl UpdateChecker {
 
     /// Check if we're rate-limited (prevent hammering the API)
     fn is_rate_limited(&self) -> bool {
-        if let Ok(last_time) = self.last_check_time.lock()
-            && let Some(last) = *last_time
-        {
+        let last_time = self.last_check_time.lock();
+        if let Some(last) = *last_time {
             return last.elapsed() < self.min_check_interval;
         }
         false
@@ -152,17 +152,13 @@ impl UpdateChecker {
         }
 
         // Update last check time
-        if let Ok(mut last_time) = self.last_check_time.lock() {
-            *last_time = Some(Instant::now());
-        }
+        *self.last_check_time.lock() = Some(Instant::now());
 
         // Perform the actual check
         let result = self.perform_check(config);
 
         // Store result
-        if let Ok(mut last_result) = self.last_result.lock() {
-            *last_result = Some(result.clone());
-        }
+        *self.last_result.lock() = Some(result.clone());
 
         // Release the check lock
         self.check_in_progress.store(false, Ordering::SeqCst);
@@ -235,18 +231,36 @@ pub fn fetch_latest_release() -> Result<UpdateInfo, String> {
         .into_body();
 
     let body_str = body
+        .with_config()
+        .limit(crate::http::MAX_API_RESPONSE_SIZE)
         .read_to_string()
         .map_err(|e| format!("Failed to read response body: {}", e))?;
 
-    // Parse JSON (simple extraction without full JSON parsing)
-    let version = extract_json_string(&body_str, "tag_name")
+    // Parse JSON properly using serde_json
+    let json: serde_json::Value =
+        serde_json::from_str(&body_str).map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+    let version = json
+        .get("tag_name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
         .ok_or_else(|| "Could not find tag_name in release response".to_string())?;
 
-    let release_url = extract_json_string(&body_str, "html_url")
+    let release_url = json
+        .get("html_url")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
         .unwrap_or_else(|| format!("https://github.com/{}/releases/latest", REPO));
 
-    let release_notes = extract_json_string(&body_str, "body");
-    let published_at = extract_json_string(&body_str, "published_at");
+    let release_notes = json
+        .get("body")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let published_at = json
+        .get("published_at")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
 
     Ok(UpdateInfo {
         version,
@@ -254,43 +268,6 @@ pub fn fetch_latest_release() -> Result<UpdateInfo, String> {
         release_url,
         published_at,
     })
-}
-
-/// Extract a string value from JSON (simple extraction without full parsing)
-fn extract_json_string(json: &str, key: &str) -> Option<String> {
-    let search_pattern = format!("\"{}\":\"", key);
-    let start_idx = json.find(&search_pattern)? + search_pattern.len();
-    let remaining = &json[start_idx..];
-
-    // Find the closing quote, handling escaped quotes
-    let mut chars = remaining.chars().peekable();
-    let mut value = String::new();
-    let mut escaped = false;
-
-    for ch in chars.by_ref() {
-        if escaped {
-            match ch {
-                'n' => value.push('\n'),
-                'r' => value.push('\r'),
-                't' => value.push('\t'),
-                '\\' => value.push('\\'),
-                '"' => value.push('"'),
-                _ => {
-                    value.push('\\');
-                    value.push(ch);
-                }
-            }
-            escaped = false;
-        } else if ch == '\\' {
-            escaped = true;
-        } else if ch == '"' {
-            break;
-        } else {
-            value.push(ch);
-        }
-    }
-
-    if value.is_empty() { None } else { Some(value) }
 }
 
 /// Get the current timestamp in ISO 8601 format
@@ -321,25 +298,31 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_json_string() {
-        let json = r#"{"tag_name":"v0.6.0","html_url":"https://example.com"}"#;
+    fn test_json_parsing_with_serde() {
+        // Test that serde_json correctly parses GitHub release JSON
+        let json_str = r#"{"tag_name":"v0.6.0","html_url":"https://example.com","body":"Release notes","published_at":"2024-01-01T00:00:00Z"}"#;
+        let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
+
         assert_eq!(
-            extract_json_string(json, "tag_name"),
-            Some("v0.6.0".to_string())
+            json.get("tag_name").and_then(|v| v.as_str()),
+            Some("v0.6.0")
         );
         assert_eq!(
-            extract_json_string(json, "html_url"),
-            Some("https://example.com".to_string())
+            json.get("html_url").and_then(|v| v.as_str()),
+            Some("https://example.com")
         );
-        assert_eq!(extract_json_string(json, "missing"), None);
+        assert_eq!(json.get("missing").and_then(|v| v.as_str()), None);
     }
 
     #[test]
-    fn test_extract_json_string_with_escapes() {
-        let json = r#"{"body":"Line 1\nLine 2\tTabbed"}"#;
+    fn test_json_parsing_with_escapes() {
+        // Test that serde_json correctly handles escaped characters
+        let json_str = r#"{"body":"Line 1\nLine 2\tTabbed"}"#;
+        let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
+
         assert_eq!(
-            extract_json_string(json, "body"),
-            Some("Line 1\nLine 2\tTabbed".to_string())
+            json.get("body").and_then(|v| v.as_str()),
+            Some("Line 1\nLine 2\tTabbed")
         );
     }
 

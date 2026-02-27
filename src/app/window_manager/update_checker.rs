@@ -28,10 +28,21 @@ pub(super) fn notify_update_available(info: &UpdateInfo) {
 
     #[cfg(target_os = "macos")]
     {
+        // Escape backslashes, quotes, and newlines for AppleScript string safety
+        // Order matters: escape backslashes FIRST, then quotes, then newlines
+        let escaped_body = body
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r");
+        let escaped_summary = summary
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r");
         let script = format!(
             r#"display notification "{}" with title "{}""#,
-            body.replace('"', r#"\""#),
-            summary.replace('"', r#"\""#),
+            escaped_body, escaped_summary,
         );
         let _ = std::process::Command::new("osascript")
             .arg("-e")

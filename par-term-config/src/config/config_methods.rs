@@ -689,12 +689,13 @@ impl Config {
     }
 
     /// Check if shell integration should be prompted
-    pub fn should_prompt_shell_integration(&self) -> bool {
+    ///
+    /// # Arguments
+    /// * `current_version` - The application version (from root crate's `VERSION` constant)
+    pub fn should_prompt_shell_integration(&self, current_version: &str) -> bool {
         if self.shell_integration_state != InstallPromptState::Ask {
             return false;
         }
-
-        let current_version = env!("CARGO_PKG_VERSION");
 
         // Check if already prompted for this version
         if let Some(ref prompted) = self.integration_versions.shell_integration_prompted_version
@@ -716,12 +717,13 @@ impl Config {
     }
 
     /// Check if shaders should be prompted (version-aware logic)
-    pub fn should_prompt_shader_install_versioned(&self) -> bool {
+    ///
+    /// # Arguments
+    /// * `current_version` - The application version (from root crate's `VERSION` constant)
+    pub fn should_prompt_shader_install_versioned(&self, current_version: &str) -> bool {
         if self.shader_install_prompt != ShaderInstallPrompt::Ask {
             return false;
         }
-
-        let current_version = env!("CARGO_PKG_VERSION");
 
         // Check if already prompted for this version
         if let Some(ref prompted) = self.integration_versions.shaders_prompted_version
@@ -757,8 +759,12 @@ impl Config {
     }
 
     /// Check if either integration should be prompted
-    pub fn should_prompt_integrations(&self) -> bool {
-        self.should_prompt_shader_install_versioned() || self.should_prompt_shell_integration()
+    ///
+    /// # Arguments
+    /// * `current_version` - The application version (from root crate's `VERSION` constant)
+    pub fn should_prompt_integrations(&self, current_version: &str) -> bool {
+        self.should_prompt_shader_install_versioned(current_version)
+            || self.should_prompt_shell_integration(current_version)
     }
 
     /// Get the effective startup directory based on configuration mode.

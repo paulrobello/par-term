@@ -86,19 +86,23 @@ impl ScriptProcess {
                         }
                         match serde_json::from_str::<ScriptCommand>(&text) {
                             Ok(cmd) => {
-                                let mut buf = cmd_buf.lock().expect("command_buffer lock poisoned");
+                                let mut buf = cmd_buf.lock().unwrap_or_else(|e| {
+                                    log::warn!("command_buffer mutex poisoned, recovering");
+                                    e.into_inner()
+                                });
                                 buf.push(cmd);
                             }
                             Err(e) => {
-                                eprintln!(
+                                log::warn!(
                                     "ScriptProcess: failed to parse stdout line as ScriptCommand: {}: {:?}",
-                                    e, text
+                                    e,
+                                    text
                                 );
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("ScriptProcess: error reading stdout: {}", e);
+                        log::warn!("ScriptProcess: error reading stdout: {}", e);
                         break;
                     }
                 }
@@ -115,11 +119,14 @@ impl ScriptProcess {
                         if text.is_empty() {
                             continue;
                         }
-                        let mut buf = err_buf.lock().expect("error_buffer lock poisoned");
+                        let mut buf = err_buf.lock().unwrap_or_else(|e| {
+                            log::warn!("error_buffer mutex poisoned, recovering");
+                            e.into_inner()
+                        });
                         buf.push(text);
                     }
                     Err(e) => {
-                        eprintln!("ScriptProcess: error reading stderr: {}", e);
+                        log::warn!("ScriptProcess: error reading stderr: {}", e);
                         break;
                     }
                 }
@@ -178,10 +185,10 @@ impl ScriptProcess {
     /// Returns all commands that have been parsed from the child's stdout since the
     /// last call to this method.
     pub fn read_commands(&self) -> Vec<ScriptCommand> {
-        let mut buf = self
-            .command_buffer
-            .lock()
-            .expect("command_buffer lock poisoned");
+        let mut buf = self.command_buffer.lock().unwrap_or_else(|e| {
+            log::warn!("command_buffer mutex poisoned, recovering");
+            e.into_inner()
+        });
         buf.drain(..).collect()
     }
 
@@ -190,10 +197,10 @@ impl ScriptProcess {
     /// Returns all lines that have been read from the child's stderr since the
     /// last call to this method.
     pub fn read_errors(&self) -> Vec<String> {
-        let mut buf = self
-            .error_buffer
-            .lock()
-            .expect("error_buffer lock poisoned");
+        let mut buf = self.error_buffer.lock().unwrap_or_else(|e| {
+            log::warn!("error_buffer mutex poisoned, recovering");
+            e.into_inner()
+        });
         buf.drain(..).collect()
     }
 

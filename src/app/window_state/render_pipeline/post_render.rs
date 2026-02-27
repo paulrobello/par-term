@@ -4,6 +4,7 @@
 //! during `submit_gpu_frame` and dispatches them to the appropriate handlers
 //! (tab bar, clipboard, search, AI inspector, tmux, shader install, etc.).
 
+use super::{PostRenderActions, ShaderInstallPrompt};
 use crate::app::window_state::WindowState;
 use crate::close_confirmation_ui::CloseConfirmAction;
 use crate::command_history_ui::CommandHistoryAction;
@@ -14,7 +15,6 @@ use crate::remote_shell_install_ui::{RemoteShellInstallAction, RemoteShellInstal
 use crate::shader_install_ui::ShaderInstallResponse;
 use crate::ssh_connect_ui::SshConnectAction;
 use crate::tmux_session_picker_ui::SessionPickerAction;
-use super::{PostRenderActions, ShaderInstallPrompt};
 
 impl WindowState {
     /// Handle all actions collected during the render pass and finalize frame timing.

@@ -128,13 +128,13 @@ impl CellRenderer {
             render_pass.set_pipeline(&self.pipelines.bg_pipeline);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.max_bg_instances as u32);
+            render_pass.draw(0..4, 0..self.buffers.actual_bg_instances as u32);
 
             render_pass.set_pipeline(&self.pipelines.text_pipeline);
             render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.max_text_instances as u32);
+            render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -215,13 +215,13 @@ impl CellRenderer {
             render_pass.set_pipeline(&self.pipelines.bg_pipeline);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.max_bg_instances as u32);
+            render_pass.draw(0..4, 0..self.buffers.actual_bg_instances as u32);
 
             render_pass.set_pipeline(&self.pipelines.text_pipeline);
             render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.max_text_instances as u32);
+            render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -387,13 +387,13 @@ impl CellRenderer {
             render_pass.set_pipeline(&self.pipelines.bg_pipeline);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.max_bg_instances as u32);
+            render_pass.draw(0..4, 0..self.buffers.actual_bg_instances as u32);
 
             render_pass.set_pipeline(&self.pipelines.text_pipeline);
             render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.max_text_instances as u32);
+            render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
 
             // Render scrollbar
             self.scrollbar.render(&mut render_pass);
@@ -408,6 +408,11 @@ impl CellRenderer {
         surface_texture: &wgpu::SurfaceTexture,
         show_scrollbar: bool,
     ) -> Result<()> {
+        // Early return if no overlays to render - avoid creating empty command buffers
+        if !show_scrollbar && self.visual_bell_intensity <= 0.0 {
+            return Ok(());
+        }
+
         let view = surface_texture
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());

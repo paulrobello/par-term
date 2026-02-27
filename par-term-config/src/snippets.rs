@@ -8,6 +8,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Default timeout for shell commands (30 seconds).
+const fn default_shell_command_timeout_secs() -> u64 {
+    30
+}
+
 /// A text snippet that can be inserted into the terminal.
 ///
 /// Snippets support variable substitution using \(variable\) syntax.
@@ -135,6 +140,10 @@ pub enum CustomActionConfig {
         /// Whether to show command output in a notification
         #[serde(default)]
         notify_on_success: bool,
+
+        /// Timeout in seconds for the command (default: 30)
+        #[serde(default = "default_shell_command_timeout_secs")]
+        timeout_secs: u64,
 
         /// Optional keyboard shortcut to trigger the action (e.g., "Ctrl+Shift+R")
         #[serde(default)]
@@ -505,6 +514,7 @@ mod tests {
             command: "echo".to_string(),
             args: vec!["hello".to_string()],
             notify_on_success: false,
+            timeout_secs: 30,
             keybinding: None,
             keybinding_enabled: true,
             description: None,

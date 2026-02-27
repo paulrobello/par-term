@@ -5,14 +5,33 @@
 //! They are executed directly in the async message handler task
 //! (via `spawn_blocking`) so they do not depend on UI-thread state.
 
+/// Maximum file size allowed for reading via ACP (50MB).
+/// This prevents memory exhaustion from reading multi-GB files.
+const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50MB
+
 /// Read a text file, optionally returning a line range.
 ///
 /// `line` is 1-based (line 1 is the first line).
+///
+/// # Security
+///
+/// Files larger than [`MAX_FILE_SIZE`] (50MB) are rejected to prevent
+/// memory exhaustion from reading multi-GB files.
 pub fn read_file_with_range(
     path: &str,
     line: Option<u64>,
     limit: Option<u64>,
 ) -> Result<String, String> {
+    // Check file size before reading to prevent memory exhaustion.
+    let metadata = std::fs::metadata(path).map_err(|e| e.to_string())?;
+    if metadata.len() > MAX_FILE_SIZE {
+        return Err(format!(
+            "File too large: {} bytes (max {} bytes)",
+            metadata.len(),
+            MAX_FILE_SIZE
+        ));
+    }
+
     let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
 
     match (line, limit) {
@@ -87,10 +106,19 @@ pub fn list_directory_entries(
     Ok(result)
 }
 
+/// Maximum directory depth for recursive file searches.
+/// This prevents stack overflow from deep directory trees or symlink loops.
+const MAX_SEARCH_DEPTH: usize = 20;
+
 /// Recursively find files matching a glob pattern.
 ///
 /// Supports simple patterns like `*.glsl`, `**/*.rs`, and literal names.
 /// Returns a sorted list of absolute file paths.
+///
+/// # Security
+///
+/// - Maximum recursion depth is limited to [`MAX_SEARCH_DEPTH`] to prevent stack overflow.
+/// - Symlinks are skipped to prevent infinite loops from symlink cycles.
 pub fn find_files_recursive(base_path: &str, pattern: &str) -> Result<Vec<String>, String> {
     let base = std::path::Path::new(base_path);
     if !base.is_absolute() {
@@ -108,15 +136,28 @@ pub fn find_files_recursive(base_path: &str, pattern: &str) -> Result<Vec<String
         dir: &std::path::Path,
         file_pattern: &str,
         results: &mut Vec<String>,
+        remaining_depth: usize,
     ) -> Result<(), String> {
+        // Stop recursion if we've reached the maximum depth.
+        if remaining_depth == 0 {
+            return Ok(());
+        }
+
         let entries =
             std::fs::read_dir(dir).map_err(|e| format!("Failed to read {}: {e}", dir.display()))?;
         for entry in entries {
             let entry = entry.map_err(|e| e.to_string())?;
             let path = entry.path();
-            if path.is_dir() {
-                walk_dir(&path, file_pattern, results)?;
-            } else {
+
+            // Get file type and skip symlinks to prevent infinite loops from symlink cycles.
+            let file_type = entry.file_type().map_err(|e| e.to_string())?;
+            if file_type.is_symlink() {
+                continue;
+            }
+
+            if file_type.is_dir() {
+                walk_dir(&path, file_pattern, results, remaining_depth - 1)?;
+            } else if file_type.is_file() {
                 let name = entry.file_name().to_string_lossy().to_string();
                 if glob_match_simple(file_pattern, &name) {
                     results.push(path.to_string_lossy().to_string());
@@ -126,7 +167,7 @@ pub fn find_files_recursive(base_path: &str, pattern: &str) -> Result<Vec<String
         Ok(())
     }
 
-    walk_dir(base, file_pattern, &mut results)?;
+    walk_dir(base, file_pattern, &mut results, MAX_SEARCH_DEPTH)?;
     results.sort();
     Ok(results)
 }

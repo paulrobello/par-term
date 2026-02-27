@@ -5,6 +5,21 @@
 //! exfiltrating sensitive environment variables.
 
 use regex::Regex;
+use std::sync::LazyLock;
+
+/// Regex pattern for matching `${VAR_NAME}` or `${VAR_NAME:-default_value}` syntax.
+/// Compiled once at startup using LazyLock to avoid recompiling on every substitution call.
+static ENV_VAR_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-((?:[^}\\]|\\.)*))?}")
+        .expect("env-var substitution regex is a compile-time constant and must be valid")
+});
+
+/// Regex pattern for detecting `allow_all_env_vars: true` at the top level of YAML.
+/// Compiled once at startup using LazyLock to avoid recompiling on every pre-scan call.
+static ALLOW_ALL_ENV_VARS_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?m)^allow_all_env_vars:\s*true\s*$")
+        .expect("allow_all_env_vars pre-scan regex is a compile-time constant and must be valid")
+});
 
 /// Environment variables that are safe to substitute in config files.
 ///
@@ -91,11 +106,8 @@ pub fn substitute_variables_with_allowlist(input: &str, allow_all: bool) -> Stri
     let escaped_placeholder = "\x00ESC_DOLLAR\x00";
     let working = input.replace("$${", escaped_placeholder);
 
-    // Match ${VAR_NAME} or ${VAR_NAME:-default_value}
-    let re = Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-((?:[^}\\]|\\.)*))?}")
-        .expect("env-var substitution regex is a compile-time constant and must be valid");
-
-    let result = re.replace_all(&working, |caps: &regex::Captures| {
+    // Use the pre-compiled static regex pattern
+    let result = ENV_VAR_PATTERN.replace_all(&working, |caps: &regex::Captures| {
         let var_name = &caps[1];
 
         // Check allowlist unless the user opted into unrestricted mode
@@ -128,7 +140,6 @@ pub fn substitute_variables_with_allowlist(input: &str, allow_all: bool) -> Stri
 /// fully parsing the document, because we need the answer *before* variable
 /// substitution runs (and therefore before serde deserialization).
 pub(crate) fn pre_scan_allow_all_env_vars(raw_yaml: &str) -> bool {
-    let re = Regex::new(r"(?m)^allow_all_env_vars:\s*true\s*$")
-        .expect("allow_all_env_vars pre-scan regex is a compile-time constant and must be valid");
-    re.is_match(raw_yaml)
+    // Use the pre-compiled static regex pattern
+    ALLOW_ALL_ENV_VARS_PATTERN.is_match(raw_yaml)
 }

@@ -148,14 +148,14 @@ impl CellRenderer {
             render_pass.set_pipeline(&self.pipelines.bg_pipeline);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.bg_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.max_bg_instances as u32);
+            render_pass.draw(0..4, 0..self.buffers.actual_bg_instances as u32);
 
             // Render text
             render_pass.set_pipeline(&self.pipelines.text_pipeline);
             render_pass.set_bind_group(0, &self.pipelines.text_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.buffers.text_instance_buffer.slice(..));
-            render_pass.draw(0..4, 0..self.buffers.max_text_instances as u32);
+            render_pass.draw(0..4, 0..self.buffers.actual_text_instances as u32);
 
             // Render scrollbar if requested (uses its own scissor rect internally)
             if show_scrollbar {
@@ -665,7 +665,10 @@ impl CellRenderer {
                 }
             }
         }
-        let _ = bg_index; // suppress unused warning
+
+        // Update actual instance counts for draw calls
+        self.buffers.actual_bg_instances = bg_index;
+        self.buffers.actual_text_instances = text_index;
 
         // Upload instance buffers to GPU
         self.queue.write_buffer(

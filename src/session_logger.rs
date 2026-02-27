@@ -35,7 +35,7 @@ use anyhow::Result;
 use chrono::{Local, Utc};
 use par_term_emu_core_rust::terminal::{RecordingEvent, RecordingEventType, RecordingSession};
 use parking_lot::Mutex;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -135,8 +135,17 @@ impl SessionLogger {
             format
         );
 
-        // Create the log file
-        let file = File::create(&output_path)?;
+        // Create the log file with restrictive permissions (owner read/write only)
+        // On Unix, use mode 0o600 to prevent world-readable session logs
+        // On Windows, file permissions work differently but this is still safe
+        let mut opts = OpenOptions::new();
+        opts.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        let file = opts.open(&output_path)?;
         let writer = BufWriter::with_capacity(8192, file); // 8KB buffer
 
         // Initialize recording session for asciicast format

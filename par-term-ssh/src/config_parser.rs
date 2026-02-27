@@ -12,7 +12,10 @@ use std::path::Path;
 pub fn parse_ssh_config(path: &Path) -> Vec<SshHost> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
-        Err(_) => return Vec::new(),
+        Err(e) => {
+            log::warn!("Failed to read SSH config file {}: {}", path.display(), e);
+            return Vec::new();
+        }
     };
     parse_ssh_config_str(&content)
 }

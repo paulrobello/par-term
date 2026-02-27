@@ -244,6 +244,7 @@ fn show_action_edit_form(
                             .collect()
                     },
                     notify_on_success: false,
+                    timeout_secs: 30, // Default timeout
                     keybinding,
                     keybinding_enabled: true,
                     description: None,

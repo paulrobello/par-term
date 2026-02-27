@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // ---------------------------------------------------------------------------
@@ -37,8 +38,23 @@ const PROTOCOL_VERSION: &str = "2024-11-05";
 /// Server name reported during initialization.
 const SERVER_NAME: &str = "par-term";
 
-/// Server version reported during initialization.
-const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Application version set by the main crate.
+/// Use `set_app_version()` to initialize this before calling `run_mcp_server()`.
+static APP_VERSION: OnceLock<String> = OnceLock::new();
+
+/// Set the application version (should be called from the main crate with
+/// the root crate's `VERSION` constant before running the MCP server).
+pub fn set_app_version(version: impl Into<String>) {
+    let _ = APP_VERSION.set(version.into());
+}
+
+/// Get the application version, falling back to the crate version if not set.
+fn get_app_version() -> &'static str {
+    APP_VERSION
+        .get()
+        .map(|s| s.as_str())
+        .unwrap_or(env!("CARGO_PKG_VERSION"))
+}
 
 /// Environment variable for overriding the config update file path.
 pub const CONFIG_UPDATE_PATH_ENV: &str = "PAR_TERM_CONFIG_UPDATE_PATH";
@@ -242,7 +258,7 @@ fn handle_initialize() -> Value {
         },
         "serverInfo": {
             "name": SERVER_NAME,
-            "version": SERVER_VERSION
+            "version": get_app_version()
         }
     })
 }
@@ -621,7 +637,8 @@ fn send_response(stdout: &mut impl Write, response: &Response) {
 /// stream is closed or an I/O error occurs, then returns normally so that
 /// callers can run destructors and exit cleanly.
 pub fn run_mcp_server() {
-    eprintln!("[mcp-server] Starting par-term MCP server v{SERVER_VERSION}");
+    let version = get_app_version();
+    eprintln!("[mcp-server] Starting par-term MCP server v{version}");
 
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();

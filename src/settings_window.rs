@@ -520,7 +520,7 @@ impl SettingsWindow {
                     .to_string();
                 self.settings_ui
                     .start_self_update_with(version.clone(), |v| {
-                        crate::self_updater::perform_update(v).map(|r| {
+                        crate::self_updater::perform_update(v, crate::VERSION).map(|r| {
                             crate::settings_ui::UpdateResult {
                                 old_version: r.old_version,
                                 new_version: r.new_version,

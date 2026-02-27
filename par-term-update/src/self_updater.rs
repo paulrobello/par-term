@@ -158,22 +158,26 @@ pub fn get_download_urls(api_url: &str) -> Result<DownloadUrls, String> {
         .into_body();
 
     let body_str = body
+        .with_config()
+        .limit(crate::http::MAX_API_RESPONSE_SIZE)
         .read_to_string()
         .map_err(|e| format!("Failed to read response body: {}", e))?;
 
-    // Collect all browser_download_url values
-    let search_pattern = "\"browser_download_url\":\"";
+    // Parse JSON and extract browser_download_url values from assets array
+    let json: serde_json::Value =
+        serde_json::from_str(&body_str).map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
     let mut binary_url: Option<String> = None;
     let mut checksum_url: Option<String> = None;
 
-    for (i, _) in body_str.match_indices(search_pattern) {
-        let url_start = i + search_pattern.len();
-        if let Some(url_end) = body_str[url_start..].find('"') {
-            let url = &body_str[url_start..url_start + url_end];
-            if url.ends_with(&checksum_name) {
-                checksum_url = Some(url.to_string());
-            } else if url.ends_with(asset_name) {
-                binary_url = Some(url.to_string());
+    if let Some(assets) = json.get("assets").and_then(|a| a.as_array()) {
+        for asset in assets {
+            if let Some(url) = asset.get("browser_download_url").and_then(|u| u.as_str()) {
+                if url.ends_with(&checksum_name) {
+                    checksum_url = Some(url.to_string());
+                } else if url.ends_with(asset_name) {
+                    binary_url = Some(url.to_string());
+                }
             }
         }
     }
@@ -231,11 +235,15 @@ fn parse_checksum_file(content: &str) -> Result<String, String> {
 /// Verify the downloaded data against a SHA256 checksum from the release.
 ///
 /// Returns `Ok(())` if verification passes or no checksum is available
-/// (with a warning log). Returns `Err` if the checksum does not match.
+/// (with a warning log for older releases).
+/// Returns `Err` if:
+/// - A checksum URL exists but the download fails (security: abort unverified updates)
+/// - The checksum does not match (binary may be corrupted or tampered with)
 fn verify_download(data: &[u8], checksum_url: Option<&str>) -> Result<(), String> {
     let checksum_url = match checksum_url {
         Some(url) => url,
         None => {
+            // No checksum available for this release (older releases)
             log::warn!(
                 "No .sha256 checksum file found in release — \
                  skipping integrity verification. \
@@ -246,18 +254,19 @@ fn verify_download(data: &[u8], checksum_url: Option<&str>) -> Result<(), String
     };
 
     // Download the checksum file
-    let checksum_data = match crate::http::download_file(checksum_url) {
-        Ok(data) => data,
-        Err(e) => {
-            log::warn!(
-                "Failed to download checksum file ({}): {} — \
-                 skipping integrity verification",
-                checksum_url,
-                e
-            );
-            return Ok(());
-        }
-    };
+    // SECURITY: If a checksum URL exists but download fails, we MUST abort the update.
+    // Returning Ok(()) here would allow a MITM attacker to block the checksum URL
+    // while allowing the binary URL through, resulting in an unverified install.
+    let checksum_data = crate::http::download_file(checksum_url).map_err(|e| {
+        format!(
+            "Failed to download checksum file from {}: {}\n\
+             Update aborted for security — cannot verify binary integrity without checksum.\n\
+             This may indicate a network issue or a targeted attack blocking checksum verification.\n\
+             If the problem persists, please download manually from:\n\
+             https://github.com/paulrobello/par-term/releases",
+            checksum_url, e
+        )
+    })?;
 
     let checksum_content = String::from_utf8(checksum_data)
         .map_err(|_| "Checksum file contains invalid UTF-8".to_string())?;
@@ -281,7 +290,11 @@ fn verify_download(data: &[u8], checksum_url: Option<&str>) -> Result<(), String
 }
 
 /// Perform the self-update: download, verify, replace binary, report result.
-pub fn perform_update(new_version: &str) -> Result<UpdateResult, String> {
+///
+/// # Arguments
+/// * `new_version` - The version being updated to
+/// * `old_version` - The current application version (from root crate's `VERSION` constant)
+pub fn perform_update(new_version: &str, old_version: &str) -> Result<UpdateResult, String> {
     let installation = detect_installation();
 
     // Refuse update for managed installations
@@ -306,8 +319,6 @@ pub fn perform_update(new_version: &str) -> Result<UpdateResult, String> {
     let current_exe =
         std::env::current_exe().map_err(|e| format!("Failed to determine current exe: {}", e))?;
 
-    let old_version = env!("CARGO_PKG_VERSION").to_string();
-
     // Fetch release API and get download URLs (binary + optional checksum)
     let api_url = "https://api.github.com/repos/paulrobello/par-term/releases/latest";
     let urls = get_download_urls(api_url)?;
@@ -326,7 +337,7 @@ pub fn perform_update(new_version: &str) -> Result<UpdateResult, String> {
     };
 
     Ok(UpdateResult {
-        old_version,
+        old_version: old_version.to_string(),
         new_version: new_version.to_string(),
         install_path,
         needs_restart: true,

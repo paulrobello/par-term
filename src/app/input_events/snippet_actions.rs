@@ -98,37 +98,96 @@ impl WindowState {
                 command,
                 args,
                 notify_on_success,
+                timeout_secs,
+                title,
                 ..
             } => {
-                log::info!("Executing shell command: {} {}", command, args.join(" "));
+                // Clone values for the spawned thread
+                let command = command.clone();
+                let args = args.clone();
+                let notify_on_success = *notify_on_success;
+                let timeout_secs = *timeout_secs;
+                let title = title.clone();
 
-                // Execute the shell command
-                let result = std::process::Command::new(command).args(args).output();
+                log::info!(
+                    "Executing shell command '{}' (timeout={}s): {} {}",
+                    title,
+                    timeout_secs,
+                    command,
+                    args.join(" ")
+                );
 
-                match result {
-                    Ok(output) => {
-                        if output.status.success() {
-                            if *notify_on_success {
-                                let message =
-                                    String::from_utf8_lossy(&output.stdout).trim().to_string();
-                                self.show_toast(format!("Command completed: {}", message));
+                // Spawn a background thread to avoid blocking the main event loop
+                std::thread::spawn(move || {
+                    let timeout = std::time::Duration::from_secs(timeout_secs);
+                    let start = std::time::Instant::now();
+
+                    // Use spawn to run the command and wait with timeout
+                    let child_result = std::process::Command::new(&command).args(&args).spawn();
+
+                    match child_result {
+                        Ok(mut child) => {
+                            // Poll for completion with timeout
+                            loop {
+                                match child.try_wait() {
+                                    Ok(Some(status)) => {
+                                        let elapsed = start.elapsed();
+                                        if status.success() {
+                                            log::info!(
+                                                "Shell command '{}' completed successfully in {:.2}s",
+                                                title,
+                                                elapsed.as_secs_f64()
+                                            );
+                                            if notify_on_success {
+                                                log::info!(
+                                                    "Command '{}' output available (check terminal or logs)",
+                                                    title
+                                                );
+                                            }
+                                        } else {
+                                            log::error!(
+                                                "Shell command '{}' failed with status: {} after {:.2}s",
+                                                title,
+                                                status,
+                                                elapsed.as_secs_f64()
+                                            );
+                                        }
+                                        break;
+                                    }
+                                    Ok(None) => {
+                                        // Still running, check timeout
+                                        if start.elapsed() > timeout {
+                                            log::error!(
+                                                "Shell command '{}' timed out after {}s, terminating",
+                                                title,
+                                                timeout_secs
+                                            );
+                                            let _ = child.kill();
+                                            let _ = child.wait();
+                                            break;
+                                        }
+                                        // Small sleep to avoid busy-waiting
+                                        std::thread::sleep(std::time::Duration::from_millis(50));
+                                    }
+                                    Err(e) => {
+                                        log::error!(
+                                            "Shell command '{}' error checking status: {}",
+                                            title,
+                                            e
+                                        );
+                                        break;
+                                    }
+                                }
                             }
-                            log::info!("Shell command completed successfully");
-                            true
-                        } else {
-                            let error_msg =
-                                String::from_utf8_lossy(&output.stderr).trim().to_string();
-                            log::error!("Shell command failed: {}", error_msg);
-                            self.show_toast(format!("Command failed: {}", error_msg));
-                            false
+                        }
+                        Err(e) => {
+                            log::error!("Failed to spawn shell command '{}': {}", title, e);
                         }
                     }
-                    Err(e) => {
-                        log::error!("Failed to execute shell command: {}", e);
-                        self.show_toast(format!("Execution Error: {}", e));
-                        false
-                    }
-                }
+                });
+
+                // Return immediately - command is running in background
+                true
             }
             CustomActionConfig::InsertText {
                 text, variables, ..

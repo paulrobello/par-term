@@ -294,8 +294,27 @@ void main() {{
 
     // No post-replacements needed; coordinates stay raw and are flipped in mainImage.
 
-    // DEBUG: Write wrapped GLSL to file for inspection
-    let _ = std::fs::write("/tmp/par_term_debug_wrapped.glsl", &wrapped_glsl);
+    // DEBUG: Write wrapped GLSL to file for inspection (debug builds only)
+    #[cfg(debug_assertions)]
+    {
+        let debug_path = std::env::temp_dir().join("par_term_debug_wrapped.glsl");
+        // Use restricted permissions (0o600) to prevent world-readable access on multi-user systems
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            let _ = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(&debug_path)
+                .and_then(|mut file| std::io::Write::write_all(&mut file, wrapped_glsl.as_bytes()));
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = std::fs::write(&debug_path, &wrapped_glsl);
+        }
+    }
 
     // Parse GLSL using naga
     let mut parser = naga::front::glsl::Frontend::default();
@@ -611,8 +630,27 @@ void main() {{
 "#
     );
 
-    // DEBUG: Write wrapped GLSL to file for inspection
-    let _ = std::fs::write("/tmp/par_term_debug_wrapped.glsl", &wrapped_glsl);
+    // DEBUG: Write wrapped GLSL to file for inspection (debug builds only)
+    #[cfg(debug_assertions)]
+    {
+        let debug_path = std::env::temp_dir().join("par_term_debug_wrapped_source.glsl");
+        // Use restricted permissions (0o600) to prevent world-readable access on multi-user systems
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            let _ = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(&debug_path)
+                .and_then(|mut file| std::io::Write::write_all(&mut file, wrapped_glsl.as_bytes()));
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = std::fs::write(&debug_path, &wrapped_glsl);
+        }
+    }
 
     // Parse GLSL using naga
     let mut parser = naga::front::glsl::Frontend::default();

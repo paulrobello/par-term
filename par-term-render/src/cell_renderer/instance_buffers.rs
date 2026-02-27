@@ -1011,6 +1011,12 @@ impl CellRenderer {
             );
         }
 
+        // Update actual instance counts for draw calls
+        // Layout: [0..cols*rows] cells + [cols*rows..cols*rows+10] overlays + [cols*rows+10..+rows] separators + [cols*rows+10+rows..+rows] gutters
+        self.buffers.actual_bg_instances =
+            self.grid.cols * self.grid.rows + 10 + self.grid.rows + self.grid.rows;
+        self.buffers.actual_text_instances = self.grid.cols * self.grid.rows * 2;
+
         Ok(())
     }
 }

@@ -188,6 +188,7 @@ pub fn process_cli() -> CliResult {
             CliResult::Exit(if result.is_ok() { 0 } else { 1 })
         }
         Some(Commands::McpServer) => {
+            crate::mcp_server::set_app_version(crate::VERSION);
             crate::mcp_server::run_mcp_server();
             CliResult::Exit(0)
         }
@@ -566,7 +567,7 @@ fn self_update_cli(skip_prompt: bool) -> anyhow::Result<()> {
 
     println!("Downloading and installing update...");
 
-    match self_updater::perform_update(latest_version) {
+    match self_updater::perform_update(latest_version, crate::VERSION) {
         Ok(result) => {
             println!();
             println!("=============================================");

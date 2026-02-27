@@ -2,7 +2,12 @@ use crate::error::RenderError;
 use crate::gpu_utils;
 use par_term_config::ImageScalingMode;
 use std::collections::HashMap;
+use std::time::Instant;
 use wgpu::*;
+
+/// Maximum number of textures to cache before evicting least-recently-used entries.
+/// This prevents unbounded GPU memory growth when displaying many inline images.
+const MAX_TEXTURE_CACHE_SIZE: usize = 100;
 
 /// Instance data for a single sixel graphic
 #[repr(C)]
@@ -25,6 +30,13 @@ struct SixelTextureInfo {
     height: u32,
 }
 
+/// Cached texture wrapper with LRU tracking
+struct CachedTexture {
+    texture: SixelTextureInfo,
+    /// Timestamp of last access for LRU eviction
+    last_used: Instant,
+}
+
 /// Graphics renderer for sixel images
 pub struct GraphicsRenderer {
     // Rendering pipeline
@@ -36,8 +48,8 @@ pub struct GraphicsRenderer {
     instance_buffer: Buffer,
     instance_capacity: usize,
 
-    // Texture cache: maps sixel ID to texture info
-    texture_cache: HashMap<u64, SixelTextureInfo>,
+    // Texture cache: maps sixel ID to texture info with LRU tracking
+    texture_cache: HashMap<u64, CachedTexture>,
 
     // Cell dimensions for positioning
     cell_width: f32,
@@ -200,7 +212,10 @@ impl GraphicsRenderer {
     ) -> Result<(), RenderError> {
         // Check if texture already exists in cache
         // For animations, we need to update the texture data even if it exists
-        if let Some(tex_info) = self.texture_cache.get(&id) {
+        if let Some(cached) = self.texture_cache.get_mut(&id) {
+            // Update LRU timestamp on cache hit
+            cached.last_used = Instant::now();
+
             // Texture exists - update it if the data might have changed
             // Validate data size
             let expected_size = (width * height * 4) as usize;
@@ -214,7 +229,7 @@ impl GraphicsRenderer {
             // Update existing texture with new pixel data (for animations)
             queue.write_texture(
                 TexelCopyTextureInfo {
-                    texture: &tex_info.texture,
+                    texture: &cached.texture.texture,
                     mip_level: 0,
                     origin: Origin3d::ZERO,
                     aspect: TextureAspect::All,
@@ -242,6 +257,21 @@ impl GraphicsRenderer {
                 expected: expected_size,
                 actual: rgba_data.len(),
             });
+        }
+
+        // Evict least-recently-used texture if cache is full
+        if self.texture_cache.len() >= MAX_TEXTURE_CACHE_SIZE
+            && let Some((&lru_id, _)) = self
+                .texture_cache
+                .iter()
+                .min_by_key(|(_, cached)| cached.last_used)
+        {
+            log::debug!(
+                "[GRAPHICS] Evicting LRU texture: id={}, cache_size={}",
+                lru_id,
+                self.texture_cache.len()
+            );
+            self.texture_cache.remove(&lru_id);
         }
 
         // Create texture
@@ -299,24 +329,28 @@ impl GraphicsRenderer {
             ],
         });
 
-        // Cache texture info
+        // Cache texture info with current timestamp
         self.texture_cache.insert(
             id,
-            SixelTextureInfo {
-                texture,
-                view,
-                bind_group,
-                width,
-                height,
+            CachedTexture {
+                texture: SixelTextureInfo {
+                    texture,
+                    view,
+                    bind_group,
+                    width,
+                    height,
+                },
+                last_used: Instant::now(),
             },
         );
 
         log::debug!(
-            "[GRAPHICS] Created sixel texture: id={}, size={}x{}, cache_size={}",
+            "[GRAPHICS] Created sixel texture: id={}, size={}x{}, cache_size={}/{}",
             id,
             width,
             height,
-            self.texture_cache.len()
+            self.texture_cache.len(),
+            MAX_TEXTURE_CACHE_SIZE
         );
 
         Ok(())
@@ -348,8 +382,11 @@ impl GraphicsRenderer {
         // Build instance data
         let mut instances = Vec::with_capacity(graphics.len());
         for &(id, row, col, _width_cells, _height_cells, alpha, scroll_offset_rows) in graphics {
-            // Check if texture exists
-            if let Some(tex_info) = self.texture_cache.get(&id) {
+            // Check if texture exists and update LRU timestamp
+            if let Some(cached) = self.texture_cache.get_mut(&id) {
+                cached.last_used = Instant::now();
+                let tex_info = &cached.texture;
+
                 // Calculate screen position (normalized 0-1, origin top-left)
                 // When scroll_offset_rows > 0, the image is partially scrolled off the top.
                 // Advance the y position by scroll_offset_rows so the visible portion
@@ -445,8 +482,8 @@ impl GraphicsRenderer {
         // Use separate counter for instance index since we filtered out graphics without textures
         let mut instance_idx = 0u32;
         for &(id, _, _, _, _, _, _) in graphics {
-            if let Some(tex_info) = self.texture_cache.get(&id) {
-                render_pass.set_bind_group(0, &tex_info.bind_group, &[]);
+            if let Some(cached) = self.texture_cache.get(&id) {
+                render_pass.set_bind_group(0, &cached.texture.bind_group, &[]);
                 render_pass.draw(0..4, instance_idx..(instance_idx + 1));
                 instance_idx += 1;
             }
@@ -489,8 +526,11 @@ impl GraphicsRenderer {
         // Build instance data
         let mut instances = Vec::with_capacity(graphics.len());
         for &(id, row, col, _width_cells, _height_cells, alpha, scroll_offset_rows) in graphics {
-            // Check if texture exists
-            if let Some(tex_info) = self.texture_cache.get(&id) {
+            // Check if texture exists and update LRU timestamp
+            if let Some(cached) = self.texture_cache.get_mut(&id) {
+                cached.last_used = Instant::now();
+                let tex_info = &cached.texture;
+
                 // Calculate screen position using the pane's content origin.
                 let adjusted_row = row + scroll_offset_rows as isize;
                 let x = (pane_origin_x + col as f32 * self.cell_width) / window_width;
@@ -563,8 +603,8 @@ impl GraphicsRenderer {
 
         let mut instance_idx = 0u32;
         for &(id, _, _, _, _, _, _) in graphics {
-            if let Some(tex_info) = self.texture_cache.get(&id) {
-                render_pass.set_bind_group(0, &tex_info.bind_group, &[]);
+            if let Some(cached) = self.texture_cache.get(&id) {
+                render_pass.set_bind_group(0, &cached.texture.bind_group, &[]);
                 render_pass.draw(0..4, instance_idx..(instance_idx + 1));
                 instance_idx += 1;
             }

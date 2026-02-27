@@ -2,6 +2,8 @@
 
 use super::types::{SshHost, SshHostSource};
 use std::collections::HashSet;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 /// Scan shell history files for SSH commands.
@@ -35,16 +37,17 @@ fn scan_history_file(
     hosts: &mut Vec<SshHost>,
     seen: &mut HashSet<String>,
 ) {
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
+    let file = match File::open(path) {
+        Ok(f) => f,
         Err(_) => return,
     };
 
-    for line in content.lines() {
+    let reader = BufReader::new(file);
+    for line in reader.lines().map_while(Result::ok) {
         let line = if is_zsh {
-            line.split_once(';').map(|(_, cmd)| cmd).unwrap_or(line)
+            line.split_once(';').map(|(_, cmd)| cmd).unwrap_or(&line)
         } else {
-            line
+            &line
         };
 
         if let Some(host) = parse_ssh_command(line) {
@@ -58,12 +61,13 @@ fn scan_history_file(
 }
 
 fn scan_fish_history(path: &Path, hosts: &mut Vec<SshHost>, seen: &mut HashSet<String>) {
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
+    let file = match File::open(path) {
+        Ok(f) => f,
         Err(_) => return,
     };
 
-    for line in content.lines() {
+    let reader = BufReader::new(file);
+    for line in reader.lines().map_while(Result::ok) {
         let line = line.trim();
         if let Some(cmd) = line.strip_prefix("- cmd: ")
             && let Some(host) = parse_ssh_command(cmd)

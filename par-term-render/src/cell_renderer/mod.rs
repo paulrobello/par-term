@@ -46,8 +46,14 @@ pub(crate) struct GpuBuffers {
     pub(crate) bg_image_uniform_buffer: wgpu::Buffer,
     #[allow(dead_code)] // GPU resource: visual bell rendering (infrastructure in progress)
     pub(crate) visual_bell_uniform_buffer: wgpu::Buffer,
+    /// Maximum capacity of the bg_instance_buffer (GPU buffer size)
     pub(crate) max_bg_instances: usize,
+    /// Maximum capacity of the text_instance_buffer (GPU buffer size)
     pub(crate) max_text_instances: usize,
+    /// Actual number of background instances written (used for draw calls)
+    pub(crate) actual_bg_instances: usize,
+    /// Actual number of text instances written (used for draw calls)
+    pub(crate) actual_text_instances: usize,
 }
 
 /// Glyph atlas texture, cache, and LRU eviction state.
@@ -61,6 +67,8 @@ pub(crate) struct GlyphAtlas {
     pub(crate) atlas_next_x: u32,
     pub(crate) atlas_next_y: u32,
     pub(crate) atlas_row_height: u32,
+    /// Actual atlas size (may be smaller than preferred on devices with low texture limits)
+    pub(crate) atlas_size: u32,
     /// Solid white pixel offset in atlas for geometric block rendering
     pub(crate) solid_pixel_offset: (u32, u32),
 }
@@ -442,7 +450,8 @@ impl CellRenderer {
         // Create pipelines using the pipeline module
         let bg_pipeline = pipeline::create_bg_pipeline(&device, surface_format);
 
-        let (atlas_texture, atlas_view, atlas_sampler) = pipeline::create_atlas(&device);
+        let (atlas_texture, atlas_view, atlas_sampler, atlas_size) =
+            pipeline::create_atlas(&device);
         let text_bind_group_layout = pipeline::create_text_bind_group_layout(&device);
         let text_bind_group = pipeline::create_text_bind_group(
             &device,
@@ -497,6 +506,8 @@ impl CellRenderer {
                 visual_bell_uniform_buffer,
                 max_bg_instances,
                 max_text_instances,
+                actual_bg_instances: 0,
+                actual_text_instances: 0,
             },
             atlas: GlyphAtlas {
                 atlas_texture,
@@ -507,6 +518,7 @@ impl CellRenderer {
                 atlas_next_x: 0,
                 atlas_next_y: 0,
                 atlas_row_height: 0,
+                atlas_size,
                 solid_pixel_offset: (0, 0),
             },
             grid: GridLayout {
@@ -794,6 +806,9 @@ impl CellRenderer {
         );
         self.buffers.bg_instance_buffer = bg_buf;
         self.buffers.text_instance_buffer = text_buf;
+        // Reset actual counts - will be updated when instance buffers are built
+        self.buffers.actual_bg_instances = 0;
+        self.buffers.actual_text_instances = 0;
 
         self.bg_instances = vec![
             BackgroundInstance {

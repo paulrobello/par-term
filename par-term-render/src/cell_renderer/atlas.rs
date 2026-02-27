@@ -277,13 +277,14 @@ impl CellRenderer {
 
     pub(crate) fn upload_glyph(&mut self, _key: u64, raster: &RasterizedGlyph) -> GlyphInfo {
         let padding = 2;
-        if self.atlas.atlas_next_x + raster.width + padding > 2048 {
+        let atlas_size = self.atlas.atlas_size;
+        if self.atlas.atlas_next_x + raster.width + padding > atlas_size {
             self.atlas.atlas_next_x = 0;
             self.atlas.atlas_next_y += self.atlas.atlas_row_height + padding;
             self.atlas.atlas_row_height = 0;
         }
 
-        if self.atlas.atlas_next_y + raster.height + padding > 2048 {
+        if self.atlas.atlas_next_y + raster.height + padding > atlas_size {
             self.clear_glyph_cache();
         }
 
@@ -330,7 +331,7 @@ impl CellRenderer {
         let pad_bottom_y = info.y + raster.height;
 
         // Right border: `padding` columns × glyph height
-        if pad_right_x + padding <= 2048 && raster.height > 0 {
+        if pad_right_x + padding <= atlas_size && raster.height > 0 {
             let zero = vec![0u8; (padding * raster.height * 4) as usize];
             self.queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
@@ -358,7 +359,7 @@ impl CellRenderer {
         }
 
         // Bottom border: glyph width × `padding` rows
-        if pad_bottom_y + padding <= 2048 && raster.width > 0 {
+        if pad_bottom_y + padding <= atlas_size && raster.width > 0 {
             let zero = vec![0u8; (raster.width * padding * 4) as usize];
             self.queue.write_texture(
                 wgpu::TexelCopyTextureInfo {

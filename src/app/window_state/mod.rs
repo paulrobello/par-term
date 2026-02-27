@@ -214,6 +214,10 @@ pub struct WindowState {
     /// Channel receiver for async update install result
     pub(crate) update_install_receiver:
         Option<std::sync::mpsc::Receiver<Result<crate::self_updater::UpdateResult, String>>>,
+
+    // Trigger RunCommand process management
+    /// PIDs of spawned trigger commands with their spawn time, for resource management
+    pub(crate) trigger_spawned_processes: std::collections::HashMap<u32, std::time::Instant>,
 }
 
 fn merge_custom_ai_inspector_agents(
@@ -590,6 +594,8 @@ impl WindowState {
             update_installing: false,
             update_install_status: None,
             update_install_receiver: None,
+
+            trigger_spawned_processes: std::collections::HashMap::new(),
         }
     }
 
@@ -859,7 +865,7 @@ impl WindowState {
         }
 
         // Check if we should prompt user to install integrations (shaders and/or shell integration)
-        if self.config.should_prompt_integrations() {
+        if self.config.should_prompt_integrations(crate::VERSION) {
             log::info!("Integrations not installed - showing welcome dialog");
             self.overlay_ui.integrations_ui.show_dialog();
             self.needs_redraw = true;

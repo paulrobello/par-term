@@ -12,8 +12,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **UI Constants Module**: New `src/ui_constants.rs` centralizes 80 named constants for window sizes, spacing, padding, and layout dimensions across 13 UI components — replaces inline magic numbers, enabling future DPI scaling and theming
+- **Scripting Permission Model**: Added `requires_permission()`, `permission_flag_name()`, `is_rate_limited()` helper methods to `ScriptCommand` for future permission checking infrastructure
+- **Shell Command Timeout**: Custom snippet shell commands now have configurable `timeout_secs` field (default 30s) to prevent hung commands
+
+### Security
+
+- **Self-Update Integrity (C-1)**: Checksum verification now fails the update when checksum URL exists but download fails — prevents MITM attacks from bypassing verification
+- **AppleScript Injection (H-1)**: macOS notifications now properly escape backslashes, quotes, and newlines in AppleScript strings to prevent command injection via terminal output
+- **ACP Recursive Search (H-6)**: Added `MAX_SEARCH_DEPTH` (20) and symlink skipping to prevent stack overflow from symlink loops
+- **Session Log Permissions (M-4)**: Session log files now created with `0o600` permissions (owner read/write only) on Unix
+- **ACP File Size Limit (M-5)**: Added `MAX_FILE_SIZE` (50MB) check to prevent memory exhaustion from large file reads
+- **Debug Shader Permissions (L-1)**: Debug shader files now only written in debug builds with restricted permissions
 
 ### Fixed
+
+- **API Response Size Limits (C-2)**: Added `MAX_API_RESPONSE_SIZE` (10MB) limit to HTTP response body reads in update checker
+- **Blocking Shell Commands (H-2)**: Snippet shell commands now run asynchronously in background threads instead of blocking the main event loop
+- **Orphaned Trigger Processes (H-3)**: Trigger `RunCommand` now tracks spawned PIDs, redirects stdout/stderr to null, and enforces max concurrent process limit (10)
+- **Custom JSON Parsing (H-4)**: Replaced hand-rolled JSON parsing with proper `serde_json::Value` parsing for update checker
+- **GPU Scrollbar Buffer Allocation (H-7)**: Scrollbar marks now use pre-allocated buffer pool instead of per-frame GPU allocations
+- **GPU Instance Draw Counts (H-8)**: GPU draw calls now use actual instance counts instead of buffer capacity, improving performance after window resize
+- **Graphics Texture Cache (H-9)**: Added LRU eviction with max cache size (100 textures) to prevent GPU memory exhaustion
+- **UTF-8 truncate_chars (H-10)**: Fixed `truncate_chars()` to use character count instead of byte length for proper multi-byte UTF-8 handling
+- **AI Inspector Focus Check (H-11)**: Fixed Escape key handling to only prevent close when chat input specifically has focus
+- **Sub-crate Version Resolution (H-12)**: Added root `VERSION` constant and pass version as parameter to sub-crates instead of using `env!("CARGO_PKG_VERSION")`
+- **Mutex Poison Handling (M-12)**: Script process mutex locks now gracefully recover from poison instead of panicking
+- **Shell History Memory (M-13)**: Shell history files now use streaming `BufReader::lines()` instead of loading entire file into memory
+- **SSH Config Logging (M-14)**: SSH config parser now logs warnings when config file cannot be read
+- **Regex Caching (M-19)**: Config variable substitution regexes now compiled once using `LazyLock` instead of every function call
+- **Atlas Size Constant (L-2)**: Glyph atlas size now defined as `PREFERRED_ATLAS_SIZE` constant with validation against device limits
+- **GPU Texture Validation (L-4)**: Added `debug_assert_eq!` for data size validation in GPU texture write functions
+- **Empty Command Buffer (L-7)**: `render_overlays` now early-returns when no overlays active, avoiding unnecessary GPU work
+- **parking_lot Mutex (L-10)**: Update checker now uses `parking_lot::Mutex` for consistency with rest of codebase
+- **eprintln to log (L-11)**: Script process reader threads now use `log::warn!()` instead of `eprintln!()`
+- **Manifest Atomic Save (L-18)**: Update manifest now uses temp file + rename pattern for atomic saves
 
 - **MCP IPC File Permissions**: IPC files (config-update, screenshot request/response) are now created with `0o600` permissions atomically at creation time — eliminates the world-readable race window that existed when `std::fs::write` + post-write `chmod` was used
 - **Status Bar Thread Spawn Panics**: Replaced `expect()` on OS thread spawning in the system monitor and git branch poller — spawn failures now log a debug error and degrade gracefully instead of crashing the terminal session

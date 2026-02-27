@@ -6,7 +6,9 @@
 
 use crate::cell_renderer::PaneViewport;
 use crate::config::{Config, color_u8_to_f32};
-use crate::renderer::{DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer};
+use crate::renderer::{
+    DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
+};
 use crate::scrollback_metadata::ScrollbackMark;
 use anyhow::Result;
 

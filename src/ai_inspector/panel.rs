@@ -228,6 +228,8 @@ pub struct AIInspectorPanel {
     pub connected_agent_name: Option<String>,
     /// Identity of the most recently requested/connected agent.
     pub connected_agent_identity: Option<String>,
+    /// Id of the chat input text field, used to check focus for Escape key handling.
+    chat_input_id: Option<Id>,
 }
 
 impl AIInspectorPanel {
@@ -256,6 +258,7 @@ impl AIInspectorPanel {
             selected_agent_index: 0,
             connected_agent_name: None,
             connected_agent_identity: None,
+            chat_input_id: None,
         }
     }
 
@@ -306,13 +309,11 @@ impl AIInspectorPanel {
             return InspectorAction::None;
         }
 
-        // Handle Escape key to close — but only when no text input or popup has focus
-        let any_text_focused = ctx.memory(|m| m.focused().is_some()) && {
-            // Check if the focused widget is a text edit (chat input)
-            let focus_id = ctx.memory(|m| m.focused());
-            focus_id.is_some()
-        };
-        if ctx.input(|i| i.key_pressed(Key::Escape)) && !any_text_focused {
+        // Handle Escape key to close — but only when the chat input is NOT focused
+        let chat_input_focused = self
+            .chat_input_id
+            .is_some_and(|id| ctx.memory(|m| m.has_focus(id)));
+        if ctx.input(|i| i.key_pressed(Key::Escape)) && !chat_input_focused {
             self.open = false;
             return InspectorAction::Close;
         }
@@ -1590,6 +1591,9 @@ impl AIInspectorPanel {
                     .desired_rows(line_count),
             );
 
+            // Store the chat input Id for focus detection in Escape key handling
+            self.chat_input_id = Some(response.id);
+
             let is_focused = response.has_focus();
             let should_send = is_focused && enter_pressed;
 
@@ -1696,25 +1700,34 @@ mod tests {
 
     #[test]
     fn test_truncate_chars_multibyte() {
-        // Each emoji is 4 bytes; slicing at byte 2 would panic without boundary check
+        // Each emoji is 4 bytes; function now correctly uses character count
         let emoji = "🚀🎉🌍";
-        let result = truncate_chars(emoji, 4); // first emoji is 4 bytes
+        let result = truncate_chars(emoji, 1); // first character (1 emoji)
         assert_eq!(result, "🚀");
-        // Ensure we don't panic on a mid-char boundary
-        let result = truncate_chars(emoji, 5);
-        assert_eq!(result, "🚀"); // can't include partial second emoji
+        // Multiple emoji characters
+        let result = truncate_chars(emoji, 2);
+        assert_eq!(result, "🚀🎉");
+        // All emoji
+        let result = truncate_chars(emoji, 3);
+        assert_eq!(result, "🚀🎉🌍");
+        // More than string length returns full string
+        let result = truncate_chars(emoji, 10);
+        assert_eq!(result, "🚀🎉🌍");
     }
 
     #[test]
     fn test_truncate_chars_cjk() {
-        // CJK characters are 3 bytes each
+        // CJK characters are 3 bytes each; function now correctly uses character count
         let cjk = "你好世界";
-        let result = truncate_chars(cjk, 3);
+        let result = truncate_chars(cjk, 1);
         assert_eq!(result, "你");
-        let result = truncate_chars(cjk, 4);
-        assert_eq!(result, "你"); // can't include partial second char
-        let result = truncate_chars(cjk, 6);
+        let result = truncate_chars(cjk, 2);
         assert_eq!(result, "你好");
+        let result = truncate_chars(cjk, 4);
+        assert_eq!(result, "你好世界");
+        // More than string length returns full string
+        let result = truncate_chars(cjk, 10);
+        assert_eq!(result, "你好世界");
     }
 
     #[test]

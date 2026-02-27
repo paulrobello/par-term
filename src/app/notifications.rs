@@ -350,9 +350,18 @@ impl WindowState {
                 "Terminal Notification"
             };
 
-            // Escape quotes in title and message for AppleScript
-            let escaped_title = notification_title.replace('"', "\\\"");
-            let escaped_message = message.replace('"', "\\\"");
+            // Escape backslashes, quotes, and newlines for AppleScript string safety
+            // Order matters: escape backslashes FIRST, then quotes, then newlines
+            let escaped_title = notification_title
+                .replace('\\', "\\\\")
+                .replace('"', "\\\"")
+                .replace('\n', "\\n")
+                .replace('\r', "\\r");
+            let escaped_message = message
+                .replace('\\', "\\\\")
+                .replace('"', "\\\"")
+                .replace('\n', "\\n")
+                .replace('\r', "\\r");
 
             // Use osascript to display notification
             let script = format!(

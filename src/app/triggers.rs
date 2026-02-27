@@ -21,13 +21,25 @@
 //!
 //! 3. **Rate limiting**: Dangerous actions from output triggers are rate-limited
 //!    to prevent malicious output flooding from rapid-fire execution.
+//!
+//! 4. **Process management**: RunCommand spawns are tracked and limited to prevent
+//!    resource exhaustion. Output is redirected to null to prevent terminal corruption.
 
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::path::PathBuf;
-use std::time::SystemTime;
+use std::process::Stdio;
+use std::time::{Instant, SystemTime};
 
 use par_term_config::check_command_denylist;
+
+/// Maximum number of concurrent trigger-spawned processes allowed.
+/// This prevents resource exhaustion from rapid-fire triggers.
+const MAX_TRIGGER_PROCESSES: usize = 10;
+
+/// Maximum age (in seconds) for tracked processes before cleanup.
+/// Processes older than this are assumed to have completed.
+const PROCESS_CLEANUP_AGE_SECS: u64 = 300; // 5 minutes
 use par_term_emu_core_rust::terminal::ActionResult;
 
 use crate::config::automation::{PRETTIFY_RELAY_PREFIX, PrettifyRelayPayload, PrettifyScope};
@@ -201,8 +213,37 @@ impl WindowState {
                         command,
                         args
                     );
-                    match std::process::Command::new(&command).args(&args).spawn() {
-                        Ok(_) => log::debug!("RunCommand spawned successfully"),
+
+                    // Clean up old process entries (assume completed after timeout)
+                    let now = Instant::now();
+                    self.trigger_spawned_processes.retain(|_pid, spawn_time| {
+                        now.duration_since(*spawn_time).as_secs() < PROCESS_CLEANUP_AGE_SECS
+                    });
+
+                    // Check process limit to prevent resource exhaustion
+                    if self.trigger_spawned_processes.len() >= MAX_TRIGGER_PROCESSES {
+                        log::warn!(
+                            "Trigger {} RunCommand DENIED: max concurrent processes ({}) reached",
+                            trigger_id,
+                            MAX_TRIGGER_PROCESSES
+                        );
+                        continue;
+                    }
+
+                    // Spawn process with stdout/stderr redirected to null to prevent
+                    // terminal corruption from inherited file descriptors
+                    match std::process::Command::new(&command)
+                        .args(&args)
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .spawn()
+                    {
+                        Ok(child) => {
+                            let pid = child.id();
+                            log::debug!("RunCommand spawned successfully (PID={})", pid);
+                            // Track the spawned process for resource management
+                            self.trigger_spawned_processes.insert(pid, Instant::now());
+                        }
                         Err(e) => {
                             log::error!("RunCommand failed to spawn '{}': {}", command, e)
                         }

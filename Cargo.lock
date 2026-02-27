@@ -4037,6 +4037,7 @@ dependencies = [
  "log",
  "native-tls",
  "par-term-config",
+ "parking_lot",
  "semver",
  "serde",
  "serde_json",

@@ -7,6 +7,10 @@ use wgpu::*;
 
 use super::types::{BackgroundInstance, TextInstance, Vertex};
 
+/// Preferred glyph atlas texture size (width and height in pixels).
+/// This value is validated against device limits at initialization.
+const PREFERRED_ATLAS_SIZE: u32 = 2048;
+
 /// Custom blend state that blends RGB normally but replaces alpha.
 /// This prevents alpha accumulation across multiple layers, ensuring
 /// the final alpha equals window_opacity for proper window transparency.
@@ -367,9 +371,21 @@ pub fn create_visual_bell_pipeline(
     )
 }
 
-/// Create the glyph atlas texture and sampler
-pub fn create_atlas(device: &Device) -> (Texture, TextureView, Sampler) {
-    let atlas_size = 2048;
+/// Create the glyph atlas texture and sampler.
+///
+/// Returns (texture, texture_view, sampler, actual_atlas_size).
+/// The actual atlas size may be smaller than PREFERRED_ATLAS_SIZE if the
+/// device has a lower max_texture_dimension_2d limit.
+pub fn create_atlas(device: &Device) -> (Texture, TextureView, Sampler, u32) {
+    let max_texture_size = device.limits().max_texture_dimension_2d;
+    let atlas_size = PREFERRED_ATLAS_SIZE.min(max_texture_size);
+    if atlas_size < PREFERRED_ATLAS_SIZE {
+        log::warn!(
+            "GPU texture size limit ({}) is smaller than preferred atlas size ({})",
+            max_texture_size,
+            PREFERRED_ATLAS_SIZE
+        );
+    }
     let atlas_texture = device.create_texture(&TextureDescriptor {
         label: Some("atlas texture"),
         size: Extent3d {
@@ -393,7 +409,7 @@ pub fn create_atlas(device: &Device) -> (Texture, TextureView, Sampler) {
         ..Default::default()
     });
 
-    (atlas_texture, atlas_view, atlas_sampler)
+    (atlas_texture, atlas_view, atlas_sampler, atlas_size)
 }
 
 /// Create the vertex buffer with unit quad vertices

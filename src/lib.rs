@@ -1,5 +1,10 @@
 // Library exports for testing and potential library use
 
+/// Application version (root crate version, for use by sub-crates).
+/// Sub-crates should receive this via parameter rather than using
+/// `env!("CARGO_PKG_VERSION")` which resolves to the sub-crate's version.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[macro_use]
 pub mod debug;
 

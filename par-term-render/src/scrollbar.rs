@@ -46,6 +46,14 @@ pub struct Scrollbar {
     marks: Vec<ScrollbarMarkInstance>,
     /// Mark hit-test data for tooltip display
     mark_hit_info: Vec<MarkHitInfo>,
+
+    // Pre-allocated GPU resources for marks to avoid per-frame allocation churn
+    /// Maximum number of marks we can render (pre-allocated)
+    max_marks: usize,
+    /// Pre-allocated uniform buffers for each mark slot
+    mark_uniform_buffers: Vec<Buffer>,
+    /// Bind groups for each mark slot (re-created when buffers are allocated)
+    mark_bind_groups: Vec<BindGroup>,
 }
 
 #[repr(C)]
@@ -60,8 +68,6 @@ struct ScrollbarUniforms {
 
 struct ScrollbarMarkInstance {
     bind_group: BindGroup,
-    #[allow(dead_code)] // GPU lifetime: must outlive bind_group which references this buffer
-    buffer: Buffer,
 }
 
 /// Data for hit-testing marks on the scrollbar
@@ -228,6 +234,9 @@ impl Scrollbar {
             total_lines: 0,
             marks: Vec::new(),
             mark_hit_info: Vec::new(),
+            max_marks: 256, // Pre-allocate for up to 256 marks
+            mark_uniform_buffers: Vec::new(),
+            mark_bind_groups: Vec::new(),
         }
     }
 
@@ -354,6 +363,7 @@ impl Scrollbar {
 
         // Prepare and upload mark uniforms (draw later)
         self.prepare_marks(
+            queue,
             marks,
             total_lines,
             window_height,
@@ -386,8 +396,10 @@ impl Scrollbar {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn prepare_marks(
         &mut self,
+        queue: &Queue,
         marks: &[par_term_config::ScrollbackMark],
         total_lines: usize,
         window_height: u32,
@@ -402,6 +414,7 @@ impl Scrollbar {
             return;
         }
 
+        let num_marks = marks.len().min(self.max_marks);
         let ww = self.window_width as f32;
         let wh = window_height as f32;
         let track_pixel_height = (wh - content_offset_y - content_inset_bottom).max(1.0);
@@ -414,7 +427,36 @@ impl Scrollbar {
             -1.0
         };
 
-        for mark in marks {
+        // Ensure we have enough pre-allocated buffers and bind groups
+        if self.mark_uniform_buffers.len() < num_marks {
+            let additional = num_marks - self.mark_uniform_buffers.len();
+            for _ in 0..additional {
+                // Create pre-allocated uniform buffer for a mark
+                let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("Scrollbar Mark Uniform Buffer"),
+                    size: std::mem::size_of::<ScrollbarUniforms>() as u64,
+                    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+
+                // Create bind group for this buffer
+                let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+                    label: Some("Scrollbar Mark Bind Group"),
+                    layout: &self.mark_bind_group_layout,
+                    entries: &[BindGroupEntry {
+                        binding: 0,
+                        resource: buffer.as_entire_binding(),
+                    }],
+                });
+
+                self.mark_uniform_buffers.push(buffer);
+                self.mark_bind_groups.push(bind_group);
+            }
+        }
+
+        // Process each mark and update the pre-allocated buffers
+        let mut mark_index = 0;
+        for mark in marks.iter().take(num_marks) {
             if mark.line >= total_lines {
                 continue;
             }
@@ -445,25 +487,19 @@ impl Scrollbar {
                 color,
             };
 
-            let buffer = self
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Scrollbar Mark Buffer"),
-                    contents: bytemuck::cast_slice(&[mark_uniforms]),
-                    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                });
+            // Update the pre-allocated buffer using queue.write_buffer (no new allocation)
+            queue.write_buffer(
+                &self.mark_uniform_buffers[mark_index],
+                0,
+                bytemuck::cast_slice(&[mark_uniforms]),
+            );
 
-            let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
-                label: Some("Scrollbar Mark Bind Group"),
-                layout: &self.mark_bind_group_layout,
-                entries: &[BindGroupEntry {
-                    binding: 0,
-                    resource: buffer.as_entire_binding(),
-                }],
+            // Create mark instance reference to the pre-allocated bind group
+            self.marks.push(ScrollbarMarkInstance {
+                bind_group: self.mark_bind_groups[mark_index].clone(),
             });
 
-            self.marks
-                .push(ScrollbarMarkInstance { bind_group, buffer });
+            mark_index += 1;
         }
     }
 

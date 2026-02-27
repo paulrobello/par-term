@@ -20,17 +20,17 @@ use crate::clipboard_history_ui::ClipboardHistoryAction;
 use crate::close_confirmation_ui::CloseConfirmAction;
 use crate::command_history_ui::CommandHistoryAction;
 use crate::config::{CursorStyle, ShaderInstallPrompt, color_u8_to_f32, color_u8_to_f32_a};
+use crate::integrations_ui::IntegrationsResponse;
 use crate::paste_special_ui::PasteSpecialAction;
 use crate::profile_drawer_ui::ProfileDrawerAction;
 use crate::progress_bar::{ProgressBarSnapshot, render_progress_bars};
 use crate::quit_confirmation_ui::QuitConfirmAction;
-use crate::integrations_ui::IntegrationsResponse;
 use crate::remote_shell_install_ui::RemoteShellInstallAction;
-use crate::tab_bar_ui::TabBarAction;
 use crate::renderer::PaneTitleInfo;
 use crate::selection::SelectionMode;
 use crate::shader_install_ui::ShaderInstallResponse;
 use crate::ssh_connect_ui::SshConnectAction;
+use crate::tab_bar_ui::TabBarAction;
 use crate::tmux_session_picker_ui::SessionPickerAction;
 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 use std::sync::Arc;
@@ -996,9 +996,10 @@ impl WindowState {
                                         let (tx, rx) = std::sync::mpsc::channel();
                                         self.update_install_receiver = Some(rx);
                                         let version = v.clone();
+                                        let current_version = crate::VERSION.to_string();
                                         std::thread::spawn(move || {
                                             let result =
-                                                crate::self_updater::perform_update(&version);
+                                                crate::self_updater::perform_update(&version, &current_version);
                                             let _ = tx.send(result);
                                         });
                                     }
@@ -2422,5 +2423,4 @@ impl WindowState {
             debug_url_detect_time,
         })
     }
-
 }

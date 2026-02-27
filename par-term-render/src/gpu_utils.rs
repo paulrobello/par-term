@@ -146,6 +146,16 @@ pub fn create_render_texture(
 /// * `width` - Image width in pixels
 /// * `height` - Image height in pixels
 pub fn write_rgba_texture(queue: &Queue, texture: &Texture, data: &[u8], width: u32, height: u32) {
+    let expected_size = (width * height * 4) as usize;
+    debug_assert_eq!(
+        data.len(),
+        expected_size,
+        "Texture data size mismatch: got {} bytes, expected {} bytes ({}x{}x4)",
+        data.len(),
+        expected_size,
+        width,
+        height
+    );
     queue.write_texture(
         wgpu::TexelCopyTextureInfo {
             texture,
@@ -186,6 +196,16 @@ pub fn write_rgba_texture_region(
     width: u32,
     height: u32,
 ) {
+    let expected_size = (width * height * 4) as usize;
+    debug_assert_eq!(
+        data.len(),
+        expected_size,
+        "Region texture data size mismatch: got {} bytes, expected {} bytes ({}x{}x4)",
+        data.len(),
+        expected_size,
+        width,
+        height
+    );
     queue.write_texture(
         wgpu::TexelCopyTextureInfo {
             texture,

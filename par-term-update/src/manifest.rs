@@ -62,11 +62,25 @@ impl Manifest {
     }
 
     /// Save manifest to a directory
+    ///
+    /// Uses atomic write pattern: writes to a temp file first, then renames to final path.
+    /// This ensures the manifest is never left in a corrupted state if writing fails.
     pub fn save(&self, dir: &Path) -> Result<(), String> {
         let manifest_path = dir.join("manifest.json");
+        let temp_path = dir.join("manifest.json.tmp");
+
         let content = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Failed to serialize manifest: {}", e))?;
-        fs::write(&manifest_path, content).map_err(|e| format!("Failed to write manifest: {}", e))
+
+        // Write to temp file first
+        fs::write(&temp_path, content)
+            .map_err(|e| format!("Failed to write manifest temp file: {}", e))?;
+
+        // Atomically rename to final path
+        fs::rename(&temp_path, &manifest_path)
+            .map_err(|e| format!("Failed to rename manifest temp file: {}", e))?;
+
+        Ok(())
     }
 
     /// Build a lookup map from path to file entry
