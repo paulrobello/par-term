@@ -11,7 +11,7 @@
 
 par-term is a well-architected Rust terminal emulator with a clean 13-crate workspace, GPU-accelerated rendering via wgpu, and comprehensive feature set including inline graphics, custom shaders, ACP agents, tmux integration, and split panes. The project demonstrates strong competence in GPU pipeline design, async I/O, and cross-platform development.
 
-57 findings have been resolved. All tests pass, clippy produces 0 new warnings, and the overall architecture is sound.
+60 findings have been resolved. All tests pass, clippy produces 0 new warnings, and the overall architecture is sound.
 
 ---
 
@@ -27,22 +27,11 @@ par-term is a well-architected Rust terminal emulator with a clean 13-crate work
 
 | # | Category | Finding | Location |
 |---|----------|---------|----------|
-| H9 | Architecture | `window_state.rs` (~6,348L) and `window_manager.rs` (~3,022L) still exceed thresholds; C2 is resolved but C1 extraction remains | `src/app/` |
+| H9 | Architecture | `window_state.rs` (~6,348L) and `window_manager.rs` (~3,022L) still exceed thresholds; will reduce as C1 progresses | `src/app/` |
 
 ---
 
 ## Detailed Findings
-
-### C2 — WindowState God Object (RESOLVED)
-
-All three sub-struct extractions are complete:
-- `CursorAnimState` (4 fields) — extracted earlier
-- `ShaderState` (6 fields) — extracted earlier
-- `AgentState` (10 fields) — `src/app/agent_state.rs`, accessed as `self.agent_state.*`
-- `TmuxState` (7 fields) — `src/app/tmux_state.rs`, accessed as `self.tmux_state.*`
-- `OverlayUiState` (20 fields) — `src/app/overlay_ui_state.rs`, accessed as `self.overlay_ui.*`
-
-`WindowState` now has 61 top-level fields (down from 79), of which 6 are named sub-struct groupings (`cursor_anim`, `debug`, `shader_state`, `agent_state`, `tmux_state`, `overlay_ui`). All tests pass, clippy is clean.
 
 ### C1 — Monolithic render() (partial)
 
@@ -67,8 +56,8 @@ pub(crate) fn render(&mut self) {
 
 ### H9 — Oversized Files (partial)
 
-Remaining above 800-line threshold (will decrease as C2 extraction continues):
-- `src/app/window_state.rs` (~6,300L)
+Remaining above 800-line threshold (will decrease as C1 extraction continues):
+- `src/app/window_state.rs` (~6,348L)
 - `src/app/window_manager.rs` (~3,022L)
 - Several split sub-files still over threshold (e.g. `key_handler.rs` 1,326L, `notifications.rs` 1,545L, `rendering.rs` 1,285L)
 
@@ -76,7 +65,6 @@ Remaining above 800-line threshold (will decrease as C2 extraction continues):
 
 ## Remediation Roadmap
 
-- [x] **C2**: Extract `AgentState`, `TmuxState`, `OverlayUiState` from `WindowState` — COMPLETE
 - [ ] **C1**: Continue extracting render phases until render() is ~50 lines
 - [ ] **M12**: Convert remaining `unwrap()` calls in `window_state.rs` / `window_manager.rs` to `expect()` with context
 - [ ] **H9**: Further split oversized sub-files; tackle `window_manager.rs`
