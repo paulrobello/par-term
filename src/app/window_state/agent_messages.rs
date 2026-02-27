@@ -359,7 +359,7 @@ impl WindowState {
         }
 
         // Save to disk
-        if let Err(e) = self.config.save() {
+        if let Err(e) = self.save_config_debounced() {
             return Err(format!("Failed to save config: {e}"));
         }
 

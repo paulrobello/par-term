@@ -421,7 +421,7 @@ impl WindowState {
                 }
 
                 if theme_changed || tab_style_changed {
-                    if let Err(e) = self.config.save() {
+                    if let Err(e) = self.save_config_debounced() {
                         log::error!("Failed to save config after theme change: {}", e);
                     }
                     self.needs_redraw = true;

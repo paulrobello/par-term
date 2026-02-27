@@ -34,6 +34,7 @@ impl WindowState {
             quit_confirm,
             remote_install,
             ssh_connect,
+            save_config: _,
         } = actions;
 
         // Sync AI Inspector panel width after the render pass.
@@ -236,7 +237,7 @@ impl WindowState {
 
                     // Update config to mark as installed
                     self.config.shader_install_prompt = ShaderInstallPrompt::Installed;
-                    if let Err(e) = self.config.save() {
+                    if let Err(e) = self.save_config_debounced() {
                         log::error!("Failed to save config after shader install: {}", e);
                     }
                 }
@@ -278,7 +279,7 @@ impl WindowState {
 
                 // Update config to never ask again
                 self.config.shader_install_prompt = ShaderInstallPrompt::Never;
-                if let Err(e) = self.config.save() {
+                if let Err(e) = self.save_config_debounced() {
                     log::error!("Failed to save config after declining shaders: {}", e);
                 }
             }

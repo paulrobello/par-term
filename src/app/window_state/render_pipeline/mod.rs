@@ -92,6 +92,8 @@ pub(super) struct PostRenderActions {
     quit_confirm: QuitConfirmAction,
     remote_install: RemoteShellInstallAction,
     ssh_connect: SshConnectAction,
+    /// Whether config should be saved (debounced) after the render pass
+    save_config: bool,
 }
 
 impl Default for PostRenderActions {
@@ -111,6 +113,7 @@ impl Default for PostRenderActions {
             quit_confirm: QuitConfirmAction::None,
             remote_install: RemoteShellInstallAction::None,
             ssh_connect: SshConnectAction::None,
+            save_config: false,
         }
     }
 }
@@ -137,6 +140,9 @@ impl WindowState {
 
         let actions = self.submit_gpu_frame(frame_data);
         self.update_post_render_state(actions);
+
+        // Process any pending config saves that were deferred by debouncing
+        self.process_pending_config_save();
     }
 
     /// Run prettifier cell substitution, egui overlays, and GPU render pass.
@@ -986,7 +992,7 @@ impl WindowState {
                                     self.show_update_dialog = false;
                                     self.status_bar_ui.update_available_version = None;
                                     self.update_install_status = None;
-                                    let _ = self.config.save();
+                                    actions.save_config = true;
                                 }
                                 crate::update_dialog::UpdateDialogAction::InstallUpdate(v) => {
                                     if !self.update_installing {

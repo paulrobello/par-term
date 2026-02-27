@@ -220,7 +220,7 @@ impl WindowState {
         {
             self.config.ai_inspector_width = self.overlay_ui.ai_inspector.width;
             // Save to disk so the width is remembered across sessions.
-            if let Err(e) = self.config.save() {
+            if let Err(e) = self.save_config_debounced() {
                 log::error!("Failed to save AI inspector width: {}", e);
             }
         }

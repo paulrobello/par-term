@@ -44,6 +44,29 @@ pub(crate) struct ClipboardImageClickGuard {
     pub(crate) suppress_terminal_mouse_click: bool,
 }
 
+/// Debounce state for config saves to prevent rapid concurrent writes.
+///
+/// Multiple code paths may request config saves in quick succession (e.g., user
+/// changes a setting, an agent modifies config, update checker records timestamp).
+/// This struct tracks when the last save happened and whether a pending save is needed.
+///
+/// The debounced save approach:
+/// - If called within DEBOUNCE_INTERVAL of last save, mark `pending_save = true` and return
+/// - On the next frame check, if `pending_save` and debounce has expired, perform the save
+#[derive(Default)]
+pub(crate) struct ConfigSaveState {
+    /// When the last config save was performed
+    pub(crate) last_save: Option<std::time::Instant>,
+    /// Whether a save was deferred and needs to be executed
+    pub(crate) pending_save: bool,
+}
+
+impl ConfigSaveState {
+    /// Minimum time between config saves (in milliseconds).
+    /// Rapid saves within this window are debounced.
+    const DEBOUNCE_INTERVAL_MS: u64 = 100;
+}
+
 /// Per-window state that manages a single terminal window with multiple tabs
 pub struct WindowState {
     pub(crate) config: Config,
@@ -97,6 +120,8 @@ pub struct WindowState {
     pub(crate) config_changed_by_agent: bool,
     /// Whether we need to rebuild renderer after font-related changes
     pub(crate) pending_font_rebuild: bool,
+    /// Debounce state for config saves to prevent rapid concurrent writes
+    pub(crate) config_save_state: ConfigSaveState,
 
     // Focus state for power saving
     /// Whether the window currently has focus
@@ -539,6 +564,7 @@ impl WindowState {
             needs_redraw: true,
             config_changed_by_agent: false,
             pending_font_rebuild: false,
+            config_save_state: ConfigSaveState::default(),
 
             is_focused: true, // Assume focused on creation
             last_render_time: None,
@@ -672,6 +698,83 @@ impl WindowState {
         self.invalidate_tab_cache();
         self.needs_redraw = true;
         self.request_redraw();
+    }
+
+    // ========================================================================
+    // Debounced Config Save
+    // ========================================================================
+
+    /// Save config with debouncing to prevent rapid concurrent writes.
+    ///
+    /// Multiple code paths may request config saves in quick succession (e.g.,
+    /// user changes a setting, an agent modifies config, update checker records
+    /// timestamp). This method batches those saves together.
+    ///
+    /// - If called within DEBOUNCE_INTERVAL of last save, marks a pending save
+    ///   and returns immediately (no error).
+    /// - If a save is already pending, just updates the pending flag (idempotent).
+    ///
+    /// Callers should invoke `process_pending_config_save()` periodically (e.g.,
+    /// once per frame) to flush any deferred saves.
+    pub(crate) fn save_config_debounced(&mut self) -> Result<()> {
+        let now = std::time::Instant::now();
+        let debounce_interval =
+            std::time::Duration::from_millis(ConfigSaveState::DEBOUNCE_INTERVAL_MS);
+
+        // Check if we're within the debounce window
+        if let Some(last_save) = self.config_save_state.last_save
+            && now.duration_since(last_save) < debounce_interval
+        {
+            // Defer this save - mark as pending
+            self.config_save_state.pending_save = true;
+            log::debug!(
+                "Config save debounced (within {}ms window)",
+                ConfigSaveState::DEBOUNCE_INTERVAL_MS
+            );
+            return Ok(());
+        }
+
+        // Perform the actual save
+        self.config.save()?;
+        self.config_save_state.last_save = Some(now);
+        self.config_save_state.pending_save = false;
+        log::debug!("Config saved immediately");
+        Ok(())
+    }
+
+    /// Process any pending config save that was deferred by debouncing.
+    ///
+    /// Should be called once per frame (e.g., in the render loop) to ensure
+    /// deferred saves are eventually flushed.
+    ///
+    /// Returns `true` if a save was performed, `false` if nothing was pending.
+    pub(crate) fn process_pending_config_save(&mut self) -> bool {
+        if !self.config_save_state.pending_save {
+            return false;
+        }
+
+        let now = std::time::Instant::now();
+        let debounce_interval =
+            std::time::Duration::from_millis(ConfigSaveState::DEBOUNCE_INTERVAL_MS);
+
+        // Check if enough time has passed since last save
+        if let Some(last_save) = self.config_save_state.last_save
+            && now.duration_since(last_save) < debounce_interval
+        {
+            // Still within debounce window, wait longer
+            return false;
+        }
+
+        // Perform the pending save
+        if let Err(e) = self.config.save() {
+            log::error!("Failed to save pending config: {}", e);
+        } else {
+            log::debug!("Pending config save flushed");
+        }
+
+        self.config_save_state.last_save = Some(now);
+        self.config_save_state.pending_save = false;
+        true
     }
 
     /// Initialize the window asynchronously

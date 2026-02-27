@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Scripting Permission Model**: Added `requires_permission()`, `permission_flag_name()`, `is_rate_limited()` helper methods to `ScriptCommand` for future permission checking infrastructure
 - **Shell Command Timeout**: Custom snippet shell commands now have configurable `timeout_secs` field (default 30s) to prevent hung commands
 
+### Changed
+
+- **Config Save Coordination**: Centralized config saves through `save_config_debounced()` with 100ms debounce window — prevents concurrent write conflicts
+
 ### Security
 
 - **Self-Update Integrity (C-1)**: Checksum verification now fails the update when checksum URL exists but download fails — prevents MITM attacks from bypassing verification

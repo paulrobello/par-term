@@ -710,7 +710,7 @@ impl WindowState {
             }
 
             // Save config
-            if let Err(e) = self.config.save() {
+            if let Err(e) = self.save_config_debounced() {
                 log::error!("Failed to save config after integration install: {}", e);
             }
 
@@ -733,7 +733,7 @@ impl WindowState {
             self.config
                 .integration_versions
                 .shell_integration_prompted_version = Some(current_version.clone());
-            if let Err(e) = self.config.save() {
+            if let Err(e) = self.save_config_debounced() {
                 log::error!("Failed to save config after skipping integrations: {}", e);
             }
         }
@@ -745,7 +745,7 @@ impl WindowState {
             // Set install prompts to Never
             self.config.shader_install_prompt = ShaderInstallPrompt::Never;
             self.config.shell_integration_state = crate::config::InstallPromptState::Never;
-            if let Err(e) = self.config.save() {
+            if let Err(e) = self.save_config_debounced() {
                 log::error!("Failed to save config after declining integrations: {}", e);
             }
         }
