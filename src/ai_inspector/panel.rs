@@ -10,6 +10,13 @@ use crate::ai_inspector::chat::{ChatMessage, ChatState, TextSegment, parse_text_
 use crate::ai_inspector::panel_helpers::{format_duration, truncate_chars, truncate_output};
 use crate::ai_inspector::snapshot::{CommandEntry, SnapshotData, SnapshotScope};
 use crate::config::Config;
+use crate::ui_constants::{
+    AI_PANEL_CARD_ROUNDING, AI_PANEL_CHAT_BUTTON_WIDTH, AI_PANEL_CHAT_INPUT_BASE_HEIGHT,
+    AI_PANEL_CHAT_INPUT_LINE_HEIGHT, AI_PANEL_CMD_SCROLL_MAX_HEIGHT,
+    AI_PANEL_CMD_SCROLL_MIN_HEIGHT, AI_PANEL_HEIGHT_INSET, AI_PANEL_INNER_INSET,
+    AI_PANEL_INNER_MARGIN, AI_PANEL_MAX_WIDTH_RATIO, AI_PANEL_MIN_WIDTH,
+    AI_PANEL_RESIZE_HANDLE_WIDTH,
+};
 use par_term_acp::{AgentConfig, AgentStatus};
 
 /// View mode for displaying snapshot data.
@@ -129,7 +136,8 @@ const SCOPE_OPTIONS: &[ScopeOption] = &[
 ];
 
 /// Width of the resize handle on the left edge of the panel.
-const RESIZE_HANDLE_WIDTH: f32 = 8.0;
+/// Delegated to ui_constants::AI_PANEL_RESIZE_HANDLE_WIDTH.
+const RESIZE_HANDLE_WIDTH: f32 = AI_PANEL_RESIZE_HANDLE_WIDTH;
 
 /// Panel background color (opaque dark).
 const PANEL_BG: Color32 = Color32::from_rgba_premultiplied(24, 24, 24, 255);
@@ -228,8 +236,8 @@ impl AIInspectorPanel {
         Self {
             open: config.ai_inspector_open_on_startup,
             width: config.ai_inspector_width,
-            min_width: 200.0,
-            max_width_ratio: 0.5,
+            min_width: AI_PANEL_MIN_WIDTH,
+            max_width_ratio: AI_PANEL_MAX_WIDTH_RATIO,
             resizing: false,
             scope: SnapshotScope::from_config_str(&config.ai_inspector_default_scope),
             view_mode: ViewMode::from_config_str(&config.ai_inspector_view_mode),
@@ -368,14 +376,14 @@ impl AIInspectorPanel {
                 let mut close_requested = false;
                 let mut action = InspectorAction::None;
 
-                let inner_width = self.width - 18.0; // 8px margin each side + 1px stroke each side
+                let inner_width = self.width - AI_PANEL_INNER_INSET;
                 let panel_frame = Frame::new()
                     .fill(PANEL_BG)
                     .stroke(Stroke::new(1.0, Color32::from_gray(50)))
-                    .inner_margin(8.0);
+                    .inner_margin(AI_PANEL_INNER_MARGIN);
 
                 panel_frame.show(ui, |ui| {
-                    let panel_inner_height = (viewport.height() - 18.0).max(0.0);
+                    let panel_inner_height = (viewport.height() - AI_PANEL_HEIGHT_INSET).max(0.0);
                     ui.set_min_width(inner_width);
                     ui.set_max_width(inner_width);
                     // Constrain both min AND max height so that
@@ -444,7 +452,8 @@ impl AIInspectorPanel {
 
                         // --- Commands content ---
                         // Use a fixed max height within the collapsible section
-                        let cmd_height = (ui.available_height() * 0.5).clamp(100.0, 300.0);
+                        let cmd_height = (ui.available_height() * 0.5)
+                            .clamp(AI_PANEL_CMD_SCROLL_MIN_HEIGHT, AI_PANEL_CMD_SCROLL_MAX_HEIGHT);
                         egui::ScrollArea::vertical()
                             .id_salt("capture_commands_scroll")
                             .max_height(cmd_height)
@@ -775,8 +784,8 @@ impl AIInspectorPanel {
             let card_frame = Frame::new()
                 .fill(CARD_BG)
                 .stroke(CARD_BORDER)
-                .corner_radius(4.0)
-                .inner_margin(8.0);
+                .corner_radius(AI_PANEL_CARD_ROUNDING)
+                .inner_margin(AI_PANEL_INNER_MARGIN);
 
             card_frame.show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
@@ -1557,9 +1566,10 @@ impl AIInspectorPanel {
 
         // Determine input height based on line count (min 1 row, max 6 rows)
         let line_count = self.chat.input.lines().count().clamp(1, 6);
-        let input_height = 20.0 + (line_count as f32 - 1.0) * 14.0;
+        let input_height = AI_PANEL_CHAT_INPUT_BASE_HEIGHT
+            + (line_count as f32 - 1.0) * AI_PANEL_CHAT_INPUT_LINE_HEIGHT;
 
-        let button_width = 60.0; // space for Send + Clear buttons
+        let button_width = AI_PANEL_CHAT_BUTTON_WIDTH;
         let input_width = ui.available_width() - button_width;
 
         // Check for Enter (without Shift) before rendering the TextEdit,

@@ -140,6 +140,13 @@ pub struct Tab {
     pub(in crate::tab) is_active: Arc<AtomicBool>,
     /// When true, Drop impl skips cleanup (terminal Arcs are dropped on background threads)
     pub(crate) shutdown_fast: bool,
+    /// When true, a deferred call to `set_tmux_control_mode(false)` is pending.
+    ///
+    /// Set when `handle_tmux_session_ended` could not acquire the terminal lock via
+    /// `try_lock()`. The notification poll loop retries on each subsequent frame until
+    /// the lock is available, ensuring the terminal parser exits tmux control mode even
+    /// if the lock was transiently held at cleanup time.
+    pub(crate) pending_tmux_mode_disable: bool,
 }
 
 impl Tab {
@@ -347,6 +354,7 @@ impl Tab {
             ssh_auto_switched: false,
             is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
+            pending_tmux_mode_disable: false,
         })
     }
 
@@ -585,6 +593,7 @@ impl Tab {
             ssh_auto_switched: false,
             is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
+            pending_tmux_mode_disable: false,
         })
     }
 
@@ -1322,6 +1331,7 @@ impl Tab {
             ssh_auto_switched: false,
             is_active: Arc::new(AtomicBool::new(false)),
             shutdown_fast: false,
+            pending_tmux_mode_disable: false,
         }
     }
 }

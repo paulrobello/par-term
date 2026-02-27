@@ -2,11 +2,15 @@
 //!
 //! Contains the full rendering cycle:
 //! - `render`: per-frame orchestration entry point
-//! - `should_render_frame`, `update_frame_metrics`, `update_animations`, `sync_layout`: frame setup
+//! - `frame_setup`: `should_render_frame`, `update_frame_metrics`, `update_animations`, `sync_layout`
 //! - `gather_render_data`: snapshot terminal state into FrameRenderData
 //! - `submit_gpu_frame`: egui + wgpu render pass, returns PostRenderActions
 //! - `update_post_render_state`: dispatch post-render action queue
-//! - `render_split_panes_with_data`: multi-pane layout rendering
+//! - `pane_render`: `render_split_panes_with_data` + `PaneRenderData`
+
+mod frame_setup;
+mod pane_render;
+mod post_render;
 
 use crate::ai_inspector::panel::InspectorAction;
 use crate::app::window_state::WindowState;
@@ -15,23 +19,19 @@ use crate::cell_renderer::PaneViewport;
 use crate::clipboard_history_ui::ClipboardHistoryAction;
 use crate::close_confirmation_ui::CloseConfirmAction;
 use crate::command_history_ui::CommandHistoryAction;
-use crate::config::{Config, CursorStyle, ShaderInstallPrompt, color_u8_to_f32, color_u8_to_f32_a};
-use crate::integrations_ui::IntegrationsResponse;
+use crate::config::{CursorStyle, ShaderInstallPrompt, color_u8_to_f32, color_u8_to_f32_a};
 use crate::paste_special_ui::PasteSpecialAction;
 use crate::profile_drawer_ui::ProfileDrawerAction;
 use crate::progress_bar::{ProgressBarSnapshot, render_progress_bars};
 use crate::quit_confirmation_ui::QuitConfirmAction;
-use crate::remote_shell_install_ui::{RemoteShellInstallAction, RemoteShellInstallUI};
-use crate::renderer::{
-    DividerRenderInfo, PaneDividerSettings, PaneRenderInfo, PaneTitleInfo, Renderer,
-};
-use crate::scrollback_metadata::ScrollbackMark;
+use crate::integrations_ui::IntegrationsResponse;
+use crate::remote_shell_install_ui::RemoteShellInstallAction;
+use crate::tab_bar_ui::TabBarAction;
+use crate::renderer::PaneTitleInfo;
 use crate::selection::SelectionMode;
 use crate::shader_install_ui::ShaderInstallResponse;
 use crate::ssh_connect_ui::SshConnectAction;
-use crate::tab_bar_ui::TabBarAction;
 use crate::tmux_session_picker_ui::SessionPickerAction;
-use anyhow::Result;
 use par_term_emu_core_rust::cursor::CursorStyle as TermCursorStyle;
 use std::sync::Arc;
 use wgpu::SurfaceError;
@@ -48,30 +48,6 @@ struct RendererSizing {
     padding: f32,
     status_bar_height: f32,
     scale_factor: f32,
-}
-
-/// Pane render data for split pane rendering
-struct PaneRenderData {
-    /// Viewport bounds and state for this pane
-    viewport: PaneViewport,
-    /// Cells to render (should match viewport grid size)
-    cells: Vec<crate::cell_renderer::Cell>,
-    /// Grid dimensions (cols, rows)
-    grid_size: (usize, usize),
-    /// Cursor position within this pane (col, row), or None if no cursor visible
-    cursor_pos: Option<(usize, usize)>,
-    /// Cursor opacity (0.0 = hidden, 1.0 = fully visible)
-    cursor_opacity: f32,
-    /// Scrollback marks for this pane
-    marks: Vec<ScrollbackMark>,
-    /// Scrollback length for this pane (needed for separator mark mapping)
-    scrollback_len: usize,
-    /// Current scroll offset for this pane (needed for separator mark mapping)
-    scroll_offset: usize,
-    /// Per-pane background image override (None = use global background)
-    background: Option<crate::pane::PaneBackground>,
-    /// Inline graphics (Sixel/iTerm2/Kitty) to render for this pane
-    graphics: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
 }
 
 /// Data computed during `gather_render_data()` and consumed by the rest of `render()`.
@@ -101,7 +77,7 @@ struct FrameRenderData {
 }
 
 /// Actions collected during the egui/GPU render pass to be handled after the renderer borrow ends.
-struct PostRenderActions {
+pub(super) struct PostRenderActions {
     clipboard: ClipboardHistoryAction,
     command_history: CommandHistoryAction,
     paste_special: PasteSpecialAction,
@@ -1239,7 +1215,7 @@ impl WindowState {
                 // Gather all necessary data upfront while we can borrow tab_manager
                 #[allow(clippy::type_complexity)]
                 let pane_render_data: Option<(
-                    Vec<PaneRenderData>,
+                    Vec<pane_render::PaneRenderData>,
                     Vec<crate::pane::DividerRect>,
                     Vec<PaneTitleInfo>,
                     Option<PaneViewport>,
@@ -1502,7 +1478,7 @@ impl WindowState {
                                         Vec::new()
                                     };
 
-                                    pane_data.push(PaneRenderData {
+                                    pane_data.push(pane_render::PaneRenderData {
                                         viewport,
                                         cells,
                                         grid_size: (cols, rows),
@@ -1625,306 +1601,6 @@ impl WindowState {
         }
 
         actions
-    }
-
-    /// Handle all actions collected during the render pass and finalize frame timing.
-    fn update_post_render_state(&mut self, actions: PostRenderActions) {
-        let PostRenderActions {
-            clipboard,
-            command_history,
-            paste_special,
-            session_picker,
-            tab_action,
-            shader_install,
-            integrations,
-            search,
-            inspector,
-            profile_drawer,
-            close_confirm,
-            quit_confirm,
-            remote_install,
-            ssh_connect,
-        } = actions;
-
-        // Sync AI Inspector panel width after the render pass.
-        // This catches drag-resize changes that update self.overlay_ui.ai_inspector.width during show().
-        // Done here to avoid borrow conflicts with the renderer block above.
-        self.sync_ai_inspector_width();
-
-        // Handle tab bar actions collected during egui rendering
-        self.handle_tab_bar_action_after_render(tab_action);
-
-        // Handle clipboard actions collected during egui rendering
-        self.handle_clipboard_history_action_after_render(clipboard);
-
-        // Handle command history actions collected during egui rendering
-        match command_history {
-            CommandHistoryAction::Insert(command) => {
-                self.paste_text(&command);
-                log::info!(
-                    "Inserted command from history: {}",
-                    &command[..command.len().min(60)]
-                );
-            }
-            CommandHistoryAction::None => {}
-        }
-
-        // Handle close confirmation dialog actions
-        match close_confirm {
-            CloseConfirmAction::Close { tab_id, pane_id } => {
-                // User confirmed close - close the tab/pane
-                if let Some(pane_id) = pane_id {
-                    // Close specific pane
-                    if let Some(tab) = self.tab_manager.get_tab_mut(tab_id)
-                        && let Some(pm) = tab.pane_manager_mut()
-                    {
-                        pm.close_pane(pane_id);
-                        log::info!("Force-closed pane {} in tab {}", pane_id, tab_id);
-                    }
-                } else {
-                    // Close entire tab
-                    self.tab_manager.close_tab(tab_id);
-                    log::info!("Force-closed tab {}", tab_id);
-                }
-                self.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            CloseConfirmAction::Cancel => {
-                // User cancelled - do nothing, dialog already hidden
-                log::debug!("Close confirmation cancelled");
-            }
-            CloseConfirmAction::None => {}
-        }
-
-        // Handle quit confirmation dialog actions
-        match quit_confirm {
-            QuitConfirmAction::Quit => {
-                // User confirmed quit - proceed with shutdown
-                log::info!("Quit confirmed by user");
-                self.perform_shutdown();
-            }
-            QuitConfirmAction::Cancel => {
-                log::debug!("Quit confirmation cancelled");
-            }
-            QuitConfirmAction::None => {}
-        }
-
-        // Handle remote shell integration install action
-        match remote_install {
-            RemoteShellInstallAction::Install => {
-                // Send the install command via paste_text() which uses the same
-                // code path as Cmd+V paste — handles bracketed paste mode and
-                // correctly forwards through SSH sessions.
-                let command = RemoteShellInstallUI::install_command();
-                // paste_text appends \r internally via term.paste()
-                self.paste_text(&format!("{}\n", command));
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            RemoteShellInstallAction::Cancel => {
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            RemoteShellInstallAction::None => {}
-        }
-
-        // Handle SSH Quick Connect actions
-        match ssh_connect {
-            SshConnectAction::Connect {
-                host,
-                profile_override: _,
-            } => {
-                // Build SSH command and write it to the active terminal's PTY
-                let args = host.ssh_args();
-                let ssh_cmd = format!("ssh {}\n", args.join(" "));
-                if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
-                {
-                    let _ = term.write_str(&ssh_cmd);
-                }
-                log::info!(
-                    "SSH Quick Connect: connecting to {}",
-                    host.connection_string()
-                );
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            SshConnectAction::Cancel => {
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            SshConnectAction::None => {}
-        }
-
-        // Handle paste special actions collected during egui rendering
-        match paste_special {
-            PasteSpecialAction::Paste(content) => {
-                self.paste_text(&content);
-                log::debug!("Pasted transformed text ({} chars)", content.len());
-            }
-            PasteSpecialAction::None => {}
-        }
-
-        // Handle search actions collected during egui rendering
-        match search {
-            crate::search::SearchAction::ScrollToMatch(offset) => {
-                self.set_scroll_target(offset);
-                self.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            crate::search::SearchAction::Close => {
-                self.needs_redraw = true;
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            crate::search::SearchAction::None => {}
-        }
-
-        // Handle AI Inspector actions collected during egui rendering
-        self.handle_inspector_action_after_render(inspector);
-
-        // Handle tmux session picker actions collected during egui rendering
-        // Uses gateway mode: writes tmux commands to existing PTY instead of spawning process
-        match session_picker {
-            SessionPickerAction::Attach(session_name) => {
-                crate::debug_info!(
-                    "TMUX",
-                    "Session picker: attaching to '{}' via gateway",
-                    session_name
-                );
-                if let Err(e) = self.attach_tmux_gateway(&session_name) {
-                    log::error!("Failed to attach to tmux session '{}': {}", session_name, e);
-                    self.show_toast(format!("Failed to attach: {}", e));
-                } else {
-                    crate::debug_info!("TMUX", "Gateway initiated for session '{}'", session_name);
-                    self.show_toast(format!("Connecting to session '{}'...", session_name));
-                }
-                self.needs_redraw = true;
-            }
-            SessionPickerAction::CreateNew(name) => {
-                crate::debug_info!(
-                    "TMUX",
-                    "Session picker: creating new session {:?} via gateway",
-                    name
-                );
-                if let Err(e) = self.initiate_tmux_gateway(name.as_deref()) {
-                    log::error!("Failed to create tmux session: {}", e);
-                    crate::debug_error!("TMUX", "Failed to initiate gateway: {}", e);
-                    self.show_toast(format!("Failed to create session: {}", e));
-                } else {
-                    let msg = match name {
-                        Some(ref n) => format!("Creating session '{}'...", n),
-                        None => "Creating new tmux session...".to_string(),
-                    };
-                    crate::debug_info!("TMUX", "Gateway initiated: {}", msg);
-                    self.show_toast(msg);
-                }
-                self.needs_redraw = true;
-            }
-            SessionPickerAction::None => {}
-        }
-
-        // Check for shader installation completion from background thread
-        if let Some(ref rx) = self.overlay_ui.shader_install_receiver
-            && let Ok(result) = rx.try_recv()
-        {
-            match result {
-                Ok(count) => {
-                    log::info!("Successfully installed {} shaders", count);
-                    self.overlay_ui
-                        .shader_install_ui
-                        .set_success(&format!("Installed {} shaders!", count));
-
-                    // Update config to mark as installed
-                    self.config.shader_install_prompt = ShaderInstallPrompt::Installed;
-                    if let Err(e) = self.config.save() {
-                        log::error!("Failed to save config after shader install: {}", e);
-                    }
-                }
-                Err(e) => {
-                    log::error!("Failed to install shaders: {}", e);
-                    self.overlay_ui.shader_install_ui.set_error(&e);
-                }
-            }
-            self.overlay_ui.shader_install_receiver = None;
-            self.needs_redraw = true;
-        }
-
-        // Handle shader install responses
-        match shader_install {
-            ShaderInstallResponse::Install => {
-                log::info!("User requested shader installation");
-                self.overlay_ui
-                    .shader_install_ui
-                    .set_installing("Downloading shaders...");
-                self.needs_redraw = true;
-
-                // Spawn installation in background thread so UI can show progress
-                let (tx, rx) = std::sync::mpsc::channel();
-                self.overlay_ui.shader_install_receiver = Some(rx);
-
-                std::thread::spawn(move || {
-                    let result = crate::shader_install_ui::install_shaders_headless();
-                    let _ = tx.send(result);
-                });
-
-                // Request redraw so the spinner shows
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
-            }
-            ShaderInstallResponse::Never => {
-                log::info!("User declined shader installation (never ask again)");
-                self.overlay_ui.shader_install_ui.hide();
-
-                // Update config to never ask again
-                self.config.shader_install_prompt = ShaderInstallPrompt::Never;
-                if let Err(e) = self.config.save() {
-                    log::error!("Failed to save config after declining shaders: {}", e);
-                }
-            }
-            ShaderInstallResponse::Later => {
-                log::info!("User deferred shader installation");
-                self.overlay_ui.shader_install_ui.hide();
-                // Config remains "ask" - will prompt again on next startup
-            }
-            ShaderInstallResponse::None => {}
-        }
-
-        // Handle integrations welcome dialog responses
-        self.handle_integrations_response(&integrations);
-
-        // Handle profile drawer actions
-        match profile_drawer {
-            ProfileDrawerAction::OpenProfile(id) => {
-                self.open_profile(id);
-            }
-            ProfileDrawerAction::ManageProfiles => {
-                // Open settings window to Profiles tab instead of terminal-embedded modal
-                self.open_settings_window_requested = true;
-                self.open_settings_profiles_tab = true;
-            }
-            ProfileDrawerAction::None => {}
-        }
-
-        if let Some(start) = self.debug.render_start {
-            let total = start.elapsed();
-            if total.as_millis() > 10 {
-                log::debug!(
-                    "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
-                    total.as_secs_f64() * 1000.0
-                );
-            }
-        }
     }
 
     /// Gather all data needed for this render frame.
@@ -2747,195 +2423,4 @@ impl WindowState {
         })
     }
 
-    /// Returns true if enough time has elapsed since the last frame and rendering should proceed.
-    /// Updates last_render_time and resets needs_redraw on success.
-    fn should_render_frame(&mut self) -> bool {
-        let target_fps = if self.config.pause_refresh_on_blur && !self.is_focused {
-            self.config.unfocused_fps
-        } else {
-            self.config.max_fps
-        };
-        let frame_interval = std::time::Duration::from_millis((1000 / target_fps.max(1)) as u64);
-        if let Some(last_render) = self.last_render_time
-            && last_render.elapsed() < frame_interval
-        {
-            return false;
-        }
-        self.last_render_time = Some(std::time::Instant::now());
-        self.needs_redraw = false;
-        true
-    }
-
-    /// Record the start of this render frame for timing and update rolling frame-time metrics.
-    fn update_frame_metrics(&mut self) {
-        let frame_start = std::time::Instant::now();
-        self.debug.render_start = Some(frame_start);
-        if let Some(last_start) = self.debug.last_frame_start {
-            let frame_time = frame_start.duration_since(last_start);
-            self.debug.frame_times.push_back(frame_time);
-            if self.debug.frame_times.len() > 60 {
-                self.debug.frame_times.pop_front();
-            }
-        }
-        self.debug.last_frame_start = Some(frame_start);
-    }
-
-    /// Tick scroll animations, refresh tab titles, and rebuild renderer if font settings changed.
-    fn update_animations(&mut self) {
-        let animation_running = if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.scroll_state.update_animation()
-        } else {
-            false
-        };
-
-        // Update tab titles from terminal OSC sequences
-        self.tab_manager
-            .update_all_titles(self.config.tab_title_mode);
-
-        // Rebuild renderer if font-related settings changed
-        if self.pending_font_rebuild {
-            if let Err(e) = self.rebuild_renderer() {
-                log::error!("Failed to rebuild renderer after font change: {}", e);
-            }
-            self.pending_font_rebuild = false;
-        }
-
-        if animation_running && let Some(window) = &self.window {
-            window.request_redraw();
-        }
-    }
-
-    /// Sync tab bar and status bar geometry with the renderer every frame.
-    /// Resizes terminal grids if the tab bar dimensions changed.
-    fn sync_layout(&mut self) {
-        // Sync tab bar offsets with renderer's content offsets
-        // This ensures the terminal grid correctly accounts for the tab bar position
-        let tab_count = self.tab_manager.tab_count();
-        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
-        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
-        crate::debug_trace!(
-            "TAB_SYNC",
-            "Tab count={}, tab_bar_height={:.0}, tab_bar_width={:.0}, position={:?}, mode={:?}",
-            tab_count,
-            tab_bar_height,
-            tab_bar_width,
-            self.config.tab_bar_position,
-            self.config.tab_bar_mode
-        );
-        if let Some(renderer) = &mut self.renderer {
-            let grid_changed = Self::apply_tab_bar_offsets_for_position(
-                self.config.tab_bar_position,
-                renderer,
-                tab_bar_height,
-                tab_bar_width,
-            );
-            if let Some((new_cols, new_rows)) = grid_changed {
-                let cell_width = renderer.cell_width();
-                let cell_height = renderer.cell_height();
-                let width_px = (new_cols as f32 * cell_width) as usize;
-                let height_px = (new_rows as f32 * cell_height) as usize;
-
-                for tab in self.tab_manager.tabs_mut() {
-                    if let Ok(mut term) = tab.terminal.try_lock() {
-                        term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                        let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
-                    }
-                    tab.cache.cells = None;
-                }
-                crate::debug_info!(
-                    "TAB_SYNC",
-                    "Tab bar offsets changed (position={:?}), resized terminals to {}x{}",
-                    self.config.tab_bar_position,
-                    new_cols,
-                    new_rows
-                );
-            }
-        }
-
-        // Sync status bar inset so the terminal grid does not extend behind it.
-        // Must happen before cell gathering so the row count is correct.
-        self.sync_status_bar_inset();
-    }
-
-    /// Render split panes when the active tab has multiple panes
-    #[allow(clippy::too_many_arguments)]
-    fn render_split_panes_with_data(
-        renderer: &mut Renderer,
-        pane_data: Vec<PaneRenderData>,
-        dividers: Vec<crate::pane::DividerRect>,
-        pane_titles: Vec<PaneTitleInfo>,
-        focused_viewport: Option<PaneViewport>,
-        config: &Config,
-        egui_data: Option<(egui::FullOutput, &egui::Context)>,
-        hovered_divider_index: Option<usize>,
-        show_scrollbar: bool,
-    ) -> Result<bool> {
-        // Two-phase construction: separate owned cell data from pane metadata
-        // so PaneRenderInfo can borrow cell slices safely.  This replaces the
-        // previous unsafe Box::into_raw / Box::from_raw pattern that leaked
-        // memory if render_split_panes panicked.
-        //
-        // Phase 1: Extract cells into a Vec that outlives the render infos.
-        // The remaining pane fields are collected into partial render infos.
-        let mut owned_cells: Vec<Vec<crate::cell_renderer::Cell>> =
-            Vec::with_capacity(pane_data.len());
-        let mut partial_infos: Vec<PaneRenderInfo> = Vec::with_capacity(pane_data.len());
-
-        for pane in pane_data {
-            let focused = pane.viewport.focused;
-            owned_cells.push(pane.cells);
-            partial_infos.push(PaneRenderInfo {
-                viewport: pane.viewport,
-                // Placeholder — will be patched in Phase 2 once owned_cells
-                // is finished growing and its elements have stable addresses.
-                cells: &[],
-                grid_size: pane.grid_size,
-                cursor_pos: pane.cursor_pos,
-                cursor_opacity: pane.cursor_opacity,
-                show_scrollbar: show_scrollbar && focused,
-                marks: pane.marks,
-                scrollback_len: pane.scrollback_len,
-                scroll_offset: pane.scroll_offset,
-                background: pane.background,
-                graphics: pane.graphics,
-            });
-        }
-
-        // Phase 2: Patch cell references now that owned_cells won't reallocate.
-        // owned_cells lives until scope exit (even on panic), so the borrows
-        // are valid for the lifetime of partial_infos.
-        for (info, cells) in partial_infos.iter_mut().zip(owned_cells.iter()) {
-            info.cells = cells.as_slice();
-        }
-        let pane_render_infos = partial_infos;
-
-        // Build divider render info
-        let divider_render_infos: Vec<DividerRenderInfo> = dividers
-            .iter()
-            .enumerate()
-            .map(|(i, d)| DividerRenderInfo::from_rect(d, hovered_divider_index == Some(i)))
-            .collect();
-
-        // Build divider settings from config
-        let divider_settings = PaneDividerSettings {
-            divider_color: color_u8_to_f32(config.pane_divider_color),
-            hover_color: color_u8_to_f32(config.pane_divider_hover_color),
-            show_focus_indicator: config.pane_focus_indicator,
-            focus_color: color_u8_to_f32(config.pane_focus_color),
-            focus_width: config.pane_focus_width * renderer.scale_factor(),
-            divider_style: config.pane_divider_style,
-        };
-
-        // Call the split pane renderer.
-        // owned_cells is dropped automatically at scope exit, even on panic.
-        renderer.render_split_panes(
-            &pane_render_infos,
-            &divider_render_infos,
-            &pane_titles,
-            focused_viewport.as_ref(),
-            &divider_settings,
-            egui_data,
-            false,
-        )
-    }
 }

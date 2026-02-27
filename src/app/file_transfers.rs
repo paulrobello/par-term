@@ -17,6 +17,7 @@ use par_term_emu_core_rust::terminal::file_transfer::{
 
 use super::window_state::WindowState;
 use crate::config::DownloadSaveLocation;
+use crate::ui_constants::{FILE_TRANSFERS_ANCHOR_OFFSET, FILE_TRANSFERS_MIN_WIDTH};
 
 /// Chunk size for writing upload data to the PTY.
 /// Matches typical macOS PTY buffer size for efficient writes.
@@ -677,7 +678,10 @@ pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui
 
     egui::Window::new("File Transfers")
         .id(egui::Id::new("file_transfer_overlay_window"))
-        .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-10.0, -10.0))
+        .anchor(
+            egui::Align2::RIGHT_BOTTOM,
+            egui::vec2(-FILE_TRANSFERS_ANCHOR_OFFSET, -FILE_TRANSFERS_ANCHOR_OFFSET),
+        )
         .order(egui::Order::Foreground)
         .resizable(false)
         .collapsible(false)
@@ -691,7 +695,7 @@ pub(crate) fn render_file_transfer_overlay(state: &FileTransferState, ctx: &egui
                 )),
         )
         .show(ctx, |ui| {
-            ui.set_min_width(250.0);
+            ui.set_min_width(FILE_TRANSFERS_MIN_WIDTH);
 
             // Show recently-completed transfers with full progress bar
             for t in &state.recent_transfers {

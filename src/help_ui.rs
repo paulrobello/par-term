@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::ui_constants::{HELP_WINDOW_DEFAULT_HEIGHT, HELP_WINDOW_DEFAULT_WIDTH};
 use egui::{Color32, Context, Frame, RichText, Window, epaint::Shadow};
 use std::cell::Cell;
 
@@ -39,8 +40,8 @@ impl HelpUI {
         let viewport = ctx.input(|i| i.viewport_rect());
         Window::new("Help")
             .resizable(true)
-            .default_width(550.0)
-            .default_height(600.0)
+            .default_width(HELP_WINDOW_DEFAULT_WIDTH)
+            .default_height(HELP_WINDOW_DEFAULT_HEIGHT)
             .default_pos(viewport.center())
             .pivot(egui::Align2::CENTER_CENTER)
             .open(&mut open)

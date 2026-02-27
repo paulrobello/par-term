@@ -4,6 +4,10 @@
 
 use crate::profile::{Profile, ProfileId, ProfileManager};
 use crate::shell_detection;
+use crate::ui_constants::{
+    PROFILE_ICON_PICKER_MAX_HEIGHT, PROFILE_ICON_PICKER_MIN_WIDTH, PROFILE_MODAL_HEIGHT,
+    PROFILE_MODAL_WIDTH, PROFILE_SSH_PORT_FIELD_WIDTH,
+};
 
 use crate::settings_ui::nerd_font::NERD_FONT_PRESETS;
 
@@ -513,7 +517,7 @@ impl ProfileModalUI {
             }
         }
 
-        let modal_size = egui::vec2(550.0, 580.0);
+        let modal_size = egui::vec2(PROFILE_MODAL_WIDTH, PROFILE_MODAL_HEIGHT);
 
         egui::Window::new("Manage Profiles")
             .collapsible(false)
@@ -789,9 +793,9 @@ impl ProfileModalUI {
                                     egui::PopupCloseBehavior::CloseOnClickOutside,
                                 )
                                 .show(|ui| {
-                                    ui.set_min_width(280.0);
+                                    ui.set_min_width(PROFILE_ICON_PICKER_MIN_WIDTH);
                                     egui::ScrollArea::vertical()
-                                        .max_height(300.0)
+                                        .max_height(PROFILE_ICON_PICKER_MAX_HEIGHT)
                                         .show(ui, |ui| {
                                             for (category, icons) in NERD_FONT_PRESETS {
                                                 ui.label(
@@ -1283,7 +1287,7 @@ impl ProfileModalUI {
                     });
                     ui.horizontal(|ui| {
                         ui.label("Port:");
-                        ui.add(egui::TextEdit::singleline(&mut self.temp_ssh_port).desired_width(60.0));
+                        ui.add(egui::TextEdit::singleline(&mut self.temp_ssh_port).desired_width(PROFILE_SSH_PORT_FIELD_WIDTH));
                     });
                     ui.horizontal(|ui| {
                         ui.label("Identity File:");

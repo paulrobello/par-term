@@ -4,6 +4,10 @@
 //! offering to install shaders and/or shell integration.
 
 use crate::config::ShellType;
+use crate::ui_constants::{
+    INTEGRATIONS_BUTTON_HEIGHT, INTEGRATIONS_BUTTON_WIDTH, INTEGRATIONS_DIALOG_WIDTH,
+    INTEGRATIONS_INNER_MARGIN, INTEGRATIONS_OK_BUTTON_WIDTH,
+};
 use egui::{Align2, Color32, Context, Frame, RichText, Window, epaint::Shadow};
 
 /// User's response to the integrations dialog
@@ -122,13 +126,13 @@ impl IntegrationsUI {
         Window::new("Welcome to par-term")
             .resizable(false)
             .collapsible(false)
-            .default_width(500.0)
+            .default_width(INTEGRATIONS_DIALOG_WIDTH)
             .default_pos(viewport.center())
             .pivot(Align2::CENTER_CENTER)
             .frame(
                 Frame::window(&ctx.style())
                     .fill(solid_bg)
-                    .inner_margin(24.0)
+                    .inner_margin(INTEGRATIONS_INNER_MARGIN)
                     .stroke(egui::Stroke::new(1.0, Color32::from_gray(80)))
                     .shadow(Shadow {
                         offset: [4, 4],
@@ -290,12 +294,13 @@ impl IntegrationsUI {
                 ui.vertical_centered(|ui| {
                     if !self.installing && self.success_message.is_none() {
                         ui.horizontal(|ui| {
-                            let button_width = 130.0;
-
                             if self.awaiting_shader_overwrite {
                                 if ui
                                     .add_sized(
-                                        [button_width + 20.0, 32.0],
+                                        [
+                                            INTEGRATIONS_BUTTON_WIDTH + 20.0,
+                                            INTEGRATIONS_BUTTON_HEIGHT,
+                                        ],
                                         egui::Button::new("Overwrite modified"),
                                     )
                                     .clicked()
@@ -308,7 +313,10 @@ impl IntegrationsUI {
 
                                 if ui
                                     .add_sized(
-                                        [button_width + 10.0, 32.0],
+                                        [
+                                            INTEGRATIONS_BUTTON_WIDTH + 10.0,
+                                            INTEGRATIONS_BUTTON_HEIGHT,
+                                        ],
                                         egui::Button::new("Skip modified"),
                                     )
                                     .clicked()
@@ -320,7 +328,10 @@ impl IntegrationsUI {
                                 ui.add_space(8.0);
 
                                 if ui
-                                    .add_sized([button_width, 32.0], egui::Button::new("Cancel"))
+                                    .add_sized(
+                                        [INTEGRATIONS_BUTTON_WIDTH, INTEGRATIONS_BUTTON_HEIGHT],
+                                        egui::Button::new("Cancel"),
+                                    )
                                     .clicked()
                                 {
                                     response.shader_conflict_action =
@@ -333,7 +344,7 @@ impl IntegrationsUI {
                                 ui.add_enabled_ui(can_install, |ui| {
                                     if ui
                                         .add_sized(
-                                            [button_width, 32.0],
+                                            [INTEGRATIONS_BUTTON_WIDTH, INTEGRATIONS_BUTTON_HEIGHT],
                                             egui::Button::new("Install Selected"),
                                         )
                                         .clicked()
@@ -347,7 +358,10 @@ impl IntegrationsUI {
                                 ui.add_space(8.0);
 
                                 if ui
-                                    .add_sized([button_width, 32.0], egui::Button::new("Skip"))
+                                    .add_sized(
+                                        [INTEGRATIONS_BUTTON_WIDTH, INTEGRATIONS_BUTTON_HEIGHT],
+                                        egui::Button::new("Skip"),
+                                    )
                                     .on_hover_text("Dismiss for this session")
                                     .clicked()
                                 {
@@ -357,7 +371,10 @@ impl IntegrationsUI {
                                 ui.add_space(8.0);
 
                                 if ui
-                                    .add_sized([button_width, 32.0], egui::Button::new("Never Ask"))
+                                    .add_sized(
+                                        [INTEGRATIONS_BUTTON_WIDTH, INTEGRATIONS_BUTTON_HEIGHT],
+                                        egui::Button::new("Never Ask"),
+                                    )
                                     .on_hover_text("Don't ask again for these integrations")
                                     .clicked()
                                 {
@@ -368,7 +385,10 @@ impl IntegrationsUI {
                     } else if self.success_message.is_some() {
                         // Show OK button after successful install
                         if ui
-                            .add_sized([120.0, 32.0], egui::Button::new("OK"))
+                            .add_sized(
+                                [INTEGRATIONS_OK_BUTTON_WIDTH, INTEGRATIONS_BUTTON_HEIGHT],
+                                egui::Button::new("OK"),
+                            )
                             .clicked()
                         {
                             self.visible = false;

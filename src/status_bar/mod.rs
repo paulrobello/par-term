@@ -89,10 +89,22 @@ impl GitBranchPoller {
                         std::thread::sleep(Duration::from_millis(50));
                     }
                 }
-            })
-            .expect("Failed to spawn git branch poller thread");
+            });
 
-        *self.thread.lock() = Some(handle);
+        match handle {
+            Ok(h) => *self.thread.lock() = Some(h),
+            Err(e) => {
+                // Thread spawn failed (e.g. OS out of resources); reset the
+                // running flag so start() can be retried and degrade gracefully
+                // without crashing the terminal session.
+                self.running.store(false, Ordering::SeqCst);
+                crate::debug_error!(
+                    "SESSION_LOGGER",
+                    "failed to spawn git branch poller thread: {:?}",
+                    e
+                );
+            }
+        }
     }
 
     /// Signal the background thread to stop without waiting for it to finish.

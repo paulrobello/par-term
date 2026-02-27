@@ -4,6 +4,10 @@
 //! with fuzzy matching and ranked results with match highlighting.
 
 use crate::command_history::CommandHistoryEntry;
+use crate::ui_constants::{
+    CMD_HISTORY_WINDOW_DEFAULT_HEIGHT, CMD_HISTORY_WINDOW_DEFAULT_WIDTH,
+    CMD_HISTORY_WINDOW_MAX_HEIGHT,
+};
 use egui::{Context, Window};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -186,8 +190,8 @@ impl CommandHistoryUI {
         // Calculate center position for initial placement
         let screen_rect = ctx.content_rect();
         let default_pos = egui::pos2(
-            (screen_rect.width() - 500.0) / 2.0,
-            (screen_rect.height() - 350.0) / 2.0,
+            (screen_rect.width() - CMD_HISTORY_WINDOW_DEFAULT_WIDTH) / 2.0,
+            (screen_rect.height() - CMD_HISTORY_WINDOW_DEFAULT_HEIGHT) / 2.0,
         );
 
         let matched_entries = self.get_matched_entries();
@@ -195,9 +199,9 @@ impl CommandHistoryUI {
         Window::new("Command History Search")
             .resizable(true)
             .collapsible(false)
-            .default_width(500.0)
-            .default_height(350.0)
-            .max_height(450.0)
+            .default_width(CMD_HISTORY_WINDOW_DEFAULT_WIDTH)
+            .default_height(CMD_HISTORY_WINDOW_DEFAULT_HEIGHT)
+            .max_height(CMD_HISTORY_WINDOW_MAX_HEIGHT)
             .default_pos(default_pos)
             .open(&mut open)
             .show(ctx, |ui| {

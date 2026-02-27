@@ -9,6 +9,16 @@ mod title_utils;
 
 use crate::config::{Config, TabBarMode, TabBarPosition};
 use crate::tab::{TabId, TabManager};
+use crate::ui_constants::{
+    TAB_ACTIVE_INDICATOR_WIDTH, TAB_CLOSE_BTN_MARGIN, TAB_CLOSE_BTN_SIZE_H, TAB_CLOSE_BTN_SIZE_V,
+    TAB_COLOR_HEX_EDIT_WIDTH, TAB_COLOR_SWATCH_ROUNDING, TAB_COLOR_SWATCH_SIZE, TAB_CONTENT_PAD_X,
+    TAB_CONTENT_PAD_Y, TAB_CONTEXT_MENU_ITEM_HEIGHT, TAB_CONTEXT_MENU_MIN_WIDTH,
+    TAB_CONTEXT_PADDING, TAB_DRAW_SHRINK_X, TAB_DRAW_SHRINK_Y, TAB_DROP_DIAMOND_SIZE,
+    TAB_HOTKEY_LABEL_WIDTH, TAB_ICON_PICKER_GLYPH_SIZE, TAB_ICON_PICKER_MAX_HEIGHT,
+    TAB_ICON_PICKER_MIN_WIDTH, TAB_LEFT_PADDING, TAB_NEW_BTN_BASE_WIDTH,
+    TAB_NEW_PROFILE_MENU_OFFSET_X, TAB_NEW_PROFILE_MENU_OFFSET_Y, TAB_NEW_PROFILE_MENU_WIDTH,
+    TAB_RENAME_EDIT_WIDTH, TAB_ROUNDING, TAB_SCROLL_BTN_WIDTH, TAB_SPACING,
+};
 use egui::emath::GuiRounding as _;
 use title_utils::{
     estimate_max_chars, parse_html_title, render_segments, sanitize_egui_title_text,
@@ -182,13 +192,14 @@ impl TabBarUI {
         let active_tab_id = tabs.active_tab_id();
 
         // Layout constants
-        let tab_spacing = 4.0;
-        let left_padding = 2.0;
+        let tab_spacing = TAB_SPACING;
+        let left_padding = TAB_LEFT_PADDING;
         // Show the chevron dropdown when there's menu content:
         // profiles to pick from, or the AI assistant toggle.
         let show_chevron = !profiles.is_empty() || config.ai_inspector_enabled;
-        let new_tab_btn_width = 28.0 + if show_chevron { CHEVRON_RESERVED } else { 0.0 };
-        let scroll_btn_width = 24.0;
+        let new_tab_btn_width =
+            TAB_NEW_BTN_BASE_WIDTH + if show_chevron { CHEVRON_RESERVED } else { 0.0 };
+        let scroll_btn_width = TAB_SCROLL_BTN_WIDTH;
 
         let bar_bg = config.tab_bar_background;
         let frame =
@@ -259,7 +270,10 @@ impl TabBarUI {
                     let left_btn = ui.add_enabled(
                         can_scroll_left,
                         egui::Button::new("◀")
-                            .min_size(egui::vec2(scroll_btn_width, config.tab_bar_height - 4.0))
+                            .min_size(egui::vec2(
+                                scroll_btn_width,
+                                config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0,
+                            ))
                             .fill(egui::Color32::TRANSPARENT),
                     );
                     if left_btn.clicked() {
@@ -311,7 +325,10 @@ impl TabBarUI {
                     let right_btn = ui.add_enabled(
                         can_scroll_right,
                         egui::Button::new("▶")
-                            .min_size(egui::vec2(scroll_btn_width, config.tab_bar_height - 4.0))
+                            .min_size(egui::vec2(
+                                scroll_btn_width,
+                                config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0,
+                            ))
                             .fill(egui::Color32::TRANSPARENT),
                     );
                     if right_btn.clicked() {
@@ -357,7 +374,10 @@ impl TabBarUI {
                 // "+" button — creates default tab
                 let plus_btn = ui.add(
                     egui::Button::new("+")
-                        .min_size(egui::vec2(28.0, config.tab_bar_height - 4.0))
+                        .min_size(egui::vec2(
+                            TAB_NEW_BTN_BASE_WIDTH,
+                            config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0,
+                        ))
                         .fill(egui::Color32::TRANSPARENT),
                 );
                 if plus_btn.clicked_by(egui::PointerButton::Primary) {
@@ -374,7 +394,10 @@ impl TabBarUI {
                 if show_chevron {
                     let chevron_btn = ui.add(
                         egui::Button::new("⏷")
-                            .min_size(egui::vec2(14.0, config.tab_bar_height - 4.0))
+                            .min_size(egui::vec2(
+                                CHEVRON_RESERVED / 2.0,
+                                config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0,
+                            ))
                             .fill(egui::Color32::TRANSPARENT),
                     );
                     if chevron_btn.clicked_by(egui::PointerButton::Primary) {
@@ -437,7 +460,7 @@ impl TabBarUI {
         let active_tab_id = tabs.active_tab_id();
 
         let bar_bg = config.tab_bar_background;
-        let tab_spacing = 4.0;
+        let tab_spacing = TAB_SPACING;
         let tab_height = config.tab_bar_height; // Reuse height config for per-tab row height
 
         egui::SidePanel::left("tab_bar")
@@ -494,7 +517,7 @@ impl TabBarUI {
                                     egui::Button::new("+")
                                         .min_size(egui::vec2(
                                             ui.available_width() - chevron_space,
-                                            tab_height - 4.0,
+                                            tab_height - TAB_DRAW_SHRINK_Y * 2.0,
                                         ))
                                         .fill(egui::Color32::TRANSPARENT),
                                 );
@@ -511,7 +534,10 @@ impl TabBarUI {
                                 if show_chevron_v {
                                     let chevron_btn = ui.add(
                                         egui::Button::new("⏷")
-                                            .min_size(egui::vec2(14.0, tab_height - 4.0))
+                                            .min_size(egui::vec2(
+                                                CHEVRON_RESERVED / 2.0,
+                                                tab_height - TAB_DRAW_SHRINK_Y * 2.0,
+                                            ))
                                             .fill(egui::Color32::TRANSPARENT),
                                     );
                                     if chevron_btn.clicked_by(egui::PointerButton::Primary) {
@@ -629,8 +655,8 @@ impl TabBarUI {
         let (tab_rect, _) =
             ui.allocate_exact_size(egui::vec2(full_width, tab_height), egui::Sense::hover());
 
-        let tab_draw_rect = tab_rect.shrink2(egui::vec2(2.0, 1.0));
-        let tab_rounding = 4.0;
+        let tab_draw_rect = tab_rect.shrink2(egui::vec2(TAB_DRAW_SHRINK_X, TAB_DRAW_SHRINK_Y));
+        let tab_rounding = TAB_ROUNDING;
         if ui.is_rect_visible(tab_rect) {
             ui.painter()
                 .rect_filled(tab_draw_rect, tab_rounding, bg_color);
@@ -667,7 +693,7 @@ impl TabBarUI {
                 };
                 let indicator_rect = egui::Rect::from_min_size(
                     tab_draw_rect.left_top(),
-                    egui::vec2(3.0, tab_draw_rect.height()),
+                    egui::vec2(TAB_ACTIVE_INDICATOR_WIDTH, tab_draw_rect.height()),
                 );
                 ui.painter().rect_filled(
                     indicator_rect,
@@ -682,7 +708,7 @@ impl TabBarUI {
             }
 
             // Content
-            let content_rect = tab_rect.shrink2(egui::vec2(8.0, 2.0));
+            let content_rect = tab_rect.shrink2(egui::vec2(TAB_CONTENT_PAD_X, TAB_CONTENT_PAD_Y));
             let mut content_ui = ui.new_child(
                 egui::UiBuilder::new()
                     .max_rect(content_rect)
@@ -720,11 +746,12 @@ impl TabBarUI {
 
                 // Truncate title to fit available width
                 let close_width = if config.tab_show_close_button {
-                    20.0
+                    TAB_CLOSE_BTN_SIZE_H + TAB_CLOSE_BTN_MARGIN
                 } else {
                     0.0
                 };
-                let available = (full_width - 16.0 - icon_width - close_width).max(20.0);
+                let available = (full_width - TAB_CONTENT_PAD_X * 2.0 - icon_width - close_width)
+                    .max(TAB_CONTENT_PAD_X * 2.0 + TAB_CLOSE_BTN_MARGIN);
                 let base_font_id = ui.style().text_styles[&egui::TextStyle::Button].clone();
                 let max_chars = estimate_max_chars(ui, &base_font_id, available);
                 let safe_title = sanitize_egui_title_text(title);
@@ -734,10 +761,10 @@ impl TabBarUI {
 
             // Close button at right edge
             if config.tab_show_close_button {
-                let close_size = 16.0;
+                let close_size = TAB_CLOSE_BTN_SIZE_H;
                 let close_rect = egui::Rect::from_min_size(
                     egui::pos2(
-                        tab_rect.right() - close_size - 4.0,
+                        tab_rect.right() - close_size - TAB_CLOSE_BTN_MARGIN,
                         tab_rect.center().y - close_size / 2.0,
                     ),
                     egui::vec2(close_size, close_size),
@@ -1061,7 +1088,9 @@ impl TabBarUI {
             // Create a child UI for the tab content
             let mut content_ui = ui.new_child(
                 egui::UiBuilder::new()
-                    .max_rect(tab_rect.shrink2(egui::vec2(8.0, 4.0)))
+                    .max_rect(
+                        tab_rect.shrink2(egui::vec2(TAB_CONTENT_PAD_X, TAB_CONTENT_PAD_Y * 2.0)),
+                    )
                     .layout(egui::Layout::left_to_right(egui::Align::Center)),
             );
 
@@ -1102,20 +1131,24 @@ impl TabBarUI {
                 } else {
                     0.0
                 };
-                let hotkey_width = if index < 9 { 26.0 } else { 0.0 };
-                let close_width = if config.tab_show_close_button {
-                    24.0
+                let hotkey_width = if index < 9 {
+                    TAB_HOTKEY_LABEL_WIDTH
                 } else {
                     0.0
                 };
-                let padding = 12.0;
+                let close_width = if config.tab_show_close_button {
+                    TAB_CLOSE_BTN_SIZE_V + TAB_CLOSE_BTN_MARGIN
+                } else {
+                    0.0
+                };
+                let padding = TAB_CONTEXT_PADDING;
                 let title_available_width = (tab_width
                     - indicator_width
                     - icon_width
                     - hotkey_width
                     - close_width
                     - padding)
-                    .max(24.0);
+                    .max(TAB_CONTENT_PAD_X * 2.0);
 
                 let max_chars = estimate_max_chars(ui, &base_font_id, title_available_width);
 
@@ -1165,11 +1198,11 @@ impl TabBarUI {
 
         // Close button - render AFTER the content so it's on top
         // Position at far right edge of tab
-        let close_btn_size = 20.0;
+        let close_btn_size = TAB_CLOSE_BTN_SIZE_V;
         let close_btn_rect = if config.tab_show_close_button {
             Some(egui::Rect::from_min_size(
                 egui::pos2(
-                    tab_rect.right() - close_btn_size - 4.0,
+                    tab_rect.right() - close_btn_size - TAB_CLOSE_BTN_MARGIN,
                     tab_rect.center().y - close_btn_size / 2.0,
                 ),
                 egui::vec2(close_btn_size, close_btn_size),
@@ -1361,7 +1394,7 @@ impl TabBarUI {
                 );
 
                 // Small diamond/arrow at top and bottom of indicator
-                let diamond_size = 4.0;
+                let diamond_size = TAB_DROP_DIAMOND_SIZE;
                 for y in [top, bottom] {
                     ui.painter().circle_filled(
                         egui::pos2(indicator_x, y),
@@ -1402,7 +1435,7 @@ impl TabBarUI {
         };
 
         let ghost_width = self.dragging_tab_width;
-        let ghost_height = config.tab_bar_height - 4.0;
+        let ghost_height = config.tab_bar_height - TAB_DRAW_SHRINK_Y * 2.0;
 
         // Center ghost on pointer horizontally, offset slightly below vertically
         let ghost_pos = egui::pos2(
@@ -1454,7 +1487,7 @@ impl TabBarUI {
                 // Title text (truncated to fit)
                 let text_color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 220);
                 let font_id = egui::FontId::proportional(13.0);
-                let max_text_width = ghost_width - 16.0;
+                let max_text_width = ghost_width - TAB_CONTENT_PAD_X * 2.0;
                 let safe_drag_title = sanitize_egui_title_text(&self.dragging_title);
                 let galley = ui.painter().layout(
                     safe_drag_title.into_owned(),
@@ -1462,8 +1495,10 @@ impl TabBarUI {
                     text_color,
                     max_text_width,
                 );
-                let text_pos =
-                    egui::pos2(rect.left() + 8.0, rect.center().y - galley.size().y / 2.0);
+                let text_pos = egui::pos2(
+                    rect.left() + TAB_CONTENT_PAD_X,
+                    rect.center().y - galley.size().y / 2.0,
+                );
                 ui.painter().galley(text_pos, galley, text_color);
             });
     }
@@ -1491,8 +1526,11 @@ impl TabBarUI {
             .collapsible(false)
             .resizable(false)
             .order(egui::Order::Foreground)
-            .fixed_size(egui::vec2(200.0, 0.0))
-            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-4.0, 4.0))
+            .fixed_size(egui::vec2(TAB_NEW_PROFILE_MENU_WIDTH, 0.0))
+            .anchor(
+                egui::Align2::RIGHT_TOP,
+                egui::vec2(TAB_NEW_PROFILE_MENU_OFFSET_X, TAB_NEW_PROFILE_MENU_OFFSET_Y),
+            )
             .open(&mut open)
             .show(ctx, |ui| {
                 // "Default" entry — always first
@@ -1561,13 +1599,13 @@ impl TabBarUI {
                 egui::Frame::popup(ui.style())
                     .inner_margin(egui::Margin::symmetric(1, 4))
                     .show(ui, |ui| {
-                        ui.set_min_width(160.0);
+                        ui.set_min_width(TAB_CONTEXT_MENU_MIN_WIDTH);
                         ui.style_mut().spacing.item_spacing = egui::vec2(0.0, 0.0);
 
                         // Menu item helper
                         let menu_item = |ui: &mut egui::Ui, label: &str| -> bool {
                             let response = ui.add_sized(
-                                [ui.available_width(), 24.0],
+                                [ui.available_width(), TAB_CONTEXT_MENU_ITEM_HEIGHT],
                                 egui::Button::new(label)
                                     .frame(false)
                                     .fill(egui::Color32::TRANSPARENT),
@@ -1581,7 +1619,7 @@ impl TabBarUI {
                                 ui.add_space(8.0);
                                 let response = ui.add(
                                     egui::TextEdit::singleline(&mut self.rename_buffer)
-                                        .desired_width(140.0)
+                                        .desired_width(TAB_RENAME_EDIT_WIDTH)
                                         .hint_text("Tab name"),
                                 );
                                 // Auto-focus when first shown
@@ -1622,7 +1660,7 @@ impl TabBarUI {
                                 ui.label("Icon:");
                                 let response = ui.add(
                                     egui::TextEdit::singleline(&mut self.icon_buffer)
-                                        .desired_width(60.0)
+                                        .desired_width(TAB_COLOR_HEX_EDIT_WIDTH)
                                         .hint_text("Icon"),
                                 );
                                 if !response.has_focus() {
@@ -1639,10 +1677,10 @@ impl TabBarUI {
                                 egui::Popup::from_toggle_button_response(&picker_btn)
                                     .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                     .show(|ui| {
-                                        ui.set_min_width(280.0);
-                                        egui::ScrollArea::vertical().max_height(300.0).show(
-                                            ui,
-                                            |ui| {
+                                        ui.set_min_width(TAB_ICON_PICKER_MIN_WIDTH);
+                                        egui::ScrollArea::vertical()
+                                            .max_height(TAB_ICON_PICKER_MAX_HEIGHT)
+                                            .show(ui, |ui| {
                                                 for (category, icons) in
                                                     crate::settings_ui::nerd_font::NERD_FONT_PRESETS
                                                 {
@@ -1654,10 +1692,17 @@ impl TabBarUI {
                                                     ui.horizontal_wrapped(|ui| {
                                                         for (icon, label) in *icons {
                                                             let btn = ui.add_sized(
-                                                                [28.0, 28.0],
+                                                                [
+                                                                    TAB_ICON_PICKER_GLYPH_SIZE
+                                                                        + 12.0,
+                                                                    TAB_ICON_PICKER_GLYPH_SIZE
+                                                                        + 12.0,
+                                                                ],
                                                                 egui::Button::new(
                                                                     egui::RichText::new(*icon)
-                                                                        .size(16.0),
+                                                                        .size(
+                                                                        TAB_ICON_PICKER_GLYPH_SIZE,
+                                                                    ),
                                                                 )
                                                                 .frame(false),
                                                             );
@@ -1674,8 +1719,7 @@ impl TabBarUI {
                                                     self.icon_buffer.clear();
                                                     egui::Popup::close_all(ui.ctx());
                                                 }
-                                            },
-                                        );
+                                            });
                                     });
                             });
                             // Submit on Enter
@@ -1744,8 +1788,11 @@ impl TabBarUI {
                                 let btn = ui.add(
                                     egui::Button::new("")
                                         .fill(egui::Color32::from_rgb(color[0], color[1], color[2]))
-                                        .min_size(egui::vec2(18.0, 18.0))
-                                        .corner_radius(2.0),
+                                        .min_size(egui::vec2(
+                                            TAB_COLOR_SWATCH_SIZE,
+                                            TAB_COLOR_SWATCH_SIZE,
+                                        ))
+                                        .corner_radius(TAB_COLOR_SWATCH_ROUNDING),
                                 );
                                 if btn.clicked() {
                                     action = TabBarAction::SetColor(tab_id, *color);

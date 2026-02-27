@@ -4,6 +4,10 @@
 //! - Attach to an existing session
 //! - Create a new session
 
+use crate::ui_constants::{
+    TMUX_PICKER_LIST_MAX_HEIGHT, TMUX_PICKER_WINDOW_DEFAULT_HEIGHT,
+    TMUX_PICKER_WINDOW_DEFAULT_WIDTH,
+};
 use egui::{Color32, Context, Frame, RichText, Window, epaint::Shadow};
 use std::process::Command;
 
@@ -159,8 +163,8 @@ impl TmuxSessionPickerUI {
 
         Window::new("tmux Sessions")
             .resizable(true)
-            .default_width(400.0)
-            .default_height(350.0)
+            .default_width(TMUX_PICKER_WINDOW_DEFAULT_WIDTH)
+            .default_height(TMUX_PICKER_WINDOW_DEFAULT_HEIGHT)
             .default_pos(viewport.center())
             .pivot(egui::Align2::CENTER_CENTER)
             .open(&mut open)
@@ -190,7 +194,7 @@ impl TmuxSessionPickerUI {
                     ui.label(RichText::new("No tmux sessions found").italics());
                 } else {
                     egui::ScrollArea::vertical()
-                        .max_height(200.0)
+                        .max_height(TMUX_PICKER_LIST_MAX_HEIGHT)
                         .show(ui, |ui| {
                             for session in &self.sessions {
                                 ui.horizontal(|ui| {

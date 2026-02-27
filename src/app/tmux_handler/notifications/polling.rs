@@ -9,6 +9,32 @@ use crate::app::window_state::WindowState;
 use crate::tmux::{ParserBridge, TmuxNotification};
 
 impl WindowState {
+    /// Retry any deferred `set_tmux_control_mode(false)` calls on all tabs.
+    ///
+    /// When `handle_tmux_session_ended` cannot acquire the terminal lock via `try_lock()`
+    /// it sets `tab.pending_tmux_mode_disable = true`. This function is called each frame
+    /// from `check_tmux_notifications` and clears the flag as soon as the lock becomes
+    /// available, ensuring the terminal parser eventually exits tmux control mode.
+    fn retry_pending_tmux_mode_disable(&mut self) {
+        for tab in self.tab_manager.tabs_mut() {
+            if !tab.pending_tmux_mode_disable {
+                continue;
+            }
+            // try_lock: intentional — we are in the sync event loop. On miss: leave the
+            // flag set and retry next frame. The lock will be free once the PTY reader
+            // finishes its current read (which is short-lived).
+            if let Ok(term) = tab.terminal.try_lock() {
+                term.set_tmux_control_mode(false);
+                tab.pending_tmux_mode_disable = false;
+                crate::debug_info!(
+                    "TAB",
+                    "Deferred tmux control mode disable applied to tab {}",
+                    tab.id
+                );
+            }
+        }
+    }
+
     /// Poll and process tmux notifications from the control mode session.
     ///
     /// In gateway mode, notifications come from the terminal's tmux control parser
@@ -20,6 +46,11 @@ impl WindowState {
         if !self.config.tmux_enabled {
             return false;
         }
+
+        // Deferred tmux-control-mode disable: retry on each frame until the lock is
+        // available. This resolves the case where `handle_tmux_session_ended` could not
+        // acquire the terminal lock at cleanup time, leaving the parser in control mode.
+        self.retry_pending_tmux_mode_disable();
 
         // Check if we have an active gateway session
         let _session = match &self.tmux_state.tmux_session {

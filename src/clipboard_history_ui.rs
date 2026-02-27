@@ -1,4 +1,7 @@
 use crate::terminal::{ClipboardEntry, ClipboardSlot};
+use crate::ui_constants::{
+    CLIPBOARD_WINDOW_DEFAULT_HEIGHT, CLIPBOARD_WINDOW_DEFAULT_WIDTH, CLIPBOARD_WINDOW_MAX_HEIGHT,
+};
 use egui::{Context, Window};
 
 /// Clipboard history UI manager using egui
@@ -114,16 +117,16 @@ impl ClipboardHistoryUI {
         // Calculate center position for initial placement
         let screen_rect = ctx.content_rect();
         let default_pos = egui::pos2(
-            (screen_rect.width() - 400.0) / 2.0,
-            (screen_rect.height() - 250.0) / 2.0,
+            (screen_rect.width() - CLIPBOARD_WINDOW_DEFAULT_WIDTH) / 2.0,
+            (screen_rect.height() - CLIPBOARD_WINDOW_DEFAULT_HEIGHT) / 2.0,
         );
 
         Window::new("Clipboard History")
             .resizable(true)
             .collapsible(false)
-            .default_width(400.0)
-            .default_height(250.0)
-            .max_height(350.0)
+            .default_width(CLIPBOARD_WINDOW_DEFAULT_WIDTH)
+            .default_height(CLIPBOARD_WINDOW_DEFAULT_HEIGHT)
+            .max_height(CLIPBOARD_WINDOW_MAX_HEIGHT)
             .default_pos(default_pos)
             .open(&mut open)
             .show(ctx, |ui| {

@@ -14,6 +14,23 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+// ---------------------------------------------------------------------------
+// Platform-aware restricted file creation
+// ---------------------------------------------------------------------------
+
+/// Open (or create/truncate) a file for writing with owner-only permissions
+/// (0o600) on Unix, or default permissions on other platforms.
+fn open_restricted_write(path: &Path) -> Result<std::fs::File, std::io::Error> {
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    opts.open(path)
+}
+
 /// MCP protocol version.
 const PROTOCOL_VERSION: &str = "2024-11-05";
 
@@ -192,6 +209,11 @@ fn resolve_ipc_path(env_var: &str, default_filename: &str) -> PathBuf {
 ///
 /// On Unix systems this sets mode 0o600 so that only the file owner can
 /// read or write. On non-Unix platforms this is a no-op.
+///
+/// Prefer `open_restricted_write` for new files to avoid a world-readable
+/// race between creation and permission fixup. This helper is retained for
+/// fixing permissions on pre-existing files.
+#[allow(dead_code)]
 fn set_ipc_file_permissions(path: &Path) -> Result<(), String> {
     #[cfg(unix)]
     {
@@ -317,9 +339,9 @@ fn handle_terminal_screenshot(params: &Value) -> Value {
     while start.elapsed() < timeout {
         match try_read_screenshot_response(&response_path) {
             Ok(Some(response)) if response.request_id == request_id => {
-                // Clear response file after consuming and restrict permissions
-                let _ = std::fs::write(&response_path, "");
-                let _ = set_ipc_file_permissions(&response_path);
+                // Clear response file after consuming; use restricted permissions
+                // from creation (0o600 on Unix) to avoid a world-readable race.
+                let _ = open_restricted_write(&response_path);
                 if !response.ok {
                     return tool_error(
                         response
@@ -392,11 +414,22 @@ fn write_config_updates(updates: &Value, path: &std::path::Path) -> Value {
         }
     };
 
-    if let Err(e) = std::fs::write(&temp_path, &json_bytes) {
-        return tool_error(&format!(
-            "Failed to write temp file {}: {e}",
-            temp_path.display()
-        ));
+    // Write temp file with restricted permissions from creation (0o600 on Unix)
+    match open_restricted_write(&temp_path) {
+        Ok(mut f) => {
+            if let Err(e) = f.write_all(&json_bytes) {
+                return tool_error(&format!(
+                    "Failed to write temp file {}: {e}",
+                    temp_path.display()
+                ));
+            }
+        }
+        Err(e) => {
+            return tool_error(&format!(
+                "Failed to create temp file {}: {e}",
+                temp_path.display()
+            ));
+        }
     }
 
     if let Err(e) = std::fs::rename(&temp_path, path) {
@@ -406,11 +439,6 @@ fn write_config_updates(updates: &Value, path: &std::path::Path) -> Value {
             "Failed to rename temp file to {}: {e}",
             path.display()
         ));
-    }
-
-    // Restrict IPC file to owner-only access (0o600 on Unix)
-    if let Err(e) = set_ipc_file_permissions(path) {
-        return tool_error(&e);
     }
 
     let keys: Vec<&str> = updates
@@ -449,12 +477,15 @@ fn write_json_atomic<T: Serialize>(payload: &T, path: &std::path::Path) -> Resul
 
     let temp_path = path.with_extension("json.tmp");
     let bytes = serde_json::to_vec_pretty(payload).map_err(|e| e.to_string())?;
-    std::fs::write(&temp_path, &bytes).map_err(|e| {
-        format!(
-            "Failed to write temp file {}: {e}",
-            temp_path.to_string_lossy()
-        )
-    })?;
+    // Create temp file with restricted permissions from creation (0o600 on Unix)
+    open_restricted_write(&temp_path)
+        .and_then(|mut f| f.write_all(&bytes))
+        .map_err(|e| {
+            format!(
+                "Failed to write temp file {}: {e}",
+                temp_path.to_string_lossy()
+            )
+        })?;
     std::fs::rename(&temp_path, path).map_err(|e| {
         let _ = std::fs::remove_file(&temp_path);
         format!(
@@ -462,9 +493,6 @@ fn write_json_atomic<T: Serialize>(payload: &T, path: &std::path::Path) -> Resul
             path.to_string_lossy()
         )
     })?;
-
-    // Restrict IPC file to owner-only access (0o600 on Unix)
-    set_ipc_file_permissions(path)?;
 
     Ok(())
 }

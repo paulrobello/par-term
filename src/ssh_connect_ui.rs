@@ -6,6 +6,11 @@
 use crate::profile::ProfileId;
 use crate::ssh::mdns::MdnsDiscovery;
 use crate::ssh::{SshHost, SshHostSource, discover_local_hosts};
+use crate::ui_constants::{
+    SSH_CONNECT_DIALOG_MAX_HEIGHT, SSH_CONNECT_DIALOG_MAX_WIDTH, SSH_CONNECT_DIALOG_MIN_HEIGHT,
+    SSH_CONNECT_DIALOG_MIN_WIDTH, SSH_CONNECT_HOST_ROW_HEIGHT, SSH_CONNECT_INNER_MARGIN,
+    SSH_CONNECT_LIST_BOTTOM_RESERVE, SSH_CONNECT_SEARCH_BAR_HEIGHT,
+};
 use egui::{Color32, Context, epaint::Shadow};
 
 /// Action returned by the quick connect dialog.
@@ -101,8 +106,10 @@ impl SshConnectUI {
 
         let mut action = SshConnectAction::None;
         let screen_rect = ctx.content_rect();
-        let dialog_width = (screen_rect.width() * 0.5).clamp(350.0, 500.0);
-        let dialog_height = (screen_rect.height() * 0.6).clamp(300.0, 500.0);
+        let dialog_width = (screen_rect.width() * 0.5)
+            .clamp(SSH_CONNECT_DIALOG_MIN_WIDTH, SSH_CONNECT_DIALOG_MAX_WIDTH);
+        let dialog_height = (screen_rect.height() * 0.6)
+            .clamp(SSH_CONNECT_DIALOG_MIN_HEIGHT, SSH_CONNECT_DIALOG_MAX_HEIGHT);
 
         egui::Area::new(egui::Id::new("ssh_connect_overlay"))
             .fixed_pos(egui::pos2(
@@ -112,7 +119,7 @@ impl SshConnectUI {
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
                 egui::Frame::popup(ui.style())
-                    .inner_margin(16.0)
+                    .inner_margin(SSH_CONNECT_INNER_MARGIN)
                     .shadow(Shadow {
                         offset: [0, 4],
                         blur: 16,
@@ -135,10 +142,13 @@ impl SshConnectUI {
 
                         // Search bar
                         let search_response = ui.add_sized(
-                            [dialog_width - 32.0, 24.0],
+                            [
+                                dialog_width - SSH_CONNECT_INNER_MARGIN * 2.0,
+                                SSH_CONNECT_SEARCH_BAR_HEIGHT,
+                            ],
                             egui::TextEdit::singleline(&mut self.search_query)
                                 .hint_text("Search hosts...")
-                                .desired_width(dialog_width - 32.0),
+                                .desired_width(dialog_width - SSH_CONNECT_INNER_MARGIN * 2.0),
                         );
 
                         if self.request_focus {
@@ -196,7 +206,7 @@ impl SshConnectUI {
 
                         // Host list grouped by source
                         egui::ScrollArea::vertical()
-                            .max_height(dialog_height - 100.0)
+                            .max_height(dialog_height - SSH_CONNECT_LIST_BOTTOM_RESERVE)
                             .show(ui, |ui| {
                                 if filtered.is_empty() {
                                     ui.label(
@@ -224,7 +234,10 @@ impl SshConnectUI {
 
                                     let is_selected = display_idx == self.selected_index;
                                     let response = ui.add_sized(
-                                        [dialog_width - 48.0, 28.0],
+                                        [
+                                            dialog_width - SSH_CONNECT_INNER_MARGIN * 3.0,
+                                            SSH_CONNECT_HOST_ROW_HEIGHT,
+                                        ],
                                         egui::Button::new(egui::RichText::new(format!(
                                             "  {}  {}",
                                             host.alias,

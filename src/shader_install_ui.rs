@@ -4,6 +4,10 @@
 //! offering to download and install the shader pack from GitHub releases.
 
 use crate::shader_installer;
+use crate::ui_constants::{
+    SHADER_INSTALL_BUTTON_HEIGHT, SHADER_INSTALL_BUTTON_WIDTH, SHADER_INSTALL_DIALOG_WIDTH,
+    SHADER_INSTALL_INNER_MARGIN,
+};
 use egui::{Align2, Color32, Context, Frame, RichText, Window, epaint::Shadow};
 
 /// User's response to the shader install prompt
@@ -81,13 +85,13 @@ impl ShaderInstallUI {
         Window::new("Shader Pack Available")
             .resizable(false)
             .collapsible(false)
-            .default_width(450.0)
+            .default_width(SHADER_INSTALL_DIALOG_WIDTH)
             .default_pos(viewport.center())
             .pivot(Align2::CENTER_CENTER)
             .frame(
                 Frame::window(&ctx.style())
                     .fill(solid_bg)
-                    .inner_margin(20.0)
+                    .inner_margin(SHADER_INSTALL_INNER_MARGIN)
                     .stroke(egui::Stroke::new(1.0, Color32::from_gray(80)))
                     .shadow(Shadow {
                         offset: [4, 4],
@@ -152,11 +156,11 @@ impl ShaderInstallUI {
                     // Don't show buttons during installation or after success
                     if !self.installing && self.success_message.is_none() {
                         ui.horizontal(|ui| {
-                            // Calculate button width for uniform sizing
-                            let button_width = 120.0;
-
                             if ui
-                                .add_sized([button_width, 32.0], egui::Button::new("Yes, Install"))
+                                .add_sized(
+                                    [SHADER_INSTALL_BUTTON_WIDTH, SHADER_INSTALL_BUTTON_HEIGHT],
+                                    egui::Button::new("Yes, Install"),
+                                )
                                 .clicked()
                             {
                                 response = ShaderInstallResponse::Install;
@@ -165,7 +169,10 @@ impl ShaderInstallUI {
                             ui.add_space(8.0);
 
                             if ui
-                                .add_sized([button_width, 32.0], egui::Button::new("Never"))
+                                .add_sized(
+                                    [SHADER_INSTALL_BUTTON_WIDTH, SHADER_INSTALL_BUTTON_HEIGHT],
+                                    egui::Button::new("Never"),
+                                )
                                 .on_hover_text("Don't ask again")
                                 .clicked()
                             {
@@ -175,7 +182,10 @@ impl ShaderInstallUI {
                             ui.add_space(8.0);
 
                             if ui
-                                .add_sized([button_width, 32.0], egui::Button::new("Later"))
+                                .add_sized(
+                                    [SHADER_INSTALL_BUTTON_WIDTH, SHADER_INSTALL_BUTTON_HEIGHT],
+                                    egui::Button::new("Later"),
+                                )
                                 .on_hover_text("Ask again next time")
                                 .clicked()
                             {
@@ -185,7 +195,10 @@ impl ShaderInstallUI {
                     } else if self.success_message.is_some() {
                         // Show OK button after successful install
                         if ui
-                            .add_sized([120.0, 32.0], egui::Button::new("OK"))
+                            .add_sized(
+                                [SHADER_INSTALL_BUTTON_WIDTH, SHADER_INSTALL_BUTTON_HEIGHT],
+                                egui::Button::new("OK"),
+                            )
                             .clicked()
                         {
                             self.visible = false;

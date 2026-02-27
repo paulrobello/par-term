@@ -74,6 +74,7 @@ pub mod themes;
 pub use par_term_tmux as tmux;
 pub mod tmux_session_picker_ui;
 pub mod tmux_status_bar_ui;
+pub mod ui_constants;
 pub mod update_checker;
 pub mod update_dialog;
 pub mod url_detection;

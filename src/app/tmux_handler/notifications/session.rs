@@ -151,14 +151,20 @@ impl WindowState {
             tab.tmux_gateway_active = false;
             tab.tmux_pane_id = None;
             tab.clear_auto_profile(); // Clear tmux session profile
-            // try_lock: intentional — session-ended cleanup runs from the sync event loop.
-            // On miss: tmux control mode stays enabled on the terminal temporarily; the
-            // terminal will stop receiving control-mode notifications since the session is
-            // disconnected and the flag will be cleared on the next unlock opportunity.
-            // FIXME: If lock is never acquired, the terminal remains in tmux control mode
-            // indefinitely. Consider a deferred cleanup mechanism if this proves problematic.
+            // try_lock: intentional — session-ended cleanup runs from the sync event loop
+            // where blocking would stall the entire GUI.
+            // On miss: set the deferred flag so the notification poll loop retries on the
+            // next frame, guaranteeing the terminal parser eventually exits control mode.
             if let Ok(term) = tab.terminal.try_lock() {
                 term.set_tmux_control_mode(false);
+            } else {
+                crate::debug_error!(
+                    "TAB",
+                    "session-ended: could not acquire terminal lock to disable tmux control mode \
+                     on tab {} — deferring to next poll cycle",
+                    gateway_tab_id
+                );
+                tab.pending_tmux_mode_disable = true;
             }
         }
         self.tmux_state.tmux_gateway_tab_id = None;

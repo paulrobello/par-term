@@ -4,6 +4,10 @@
 //! to clipboard content before pasting.
 
 use crate::paste_transform::{PasteTransform, transform};
+use crate::ui_constants::{
+    PASTE_SPECIAL_TRANSFORMS_MAX_HEIGHT, PASTE_SPECIAL_WINDOW_DEFAULT_HEIGHT,
+    PASTE_SPECIAL_WINDOW_DEFAULT_WIDTH,
+};
 use egui::{Color32, Context, RichText, Window};
 
 /// Action to take after showing the UI
@@ -136,15 +140,15 @@ impl PasteSpecialUI {
         // Calculate center position
         let screen_rect = ctx.content_rect();
         let default_pos = egui::pos2(
-            (screen_rect.width() - 500.0) / 2.0,
-            (screen_rect.height() - 400.0) / 2.0,
+            (screen_rect.width() - PASTE_SPECIAL_WINDOW_DEFAULT_WIDTH) / 2.0,
+            (screen_rect.height() - PASTE_SPECIAL_WINDOW_DEFAULT_HEIGHT) / 2.0,
         );
 
         Window::new("Paste Special")
             .resizable(true)
             .collapsible(false)
-            .default_width(500.0)
-            .default_height(400.0)
+            .default_width(PASTE_SPECIAL_WINDOW_DEFAULT_WIDTH)
+            .default_height(PASTE_SPECIAL_WINDOW_DEFAULT_HEIGHT)
             .default_pos(default_pos)
             .open(&mut open)
             .show(ctx, |ui| {
@@ -172,7 +176,7 @@ impl PasteSpecialUI {
                     egui::ScrollArea::vertical()
                         .id_salt("transforms_scroll")
                         .auto_shrink([false, false])
-                        .max_height(250.0)
+                        .max_height(PASTE_SPECIAL_TRANSFORMS_MAX_HEIGHT)
                         .show(&mut columns[0], |ui| {
                             if self.filtered_transforms.is_empty() {
                                 ui.label("No matching transformations");
