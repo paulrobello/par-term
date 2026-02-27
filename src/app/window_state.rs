@@ -95,6 +95,71 @@ struct PaneRenderData {
     graphics: Vec<par_term_emu_core_rust::graphics::TerminalGraphic>,
 }
 
+/// Data computed during `gather_render_data()` and consumed by the rest of `render()`.
+struct FrameRenderData {
+    /// Processed terminal cells (URL underlines + search highlights applied)
+    cells: Vec<crate::cell_renderer::Cell>,
+    /// Cursor position on screen (col, row), None if hidden
+    cursor_pos: Option<(usize, usize)>,
+    /// Cursor glyph style (from terminal or config overrides)
+    cursor_style: Option<par_term_emu_core_rust::cursor::CursorStyle>,
+    /// Whether alternate screen is active (vim, htop, etc.)
+    is_alt_screen: bool,
+    /// Total scrollback lines available
+    scrollback_len: usize,
+    /// Whether the scrollbar should be shown
+    show_scrollbar: bool,
+    /// Visible grid rows count
+    visible_lines: usize,
+    /// Visible grid columns count
+    grid_cols: usize,
+    /// Scrollback marks (command marks, trigger marks) for scrollbar and separators
+    scrollback_marks: Vec<crate::scrollback_metadata::ScrollbackMark>,
+    /// Total renderable lines (visible + scrollback)
+    total_lines: usize,
+    /// Time spent on URL detection this frame (Zero on cache hit)
+    debug_url_detect_time: std::time::Duration,
+}
+
+/// Actions collected during the egui/GPU render pass to be handled after the renderer borrow ends.
+struct PostRenderActions {
+    clipboard: ClipboardHistoryAction,
+    command_history: CommandHistoryAction,
+    paste_special: PasteSpecialAction,
+    session_picker: SessionPickerAction,
+    tab_action: TabBarAction,
+    shader_install: ShaderInstallResponse,
+    integrations: IntegrationsResponse,
+    search: crate::search::SearchAction,
+    inspector: InspectorAction,
+    profile_drawer: ProfileDrawerAction,
+    close_confirm: CloseConfirmAction,
+    quit_confirm: QuitConfirmAction,
+    remote_install: RemoteShellInstallAction,
+    ssh_connect: SshConnectAction,
+}
+
+impl Default for PostRenderActions {
+    fn default() -> Self {
+        Self {
+            clipboard: ClipboardHistoryAction::None,
+            command_history: CommandHistoryAction::None,
+            paste_special: PasteSpecialAction::None,
+            session_picker: SessionPickerAction::None,
+            tab_action: TabBarAction::None,
+            shader_install: ShaderInstallResponse::None,
+            integrations: IntegrationsResponse::default(),
+            search: crate::search::SearchAction::None,
+            inspector: InspectorAction::None,
+            profile_drawer: ProfileDrawerAction::None,
+            close_confirm: CloseConfirmAction::None,
+            quit_confirm: QuitConfirmAction::None,
+            remote_install: RemoteShellInstallAction::None,
+            ssh_connect: SshConnectAction::None,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct PreservedClipboardImage {
     pub(crate) width: usize,
@@ -2400,917 +2465,40 @@ impl WindowState {
             return;
         }
 
-        // FPS throttling to enforce max_fps (focused) or unfocused_fps (unfocused)
-        // This ensures rendering is capped even if VSync runs at a higher rate
-        // or multiple sources are requesting redraws (refresh task, shader animations, etc.)
-        let target_fps = if self.config.pause_refresh_on_blur && !self.is_focused {
-            self.config.unfocused_fps
-        } else {
-            self.config.max_fps
-        };
-        let frame_interval_ms = 1000 / target_fps.max(1);
-        let frame_interval = std::time::Duration::from_millis(frame_interval_ms as u64);
-
-        if let Some(last_render) = self.last_render_time {
-            let elapsed = last_render.elapsed();
-            if elapsed < frame_interval {
-                // Not enough time has passed, skip this render
-                return;
-            }
+        if !self.should_render_frame() {
+            return;
         }
 
-        // Update last render time for FPS throttling
-        self.last_render_time = Some(std::time::Instant::now());
+        self.update_frame_metrics();
+        self.update_animations();
+        self.sync_layout();
 
-        let absolute_start = std::time::Instant::now();
-
-        // Reset redraw flag after rendering
-        // This flag will be set again in about_to_wait if another redraw is needed
-        self.needs_redraw = false;
-
-        // Track frame timing
-        let frame_start = std::time::Instant::now();
-
-        // Calculate frame time from last render
-        if let Some(last_start) = self.debug.last_frame_start {
-            let frame_time = frame_start.duration_since(last_start);
-            self.debug.frame_times.push_back(frame_time);
-            if self.debug.frame_times.len() > 60 {
-                self.debug.frame_times.pop_front();
-            }
-        }
-        self.debug.last_frame_start = Some(frame_start);
-
-        // Update scroll animation
-        let animation_running = if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.scroll_state.update_animation()
-        } else {
-            false
-        };
-
-        // Update tab titles from terminal OSC sequences
-        self.tab_manager
-            .update_all_titles(self.config.tab_title_mode);
-
-        // Rebuild renderer if font-related settings changed
-        if self.pending_font_rebuild {
-            if let Err(e) = self.rebuild_renderer() {
-                log::error!("Failed to rebuild renderer after font change: {}", e);
-            }
-            self.pending_font_rebuild = false;
-        }
-
-        // Sync tab bar offsets with renderer's content offsets
-        // This ensures the terminal grid correctly accounts for the tab bar position
-        let tab_count = self.tab_manager.tab_count();
-        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
-        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
-        crate::debug_trace!(
-            "TAB_SYNC",
-            "Tab count={}, tab_bar_height={:.0}, tab_bar_width={:.0}, position={:?}, mode={:?}",
-            tab_count,
-            tab_bar_height,
-            tab_bar_width,
-            self.config.tab_bar_position,
-            self.config.tab_bar_mode
-        );
-        if let Some(renderer) = &mut self.renderer {
-            let grid_changed = Self::apply_tab_bar_offsets_for_position(
-                self.config.tab_bar_position,
-                renderer,
-                tab_bar_height,
-                tab_bar_width,
-            );
-            if let Some((new_cols, new_rows)) = grid_changed {
-                let cell_width = renderer.cell_width();
-                let cell_height = renderer.cell_height();
-                let width_px = (new_cols as f32 * cell_width) as usize;
-                let height_px = (new_rows as f32 * cell_height) as usize;
-
-                for tab in self.tab_manager.tabs_mut() {
-                    if let Ok(mut term) = tab.terminal.try_lock() {
-                        term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                        let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
-                    }
-                    tab.cache.cells = None;
-                }
-                crate::debug_info!(
-                    "TAB_SYNC",
-                    "Tab bar offsets changed (position={:?}), resized terminals to {}x{}",
-                    self.config.tab_bar_position,
-                    new_cols,
-                    new_rows
-                );
-            }
-        }
-
-        // Sync status bar inset so the terminal grid does not extend behind it.
-        // Must happen before cell gathering so the row count is correct.
-        self.sync_status_bar_inset();
-
-        let (renderer_size, visible_lines, grid_cols) = if let Some(renderer) = &self.renderer {
-            let (cols, rows) = renderer.grid_size();
-            (renderer.size(), rows, cols)
-        } else {
+        let Some(frame_data) = self.gather_render_data() else {
             return;
         };
 
-        // Get active tab's terminal and immediate state snapshots (avoid long borrows)
-        let (
-            terminal,
-            scroll_offset,
-            mouse_selection,
-            cache_cells,
-            cache_generation,
-            cache_scroll_offset,
-            cache_cursor_pos,
-            cache_selection,
-            cached_scrollback_len,
-            cached_terminal_title,
-            hovered_url,
-        ) = match self.tab_manager.active_tab() {
-            Some(t) => (
-                t.terminal.clone(),
-                t.scroll_state.offset,
-                t.mouse.selection,
-                t.cache.cells.clone(),
-                t.cache.generation,
-                t.cache.scroll_offset,
-                t.cache.cursor_pos,
-                t.cache.selection,
-                t.cache.scrollback_len,
-                t.cache.terminal_title.clone(),
-                t.mouse.hovered_url.clone(),
-            ),
-            None => return,
-        };
+        let actions = self.submit_gpu_frame(frame_data);
+        self.update_post_render_state(actions);
+    }
 
-        // Check if shell has exited
-        let _is_running = if let Ok(term) = terminal.try_lock() {
-            term.is_running()
-        } else {
-            true // Assume running if locked
-        };
+    /// Run prettifier cell substitution, egui overlays, and GPU render pass.
+    /// Returns collected post-render actions to handle after the renderer borrow is released.
+    fn submit_gpu_frame(&mut self, frame_data: FrameRenderData) -> PostRenderActions {
+        let FrameRenderData {
+            mut cells,
+            cursor_pos: current_cursor_pos,
+            cursor_style,
+            is_alt_screen,
+            scrollback_len,
+            show_scrollbar,
+            visible_lines,
+            grid_cols,
+            scrollback_marks,
+            total_lines,
+            debug_url_detect_time,
+        } = frame_data;
 
-        // Request another redraw if animation is still running
-        if animation_running && let Some(window) = &self.window {
-            window.request_redraw();
-        }
-
-        // Get scroll offset and selection from active tab
-
-        // Get terminal cells for rendering (with dirty tracking optimization)
-        // Also capture alt screen state to disable cursor shader for TUI apps
-        let (mut cells, current_cursor_pos, cursor_style, is_alt_screen, current_generation) =
-            if let Ok(term) = terminal.try_lock() {
-                // Get current generation to check if terminal content has changed
-                let current_generation = term.update_generation();
-
-                // Normalize selection if it exists and extract mode
-                let (selection, rectangular) = if let Some(sel) = mouse_selection {
-                    (
-                        Some(sel.normalized()),
-                        sel.mode == SelectionMode::Rectangular,
-                    )
-                } else {
-                    (None, false)
-                };
-
-                // Get cursor position and opacity (only show if we're at the bottom with no scroll offset
-                // and the cursor is visible - TUI apps hide cursor via DECTCEM escape sequence)
-                // If lock_cursor_visibility is enabled, ignore the terminal's visibility state
-                // In copy mode, use the copy mode cursor position instead
-                let cursor_visible = self.config.lock_cursor_visibility || term.is_cursor_visible();
-                let current_cursor_pos = if self.copy_mode.active {
-                    self.copy_mode.screen_cursor_pos(scroll_offset)
-                } else if scroll_offset == 0 && cursor_visible {
-                    Some(term.cursor_position())
-                } else {
-                    None
-                };
-
-                let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_anim.cursor_opacity));
-
-                // Get cursor style for geometric rendering
-                // In copy mode, always use SteadyBlock for clear visibility
-                // If lock_cursor_style is enabled, use the config's cursor style instead of terminal's
-                // If lock_cursor_blink is enabled and cursor_blink is false, force steady cursor
-                let cursor_style = if self.copy_mode.active && current_cursor_pos.is_some() {
-                    Some(TermCursorStyle::SteadyBlock)
-                } else if current_cursor_pos.is_some() {
-                    if self.config.lock_cursor_style {
-                        // Convert config cursor style to terminal cursor style
-                        let style = if self.config.cursor_blink {
-                            match self.config.cursor_style {
-                                CursorStyle::Block => TermCursorStyle::BlinkingBlock,
-                                CursorStyle::Beam => TermCursorStyle::BlinkingBar,
-                                CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
-                            }
-                        } else {
-                            match self.config.cursor_style {
-                                CursorStyle::Block => TermCursorStyle::SteadyBlock,
-                                CursorStyle::Beam => TermCursorStyle::SteadyBar,
-                                CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
-                            }
-                        };
-                        Some(style)
-                    } else {
-                        let mut style = term.cursor_style();
-                        // If blink is locked off, convert blinking styles to steady
-                        if self.config.lock_cursor_blink && !self.config.cursor_blink {
-                            style = match style {
-                                TermCursorStyle::BlinkingBlock => TermCursorStyle::SteadyBlock,
-                                TermCursorStyle::BlinkingBar => TermCursorStyle::SteadyBar,
-                                TermCursorStyle::BlinkingUnderline => {
-                                    TermCursorStyle::SteadyUnderline
-                                }
-                                other => other,
-                            };
-                        }
-                        Some(style)
-                    }
-                } else {
-                    None
-                };
-
-                log::trace!(
-                    "Cursor: pos={:?}, opacity={:.2}, style={:?}, scroll={}, visible={}",
-                    current_cursor_pos,
-                    self.cursor_anim.cursor_opacity,
-                    cursor_style,
-                    scroll_offset,
-                    term.is_cursor_visible()
-                );
-
-                // Check if we need to regenerate cells
-                // Only regenerate when content actually changes, not on every cursor blink
-                let needs_regeneration = cache_cells.is_none()
-                || current_generation != cache_generation
-                || scroll_offset != cache_scroll_offset
-                || current_cursor_pos != cache_cursor_pos // Regenerate if cursor position changed
-                || mouse_selection != cache_selection; // Regenerate if selection changed (including clearing)
-
-                let cell_gen_start = std::time::Instant::now();
-                let (cells, is_cache_hit) = if needs_regeneration {
-                    // Generate fresh cells
-                    let fresh_cells = term.get_cells_with_scrollback(
-                        scroll_offset,
-                        selection,
-                        rectangular,
-                        cursor,
-                    );
-
-                    (fresh_cells, false)
-                } else {
-                    // Cache hit: clone the Vec through the Arc (one allocation instead of two).
-                    // apply_url_underlines needs a mutable Vec, so we still need an owned copy,
-                    // but the Arc clone that extracted cache_cells from tab.cache was free.
-                    (cache_cells.as_ref().unwrap().as_ref().clone(), true)
-                };
-                self.debug.cache_hit = is_cache_hit;
-                self.debug.cell_gen_time = cell_gen_start.elapsed();
-
-                // Check if alt screen is active (TUI apps like vim, htop)
-                let is_alt_screen = term.is_alt_screen_active();
-
-                (
-                    cells,
-                    current_cursor_pos,
-                    cursor_style,
-                    is_alt_screen,
-                    current_generation,
-                )
-            } else if let Some(cached) = cache_cells {
-                // Terminal locked (e.g., upload in progress), use cached cells so the
-                // rest of the render pipeline (including file transfer overlay) can proceed.
-                // Unwrap the Arc: if this is the sole reference the Vec is moved for free,
-                // otherwise a clone is made (rare — only if another Arc clone is live).
-                let cached_vec = Arc::try_unwrap(cached).unwrap_or_else(|a| (*a).clone());
-                (cached_vec, cache_cursor_pos, None, false, cache_generation)
-            } else {
-                return; // Terminal locked and no cache available, skip this frame
-            };
-
-        // --- Prettifier pipeline update ---
-        // Feed terminal output changes to the prettifier, check debounce, and handle
-        // alt-screen transitions. This runs outside the terminal lock.
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            // Detect alt-screen transitions
-            if is_alt_screen != tab.was_alt_screen {
-                if let Some(ref mut pipeline) = tab.prettifier {
-                    pipeline.on_alt_screen_change(is_alt_screen);
-                }
-                tab.was_alt_screen = is_alt_screen;
-            }
-
-            // Always check debounce (cheap: just a timestamp comparison)
-            if let Some(ref mut pipeline) = tab.prettifier {
-                pipeline.check_debounce();
-            }
-        }
-
-        // Ensure cursor visibility flag for cell renderer reflects current config every frame
-        // (so toggling "Hide default cursor" takes effect immediately even if no other changes)
-        // Resolve hides_cursor: per-shader override -> metadata defaults -> global config
-        let resolved_hides_cursor = self
-            .config
-            .cursor_shader
-            .as_ref()
-            .and_then(|name| self.config.cursor_shader_configs.get(name))
-            .and_then(|override_cfg| override_cfg.hides_cursor)
-            .or_else(|| {
-                self.config
-                    .cursor_shader
-                    .as_ref()
-                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
-                    .and_then(|meta| meta.defaults.hides_cursor)
-            })
-            .unwrap_or(self.config.cursor_shader_hides_cursor);
-        // Resolve disable_in_alt_screen: per-shader override -> metadata defaults -> global config
-        let resolved_disable_in_alt_screen = self
-            .config
-            .cursor_shader
-            .as_ref()
-            .and_then(|name| self.config.cursor_shader_configs.get(name))
-            .and_then(|override_cfg| override_cfg.disable_in_alt_screen)
-            .or_else(|| {
-                self.config
-                    .cursor_shader
-                    .as_ref()
-                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
-                    .and_then(|meta| meta.defaults.disable_in_alt_screen)
-            })
-            .unwrap_or(self.config.cursor_shader_disable_in_alt_screen);
-        let hide_cursor_for_shader = self.config.cursor_shader_enabled
-            && resolved_hides_cursor
-            && !(resolved_disable_in_alt_screen && is_alt_screen);
-        if let Some(renderer) = &mut self.renderer {
-            renderer.set_cursor_hidden_for_shader(hide_cursor_for_shader);
-        }
-
-        // Update cache with regenerated cells (if needed)
-        // Need to re-borrow as mutable after the terminal lock is released
-        if !self.debug.cache_hit
-            && let Some(tab) = self.tab_manager.active_tab_mut()
-            && let Ok(term) = tab.terminal.try_lock()
-        {
-            let current_generation = term.update_generation();
-            tab.cache.cells = Some(Arc::new(cells.clone()));
-            tab.cache.generation = current_generation;
-            tab.cache.scroll_offset = tab.scroll_state.offset;
-            tab.cache.cursor_pos = current_cursor_pos;
-            tab.cache.selection = tab.mouse.selection;
-        }
-
-        let mut show_scrollbar = self.should_show_scrollbar();
-
-        let (scrollback_len, terminal_title, shell_lifecycle_events) =
-            if let Ok(mut term) = terminal.try_lock() {
-                // Use cursor row 0 when cursor not visible (e.g., alt screen)
-                let cursor_row = current_cursor_pos.map(|(_, row)| row).unwrap_or(0);
-                let sb_len = term.scrollback_len();
-                term.update_scrollback_metadata(sb_len, cursor_row);
-
-                // Drain shell lifecycle events for the prettifier pipeline
-                let shell_events = term.drain_shell_lifecycle_events();
-
-                // Feed newly completed commands into persistent history from two sources:
-                // 1. Scrollback marks (populated via set_mark_command_at from grid text extraction)
-                // 2. Core library command history (populated by the terminal emulator core)
-                // Both sources are checked because command text may come from either path
-                // depending on shell integration quality. The synced_commands set prevents
-                // duplicate adds across frames and sources.
-                for mark in term.scrollback_marks() {
-                    if let Some(ref cmd) = mark.command
-                        && !cmd.is_empty()
-                        && self.overlay_ui.synced_commands.insert(cmd.clone())
-                    {
-                        self.overlay_ui.command_history.add(
-                            cmd.clone(),
-                            mark.exit_code,
-                            mark.duration_ms,
-                        );
-                    }
-                }
-                for (cmd, exit_code, duration_ms) in term.core_command_history() {
-                    if !cmd.is_empty() && self.overlay_ui.synced_commands.insert(cmd.clone()) {
-                        self.overlay_ui
-                            .command_history
-                            .add(cmd, exit_code, duration_ms);
-                    }
-                }
-
-                (sb_len, term.get_title(), shell_events)
-            } else {
-                (
-                    cached_scrollback_len,
-                    cached_terminal_title.clone(),
-                    Vec::new(),
-                )
-            };
-
-        // Capture prettifier block count before processing events/feed so we can
-        // detect when new blocks are added and invalidate the cell cache.
-        let prettifier_block_count_before = self
-            .tab_manager
-            .active_tab()
-            .and_then(|t| t.prettifier.as_ref())
-            .map(|p| p.active_blocks().len())
-            .unwrap_or(0);
-
-        // Forward shell lifecycle events to the prettifier pipeline (outside terminal lock)
-        if !shell_lifecycle_events.is_empty()
-            && let Some(tab) = self.tab_manager.active_tab_mut()
-            && let Some(ref mut pipeline) = tab.prettifier
-        {
-            for event in &shell_lifecycle_events {
-                match event {
-                    par_term_terminal::ShellLifecycleEvent::CommandStarted {
-                        command,
-                        absolute_line,
-                    } => {
-                        tab.cache.prettifier_command_start_line = Some(*absolute_line);
-                        tab.cache.prettifier_command_text = Some(command.clone());
-                        pipeline.on_command_start(command);
-                    }
-                    par_term_terminal::ShellLifecycleEvent::CommandFinished { absolute_line } => {
-                        if let Some(start) = tab.cache.prettifier_command_start_line.take() {
-                            let cmd_text = tab.cache.prettifier_command_text.take();
-                            // Read full command output from scrollback so the
-                            // prettified block covers the entire output, not just
-                            // the visible portion. This ensures scrolling through
-                            // long output shows prettified content throughout.
-                            let output_start = start + 1;
-                            if let Ok(term) = terminal.try_lock() {
-                                let lines = term.lines_text_range(output_start, *absolute_line);
-                                crate::debug_info!(
-                                    "PRETTIFIER",
-                                    "submit_command_output: {} lines (rows {}..{})",
-                                    lines.len(),
-                                    output_start,
-                                    absolute_line
-                                );
-                                pipeline.submit_command_output(lines, cmd_text);
-                            } else {
-                                // Lock failed — fall back to boundary detector state
-                                pipeline.on_command_end();
-                            }
-                        } else {
-                            pipeline.on_command_end();
-                        }
-                    }
-                }
-            }
-        }
-
-        // Feed terminal output lines to the prettifier pipeline (gated on content changes).
-        // Skip per-frame viewport feed for CommandOutput scope — it reads full output
-        // from scrollback on CommandFinished instead.
-        if let Some(tab) = self.tab_manager.active_tab_mut()
-            && let Some(ref mut pipeline) = tab.prettifier
-            && pipeline.is_enabled()
-            && !is_alt_screen
-            && pipeline.detection_scope()
-                != crate::prettifier::boundary::DetectionScope::CommandOutput
-            && (current_generation != tab.cache.prettifier_feed_generation
-                || scroll_offset != tab.cache.prettifier_feed_scroll_offset)
-        {
-            // Detect whether terminal content actually changed in a meaningful way.
-            // Generation changes on every cursor blink / spinner update, but we only
-            // want to reset prettifier state when the scrollback grows (real new output).
-            let generation_changed =
-                current_generation != tab.cache.prettifier_feed_generation;
-            let scrollback_grew =
-                scrollback_len != tab.cache.prettifier_cc_last_dump_rows.0;
-            let content_changed = generation_changed && scrollback_grew;
-            if content_changed {
-                tab.cache.prettifier_cc_last_dump_rows.0 = scrollback_len;
-            }
-            tab.cache.prettifier_feed_generation = current_generation;
-            tab.cache.prettifier_feed_scroll_offset = scroll_offset;
-
-            // Heuristic Claude Code session detection from visible output.
-            // One-time: scan for signature patterns if not yet detected.
-            if !pipeline.claude_code().is_active() {
-                'detect: for row_idx in 0..visible_lines {
-                    let start = row_idx * grid_cols;
-                    let end = (start + grid_cols).min(cells.len());
-                    if start >= cells.len() {
-                        break;
-                    }
-                    let row_text: String = cells[start..end]
-                        .iter()
-                        .map(|c| {
-                            let g = c.grapheme.as_str();
-                            if g.is_empty() || g == "\0" { " " } else { g }
-                        })
-                        .collect();
-                    // Look for Claude Code signature patterns in output.
-                    if row_text.contains("Claude Code")
-                        || row_text.contains("claude.ai/code")
-                        || row_text.contains("Tips for getting the best")
-                        || (row_text.contains("Model:")
-                            && (row_text.contains("Opus")
-                                || row_text.contains("Sonnet")
-                                || row_text.contains("Haiku")))
-                    {
-                        crate::debug_info!(
-                            "PRETTIFIER",
-                            "Claude Code session detected from output heuristic"
-                        );
-                        pipeline.mark_claude_code_active();
-                        break 'detect;
-                    }
-                }
-            }
-
-            let is_claude_session = pipeline.claude_code().is_active();
-
-            if is_claude_session {
-                // When real content changes (scrollback grew), clear all blocks.
-                // Claude Code's dynamic output means old blocks at fixed absolute
-                // rows become stale as new output shifts the viewport. Re-detect
-                // fresh from the current viewport.
-                if content_changed {
-                    pipeline.clear_blocks();
-                    crate::debug_log!(
-                        "PRETTIFIER",
-                        "CC content changed (scrollback grew), cleared all blocks"
-                    );
-                }
-
-                // Claude Code session: segment the viewport by action bullets
-                // (⏺) and collapse markers. Each segment is submitted independently
-                // so detection sees focused content blocks rather than the entire
-                // viewport (which mixes UI chrome with markdown and causes false
-                // positives). Deduplication in handle_block prevents duplicates.
-                pipeline.reset_boundary();
-
-                crate::debug_log!(
-                    "PRETTIFIER",
-                    "per-frame feed (CC): scanning {} visible lines, content_changed={}, scrollback={}, scroll_offset={}",
-                    visible_lines,
-                    content_changed,
-                    scrollback_len,
-                    scroll_offset
-                );
-
-                // Collect all rows with raw + reconstructed text.
-                let mut rows: Vec<(String, String, usize)> = Vec::new(); // (raw, recon, abs_row)
-
-                for row_idx in 0..visible_lines {
-                    let absolute_row =
-                        scrollback_len.saturating_sub(scroll_offset) + row_idx;
-                    let start = row_idx * grid_cols;
-                    let end = (start + grid_cols).min(cells.len());
-                    if start >= cells.len() {
-                        break;
-                    }
-
-                    let row_text: String = cells[start..end]
-                        .iter()
-                        .map(|c| {
-                            let g = c.grapheme.as_str();
-                            if g.is_empty() || g == "\0" { " " } else { g }
-                        })
-                        .collect();
-
-                    let line = reconstruct_markdown_from_cells(&cells[start..end]);
-                    rows.push((row_text, line, absolute_row));
-                }
-
-                // Split into segments at action bullets (⏺) and collapse markers.
-                // Each segment is the content between two boundaries.
-                let mut segments: Vec<Vec<(String, usize)>> = Vec::new();
-                let mut current: Vec<(String, usize)> = Vec::new();
-
-                for (raw, recon, abs_row) in &rows {
-                    let trimmed = raw.trim();
-                    // Collapse markers — boundary, include the line in the
-                    // preceding segment so row alignment is preserved (skipping
-                    // it would cause the overlay to render wrong content at this row).
-                    if raw.contains("(ctrl+o to expand)") {
-                        current.push((recon.clone(), *abs_row));
-                        segments.push(std::mem::take(&mut current));
-                        continue;
-                    }
-                    // Action bullets (⏺) start a new segment
-                    if trimmed.starts_with('⏺') || trimmed.starts_with("● ") {
-                        if !current.is_empty() {
-                            segments.push(std::mem::take(&mut current));
-                        }
-                        // Include this line in the new segment
-                        current.push((recon.clone(), *abs_row));
-                        continue;
-                    }
-                    // Horizontal rules (─────) are boundaries
-                    if trimmed.len() > 10
-                        && trimmed.chars().all(|c| c == '─' || c == '━')
-                    {
-                        if !current.is_empty() {
-                            segments.push(std::mem::take(&mut current));
-                        }
-                        continue;
-                    }
-                    current.push((recon.clone(), *abs_row));
-                }
-                if !current.is_empty() {
-                    segments.push(current);
-                }
-
-                crate::debug_log!(
-                    "PRETTIFIER",
-                    "CC segmentation: {} total rows -> {} segments",
-                    rows.len(),
-                    segments.len()
-                );
-
-                // Submit each segment that has enough content for detection.
-                // Short segments (tool call one-liners) are skipped.
-                // The pipeline's handle_block() deduplicates by content hash,
-                // so resubmitting the same segment on successive frames is cheap.
-                let min_segment_lines = 5;
-                let mut submitted = 0usize;
-                let mut skipped_short = 0usize;
-                let mut skipped_empty = 0usize;
-                for mut segment in segments {
-                    let non_empty = segment
-                        .iter()
-                        .filter(|(l, _)| !l.trim().is_empty())
-                        .count();
-                    if non_empty < min_segment_lines {
-                        skipped_short += 1;
-                        crate::debug_trace!(
-                            "PRETTIFIER",
-                            "CC segment skipped (too short): {} non-empty lines < {}",
-                            non_empty,
-                            min_segment_lines
-                        );
-                        continue;
-                    }
-
-                    let pre_len = segment.len();
-                    preprocess_claude_code_segment(&mut segment);
-                    if segment.is_empty() {
-                        skipped_empty += 1;
-                        crate::debug_trace!(
-                            "PRETTIFIER",
-                            "CC segment skipped (empty after preprocess, was {} lines)",
-                            pre_len
-                        );
-                        continue;
-                    }
-
-                    crate::debug_log!(
-                        "PRETTIFIER",
-                        "CC segment: {} lines (was {} before preprocess), rows={}..{}, first={:?}",
-                        segment.len(),
-                        pre_len,
-                        segment.first().map(|(_, r)| *r).unwrap_or(0),
-                        segment.last().map(|(_, r)| *r + 1).unwrap_or(0),
-                        segment.first().map(|(l, _)| &l[..l.floor_char_boundary(60)])
-                    );
-
-                    submitted += 1;
-                    pipeline.submit_command_output(
-                        std::mem::take(&mut segment),
-                        Some("claude".to_string()),
-                    );
-                }
-
-                crate::debug_log!(
-                    "PRETTIFIER",
-                    "CC segmentation complete: submitted={}, skipped_short={}, skipped_empty={}",
-                    submitted,
-                    skipped_short,
-                    skipped_empty
-                );
-            } else {
-                // Non-Claude session: submit the entire visible content as a
-                // single block. This gives the detector full context (avoids
-                // splitting markdown at blank lines) and reduces block churn.
-                //
-                // Throttle: during streaming, content changes every frame (~16ms).
-                // Recompute a quick hash and skip if content hasn't changed.
-                // If content did change, only re-submit if enough time has elapsed
-                // (150ms) to avoid rendering 60 intermediate states per second.
-                pipeline.reset_boundary();
-
-                let mut lines: Vec<(String, usize)> = Vec::with_capacity(visible_lines);
-                for row_idx in 0..visible_lines {
-                    let absolute_row =
-                        scrollback_len.saturating_sub(scroll_offset) + row_idx;
-
-                    let start = row_idx * grid_cols;
-                    let end = (start + grid_cols).min(cells.len());
-                    if start >= cells.len() {
-                        break;
-                    }
-
-                    let line: String = cells[start..end]
-                        .iter()
-                        .map(|c| {
-                            let g = c.grapheme.as_str();
-                            if g.is_empty() || g == "\0" { " " } else { g }
-                        })
-                        .collect::<String>()
-                        .trim_end()
-                        .to_string();
-
-                    lines.push((line, absolute_row));
-                }
-
-                if !lines.is_empty() {
-                    // Quick content hash for dedup.
-                    let content_hash = {
-                        use std::hash::{Hash, Hasher};
-                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                        for (line, row) in &lines {
-                            line.hash(&mut hasher);
-                            row.hash(&mut hasher);
-                        }
-                        hasher.finish()
-                    };
-
-                    if content_hash == tab.cache.prettifier_feed_last_hash {
-                        // Identical content — skip entirely.
-                        crate::debug_trace!(
-                            "PRETTIFIER",
-                            "per-frame feed (non-CC): content unchanged, skipping"
-                        );
-                    } else {
-                        let elapsed = tab.cache.prettifier_feed_last_time.elapsed();
-                        let throttle = std::time::Duration::from_millis(150);
-                        let has_block = !pipeline.active_blocks().is_empty();
-
-                        if has_block && elapsed < throttle {
-                            // Actively streaming with an existing prettified block.
-                            // Defer re-render to avoid per-frame churn.
-                            crate::debug_trace!(
-                                "PRETTIFIER",
-                                "per-frame feed (non-CC): throttled ({:.0}ms < {}ms), deferring",
-                                elapsed.as_secs_f64() * 1000.0,
-                                throttle.as_millis()
-                            );
-                        } else {
-                            crate::debug_log!(
-                                "PRETTIFIER",
-                                "per-frame feed (non-CC): submitting {} visible lines as single block, scrollback={}, scroll_offset={}",
-                                visible_lines,
-                                scrollback_len,
-                                scroll_offset
-                            );
-                            tab.cache.prettifier_feed_last_hash = content_hash;
-                            tab.cache.prettifier_feed_last_time = std::time::Instant::now();
-                            pipeline.submit_command_output(lines, None);
-                        }
-                    }
-                }
-            }
-        }
-
-        // If new prettified blocks were added during event processing or per-frame feed,
-        // invalidate the cell cache so the next frame runs cell substitution.
-        {
-            let block_count_after = self
-                .tab_manager
-                .active_tab()
-                .and_then(|t| t.prettifier.as_ref())
-                .map(|p| p.active_blocks().len())
-                .unwrap_or(0);
-            if block_count_after > prettifier_block_count_before {
-                crate::debug_info!(
-                    "PRETTIFIER",
-                    "new blocks detected ({} -> {}), invalidating cell cache",
-                    prettifier_block_count_before,
-                    block_count_after
-                );
-                if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.cache.cells = None;
-                }
-            }
-        }
-
-        // Update cache scrollback and clamp scroll state.
-        //
-        // In pane mode the focused pane's own terminal holds the scrollback, not
-        // `tab.terminal`.  Clamping here with `tab.terminal.scrollback_len()` would
-        // incorrectly cap (or zero-out) the scroll offset every frame.  The correct
-        // clamp happens later in the pane render path once we know the focused pane's
-        // actual scrollback length.
-        let is_pane_mode = self
-            .tab_manager
-            .active_tab()
-            .and_then(|t| t.pane_manager.as_ref())
-            .map(|pm| pm.pane_count() > 0)
-            .unwrap_or(false);
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.cache.scrollback_len = scrollback_len;
-            if !is_pane_mode {
-                tab.scroll_state
-                    .clamp_to_scrollback(tab.cache.scrollback_len);
-            }
-        }
-
-        // Keep copy mode dimensions in sync with terminal
-        if self.copy_mode.active
-            && let Ok(term) = terminal.try_lock()
-        {
-            let (cols, rows) = term.dimensions();
-            self.copy_mode.update_dimensions(cols, rows, scrollback_len);
-        }
-
-        let need_marks =
-            self.config.scrollbar_command_marks || self.config.command_separator_enabled;
-        let mut scrollback_marks = if need_marks {
-            if let Ok(term) = terminal.try_lock() {
-                term.scrollback_marks()
-            } else {
-                Vec::new()
-            }
-        } else {
-            Vec::new()
-        };
-
-        // Append trigger-generated marks
-        if let Some(tab) = self.tab_manager.active_tab() {
-            scrollback_marks.extend(tab.trigger_marks.iter().cloned());
-        }
-
-        // Keep scrollbar visible when mark indicators exist (even if no scrollback).
-        if !scrollback_marks.is_empty() {
-            show_scrollbar = true;
-        }
-
-        // Update window title if terminal has set one via OSC sequences
-        // Only if allow_title_change is enabled and we're not showing a URL tooltip
-        if self.config.allow_title_change
-            && hovered_url.is_none()
-            && terminal_title != cached_terminal_title
-        {
-            if let Some(tab) = self.tab_manager.active_tab_mut() {
-                tab.cache.terminal_title = terminal_title.clone();
-            }
-            if let Some(window) = &self.window {
-                if terminal_title.is_empty() {
-                    // Restore configured title when terminal clears title
-                    window.set_title(&self.format_title(&self.config.window_title));
-                } else {
-                    // Use terminal-set title with window number
-                    window.set_title(&self.format_title(&terminal_title));
-                }
-            }
-        }
-
-        // Total lines = visible lines + actual scrollback content
-        let total_lines = visible_lines + scrollback_len;
-
-        // Detect URLs in visible area (only when content changed)
-        // This optimization saves ~0.26ms per frame on cache hits
-        let url_detect_start = std::time::Instant::now();
-        let debug_url_detect_time = if !self.debug.cache_hit {
-            // Content changed - re-detect URLs
-            self.detect_urls();
-            url_detect_start.elapsed()
-        } else {
-            // Content unchanged - use cached URL detection
-            std::time::Duration::ZERO
-        };
-
-        // Apply URL underlining to cells (always apply, since cells might be regenerated)
-        let url_underline_start = std::time::Instant::now();
-        self.apply_url_underlines(&mut cells, &renderer_size);
-        let _debug_url_underline_time = url_underline_start.elapsed();
-
-        // Update search and apply search highlighting
-        if self.overlay_ui.search_ui.visible {
-            // Get all searchable lines from cells (ensures consistent wide character handling)
-            if let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_lock()
-            {
-                let lines_iter =
-                    crate::app::search_highlight::get_all_searchable_lines(&term, visible_lines);
-                self.overlay_ui.search_ui.update_search(lines_iter);
-            }
-
-            // Apply search highlighting to visible cells
-            let scroll_offset = self
-                .tab_manager
-                .active_tab()
-                .map(|t| t.scroll_state.offset)
-                .unwrap_or(0);
-            // Use actual terminal grid columns from renderer
-            self.apply_search_highlights(
-                &mut cells,
-                grid_cols,
-                scroll_offset,
-                scrollback_len,
-                visible_lines,
-            );
-        }
-
-        // Update cursor blink state
-        self.update_cursor_blink();
+        let mut actions = PostRenderActions::default();
 
         let render_start = std::time::Instant::now();
 
@@ -3320,32 +2508,6 @@ impl WindowState {
         #[allow(unused_assignments)]
         let mut debug_actual_render_time = std::time::Duration::ZERO;
         let _ = &debug_actual_render_time;
-        // Clipboard action to handle after rendering (declared here to survive renderer borrow)
-        let mut pending_clipboard_action = ClipboardHistoryAction::None;
-        // Command history action to handle after rendering
-        let mut pending_command_history_action = CommandHistoryAction::None;
-        // Paste special action to handle after rendering
-        let mut pending_paste_special_action = PasteSpecialAction::None;
-        // tmux session picker action to handle after rendering
-        let mut pending_session_picker_action = SessionPickerAction::None;
-        // Tab bar action to handle after rendering (declared here to survive renderer borrow)
-        let mut pending_tab_action = TabBarAction::None;
-        // Shader install response to handle after rendering
-        let mut pending_shader_install_response = ShaderInstallResponse::None;
-        // Integrations welcome dialog response to handle after rendering
-        let mut pending_integrations_response = IntegrationsResponse::default();
-        // Search action to handle after rendering
-        let mut pending_search_action = crate::search::SearchAction::None;
-        // AI Inspector action to handle after rendering
-        let mut pending_inspector_action = InspectorAction::None;
-        // Profile drawer action to handle after rendering
-        let mut pending_profile_drawer_action = ProfileDrawerAction::None;
-        // Close confirmation action to handle after rendering
-        let mut pending_close_confirm_action = CloseConfirmAction::None;
-        // Quit confirmation action to handle after rendering
-        let mut pending_quit_confirm_action = QuitConfirmAction::None;
-        let mut pending_remote_install_action = RemoteShellInstallAction::None;
-        let mut pending_ssh_connect_action = SshConnectAction::None;
         // Process agent messages and refresh AI Inspector snapshot
         self.process_agent_messages_tick();
 
@@ -4042,7 +3204,7 @@ impl WindowState {
                         if let Some(start_time) = mark.start_time {
                             use chrono::{DateTime, Local, Utc};
                             let dt =
-                                DateTime::<Utc>::from_timestamp_millis(start_time as i64).unwrap();
+                                DateTime::<Utc>::from_timestamp_millis(start_time as i64).expect("window_state: start_time millis out of valid timestamp range");
                             let local: DateTime<Local> = dt.into();
                             lines.push(format!("Time: {}", local.format("%H:%M:%S")));
                         }
@@ -4104,7 +3266,7 @@ impl WindowState {
                     } else {
                         0.0
                     };
-                    pending_tab_action = self.tab_bar_ui.render(
+                    actions.tab_action = self.tab_bar_ui.render(
                         ctx,
                         &self.tab_manager,
                         &self.config,
@@ -4142,42 +3304,42 @@ impl WindowState {
                     self.overlay_ui.help_ui.show(ctx);
 
                     // Show clipboard history UI and collect action
-                    pending_clipboard_action = self.overlay_ui.clipboard_history_ui.show(ctx);
+                    actions.clipboard = self.overlay_ui.clipboard_history_ui.show(ctx);
 
                     // Show command history UI and collect action
-                    pending_command_history_action = self.overlay_ui.command_history_ui.show(ctx);
+                    actions.command_history = self.overlay_ui.command_history_ui.show(ctx);
 
                     // Show paste special UI and collect action
-                    pending_paste_special_action = self.overlay_ui.paste_special_ui.show(ctx);
+                    actions.paste_special = self.overlay_ui.paste_special_ui.show(ctx);
 
                     // Show search UI and collect action
-                    pending_search_action = self.overlay_ui.search_ui.show(ctx, visible_lines, scrollback_len);
+                    actions.search = self.overlay_ui.search_ui.show(ctx, visible_lines, scrollback_len);
 
                     // Show AI Inspector panel and collect action
-                    pending_inspector_action = self.overlay_ui.ai_inspector.show(ctx, &self.agent_state.available_agents);
+                    actions.inspector = self.overlay_ui.ai_inspector.show(ctx, &self.agent_state.available_agents);
 
                     // Show tmux session picker UI and collect action
                     let tmux_path = self.config.resolve_tmux_path();
-                    pending_session_picker_action =
+                    actions.session_picker =
                         self.overlay_ui.tmux_session_picker_ui.show(ctx, &tmux_path);
 
                     // Show shader install dialog if visible
-                    pending_shader_install_response = self.overlay_ui.shader_install_ui.show(ctx);
+                    actions.shader_install = self.overlay_ui.shader_install_ui.show(ctx);
 
                     // Show integrations welcome dialog if visible
-                    pending_integrations_response = self.overlay_ui.integrations_ui.show(ctx);
+                    actions.integrations = self.overlay_ui.integrations_ui.show(ctx);
 
                     // Show close confirmation dialog if visible
-                    pending_close_confirm_action = self.overlay_ui.close_confirmation_ui.show(ctx);
+                    actions.close_confirm = self.overlay_ui.close_confirmation_ui.show(ctx);
 
                     // Show quit confirmation dialog if visible
-                    pending_quit_confirm_action = self.overlay_ui.quit_confirmation_ui.show(ctx);
+                    actions.quit_confirm = self.overlay_ui.quit_confirmation_ui.show(ctx);
 
                     // Show remote shell install dialog if visible
-                    pending_remote_install_action = self.overlay_ui.remote_shell_install_ui.show(ctx);
+                    actions.remote_install = self.overlay_ui.remote_shell_install_ui.show(ctx);
 
                     // Show SSH Quick Connect dialog if visible
-                    pending_ssh_connect_action = self.overlay_ui.ssh_connect_ui.show(ctx);
+                    actions.ssh_connect = self.overlay_ui.ssh_connect_ui.show(ctx);
 
                     // Render update dialog overlay
                     if self.show_update_dialog {
@@ -4251,7 +3413,7 @@ impl WindowState {
                     }
 
                     // Render profile drawer (right side panel)
-                    pending_profile_drawer_action = self.overlay_ui.profile_drawer_ui.render(
+                    actions.profile_drawer = self.overlay_ui.profile_drawer_ui.render(
                         ctx,
                         &self.overlay_ui.profile_manager,
                         &self.config,
@@ -4838,19 +4000,41 @@ impl WindowState {
             self.debug.render_time = render_start.elapsed();
         }
 
+        actions
+    }
+
+    /// Handle all actions collected during the render pass and finalize frame timing.
+    fn update_post_render_state(&mut self, actions: PostRenderActions) {
+        let PostRenderActions {
+            clipboard,
+            command_history,
+            paste_special,
+            session_picker,
+            tab_action,
+            shader_install,
+            integrations,
+            search,
+            inspector,
+            profile_drawer,
+            close_confirm,
+            quit_confirm,
+            remote_install,
+            ssh_connect,
+        } = actions;
+
         // Sync AI Inspector panel width after the render pass.
         // This catches drag-resize changes that update self.overlay_ui.ai_inspector.width during show().
         // Done here to avoid borrow conflicts with the renderer block above.
         self.sync_ai_inspector_width();
 
         // Handle tab bar actions collected during egui rendering
-        self.handle_tab_bar_action_after_render(pending_tab_action);
+        self.handle_tab_bar_action_after_render(tab_action);
 
         // Handle clipboard actions collected during egui rendering
-        self.handle_clipboard_history_action_after_render(pending_clipboard_action);
+        self.handle_clipboard_history_action_after_render(clipboard);
 
         // Handle command history actions collected during egui rendering
-        match pending_command_history_action {
+        match command_history {
             CommandHistoryAction::Insert(command) => {
                 self.paste_text(&command);
                 log::info!(
@@ -4862,7 +4046,7 @@ impl WindowState {
         }
 
         // Handle close confirmation dialog actions
-        match pending_close_confirm_action {
+        match close_confirm {
             CloseConfirmAction::Close { tab_id, pane_id } => {
                 // User confirmed close - close the tab/pane
                 if let Some(pane_id) = pane_id {
@@ -4891,7 +4075,7 @@ impl WindowState {
         }
 
         // Handle quit confirmation dialog actions
-        match pending_quit_confirm_action {
+        match quit_confirm {
             QuitConfirmAction::Quit => {
                 // User confirmed quit - proceed with shutdown
                 log::info!("Quit confirmed by user");
@@ -4904,7 +4088,7 @@ impl WindowState {
         }
 
         // Handle remote shell integration install action
-        match pending_remote_install_action {
+        match remote_install {
             RemoteShellInstallAction::Install => {
                 // Send the install command via paste_text() which uses the same
                 // code path as Cmd+V paste — handles bracketed paste mode and
@@ -4925,7 +4109,7 @@ impl WindowState {
         }
 
         // Handle SSH Quick Connect actions
-        match pending_ssh_connect_action {
+        match ssh_connect {
             SshConnectAction::Connect {
                 host,
                 profile_override: _,
@@ -4955,7 +4139,7 @@ impl WindowState {
         }
 
         // Handle paste special actions collected during egui rendering
-        match pending_paste_special_action {
+        match paste_special {
             PasteSpecialAction::Paste(content) => {
                 self.paste_text(&content);
                 log::debug!("Pasted transformed text ({} chars)", content.len());
@@ -4964,7 +4148,7 @@ impl WindowState {
         }
 
         // Handle search actions collected during egui rendering
-        match pending_search_action {
+        match search {
             crate::search::SearchAction::ScrollToMatch(offset) => {
                 self.set_scroll_target(offset);
                 self.needs_redraw = true;
@@ -4982,11 +4166,11 @@ impl WindowState {
         }
 
         // Handle AI Inspector actions collected during egui rendering
-        self.handle_inspector_action_after_render(pending_inspector_action);
+        self.handle_inspector_action_after_render(inspector);
 
         // Handle tmux session picker actions collected during egui rendering
         // Uses gateway mode: writes tmux commands to existing PTY instead of spawning process
-        match pending_session_picker_action {
+        match session_picker {
             SessionPickerAction::Attach(session_name) => {
                 crate::debug_info!(
                     "TMUX",
@@ -5052,7 +4236,7 @@ impl WindowState {
         }
 
         // Handle shader install responses
-        match pending_shader_install_response {
+        match shader_install {
             ShaderInstallResponse::Install => {
                 log::info!("User requested shader installation");
                 self.overlay_ui
@@ -5093,10 +4277,10 @@ impl WindowState {
         }
 
         // Handle integrations welcome dialog responses
-        self.handle_integrations_response(&pending_integrations_response);
+        self.handle_integrations_response(&integrations);
 
         // Handle profile drawer actions
-        match pending_profile_drawer_action {
+        match profile_drawer {
             ProfileDrawerAction::OpenProfile(id) => {
                 self.open_profile(id);
             }
@@ -5108,19 +4292,941 @@ impl WindowState {
             ProfileDrawerAction::None => {}
         }
 
-        let absolute_total = absolute_start.elapsed();
-        if absolute_total.as_millis() > 10 {
-            log::debug!(
-                "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
-                absolute_total.as_secs_f64() * 1000.0
+        if let Some(start) = self.debug.render_start {
+            let total = start.elapsed();
+            if total.as_millis() > 10 {
+                log::debug!(
+                    "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
+                    total.as_secs_f64() * 1000.0
+                );
+            }
+        }
+    }
+
+    /// Gather all data needed for this render frame.
+    /// Returns None if rendering should be skipped (no renderer, no active tab, terminal locked, etc.)
+    fn gather_render_data(&mut self) -> Option<FrameRenderData> {
+        let (renderer_size, visible_lines, grid_cols) = if let Some(renderer) = &self.renderer {
+            let (cols, rows) = renderer.grid_size();
+            (renderer.size(), rows, cols)
+        } else {
+            return None;
+        };
+
+        // Get active tab's terminal and immediate state snapshots (avoid long borrows)
+        let (
+            terminal,
+            scroll_offset,
+            mouse_selection,
+            cache_cells,
+            cache_generation,
+            cache_scroll_offset,
+            cache_cursor_pos,
+            cache_selection,
+            cached_scrollback_len,
+            cached_terminal_title,
+            hovered_url,
+        ) = match self.tab_manager.active_tab() {
+            Some(t) => (
+                t.terminal.clone(),
+                t.scroll_state.offset,
+                t.mouse.selection,
+                t.cache.cells.clone(),
+                t.cache.generation,
+                t.cache.scroll_offset,
+                t.cache.cursor_pos,
+                t.cache.selection,
+                t.cache.scrollback_len,
+                t.cache.terminal_title.clone(),
+                t.mouse.hovered_url.clone(),
+            ),
+            None => return None,
+        };
+
+        // Check if shell has exited
+        let _is_running = if let Ok(term) = terminal.try_lock() {
+            term.is_running()
+        } else {
+            true // Assume running if locked
+        };
+
+        // Get scroll offset and selection from active tab
+
+        // Get terminal cells for rendering (with dirty tracking optimization)
+        // Also capture alt screen state to disable cursor shader for TUI apps
+        let (mut cells, current_cursor_pos, cursor_style, is_alt_screen, current_generation) =
+            if let Ok(term) = terminal.try_lock() {
+                // Get current generation to check if terminal content has changed
+                let current_generation = term.update_generation();
+
+                // Normalize selection if it exists and extract mode
+                let (selection, rectangular) = if let Some(sel) = mouse_selection {
+                    (
+                        Some(sel.normalized()),
+                        sel.mode == SelectionMode::Rectangular,
+                    )
+                } else {
+                    (None, false)
+                };
+
+                // Get cursor position and opacity (only show if we're at the bottom with no scroll offset
+                // and the cursor is visible - TUI apps hide cursor via DECTCEM escape sequence)
+                // If lock_cursor_visibility is enabled, ignore the terminal's visibility state
+                // In copy mode, use the copy mode cursor position instead
+                let cursor_visible = self.config.lock_cursor_visibility || term.is_cursor_visible();
+                let current_cursor_pos = if self.copy_mode.active {
+                    self.copy_mode.screen_cursor_pos(scroll_offset)
+                } else if scroll_offset == 0 && cursor_visible {
+                    Some(term.cursor_position())
+                } else {
+                    None
+                };
+
+                let cursor = current_cursor_pos.map(|pos| (pos, self.cursor_anim.cursor_opacity));
+
+                // Get cursor style for geometric rendering
+                // In copy mode, always use SteadyBlock for clear visibility
+                // If lock_cursor_style is enabled, use the config's cursor style instead of terminal's
+                // If lock_cursor_blink is enabled and cursor_blink is false, force steady cursor
+                let cursor_style = if self.copy_mode.active && current_cursor_pos.is_some() {
+                    Some(TermCursorStyle::SteadyBlock)
+                } else if current_cursor_pos.is_some() {
+                    if self.config.lock_cursor_style {
+                        // Convert config cursor style to terminal cursor style
+                        let style = if self.config.cursor_blink {
+                            match self.config.cursor_style {
+                                CursorStyle::Block => TermCursorStyle::BlinkingBlock,
+                                CursorStyle::Beam => TermCursorStyle::BlinkingBar,
+                                CursorStyle::Underline => TermCursorStyle::BlinkingUnderline,
+                            }
+                        } else {
+                            match self.config.cursor_style {
+                                CursorStyle::Block => TermCursorStyle::SteadyBlock,
+                                CursorStyle::Beam => TermCursorStyle::SteadyBar,
+                                CursorStyle::Underline => TermCursorStyle::SteadyUnderline,
+                            }
+                        };
+                        Some(style)
+                    } else {
+                        let mut style = term.cursor_style();
+                        // If blink is locked off, convert blinking styles to steady
+                        if self.config.lock_cursor_blink && !self.config.cursor_blink {
+                            style = match style {
+                                TermCursorStyle::BlinkingBlock => TermCursorStyle::SteadyBlock,
+                                TermCursorStyle::BlinkingBar => TermCursorStyle::SteadyBar,
+                                TermCursorStyle::BlinkingUnderline => {
+                                    TermCursorStyle::SteadyUnderline
+                                }
+                                other => other,
+                            };
+                        }
+                        Some(style)
+                    }
+                } else {
+                    None
+                };
+
+                log::trace!(
+                    "Cursor: pos={:?}, opacity={:.2}, style={:?}, scroll={}, visible={}",
+                    current_cursor_pos,
+                    self.cursor_anim.cursor_opacity,
+                    cursor_style,
+                    scroll_offset,
+                    term.is_cursor_visible()
+                );
+
+                // Check if we need to regenerate cells
+                // Only regenerate when content actually changes, not on every cursor blink
+                let needs_regeneration = cache_cells.is_none()
+                || current_generation != cache_generation
+                || scroll_offset != cache_scroll_offset
+                || current_cursor_pos != cache_cursor_pos // Regenerate if cursor position changed
+                || mouse_selection != cache_selection; // Regenerate if selection changed (including clearing)
+
+                let cell_gen_start = std::time::Instant::now();
+                let (cells, is_cache_hit) = if needs_regeneration {
+                    // Generate fresh cells
+                    let fresh_cells = term.get_cells_with_scrollback(
+                        scroll_offset,
+                        selection,
+                        rectangular,
+                        cursor,
+                    );
+
+                    (fresh_cells, false)
+                } else {
+                    // Cache hit: clone the Vec through the Arc (one allocation instead of two).
+                    // apply_url_underlines needs a mutable Vec, so we still need an owned copy,
+                    // but the Arc clone that extracted cache_cells from tab.cache was free.
+                    (cache_cells.as_ref().expect("window_state: cache_cells must be Some when needs_regeneration is false").as_ref().clone(), true)
+                };
+                self.debug.cache_hit = is_cache_hit;
+                self.debug.cell_gen_time = cell_gen_start.elapsed();
+
+                // Check if alt screen is active (TUI apps like vim, htop)
+                let is_alt_screen = term.is_alt_screen_active();
+
+                (
+                    cells,
+                    current_cursor_pos,
+                    cursor_style,
+                    is_alt_screen,
+                    current_generation,
+                )
+            } else if let Some(cached) = cache_cells {
+                // Terminal locked (e.g., upload in progress), use cached cells so the
+                // rest of the render pipeline (including file transfer overlay) can proceed.
+                // Unwrap the Arc: if this is the sole reference the Vec is moved for free,
+                // otherwise a clone is made (rare — only if another Arc clone is live).
+                let cached_vec = Arc::try_unwrap(cached).unwrap_or_else(|a| (*a).clone());
+                (cached_vec, cache_cursor_pos, None, false, cache_generation)
+            } else {
+                return None; // Terminal locked and no cache available, skip this frame
+            };
+
+        // --- Prettifier pipeline update ---
+        // Feed terminal output changes to the prettifier, check debounce, and handle
+        // alt-screen transitions. This runs outside the terminal lock.
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            // Detect alt-screen transitions
+            if is_alt_screen != tab.was_alt_screen {
+                if let Some(ref mut pipeline) = tab.prettifier {
+                    pipeline.on_alt_screen_change(is_alt_screen);
+                }
+                tab.was_alt_screen = is_alt_screen;
+            }
+
+            // Always check debounce (cheap: just a timestamp comparison)
+            if let Some(ref mut pipeline) = tab.prettifier {
+                pipeline.check_debounce();
+            }
+        }
+
+        // Ensure cursor visibility flag for cell renderer reflects current config every frame
+        // (so toggling "Hide default cursor" takes effect immediately even if no other changes)
+        // Resolve hides_cursor: per-shader override -> metadata defaults -> global config
+        let resolved_hides_cursor = self
+            .config
+            .cursor_shader
+            .as_ref()
+            .and_then(|name| self.config.cursor_shader_configs.get(name))
+            .and_then(|override_cfg| override_cfg.hides_cursor)
+            .or_else(|| {
+                self.config
+                    .cursor_shader
+                    .as_ref()
+                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
+                    .and_then(|meta| meta.defaults.hides_cursor)
+            })
+            .unwrap_or(self.config.cursor_shader_hides_cursor);
+        // Resolve disable_in_alt_screen: per-shader override -> metadata defaults -> global config
+        let resolved_disable_in_alt_screen = self
+            .config
+            .cursor_shader
+            .as_ref()
+            .and_then(|name| self.config.cursor_shader_configs.get(name))
+            .and_then(|override_cfg| override_cfg.disable_in_alt_screen)
+            .or_else(|| {
+                self.config
+                    .cursor_shader
+                    .as_ref()
+                    .and_then(|name| self.shader_state.cursor_shader_metadata_cache.get(name))
+                    .and_then(|meta| meta.defaults.disable_in_alt_screen)
+            })
+            .unwrap_or(self.config.cursor_shader_disable_in_alt_screen);
+        let hide_cursor_for_shader = self.config.cursor_shader_enabled
+            && resolved_hides_cursor
+            && !(resolved_disable_in_alt_screen && is_alt_screen);
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_cursor_hidden_for_shader(hide_cursor_for_shader);
+        }
+
+        // Update cache with regenerated cells (if needed)
+        // Need to re-borrow as mutable after the terminal lock is released
+        if !self.debug.cache_hit
+            && let Some(tab) = self.tab_manager.active_tab_mut()
+            && let Ok(term) = tab.terminal.try_lock()
+        {
+            let current_generation = term.update_generation();
+            tab.cache.cells = Some(Arc::new(cells.clone()));
+            tab.cache.generation = current_generation;
+            tab.cache.scroll_offset = tab.scroll_state.offset;
+            tab.cache.cursor_pos = current_cursor_pos;
+            tab.cache.selection = tab.mouse.selection;
+        }
+
+        let mut show_scrollbar = self.should_show_scrollbar();
+
+        let (scrollback_len, terminal_title, shell_lifecycle_events) =
+            if let Ok(mut term) = terminal.try_lock() {
+                // Use cursor row 0 when cursor not visible (e.g., alt screen)
+                let cursor_row = current_cursor_pos.map(|(_, row)| row).unwrap_or(0);
+                let sb_len = term.scrollback_len();
+                term.update_scrollback_metadata(sb_len, cursor_row);
+
+                // Drain shell lifecycle events for the prettifier pipeline
+                let shell_events = term.drain_shell_lifecycle_events();
+
+                // Feed newly completed commands into persistent history from two sources:
+                // 1. Scrollback marks (populated via set_mark_command_at from grid text extraction)
+                // 2. Core library command history (populated by the terminal emulator core)
+                // Both sources are checked because command text may come from either path
+                // depending on shell integration quality. The synced_commands set prevents
+                // duplicate adds across frames and sources.
+                for mark in term.scrollback_marks() {
+                    if let Some(ref cmd) = mark.command
+                        && !cmd.is_empty()
+                        && self.overlay_ui.synced_commands.insert(cmd.clone())
+                    {
+                        self.overlay_ui.command_history.add(
+                            cmd.clone(),
+                            mark.exit_code,
+                            mark.duration_ms,
+                        );
+                    }
+                }
+                for (cmd, exit_code, duration_ms) in term.core_command_history() {
+                    if !cmd.is_empty() && self.overlay_ui.synced_commands.insert(cmd.clone()) {
+                        self.overlay_ui
+                            .command_history
+                            .add(cmd, exit_code, duration_ms);
+                    }
+                }
+
+                (sb_len, term.get_title(), shell_events)
+            } else {
+                (
+                    cached_scrollback_len,
+                    cached_terminal_title.clone(),
+                    Vec::new(),
+                )
+            };
+
+        // Capture prettifier block count before processing events/feed so we can
+        // detect when new blocks are added and invalidate the cell cache.
+        let prettifier_block_count_before = self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.prettifier.as_ref())
+            .map(|p| p.active_blocks().len())
+            .unwrap_or(0);
+
+        // Forward shell lifecycle events to the prettifier pipeline (outside terminal lock)
+        if !shell_lifecycle_events.is_empty()
+            && let Some(tab) = self.tab_manager.active_tab_mut()
+            && let Some(ref mut pipeline) = tab.prettifier
+        {
+            for event in &shell_lifecycle_events {
+                match event {
+                    par_term_terminal::ShellLifecycleEvent::CommandStarted {
+                        command,
+                        absolute_line,
+                    } => {
+                        tab.cache.prettifier_command_start_line = Some(*absolute_line);
+                        tab.cache.prettifier_command_text = Some(command.clone());
+                        pipeline.on_command_start(command);
+                    }
+                    par_term_terminal::ShellLifecycleEvent::CommandFinished { absolute_line } => {
+                        if let Some(start) = tab.cache.prettifier_command_start_line.take() {
+                            let cmd_text = tab.cache.prettifier_command_text.take();
+                            // Read full command output from scrollback so the
+                            // prettified block covers the entire output, not just
+                            // the visible portion. This ensures scrolling through
+                            // long output shows prettified content throughout.
+                            let output_start = start + 1;
+                            if let Ok(term) = terminal.try_lock() {
+                                let lines = term.lines_text_range(output_start, *absolute_line);
+                                crate::debug_info!(
+                                    "PRETTIFIER",
+                                    "submit_command_output: {} lines (rows {}..{})",
+                                    lines.len(),
+                                    output_start,
+                                    absolute_line
+                                );
+                                pipeline.submit_command_output(lines, cmd_text);
+                            } else {
+                                // Lock failed — fall back to boundary detector state
+                                pipeline.on_command_end();
+                            }
+                        } else {
+                            pipeline.on_command_end();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Feed terminal output lines to the prettifier pipeline (gated on content changes).
+        // Skip per-frame viewport feed for CommandOutput scope — it reads full output
+        // from scrollback on CommandFinished instead.
+        if let Some(tab) = self.tab_manager.active_tab_mut()
+            && let Some(ref mut pipeline) = tab.prettifier
+            && pipeline.is_enabled()
+            && !is_alt_screen
+            && pipeline.detection_scope()
+                != crate::prettifier::boundary::DetectionScope::CommandOutput
+            && (current_generation != tab.cache.prettifier_feed_generation
+                || scroll_offset != tab.cache.prettifier_feed_scroll_offset)
+        {
+            // Detect whether terminal content actually changed in a meaningful way.
+            // Generation changes on every cursor blink / spinner update, but we only
+            // want to reset prettifier state when the scrollback grows (real new output).
+            let generation_changed =
+                current_generation != tab.cache.prettifier_feed_generation;
+            let scrollback_grew =
+                scrollback_len != tab.cache.prettifier_cc_last_dump_rows.0;
+            let content_changed = generation_changed && scrollback_grew;
+            if content_changed {
+                tab.cache.prettifier_cc_last_dump_rows.0 = scrollback_len;
+            }
+            tab.cache.prettifier_feed_generation = current_generation;
+            tab.cache.prettifier_feed_scroll_offset = scroll_offset;
+
+            // Heuristic Claude Code session detection from visible output.
+            // One-time: scan for signature patterns if not yet detected.
+            if !pipeline.claude_code().is_active() {
+                'detect: for row_idx in 0..visible_lines {
+                    let start = row_idx * grid_cols;
+                    let end = (start + grid_cols).min(cells.len());
+                    if start >= cells.len() {
+                        break;
+                    }
+                    let row_text: String = cells[start..end]
+                        .iter()
+                        .map(|c| {
+                            let g = c.grapheme.as_str();
+                            if g.is_empty() || g == "\0" { " " } else { g }
+                        })
+                        .collect();
+                    // Look for Claude Code signature patterns in output.
+                    if row_text.contains("Claude Code")
+                        || row_text.contains("claude.ai/code")
+                        || row_text.contains("Tips for getting the best")
+                        || (row_text.contains("Model:")
+                            && (row_text.contains("Opus")
+                                || row_text.contains("Sonnet")
+                                || row_text.contains("Haiku")))
+                    {
+                        crate::debug_info!(
+                            "PRETTIFIER",
+                            "Claude Code session detected from output heuristic"
+                        );
+                        pipeline.mark_claude_code_active();
+                        break 'detect;
+                    }
+                }
+            }
+
+            let is_claude_session = pipeline.claude_code().is_active();
+
+            if is_claude_session {
+                // When real content changes (scrollback grew), clear all blocks.
+                // Claude Code's dynamic output means old blocks at fixed absolute
+                // rows become stale as new output shifts the viewport. Re-detect
+                // fresh from the current viewport.
+                if content_changed {
+                    pipeline.clear_blocks();
+                    crate::debug_log!(
+                        "PRETTIFIER",
+                        "CC content changed (scrollback grew), cleared all blocks"
+                    );
+                }
+
+                // Claude Code session: segment the viewport by action bullets
+                // (⏺) and collapse markers. Each segment is submitted independently
+                // so detection sees focused content blocks rather than the entire
+                // viewport (which mixes UI chrome with markdown and causes false
+                // positives). Deduplication in handle_block prevents duplicates.
+                pipeline.reset_boundary();
+
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "per-frame feed (CC): scanning {} visible lines, content_changed={}, scrollback={}, scroll_offset={}",
+                    visible_lines,
+                    content_changed,
+                    scrollback_len,
+                    scroll_offset
+                );
+
+                // Collect all rows with raw + reconstructed text.
+                let mut rows: Vec<(String, String, usize)> = Vec::new(); // (raw, recon, abs_row)
+
+                for row_idx in 0..visible_lines {
+                    let absolute_row =
+                        scrollback_len.saturating_sub(scroll_offset) + row_idx;
+                    let start = row_idx * grid_cols;
+                    let end = (start + grid_cols).min(cells.len());
+                    if start >= cells.len() {
+                        break;
+                    }
+
+                    let row_text: String = cells[start..end]
+                        .iter()
+                        .map(|c| {
+                            let g = c.grapheme.as_str();
+                            if g.is_empty() || g == "\0" { " " } else { g }
+                        })
+                        .collect();
+
+                    let line = reconstruct_markdown_from_cells(&cells[start..end]);
+                    rows.push((row_text, line, absolute_row));
+                }
+
+                // Split into segments at action bullets (⏺) and collapse markers.
+                // Each segment is the content between two boundaries.
+                let mut segments: Vec<Vec<(String, usize)>> = Vec::new();
+                let mut current: Vec<(String, usize)> = Vec::new();
+
+                for (raw, recon, abs_row) in &rows {
+                    let trimmed = raw.trim();
+                    // Collapse markers — boundary, include the line in the
+                    // preceding segment so row alignment is preserved (skipping
+                    // it would cause the overlay to render wrong content at this row).
+                    if raw.contains("(ctrl+o to expand)") {
+                        current.push((recon.clone(), *abs_row));
+                        segments.push(std::mem::take(&mut current));
+                        continue;
+                    }
+                    // Action bullets (⏺) start a new segment
+                    if trimmed.starts_with('⏺') || trimmed.starts_with("● ") {
+                        if !current.is_empty() {
+                            segments.push(std::mem::take(&mut current));
+                        }
+                        // Include this line in the new segment
+                        current.push((recon.clone(), *abs_row));
+                        continue;
+                    }
+                    // Horizontal rules (─────) are boundaries
+                    if trimmed.len() > 10
+                        && trimmed.chars().all(|c| c == '─' || c == '━')
+                    {
+                        if !current.is_empty() {
+                            segments.push(std::mem::take(&mut current));
+                        }
+                        continue;
+                    }
+                    current.push((recon.clone(), *abs_row));
+                }
+                if !current.is_empty() {
+                    segments.push(current);
+                }
+
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "CC segmentation: {} total rows -> {} segments",
+                    rows.len(),
+                    segments.len()
+                );
+
+                // Submit each segment individually.
+                let mut submitted = 0;
+                let mut skipped_short = 0;
+                let mut skipped_empty = 0;
+                for segment in &segments {
+                    if segment.is_empty() {
+                        skipped_empty += 1;
+                        continue;
+                    }
+                    // Skip very short segments (UI chrome, single lines).
+                    if segment.len() < 5 {
+                        skipped_short += 1;
+                        continue;
+                    }
+
+                    // Preprocess: strip leading/trailing blank lines within the segment.
+                    let first_non_blank = segment.iter().position(|(_l, _)| !_l.trim().is_empty());
+                    let last_non_blank = segment.iter().rposition(|(_l, _)| !_l.trim().is_empty());
+                    let segment = if let (Some(first), Some(last)) = (first_non_blank, last_non_blank)
+                    {
+                        &segment[first..=last]
+                    } else {
+                        skipped_empty += 1;
+                        continue;
+                    };
+                    if segment.len() < 5 {
+                        skipped_short += 1;
+                        continue;
+                    }
+
+                    crate::debug_log!(
+                        "PRETTIFIER",
+                        "CC segment: {} lines (was {} before preprocess), rows={}..{}, first={:?}",
+                        segment.len(),
+                        segment.len(),
+                        segment.first().map(|(_, r)| r).unwrap_or(&0),
+                        segment.last().map(|(_, r)| r + 1).unwrap_or(0),
+                        segment.first().map(|(l, _)| &l[..l.floor_char_boundary(60)])
+                    );
+                    pipeline.submit_command_output(
+                        segment.to_vec(),
+                        Some("claude".to_string()),
+                    );
+                    submitted += 1;
+                }
+
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "CC segmentation complete: submitted={}, skipped_short={}, skipped_empty={}",
+                    submitted,
+                    skipped_short,
+                    skipped_empty
+                );
+            } else {
+                // Non-Claude session: submit the entire visible content as a
+                // single block. This gives the detector full context (avoids
+                // splitting markdown at blank lines) and reduces block churn.
+                //
+                // Throttle: during streaming, content changes every frame (~16ms).
+                // Recompute a quick hash and skip if content hasn't changed.
+                // If content did change, only re-submit if enough time has elapsed
+                // (150ms) to avoid rendering 60 intermediate states per second.
+                pipeline.reset_boundary();
+
+                let mut lines: Vec<(String, usize)> = Vec::with_capacity(visible_lines);
+                for row_idx in 0..visible_lines {
+                    let absolute_row =
+                        scrollback_len.saturating_sub(scroll_offset) + row_idx;
+
+                    let start = row_idx * grid_cols;
+                    let end = (start + grid_cols).min(cells.len());
+                    if start >= cells.len() {
+                        break;
+                    }
+
+                    let line: String = cells[start..end]
+                        .iter()
+                        .map(|c| {
+                            let g = c.grapheme.as_str();
+                            if g.is_empty() || g == "\0" { " " } else { g }
+                        })
+                        .collect::<String>()
+                        .trim_end()
+                        .to_string();
+
+                    lines.push((line, absolute_row));
+                }
+
+                if !lines.is_empty() {
+                    // Quick content hash for dedup.
+                    let content_hash = {
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                        for (line, row) in &lines {
+                            line.hash(&mut hasher);
+                            row.hash(&mut hasher);
+                        }
+                        hasher.finish()
+                    };
+
+                    if content_hash == tab.cache.prettifier_feed_last_hash {
+                        // Identical content — skip entirely.
+                        crate::debug_trace!(
+                            "PRETTIFIER",
+                            "per-frame feed (non-CC): content unchanged, skipping"
+                        );
+                    } else {
+                        let elapsed = tab.cache.prettifier_feed_last_time.elapsed();
+                        let throttle = std::time::Duration::from_millis(150);
+                        let has_block = !pipeline.active_blocks().is_empty();
+
+                        if has_block && elapsed < throttle {
+                            // Actively streaming with an existing prettified block.
+                            // Defer re-render to avoid per-frame churn.
+                            crate::debug_trace!(
+                                "PRETTIFIER",
+                                "per-frame feed (non-CC): throttled ({:.0}ms < {}ms), deferring",
+                                elapsed.as_secs_f64() * 1000.0,
+                                throttle.as_millis()
+                            );
+                        } else {
+                            crate::debug_log!(
+                                "PRETTIFIER",
+                                "per-frame feed (non-CC): submitting {} visible lines as single block, scrollback={}, scroll_offset={}",
+                                visible_lines,
+                                scrollback_len,
+                                scroll_offset
+                            );
+                            tab.cache.prettifier_feed_last_hash = content_hash;
+                            tab.cache.prettifier_feed_last_time = std::time::Instant::now();
+                            pipeline.submit_command_output(lines, None);
+                        }
+                    }
+                }
+            }
+        }
+
+        // If new prettified blocks were added during event processing or per-frame feed,
+        // invalidate the cell cache so the next frame runs cell substitution.
+        {
+            let block_count_after = self
+                .tab_manager
+                .active_tab()
+                .and_then(|t| t.prettifier.as_ref())
+                .map(|p| p.active_blocks().len())
+                .unwrap_or(0);
+            if block_count_after > prettifier_block_count_before {
+                crate::debug_info!(
+                    "PRETTIFIER",
+                    "new blocks detected ({} -> {}), invalidating cell cache",
+                    prettifier_block_count_before,
+                    block_count_after
+                );
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.cache.cells = None;
+                }
+            }
+        }
+
+        // Update cache scrollback and clamp scroll state.
+        //
+        // In pane mode the focused pane's own terminal holds the scrollback, not
+        // `tab.terminal`.  Clamping here with `tab.terminal.scrollback_len()` would
+        // incorrectly cap (or zero-out) the scroll offset every frame.  The correct
+        // clamp happens later in the pane render path once we know the focused pane's
+        // actual scrollback length.
+        let is_pane_mode = self
+            .tab_manager
+            .active_tab()
+            .and_then(|t| t.pane_manager.as_ref())
+            .map(|pm| pm.pane_count() > 0)
+            .unwrap_or(false);
+        if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.cache.scrollback_len = scrollback_len;
+            if !is_pane_mode {
+                tab.scroll_state
+                    .clamp_to_scrollback(tab.cache.scrollback_len);
+            }
+        }
+
+        // Keep copy mode dimensions in sync with terminal
+        if self.copy_mode.active
+            && let Ok(term) = terminal.try_lock()
+        {
+            let (cols, rows) = term.dimensions();
+            self.copy_mode.update_dimensions(cols, rows, scrollback_len);
+        }
+
+        let need_marks =
+            self.config.scrollbar_command_marks || self.config.command_separator_enabled;
+        let mut scrollback_marks = if need_marks {
+            if let Ok(term) = terminal.try_lock() {
+                term.scrollback_marks()
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
+
+        // Append trigger-generated marks
+        if let Some(tab) = self.tab_manager.active_tab() {
+            scrollback_marks.extend(tab.trigger_marks.iter().cloned());
+        }
+
+        // Keep scrollbar visible when mark indicators exist (even if no scrollback).
+        if !scrollback_marks.is_empty() {
+            show_scrollbar = true;
+        }
+
+        // Update window title if terminal has set one via OSC sequences
+        // Only if allow_title_change is enabled and we're not showing a URL tooltip
+        if self.config.allow_title_change
+            && hovered_url.is_none()
+            && terminal_title != cached_terminal_title
+        {
+            if let Some(tab) = self.tab_manager.active_tab_mut() {
+                tab.cache.terminal_title = terminal_title.clone();
+            }
+            if let Some(window) = &self.window {
+                if terminal_title.is_empty() {
+                    // Restore configured title when terminal clears title
+                    window.set_title(&self.format_title(&self.config.window_title));
+                } else {
+                    // Use terminal-set title with window number
+                    window.set_title(&self.format_title(&terminal_title));
+                }
+            }
+        }
+
+        // Total lines = visible lines + actual scrollback content
+        let total_lines = visible_lines + scrollback_len;
+
+        // Detect URLs in visible area (only when content changed)
+        // This optimization saves ~0.26ms per frame on cache hits
+        let url_detect_start = std::time::Instant::now();
+        let debug_url_detect_time = if !self.debug.cache_hit {
+            // Content changed - re-detect URLs
+            self.detect_urls();
+            url_detect_start.elapsed()
+        } else {
+            // Content unchanged - use cached URL detection
+            std::time::Duration::ZERO
+        };
+
+        // Apply URL underlining to cells (always apply, since cells might be regenerated)
+        let url_underline_start = std::time::Instant::now();
+        self.apply_url_underlines(&mut cells, &renderer_size);
+        let _debug_url_underline_time = url_underline_start.elapsed();
+
+        // Update search and apply search highlighting
+        if self.overlay_ui.search_ui.visible {
+            // Get all searchable lines from cells (ensures consistent wide character handling)
+            if let Some(tab) = self.tab_manager.active_tab()
+                && let Ok(term) = tab.terminal.try_lock()
+            {
+                let lines_iter =
+                    crate::app::search_highlight::get_all_searchable_lines(&term, visible_lines);
+                self.overlay_ui.search_ui.update_search(lines_iter);
+            }
+
+            // Apply search highlighting to visible cells
+            let scroll_offset = self
+                .tab_manager
+                .active_tab()
+                .map(|t| t.scroll_state.offset)
+                .unwrap_or(0);
+            // Use actual terminal grid columns from renderer
+            self.apply_search_highlights(
+                &mut cells,
+                grid_cols,
+                scroll_offset,
+                scrollback_len,
+                visible_lines,
             );
         }
+
+        // Update cursor blink state
+        self.update_cursor_blink();
+
+        Some(FrameRenderData {
+            cells,
+            cursor_pos: current_cursor_pos,
+            cursor_style,
+            is_alt_screen,
+            scrollback_len,
+            show_scrollbar,
+            visible_lines,
+            grid_cols,
+            scrollback_marks,
+            total_lines,
+            debug_url_detect_time,
+        })
+    }
+
+    /// Returns true if enough time has elapsed since the last frame and rendering should proceed.
+    /// Updates last_render_time and resets needs_redraw on success.
+    fn should_render_frame(&mut self) -> bool {
+        let target_fps = if self.config.pause_refresh_on_blur && !self.is_focused {
+            self.config.unfocused_fps
+        } else {
+            self.config.max_fps
+        };
+        let frame_interval = std::time::Duration::from_millis((1000 / target_fps.max(1)) as u64);
+        if let Some(last_render) = self.last_render_time
+            && last_render.elapsed() < frame_interval
+        {
+            return false;
+        }
+        self.last_render_time = Some(std::time::Instant::now());
+        self.needs_redraw = false;
+        true
+    }
+
+    /// Record the start of this render frame for timing and update rolling frame-time metrics.
+    fn update_frame_metrics(&mut self) {
+        let frame_start = std::time::Instant::now();
+        self.debug.render_start = Some(frame_start);
+        if let Some(last_start) = self.debug.last_frame_start {
+            let frame_time = frame_start.duration_since(last_start);
+            self.debug.frame_times.push_back(frame_time);
+            if self.debug.frame_times.len() > 60 {
+                self.debug.frame_times.pop_front();
+            }
+        }
+        self.debug.last_frame_start = Some(frame_start);
+    }
+
+    /// Tick scroll animations, refresh tab titles, and rebuild renderer if font settings changed.
+    fn update_animations(&mut self) {
+        let animation_running = if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.scroll_state.update_animation()
+        } else {
+            false
+        };
+
+        // Update tab titles from terminal OSC sequences
+        self.tab_manager
+            .update_all_titles(self.config.tab_title_mode);
+
+        // Rebuild renderer if font-related settings changed
+        if self.pending_font_rebuild {
+            if let Err(e) = self.rebuild_renderer() {
+                log::error!("Failed to rebuild renderer after font change: {}", e);
+            }
+            self.pending_font_rebuild = false;
+        }
+
+        if animation_running && let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// Sync tab bar and status bar geometry with the renderer every frame.
+    /// Resizes terminal grids if the tab bar dimensions changed.
+    fn sync_layout(&mut self) {
+        // Sync tab bar offsets with renderer's content offsets
+        // This ensures the terminal grid correctly accounts for the tab bar position
+        let tab_count = self.tab_manager.tab_count();
+        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
+        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
+        crate::debug_trace!(
+            "TAB_SYNC",
+            "Tab count={}, tab_bar_height={:.0}, tab_bar_width={:.0}, position={:?}, mode={:?}",
+            tab_count,
+            tab_bar_height,
+            tab_bar_width,
+            self.config.tab_bar_position,
+            self.config.tab_bar_mode
+        );
+        if let Some(renderer) = &mut self.renderer {
+            let grid_changed = Self::apply_tab_bar_offsets_for_position(
+                self.config.tab_bar_position,
+                renderer,
+                tab_bar_height,
+                tab_bar_width,
+            );
+            if let Some((new_cols, new_rows)) = grid_changed {
+                let cell_width = renderer.cell_width();
+                let cell_height = renderer.cell_height();
+                let width_px = (new_cols as f32 * cell_width) as usize;
+                let height_px = (new_rows as f32 * cell_height) as usize;
+
+                for tab in self.tab_manager.tabs_mut() {
+                    if let Ok(mut term) = tab.terminal.try_lock() {
+                        term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                        let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
+                    }
+                    tab.cache.cells = None;
+                }
+                crate::debug_info!(
+                    "TAB_SYNC",
+                    "Tab bar offsets changed (position={:?}), resized terminals to {}x{}",
+                    self.config.tab_bar_position,
+                    new_cols,
+                    new_rows
+                );
+            }
+        }
+
+        // Sync status bar inset so the terminal grid does not extend behind it.
+        // Must happen before cell gathering so the row count is correct.
+        self.sync_status_bar_inset();
     }
 
     /// Process incoming ACP agent messages for this render tick and refresh
     /// the AI Inspector snapshot when needed.
     ///
-    /// Called once per frame from `render()`. Handles the full agent message
+    /// Called once per frame from `submit_gpu_frame()`. Handles the full agent message
     /// dispatch loop, deferred config updates, inline tool-markup fallback,
     /// bounded skill-failure recovery, auto-context feeding, and snapshot refresh.
     fn process_agent_messages_tick(&mut self) {
@@ -6057,7 +6163,7 @@ impl WindowState {
                         if let Err(e) = client
                             .respond(
                                 request_id,
-                                Some(serde_json::to_value(&result).unwrap()),
+                                Some(serde_json::to_value(&result).expect("window_state: RequestPermissionResponse must be serializable to JSON")),
                                 None,
                             )
                             .await
