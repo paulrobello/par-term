@@ -8,6 +8,7 @@ pub struct DebugState {
     pub render_time: Duration,           // Time spent rendering last frame
     pub cache_hit: bool,                 // Whether last frame used cached cells
     pub last_frame_start: Option<Instant>, // Start time of last frame
+    pub render_start: Option<Instant>,   // Start time of current render frame (for end-of-frame timing)
     pub show_fps_overlay: bool,          // Whether to show FPS overlay (toggle with F3)
     pub fps_value: f64,                  // Current FPS value for overlay display
 }
@@ -26,6 +27,7 @@ impl DebugState {
             render_time: Duration::ZERO,
             cache_hit: false,
             last_frame_start: None,
+            render_start: None,
             show_fps_overlay: false,
             fps_value: 0.0,
         }

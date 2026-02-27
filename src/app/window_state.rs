@@ -2353,20 +2353,7 @@ impl WindowState {
             return;
         }
 
-        let absolute_start = std::time::Instant::now();
-
-        // Track frame timing
-        let frame_start = std::time::Instant::now();
-
-        // Calculate frame time from last render
-        if let Some(last_start) = self.debug.last_frame_start {
-            let frame_time = frame_start.duration_since(last_start);
-            self.debug.frame_times.push_back(frame_time);
-            if self.debug.frame_times.len() > 60 {
-                self.debug.frame_times.pop_front();
-            }
-        }
-        self.debug.last_frame_start = Some(frame_start);
+        self.update_frame_metrics();
 
         // Update scroll animation
         let animation_running = if let Some(tab) = self.tab_manager.active_tab_mut() {
@@ -4792,12 +4779,14 @@ impl WindowState {
             ProfileDrawerAction::None => {}
         }
 
-        let absolute_total = absolute_start.elapsed();
-        if absolute_total.as_millis() > 10 {
-            log::debug!(
-                "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
-                absolute_total.as_secs_f64() * 1000.0
-            );
+        if let Some(start) = self.debug.render_start {
+            let total = start.elapsed();
+            if total.as_millis() > 10 {
+                log::debug!(
+                    "TIMING: AbsoluteTotal={:.2}ms (from function start to end)",
+                    total.as_secs_f64() * 1000.0
+                );
+            }
         }
     }
 
@@ -4820,6 +4809,20 @@ impl WindowState {
         self.last_render_time = Some(std::time::Instant::now());
         self.needs_redraw = false;
         true
+    }
+
+    /// Record the start of this render frame for timing and update rolling frame-time metrics.
+    fn update_frame_metrics(&mut self) {
+        let frame_start = std::time::Instant::now();
+        self.debug.render_start = Some(frame_start);
+        if let Some(last_start) = self.debug.last_frame_start {
+            let frame_time = frame_start.duration_since(last_start);
+            self.debug.frame_times.push_back(frame_time);
+            if self.debug.frame_times.len() > 60 {
+                self.debug.frame_times.pop_front();
+            }
+        }
+        self.debug.last_frame_start = Some(frame_start);
     }
 
     /// Process incoming ACP agent messages for this render tick and refresh
