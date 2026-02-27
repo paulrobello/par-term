@@ -5,7 +5,7 @@
 //! - Coprocess definitions (external processes piped to terminal)
 
 use super::SettingsUI;
-use super::section::collapsing_section;
+use super::section::{collapsing_section, section_matches};
 use par_term_config::automation::{
     CoprocessDefConfig, RestartPolicy, TriggerActionConfig, TriggerConfig,
 };
@@ -62,15 +62,6 @@ pub fn show(
     }
 }
 
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
 
 /// Return a human-readable label for a trigger action variant.
 fn action_type_label(action: &TriggerActionConfig) -> &'static str {

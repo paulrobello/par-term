@@ -118,6 +118,26 @@ impl<'a> CollapsibleSection<'a> {
     }
 }
 
+/// Check whether a settings section matches the current search query.
+///
+/// The `query` parameter **must already be lowercased** by the caller (the typical
+/// pattern is `settings.search_query.trim().to_lowercase()`). This avoids
+/// re-lowercasing the query on every call (L-13 fix).
+///
+/// Returns `true` when:
+/// - the query is empty (show all sections), or
+/// - the section `title` contains the query (case-insensitive via `to_lowercase`), or
+/// - any of the `keywords` contains the query (case-insensitive via `to_lowercase`).
+pub fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+    if title.to_lowercase().contains(query) {
+        return true;
+    }
+    keywords.iter().any(|k| k.to_lowercase().contains(query))
+}
+
 /// Helper to show a collapsible section with persistent state tracking.
 ///
 /// The `collapsed_sections` set stores section IDs that have been toggled from

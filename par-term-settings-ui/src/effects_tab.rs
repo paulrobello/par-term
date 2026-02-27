@@ -14,7 +14,7 @@ use par_term_config::ImageScalingMode;
 use std::collections::HashSet;
 
 use super::SettingsUI;
-use super::section::collapsing_section;
+use super::section::{collapsing_section, section_matches};
 
 /// Show the effects tab content.
 pub fn show(
@@ -154,14 +154,4 @@ fn show_inline_images(
             }
         },
     );
-}
-
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
 }

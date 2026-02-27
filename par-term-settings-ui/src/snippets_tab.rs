@@ -8,7 +8,7 @@
 //! - Import/export functionality
 
 use super::SettingsUI;
-use super::section::{collapsing_section, collapsing_section_with_state};
+use super::section::{collapsing_section, collapsing_section_with_state, section_matches};
 use crate::input_tab::{capture_key_combo, display_key_combo};
 use par_term_config::snippets::{SnippetConfig, SnippetLibrary};
 use std::collections::HashMap;
@@ -61,15 +61,6 @@ pub fn show(
     }
 }
 
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
 
 // ============================================================================
 // Snippets Section

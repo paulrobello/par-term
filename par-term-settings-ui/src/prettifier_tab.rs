@@ -8,7 +8,7 @@
 //! - Claude Code integration settings
 
 use super::SettingsUI;
-use super::section::collapsing_section;
+use super::section::{collapsing_section, section_matches};
 use std::collections::HashSet;
 
 /// Show the Content Prettifier tab content.
@@ -117,15 +117,6 @@ pub fn show(
     }
 }
 
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
 
 // ============================================================================
 // Master Toggle

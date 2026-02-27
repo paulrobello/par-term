@@ -13,7 +13,7 @@
 //! - Security settings (env var allowlist)
 
 use super::SettingsUI;
-use super::section::{INPUT_WIDTH, collapsing_section};
+use super::section::{INPUT_WIDTH, collapsing_section, section_matches};
 use crate::format_timestamp;
 use par_term_config::{
     Config, DownloadSaveLocation, LogLevel, SessionLogFormat, UpdateCheckFrequency,
@@ -164,15 +164,6 @@ pub fn show(
     }
 }
 
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
 
 // ============================================================================
 // Import/Export Preferences Section

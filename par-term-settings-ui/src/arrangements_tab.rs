@@ -6,7 +6,7 @@
 //! - Auto-restore on startup setting
 
 use super::SettingsUI;
-use super::section::collapsing_section;
+use super::section::{collapsing_section, section_matches};
 use crate::SettingsWindowAction;
 use crate::arrangements::ArrangementManager;
 use std::collections::HashSet;
@@ -52,15 +52,6 @@ pub fn show(
     }
 }
 
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
 
 // ============================================================================
 // Save Current Layout Section

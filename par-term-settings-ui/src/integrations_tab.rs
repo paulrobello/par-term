@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use par_term_config::{Config, ShellType};
 
 use super::SettingsUI;
-use super::section::collapsing_section;
+use super::section::{collapsing_section, section_matches};
 
 /// Actions for shell integration (consumed by app handler)
 #[derive(Debug, Clone, Copy)]
@@ -427,15 +427,6 @@ impl SettingsUI {
     }
 }
 
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
 
 fn shell_type_display(shell: ShellType) -> &'static str {
     match shell {
