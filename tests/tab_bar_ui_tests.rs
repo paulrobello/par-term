@@ -38,7 +38,9 @@
 //! 3. Set `close_hovered` state based on containment
 //! 4. On click, check if `close_hovered` is set before deciding action
 
+use egui::{Pos2, Rect, Vec2};
 use par_term::config::{Config, TabBarMode, TabBarPosition};
+use par_term::tab::TabId;
 use par_term::tab_bar_ui::{TabBarAction, TabBarUI};
 
 #[test]
@@ -526,4 +528,371 @@ fn test_tab_bar_position_all() {
     assert!(all_positions.contains(&TabBarPosition::Top));
     assert!(all_positions.contains(&TabBarPosition::Bottom));
     assert!(all_positions.contains(&TabBarPosition::Left));
+}
+
+// ============================================================================
+// Drag State Transition Tests (L-15)
+// Tests the drag state machine (idle → dragging → dropped/cancelled) without
+// requiring egui rendering.
+// ============================================================================
+
+/// Helper to make an egui Rect given left-x, width and a fixed y extent.
+fn make_tab_rect(left_x: f32, width: f32) -> Rect {
+    Rect::from_min_size(Pos2::new(left_x, 0.0), Vec2::new(width, 30.0))
+}
+
+#[test]
+fn test_drag_state_idle_on_creation() {
+    let tab_bar = TabBarUI::new();
+    assert!(!tab_bar.is_dragging(), "Initial drag state should be idle");
+    assert!(
+        tab_bar.test_dragging_tab().is_none(),
+        "No tab should be dragging initially"
+    );
+}
+
+#[test]
+fn test_drag_state_transition_to_dragging() {
+    let mut tab_bar = TabBarUI::new();
+    let tab_id: TabId = 42;
+
+    tab_bar.test_set_drag_state(Some(tab_id), true);
+
+    assert!(tab_bar.is_dragging(), "Should be in dragging state");
+    assert_eq!(
+        tab_bar.test_dragging_tab(),
+        Some(tab_id),
+        "Dragging tab id should match"
+    );
+}
+
+#[test]
+fn test_drag_state_transition_to_dropped() {
+    let mut tab_bar = TabBarUI::new();
+    let tab_id: TabId = 7;
+
+    // Start drag
+    tab_bar.test_set_drag_state(Some(tab_id), true);
+    assert!(tab_bar.is_dragging());
+
+    // Simulate drop: clear drag state (as render_drag_feedback does on pointer release)
+    tab_bar.test_set_drag_state(None, false);
+    tab_bar.test_set_drop_target(None);
+
+    assert!(!tab_bar.is_dragging(), "Should be idle after drop");
+    assert!(
+        tab_bar.test_dragging_tab().is_none(),
+        "No tab should be dragging after drop"
+    );
+    assert!(
+        tab_bar.test_drop_target_index().is_none(),
+        "Drop target should be cleared"
+    );
+}
+
+#[test]
+fn test_drag_state_cancel_clears_all_drag_fields() {
+    let mut tab_bar = TabBarUI::new();
+    let tab_id: TabId = 3;
+
+    tab_bar.test_set_drag_state(Some(tab_id), true);
+    tab_bar.test_set_drop_target(Some(2));
+
+    // Simulate Escape cancellation
+    tab_bar.test_set_drag_state(None, false);
+    tab_bar.test_set_drop_target(None);
+
+    assert!(!tab_bar.is_dragging());
+    assert!(tab_bar.test_dragging_tab().is_none());
+    assert!(tab_bar.test_drop_target_index().is_none());
+}
+
+#[test]
+fn test_drag_state_multiple_tabs_only_one_dragging() {
+    let mut tab_bar = TabBarUI::new();
+    let tab_a: TabId = 1;
+
+    tab_bar.test_set_drag_state(Some(tab_a), true);
+
+    assert_eq!(tab_bar.test_dragging_tab(), Some(tab_a));
+    assert!(tab_bar.is_dragging());
+}
+
+// ============================================================================
+// Context Menu Lifecycle Tests (L-15)
+// ============================================================================
+
+#[test]
+fn test_context_menu_initially_closed() {
+    let tab_bar = TabBarUI::new();
+    assert!(
+        !tab_bar.is_context_menu_open(),
+        "Context menu should start closed"
+    );
+    assert!(tab_bar.test_context_menu_tab().is_none());
+}
+
+#[test]
+fn test_context_menu_opens_for_tab() {
+    let mut tab_bar = TabBarUI::new();
+    let tab_id: TabId = 5;
+
+    tab_bar.test_open_context_menu(tab_id);
+
+    assert!(
+        tab_bar.is_context_menu_open(),
+        "Context menu should be open"
+    );
+    assert_eq!(
+        tab_bar.test_context_menu_tab(),
+        Some(tab_id),
+        "Context menu should be open for the correct tab"
+    );
+}
+
+#[test]
+fn test_context_menu_closes_after_action() {
+    let mut tab_bar = TabBarUI::new();
+    let tab_id: TabId = 10;
+
+    tab_bar.test_open_context_menu(tab_id);
+    assert!(tab_bar.is_context_menu_open());
+
+    // Simulate action taken → close menu
+    tab_bar.test_close_context_menu();
+
+    assert!(
+        !tab_bar.is_context_menu_open(),
+        "Context menu should be closed after action"
+    );
+    assert!(tab_bar.test_context_menu_tab().is_none());
+}
+
+#[test]
+fn test_context_menu_switches_between_tabs() {
+    let mut tab_bar = TabBarUI::new();
+    let tab_a: TabId = 1;
+    let tab_b: TabId = 2;
+
+    tab_bar.test_open_context_menu(tab_a);
+    assert_eq!(tab_bar.test_context_menu_tab(), Some(tab_a));
+
+    // Opening on a different tab replaces the previous context
+    tab_bar.test_open_context_menu(tab_b);
+    assert_eq!(
+        tab_bar.test_context_menu_tab(),
+        Some(tab_b),
+        "Context menu should switch to the new tab"
+    );
+    assert!(tab_bar.is_context_menu_open());
+}
+
+#[test]
+fn test_context_menu_rename_state() {
+    let mut tab_bar = TabBarUI::new();
+    let tab_id: TabId = 3;
+
+    // Rename mode is off initially
+    assert!(!tab_bar.is_renaming());
+
+    tab_bar.test_open_context_menu(tab_id);
+    assert!(
+        !tab_bar.is_renaming(),
+        "Rename mode should be off after opening menu"
+    );
+
+    // Activate rename mode
+    tab_bar.test_set_renaming(true);
+    assert!(
+        tab_bar.is_renaming(),
+        "Rename mode should be on after activation"
+    );
+
+    // Closing menu resets rename mode
+    tab_bar.test_close_context_menu();
+    assert!(
+        !tab_bar.is_renaming(),
+        "Rename mode should be off after menu close"
+    );
+}
+
+#[test]
+fn test_context_menu_independent_of_drag_state() {
+    let mut tab_bar = TabBarUI::new();
+    let tab_id: TabId = 4;
+    let drag_tab: TabId = 99;
+
+    // Both drag and context menu can coexist in state
+    tab_bar.test_set_drag_state(Some(drag_tab), true);
+    tab_bar.test_open_context_menu(tab_id);
+
+    assert!(tab_bar.is_dragging());
+    assert!(tab_bar.is_context_menu_open());
+
+    // Closing context menu doesn't affect drag
+    tab_bar.test_close_context_menu();
+    assert!(!tab_bar.is_context_menu_open());
+    assert!(
+        tab_bar.is_dragging(),
+        "Drag state should be unaffected by menu close"
+    );
+}
+
+// ============================================================================
+// Drop Target Calculation Tests (L-15)
+// Tests the pure drop-target logic without requiring egui or GPU rendering.
+// ============================================================================
+
+/// Build a list of (TabId, Rect) pairs simulating N equally-spaced horizontal tabs.
+fn make_tab_rects(count: usize, tab_width: f32, spacing: f32) -> Vec<(TabId, Rect)> {
+    (0..count)
+        .map(|i| {
+            let left = i as f32 * (tab_width + spacing);
+            let rect = Rect::from_min_size(Pos2::new(left, 0.0), Vec2::new(tab_width, 30.0));
+            (i as TabId, rect)
+        })
+        .collect()
+}
+
+#[test]
+fn test_drop_target_before_first_tab() {
+    // Three tabs each 100px wide with 4px gap.
+    // Tab 0: [0, 100], Tab 1: [104, 204], Tab 2: [208, 308]
+    let rects = make_tab_rects(3, 100.0, 4.0);
+
+    // Pointer at x=10 (within tab 0, left of its center at 50): insert before index 0
+    let result = TabBarUI::calculate_drop_target_horizontal(&rects, None, 10.0);
+    assert_eq!(
+        result,
+        Some(0),
+        "Pointer before center of first tab → insert at 0"
+    );
+}
+
+#[test]
+fn test_drop_target_between_tabs() {
+    let rects = make_tab_rects(3, 100.0, 4.0);
+    // Tab 1 center = 104 + 50 = 154
+    // Pointer at x=160 (right of tab 1 center) → insert before tab 2 (index 2)
+    let result = TabBarUI::calculate_drop_target_horizontal(&rects, None, 160.0);
+    assert_eq!(
+        result,
+        Some(2),
+        "Pointer past center of tab 1 → insert at 2"
+    );
+}
+
+#[test]
+fn test_drop_target_after_last_tab() {
+    let rects = make_tab_rects(3, 100.0, 4.0);
+    // Pointer far to the right of all tabs → insert at end (index 3)
+    let result = TabBarUI::calculate_drop_target_horizontal(&rects, None, 999.0);
+    assert_eq!(result, Some(3), "Pointer after all tabs → insert at end");
+}
+
+#[test]
+fn test_drop_target_noop_same_position() {
+    let rects = make_tab_rects(3, 100.0, 4.0);
+    // Dragging tab 0 (source index 0), pointer inside tab 0 (x=30, left of center at 50)
+    // insert_index = 0, src = 0 → noop (insert_index == src)
+    let result = TabBarUI::calculate_drop_target_horizontal(&rects, Some(0), 30.0);
+    assert_eq!(result, None, "Dropping in the same slot should be a no-op");
+}
+
+#[test]
+fn test_drop_target_noop_adjacent_position() {
+    let rects = make_tab_rects(3, 100.0, 4.0);
+    // Dragging tab 0 (source index 0).
+    // Tab 1 center = 154. Pointer at x=160 → insert_index = 2.
+    // src = 0, insert_index = 2 → not noop.
+    let result = TabBarUI::calculate_drop_target_horizontal(&rects, Some(0), 160.0);
+    // Moving tab 0 to after tab 1 should produce insert_index = 2, which is valid.
+    assert_eq!(result, Some(2));
+}
+
+#[test]
+fn test_drop_target_noop_next_slot() {
+    let rects = make_tab_rects(3, 100.0, 4.0);
+    // Dragging tab 1 (source index 1). Pointer in the left half of tab 2 (x=220, center=258)
+    // → insert_index = 2. src=1, insert_index = src+1 = 2 → noop
+    let result = TabBarUI::calculate_drop_target_horizontal(&rects, Some(1), 220.0);
+    assert_eq!(result, None, "Inserting right after source is a no-op");
+}
+
+#[test]
+fn test_drop_target_empty_tab_list() {
+    let rects: Vec<(TabId, Rect)> = vec![];
+    // With no tabs, insert_index = 0 = rects.len().
+    // Without source, not noop → Some(0)
+    let result = TabBarUI::calculate_drop_target_horizontal(&rects, None, 0.0);
+    assert_eq!(result, Some(0), "Empty tab list: insert at 0");
+}
+
+#[test]
+fn test_insertion_to_target_index_insert_before_source() {
+    // insert_index < src: no adjustment needed
+    assert_eq!(
+        TabBarUI::insertion_to_target_index(0, Some(2)),
+        0,
+        "Inserting before source: index unchanged"
+    );
+}
+
+#[test]
+fn test_insertion_to_target_index_insert_after_source() {
+    // insert_index > src: subtract 1 because source is removed first
+    assert_eq!(
+        TabBarUI::insertion_to_target_index(3, Some(1)),
+        2,
+        "Inserting after source: index decremented by 1"
+    );
+}
+
+#[test]
+fn test_insertion_to_target_index_no_source() {
+    // Without a known source, index is used as-is
+    assert_eq!(
+        TabBarUI::insertion_to_target_index(5, None),
+        5,
+        "No source: index unchanged"
+    );
+}
+
+#[test]
+fn test_drop_target_followed_by_reorder_action() {
+    // Full round-trip: calculate drop target, then convert to effective target,
+    // and verify that forms a valid Reorder action.
+    //
+    // 4 tabs each 100px wide with 4px spacing:
+    //   Tab 0: [0,100]   center=50
+    //   Tab 1: [104,204] center=154
+    //   Tab 2: [208,308] center=258
+    //   Tab 3: [312,412] center=362
+    let rects = make_tab_rects(4, 100.0, 4.0);
+    let dragging_id: TabId = 0; // dragging the first tab
+    let source_idx = Some(0usize);
+
+    // Pointer at x=400, past center of tab 3 (362) → no early break → insert_index = 4 (end)
+    let insert_idx = TabBarUI::calculate_drop_target_horizontal(&rects, source_idx, 400.0);
+    assert_eq!(
+        insert_idx,
+        Some(4),
+        "Pointer after all tab centers → insert at end (index 4)"
+    );
+
+    // insert_idx (4) > src (0) → effective = 4 - 1 = 3
+    let effective = TabBarUI::insertion_to_target_index(insert_idx.unwrap(), source_idx);
+    assert_eq!(
+        effective, 3,
+        "After removing tab 0, insert_idx 4 → effective target 3"
+    );
+
+    let action = TabBarAction::Reorder(dragging_id, effective);
+    match action {
+        TabBarAction::Reorder(id, pos) => {
+            assert_eq!(id, dragging_id);
+            assert_eq!(pos, 3);
+        }
+        _ => panic!("Expected Reorder action"),
+    }
 }
