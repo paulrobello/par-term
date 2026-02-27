@@ -2354,73 +2354,8 @@ impl WindowState {
         }
 
         self.update_frame_metrics();
-
-        // Update scroll animation
-        let animation_running = if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.scroll_state.update_animation()
-        } else {
-            false
-        };
-
-        // Update tab titles from terminal OSC sequences
-        self.tab_manager
-            .update_all_titles(self.config.tab_title_mode);
-
-        // Rebuild renderer if font-related settings changed
-        if self.pending_font_rebuild {
-            if let Err(e) = self.rebuild_renderer() {
-                log::error!("Failed to rebuild renderer after font change: {}", e);
-            }
-            self.pending_font_rebuild = false;
-        }
-
-        // Sync tab bar offsets with renderer's content offsets
-        // This ensures the terminal grid correctly accounts for the tab bar position
-        let tab_count = self.tab_manager.tab_count();
-        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
-        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
-        crate::debug_trace!(
-            "TAB_SYNC",
-            "Tab count={}, tab_bar_height={:.0}, tab_bar_width={:.0}, position={:?}, mode={:?}",
-            tab_count,
-            tab_bar_height,
-            tab_bar_width,
-            self.config.tab_bar_position,
-            self.config.tab_bar_mode
-        );
-        if let Some(renderer) = &mut self.renderer {
-            let grid_changed = Self::apply_tab_bar_offsets_for_position(
-                self.config.tab_bar_position,
-                renderer,
-                tab_bar_height,
-                tab_bar_width,
-            );
-            if let Some((new_cols, new_rows)) = grid_changed {
-                let cell_width = renderer.cell_width();
-                let cell_height = renderer.cell_height();
-                let width_px = (new_cols as f32 * cell_width) as usize;
-                let height_px = (new_rows as f32 * cell_height) as usize;
-
-                for tab in self.tab_manager.tabs_mut() {
-                    if let Ok(mut term) = tab.terminal.try_lock() {
-                        term.set_cell_dimensions(cell_width as u32, cell_height as u32);
-                        let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
-                    }
-                    tab.cache.cells = None;
-                }
-                crate::debug_info!(
-                    "TAB_SYNC",
-                    "Tab bar offsets changed (position={:?}), resized terminals to {}x{}",
-                    self.config.tab_bar_position,
-                    new_cols,
-                    new_rows
-                );
-            }
-        }
-
-        // Sync status bar inset so the terminal grid does not extend behind it.
-        // Must happen before cell gathering so the row count is correct.
-        self.sync_status_bar_inset();
+        self.update_animations();
+        self.sync_layout();
 
         let (renderer_size, visible_lines, grid_cols) = if let Some(renderer) = &self.renderer {
             let (cols, rows) = renderer.grid_size();
@@ -2465,11 +2400,6 @@ impl WindowState {
         } else {
             true // Assume running if locked
         };
-
-        // Request another redraw if animation is still running
-        if animation_running && let Some(window) = &self.window {
-            window.request_redraw();
-        }
 
         // Get scroll offset and selection from active tab
 
@@ -4798,9 +4728,7 @@ impl WindowState {
         } else {
             self.config.max_fps
         };
-        let frame_interval = std::time::Duration::from_millis(
-            (1000 / target_fps.max(1)) as u64,
-        );
+        let frame_interval = std::time::Duration::from_millis((1000 / target_fps.max(1)) as u64);
         if let Some(last_render) = self.last_render_time
             && last_render.elapsed() < frame_interval
         {
@@ -4823,6 +4751,83 @@ impl WindowState {
             }
         }
         self.debug.last_frame_start = Some(frame_start);
+    }
+
+    /// Tick scroll animations, refresh tab titles, and rebuild renderer if font settings changed.
+    fn update_animations(&mut self) {
+        let animation_running = if let Some(tab) = self.tab_manager.active_tab_mut() {
+            tab.scroll_state.update_animation()
+        } else {
+            false
+        };
+
+        // Update tab titles from terminal OSC sequences
+        self.tab_manager
+            .update_all_titles(self.config.tab_title_mode);
+
+        // Rebuild renderer if font-related settings changed
+        if self.pending_font_rebuild {
+            if let Err(e) = self.rebuild_renderer() {
+                log::error!("Failed to rebuild renderer after font change: {}", e);
+            }
+            self.pending_font_rebuild = false;
+        }
+
+        if animation_running && let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
+    /// Sync tab bar and status bar geometry with the renderer every frame.
+    /// Resizes terminal grids if the tab bar dimensions changed.
+    fn sync_layout(&mut self) {
+        // Sync tab bar offsets with renderer's content offsets
+        // This ensures the terminal grid correctly accounts for the tab bar position
+        let tab_count = self.tab_manager.tab_count();
+        let tab_bar_height = self.tab_bar_ui.get_height(tab_count, &self.config);
+        let tab_bar_width = self.tab_bar_ui.get_width(tab_count, &self.config);
+        crate::debug_trace!(
+            "TAB_SYNC",
+            "Tab count={}, tab_bar_height={:.0}, tab_bar_width={:.0}, position={:?}, mode={:?}",
+            tab_count,
+            tab_bar_height,
+            tab_bar_width,
+            self.config.tab_bar_position,
+            self.config.tab_bar_mode
+        );
+        if let Some(renderer) = &mut self.renderer {
+            let grid_changed = Self::apply_tab_bar_offsets_for_position(
+                self.config.tab_bar_position,
+                renderer,
+                tab_bar_height,
+                tab_bar_width,
+            );
+            if let Some((new_cols, new_rows)) = grid_changed {
+                let cell_width = renderer.cell_width();
+                let cell_height = renderer.cell_height();
+                let width_px = (new_cols as f32 * cell_width) as usize;
+                let height_px = (new_rows as f32 * cell_height) as usize;
+
+                for tab in self.tab_manager.tabs_mut() {
+                    if let Ok(mut term) = tab.terminal.try_lock() {
+                        term.set_cell_dimensions(cell_width as u32, cell_height as u32);
+                        let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
+                    }
+                    tab.cache.cells = None;
+                }
+                crate::debug_info!(
+                    "TAB_SYNC",
+                    "Tab bar offsets changed (position={:?}), resized terminals to {}x{}",
+                    self.config.tab_bar_position,
+                    new_cols,
+                    new_rows
+                );
+            }
+        }
+
+        // Sync status bar inset so the terminal grid does not extend behind it.
+        // Must happen before cell gathering so the row count is correct.
+        self.sync_status_bar_inset();
     }
 
     /// Process incoming ACP agent messages for this render tick and refresh
