@@ -42,7 +42,7 @@ All three sub-struct extractions are complete:
 - `TmuxState` (7 fields) — `src/app/tmux_state.rs`, accessed as `self.tmux_state.*`
 - `OverlayUiState` (20 fields) — `src/app/overlay_ui_state.rs`, accessed as `self.overlay_ui.*`
 
-`WindowState` now has ~47 top-level fields (down from ~82). All tests pass, clippy is clean.
+`WindowState` now has 61 top-level fields (down from 79), of which 6 are named sub-struct groupings (`cursor_anim`, `debug`, `shader_state`, `agent_state`, `tmux_state`, `overlay_ui`). All tests pass, clippy is clean.
 
 ### C1 — Monolithic render() (partial)
 

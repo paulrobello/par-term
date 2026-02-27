@@ -31,7 +31,9 @@ pub(crate) struct OverlayUiState {
     pub(crate) command_history_ui: CommandHistoryUI,
     /// Persistent command history model (backing command_history_ui)
     pub(crate) command_history: CommandHistory,
-    /// Commands already synced from marks (avoids repeated adds)
+    /// Commands already synced from marks (avoids repeated adds).
+    /// `pub(crate)` rather than fully private because access goes through
+    /// `self.overlay_ui.synced_commands` from `impl WindowState` methods.
     pub(crate) synced_commands: std::collections::HashSet<String>,
     pub(crate) paste_special_ui: PasteSpecialUI,
     pub(crate) tmux_session_picker_ui: TmuxSessionPickerUI,
