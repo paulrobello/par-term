@@ -3,12 +3,12 @@
 //! This module contains `WindowState`, which holds all state specific to a single window,
 //! including its renderer, tab manager, input handler, and UI components.
 
-pub(crate) mod action_handlers;
-pub(crate) mod agent_messages;
-pub(crate) mod config_watchers;
-pub(crate) mod render_pipeline;
-pub(crate) mod renderer_ops;
-pub(crate) mod shader_ops;
+mod action_handlers;
+mod agent_messages;
+mod config_watchers;
+mod render_pipeline;
+mod renderer_ops;
+mod shader_ops;
 
 use crate::app::anti_idle::should_send_keep_alive;
 use crate::app::debug_state::DebugState;
