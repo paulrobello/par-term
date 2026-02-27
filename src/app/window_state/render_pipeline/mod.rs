@@ -296,7 +296,18 @@ impl WindowState {
                         }
                     }
 
-                    let display_lines = block.buffer.display_lines();
+                    // Use display_lines_ref() to borrow rendered lines directly
+                    // without cloning the entire Vec on every frame.  Falls back
+                    // to an owned allocation only when source view mode is active
+                    // (rare — the block has already passed the has_rendered() guard).
+                    let owned_fallback;
+                    let display_lines: &[_] =
+                        if let Some(lines) = block.buffer.display_lines_ref() {
+                            lines
+                        } else {
+                            owned_fallback = block.buffer.display_lines();
+                            &owned_fallback
+                        };
                     let block_start = block.content().start_row;
                     let source_offset = absolute_row.saturating_sub(block_start);
                     // Use the source→rendered line mapping when available so
