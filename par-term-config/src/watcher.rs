@@ -21,7 +21,7 @@ pub struct ConfigReloadEvent {
 /// Watches the config file for changes and sends reload events.
 pub struct ConfigWatcher {
     /// The file system watcher (kept alive to maintain watching).
-    _watcher: PollWatcher,
+    _watcher: Box<dyn Watcher + Send>,
     /// Receiver for config change events.
     event_receiver: Receiver<ConfigReloadEvent>,
 }
@@ -32,15 +32,85 @@ impl std::fmt::Debug for ConfigWatcher {
     }
 }
 
+/// Build the shared event-handler closure used by both watcher backends.
+///
+/// Returns a closure that filters events to the given `filename`, applies
+/// debouncing, and sends `ConfigReloadEvent` values on `tx`.
+fn make_event_handler(
+    filename: std::ffi::OsString,
+    canonical_path: PathBuf,
+    debounce_delay: Duration,
+    tx: std::sync::mpsc::Sender<ConfigReloadEvent>,
+    last_event_time: Arc<Mutex<Option<Instant>>>,
+) -> impl Fn(std::result::Result<Event, notify::Error>) + Send + 'static {
+    move |result: std::result::Result<Event, notify::Error>| {
+        if let Ok(event) = result {
+            // Only process modify and create events (create handles atomic saves)
+            if !matches!(
+                event.kind,
+                notify::EventKind::Modify(_) | notify::EventKind::Create(_)
+            ) {
+                return;
+            }
+
+            // Check if any event path matches our config filename
+            let matches_config: bool = event
+                .paths
+                .iter()
+                .any(|p: &PathBuf| p.file_name().map(|f| f == filename).unwrap_or(false));
+
+            if !matches_config {
+                return;
+            }
+
+            // Debounce: skip if we sent an event too recently
+            let should_send: bool = {
+                let now: Instant = Instant::now();
+                let mut last: parking_lot::MutexGuard<'_, Option<Instant>> =
+                    last_event_time.lock();
+                if let Some(last_time) = *last {
+                    if now.duration_since(last_time) < debounce_delay {
+                        log::trace!("Debouncing config reload event");
+                        false
+                    } else {
+                        *last = Some(now);
+                        true
+                    }
+                } else {
+                    *last = Some(now);
+                    true
+                }
+            };
+
+            if should_send {
+                let reload_event = ConfigReloadEvent {
+                    path: canonical_path.clone(),
+                };
+                log::info!("Config file changed: {}", reload_event.path.display());
+                if let Err(e) = tx.send(reload_event) {
+                    log::error!("Failed to send config reload event: {}", e);
+                }
+            }
+        }
+    }
+}
+
 impl ConfigWatcher {
     /// Create a new config watcher.
+    ///
+    /// Attempts to use the platform's native watcher (`RecommendedWatcher`: inotify on
+    /// Linux, kqueue on macOS, ReadDirectoryChanges on Windows) for low-latency,
+    /// event-driven notifications. If the native backend fails to initialise (e.g.
+    /// inside a container or on a network filesystem), falls back to a `PollWatcher`
+    /// that checks for changes every 500 ms.
     ///
     /// # Arguments
     /// * `config_path` - Path to the config file to watch.
     /// * `debounce_delay_ms` - Debounce delay in milliseconds to avoid rapid reloads.
     ///
     /// # Errors
-    /// Returns an error if the config file doesn't exist or watching fails.
+    /// Returns an error if the config file doesn't exist or watching fails on both
+    /// backends.
     pub fn new(config_path: &Path, debounce_delay_ms: u64) -> Result<Self> {
         if !config_path.exists() {
             anyhow::bail!("Config file not found: {}", config_path.display());
@@ -63,63 +133,15 @@ impl ConfigWatcher {
         let (tx, rx) = channel::<ConfigReloadEvent>();
         let debounce_delay: Duration = Duration::from_millis(debounce_delay_ms);
         let last_event_time: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
-        let last_event_clone: Arc<Mutex<Option<Instant>>> = Arc::clone(&last_event_time);
-        let canonical_path: PathBuf = canonical.clone();
 
-        let mut watcher: PollWatcher = PollWatcher::new(
-            move |result: std::result::Result<Event, notify::Error>| {
-                if let Ok(event) = result {
-                    // Only process modify and create events (create handles atomic saves)
-                    if !matches!(
-                        event.kind,
-                        notify::EventKind::Modify(_) | notify::EventKind::Create(_)
-                    ) {
-                        return;
-                    }
-
-                    // Check if any event path matches our config filename
-                    let matches_config: bool = event
-                        .paths
-                        .iter()
-                        .any(|p: &PathBuf| p.file_name().map(|f| f == filename).unwrap_or(false));
-
-                    if !matches_config {
-                        return;
-                    }
-
-                    // Debounce: skip if we sent an event too recently
-                    let should_send: bool = {
-                        let now: Instant = Instant::now();
-                        let mut last: parking_lot::MutexGuard<'_, Option<Instant>> =
-                            last_event_clone.lock();
-                        if let Some(last_time) = *last {
-                            if now.duration_since(last_time) < debounce_delay {
-                                log::trace!("Debouncing config reload event");
-                                false
-                            } else {
-                                *last = Some(now);
-                                true
-                            }
-                        } else {
-                            *last = Some(now);
-                            true
-                        }
-                    };
-
-                    if should_send {
-                        let reload_event = ConfigReloadEvent {
-                            path: canonical_path.clone(),
-                        };
-                        log::info!("Config file changed: {}", reload_event.path.display());
-                        if let Err(e) = tx.send(reload_event) {
-                            log::error!("Failed to send config reload event: {}", e);
-                        }
-                    }
-                }
-            },
-            NotifyConfig::default().with_poll_interval(Duration::from_millis(500)),
-        )
-        .context("Failed to create config file watcher")?;
+        // Try the platform-native watcher first; fall back to PollWatcher on failure.
+        let mut watcher: Box<dyn Watcher + Send> = Self::create_watcher(
+            filename,
+            canonical.clone(),
+            debounce_delay,
+            tx,
+            last_event_time,
+        )?;
 
         watcher
             .watch(&parent_dir, RecursiveMode::NonRecursive)
@@ -133,6 +155,60 @@ impl ConfigWatcher {
             _watcher: watcher,
             event_receiver: rx,
         })
+    }
+
+    /// Try to create the best available watcher backend.
+    ///
+    /// Attempts `RecommendedWatcher` first. If that fails (e.g. inside a
+    /// container, network filesystem, or restricted environment), logs a warning
+    /// and falls back to `PollWatcher` with a 500 ms poll interval.
+    fn create_watcher(
+        filename: std::ffi::OsString,
+        canonical_path: PathBuf,
+        debounce_delay: Duration,
+        tx: std::sync::mpsc::Sender<ConfigReloadEvent>,
+        last_event_time: Arc<Mutex<Option<Instant>>>,
+    ) -> Result<Box<dyn Watcher + Send>> {
+        // Build the shared handler (clone inputs for the fallback path).
+        let filename2 = filename.clone();
+        let canonical_path2 = canonical_path.clone();
+        let debounce_delay2 = debounce_delay;
+        let tx2 = tx.clone();
+        let last_event_time2 = Arc::clone(&last_event_time);
+
+        let handler = make_event_handler(
+            filename,
+            canonical_path,
+            debounce_delay,
+            tx,
+            last_event_time,
+        );
+
+        match notify::recommended_watcher(handler) {
+            Ok(w) => {
+                log::debug!("Config watcher: using native (RecommendedWatcher) backend");
+                Ok(Box::new(w))
+            }
+            Err(e) => {
+                log::warn!(
+                    "Config watcher: native backend unavailable ({}); falling back to PollWatcher",
+                    e
+                );
+                let fallback_handler = make_event_handler(
+                    filename2,
+                    canonical_path2,
+                    debounce_delay2,
+                    tx2,
+                    last_event_time2,
+                );
+                let poll_watcher = PollWatcher::new(
+                    fallback_handler,
+                    NotifyConfig::default().with_poll_interval(Duration::from_millis(500)),
+                )
+                .context("Failed to create fallback PollWatcher")?;
+                Ok(Box::new(poll_watcher))
+            }
+        }
     }
 
     /// Check for pending config reload events (non-blocking).
@@ -203,7 +279,7 @@ mod tests {
         // Modify the file
         fs::write(&config_path, "font_size: 14.0\n").expect("Failed to write config");
 
-        // Wait for the poll watcher to detect the change
+        // Wait for the watcher to detect the change (native is faster; poll takes up to 500ms)
         std::thread::sleep(Duration::from_millis(700));
 
         // Check for the reload event (platform-dependent, don't assert failure)

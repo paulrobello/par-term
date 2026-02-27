@@ -478,6 +478,46 @@ impl WindowState {
         pending: Vec<(u64, usize, PrettifyRelayPayload)>,
         current_scrollback_len: usize,
     ) {
+        // Pre-populate the regex cache with all patterns from pending events.
+        // This is done before borrowing `tab` to avoid borrow-checker conflicts.
+        // Patterns that are already cached are skipped; invalid patterns are logged once.
+        for (trigger_id, _row, payload) in &pending {
+            if let Some(ref filter) = payload.command_filter
+                && !self.trigger_regex_cache.contains_key(filter.as_str())
+            {
+                match regex::Regex::new(filter) {
+                    Ok(re) => {
+                        self.trigger_regex_cache.insert(filter.clone(), re);
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "Trigger {} prettify: invalid command_filter regex '{}': {}",
+                            trigger_id,
+                            filter,
+                            e
+                        );
+                    }
+                }
+            }
+            if let Some(ref block_end) = payload.block_end
+                && !self.trigger_regex_cache.contains_key(block_end.as_str())
+            {
+                match regex::Regex::new(block_end) {
+                    Ok(re) => {
+                        self.trigger_regex_cache.insert(block_end.clone(), re);
+                    }
+                    Err(e) => {
+                        log::error!(
+                            "Trigger {} prettify: invalid block_end regex '{}': {}",
+                            trigger_id,
+                            block_end,
+                            e
+                        );
+                    }
+                }
+            }
+        }
+
         let tab = if let Some(t) = self.tab_manager.active_tab_mut() {
             t
         } else {
@@ -502,7 +542,9 @@ impl WindowState {
         for (idx, (trigger_id, _grid_row, payload)) in pending.into_iter().enumerate() {
             // Check command_filter: if set, only fire when the preceding command matches.
             if let Some(ref filter) = payload.command_filter {
-                if let Ok(re) = regex::Regex::new(filter) {
+                // Use the pre-compiled regex from the cache (populated before this loop).
+                // If the pattern was invalid it was logged above and not inserted — skip.
+                if let Some(re) = self.trigger_regex_cache.get(filter.as_str()) {
                     match preceding_command.as_deref() {
                         Some(cmd) if re.is_match(cmd) => {}
                         _ => {
@@ -515,11 +557,7 @@ impl WindowState {
                         }
                     }
                 } else {
-                    log::error!(
-                        "Trigger {} prettify: invalid command_filter regex: {}",
-                        trigger_id,
-                        filter
-                    );
+                    // Pattern was invalid (logged during pre-compilation above).
                     continue;
                 }
             }
@@ -527,12 +565,12 @@ impl WindowState {
             // Get the pre-computed scope range; narrow for Block scope if block_end is set.
             let (start_abs, end_abs) = if let Some(&range) = scope_ranges.get(idx) {
                 if payload.scope == PrettifyScope::Block {
-                    Self::narrow_block_scope(
-                        range.0,
-                        range.1,
-                        payload.block_end.as_deref(),
-                        &lines_by_abs,
-                    )
+                    // Look up the pre-compiled block_end regex from the cache.
+                    let block_end_re = payload
+                        .block_end
+                        .as_deref()
+                        .and_then(|pat| self.trigger_regex_cache.get(pat));
+                    Self::narrow_block_scope(range.0, range.1, block_end_re, &lines_by_abs)
                 } else {
                     range
                 }
@@ -669,23 +707,17 @@ impl WindowState {
 
     /// Narrow a block scope range by scanning for a block_end regex match.
     ///
-    /// If `block_end` is set and matches a line in `lines_by_abs`, the range
+    /// If `block_end_re` is set and matches a line in `lines_by_abs`, the range
     /// is narrowed to `start..match+1`. Otherwise returns the original range.
+    ///
+    /// Accepts a pre-compiled `Regex` reference to avoid hot-path recompilation.
     fn narrow_block_scope(
         start_abs: usize,
         end_abs: usize,
-        block_end: Option<&str>,
+        block_end_re: Option<&regex::Regex>,
         lines_by_abs: &HashMap<usize, String>,
     ) -> (usize, usize) {
-        let end_re = block_end.and_then(|pat| match regex::Regex::new(pat) {
-            Ok(re) => Some(re),
-            Err(e) => {
-                log::error!("Prettify block_end regex invalid: {}", e);
-                None
-            }
-        });
-
-        if let Some(ref re) = end_re {
+        if let Some(re) = block_end_re {
             for abs in (start_abs + 1)..end_abs {
                 if let Some(text) = lines_by_abs.get(&abs)
                     && re.is_match(text)
