@@ -12,7 +12,28 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 
 ![par-term screenshot](https://raw.githubusercontent.com/paulrobello/par-term/main/screenshot.png)
 
-## What's New in 0.23.0
+## What's New in 0.24.0
+
+### 🔒 Security & Safety
+
+- **Paste Control Character Sanitization**: Control characters are now stripped from clipboard paste to prevent injection via crafted clipboard content
+- **MCP IPC File Permissions**: MCP IPC socket files created with restrictive permissions to prevent unauthorized access
+- **Session Logger Password Redaction**: Passwords redacted from session log output
+- **Config Variable Substitution Allowlist**: Config variable substitution restricted to explicit allowlist to prevent injection
+- **RunCommand Trigger Restriction**: `RunCommand` actions can no longer be triggered from terminal output — user key presses only
+- **Graceful Shutdown**: Replaced abrupt `process::exit()` with proper graceful shutdown
+
+### 🐛 Bug Fixes
+
+- **Box-Drawing Line Thickness (tmux Borders)**: Fixed tmux pane borders rendering inconsistently — pixel rectangles snapped to integer boundaries for consistent line thickness
+- **Prettifier Line Mapping**: Fixed index drift in cell substitution when rendered output differs from source line count
+- **Prettifier Cell Dimensions**: GPU cell metrics now synced into prettifier pipeline — inline graphics (Mermaid, etc.) sized correctly
+- **Prettifier Small Block Detection**: Removed block-size guard that prevented small blocks from rendering
+- **Prettifier Claude Code Integration**: Viewport hash used to clear stale Claude Code blocks; CC segmentation and throttle restored in split module
+- **Split-Pane Unsafe Cell Pointer**: Eliminated unsafe cell pointer leak in split-pane render path
+
+<details>
+<summary><strong>What's New in 0.23.0</strong></summary>
 
 ### ✨ New Features
 
@@ -34,6 +55,8 @@ A cross-platform, GPU-accelerated terminal emulator frontend built with Rust, po
 - **Tab Emoji Rendering**: Sanitized emoji/ZWJ sequences in tab labels to avoid tofu
 - **Settings Search Keywords**: Fixed and expanded search keywords across all settings tabs
 - **Startup Error Message**: par-term now prints clear errors on startup failure (e.g., missing display server)
+
+</details>
 
 <details>
 <summary><strong>What's New in 0.22.0</strong></summary>

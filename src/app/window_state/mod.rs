@@ -437,10 +437,8 @@ pub(super) fn preprocess_claude_code_segment(lines: &mut Vec<(String, usize)>) {
 
     // Detect line-numbered content: if ≥50% of non-empty lines have a line-number
     // prefix, this is a file preview. Strip the prefix so detectors see raw content.
-    let non_empty: Vec<&(String, usize)> = lines
-        .iter()
-        .filter(|(l, _)| !l.trim().is_empty())
-        .collect();
+    let non_empty: Vec<&(String, usize)> =
+        lines.iter().filter(|(l, _)| !l.trim().is_empty()).collect();
     if !non_empty.is_empty() {
         let numbered_count = non_empty
             .iter()
@@ -465,9 +463,8 @@ pub(super) fn preprocess_claude_code_segment(lines: &mut Vec<(String, usize)>) {
             return true; // Keep blank lines (they serve as block separators)
         }
         // Skip tool headers that were reconstructed as markdown headers.
-        if trimmed.starts_with("## ") {
-            let after_header = &trimmed[3..];
-            if after_header.starts_with("Write(")
+        if let Some(after_header) = trimmed.strip_prefix("## ")
+            && (after_header.starts_with("Write(")
                 || after_header.starts_with("Bash(")
                 || after_header.starts_with("Read(")
                 || after_header.starts_with("Glob(")
@@ -475,10 +472,9 @@ pub(super) fn preprocess_claude_code_segment(lines: &mut Vec<(String, usize)>) {
                 || after_header.starts_with("Edit(")
                 || after_header.starts_with("Task(")
                 || after_header.starts_with("Wrote ")
-                || after_header.starts_with("Done")
-            {
-                return false;
-            }
+                || after_header.starts_with("Done"))
+        {
+            return false;
         }
         // Skip tree-connector result lines.
         if trimmed.starts_with('└') || trimmed.starts_with('├') {

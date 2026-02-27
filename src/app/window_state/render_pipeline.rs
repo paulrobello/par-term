@@ -2371,10 +2371,7 @@ impl WindowState {
                     tab.cache.prettifier_feed_last_hash = viewport_hash;
                     if !pipeline.active_blocks().is_empty() {
                         pipeline.clear_blocks();
-                        crate::debug_log!(
-                            "PRETTIFIER",
-                            "CC viewport changed, cleared all blocks"
-                        );
+                        crate::debug_log!("PRETTIFIER", "CC viewport changed, cleared all blocks");
                     }
                 }
 
@@ -2398,8 +2395,7 @@ impl WindowState {
                 let mut rows: Vec<(String, String, usize)> = Vec::new(); // (raw, recon, abs_row)
 
                 for row_idx in 0..visible_lines {
-                    let absolute_row =
-                        scrollback_len.saturating_sub(scroll_offset) + row_idx;
+                    let absolute_row = scrollback_len.saturating_sub(scroll_offset) + row_idx;
                     let start = row_idx * grid_cols;
                     let end = (start + grid_cols).min(cells.len());
                     if start >= cells.len() {
@@ -2443,9 +2439,7 @@ impl WindowState {
                         continue;
                     }
                     // Horizontal rules (─────) are boundaries
-                    if trimmed.len() > 10
-                        && trimmed.chars().all(|c| c == '─' || c == '━')
-                    {
+                    if trimmed.len() > 10 && trimmed.chars().all(|c| c == '─' || c == '━') {
                         if !current.is_empty() {
                             segments.push(std::mem::take(&mut current));
                         }
@@ -2473,10 +2467,7 @@ impl WindowState {
                 let mut skipped_short = 0usize;
                 let mut skipped_empty = 0usize;
                 for mut segment in segments {
-                    let non_empty = segment
-                        .iter()
-                        .filter(|(l, _)| !l.trim().is_empty())
-                        .count();
+                    let non_empty = segment.iter().filter(|(l, _)| !l.trim().is_empty()).count();
                     if non_empty < min_segment_lines {
                         skipped_short += 1;
                         continue;
@@ -2496,7 +2487,9 @@ impl WindowState {
                         pre_len,
                         segment.first().map(|(_, r)| *r).unwrap_or(0),
                         segment.last().map(|(_, r)| *r + 1).unwrap_or(0),
-                        segment.first().map(|(l, _)| &l[..l.floor_char_boundary(60)])
+                        segment
+                            .first()
+                            .map(|(l, _)| &l[..l.floor_char_boundary(60)])
                     );
 
                     submitted += 1;
@@ -2526,8 +2519,7 @@ impl WindowState {
 
                 let mut lines: Vec<(String, usize)> = Vec::with_capacity(visible_lines);
                 for row_idx in 0..visible_lines {
-                    let absolute_row =
-                        scrollback_len.saturating_sub(scroll_offset) + row_idx;
+                    let absolute_row = scrollback_len.saturating_sub(scroll_offset) + row_idx;
 
                     let start = row_idx * grid_cols;
                     let end = (start + grid_cols).min(cells.len());

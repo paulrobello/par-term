@@ -86,7 +86,10 @@ impl RendererRegistry {
             content.lines.len(),
             content.start_row,
             content.end_row,
-            content.lines.first().map(|l| &l[..l.floor_char_boundary(60)])
+            content
+                .lines
+                .first()
+                .map(|l| &l[..l.floor_char_boundary(60)])
         );
 
         for (priority, detector) in &self.detectors {

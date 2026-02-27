@@ -9,9 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.24.0] - 2026-02-27
+
 ### Fixed
 
 - **Box-Drawing Line Thickness Inconsistency (Tmux Pane Borders)**: Fixed tmux pane borders (and other box-drawing characters) rendering inconsistently as single or double lines — the geometric renderer produced fractional pixel coordinates for thin lines (e.g. `│` width ≈ 1.7–2.4px), and depending on sub-pixel cell position the GPU rasterizer would cover either 1 or 2 fragment centers; box-drawing pixel rectangles are now snapped to integer pixel boundaries ensuring consistent line thickness regardless of cell position
+- **Prettifier Line Mapping**: Fixed source→rendered line mapping in cell substitution — prevents index drift when the rendered output has a different line count than the source (e.g., consumed code-fence delimiters)
+- **Prettifier Cell Dimensions**: GPU renderer cell dimensions are now synced into the prettifier pipeline so inline graphics (Mermaid diagrams, etc.) are sized with actual cell metrics
+- **Prettifier Small Block Detection**: Removed block-size guard that was preventing small blocks from rendering
+- **Prettifier Claude Code Integration**: Viewport content hash now used to clear stale Claude Code blocks; restored Claude Code segmentation and frame-rate throttle in the split module
+- **Paste Control Character Sanitization**: Control characters are now stripped from clipboard paste to prevent injection via crafted clipboard content
+- **MCP IPC File Permissions**: MCP IPC socket files are now created with restrictive permissions to prevent unauthorized access
+- **Session Logger Password Redaction**: Passwords are now redacted from session log output
+- **Graceful Shutdown**: Replaced `process::exit()` calls with proper graceful shutdown sequence
+- **Config Variable Substitution Allowlist**: Config variable substitution is now restricted to an explicit allowlist to prevent injection attacks
+- **RunCommand Terminal Output Restriction**: `RunCommand` keybinding actions can no longer be triggered from terminal output — only from explicit user key presses
+- **Split-Pane Unsafe Cell Pointer**: Eliminated an unsafe cell pointer leak in the split-pane render path
+
+### Changed
+
+- **Internal Architecture**: Decomposed `window_state.rs` into focused sub-modules (`window_state/`, `render_pipeline.rs`, `agent_messages.rs`, etc.) and extracted render coordination into dedicated functions (`gather_render_data`, `should_render_frame`, `submit_gpu_frame`, etc.) — no user-visible behavior changes; improves maintainability and reduces file sizes
 
 ---
 

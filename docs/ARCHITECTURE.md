@@ -220,7 +220,7 @@ All public types from workspace crates are re-exported from the main `par-term` 
 
 *   **App (`src/app/mod.rs`)**: The entry point that initializes configuration and runs the event loop via `winit`.
 *   **WindowManager (`src/app/window_manager.rs`)**: Coordinates multiple terminal windows, handles native menu events, manages the standalone settings window, and applies configuration changes across all windows.
-*   **WindowState (`src/app/window_state.rs`)**: Per-window state containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches.
+*   **WindowState (`src/app/window_state/`)**: Per-window state module containing tab manager, renderer, input handler, keybinding registry, and shader metadata caches — decomposed into focused sub-modules including `render_pipeline.rs`, `agent_messages.rs`, and state components (AgentState, TmuxState, OverlayUiState).
 *   **Input Handler (`par-term-input`)**: Translates OS window events (keyboard, mouse) into terminal input sequences or application commands (e.g., shortcuts for copy/paste).
 *   **Keybindings (`par-term-keybindings`)**: Configurable keyboard shortcut system with key combo parsing, platform-aware modifier handling (`CmdOrCtrl`), and action registry.
 *   **Menu (`src/menu/mod.rs`)**: Native cross-platform menu bar using `muda` (macOS global menu, Windows/Linux per-window menus).

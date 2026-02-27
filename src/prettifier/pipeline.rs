@@ -709,8 +709,12 @@ impl PrettifierPipeline {
                             rendered.lines.len() - 3
                         );
                     }
-                    self.render_cache
-                        .put(content_hash, terminal_width, format_id, rendered.clone());
+                    self.render_cache.put(
+                        content_hash,
+                        terminal_width,
+                        format_id,
+                        rendered.clone(),
+                    );
                     buffer.set_rendered(rendered, terminal_width);
                 }
                 Err(e) => {
@@ -1259,9 +1263,8 @@ mod tests {
 
         // Submit a similarly-sized block with different content.
         // It should replace the original (both are ~viewport-sized).
-        let new_lines: Vec<(String, usize)> = (0..24)
-            .map(|i| (format!("updated line {i}"), i))
-            .collect();
+        let new_lines: Vec<(String, usize)> =
+            (0..24).map(|i| (format!("updated line {i}"), i)).collect();
         pipeline.submit_command_output(new_lines, None);
 
         // The old block should be replaced.

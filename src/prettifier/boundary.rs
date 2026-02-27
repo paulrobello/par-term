@@ -371,7 +371,10 @@ impl BoundaryDetector {
     /// Trims trailing blank lines. Returns `None` if no non-blank content remains.
     fn emit_block(&mut self) -> Option<ContentBlock> {
         if self.current_lines.is_empty() {
-            crate::debug_trace!("PRETTIFIER", "boundary::emit_block: no lines accumulated, returning None");
+            crate::debug_trace!(
+                "PRETTIFIER",
+                "boundary::emit_block: no lines accumulated, returning None"
+            );
             return None;
         }
 
