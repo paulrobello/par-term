@@ -464,6 +464,16 @@ impl PrettifierPipeline {
         self.renderer_config = config;
     }
 
+    /// Update cell dimensions from the GPU renderer.
+    ///
+    /// Called after the renderer is initialized (or on font change) so that
+    /// inline graphics (e.g., Mermaid diagrams) are sized with the actual
+    /// cell metrics instead of the fallback estimate.
+    pub fn update_cell_dims(&mut self, width: f32, height: f32) {
+        self.renderer_config.cell_width_px = Some(width);
+        self.renderer_config.cell_height_px = Some(height);
+    }
+
     /// Re-render all blocks that need it (e.g., after a terminal width change).
     pub fn re_render_if_needed(&mut self) {
         let terminal_width = self.renderer_config.terminal_width;

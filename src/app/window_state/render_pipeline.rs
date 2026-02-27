@@ -316,15 +316,24 @@ impl WindowState {
 
                     let display_lines = block.buffer.display_lines();
                     let block_start = block.content().start_row;
-                    let line_offset = absolute_row.saturating_sub(block_start);
-                    if let Some(styled_line) = display_lines.get(line_offset) {
+                    let source_offset = absolute_row.saturating_sub(block_start);
+                    // Use the source→rendered line mapping when available so
+                    // that consumed source lines (e.g., code-fence closes) don't
+                    // cause index drift.  Fall back to direct indexing when no
+                    // mapping exists (unrendered blocks use source lines 1:1).
+                    let rendered_idx = block
+                        .buffer
+                        .rendered_line_for_source(source_offset)
+                        .unwrap_or(source_offset);
+                    if let Some(styled_line) = display_lines.get(rendered_idx) {
                         crate::debug_trace!(
                             "PRETTIFIER",
-                            "cell sub: vp_row={}, abs_row={}, block_id={}, line_off={}, segs={}",
+                            "cell sub: vp_row={}, abs_row={}, block_id={}, src_off={}, rnd_idx={}, segs={}",
                             viewport_row,
                             absolute_row,
                             block.block_id,
-                            line_offset,
+                            source_offset,
+                            rendered_idx,
                             styled_line.segments.len()
                         );
                         let cell_start = viewport_row * grid_cols;
@@ -2102,6 +2111,11 @@ impl WindowState {
         // --- Prettifier pipeline update ---
         // Feed terminal output changes to the prettifier, check debounce, and handle
         // alt-screen transitions. This runs outside the terminal lock.
+        // Capture cell dims from the renderer before borrowing the tab mutably.
+        let prettifier_cell_dims = self
+            .renderer
+            .as_ref()
+            .map(|r| (r.cell_width(), r.cell_height()));
         if let Some(tab) = self.tab_manager.active_tab_mut() {
             // Detect alt-screen transitions
             if is_alt_screen != tab.was_alt_screen {
@@ -2113,6 +2127,12 @@ impl WindowState {
 
             // Always check debounce (cheap: just a timestamp comparison)
             if let Some(ref mut pipeline) = tab.prettifier {
+                // Keep prettifier cell dims in sync with the GPU renderer so
+                // that inline graphics (e.g., Mermaid diagrams) are sized
+                // correctly instead of using the fallback estimate.
+                if let Some((cw, ch)) = prettifier_cell_dims {
+                    pipeline.update_cell_dims(cw, ch);
+                }
                 pipeline.check_debounce();
             }
         }
