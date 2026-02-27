@@ -10,7 +10,9 @@
 //! - Cursor appearance and behavior
 
 use super::SettingsUI;
-use super::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section, section_matches, subsection_label};
+use super::section::{
+    INPUT_WIDTH, SLIDER_WIDTH, collapsing_section, section_matches, subsection_label,
+};
 use par_term_config::Theme;
 use par_term_config::{CursorStyle, ThinStrokesMode, UnfocusedCursorStyle};
 use std::collections::HashSet;
@@ -164,7 +166,6 @@ pub fn show(
         show_cursor_effects_section(ui, settings, changes_this_frame, collapsed);
     }
 }
-
 
 // ============================================================================
 // Theme Section

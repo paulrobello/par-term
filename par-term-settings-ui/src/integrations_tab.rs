@@ -427,7 +427,6 @@ impl SettingsUI {
     }
 }
 
-
 fn shell_type_display(shell: ShellType) -> &'static str {
     match shell {
         ShellType::Bash => "Bash",

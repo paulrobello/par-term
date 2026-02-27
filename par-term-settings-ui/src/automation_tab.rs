@@ -62,7 +62,6 @@ pub fn show(
     }
 }
 
-
 /// Return a human-readable label for a trigger action variant.
 fn action_type_label(action: &TriggerActionConfig) -> &'static str {
     match action {

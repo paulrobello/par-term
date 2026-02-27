@@ -7,9 +7,9 @@
 use crate::config::Config;
 use crate::ui_constants::{TAB_CONTENT_PAD_X, TAB_DRAW_SHRINK_Y, TAB_DROP_DIAMOND_SIZE};
 
-use super::title_utils::sanitize_egui_title_text;
 use super::TabBarAction;
 use super::TabBarUI;
+use super::title_utils::sanitize_egui_title_text;
 
 impl TabBarUI {
     /// Render drag feedback indicator and handle drop/cancel for horizontal layout.

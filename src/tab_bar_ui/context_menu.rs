@@ -150,8 +150,7 @@ impl TabBarUI {
                                                                 .frame(false),
                                                             );
                                                             if btn.on_hover_text(*label).clicked() {
-                                                                self.icon_buffer =
-                                                                    icon.to_string();
+                                                                self.icon_buffer = icon.to_string();
                                                                 egui::Popup::close_all(ui.ctx());
                                                             }
                                                         }

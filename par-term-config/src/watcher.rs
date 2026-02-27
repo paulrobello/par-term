@@ -66,8 +66,7 @@ fn make_event_handler(
             // Debounce: skip if we sent an event too recently
             let should_send: bool = {
                 let now: Instant = Instant::now();
-                let mut last: parking_lot::MutexGuard<'_, Option<Instant>> =
-                    last_event_time.lock();
+                let mut last: parking_lot::MutexGuard<'_, Option<Instant>> = last_event_time.lock();
                 if let Some(last_time) = *last {
                     if now.duration_since(last_time) < debounce_delay {
                         log::trace!("Debouncing config reload event");

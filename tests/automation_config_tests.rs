@@ -691,10 +691,7 @@ fn test_denylist_blocks_zsh_c_wrapper() {
 #[test]
 fn test_denylist_blocks_env_rm_rf() {
     // /usr/bin/env rm -rf / should be caught: env wrapper stripped, then rm -rf / matches
-    let result = check_command_denylist(
-        "/usr/bin/env",
-        &["rm".into(), "-rf".into(), "/".into()],
-    );
+    let result = check_command_denylist("/usr/bin/env", &["rm".into(), "-rf".into(), "/".into()]);
     assert!(result.is_some(), "/usr/bin/env rm -rf / should be denied");
 }
 

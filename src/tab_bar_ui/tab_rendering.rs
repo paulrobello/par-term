@@ -12,12 +12,12 @@ use crate::ui_constants::{
 };
 use egui::emath::GuiRounding as _;
 
+use super::TabBarAction;
+use super::TabBarUI;
 use super::title_utils::{
     estimate_max_chars, parse_html_title, render_segments, sanitize_egui_title_text,
     sanitize_styled_segments_for_egui, truncate_plain, truncate_segments,
 };
-use super::TabBarAction;
-use super::TabBarUI;
 
 impl TabBarUI {
     /// Compute the tab background color based on active/hover/drag state and custom color.

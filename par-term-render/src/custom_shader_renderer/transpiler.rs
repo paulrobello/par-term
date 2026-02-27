@@ -356,26 +356,16 @@ fn transpile_impl(
         naga::valid::Capabilities::all(),
     )
     .validate(&module)
-    .map_err(|e| {
-        anyhow::anyhow!(
-            "Shader validation failed for '{}': {:?}",
-            name,
-            e
-        )
-    })?;
+    .map_err(|e| anyhow::anyhow!("Shader validation failed for '{}': {:?}", name, e))?;
 
     // Generate WGSL output for fragment shader
     let mut fragment_wgsl = String::new();
     let mut writer =
         naga::back::wgsl::Writer::new(&mut fragment_wgsl, naga::back::wgsl::WriterFlags::empty());
 
-    writer.write(&module, &info).map_err(|e| {
-        anyhow::anyhow!(
-            "WGSL generation failed for '{}': {:?}",
-            name,
-            e
-        )
-    })?;
+    writer
+        .write(&module, &info)
+        .map_err(|e| anyhow::anyhow!("WGSL generation failed for '{}': {:?}", name, e))?;
 
     // Rename main() → fs_main() (naga always emits "main" for the entry point)
     let fragment_wgsl = fragment_wgsl.replace("fn main(", "fn fs_main(");
@@ -393,30 +383,22 @@ fn transpile_impl(
         match builtin_order {
             BuiltinPositionOrder::After => (
                 // with newline between @fragment and fn
-                format!(
-                    "@fragment \nfn fs_main({location_param}) -> FragmentOutput {{",
-                ),
+                format!("@fragment \nfn fs_main({location_param}) -> FragmentOutput {{",),
                 format!(
                     "@fragment \nfn fs_main({location_param}, {builtin_param}) -> FragmentOutput {{",
                 ),
                 // without newline
-                format!(
-                    "@fragment\nfn fs_main({location_param}) -> FragmentOutput {{",
-                ),
+                format!("@fragment\nfn fs_main({location_param}) -> FragmentOutput {{",),
                 format!(
                     "@fragment\nfn fs_main({location_param}, {builtin_param}) -> FragmentOutput {{",
                 ),
             ),
             BuiltinPositionOrder::Before => (
-                format!(
-                    "@fragment \nfn fs_main({location_param}) -> FragmentOutput {{",
-                ),
+                format!("@fragment \nfn fs_main({location_param}) -> FragmentOutput {{",),
                 format!(
                     "@fragment \nfn fs_main({builtin_param}, {location_param}) -> FragmentOutput {{",
                 ),
-                format!(
-                    "@fragment\nfn fs_main({location_param}) -> FragmentOutput {{",
-                ),
+                format!("@fragment\nfn fs_main({location_param}) -> FragmentOutput {{",),
                 format!(
                     "@fragment\nfn fs_main({builtin_param}, {location_param}) -> FragmentOutput {{",
                 ),

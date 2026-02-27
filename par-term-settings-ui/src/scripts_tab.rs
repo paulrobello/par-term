@@ -35,7 +35,6 @@ pub fn show(
     }
 }
 
-
 fn show_scripts_section(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,

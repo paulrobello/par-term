@@ -117,38 +117,32 @@ impl KeybindingMatcher {
                 // held; ModifiersKeyState::Unknown means the platform cannot distinguish
                 // sides (in that case we treat the modifier as active on both sides so
                 // that at least one remapping fires).
-                let left_ctrl_held =
-                    modifiers.lcontrol_state() == ModifiersKeyState::Pressed
-                        || (ctrl
-                            && modifiers.lcontrol_state() == ModifiersKeyState::Unknown
-                            && modifiers.rcontrol_state() == ModifiersKeyState::Unknown);
-                let right_ctrl_held =
-                    modifiers.rcontrol_state() == ModifiersKeyState::Pressed
-                        || (ctrl
-                            && modifiers.lcontrol_state() == ModifiersKeyState::Unknown
-                            && modifiers.rcontrol_state() == ModifiersKeyState::Unknown);
+                let left_ctrl_held = modifiers.lcontrol_state() == ModifiersKeyState::Pressed
+                    || (ctrl
+                        && modifiers.lcontrol_state() == ModifiersKeyState::Unknown
+                        && modifiers.rcontrol_state() == ModifiersKeyState::Unknown);
+                let right_ctrl_held = modifiers.rcontrol_state() == ModifiersKeyState::Pressed
+                    || (ctrl
+                        && modifiers.lcontrol_state() == ModifiersKeyState::Unknown
+                        && modifiers.rcontrol_state() == ModifiersKeyState::Unknown);
 
-                let left_alt_held =
-                    modifiers.lalt_state() == ModifiersKeyState::Pressed
-                        || (alt
-                            && modifiers.lalt_state() == ModifiersKeyState::Unknown
-                            && modifiers.ralt_state() == ModifiersKeyState::Unknown);
-                let right_alt_held =
-                    modifiers.ralt_state() == ModifiersKeyState::Pressed
-                        || (alt
-                            && modifiers.lalt_state() == ModifiersKeyState::Unknown
-                            && modifiers.ralt_state() == ModifiersKeyState::Unknown);
+                let left_alt_held = modifiers.lalt_state() == ModifiersKeyState::Pressed
+                    || (alt
+                        && modifiers.lalt_state() == ModifiersKeyState::Unknown
+                        && modifiers.ralt_state() == ModifiersKeyState::Unknown);
+                let right_alt_held = modifiers.ralt_state() == ModifiersKeyState::Pressed
+                    || (alt
+                        && modifiers.lalt_state() == ModifiersKeyState::Unknown
+                        && modifiers.ralt_state() == ModifiersKeyState::Unknown);
 
-                let left_super_held =
-                    modifiers.lsuper_state() == ModifiersKeyState::Pressed
-                        || (super_key
-                            && modifiers.lsuper_state() == ModifiersKeyState::Unknown
-                            && modifiers.rsuper_state() == ModifiersKeyState::Unknown);
-                let right_super_held =
-                    modifiers.rsuper_state() == ModifiersKeyState::Pressed
-                        || (super_key
-                            && modifiers.lsuper_state() == ModifiersKeyState::Unknown
-                            && modifiers.rsuper_state() == ModifiersKeyState::Unknown);
+                let left_super_held = modifiers.lsuper_state() == ModifiersKeyState::Pressed
+                    || (super_key
+                        && modifiers.lsuper_state() == ModifiersKeyState::Unknown
+                        && modifiers.rsuper_state() == ModifiersKeyState::Unknown);
+                let right_super_held = modifiers.rsuper_state() == ModifiersKeyState::Pressed
+                    || (super_key
+                        && modifiers.lsuper_state() == ModifiersKeyState::Unknown
+                        && modifiers.rsuper_state() == ModifiersKeyState::Unknown);
 
                 // Clear modifiers that are being remapped — we will re-apply them
                 // side-by-side from the individual left/right states below.
