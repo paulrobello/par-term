@@ -91,11 +91,18 @@ impl CellRenderer {
         self.bg_state.bg_image_width = width;
         self.bg_state.bg_image_height = height;
         self.bg_state.bg_is_solid_color = false; // This is an image, not a solid color
-        self.update_bg_image_uniforms();
+        self.update_bg_image_uniforms(None);
         Ok(())
     }
 
-    pub(crate) fn update_bg_image_uniforms(&mut self) {
+    /// Update the background image uniform buffer.
+    ///
+    /// # Arguments
+    /// * `window_opacity_override` - If `Some(v)`, use `v` as the window opacity instead of
+    ///   `self.window_opacity`. Pass `Some(1.0)` when rendering to an intermediate texture
+    ///   so that window-level opacity is applied later by the shader wrapper, avoiding any
+    ///   need to temporarily mutate `self.window_opacity`.
+    pub(crate) fn update_bg_image_uniforms(&mut self, window_opacity_override: Option<f32>) {
         // Shader uniform struct layout (48 bytes):
         //   image_size: vec2<f32>    @ offset 0  (8 bytes)
         //   window_size: vec2<f32>   @ offset 8  (8 bytes)
@@ -120,8 +127,9 @@ impl CellRenderer {
         // mode (u32)
         data[16..20].copy_from_slice(&(self.bg_state.bg_image_mode as u32).to_le_bytes());
 
-        // opacity (f32) - combine bg_image_opacity with window_opacity
-        let effective_opacity = self.bg_state.bg_image_opacity * self.window_opacity;
+        // opacity (f32) - combine bg_image_opacity with effective window_opacity
+        let win_opacity = window_opacity_override.unwrap_or(self.window_opacity);
+        let effective_opacity = self.bg_state.bg_image_opacity * win_opacity;
         data[20..24].copy_from_slice(&effective_opacity.to_le_bytes());
 
         // pane_offset (vec2<f32>) - (0,0) for global background
@@ -159,17 +167,17 @@ impl CellRenderer {
             self.bg_state.bg_image_height = 0;
             self.bg_state.bg_is_solid_color = false;
         }
-        self.update_bg_image_uniforms();
+        self.update_bg_image_uniforms(None);
     }
 
     pub fn update_background_image_opacity(&mut self, opacity: f32) {
         self.bg_state.bg_image_opacity = opacity;
-        self.update_bg_image_uniforms();
+        self.update_bg_image_uniforms(None);
     }
 
     pub fn update_background_image_opacity_only(&mut self, opacity: f32) {
         self.bg_state.bg_image_opacity = opacity;
-        self.update_bg_image_uniforms();
+        self.update_bg_image_uniforms(None);
     }
 
     /// Create a ChannelTexture from the current background image for use in custom shaders.
@@ -327,7 +335,7 @@ impl CellRenderer {
         // Mark this as a solid color for tracking purposes
         self.bg_state.bg_is_solid_color = true;
         self.bg_state.solid_bg_color = color_u8_to_f32(color);
-        self.update_bg_image_uniforms();
+        self.update_bg_image_uniforms(None);
     }
 
     /// Create a ChannelTexture from a solid color for shader iChannel0.

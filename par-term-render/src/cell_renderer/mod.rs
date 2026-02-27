@@ -791,7 +791,7 @@ impl CellRenderer {
             self.recreate_instance_buffers();
         }
 
-        self.update_bg_image_uniforms();
+        self.update_bg_image_uniforms(None);
         (self.grid.cols, self.grid.rows)
     }
 
@@ -1095,7 +1095,7 @@ impl CellRenderer {
         self.window_opacity = opacity;
         // update_bg_image_uniforms() multiplies bg_image_opacity by window_opacity,
         // so both images and solid colors respect window transparency
-        self.update_bg_image_uniforms();
+        self.update_bg_image_uniforms(None);
     }
 
     /// Set whether transparency affects only default background cells.
