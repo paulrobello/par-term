@@ -35,13 +35,36 @@ use tokio::task::JoinHandle;
 pub use par_term_config::TabId;
 
 /// A single terminal tab with its own state (supports split panes)
+///
+/// # Mutex Strategy
+///
+/// `terminal` uses `tokio::sync::Mutex` because `TerminalManager` is shared across async
+/// tasks (PTY reader, input sender, resize handler) and the winit event loop.
+///
+/// Access rules:
+/// - **From async tasks** (spawned with `runtime.spawn`): `terminal.lock().await`
+/// - **From the sync winit event loop**: `terminal.try_lock()` for non-blocking polling;
+///   `terminal.blocking_lock()` only for infrequent user-initiated operations
+///   (e.g., start/stop coprocess, register scripting observer).
+///
+/// Never call `blocking_lock()` inside an async context — it will deadlock if called
+/// from within a Tokio worker thread.
+///
+/// `pane_manager` is owned directly (not behind a Mutex) because it is only ever
+/// accessed from the sync winit event loop on the main thread.
 pub struct Tab {
     /// Unique identifier for this tab
     pub(crate) id: TabId,
     /// The terminal session for this tab.
+    ///
+    /// Uses `tokio::sync::Mutex` for cross-task async sharing.
+    /// From sync contexts: use `.try_lock()` for non-blocking access or
+    /// `.blocking_lock()` for user-initiated operations.
     /// Legacy field: use pane-based state instead. Will be removed in a future version.
     pub(crate) terminal: Arc<Mutex<TerminalManager>>,
-    /// Pane manager for split pane support
+    /// Pane manager for split pane support.
+    ///
+    /// Not behind a Mutex — accessed only from the sync winit event loop on the main thread.
     pub(crate) pane_manager: Option<PaneManager>,
     /// Tab title (from OSC sequences or fallback)
     pub(crate) title: String,

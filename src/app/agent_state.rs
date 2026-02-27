@@ -9,12 +9,21 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 /// ACP agent connection and runtime state.
+///
+/// # Mutex Strategy
+///
+/// `agent` uses `tokio::sync::Mutex` because it is accessed from multiple spawned async
+/// tasks (prompt sender, tool-call responder). All accesses must use `.lock().await`.
+/// Do not attempt to lock `agent` from the sync winit event loop — use the mpsc channel
+/// (`agent_tx`) to send messages instead.
 pub(crate) struct AgentState {
     /// ACP agent message receiver
     pub(crate) agent_rx: Option<mpsc::UnboundedReceiver<AgentMessage>>,
     /// ACP agent message sender (kept to signal prompt completion)
     pub(crate) agent_tx: Option<mpsc::UnboundedSender<AgentMessage>>,
-    /// ACP agent (managed via tokio)
+    /// ACP agent handle.
+    ///
+    /// Uses `tokio::sync::Mutex`; always access with `.lock().await` from async tasks.
     pub(crate) agent: Option<Arc<tokio::sync::Mutex<Agent>>>,
     /// ACP JSON-RPC client for sending responses without locking the agent.
     /// Stored separately to avoid deadlocks: `send_prompt` holds the agent lock

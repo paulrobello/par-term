@@ -249,7 +249,7 @@ impl WindowManager {
                                 tab.script_manager.clear_panel(script_id);
                                 panel_val = None;
                             }
-                            // TODO: Implement WriteText, Notify, SetBadge, SetVariable,
+                            // TODO(#203): Implement WriteText, Notify, SetBadge, SetVariable,
                             // RunCommand, ChangeConfig — these require proper access to the
                             // terminal and config systems.
                             _ => {

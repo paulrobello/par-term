@@ -26,6 +26,14 @@ mod inner {
     static CONN_FN: OnceLock<Option<CGSDefaultConnectionForThreadFn>> = OnceLock::new();
 
     fn load_functions() {
+        // SAFETY: `dlopen` is an FFI call to open a system framework; the path is a
+        // well-known, null-terminated C string literal. `dlsym` returns either a null
+        // pointer (checked below) or the address of the named symbol. The resulting
+        // pointer is transmuted into the correct function pointer type
+        // `CGSSetWindowBackgroundBlurRadiusFn`, which matches the actual C ABI of
+        // `CGSSetWindowBackgroundBlurRadius(CGSConnectionID, uint32_t, uint32_t)`.
+        // The transmutation is valid because both sides are pointer-sized function
+        // pointers and we verify the symbol exists before transmuting.
         BLUR_FN.get_or_init(|| unsafe {
             let handle = libc::dlopen(
                 c"/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
@@ -47,6 +55,11 @@ mod inner {
                 >(sym))
             }
         });
+        // SAFETY: Same dlopen/dlsym pattern as BLUR_FN above. The symbol pointer is
+        // transmuted to `CGSDefaultConnectionForThreadFn` which matches the C ABI of
+        // `CGSDefaultConnectionForThread() -> CGSConnectionID` (returns a u32).
+        // The transmutation is valid: both sides are pointer-sized function pointers
+        // and the null check ensures we only transmute a valid symbol address.
         CONN_FN.get_or_init(|| unsafe {
             let handle = libc::dlopen(
                 c"/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
@@ -97,6 +110,14 @@ mod inner {
             _ => anyhow::bail!("Not a macOS AppKit window"),
         };
 
+        // SAFETY: ns_view_ptr is a non-null NSView pointer obtained from winit's AppKit
+        // window handle. winit guarantees it is valid and that we are on the main thread
+        // (required by AppKit). Casting to `*mut NSView` and dereferencing is valid
+        // because the type matches and the pointer is aligned and initialized.
+        // The `msg_send![view, window]` ObjC message is safe to call on a valid NSView
+        // and returns either a valid NSWindow pointer or null (checked below).
+        // `conn_fn()` and `blur_fn()` are valid C function pointers loaded via dlsym
+        // whose signatures match their respective type aliases.
         unsafe {
             // Get the NSWindow from the NSView
             let ns_view = ns_view_ptr as *mut NSView;

@@ -86,10 +86,24 @@ impl PaneBounds {
 pub use par_term_config::{DividerRect, PaneBackground};
 
 /// A single terminal pane with its own state
+///
+/// # Mutex Strategy
+///
+/// `terminal` uses `tokio::sync::Mutex` for the same reason as `Tab::terminal`:
+/// `TerminalManager` is shared between the async PTY reader task and the sync winit
+/// event loop.
+///
+/// Access rules:
+/// - **From async tasks**: `terminal.lock().await`
+/// - **From the sync event loop**: `terminal.try_lock()` for polling;
+///   `terminal.blocking_lock()` for infrequent user-initiated operations only.
 pub struct Pane {
     /// Unique identifier for this pane
     pub id: PaneId,
-    /// The terminal session for this pane
+    /// The terminal session for this pane.
+    ///
+    /// Uses `tokio::sync::Mutex`. From sync contexts use `.try_lock()` for
+    /// non-blocking access or `.blocking_lock()` for user-initiated operations.
     pub terminal: Arc<Mutex<TerminalManager>>,
     /// Scroll state for this pane
     pub scroll_state: ScrollState,

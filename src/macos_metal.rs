@@ -121,6 +121,11 @@ pub fn set_layer_opacity(window: &winit::window::Window, opacity: f32) -> Result
             anyhow::bail!("NSView pointer is null");
         }
 
+        // SAFETY: ns_view_ptr is a non-null NSView pointer obtained from winit's AppKit
+        // window handle. winit guarantees it is valid for the lifetime of the window.
+        // We are on the main thread (required by AppKit/winit), so Objective-C message
+        // sends are safe. The layer obtained via `msg_send![view, layer]` is retained
+        // by the view and remains valid for the duration of this block.
         unsafe {
             let ns_view = ns_view_ptr as *mut NSView;
             let layer: Retained<AnyObject> = objc2::msg_send![ns_view, layer];

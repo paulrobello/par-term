@@ -69,6 +69,13 @@ mod inner {
 
     fn load_sls_functions() -> Option<&'static SlsFunctions> {
         SLS_FNS
+            // SAFETY: `dlopen` opens the SkyLight private framework using a well-known,
+            // null-terminated C string path. `dlsym` returns either null (checked in the
+            // macro) or a valid symbol address. Each symbol is transmuted to its
+            // corresponding function pointer type (e.g. `SLSMainConnectionIDFn`) whose
+            // C ABI matches the actual SLS private function. The transmutation of a
+            // non-null `*mut c_void` to a function pointer type is valid on all Apple
+            // platforms where function pointers and data pointers are the same size.
             .get_or_init(|| unsafe {
                 let handle = libc::dlopen(
                     c"/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight".as_ptr(),
@@ -166,6 +173,15 @@ mod inner {
     /// Enumerate user Space IDs on the primary display, in Mission Control order.
     /// Returns Space IDs for type-0 (user) Spaces only (excludes fullscreen Spaces).
     fn enumerate_user_spaces(sls: &SlsFunctions) -> Vec<u64> {
+        // SAFETY: All function pointers in `sls` were loaded and validated via dlsym
+        // in `load_sls_functions()`. The CoreFoundation functions (CFArrayGetCount,
+        // CFArrayGetValueAtIndex, CFDictionaryGetValue, CFNumberGetValue,
+        // CFStringCreateWithCString, CFRelease) are public stable API declared in the
+        // `#[link(name = "CoreFoundation")]` block above and their signatures match
+        // the declarations. All pointer arguments are checked for null before use.
+        // CFRelease is only called on non-null pointers that were returned by CF
+        // allocation functions (CFStringCreateWithCString) or SLS (copy_managed_display_spaces),
+        // ensuring correct ownership semantics.
         unsafe {
             let cid = (sls.main_connection_id)();
             let display_spaces = (sls.copy_managed_display_spaces)(cid);
@@ -278,6 +294,13 @@ mod inner {
         window_number: u32,
         space_id: u64,
     ) -> Result<()> {
+        // SAFETY: `sls.space_set_compat_id` and `sls.set_window_list_workspace` are
+        // valid C function pointers loaded via dlsym whose signatures match the SLS
+        // private API. `cid` is a valid SLS connection ID obtained from
+        // `SLSMainConnectionID()`. `space_id` is a Space ID previously retrieved from
+        // `SLSCopyManagedDisplaySpaces`. `window_number` is a valid CGWindowID obtained
+        // from `[NSWindow windowNumber]`. The `&mut wid` pointer passed to
+        // `set_window_list_workspace` is valid for the duration of the call.
         unsafe {
             const COMPAT_ID: i32 = 0x79616265; // 'yabe' — standard marker used by yabai
 
@@ -305,6 +328,13 @@ mod inner {
 
     /// Move a window to a specific Space using the legacy API (macOS < 14.5).
     fn move_window_legacy(sls: &SlsFunctions, cid: i32, window_number: u32, space_id: u64) {
+        // SAFETY: `sls.move_windows_to_managed_space` is a valid C function pointer
+        // loaded via dlsym. `num` and `array` are valid Objective-C objects created
+        // by objc2_foundation. The cast from `NSArray<NSNumber>` to `*const c_void`
+        // is valid due to the toll-free bridge between NSArray and CFArrayRef on macOS:
+        // they share the same memory layout and can be used interchangeably. The
+        // `array` reference remains live for the duration of the `msg_send` call,
+        // keeping the underlying objects valid.
         unsafe {
             // Create a CFArray containing just the window number
             let num = objc2_foundation::NSNumber::new_i64(window_number as i64);
@@ -337,6 +367,13 @@ mod inner {
             _ => anyhow::bail!("Not a macOS AppKit window"),
         };
 
+        // SAFETY: ns_view_ptr is a non-null NSView pointer from winit's AppKit handle.
+        // winit guarantees this pointer is valid and that we are on the main thread
+        // (required by AppKit). Casting to `*mut NSView` and creating a reference is
+        // valid because the type matches and the pointer is aligned and initialized.
+        // `msg_send![view, window]` is a safe ObjC message on a valid NSView, returning
+        // either a valid NSWindow pointer or null (checked below). `msg_send![ns_window,
+        // windowNumber]` returns an i64 (NSInteger) that fits in u32 for normal windows.
         let window_number: u32 = unsafe {
             let ns_view = ns_view_ptr as *mut NSView;
             let view = &*ns_view;
@@ -363,6 +400,10 @@ mod inner {
             )
         })?;
 
+        // SAFETY: `sls.main_connection_id` is a valid C function pointer loaded via
+        // dlsym in `load_sls_functions()`. It takes no arguments and returns the
+        // current thread's SLS connection ID (an i32). Calling it is safe as long as
+        // the SkyLight framework is loaded, which is guaranteed by `load_sls_functions`.
         let cid = unsafe { (sls.main_connection_id)() };
 
         log::info!(

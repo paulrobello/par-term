@@ -565,7 +565,11 @@ impl Drop for SessionLogger {
     }
 }
 
-/// Thread-safe wrapper for SessionLogger
+/// Thread-safe wrapper for SessionLogger.
+///
+/// Uses `parking_lot::Mutex` because all access is from sync contexts (the winit
+/// event loop and background std threads). The non-async, non-poisoning API of
+/// `parking_lot` is sufficient and avoids the overhead of `tokio::sync::Mutex`.
 pub type SharedSessionLogger = Arc<Mutex<Option<SessionLogger>>>;
 
 /// Create a new shared session logger
