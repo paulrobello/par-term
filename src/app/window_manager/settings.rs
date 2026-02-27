@@ -384,11 +384,14 @@ impl WindowManager {
                 }
 
                 // Apply theme changes
-                if changes.theme
-                    && let Some(tab) = window_state.tab_manager.active_tab()
-                    && let Ok(mut term) = tab.terminal.try_lock()
-                {
-                    term.set_theme(config.load_theme());
+                if changes.theme {
+                    if let Some(tab) = window_state.tab_manager.active_tab() {
+                        if let Ok(mut term) = tab.terminal.try_lock() {
+                            term.set_theme(config.load_theme());
+                        } else {
+                            crate::debug::record_try_lock_failure("theme_change");
+                        }
+                    }
                 }
 
                 // Update ENQ answerback string across all tabs when changed

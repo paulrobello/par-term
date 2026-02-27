@@ -72,6 +72,8 @@ impl WindowState {
             // delayed one or more frames.
             if let Ok(term) = tab.terminal.try_lock() {
                 term.report_focus_change(focused);
+            } else {
+                crate::debug::record_try_lock_failure("focus_event");
             }
             // Also forward to all panes if split panes are active
             if let Some(pm) = &tab.pane_manager {
@@ -79,6 +81,8 @@ impl WindowState {
                     // try_lock: intentional — same rationale as tab terminal above.
                     if let Ok(term) = pane.terminal.try_lock() {
                         term.report_focus_change(focused);
+                    } else {
+                        crate::debug::record_try_lock_failure("focus_event_pane");
                     }
                 }
             }

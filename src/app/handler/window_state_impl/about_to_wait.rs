@@ -16,6 +16,10 @@ impl WindowState {
             return;
         }
 
+        // Emit a periodic telemetry summary when try_lock() failures have occurred.
+        // The call is cheap (two atomic loads) when no new failures happened.
+        crate::debug::maybe_log_try_lock_telemetry();
+
         // Check for and deliver notifications (OSC 9/777)
         self.check_notifications();
 

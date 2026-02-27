@@ -163,13 +163,13 @@ impl CellRenderer {
         let render_background_image = !skip_background_image
             && !self.bg_state.bg_is_solid_color
             && self.pipelines.bg_image_bind_group.is_some();
-        let saved_window_opacity = self.window_opacity;
 
         if render_background_image {
-            // Temporarily set window_opacity to 1.0 for the background render
-            // The shader wrapper will apply window_opacity at the end
-            self.window_opacity = 1.0;
-            self.update_bg_image_uniforms();
+            // Pass Some(1.0) to render the background image at full opacity for this
+            // intermediate texture; the shader wrapper will apply window_opacity at the end.
+            // This avoids temporarily mutating self.window_opacity (which could be skipped
+            // on restoration if an early return via `?` fires after this point).
+            self.update_bg_image_uniforms(Some(1.0));
         }
 
         let mut encoder = self
@@ -204,7 +204,7 @@ impl CellRenderer {
             {
                 log::info!(
                     "[BACKGROUND] render_to_texture: bg_image_pipeline (image, window_opacity={:.3} applied by shader)",
-                    saved_window_opacity
+                    self.window_opacity
                 );
                 render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
                 render_pass.set_bind_group(0, bg_bind_group, &[]);
@@ -226,10 +226,11 @@ impl CellRenderer {
 
         self.queue.submit(std::iter::once(encoder.finish()));
 
-        // Restore window_opacity and update uniforms
+        // Restore the uniforms to use the actual window_opacity now that the intermediate
+        // texture has been submitted.  No state mutation occurred above — self.window_opacity
+        // was never changed — so we simply write the real value back into the buffer.
         if render_background_image {
-            self.window_opacity = saved_window_opacity;
-            self.update_bg_image_uniforms();
+            self.update_bg_image_uniforms(None);
         }
 
         Ok(output)

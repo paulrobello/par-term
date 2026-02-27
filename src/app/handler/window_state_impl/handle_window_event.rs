@@ -158,6 +158,8 @@ impl WindowState {
                         // factor changes are rare (drag between displays).
                         if let Ok(mut term) = tab.terminal.try_lock() {
                             let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
+                        } else {
+                            crate::debug::record_try_lock_failure("scale_factor_resize");
                         }
                     }
 
@@ -230,6 +232,8 @@ impl WindowState {
                         if let Ok(mut term) = tab.terminal.try_lock() {
                             let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
                             tab.cache.scrollback_len = term.scrollback_len();
+                        } else {
+                            crate::debug::record_try_lock_failure("resize");
                         }
                         // Invalidate cell cache to force regeneration
                         tab.cache.cells = None;
