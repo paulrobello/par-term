@@ -584,27 +584,9 @@ impl PrettifierPipeline {
                     return;
                 }
 
-                // Don't replace a larger block with a much smaller overlapping one.
-                // This prevents viewport-sized per-frame feeds (~24 lines) from
-                // evicting full command-output blocks (~200+ lines).
-                let existing = self.active_blocks[idx].content();
-                let existing_span = existing.end_row - existing.start_row;
-                let new_span = row_range.end - row_range.start;
-                if new_span * 2 < existing_span {
-                    crate::debug_log!(
-                        "PRETTIFIER",
-                        "pipeline::handle_block: keeping larger block ({}..{}, {} lines) over smaller ({}..{}, {} lines)",
-                        existing.start_row,
-                        existing.end_row,
-                        existing_span,
-                        row_range.start,
-                        row_range.end,
-                        new_span
-                    );
-                    return;
-                }
-
                 // Content changed — remove the old block so we can replace it.
+                // The render_pipeline's content-hash dedup + throttle prevents
+                // per-frame churn, so we can always allow replacement here.
                 self.active_blocks.remove(idx);
             }
 
@@ -1219,7 +1201,7 @@ mod tests {
     }
 
     #[test]
-    fn test_larger_block_not_replaced_by_smaller() {
+    fn test_overlapping_block_replaces_existing() {
         let mut pipeline = test_pipeline();
 
         // Simulate a full command-output block covering rows 0..100.
@@ -1235,15 +1217,17 @@ mod tests {
         assert_eq!(pipeline.active_blocks().len(), 1);
         assert_eq!(pipeline.active_blocks()[0].content().end_row, 100);
 
-        // Simulate a viewport-sized per-frame feed overlapping the big block.
-        // It should NOT replace the 100-line block.
+        // A viewport-sized per-frame feed with different content
+        // replaces the existing block (throttle + hash dedup in
+        // the render_pipeline prevent churn).
         let viewport_lines: Vec<(String, usize)> = (80..100)
             .map(|i| (format!("line {i} updated"), i))
             .collect();
         pipeline.submit_command_output(viewport_lines, None);
 
-        // Should still have exactly 1 block — the original large one.
+        // The old block is replaced by the smaller viewport block.
         assert_eq!(pipeline.active_blocks().len(), 1);
+        assert_eq!(pipeline.active_blocks()[0].content().start_row, 80);
         assert_eq!(pipeline.active_blocks()[0].content().end_row, 100);
     }
 
