@@ -150,17 +150,14 @@ impl WindowState {
         {
             let adjusted_row = row + tab.scroll_state.offset;
 
-            if let Some(item) = url_detection::find_url_at_position(
-                &tab.mouse.detected_urls,
-                col,
-                adjusted_row,
-            ) {
+            if let Some(item) =
+                url_detection::find_url_at_position(&tab.mouse.detected_urls, col, adjusted_row)
+            {
                 match &item.item_type {
                     url_detection::DetectedItemType::Url => {
-                        if let Err(e) = url_detection::open_url(
-                            &item.url,
-                            &self.config.link_handler_command,
-                        ) {
+                        if let Err(e) =
+                            url_detection::open_url(&item.url, &self.config.link_handler_command)
+                        {
                             log::error!("Failed to open URL: {}", e);
                         }
                     }
@@ -527,10 +524,7 @@ impl WindowState {
             if let Err(e) = self.input_handler.copy_to_primary_selection(&selected_text) {
                 log::debug!("Failed to copy to primary selection: {}", e);
             } else {
-                log::debug!(
-                    "Copied {} chars to primary selection",
-                    selected_text.len()
-                );
+                log::debug!("Copied {} chars to primary selection", selected_text.len());
             }
 
             // Copy to clipboard if auto_copy is enabled

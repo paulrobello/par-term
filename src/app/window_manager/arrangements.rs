@@ -31,9 +31,7 @@ impl WindowManager {
             arrangement.windows.len()
         );
         self.arrangement_manager.add(arrangement);
-        if let Err(e) =
-            crate::arrangements::storage::save_arrangements(&self.arrangement_manager)
-        {
+        if let Err(e) = crate::arrangements::storage::save_arrangements(&self.arrangement_manager) {
             log::error!("Failed to save arrangements: {}", e);
         }
         self.sync_arrangements_to_settings();
@@ -172,9 +170,7 @@ impl WindowManager {
     /// Move an arrangement up in the order
     pub fn move_arrangement_up(&mut self, id: ArrangementId) {
         self.arrangement_manager.move_up(&id);
-        if let Err(e) =
-            crate::arrangements::storage::save_arrangements(&self.arrangement_manager)
-        {
+        if let Err(e) = crate::arrangements::storage::save_arrangements(&self.arrangement_manager) {
             log::error!("Failed to save arrangements after reorder: {}", e);
         }
         self.sync_arrangements_to_settings();
@@ -183,9 +179,7 @@ impl WindowManager {
     /// Move an arrangement down in the order
     pub fn move_arrangement_down(&mut self, id: ArrangementId) {
         self.arrangement_manager.move_down(&id);
-        if let Err(e) =
-            crate::arrangements::storage::save_arrangements(&self.arrangement_manager)
-        {
+        if let Err(e) = crate::arrangements::storage::save_arrangements(&self.arrangement_manager) {
             log::error!("Failed to save arrangements after reorder: {}", e);
         }
         self.sync_arrangements_to_settings();

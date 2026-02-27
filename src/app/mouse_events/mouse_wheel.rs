@@ -46,9 +46,7 @@ impl WindowState {
             // Calculate scroll amounts based on delta type (Line vs Pixel)
             let (scroll_x, scroll_y) = match delta {
                 MouseScrollDelta::LineDelta(x, y) => (x as i32, y as i32),
-                MouseScrollDelta::PixelDelta(pos) => {
-                    ((pos.x / 20.0) as i32, (pos.y / 20.0) as i32)
-                }
+                MouseScrollDelta::PixelDelta(pos) => ((pos.x / 20.0) as i32, (pos.y / 20.0) as i32),
             };
 
             // Get mouse position from active tab

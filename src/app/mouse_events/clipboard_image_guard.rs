@@ -97,10 +97,7 @@ impl WindowState {
         });
     }
 
-    fn restore_clipboard_image_if_missing(
-        &self,
-        image: &PreservedClipboardImage,
-    ) -> bool {
+    fn restore_clipboard_image_if_missing(&self, image: &PreservedClipboardImage) -> bool {
         let mut clipboard = match arboard::Clipboard::new() {
             Ok(clipboard) => clipboard,
             Err(_) => return false,

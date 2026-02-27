@@ -15,8 +15,8 @@ use crate::app::window_state::WindowState;
 use crate::config::Config;
 use crate::menu::MenuManager;
 
-use super::update_checker::update_available_version;
 use super::WindowManager;
+use super::update_checker::update_available_version;
 
 impl WindowManager {
     /// Check and handle timing-based CLI options (exit-after, screenshot, command)

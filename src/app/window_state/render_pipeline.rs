@@ -2750,5 +2750,4 @@ impl WindowState {
             false,
         )
     }
-
 }

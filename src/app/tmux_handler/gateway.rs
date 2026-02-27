@@ -603,5 +603,4 @@ impl WindowState {
             self.apply_profile_badge(&profile_clone);
         }
     }
-
 }
