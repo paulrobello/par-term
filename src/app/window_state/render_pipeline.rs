@@ -2283,17 +2283,6 @@ impl WindowState {
             && (current_generation != tab.cache.prettifier_feed_generation
                 || scroll_offset != tab.cache.prettifier_feed_scroll_offset)
         {
-            // Detect whether terminal content actually changed in a meaningful way.
-            // Generation changes on every cursor blink / spinner update, but we only
-            // want to reset prettifier state when the scrollback grows (real new output).
-            let generation_changed =
-                current_generation != tab.cache.prettifier_feed_generation;
-            let scrollback_grew =
-                scrollback_len != tab.cache.prettifier_cc_last_dump_rows.0;
-            let content_changed = generation_changed && scrollback_grew;
-            if content_changed {
-                tab.cache.prettifier_cc_last_dump_rows.0 = scrollback_len;
-            }
             tab.cache.prettifier_feed_generation = current_generation;
             tab.cache.prettifier_feed_scroll_offset = scroll_offset;
 
@@ -2335,16 +2324,38 @@ impl WindowState {
             let is_claude_session = pipeline.claude_code().is_active();
 
             if is_claude_session {
-                // When real content changes (scrollback grew), clear all blocks.
-                // Claude Code's dynamic output means old blocks at fixed absolute
-                // rows become stale as new output shifts the viewport. Re-detect
-                // fresh from the current viewport.
-                if content_changed {
-                    pipeline.clear_blocks();
-                    crate::debug_log!(
-                        "PRETTIFIER",
-                        "CC content changed (scrollback grew), cleared all blocks"
-                    );
+                // Clear blocks when visible content changes. Claude Code
+                // rewrites the screen in-place (e.g., permission prompts,
+                // progress updates) without growing scrollback, so we hash
+                // a sample of visible rows to detect viewport-level changes.
+                let viewport_hash = {
+                    use std::hash::{Hash, Hasher};
+                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                    // Sample every 4th row for speed; enough to catch redraws.
+                    for row_idx in (0..visible_lines).step_by(4) {
+                        let start = row_idx * grid_cols;
+                        let end = (start + grid_cols).min(cells.len());
+                        if start >= cells.len() {
+                            break;
+                        }
+                        for c in &cells[start..end] {
+                            c.grapheme.as_str().hash(&mut hasher);
+                        }
+                    }
+                    scrollback_len.hash(&mut hasher);
+                    scroll_offset.hash(&mut hasher);
+                    hasher.finish()
+                };
+                let viewport_changed = viewport_hash != tab.cache.prettifier_feed_last_hash;
+                if viewport_changed {
+                    tab.cache.prettifier_feed_last_hash = viewport_hash;
+                    if !pipeline.active_blocks().is_empty() {
+                        pipeline.clear_blocks();
+                        crate::debug_log!(
+                            "PRETTIFIER",
+                            "CC viewport changed, cleared all blocks"
+                        );
+                    }
                 }
 
                 // Claude Code session: segment the viewport by action bullets
@@ -2356,9 +2367,9 @@ impl WindowState {
 
                 crate::debug_log!(
                     "PRETTIFIER",
-                    "per-frame feed (CC): scanning {} visible lines, content_changed={}, scrollback={}, scroll_offset={}",
+                    "per-frame feed (CC): scanning {} visible lines, viewport_changed={}, scrollback={}, scroll_offset={}",
                     visible_lines,
-                    content_changed,
+                    viewport_changed,
                     scrollback_len,
                     scroll_offset
                 );
