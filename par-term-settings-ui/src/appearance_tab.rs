@@ -10,7 +10,7 @@
 //! - Cursor appearance and behavior
 
 use super::SettingsUI;
-use super::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section, subsection_label};
+use super::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section, section_matches, subsection_label};
 use par_term_config::Theme;
 use par_term_config::{CursorStyle, ThinStrokesMode, UnfocusedCursorStyle};
 use std::collections::HashSet;
@@ -165,15 +165,6 @@ pub fn show(
     }
 }
 
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
 
 // ============================================================================
 // Theme Section

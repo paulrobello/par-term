@@ -7,7 +7,7 @@
 //! - Badge positioning (margins, max size)
 
 use super::SettingsUI;
-use super::section::{SLIDER_WIDTH, collapsing_section};
+use super::section::{SLIDER_WIDTH, collapsing_section, section_matches};
 use std::collections::HashSet;
 
 const SLIDER_HEIGHT: f32 = 18.0;
@@ -67,15 +67,6 @@ pub fn show(
     }
 }
 
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
 
 // ============================================================================
 // General Section

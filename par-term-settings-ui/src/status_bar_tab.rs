@@ -8,7 +8,7 @@
 //! - Widgets: three-column layout with toggle/reorder/move controls
 
 use super::SettingsUI;
-use super::section::{SLIDER_WIDTH, collapsing_section};
+use super::section::{SLIDER_WIDTH, collapsing_section, section_matches};
 use par_term_config::StatusBarPosition;
 use par_term_config::{StatusBarSection, StatusBarWidgetConfig, WidgetId};
 use std::collections::HashSet;
@@ -104,15 +104,6 @@ pub fn show(
     }
 }
 
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
 
 // ============================================================================
 // General Section

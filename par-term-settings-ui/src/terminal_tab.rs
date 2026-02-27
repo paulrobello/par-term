@@ -11,7 +11,7 @@
 //! - Scrollbar settings (width, colors, autohide)
 
 use super::SettingsUI;
-use super::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section};
+use super::section::{INPUT_WIDTH, SLIDER_WIDTH, collapsing_section, section_matches};
 use par_term_config::color_u8x4_to_f32;
 use std::collections::HashSet;
 
@@ -204,15 +204,6 @@ pub fn show(
     }
 }
 
-fn section_matches(query: &str, title: &str, keywords: &[&str]) -> bool {
-    if query.is_empty() {
-        return true;
-    }
-    if title.to_lowercase().contains(query) {
-        return true;
-    }
-    keywords.iter().any(|k| k.to_lowercase().contains(query))
-}
 
 // ============================================================================
 // Behavior Section
