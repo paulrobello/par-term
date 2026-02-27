@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Prettifier Disabled by Default**: The content prettifier is now disabled by default; enable it via `enable_prettifier: true` in `config.yaml` or the Settings UI
+
 ---
 
 ## [0.24.0] - 2026-02-27

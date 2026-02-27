@@ -1741,7 +1741,7 @@ pub struct Config {
     // ========================================================================
     /// Master switch for the content prettifier system.
     /// When false, no detection or rendering occurs.
-    #[serde(default = "crate::defaults::bool_true")]
+    #[serde(default)]
     pub enable_prettifier: bool,
 
     /// Detailed prettifier configuration.
@@ -2172,7 +2172,7 @@ impl Default for Config {
             snippets: Vec::new(),
             actions: Vec::new(),
             // Content Prettifier
-            enable_prettifier: crate::defaults::bool_true(),
+            enable_prettifier: false,
             content_prettifier: super::prettifier::PrettifierYamlConfig::default(),
             collapsed_settings_sections: Vec::new(),
             dynamic_profile_sources: Vec::new(),
