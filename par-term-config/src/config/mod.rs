@@ -22,7 +22,9 @@ pub mod prettifier;
 
 pub use acp::{CustomAcpAgentActionConfig, CustomAcpAgentConfig};
 pub use config_struct::Config;
-pub use env_vars::{ALLOWED_ENV_VARS, is_env_var_allowed, substitute_variables, substitute_variables_with_allowlist};
+pub use env_vars::{
+    ALLOWED_ENV_VARS, is_env_var_allowed, substitute_variables, substitute_variables_with_allowlist,
+};
 
 // KeyBinding is referenced in generate_snippet_action_keybindings via `crate::config::KeyBinding`
 pub use crate::types::KeyBinding;

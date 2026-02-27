@@ -49,7 +49,9 @@ impl VariableSubstitutor {
     pub fn new() -> Self {
         // Match \(variable_name) where variable_name is alphanumeric + underscore + dot
         // Dot allows session.hostname style variables
-        let pattern = Regex::new(r"\\\(([a-zA-Z_][a-zA-Z0-9_.]*)\)").expect("VariableSubstitutor: snippet variable pattern is valid and should always compile");
+        let pattern = Regex::new(r"\\\(([a-zA-Z_][a-zA-Z0-9_.]*)\)").expect(
+            "VariableSubstitutor: snippet variable pattern is valid and should always compile",
+        );
 
         Self { pattern }
     }
@@ -89,8 +91,14 @@ impl VariableSubstitutor {
 
         // Find all variable placeholders
         for cap in self.pattern.captures_iter(text) {
-            let full_match = cap.get(0).expect("capture group 0 (full match) must be present after a match").as_str();
-            let var_name = cap.get(1).expect("capture group 1 (variable name) must be present after a match").as_str();
+            let full_match = cap
+                .get(0)
+                .expect("capture group 0 (full match) must be present after a match")
+                .as_str();
+            let var_name = cap
+                .get(1)
+                .expect("capture group 1 (variable name) must be present after a match")
+                .as_str();
 
             // Resolve the variable value
             let value = self.resolve_variable_with_session(var_name, custom_vars, session_vars)?;
@@ -137,7 +145,12 @@ impl VariableSubstitutor {
     pub fn extract_variables(&self, text: &str) -> Vec<String> {
         self.pattern
             .captures_iter(text)
-            .map(|cap| cap.get(1).expect("capture group 1 (variable name) must be present after a match").as_str().to_string())
+            .map(|cap| {
+                cap.get(1)
+                    .expect("capture group 1 (variable name) must be present after a match")
+                    .as_str()
+                    .to_string()
+            })
             .collect()
     }
 }

@@ -1840,7 +1840,6 @@ impl TabBarUI {
     }
 }
 
-
 impl Default for TabBarUI {
     fn default() -> Self {
         Self::new()

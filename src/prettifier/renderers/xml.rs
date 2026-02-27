@@ -43,42 +43,62 @@ impl Default for XmlRendererConfig {
 
 fn re_xml_declaration() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^<\?xml\s+.*\?>").expect("regex pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^<\?xml\s+.*\?>").expect("regex pattern is valid and should always compile")
+    })
 }
 
 fn re_comment_start() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"<!--").expect("regex pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"<!--").expect("regex pattern is valid and should always compile")
+    })
 }
 
 fn re_cdata_start() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"<!\[CDATA\[").expect("regex pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"<!\[CDATA\[").expect("regex pattern is valid and should always compile")
+    })
 }
 
 fn re_opening_tag() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\s*<([a-zA-Z][\w:.-]*)(\s+[^>]*)?>").expect("re_opening_tag: pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^\s*<([a-zA-Z][\w:.-]*)(\s+[^>]*)?>")
+            .expect("re_opening_tag: pattern is valid and should always compile")
+    })
 }
 
 fn re_closing_tag() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\s*</([a-zA-Z][\w:.-]*)>").expect("re_closing_tag: pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^\s*</([a-zA-Z][\w:.-]*)>")
+            .expect("re_closing_tag: pattern is valid and should always compile")
+    })
 }
 
 fn re_self_closing_tag() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\s*<([a-zA-Z][\w:.-]*)(\s+[^>]*)?\s*/>").expect("re_self_closing_tag: pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^\s*<([a-zA-Z][\w:.-]*)(\s+[^>]*)?\s*/>")
+            .expect("re_self_closing_tag: pattern is valid and should always compile")
+    })
 }
 
 fn re_attribute() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r#"([\w:.-]+)\s*=\s*("[^"]*"|'[^']*')"#).expect("re_attribute: pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r#"([\w:.-]+)\s*=\s*("[^"]*"|'[^']*')"#)
+            .expect("re_attribute: pattern is valid and should always compile")
+    })
 }
 
 fn re_doctype() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^<!DOCTYPE\s+").expect("regex pattern is valid and should always compile"))
+    RE.get_or_init(|| {
+        Regex::new(r"^<!DOCTYPE\s+").expect("regex pattern is valid and should always compile")
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -135,9 +155,21 @@ impl XmlRenderer {
         let mut last_end = 0;
 
         for caps in re_attribute().captures_iter(attr_str) {
-            let full_match = caps.get(0).expect("re_attribute capture group 0 (full match) must be present after a match");
-            let attr_name = caps.get(1).expect("re_attribute capture group 1 (attribute name) must be present after a match").as_str();
-            let attr_value = caps.get(2).expect("re_attribute capture group 2 (attribute value) must be present after a match").as_str();
+            let full_match = caps
+                .get(0)
+                .expect("re_attribute capture group 0 (full match) must be present after a match");
+            let attr_name = caps
+                .get(1)
+                .expect(
+                    "re_attribute capture group 1 (attribute name) must be present after a match",
+                )
+                .as_str();
+            let attr_value = caps
+                .get(2)
+                .expect(
+                    "re_attribute capture group 2 (attribute value) must be present after a match",
+                )
+                .as_str();
 
             // Any text between matches (whitespace)
             if full_match.start() > last_end {

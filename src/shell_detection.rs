@@ -125,7 +125,9 @@ fn detect_shells() -> Vec<ShellInfo> {
             if Path::new(path).exists() {
                 let name = Path::new(path)
                     .file_name()
-                    .expect("hard-coded paths /bin/bash and /bin/sh always have a file name component")
+                    .expect(
+                        "hard-coded paths /bin/bash and /bin/sh always have a file name component",
+                    )
                     .to_string_lossy()
                     .to_string();
                 shells.push(ShellInfo::new(name, path));

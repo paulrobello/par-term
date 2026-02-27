@@ -87,11 +87,7 @@ pub(super) fn mark_occupied(occupied: &mut [bool], start: usize, end: usize) {
     }
 }
 
-pub(super) fn find_in_unoccupied(
-    text: &str,
-    re: &Regex,
-    occupied: &[bool],
-) -> Vec<(usize, usize)> {
+pub(super) fn find_in_unoccupied(text: &str, re: &Regex, occupied: &[bool]) -> Vec<(usize, usize)> {
     let mut results = Vec::new();
     let mut pos = 0;
     while pos < text.len() {

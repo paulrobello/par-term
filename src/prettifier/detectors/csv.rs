@@ -25,7 +25,8 @@ pub fn create_csv_detector() -> crate::prettifier::regex_detector::RegexDetector
         .definitive_rule_shortcircuit(false)
         .rule(DetectionRule {
             id: "csv_comma_consistent".into(),
-            pattern: Regex::new(r"^[^,]+,[^,]+,").expect("regex pattern is valid and should always compile"),
+            pattern: Regex::new(r"^[^,]+,[^,]+,")
+                .expect("regex pattern is valid and should always compile"),
             weight: 0.3,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -36,7 +37,8 @@ pub fn create_csv_detector() -> crate::prettifier::regex_detector::RegexDetector
         })
         .rule(DetectionRule {
             id: "csv_tab_consistent".into(),
-            pattern: Regex::new(r"^[^\t]+\t[^\t]+\t").expect("regex pattern is valid and should always compile"),
+            pattern: Regex::new(r"^[^\t]+\t[^\t]+\t")
+                .expect("regex pattern is valid and should always compile"),
             weight: 0.4,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Supporting,
@@ -47,7 +49,8 @@ pub fn create_csv_detector() -> crate::prettifier::regex_detector::RegexDetector
         })
         .rule(DetectionRule {
             id: "csv_header_row".into(),
-            pattern: Regex::new(r"^[a-zA-Z_]\w*(,[a-zA-Z_]\w*)+\s*$").expect("csv_header_row: pattern is valid and should always compile"),
+            pattern: Regex::new(r"^[a-zA-Z_]\w*(,[a-zA-Z_]\w*)+\s*$")
+                .expect("csv_header_row: pattern is valid and should always compile"),
             weight: 0.4,
             scope: RuleScope::FirstLines(1),
             strength: RuleStrength::Strong,
@@ -58,7 +61,8 @@ pub fn create_csv_detector() -> crate::prettifier::regex_detector::RegexDetector
         })
         .rule(DetectionRule {
             id: "csv_command_context".into(),
-            pattern: Regex::new(r"(csvtool|csvkit|cut|awk)").expect("csv_command_context: pattern is valid and should always compile"),
+            pattern: Regex::new(r"(csvtool|csvkit|cut|awk)")
+                .expect("csv_command_context: pattern is valid and should always compile"),
             weight: 0.2,
             scope: RuleScope::PrecedingCommand,
             strength: RuleStrength::Supporting,

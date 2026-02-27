@@ -26,7 +26,9 @@ pub(crate) struct ClosedTabInfo {
 impl WindowState {
     /// Create a new tab, or show profile picker if configured and profiles exist
     pub fn new_tab_or_show_profiles(&mut self) {
-        if self.config.new_tab_shortcut_shows_profiles && !self.profile_manager.is_empty() {
+        if self.config.new_tab_shortcut_shows_profiles
+            && !self.overlay_ui.profile_manager.is_empty()
+        {
             self.tab_bar_ui.show_new_tab_profile_menu = !self.tab_bar_ui.show_new_tab_profile_menu;
             if let Some(window) = &self.window {
                 window.request_redraw();
@@ -175,7 +177,8 @@ impl WindowState {
             } else {
                 tab.title.clone()
             };
-            self.close_confirmation_ui
+            self.overlay_ui
+                .close_confirmation_ui
                 .show_for_tab(tab_id, &tab_title, &command_name);
             self.needs_redraw = true;
             self.request_redraw();
@@ -840,8 +843,12 @@ impl WindowState {
             } else {
                 tab.title.clone()
             };
-            self.close_confirmation_ui
-                .show_for_pane(tab_id, pane_id, &tab_title, &command_name);
+            self.overlay_ui.close_confirmation_ui.show_for_pane(
+                tab_id,
+                pane_id,
+                &tab_title,
+                &command_name,
+            );
             self.needs_redraw = true;
             self.request_redraw();
             return false; // Don't close yet, waiting for confirmation
@@ -974,7 +981,7 @@ impl WindowState {
             return;
         }
 
-        let profile = match self.profile_manager.get(&profile_id) {
+        let profile = match self.overlay_ui.profile_manager.get(&profile_id) {
             Some(p) => p.clone(),
             None => {
                 log::error!("Profile not found: {:?}", profile_id);
@@ -1113,21 +1120,21 @@ impl WindowState {
 
     /// Toggle the profile drawer visibility
     pub fn toggle_profile_drawer(&mut self) {
-        self.profile_drawer_ui.toggle();
+        self.overlay_ui.profile_drawer_ui.toggle();
         self.needs_redraw = true;
         self.request_redraw();
     }
 
     /// Save profiles to disk
     pub fn save_profiles(&self) {
-        if let Err(e) = profile_storage::save_profiles(&self.profile_manager) {
+        if let Err(e) = profile_storage::save_profiles(&self.overlay_ui.profile_manager) {
             log::error!("Failed to save profiles: {}", e);
         }
     }
 
     /// Update profile manager from modal working copy
     pub fn apply_profile_changes(&mut self, profiles: Vec<crate::profile::Profile>) {
-        self.profile_manager = ProfileManager::from_profiles(profiles);
+        self.overlay_ui.profile_manager = ProfileManager::from_profiles(profiles);
         self.save_profiles();
         // Signal that the profiles menu needs to be updated
         self.profiles_menu_needs_update = true;
@@ -1141,7 +1148,7 @@ impl WindowState {
     ///
     /// Returns true if a profile was auto-applied, triggering a redraw.
     pub fn check_auto_profile_switch(&mut self) -> bool {
-        if self.profile_manager.is_empty() {
+        if self.overlay_ui.profile_manager.is_empty() {
             return false;
         }
 
@@ -1200,13 +1207,20 @@ impl WindowState {
 
         // Don't re-apply the same profile
         if let Some(existing_profile_id) = tab.auto_applied_profile_id
-            && let Some(profile) = self.profile_manager.find_by_hostname(&new_hostname)
+            && let Some(profile) = self
+                .overlay_ui
+                .profile_manager
+                .find_by_hostname(&new_hostname)
             && profile.id == existing_profile_id
         {
             return false;
         }
 
-        if let Some(profile) = self.profile_manager.find_by_hostname(&new_hostname) {
+        if let Some(profile) = self
+            .overlay_ui
+            .profile_manager
+            .find_by_hostname(&new_hostname)
+        {
             let profile_name = profile.name.clone();
             let profile_id = profile.id;
             let profile_tab_name = profile.tab_name.clone();
@@ -1268,7 +1282,9 @@ impl WindowState {
 
             // Apply profile badge settings (color, font, margins, etc.)
             self.apply_profile_badge(
-                &self.profile_manager
+                &self
+                    .overlay_ui
+                    .profile_manager
                     .get(&profile_id)
                     .expect("profile_id obtained from profile_manager.find_by_name above")
                     .clone(),
@@ -1376,13 +1392,13 @@ impl WindowState {
 
         // Don't re-apply the same profile
         if let Some(existing_profile_id) = tab.auto_applied_dir_profile_id
-            && let Some(profile) = self.profile_manager.find_by_directory(&new_cwd)
+            && let Some(profile) = self.overlay_ui.profile_manager.find_by_directory(&new_cwd)
             && profile.id == existing_profile_id
         {
             return false;
         }
 
-        if let Some(profile) = self.profile_manager.find_by_directory(&new_cwd) {
+        if let Some(profile) = self.overlay_ui.profile_manager.find_by_directory(&new_cwd) {
             let profile_name = profile.name.clone();
             let profile_id = profile.id;
             let profile_tab_name = profile.tab_name.clone();
@@ -1438,7 +1454,9 @@ impl WindowState {
 
             // Apply profile badge settings (color, font, margins, etc.)
             self.apply_profile_badge(
-                &self.profile_manager
+                &self
+                    .overlay_ui
+                    .profile_manager
                     .get(&profile_id)
                     .expect("profile_id obtained from profile_manager.find_by_name above")
                     .clone(),

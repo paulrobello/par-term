@@ -1162,7 +1162,7 @@ impl WindowManager {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
-                    window_state.clipboard_history_ui.toggle();
+                    window_state.overlay_ui.clipboard_history_ui.toggle();
                     window_state.needs_redraw = true;
                 }
             }
@@ -1273,7 +1273,7 @@ impl WindowManager {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
-                    window_state.help_ui.toggle();
+                    window_state.overlay_ui.help_ui.toggle();
                     if let Some(window) = &window_state.window {
                         window.request_redraw();
                     }
@@ -1337,7 +1337,10 @@ impl WindowManager {
                 if let Some(window_id) = focused_window
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                 {
-                    window_state.remote_shell_install_ui.show_dialog();
+                    window_state
+                        .overlay_ui
+                        .remote_shell_install_ui
+                        .show_dialog();
                     window_state.needs_redraw = true;
                 }
             }
@@ -1417,12 +1420,13 @@ impl WindowManager {
                     .windows
                     .values()
                     .next()
-                    .map(|ws| ws.profile_manager.to_vec())
+                    .map(|ws| ws.overlay_ui.profile_manager.to_vec())
                     .unwrap_or_default();
                 settings_window.settings_ui.sync_profiles(profiles);
                 // Sync available agents from first window's discovered agents
                 if let Some(ws) = self.windows.values().next() {
                     settings_window.settings_ui.available_agent_ids = ws
+                        .agent_state
                         .available_agents
                         .iter()
                         .map(|a| (a.identity.clone(), a.name.clone()))
@@ -1528,7 +1532,7 @@ impl WindowManager {
 
             // Sync AI Inspector auto-approve / YOLO mode to connected agent
             if changes.ai_inspector_auto_approve
-                && let Some(agent) = &window_state.agent
+                && let Some(agent) = &window_state.agent_state.agent
             {
                 let agent = agent.clone();
                 let auto_approve = config.ai_inspector_auto_approve;
@@ -1784,10 +1788,13 @@ impl WindowManager {
                     .as_ref()
                     .and_then(|name| config.shader_configs.get(name));
                 // Get shader metadata from cache for full 3-tier resolution
-                let metadata = config
-                    .custom_shader
-                    .as_ref()
-                    .and_then(|name| window_state.shader_state.shader_metadata_cache.get(name).cloned());
+                let metadata = config.custom_shader.as_ref().and_then(|name| {
+                    window_state
+                        .shader_state
+                        .shader_metadata_cache
+                        .get(name)
+                        .cloned()
+                });
                 let resolved = resolve_shader_config(shader_override, metadata.as_ref(), config);
 
                 // Apply shader changes - track if change was attempted and result
@@ -2021,6 +2028,7 @@ impl WindowManager {
             && let Some(ws) = self.windows.values().next()
         {
             sw.settings_ui.available_agent_ids = ws
+                .agent_state
                 .available_agents
                 .iter()
                 .map(|a| (a.identity.clone(), a.name.clone()))

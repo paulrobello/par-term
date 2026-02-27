@@ -5,7 +5,10 @@
 
 use super::config_struct::Config;
 use crate::themes::Theme;
-use crate::types::{BackgroundImageMode, ShaderConfig, CursorShaderConfig, ShaderInstallPrompt, TabStyle, StartupDirectoryMode, InstallPromptState};
+use crate::types::{
+    BackgroundImageMode, CursorShaderConfig, InstallPromptState, ShaderConfig, ShaderInstallPrompt,
+    StartupDirectoryMode, TabStyle,
+};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;

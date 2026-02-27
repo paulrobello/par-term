@@ -11,7 +11,7 @@
 
 par-term is a well-architected Rust terminal emulator with a clean 13-crate workspace, GPU-accelerated rendering via wgpu, and comprehensive feature set including inline graphics, custom shaders, ACP agents, tmux integration, and split panes. The project demonstrates strong competence in GPU pipeline design, async I/O, and cross-platform development.
 
-57 findings have been resolved. All tests pass, clippy produces 0 new warnings, and the overall architecture is sound.
+60 findings have been resolved. All tests pass, clippy produces 0 new warnings, and the overall architecture is sound.
 
 ---
 
@@ -21,25 +21,17 @@ par-term is a well-architected Rust terminal emulator with a clean 13-crate work
 
 | # | Category | Finding | Location |
 |---|----------|---------|----------|
-| C2 | Architecture | `WindowState` still has ~82 top-level fields. `AgentState`, `TmuxState`, `OverlayUiState` not yet extracted. | `src/app/window_state.rs` |
 | C1 | Code Quality | `render()` still 2,482 lines after initial decomposition (-28%). Further extraction needed. | `src/app/window_state.rs` |
 
 ### High
 
 | # | Category | Finding | Location |
 |---|----------|---------|----------|
-| H9 | Architecture | `window_state.rs` (~6,300L) and `window_manager.rs` (~3,022L) still exceed thresholds; will reduce as C2 progresses | `src/app/` |
+| H9 | Architecture | `window_state.rs` (~6,348L) and `window_manager.rs` (~3,022L) still exceed thresholds; will reduce as C1 progresses | `src/app/` |
 
 ---
 
 ## Detailed Findings
-
-### C2 — WindowState God Object (partial)
-
-`CursorAnimState` (4 fields) and `ShaderState` (6 fields) have been extracted. Still pending:
-- `AgentState` -- agent, agent_rx, agent_tx, agent_client, pending_send_handles, agent_skill_*
-- `TmuxState` -- tmux_session, tmux_sync, tmux_pane_to_native_pane, etc.
-- `OverlayUiState` -- help_ui, clipboard_history_ui, search_ui, and 12 more panels
 
 ### C1 — Monolithic render() (partial)
 
@@ -64,8 +56,8 @@ pub(crate) fn render(&mut self) {
 
 ### H9 — Oversized Files (partial)
 
-Remaining above 800-line threshold (will decrease as C2 extraction continues):
-- `src/app/window_state.rs` (~6,300L)
+Remaining above 800-line threshold (will decrease as C1 extraction continues):
+- `src/app/window_state.rs` (~6,348L)
 - `src/app/window_manager.rs` (~3,022L)
 - Several split sub-files still over threshold (e.g. `key_handler.rs` 1,326L, `notifications.rs` 1,545L, `rendering.rs` 1,285L)
 
@@ -73,7 +65,6 @@ Remaining above 800-line threshold (will decrease as C2 extraction continues):
 
 ## Remediation Roadmap
 
-- [ ] **C2**: Extract `AgentState`, `TmuxState`, `OverlayUiState` from `WindowState`
 - [ ] **C1**: Continue extracting render phases until render() is ~50 lines
 - [ ] **M12**: Convert remaining `unwrap()` calls in `window_state.rs` / `window_manager.rs` to `expect()` with context
-- [ ] **H9**: Further split oversized sub-files as C2 progresses; tackle `window_manager.rs`
+- [ ] **H9**: Further split oversized sub-files; tackle `window_manager.rs`

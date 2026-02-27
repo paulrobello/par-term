@@ -85,18 +85,30 @@ impl CellRenderer {
     }
 
     pub(crate) fn lru_remove(&mut self, key: u64) {
-        let info = self.atlas.glyph_cache.get(&key).expect("Glyph cache entry must exist before calling lru_remove");
+        let info = self
+            .atlas
+            .glyph_cache
+            .get(&key)
+            .expect("Glyph cache entry must exist before calling lru_remove");
         let prev = info.prev;
         let next = info.next;
 
         if let Some(p) = prev {
-            self.atlas.glyph_cache.get_mut(&p).expect("Glyph cache LRU prev entry must exist").next = next;
+            self.atlas
+                .glyph_cache
+                .get_mut(&p)
+                .expect("Glyph cache LRU prev entry must exist")
+                .next = next;
         } else {
             self.atlas.lru_head = next;
         }
 
         if let Some(n) = next {
-            self.atlas.glyph_cache.get_mut(&n).expect("Glyph cache LRU next entry must exist").prev = prev;
+            self.atlas
+                .glyph_cache
+                .get_mut(&n)
+                .expect("Glyph cache LRU next entry must exist")
+                .prev = prev;
         } else {
             self.atlas.lru_tail = prev;
         }
@@ -105,12 +117,20 @@ impl CellRenderer {
     pub(crate) fn lru_push_front(&mut self, key: u64) {
         let next = self.atlas.lru_head;
         if let Some(n) = next {
-            self.atlas.glyph_cache.get_mut(&n).expect("Glyph cache LRU head entry must exist").prev = Some(key);
+            self.atlas
+                .glyph_cache
+                .get_mut(&n)
+                .expect("Glyph cache LRU head entry must exist")
+                .prev = Some(key);
         } else {
             self.atlas.lru_tail = Some(key);
         }
 
-        let info = self.atlas.glyph_cache.get_mut(&key).expect("Glyph cache entry must exist before calling lru_push_front");
+        let info = self
+            .atlas
+            .glyph_cache
+            .get_mut(&key)
+            .expect("Glyph cache entry must exist before calling lru_push_front");
         info.prev = None;
         info.next = next;
         self.atlas.lru_head = Some(key);

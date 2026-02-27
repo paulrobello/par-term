@@ -410,5 +410,4 @@ impl Renderer {
             .is_some_and(|r| r.animation_enabled() || r.cursor_needs_animation());
         custom_needs || cursor_needs
     }
-
 }

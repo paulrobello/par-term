@@ -240,13 +240,15 @@ impl WindowState {
                 let tab_count = self.tab_manager.tab_count();
                 if self.config.prompt_on_quit
                     && tab_count > 0
-                    && !self.quit_confirmation_ui.is_visible()
+                    && !self.overlay_ui.quit_confirmation_ui.is_visible()
                 {
                     log::info!(
                         "Showing quit confirmation dialog ({} active sessions)",
                         tab_count
                     );
-                    self.quit_confirmation_ui.show_confirmation(tab_count);
+                    self.overlay_ui
+                        .quit_confirmation_ui
+                        .show_confirmation(tab_count);
                     self.needs_redraw = true;
                     if let Some(window) = &self.window {
                         window.request_redraw();
@@ -1033,7 +1035,8 @@ impl WindowState {
 
             let interval =
                 std::time::Duration::from_millis(self.config.throughput_render_interval_ms as u64);
-            let batch_start = self.throughput_batch_start
+            let batch_start = self
+                .throughput_batch_start
                 .expect("throughput_batch_start is Some: set to Some on the line above when None");
 
             // Check if interval has elapsed
@@ -1221,7 +1224,7 @@ impl WindowState {
         // 7. Shader Install Dialog
         // Force continuous redraws when shader install dialog is visible (for spinner animation)
         // and when installation is in progress (to check for completion)
-        if self.shader_install_ui.visible {
+        if self.overlay_ui.shader_install_ui.visible {
             self.needs_redraw = true;
             // Schedule frequent redraws for smooth spinner animation
             let next_frame = now + std::time::Duration::from_millis(16); // ~60fps

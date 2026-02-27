@@ -29,7 +29,8 @@ pub fn create_stack_trace_detector() -> crate::prettifier::regex_detector::Regex
         // Java/JVM stack trace
         .rule(DetectionRule {
             id: "stacktrace_java".into(),
-            pattern: Regex::new(r"^\s+at\s+[\w.$]+\([\w.]+:\d+\)").expect("st_java_frame: pattern is valid and should always compile"),
+            pattern: Regex::new(r"^\s+at\s+[\w.$]+\([\w.]+:\d+\)")
+                .expect("st_java_frame: pattern is valid and should always compile"),
             weight: 0.7,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Definitive,
@@ -41,7 +42,8 @@ pub fn create_stack_trace_detector() -> crate::prettifier::regex_detector::Regex
         // Python traceback header
         .rule(DetectionRule {
             id: "stacktrace_python_header".into(),
-            pattern: Regex::new(r"^Traceback \(most recent call last\):").expect("st_python_traceback: pattern is valid and should always compile"),
+            pattern: Regex::new(r"^Traceback \(most recent call last\):")
+                .expect("st_python_traceback: pattern is valid and should always compile"),
             weight: 0.9,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Definitive,
@@ -53,7 +55,8 @@ pub fn create_stack_trace_detector() -> crate::prettifier::regex_detector::Regex
         // Python traceback frame
         .rule(DetectionRule {
             id: "stacktrace_python_frame".into(),
-            pattern: Regex::new(r#"^\s+File ".*", line \d+"#).expect("regex pattern is valid and should always compile"),
+            pattern: Regex::new(r#"^\s+File ".*", line \d+"#)
+                .expect("regex pattern is valid and should always compile"),
             weight: 0.6,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -65,7 +68,8 @@ pub fn create_stack_trace_detector() -> crate::prettifier::regex_detector::Regex
         // Rust panic
         .rule(DetectionRule {
             id: "stacktrace_rust_panic".into(),
-            pattern: Regex::new(r"^thread '.*' panicked at").expect("regex pattern is valid and should always compile"),
+            pattern: Regex::new(r"^thread '.*' panicked at")
+                .expect("regex pattern is valid and should always compile"),
             weight: 0.9,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Definitive,
@@ -77,7 +81,8 @@ pub fn create_stack_trace_detector() -> crate::prettifier::regex_detector::Regex
         // Node.js/JavaScript
         .rule(DetectionRule {
             id: "stacktrace_js".into(),
-            pattern: Regex::new(r"^\s+at\s+\S+\s+\(.*:\d+:\d+\)").expect("st_js_frame: pattern is valid and should always compile"),
+            pattern: Regex::new(r"^\s+at\s+\S+\s+\(.*:\d+:\d+\)")
+                .expect("st_js_frame: pattern is valid and should always compile"),
             weight: 0.6,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -89,7 +94,8 @@ pub fn create_stack_trace_detector() -> crate::prettifier::regex_detector::Regex
         // Generic error header
         .rule(DetectionRule {
             id: "stacktrace_generic_error".into(),
-            pattern: Regex::new(r"^(\w+Error|Exception|Caused by):").expect("st_error_header: pattern is valid and should always compile"),
+            pattern: Regex::new(r"^(\w+Error|Exception|Caused by):")
+                .expect("st_error_header: pattern is valid and should always compile"),
             weight: 0.4,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Strong,
@@ -101,7 +107,8 @@ pub fn create_stack_trace_detector() -> crate::prettifier::regex_detector::Regex
         // Go panic
         .rule(DetectionRule {
             id: "stacktrace_go_panic".into(),
-            pattern: Regex::new(r"^goroutine \d+ \[").expect("regex pattern is valid and should always compile"),
+            pattern: Regex::new(r"^goroutine \d+ \[")
+                .expect("regex pattern is valid and should always compile"),
             weight: 0.8,
             scope: RuleScope::AnyLine,
             strength: RuleStrength::Definitive,
