@@ -121,6 +121,45 @@ struct FrameRenderData {
     debug_url_detect_time: std::time::Duration,
 }
 
+/// Actions collected during the egui/GPU render pass to be handled after the renderer borrow ends.
+struct PostRenderActions {
+    clipboard:       ClipboardHistoryAction,
+    command_history: CommandHistoryAction,
+    paste_special:   PasteSpecialAction,
+    session_picker:  SessionPickerAction,
+    tab_action:      TabBarAction,
+    shader_install:  ShaderInstallResponse,
+    integrations:    IntegrationsResponse,
+    search:          crate::search::SearchAction,
+    inspector:       InspectorAction,
+    profile_drawer:  ProfileDrawerAction,
+    close_confirm:   CloseConfirmAction,
+    quit_confirm:    QuitConfirmAction,
+    remote_install:  RemoteShellInstallAction,
+    ssh_connect:     SshConnectAction,
+}
+
+impl Default for PostRenderActions {
+    fn default() -> Self {
+        Self {
+            clipboard:       ClipboardHistoryAction::None,
+            command_history: CommandHistoryAction::None,
+            paste_special:   PasteSpecialAction::None,
+            session_picker:  SessionPickerAction::None,
+            tab_action:      TabBarAction::None,
+            shader_install:  ShaderInstallResponse::None,
+            integrations:    IntegrationsResponse::default(),
+            search:          crate::search::SearchAction::None,
+            inspector:       InspectorAction::None,
+            profile_drawer:  ProfileDrawerAction::None,
+            close_confirm:   CloseConfirmAction::None,
+            quit_confirm:    QuitConfirmAction::None,
+            remote_install:  RemoteShellInstallAction::None,
+            ssh_connect:     SshConnectAction::None,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct PreservedClipboardImage {
     pub(crate) width: usize,
@@ -2386,6 +2425,14 @@ impl WindowState {
         let Some(frame_data) = self.gather_render_data() else {
             return;
         };
+
+        let actions = self.submit_gpu_frame(frame_data);
+        self.update_post_render_state(actions);
+    }
+
+    /// Run prettifier cell substitution, egui overlays, and GPU render pass.
+    /// Returns collected post-render actions to handle after the renderer borrow is released.
+    fn submit_gpu_frame(&mut self, frame_data: FrameRenderData) -> PostRenderActions {
         let FrameRenderData {
             mut cells,
             cursor_pos: current_cursor_pos,
@@ -2400,6 +2447,8 @@ impl WindowState {
             debug_url_detect_time,
         } = frame_data;
 
+        let mut actions = PostRenderActions::default();
+
         let render_start = std::time::Instant::now();
 
         let mut debug_update_cells_time = std::time::Duration::ZERO;
@@ -2408,32 +2457,6 @@ impl WindowState {
         #[allow(unused_assignments)]
         let mut debug_actual_render_time = std::time::Duration::ZERO;
         let _ = &debug_actual_render_time;
-        // Clipboard action to handle after rendering (declared here to survive renderer borrow)
-        let mut pending_clipboard_action = ClipboardHistoryAction::None;
-        // Command history action to handle after rendering
-        let mut pending_command_history_action = CommandHistoryAction::None;
-        // Paste special action to handle after rendering
-        let mut pending_paste_special_action = PasteSpecialAction::None;
-        // tmux session picker action to handle after rendering
-        let mut pending_session_picker_action = SessionPickerAction::None;
-        // Tab bar action to handle after rendering (declared here to survive renderer borrow)
-        let mut pending_tab_action = TabBarAction::None;
-        // Shader install response to handle after rendering
-        let mut pending_shader_install_response = ShaderInstallResponse::None;
-        // Integrations welcome dialog response to handle after rendering
-        let mut pending_integrations_response = IntegrationsResponse::default();
-        // Search action to handle after rendering
-        let mut pending_search_action = crate::search::SearchAction::None;
-        // AI Inspector action to handle after rendering
-        let mut pending_inspector_action = InspectorAction::None;
-        // Profile drawer action to handle after rendering
-        let mut pending_profile_drawer_action = ProfileDrawerAction::None;
-        // Close confirmation action to handle after rendering
-        let mut pending_close_confirm_action = CloseConfirmAction::None;
-        // Quit confirmation action to handle after rendering
-        let mut pending_quit_confirm_action = QuitConfirmAction::None;
-        let mut pending_remote_install_action = RemoteShellInstallAction::None;
-        let mut pending_ssh_connect_action = SshConnectAction::None;
         // Process agent messages and refresh AI Inspector snapshot
         self.process_agent_messages_tick();
 
@@ -3125,7 +3148,7 @@ impl WindowState {
                     } else {
                         0.0
                     };
-                    pending_tab_action = self.tab_bar_ui.render(
+                    actions.tab_action = self.tab_bar_ui.render(
                         ctx,
                         &self.tab_manager,
                         &self.config,
@@ -3163,42 +3186,42 @@ impl WindowState {
                     self.overlay_ui.help_ui.show(ctx);
 
                     // Show clipboard history UI and collect action
-                    pending_clipboard_action = self.overlay_ui.clipboard_history_ui.show(ctx);
+                    actions.clipboard = self.overlay_ui.clipboard_history_ui.show(ctx);
 
                     // Show command history UI and collect action
-                    pending_command_history_action = self.overlay_ui.command_history_ui.show(ctx);
+                    actions.command_history = self.overlay_ui.command_history_ui.show(ctx);
 
                     // Show paste special UI and collect action
-                    pending_paste_special_action = self.overlay_ui.paste_special_ui.show(ctx);
+                    actions.paste_special = self.overlay_ui.paste_special_ui.show(ctx);
 
                     // Show search UI and collect action
-                    pending_search_action = self.overlay_ui.search_ui.show(ctx, visible_lines, scrollback_len);
+                    actions.search = self.overlay_ui.search_ui.show(ctx, visible_lines, scrollback_len);
 
                     // Show AI Inspector panel and collect action
-                    pending_inspector_action = self.overlay_ui.ai_inspector.show(ctx, &self.agent_state.available_agents);
+                    actions.inspector = self.overlay_ui.ai_inspector.show(ctx, &self.agent_state.available_agents);
 
                     // Show tmux session picker UI and collect action
                     let tmux_path = self.config.resolve_tmux_path();
-                    pending_session_picker_action =
+                    actions.session_picker =
                         self.overlay_ui.tmux_session_picker_ui.show(ctx, &tmux_path);
 
                     // Show shader install dialog if visible
-                    pending_shader_install_response = self.overlay_ui.shader_install_ui.show(ctx);
+                    actions.shader_install = self.overlay_ui.shader_install_ui.show(ctx);
 
                     // Show integrations welcome dialog if visible
-                    pending_integrations_response = self.overlay_ui.integrations_ui.show(ctx);
+                    actions.integrations = self.overlay_ui.integrations_ui.show(ctx);
 
                     // Show close confirmation dialog if visible
-                    pending_close_confirm_action = self.overlay_ui.close_confirmation_ui.show(ctx);
+                    actions.close_confirm = self.overlay_ui.close_confirmation_ui.show(ctx);
 
                     // Show quit confirmation dialog if visible
-                    pending_quit_confirm_action = self.overlay_ui.quit_confirmation_ui.show(ctx);
+                    actions.quit_confirm = self.overlay_ui.quit_confirmation_ui.show(ctx);
 
                     // Show remote shell install dialog if visible
-                    pending_remote_install_action = self.overlay_ui.remote_shell_install_ui.show(ctx);
+                    actions.remote_install = self.overlay_ui.remote_shell_install_ui.show(ctx);
 
                     // Show SSH Quick Connect dialog if visible
-                    pending_ssh_connect_action = self.overlay_ui.ssh_connect_ui.show(ctx);
+                    actions.ssh_connect = self.overlay_ui.ssh_connect_ui.show(ctx);
 
                     // Render update dialog overlay
                     if self.show_update_dialog {
@@ -3272,7 +3295,7 @@ impl WindowState {
                     }
 
                     // Render profile drawer (right side panel)
-                    pending_profile_drawer_action = self.overlay_ui.profile_drawer_ui.render(
+                    actions.profile_drawer = self.overlay_ui.profile_drawer_ui.render(
                         ctx,
                         &self.overlay_ui.profile_manager,
                         &self.config,
@@ -3859,19 +3882,41 @@ impl WindowState {
             self.debug.render_time = render_start.elapsed();
         }
 
+        actions
+    }
+
+    /// Handle all actions collected during the render pass and finalize frame timing.
+    fn update_post_render_state(&mut self, actions: PostRenderActions) {
+        let PostRenderActions {
+            clipboard,
+            command_history,
+            paste_special,
+            session_picker,
+            tab_action,
+            shader_install,
+            integrations,
+            search,
+            inspector,
+            profile_drawer,
+            close_confirm,
+            quit_confirm,
+            remote_install,
+            ssh_connect,
+        } = actions;
+
         // Sync AI Inspector panel width after the render pass.
         // This catches drag-resize changes that update self.overlay_ui.ai_inspector.width during show().
         // Done here to avoid borrow conflicts with the renderer block above.
         self.sync_ai_inspector_width();
 
         // Handle tab bar actions collected during egui rendering
-        self.handle_tab_bar_action_after_render(pending_tab_action);
+        self.handle_tab_bar_action_after_render(tab_action);
 
         // Handle clipboard actions collected during egui rendering
-        self.handle_clipboard_history_action_after_render(pending_clipboard_action);
+        self.handle_clipboard_history_action_after_render(clipboard);
 
         // Handle command history actions collected during egui rendering
-        match pending_command_history_action {
+        match command_history {
             CommandHistoryAction::Insert(command) => {
                 self.paste_text(&command);
                 log::info!(
@@ -3883,7 +3928,7 @@ impl WindowState {
         }
 
         // Handle close confirmation dialog actions
-        match pending_close_confirm_action {
+        match close_confirm {
             CloseConfirmAction::Close { tab_id, pane_id } => {
                 // User confirmed close - close the tab/pane
                 if let Some(pane_id) = pane_id {
@@ -3912,7 +3957,7 @@ impl WindowState {
         }
 
         // Handle quit confirmation dialog actions
-        match pending_quit_confirm_action {
+        match quit_confirm {
             QuitConfirmAction::Quit => {
                 // User confirmed quit - proceed with shutdown
                 log::info!("Quit confirmed by user");
@@ -3925,7 +3970,7 @@ impl WindowState {
         }
 
         // Handle remote shell integration install action
-        match pending_remote_install_action {
+        match remote_install {
             RemoteShellInstallAction::Install => {
                 // Send the install command via paste_text() which uses the same
                 // code path as Cmd+V paste — handles bracketed paste mode and
@@ -3946,7 +3991,7 @@ impl WindowState {
         }
 
         // Handle SSH Quick Connect actions
-        match pending_ssh_connect_action {
+        match ssh_connect {
             SshConnectAction::Connect {
                 host,
                 profile_override: _,
@@ -3976,7 +4021,7 @@ impl WindowState {
         }
 
         // Handle paste special actions collected during egui rendering
-        match pending_paste_special_action {
+        match paste_special {
             PasteSpecialAction::Paste(content) => {
                 self.paste_text(&content);
                 log::debug!("Pasted transformed text ({} chars)", content.len());
@@ -3985,7 +4030,7 @@ impl WindowState {
         }
 
         // Handle search actions collected during egui rendering
-        match pending_search_action {
+        match search {
             crate::search::SearchAction::ScrollToMatch(offset) => {
                 self.set_scroll_target(offset);
                 self.needs_redraw = true;
@@ -4003,11 +4048,11 @@ impl WindowState {
         }
 
         // Handle AI Inspector actions collected during egui rendering
-        self.handle_inspector_action_after_render(pending_inspector_action);
+        self.handle_inspector_action_after_render(inspector);
 
         // Handle tmux session picker actions collected during egui rendering
         // Uses gateway mode: writes tmux commands to existing PTY instead of spawning process
-        match pending_session_picker_action {
+        match session_picker {
             SessionPickerAction::Attach(session_name) => {
                 crate::debug_info!(
                     "TMUX",
@@ -4073,7 +4118,7 @@ impl WindowState {
         }
 
         // Handle shader install responses
-        match pending_shader_install_response {
+        match shader_install {
             ShaderInstallResponse::Install => {
                 log::info!("User requested shader installation");
                 self.overlay_ui
@@ -4114,10 +4159,10 @@ impl WindowState {
         }
 
         // Handle integrations welcome dialog responses
-        self.handle_integrations_response(&pending_integrations_response);
+        self.handle_integrations_response(&integrations);
 
         // Handle profile drawer actions
-        match pending_profile_drawer_action {
+        match profile_drawer {
             ProfileDrawerAction::OpenProfile(id) => {
                 self.open_profile(id);
             }
