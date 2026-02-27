@@ -243,6 +243,10 @@ pub struct WindowState {
     // Trigger RunCommand process management
     /// PIDs of spawned trigger commands with their spawn time, for resource management
     pub(crate) trigger_spawned_processes: std::collections::HashMap<u32, std::time::Instant>,
+
+    /// Compiled regex cache for prettify trigger patterns (command_filter and block_end).
+    /// Keyed by pattern string; avoids recompiling the same pattern every frame.
+    pub(crate) trigger_regex_cache: std::collections::HashMap<String, regex::Regex>,
 }
 
 fn merge_custom_ai_inspector_agents(
@@ -622,6 +626,8 @@ impl WindowState {
             update_install_receiver: None,
 
             trigger_spawned_processes: std::collections::HashMap::new(),
+
+            trigger_regex_cache: std::collections::HashMap::new(),
         }
     }
 
