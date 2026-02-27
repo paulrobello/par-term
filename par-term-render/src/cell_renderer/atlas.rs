@@ -276,7 +276,7 @@ impl CellRenderer {
     }
 
     pub(crate) fn upload_glyph(&mut self, _key: u64, raster: &RasterizedGlyph) -> GlyphInfo {
-        let padding = 2;
+        let padding = super::ATLAS_GLYPH_PADDING;
         let atlas_size = self.atlas.atlas_size;
         if self.atlas.atlas_next_x + raster.width + padding > atlas_size {
             self.atlas.atlas_next_x = 0;

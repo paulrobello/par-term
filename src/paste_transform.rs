@@ -760,11 +760,13 @@ mod tests {
     #[test]
     fn test_shell_single_quotes() {
         assert_eq!(
-            transform("hello world", PasteTransform::ShellSingleQuotes).unwrap(),
+            transform("hello world", PasteTransform::ShellSingleQuotes)
+                .expect("transform should succeed"),
             "'hello world'"
         );
         assert_eq!(
-            transform("it's a test", PasteTransform::ShellSingleQuotes).unwrap(),
+            transform("it's a test", PasteTransform::ShellSingleQuotes)
+                .expect("transform should succeed"),
             "'it'\\''s a test'"
         );
     }
@@ -772,11 +774,13 @@ mod tests {
     #[test]
     fn test_shell_double_quotes() {
         assert_eq!(
-            transform("hello world", PasteTransform::ShellDoubleQuotes).unwrap(),
+            transform("hello world", PasteTransform::ShellDoubleQuotes)
+                .expect("transform should succeed"),
             "\"hello world\""
         );
         assert_eq!(
-            transform("$HOME/file", PasteTransform::ShellDoubleQuotes).unwrap(),
+            transform("$HOME/file", PasteTransform::ShellDoubleQuotes)
+                .expect("transform should succeed"),
             "\"\\$HOME/file\""
         );
     }
@@ -784,11 +788,12 @@ mod tests {
     #[test]
     fn test_shell_backslash() {
         assert_eq!(
-            transform("hello world", PasteTransform::ShellBackslash).unwrap(),
+            transform("hello world", PasteTransform::ShellBackslash)
+                .expect("transform should succeed"),
             "hello\\ world"
         );
         assert_eq!(
-            transform("$var", PasteTransform::ShellBackslash).unwrap(),
+            transform("$var", PasteTransform::ShellBackslash).expect("transform should succeed"),
             "\\$var"
         );
     }
@@ -797,7 +802,8 @@ mod tests {
     #[test]
     fn test_case_uppercase() {
         assert_eq!(
-            transform("Hello World", PasteTransform::CaseUppercase).unwrap(),
+            transform("Hello World", PasteTransform::CaseUppercase)
+                .expect("transform should succeed"),
             "HELLO WORLD"
         );
     }
@@ -805,7 +811,8 @@ mod tests {
     #[test]
     fn test_case_lowercase() {
         assert_eq!(
-            transform("Hello World", PasteTransform::CaseLowercase).unwrap(),
+            transform("Hello World", PasteTransform::CaseLowercase)
+                .expect("transform should succeed"),
             "hello world"
         );
     }
@@ -813,11 +820,13 @@ mod tests {
     #[test]
     fn test_case_title_case() {
         assert_eq!(
-            transform("hello world", PasteTransform::CaseTitleCase).unwrap(),
+            transform("hello world", PasteTransform::CaseTitleCase)
+                .expect("transform should succeed"),
             "Hello World"
         );
         assert_eq!(
-            transform("hello-world", PasteTransform::CaseTitleCase).unwrap(),
+            transform("hello-world", PasteTransform::CaseTitleCase)
+                .expect("transform should succeed"),
             "Hello-World"
         );
     }
@@ -825,15 +834,18 @@ mod tests {
     #[test]
     fn test_case_camel_case() {
         assert_eq!(
-            transform("hello world", PasteTransform::CaseCamelCase).unwrap(),
+            transform("hello world", PasteTransform::CaseCamelCase)
+                .expect("transform should succeed"),
             "helloWorld"
         );
         assert_eq!(
-            transform("Hello World", PasteTransform::CaseCamelCase).unwrap(),
+            transform("Hello World", PasteTransform::CaseCamelCase)
+                .expect("transform should succeed"),
             "helloWorld"
         );
         assert_eq!(
-            transform("hello_world", PasteTransform::CaseCamelCase).unwrap(),
+            transform("hello_world", PasteTransform::CaseCamelCase)
+                .expect("transform should succeed"),
             "helloWorld"
         );
     }
@@ -841,7 +853,8 @@ mod tests {
     #[test]
     fn test_case_pascal_case() {
         assert_eq!(
-            transform("hello world", PasteTransform::CasePascalCase).unwrap(),
+            transform("hello world", PasteTransform::CasePascalCase)
+                .expect("transform should succeed"),
             "HelloWorld"
         );
     }
@@ -849,11 +862,13 @@ mod tests {
     #[test]
     fn test_case_snake_case() {
         assert_eq!(
-            transform("Hello World", PasteTransform::CaseSnakeCase).unwrap(),
+            transform("Hello World", PasteTransform::CaseSnakeCase)
+                .expect("transform should succeed"),
             "hello_world"
         );
         assert_eq!(
-            transform("helloWorld", PasteTransform::CaseSnakeCase).unwrap(),
+            transform("helloWorld", PasteTransform::CaseSnakeCase)
+                .expect("transform should succeed"),
             "hello_world"
         );
     }
@@ -861,7 +876,8 @@ mod tests {
     #[test]
     fn test_case_screaming_snake() {
         assert_eq!(
-            transform("Hello World", PasteTransform::CaseScreamingSnake).unwrap(),
+            transform("Hello World", PasteTransform::CaseScreamingSnake)
+                .expect("transform should succeed"),
             "HELLO_WORLD"
         );
     }
@@ -869,7 +885,8 @@ mod tests {
     #[test]
     fn test_case_kebab_case() {
         assert_eq!(
-            transform("Hello World", PasteTransform::CaseKebabCase).unwrap(),
+            transform("Hello World", PasteTransform::CaseKebabCase)
+                .expect("transform should succeed"),
             "hello-world"
         );
     }
@@ -878,11 +895,13 @@ mod tests {
     #[test]
     fn test_newline_single_line() {
         assert_eq!(
-            transform("line1\nline2\nline3", PasteTransform::NewlineSingleLine).unwrap(),
+            transform("line1\nline2\nline3", PasteTransform::NewlineSingleLine)
+                .expect("transform should succeed"),
             "line1 line2 line3"
         );
         assert_eq!(
-            transform("single line", PasteTransform::NewlineSingleLine).unwrap(),
+            transform("single line", PasteTransform::NewlineSingleLine)
+                .expect("transform should succeed"),
             "single line"
         );
     }
@@ -890,12 +909,14 @@ mod tests {
     #[test]
     fn test_newline_add_newlines() {
         assert_eq!(
-            transform("line1\nline2", PasteTransform::NewlineAddNewlines).unwrap(),
+            transform("line1\nline2", PasteTransform::NewlineAddNewlines)
+                .expect("transform should succeed"),
             "line1\nline2\n"
         );
         // Already has trailing newline
         assert_eq!(
-            transform("line1\nline2\n", PasteTransform::NewlineAddNewlines).unwrap(),
+            transform("line1\nline2\n", PasteTransform::NewlineAddNewlines)
+                .expect("transform should succeed"),
             "line1\nline2\n"
         );
     }
@@ -903,11 +924,13 @@ mod tests {
     #[test]
     fn test_newline_remove_newlines() {
         assert_eq!(
-            transform("line1\nline2\nline3", PasteTransform::NewlineRemoveNewlines).unwrap(),
+            transform("line1\nline2\nline3", PasteTransform::NewlineRemoveNewlines)
+                .expect("transform should succeed"),
             "line1line2line3"
         );
         assert_eq!(
-            transform("line1\r\nline2", PasteTransform::NewlineRemoveNewlines).unwrap(),
+            transform("line1\r\nline2", PasteTransform::NewlineRemoveNewlines)
+                .expect("transform should succeed"),
             "line1line2"
         );
     }
@@ -916,7 +939,8 @@ mod tests {
     #[test]
     fn test_whitespace_trim() {
         assert_eq!(
-            transform("  hello  ", PasteTransform::WhitespaceTrim).unwrap(),
+            transform("  hello  ", PasteTransform::WhitespaceTrim)
+                .expect("transform should succeed"),
             "hello"
         );
     }
@@ -924,7 +948,8 @@ mod tests {
     #[test]
     fn test_whitespace_trim_lines() {
         assert_eq!(
-            transform("  line1  \n  line2  ", PasteTransform::WhitespaceTrimLines).unwrap(),
+            transform("  line1  \n  line2  ", PasteTransform::WhitespaceTrimLines)
+                .expect("transform should succeed"),
             "line1\nline2"
         );
     }
@@ -932,7 +957,8 @@ mod tests {
     #[test]
     fn test_whitespace_collapse_spaces() {
         assert_eq!(
-            transform("hello    world", PasteTransform::WhitespaceCollapseSpaces).unwrap(),
+            transform("hello    world", PasteTransform::WhitespaceCollapseSpaces)
+                .expect("transform should succeed"),
             "hello world"
         );
     }
@@ -940,7 +966,8 @@ mod tests {
     #[test]
     fn test_whitespace_tabs_to_spaces() {
         assert_eq!(
-            transform("hello\tworld", PasteTransform::WhitespaceTabsToSpaces).unwrap(),
+            transform("hello\tworld", PasteTransform::WhitespaceTabsToSpaces)
+                .expect("transform should succeed"),
             "hello    world"
         );
     }
@@ -948,7 +975,8 @@ mod tests {
     #[test]
     fn test_whitespace_spaces_to_tabs() {
         assert_eq!(
-            transform("hello    world", PasteTransform::WhitespaceSpacesToTabs).unwrap(),
+            transform("hello    world", PasteTransform::WhitespaceSpacesToTabs)
+                .expect("transform should succeed"),
             "hello\tworld"
         );
     }
@@ -960,7 +988,7 @@ mod tests {
                 "line1\n\nline2\n  \nline3",
                 PasteTransform::WhitespaceRemoveEmptyLines
             )
-            .unwrap(),
+            .expect("transform should succeed"),
             "line1\nline2\nline3"
         );
     }
@@ -972,7 +1000,7 @@ mod tests {
                 "line1\r\nline2\rline3",
                 PasteTransform::WhitespaceNormalizeLineEndings
             )
-            .unwrap(),
+            .expect("transform should succeed"),
             "line1\nline2\nline3"
         );
     }
@@ -981,11 +1009,12 @@ mod tests {
     #[test]
     fn test_encode_base64() {
         assert_eq!(
-            transform("hello", PasteTransform::EncodeBase64).unwrap(),
+            transform("hello", PasteTransform::EncodeBase64).expect("transform should succeed"),
             "aGVsbG8="
         );
         assert_eq!(
-            transform("Hello World!", PasteTransform::EncodeBase64).unwrap(),
+            transform("Hello World!", PasteTransform::EncodeBase64)
+                .expect("transform should succeed"),
             "SGVsbG8gV29ybGQh"
         );
     }
@@ -993,11 +1022,12 @@ mod tests {
     #[test]
     fn test_decode_base64() {
         assert_eq!(
-            transform("aGVsbG8=", PasteTransform::DecodeBase64).unwrap(),
+            transform("aGVsbG8=", PasteTransform::DecodeBase64).expect("transform should succeed"),
             "hello"
         );
         assert_eq!(
-            transform("SGVsbG8gV29ybGQh", PasteTransform::DecodeBase64).unwrap(),
+            transform("SGVsbG8gV29ybGQh", PasteTransform::DecodeBase64)
+                .expect("transform should succeed"),
             "Hello World!"
         );
     }
@@ -1005,19 +1035,21 @@ mod tests {
     #[test]
     fn test_base64_roundtrip() {
         let original = "The quick brown fox jumps over the lazy dog!";
-        let encoded = transform(original, PasteTransform::EncodeBase64).unwrap();
-        let decoded = transform(&encoded, PasteTransform::DecodeBase64).unwrap();
+        let encoded =
+            transform(original, PasteTransform::EncodeBase64).expect("encode should succeed");
+        let decoded =
+            transform(&encoded, PasteTransform::DecodeBase64).expect("decode should succeed");
         assert_eq!(decoded, original);
     }
 
     #[test]
     fn test_encode_url() {
         assert_eq!(
-            transform("hello world", PasteTransform::EncodeUrl).unwrap(),
+            transform("hello world", PasteTransform::EncodeUrl).expect("transform should succeed"),
             "hello%20world"
         );
         assert_eq!(
-            transform("a=b&c=d", PasteTransform::EncodeUrl).unwrap(),
+            transform("a=b&c=d", PasteTransform::EncodeUrl).expect("transform should succeed"),
             "a%3Db%26c%3Dd"
         );
     }
@@ -1025,11 +1057,12 @@ mod tests {
     #[test]
     fn test_decode_url() {
         assert_eq!(
-            transform("hello%20world", PasteTransform::DecodeUrl).unwrap(),
+            transform("hello%20world", PasteTransform::DecodeUrl)
+                .expect("transform should succeed"),
             "hello world"
         );
         assert_eq!(
-            transform("hello+world", PasteTransform::DecodeUrl).unwrap(),
+            transform("hello+world", PasteTransform::DecodeUrl).expect("transform should succeed"),
             "hello world"
         );
     }
@@ -1037,15 +1070,17 @@ mod tests {
     #[test]
     fn test_url_roundtrip() {
         let original = "hello world! & goodbye=yes";
-        let encoded = transform(original, PasteTransform::EncodeUrl).unwrap();
-        let decoded = transform(&encoded, PasteTransform::DecodeUrl).unwrap();
+        let encoded =
+            transform(original, PasteTransform::EncodeUrl).expect("encode should succeed");
+        let decoded =
+            transform(&encoded, PasteTransform::DecodeUrl).expect("decode should succeed");
         assert_eq!(decoded, original);
     }
 
     #[test]
     fn test_encode_hex() {
         assert_eq!(
-            transform("hello", PasteTransform::EncodeHex).unwrap(),
+            transform("hello", PasteTransform::EncodeHex).expect("transform should succeed"),
             "68656c6c6f"
         );
     }
@@ -1053,11 +1088,11 @@ mod tests {
     #[test]
     fn test_decode_hex() {
         assert_eq!(
-            transform("68656c6c6f", PasteTransform::DecodeHex).unwrap(),
+            transform("68656c6c6f", PasteTransform::DecodeHex).expect("transform should succeed"),
             "hello"
         );
         assert_eq!(
-            transform("0x68656c6c6f", PasteTransform::DecodeHex).unwrap(),
+            transform("0x68656c6c6f", PasteTransform::DecodeHex).expect("transform should succeed"),
             "hello"
         );
     }
@@ -1065,19 +1100,23 @@ mod tests {
     #[test]
     fn test_hex_roundtrip() {
         let original = "Hello World!";
-        let encoded = transform(original, PasteTransform::EncodeHex).unwrap();
-        let decoded = transform(&encoded, PasteTransform::DecodeHex).unwrap();
+        let encoded =
+            transform(original, PasteTransform::EncodeHex).expect("encode should succeed");
+        let decoded =
+            transform(&encoded, PasteTransform::DecodeHex).expect("decode should succeed");
         assert_eq!(decoded, original);
     }
 
     #[test]
     fn test_encode_json_escape() {
         assert_eq!(
-            transform("hello\nworld", PasteTransform::EncodeJsonEscape).unwrap(),
+            transform("hello\nworld", PasteTransform::EncodeJsonEscape)
+                .expect("transform should succeed"),
             "hello\\nworld"
         );
         assert_eq!(
-            transform("say \"hi\"", PasteTransform::EncodeJsonEscape).unwrap(),
+            transform("say \"hi\"", PasteTransform::EncodeJsonEscape)
+                .expect("transform should succeed"),
             "say \\\"hi\\\""
         );
     }
@@ -1085,11 +1124,13 @@ mod tests {
     #[test]
     fn test_decode_json_unescape() {
         assert_eq!(
-            transform("hello\\nworld", PasteTransform::DecodeJsonUnescape).unwrap(),
+            transform("hello\\nworld", PasteTransform::DecodeJsonUnescape)
+                .expect("transform should succeed"),
             "hello\nworld"
         );
         assert_eq!(
-            transform("say \\\"hi\\\"", PasteTransform::DecodeJsonUnescape).unwrap(),
+            transform("say \\\"hi\\\"", PasteTransform::DecodeJsonUnescape)
+                .expect("transform should succeed"),
             "say \"hi\""
         );
     }
@@ -1097,8 +1138,10 @@ mod tests {
     #[test]
     fn test_json_roundtrip() {
         let original = "Line1\nLine2\tTabbed \"quoted\"";
-        let encoded = transform(original, PasteTransform::EncodeJsonEscape).unwrap();
-        let decoded = transform(&encoded, PasteTransform::DecodeJsonUnescape).unwrap();
+        let encoded =
+            transform(original, PasteTransform::EncodeJsonEscape).expect("encode should succeed");
+        let decoded =
+            transform(&encoded, PasteTransform::DecodeJsonUnescape).expect("decode should succeed");
         assert_eq!(decoded, original);
     }
 
@@ -1119,12 +1162,14 @@ mod tests {
     fn test_unicode() {
         // Uppercase preserves emojis
         assert_eq!(
-            transform("Hello! ", PasteTransform::CaseUppercase).unwrap(),
+            transform("Hello! ", PasteTransform::CaseUppercase).expect("transform should succeed"),
             "HELLO! "
         );
         // Base64 encoding of emoji (rocket is F0 9F 9A 81 in UTF-8)
-        let encoded = transform("", PasteTransform::EncodeBase64).unwrap();
-        let decoded = transform(&encoded, PasteTransform::DecodeBase64).unwrap();
+        let encoded =
+            transform("", PasteTransform::EncodeBase64).expect("transform should succeed");
+        let decoded =
+            transform(&encoded, PasteTransform::DecodeBase64).expect("decode should succeed");
         assert_eq!(decoded, "");
     }
 

@@ -9,6 +9,10 @@ use wgpu::*;
 /// This prevents unbounded GPU memory growth when displaying many inline images.
 const MAX_TEXTURE_CACHE_SIZE: usize = 100;
 
+/// Initial capacity of the graphics instance buffer (number of simultaneous inline images).
+/// The buffer will grow automatically if more images are needed.
+const INITIAL_GRAPHICS_INSTANCE_CAPACITY: usize = 32;
+
 /// Instance data for a single sixel graphic
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -133,8 +137,8 @@ impl GraphicsRenderer {
         // Create rendering pipeline
         let pipeline = Self::create_pipeline(device, surface_format, &bind_group_layout)?;
 
-        // Create instance buffer (initial capacity for 32 images)
-        let initial_capacity = 32;
+        // Create instance buffer (initial capacity for INITIAL_GRAPHICS_INSTANCE_CAPACITY images)
+        let initial_capacity = INITIAL_GRAPHICS_INSTANCE_CAPACITY;
         let instance_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Sixel Instance Buffer"),
             size: (initial_capacity * std::mem::size_of::<SixelInstance>()) as u64,

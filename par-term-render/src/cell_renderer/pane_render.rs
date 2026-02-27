@@ -147,13 +147,13 @@ impl CellRenderer {
             // Render per-pane background image within scissor rect.
             // Per-pane backgrounds are explicit user overrides and always render,
             // even when a custom shader or global background is active.
-            if let Some(ref path) = pane_bg_path {
-                if let Some(cached) = self.bg_state.pane_bg_uniform_cache.get(path.as_str()) {
-                    render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
-                    render_pass.set_bind_group(0, &cached.bind_group, &[]);
-                    render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
-                    render_pass.draw(0..4, 0..1);
-                }
+            if let Some(ref path) = pane_bg_path
+                && let Some(cached) = self.bg_state.pane_bg_uniform_cache.get(path.as_str())
+            {
+                render_pass.set_pipeline(&self.pipelines.bg_image_pipeline);
+                render_pass.set_bind_group(0, &cached.bind_group, &[]);
+                render_pass.set_vertex_buffer(0, self.buffers.vertex_buffer.slice(..));
+                render_pass.draw(0..4, 0..1);
             }
 
             // Render cell backgrounds

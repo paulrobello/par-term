@@ -4,6 +4,53 @@ use anyhow::Result;
 use par_term_config::{color_u8x4_rgb_to_f32, color_u8x4_rgb_to_f32_a};
 use par_term_fonts::text_shaper::ShapingOptions;
 
+/// Number of extra background instance slots reserved for cursor overlays
+/// (beam/underline, guide line, shadow, boost glow, hollow outline sides).
+/// Layout: [0] cursor overlay, [1] guide, [2] shadow, [3] boost glow, [4-7] hollow outline.
+pub(crate) const CURSOR_OVERLAY_SLOTS: usize = 10;
+
+/// Width of gutter indicator bars in terminal cell columns.
+/// Each gutter indicator occupies this many cell-widths on the left side.
+pub(crate) const GUTTER_WIDTH_CELLS: f32 = 2.0;
+
+/// Underline thickness as a fraction of cell height.
+/// Scaled at render time so underlines remain proportional across font sizes.
+pub(crate) const UNDERLINE_HEIGHT_RATIO: f32 = 0.07;
+
+/// Pixel tolerance for snapping glyphs to cell boundaries during rendering.
+/// Glyphs within this many pixels of a cell edge are snapped to it.
+pub(crate) const GLYPH_SNAP_THRESHOLD_PX: f32 = 3.0;
+
+/// Sub-pixel extension applied when snapping glyphs to cell boundaries.
+/// Prevents hairline gaps between adjacent block-drawing characters.
+pub(crate) const GLYPH_SNAP_EXTENSION_PX: f32 = 0.5;
+
+/// Floating-point epsilon for color component comparisons.
+/// Used to detect when a cell's background matches the default terminal background.
+pub(crate) const COLOR_COMPONENT_EPSILON: f32 = 0.001;
+
+/// Brightness threshold for automatic cursor text-contrast selection.
+/// Cursors brighter than this use dark text; darker cursors use light text.
+pub(crate) const CURSOR_BRIGHTNESS_THRESHOLD: f32 = 0.5;
+
+/// Maximum alpha for cursor boost glow effect (as a multiplier of boost intensity).
+/// Keeps the glow subtle even at full boost strength.
+pub(crate) const CURSOR_BOOST_MAX_ALPHA: f32 = 0.3;
+
+/// Width of the hollow-cursor border in pixels.
+/// Used for the four thin rectangles that form the hollow block cursor outline.
+pub(crate) const HOLLOW_CURSOR_BORDER_PX: f32 = 2.0;
+
+/// Stipple on-length in pixels for dashed link underlines.
+pub(crate) const STIPPLE_ON_PX: f32 = 2.0;
+
+/// Stipple off-length in pixels for dashed link underlines.
+pub(crate) const STIPPLE_OFF_PX: f32 = 2.0;
+
+/// Number of text instances pre-allocated per terminal cell.
+/// 2× because wide (double-width) characters can emit two instances.
+pub(crate) const TEXT_INSTANCES_PER_CELL: usize = 2;
+
 impl CellRenderer {
     pub(crate) fn build_instance_buffers(&mut self) -> Result<()> {
         let _shaping_options = ShapingOptions {
@@ -27,9 +74,10 @@ impl CellRenderer {
                 while col < row_cells.len() {
                     let cell = &row_cells[col];
                     let bg_f = color_u8x4_rgb_to_f32(cell.bg_color);
-                    let is_default_bg = (bg_f[0] - self.background_color[0]).abs() < 0.001
-                        && (bg_f[1] - self.background_color[1]).abs() < 0.001
-                        && (bg_f[2] - self.background_color[2]).abs() < 0.001;
+                    let is_default_bg = (bg_f[0] - self.background_color[0]).abs()
+                        < COLOR_COMPONENT_EPSILON
+                        && (bg_f[1] - self.background_color[1]).abs() < COLOR_COMPONENT_EPSILON
+                        && (bg_f[2] - self.background_color[2]).abs() < COLOR_COMPONENT_EPSILON;
 
                     // Check for cursor at this position, accounting for unfocused state
                     let cursor_visible = self.cursor.opacity > 0.0
@@ -249,7 +297,7 @@ impl CellRenderer {
                                     + self.cursor.color[1]
                                     + self.cursor.color[2])
                                     / 3.0;
-                                if cursor_brightness > 0.5 {
+                                if cursor_brightness > CURSOR_BRIGHTNESS_THRESHOLD {
                                     [0.0, 0.0, 0.0, text_alpha] // Dark text on bright cursor
                                 } else {
                                     [1.0, 1.0, 1.0, text_alpha] // Bright text on dark cursor
@@ -341,10 +389,15 @@ impl CellRenderer {
                                             final_h / self.config.height as f32 * 2.0,
                                         ],
                                         tex_offset: [
-                                            self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
-                                            self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
+                                            self.atlas.solid_pixel_offset.0 as f32
+                                                / self.atlas.atlas_size as f32,
+                                            self.atlas.solid_pixel_offset.1 as f32
+                                                / self.atlas.atlas_size as f32,
                                         ],
-                                        tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
+                                        tex_size: [
+                                            1.0 / self.atlas.atlas_size as f32,
+                                            1.0 / self.atlas.atlas_size as f32,
+                                        ],
                                         color: render_fg_color,
                                         is_colored: 0,
                                     });
@@ -392,10 +445,15 @@ impl CellRenderer {
                                     ],
                                     // Use solid white pixel from atlas
                                     tex_offset: [
-                                        self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
-                                        self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
+                                        self.atlas.solid_pixel_offset.0 as f32
+                                            / self.atlas.atlas_size as f32,
+                                        self.atlas.solid_pixel_offset.1 as f32
+                                            / self.atlas.atlas_size as f32,
                                     ],
-                                    tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
+                                    tex_size: [
+                                        1.0 / self.atlas.atlas_size as f32,
+                                        1.0 / self.atlas.atlas_size as f32,
+                                    ],
                                     color: render_fg_color,
                                     is_colored: 0,
                                 });
@@ -423,10 +481,15 @@ impl CellRenderer {
                                         rect.height / self.config.height as f32 * 2.0,
                                     ],
                                     tex_offset: [
-                                        self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
-                                        self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
+                                        self.atlas.solid_pixel_offset.0 as f32
+                                            / self.atlas.atlas_size as f32,
+                                        self.atlas.solid_pixel_offset.1 as f32
+                                            / self.atlas.atlas_size as f32,
                                     ],
-                                    tex_size: [1.0 / 2048.0, 1.0 / 2048.0],
+                                    tex_size: [
+                                        1.0 / self.atlas.atlas_size as f32,
+                                        1.0 / self.atlas.atlas_size as f32,
+                                    ],
                                     color: render_fg_color,
                                     is_colored: 0,
                                 });
@@ -598,7 +661,16 @@ impl CellRenderer {
                         {
                             // Snap threshold of 3 pixels, extension of 0.5 pixels
                             block_chars::snap_glyph_to_cell(
-                                glyph_left, glyph_top, render_w, render_h, x0, y0, x1, y1, 3.0, 0.5,
+                                glyph_left,
+                                glyph_top,
+                                render_w,
+                                render_h,
+                                x0,
+                                y0,
+                                x1,
+                                y1,
+                                GLYPH_SNAP_THRESHOLD_PX,
+                                GLYPH_SNAP_EXTENSION_PX,
                             )
                         } else {
                             (glyph_left, glyph_top, render_w, render_h)
@@ -613,8 +685,14 @@ impl CellRenderer {
                                 final_w / self.config.width as f32 * 2.0,
                                 final_h / self.config.height as f32 * 2.0,
                             ],
-                            tex_offset: [info.x as f32 / 2048.0, info.y as f32 / 2048.0],
-                            tex_size: [info.width as f32 / 2048.0, info.height as f32 / 2048.0],
+                            tex_offset: [
+                                info.x as f32 / self.atlas.atlas_size as f32,
+                                info.y as f32 / self.atlas.atlas_size as f32,
+                            ],
+                            tex_size: [
+                                info.width as f32 / self.atlas.atlas_size as f32,
+                                info.height as f32 / self.atlas.atlas_size as f32,
+                            ],
                             color: render_fg_color,
                             is_colored: if info.is_colored { 1 } else { 0 },
                         });
@@ -625,12 +703,17 @@ impl CellRenderer {
 
                 // Underlines: emit thin rectangle(s) at the bottom of each underlined cell
                 {
-                    let underline_thickness = (self.grid.cell_height * 0.07).max(1.0).round();
+                    let underline_thickness = (self.grid.cell_height * UNDERLINE_HEIGHT_RATIO)
+                        .max(1.0)
+                        .round();
                     let tex_offset = [
-                        self.atlas.solid_pixel_offset.0 as f32 / 2048.0,
-                        self.atlas.solid_pixel_offset.1 as f32 / 2048.0,
+                        self.atlas.solid_pixel_offset.0 as f32 / self.atlas.atlas_size as f32,
+                        self.atlas.solid_pixel_offset.1 as f32 / self.atlas.atlas_size as f32,
                     ];
-                    let tex_size = [1.0 / 2048.0, 1.0 / 2048.0];
+                    let tex_size = [
+                        1.0 / self.atlas.atlas_size as f32,
+                        1.0 / self.atlas.atlas_size as f32,
+                    ];
                     let y0 = self.grid.window_padding
                         + self.grid.content_offset_y
                         + (row + 1) as f32 * self.grid.cell_height
@@ -639,9 +722,9 @@ impl CellRenderer {
                     let ndc_h = underline_thickness / self.config.height as f32 * 2.0;
                     let is_stipple =
                         self.link_underline_style == par_term_config::LinkUnderlineStyle::Stipple;
-                    // Stipple: 2px on, 2px off pattern
-                    let stipple_on = 2.0_f32;
-                    let stipple_off = 2.0_f32;
+                    // Stipple: STIPPLE_ON_PX on, STIPPLE_OFF_PX off pattern
+                    let stipple_on = STIPPLE_ON_PX;
+                    let stipple_off = STIPPLE_OFF_PX;
                     let stipple_period = stipple_on + stipple_off;
 
                     for col_idx in 0..self.grid.cols {
@@ -662,7 +745,9 @@ impl CellRenderer {
                         if is_stipple {
                             // Emit alternating dot segments across the cell width
                             let mut px = 0.0;
-                            while px < self.grid.cell_width && self.scratch_row_text.len() < self.grid.cols * 2 {
+                            while px < self.grid.cell_width
+                                && self.scratch_row_text.len() < self.grid.cols * 2
+                            {
                                 let seg_w = stipple_on.min(self.grid.cell_width - px);
                                 let x = cell_x0 + px;
                                 self.scratch_row_text.push(TextInstance {
@@ -693,7 +778,8 @@ impl CellRenderer {
 
                 // Update CPU-side buffers
                 let bg_start = row * self.grid.cols;
-                self.bg_instances[bg_start..bg_start + self.grid.cols].copy_from_slice(&self.scratch_row_bg);
+                self.bg_instances[bg_start..bg_start + self.grid.cols]
+                    .copy_from_slice(&self.scratch_row_bg);
 
                 let text_start = row * self.grid.cols * 2;
                 // Clear row text segment first
@@ -725,7 +811,7 @@ impl CellRenderer {
         }
 
         // Write cursor-related overlays to extra slots at the end of bg_instances
-        // Slot layout: [0] cursor overlay (beam/underline), [1] guide, [2] shadow, [3-6] boost glow, [7-10] hollow outline
+        // Slot layout: [0] cursor overlay (beam/underline), [1] guide, [2] shadow, [3] boost glow, [4-7] hollow outline
         let base_overlay_index = self.grid.cols * self.grid.rows;
         let mut overlay_instances = vec![
             BackgroundInstance {
@@ -733,7 +819,7 @@ impl CellRenderer {
                 size: [0.0, 0.0],
                 color: [0.0, 0.0, 0.0, 0.0],
             };
-            10
+            CURSOR_OVERLAY_SLOTS
         ];
 
         // Check if cursor should be visible
@@ -816,7 +902,7 @@ impl CellRenderer {
                     self.cursor.boost_color[0],
                     self.cursor.boost_color[1],
                     self.cursor.boost_color[2],
-                    self.cursor.boost * 0.3 * self.cursor.opacity, // Max 30% alpha
+                    self.cursor.boost * CURSOR_BOOST_MAX_ALPHA * self.cursor.opacity,
                 ],
             };
         }
@@ -835,7 +921,7 @@ impl CellRenderer {
             );
 
             if is_block {
-                let border_width = 2.0; // 2 pixel border
+                let border_width = HOLLOW_CURSOR_BORDER_PX;
                 let color = [
                     self.cursor.color[0],
                     self.cursor.color[1],
@@ -910,7 +996,7 @@ impl CellRenderer {
         );
 
         // Write command separator line instances after cursor overlay slots
-        let separator_base = self.grid.cols * self.grid.rows + 10;
+        let separator_base = self.grid.cols * self.grid.rows + CURSOR_OVERLAY_SLOTS;
         let mut separator_instances = vec![
             BackgroundInstance {
                 position: [0.0, 0.0],
@@ -978,7 +1064,7 @@ impl CellRenderer {
             for &(screen_row, color) in &self.gutter_indicators {
                 if screen_row < self.grid.rows {
                     let x0 = self.grid.window_padding + self.grid.content_offset_x;
-                    let x1 = x0 + 2.0 * self.grid.cell_width; // gutter_width = 2 columns
+                    let x1 = x0 + GUTTER_WIDTH_CELLS * self.grid.cell_width;
                     let y0 = self.grid.window_padding
                         + self.grid.content_offset_y
                         + screen_row as f32 * self.grid.cell_height;
@@ -1012,10 +1098,14 @@ impl CellRenderer {
         }
 
         // Update actual instance counts for draw calls
-        // Layout: [0..cols*rows] cells + [cols*rows..cols*rows+10] overlays + [cols*rows+10..+rows] separators + [cols*rows+10+rows..+rows] gutters
-        self.buffers.actual_bg_instances =
-            self.grid.cols * self.grid.rows + 10 + self.grid.rows + self.grid.rows;
-        self.buffers.actual_text_instances = self.grid.cols * self.grid.rows * 2;
+        // Layout: [0..cols*rows] cells + [cols*rows..+CURSOR_OVERLAY_SLOTS] overlays
+        //         + [+CURSOR_OVERLAY_SLOTS..+rows] separators + [..+rows] gutters
+        self.buffers.actual_bg_instances = self.grid.cols * self.grid.rows
+            + CURSOR_OVERLAY_SLOTS
+            + self.grid.rows
+            + self.grid.rows;
+        self.buffers.actual_text_instances =
+            self.grid.cols * self.grid.rows * TEXT_INSTANCES_PER_CELL;
 
         Ok(())
     }

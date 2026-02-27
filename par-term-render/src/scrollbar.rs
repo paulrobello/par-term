@@ -1,5 +1,16 @@
 use std::sync::Arc;
 use wgpu::BindGroupLayout;
+
+/// Maximum number of scrollback marks that can be rendered simultaneously.
+/// Pre-allocating this many GPU buffers avoids per-frame allocation churn.
+const MAX_SCROLLBAR_MARKS: usize = 256;
+
+/// Minimum scrollbar thumb height in pixels.
+/// Prevents the thumb from becoming too small to click when scrollback is very long.
+const MIN_SCROLLBAR_THUMB_HEIGHT_PX: f32 = 20.0;
+
+/// Height of each scrollback mark indicator in pixels.
+const SCROLLBAR_MARK_HEIGHT_PX: f32 = 4.0;
 use wgpu::util::DeviceExt;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
@@ -234,7 +245,7 @@ impl Scrollbar {
             total_lines: 0,
             marks: Vec::new(),
             mark_hit_info: Vec::new(),
-            max_marks: 256, // Pre-allocate for up to 256 marks
+            max_marks: MAX_SCROLLBAR_MARKS,
             mark_uniform_buffers: Vec::new(),
             mark_bind_groups: Vec::new(),
         }
@@ -288,7 +299,8 @@ impl Scrollbar {
         // Calculate scrollbar dimensions (guard against zero)
         let total = total_lines.max(1);
         let viewport_ratio = visible_lines.min(total) as f32 / total as f32;
-        let scrollbar_height = (viewport_ratio * track_pixel_height).max(20.0);
+        let scrollbar_height =
+            (viewport_ratio * track_pixel_height).max(MIN_SCROLLBAR_THUMB_HEIGHT_PX);
 
         // Calculate scrollbar position
         // When scroll_offset is 0, we're at the bottom
@@ -418,7 +430,7 @@ impl Scrollbar {
         let ww = self.window_width as f32;
         let wh = window_height as f32;
         let track_pixel_height = (wh - content_offset_y - content_inset_bottom).max(1.0);
-        let mark_height_ndc = (2.0 * 4.0) / wh; // 4px height
+        let mark_height_ndc = (2.0 * SCROLLBAR_MARK_HEIGHT_PX) / wh;
         let ndc_width = 2.0 * self.width / ww;
         let ndc_x = if self.position_right {
             let right_inset_ndc = 2.0 * content_inset_right / ww;

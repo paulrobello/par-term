@@ -21,6 +21,50 @@ pub mod types;
 pub use types::{Cell, PaneViewport};
 // Re-export internal types for use within the cell_renderer module
 pub(crate) use types::{BackgroundInstance, GlyphInfo, RowCacheEntry, TextInstance};
+// Re-export instance buffer constants so mod.rs can reference them
+pub(crate) use instance_buffers::{CURSOR_OVERLAY_SLOTS, TEXT_INSTANCES_PER_CELL};
+
+/// Physical DPI on macOS (points-based at 72 ppi).
+const MACOS_PLATFORM_DPI: f32 = 72.0;
+
+/// Physical DPI on non-macOS platforms (screen pixels at 96 ppi).
+const DEFAULT_PLATFORM_DPI: f32 = 96.0;
+
+/// Reference DPI used in the font-size conversion formula.
+/// Font sizes are specified in typographic points at 72 ppi.
+const FONT_REFERENCE_DPI: f32 = 72.0;
+
+/// Size (width and height) of the solid white pixel block uploaded to the glyph atlas.
+/// A 2×2 block provides better sampling behaviour than a single texel at borders.
+const SOLID_PIXEL_SIZE: u32 = 2;
+
+/// Pixel padding added around each glyph in the atlas to prevent bilinear bleed.
+pub(crate) const ATLAS_GLYPH_PADDING: u32 = 2;
+
+/// Maximum frame latency hint passed to the wgpu surface configuration.
+/// Controls how many frames may be queued ahead of the display; 2 balances
+/// throughput against input latency.
+const SURFACE_FRAME_LATENCY: u32 = 2;
+
+/// Default cursor guide line opacity.
+/// A very low value keeps the guide visible without overpowering text.
+const DEFAULT_GUIDE_OPACITY: f32 = 0.08;
+
+/// Default cursor shadow alpha component.
+const DEFAULT_SHADOW_ALPHA: f32 = 0.5;
+
+/// Default cursor shadow offset in pixels (x and y).
+const DEFAULT_SHADOW_OFFSET_PX: f32 = 2.0;
+
+/// Default cursor shadow blur radius in pixels.
+const DEFAULT_SHADOW_BLUR_PX: f32 = 3.0;
+
+/// Threshold below which the background is considered "dark" for contrast purposes.
+const DARK_BACKGROUND_THRESHOLD: f32 = 0.5;
+
+/// Minimum contrast ratio change that triggers a re-render of all rows.
+/// Changes smaller than this are ignored to avoid unnecessary redraws.
+const CONTRAST_CHANGE_EPSILON: f32 = 0.001;
 
 /// GPU render pipelines and their associated bind group layouts.
 pub(crate) struct GpuPipelines {
@@ -401,19 +445,19 @@ impl CellRenderer {
             present_mode,
             alpha_mode,
             view_formats: vec![],
-            desired_maximum_frame_latency: 2,
+            desired_maximum_frame_latency: SURFACE_FRAME_LATENCY,
         };
         surface.configure(&device, &config);
 
         let scale_factor = window.scale_factor() as f32;
 
         let platform_dpi = if cfg!(target_os = "macos") {
-            72.0
+            MACOS_PLATFORM_DPI
         } else {
-            96.0
+            DEFAULT_PLATFORM_DPI
         };
 
-        let base_font_pixels = font_size * platform_dpi / 72.0;
+        let base_font_pixels = font_size * platform_dpi / FONT_REFERENCE_DPI;
         let font_size_pixels = (base_font_pixels * scale_factor).max(1.0);
 
         let font_manager = FontManager::new(
@@ -483,8 +527,9 @@ impl CellRenderer {
         let vertex_buffer = pipeline::create_vertex_buffer(&device);
 
         // Instance buffers
-        let max_bg_instances = cols * rows + 10 + rows + rows; // Extra slots for cursor overlays + separator lines + gutter indicators
-        let max_text_instances = cols * rows * 2;
+        // Extra slots: CURSOR_OVERLAY_SLOTS for cursor overlays + rows for separator lines + rows for gutter indicators
+        let max_bg_instances = cols * rows + CURSOR_OVERLAY_SLOTS + rows + rows;
+        let max_text_instances = cols * rows * TEXT_INSTANCES_PER_CELL;
         let (bg_instance_buffer, text_instance_buffer) =
             pipeline::create_instance_buffers(&device, max_bg_instances, max_text_instances);
 
@@ -550,11 +595,11 @@ impl CellRenderer {
                 text_color: None,
                 hidden_for_shader: false,
                 guide_enabled: false,
-                guide_color: [1.0, 1.0, 1.0, 0.08],
+                guide_color: [1.0, 1.0, 1.0, DEFAULT_GUIDE_OPACITY],
                 shadow_enabled: false,
-                shadow_color: [0.0, 0.0, 0.0, 0.5],
-                shadow_offset: [2.0, 2.0],
-                shadow_blur: 3.0,
+                shadow_color: [0.0, 0.0, 0.0, DEFAULT_SHADOW_ALPHA],
+                shadow_offset: [DEFAULT_SHADOW_OFFSET_PX, DEFAULT_SHADOW_OFFSET_PX],
+                shadow_blur: DEFAULT_SHADOW_BLUR_PX,
                 boost: 0.0,
                 boost_color: [1.0, 1.0, 1.0],
                 unfocused_style: par_term_config::UnfocusedCursorStyle::default(),
@@ -655,7 +700,7 @@ impl CellRenderer {
 
     /// Upload a solid white pixel to the atlas for use in geometric block rendering
     pub(crate) fn upload_solid_pixel(&mut self) {
-        let size = 2u32; // 2x2 for better sampling
+        let size = SOLID_PIXEL_SIZE;
         let white_pixels: Vec<u8> = vec![255; (size * size * 4) as usize];
 
         self.queue.write_texture(
@@ -683,7 +728,7 @@ impl CellRenderer {
         );
 
         self.atlas.solid_pixel_offset = (self.atlas.atlas_next_x, self.atlas.atlas_next_y);
-        self.atlas.atlas_next_x += size + 2; // padding
+        self.atlas.atlas_next_x += size + ATLAS_GLYPH_PADDING;
         self.atlas.atlas_row_height = self.atlas.atlas_row_height.max(size);
     }
 
@@ -841,8 +886,13 @@ impl CellRenderer {
         ];
 
         // Resize scratch buffers to match new grid; keep existing allocations if large enough
-        self.scratch_row_bg.reserve(self.grid.cols.saturating_sub(self.scratch_row_bg.capacity()));
-        self.scratch_row_text.reserve((self.grid.cols * 2).saturating_sub(self.scratch_row_text.capacity()));
+        self.scratch_row_bg.reserve(
+            self.grid
+                .cols
+                .saturating_sub(self.scratch_row_bg.capacity()),
+        );
+        self.scratch_row_text
+            .reserve((self.grid.cols * 2).saturating_sub(self.scratch_row_text.capacity()));
     }
 
     /// Update cells. Returns `true` if any row actually changed.
@@ -1233,11 +1283,11 @@ impl CellRenderer {
 
         // Recalculate font_size_pixels based on new scale factor
         let platform_dpi = if cfg!(target_os = "macos") {
-            72.0
+            MACOS_PLATFORM_DPI
         } else {
-            96.0
+            DEFAULT_PLATFORM_DPI
         };
-        let base_font_pixels = self.font.base_font_size * platform_dpi / 72.0;
+        let base_font_pixels = self.font.base_font_size * platform_dpi / FONT_REFERENCE_DPI;
         self.font.font_size_pixels = (base_font_pixels * new_scale).max(1.0);
 
         // Re-extract font metrics at new scale
@@ -1379,7 +1429,7 @@ impl CellRenderer {
     pub fn update_minimum_contrast(&mut self, ratio: f32) -> bool {
         // Clamp to valid range: 1.0 (disabled) to 21.0 (max possible contrast)
         let ratio = ratio.clamp(1.0, 21.0);
-        if (self.font.minimum_contrast - ratio).abs() > 0.001 {
+        if (self.font.minimum_contrast - ratio).abs() > CONTRAST_CHANGE_EPSILON {
             self.font.minimum_contrast = ratio;
             self.dirty_rows.fill(true);
             true
@@ -1421,7 +1471,7 @@ impl CellRenderer {
 
         // Determine if we need to lighten or darken the foreground
         // If background is dark, lighten fg; if light, darken fg
-        let bg_is_dark = bg_lum < 0.5;
+        let bg_is_dark = bg_lum < DARK_BACKGROUND_THRESHOLD;
 
         // Binary search for the minimum adjustment needed
         let mut low = 0.0f32;
@@ -1487,7 +1537,7 @@ impl CellRenderer {
         // Check if background is dark (average < 128)
         let bg_brightness =
             (self.background_color[0] + self.background_color[1] + self.background_color[2]) / 3.0;
-        let is_dark_background = bg_brightness < 0.5;
+        let is_dark_background = bg_brightness < DARK_BACKGROUND_THRESHOLD;
 
         match self.font.font_thin_strokes {
             ThinStrokesMode::Never => false,

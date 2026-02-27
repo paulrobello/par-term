@@ -384,13 +384,12 @@ impl WindowManager {
                 }
 
                 // Apply theme changes
-                if changes.theme {
-                    if let Some(tab) = window_state.tab_manager.active_tab() {
-                        if let Ok(mut term) = tab.terminal.try_lock() {
-                            term.set_theme(config.load_theme());
-                        } else {
-                            crate::debug::record_try_lock_failure("theme_change");
-                        }
+                if changes.theme
+                    && let Some(tab) = window_state.tab_manager.active_tab()
+                {
+                    match tab.terminal.try_lock() {
+                        Ok(mut term) => term.set_theme(config.load_theme()),
+                        Err(_) => crate::debug::record_try_lock_failure("theme_change"),
                     }
                 }
 

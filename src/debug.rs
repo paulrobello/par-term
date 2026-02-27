@@ -312,8 +312,7 @@ pub static TRY_LOCK_FAILURE_COUNT: std::sync::atomic::AtomicU64 =
 
 /// The value of [`TRY_LOCK_FAILURE_COUNT`] at the time of the last periodic telemetry
 /// log.  Used by [`maybe_log_try_lock_telemetry`] to avoid emitting redundant log lines.
-static TRY_LOCK_LAST_REPORTED: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(0);
+static TRY_LOCK_LAST_REPORTED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Record one `try_lock()` failure.
 ///
@@ -322,7 +321,7 @@ static TRY_LOCK_LAST_REPORTED: std::sync::atomic::AtomicU64 =
 ///
 /// # Arguments
 /// * `site` - A short, human-readable label identifying the call site
-///            (e.g., `"resize"`, `"theme_change"`, `"focus_event"`).
+///   (e.g., `"resize"`, `"theme_change"`, `"focus_event"`).
 #[inline]
 pub fn record_try_lock_failure(site: &str) {
     let total = TRY_LOCK_FAILURE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;

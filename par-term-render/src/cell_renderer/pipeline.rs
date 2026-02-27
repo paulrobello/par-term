@@ -11,6 +11,15 @@ use super::types::{BackgroundInstance, TextInstance, Vertex};
 /// This value is validated against device limits at initialization.
 const PREFERRED_ATLAS_SIZE: u32 = 2048;
 
+/// Size in bytes of the visual bell uniform buffer.
+/// Must be large enough to hold the bell uniforms struct, rounded up to
+/// the wgpu minimum uniform buffer offset alignment (256 bytes).
+const VISUAL_BELL_UNIFORM_BUFFER_SIZE: u64 = 64;
+
+/// Size in bytes of the background image uniform buffer.
+/// Contains a 4×4 transform matrix (16 × f32 = 64 bytes).
+const BG_IMAGE_UNIFORM_BUFFER_SIZE: u64 = 64;
+
 /// Custom blend state that blends RGB normally but replaces alpha.
 /// This prevents alpha accumulation across multiple layers, ensuring
 /// the final alpha equals window_opacity for proper window transparency.
@@ -349,7 +358,7 @@ pub fn create_visual_bell_pipeline(
 
     let visual_bell_uniform_buffer = device.create_buffer(&BufferDescriptor {
         label: Some("visual bell uniform buffer"),
-        size: 64,
+        size: VISUAL_BELL_UNIFORM_BUFFER_SIZE,
         usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
@@ -468,7 +477,7 @@ pub fn create_instance_buffers(
 pub fn create_bg_image_uniform_buffer(device: &Device) -> Buffer {
     device.create_buffer(&BufferDescriptor {
         label: Some("bg image uniform buffer"),
-        size: 64,
+        size: BG_IMAGE_UNIFORM_BUFFER_SIZE,
         usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     })

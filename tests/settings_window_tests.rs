@@ -403,8 +403,10 @@ fn test_has_changes_multiple_modifications() {
 
 #[test]
 fn test_settings_ui_config_is_cloned_on_creation() {
-    let mut config = Config::default();
-    config.font_size = 20.0;
+    let config = Config {
+        font_size: 20.0,
+        ..Config::default()
+    };
 
     let settings = SettingsUI::new(config.clone());
     assert_eq!(
