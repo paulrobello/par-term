@@ -222,12 +222,22 @@ impl UpdateChecker {
 
 /// Fetch the latest release information from GitHub API
 pub fn fetch_latest_release() -> Result<UpdateInfo, String> {
+    // Validate at call time so any future change to RELEASE_API_URL is caught.
+    crate::http::validate_update_url(RELEASE_API_URL)?;
+
     let mut body = crate::http::agent()
         .get(RELEASE_API_URL)
         .header("User-Agent", "par-term")
         .header("Accept", "application/vnd.github+json")
         .call()
-        .map_err(|e| format!("Failed to fetch release info: {}", e))?
+        .map_err(|e| {
+            format!(
+                "Failed to fetch latest release info from GitHub: {}. \
+                 Check your internet connection. \
+                 You can view the latest release at: https://github.com/{}/releases/latest",
+                e, REPO
+            )
+        })?
         .into_body();
 
     let body_str = body

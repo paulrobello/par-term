@@ -149,12 +149,21 @@ pub fn get_download_urls(api_url: &str) -> Result<DownloadUrls, String> {
     let asset_name = get_asset_name()?;
     let checksum_name = get_checksum_asset_name()?;
 
+    // Validate the API URL before making the request.
+    crate::http::validate_update_url(api_url)?;
+
     let mut body = crate::http::agent()
         .get(api_url)
         .header("User-Agent", "par-term")
         .header("Accept", "application/vnd.github+json")
         .call()
-        .map_err(|e| format!("Failed to fetch release info: {}", e))?
+        .map_err(|e| {
+            format!(
+                "Failed to fetch release info from '{}': {}. \
+                 Check your internet connection and try again.",
+                api_url, e
+            )
+        })?
         .into_body();
 
     let body_str = body
@@ -174,8 +183,23 @@ pub fn get_download_urls(api_url: &str) -> Result<DownloadUrls, String> {
         for asset in assets {
             if let Some(url) = asset.get("browser_download_url").and_then(|u| u.as_str()) {
                 if url.ends_with(&checksum_name) {
+                    // Validate each download URL extracted from the release JSON
+                    // before storing it — a compromised release payload could
+                    // otherwise inject a URL pointing to an attacker-controlled host.
+                    crate::http::validate_update_url(url).map_err(|e| {
+                        format!(
+                            "Checksum asset URL from GitHub release failed validation: {}",
+                            e
+                        )
+                    })?;
                     checksum_url = Some(url.to_string());
                 } else if url.ends_with(asset_name) {
+                    crate::http::validate_update_url(url).map_err(|e| {
+                        format!(
+                            "Binary asset URL from GitHub release failed validation: {}",
+                            e
+                        )
+                    })?;
                     binary_url = Some(url.to_string());
                 }
             }
@@ -188,9 +212,12 @@ pub fn get_download_urls(api_url: &str) -> Result<DownloadUrls, String> {
             checksum_url,
         }),
         None => Err(format!(
-            "Could not find {} in the latest release.\n\
+            "Could not find asset '{}' in the latest GitHub release.\n\
+             This platform ({} {}) may not yet have a prebuilt binary for this release.\n\
              Please download manually from https://github.com/paulrobello/par-term/releases",
-            asset_name
+            asset_name,
+            std::env::consts::OS,
+            std::env::consts::ARCH,
         )),
     }
 }
@@ -324,7 +351,12 @@ pub fn perform_update(new_version: &str, old_version: &str) -> Result<UpdateResu
     let urls = get_download_urls(api_url)?;
 
     // Download the binary/archive
-    let data = crate::http::download_file(&urls.binary_url).map_err(|e| e.to_string())?;
+    let data = crate::http::download_file(&urls.binary_url)?;
+
+    // Sanity-check the content type before verifying the checksum.
+    // This catches obviously wrong responses (e.g., HTML error pages) early,
+    // giving a clearer error message than a checksum mismatch would.
+    crate::http::validate_binary_content(&data)?;
 
     // Verify SHA256 checksum (fails on mismatch, warns if no checksum available)
     verify_download(&data, urls.checksum_url.as_deref())?;

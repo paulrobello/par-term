@@ -3851,6 +3851,7 @@ dependencies = [
  "serde_json",
  "serde_yml",
  "tempfile",
+ "thiserror 2.0.18",
  "toml 1.0.3+spec-1.1.0",
  "uuid",
  "wgpu",
@@ -4044,6 +4045,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "ureq",
+ "url",
  "zip",
 ]
 

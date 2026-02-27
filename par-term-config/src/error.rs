@@ -4,7 +4,7 @@
 //! These are used internally and exposed for library consumers who want to
 //! match on specific failure modes instead of opaque `anyhow` strings.
 
-use thiserror::Error;
+use std::fmt;
 
 /// Errors that can occur when loading or saving configuration.
 ///
@@ -28,23 +28,60 @@ use thiserror::Error;
 ///             ConfigError::Io(io) => eprintln!("I/O error: {io}"),
 ///             ConfigError::Parse(p) => eprintln!("YAML parse error: {p}"),
 ///             ConfigError::Validation(msg) => eprintln!("Validation: {msg}"),
+///             ConfigError::PathTraversal(msg) => eprintln!("Path traversal: {msg}"),
 ///         }
 ///     }
 /// }
 /// ```
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum ConfigError {
     /// An I/O error occurred reading or writing the config file.
-    #[error("I/O error reading config: {0}")]
-    Io(#[from] std::io::Error),
+    Io(std::io::Error),
 
     /// The config file contained invalid YAML that could not be parsed.
-    #[error("YAML parse error in config: {0}")]
-    Parse(#[from] serde_yml::Error),
+    Parse(serde_yml::Error),
 
     /// A field value failed semantic validation.
     ///
     /// The inner string describes which field is invalid and why.
-    #[error("Config validation error: {0}")]
     Validation(String),
+
+    /// A path resolved outside the expected configuration directory,
+    /// indicating a potential directory traversal attempt.
+    ///
+    /// The inner string includes the offending path and the expected base.
+    PathTraversal(String),
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigError::Io(e) => write!(f, "I/O error reading config: {e}"),
+            ConfigError::Parse(e) => write!(f, "YAML parse error in config: {e}"),
+            ConfigError::Validation(msg) => write!(f, "Config validation error: {msg}"),
+            ConfigError::PathTraversal(msg) => write!(f, "Path traversal detected: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for ConfigError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ConfigError::Io(e) => Some(e),
+            ConfigError::Parse(e) => Some(e),
+            ConfigError::Validation(_) | ConfigError::PathTraversal(_) => None,
+        }
+    }
+}
+
+impl From<std::io::Error> for ConfigError {
+    fn from(e: std::io::Error) -> Self {
+        ConfigError::Io(e)
+    }
+}
+
+impl From<serde_yml::Error> for ConfigError {
+    fn from(e: serde_yml::Error) -> Self {
+        ConfigError::Parse(e)
+    }
 }

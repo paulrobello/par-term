@@ -15,6 +15,7 @@ pub mod automation;
 pub mod cell;
 pub mod config;
 pub mod defaults;
+pub mod error;
 pub mod profile;
 pub mod profile_types;
 pub mod scripting;
@@ -27,6 +28,9 @@ pub mod themes;
 mod types;
 #[cfg(feature = "watcher")]
 pub mod watcher;
+
+// Re-export error types
+pub use error::ConfigError;
 
 // Re-export main types for convenience
 pub use cell::Cell;
