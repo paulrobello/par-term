@@ -412,6 +412,82 @@ pub(super) fn reconstruct_markdown_from_cells(cells: &[par_term_config::Cell]) -
     result.trim_end().to_string()
 }
 
+/// Preprocess a Claude Code segment before detection.
+///
+/// 1. **Line-number stripping**: File previews show numbered lines like
+///    `"       1 # Defect Report"`. We strip the prefix so detectors see
+///    `"# Defect Report"` and can match ATX headers / fenced code.
+/// 2. **UI chrome filtering**: Remove tool headers reconstructed as `## Write(`,
+///    tree connectors (`└`, `├`), and other TUI elements that confuse detectors.
+pub(super) fn preprocess_claude_code_segment(lines: &mut Vec<(String, usize)>) {
+    use std::sync::LazyLock;
+
+    /// Matches Claude Code line-number prefixes: leading whitespace + digits + space.
+    /// Examples: "    1 ", "   10 ", "  100 "
+    static LINE_NUMBER_RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"^\s+\d+\s").unwrap());
+
+    /// Captures the line-number prefix for stripping.
+    static LINE_NUMBER_STRIP_RE: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"^(\s+\d+) ").unwrap());
+
+    if lines.is_empty() {
+        return;
+    }
+
+    // Detect line-numbered content: if ≥50% of non-empty lines have a line-number
+    // prefix, this is a file preview. Strip the prefix so detectors see raw content.
+    let non_empty: Vec<&(String, usize)> = lines
+        .iter()
+        .filter(|(l, _)| !l.trim().is_empty())
+        .collect();
+    if !non_empty.is_empty() {
+        let numbered_count = non_empty
+            .iter()
+            .filter(|(l, _)| LINE_NUMBER_RE.is_match(l))
+            .count();
+        if numbered_count * 2 >= non_empty.len() {
+            for (line, _) in lines.iter_mut() {
+                if let Some(m) = LINE_NUMBER_STRIP_RE.find(line) {
+                    *line = line[m.end()..].to_string();
+                }
+            }
+        }
+    }
+
+    // Filter out Claude Code UI chrome lines that would confuse detectors:
+    // - Tool headers reconstructed as ## headers: "## Write(", "## Bash(", "## Read("
+    // - Result indicators with tree connectors: starts with "└"
+    // - "Wrote N lines to..." result summaries
+    lines.retain(|(line, _)| {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            return true; // Keep blank lines (they serve as block separators)
+        }
+        // Skip tool headers that were reconstructed as markdown headers.
+        if trimmed.starts_with("## ") {
+            let after_header = &trimmed[3..];
+            if after_header.starts_with("Write(")
+                || after_header.starts_with("Bash(")
+                || after_header.starts_with("Read(")
+                || after_header.starts_with("Glob(")
+                || after_header.starts_with("Grep(")
+                || after_header.starts_with("Edit(")
+                || after_header.starts_with("Task(")
+                || after_header.starts_with("Wrote ")
+                || after_header.starts_with("Done")
+            {
+                return false;
+            }
+        }
+        // Skip tree-connector result lines.
+        if trimmed.starts_with('└') || trimmed.starts_with('├') {
+            return false;
+        }
+        true
+    });
+}
+
 impl WindowState {
     /// Create a new window state with the given configuration
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {

@@ -2280,9 +2280,22 @@ impl WindowState {
             && !is_alt_screen
             && pipeline.detection_scope()
                 != crate::prettifier::boundary::DetectionScope::CommandOutput
-            && current_generation != tab.cache.prettifier_feed_generation
+            && (current_generation != tab.cache.prettifier_feed_generation
+                || scroll_offset != tab.cache.prettifier_feed_scroll_offset)
         {
+            // Detect whether terminal content actually changed in a meaningful way.
+            // Generation changes on every cursor blink / spinner update, but we only
+            // want to reset prettifier state when the scrollback grows (real new output).
+            let generation_changed =
+                current_generation != tab.cache.prettifier_feed_generation;
+            let scrollback_grew =
+                scrollback_len != tab.cache.prettifier_cc_last_dump_rows.0;
+            let content_changed = generation_changed && scrollback_grew;
+            if content_changed {
+                tab.cache.prettifier_cc_last_dump_rows.0 = scrollback_len;
+            }
             tab.cache.prettifier_feed_generation = current_generation;
+            tab.cache.prettifier_feed_scroll_offset = scroll_offset;
 
             // Heuristic Claude Code session detection from visible output.
             // One-time: scan for signature patterns if not yet detected.
@@ -2321,58 +2334,169 @@ impl WindowState {
 
             let is_claude_session = pipeline.claude_code().is_active();
 
-            // In Claude Code compact mode, collapse markers indicate tool
-            // outputs are hidden. Don't prettify — let Claude Code's own
-            // rendering show (styled responses, collapsed summaries). When
-            // the user presses Ctrl+O (verbose mode), markers disappear and
-            // we prettify the expanded content.
-            let has_collapse_markers = is_claude_session
-                && (0..visible_lines).any(|row_idx| {
+            if is_claude_session {
+                // When real content changes (scrollback grew), clear all blocks.
+                // Claude Code's dynamic output means old blocks at fixed absolute
+                // rows become stale as new output shifts the viewport. Re-detect
+                // fresh from the current viewport.
+                if content_changed {
+                    pipeline.clear_blocks();
+                    crate::debug_log!(
+                        "PRETTIFIER",
+                        "CC content changed (scrollback grew), cleared all blocks"
+                    );
+                }
+
+                // Claude Code session: segment the viewport by action bullets
+                // (⏺) and collapse markers. Each segment is submitted independently
+                // so detection sees focused content blocks rather than the entire
+                // viewport (which mixes UI chrome with markdown and causes false
+                // positives). Deduplication in handle_block prevents duplicates.
+                pipeline.reset_boundary();
+
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "per-frame feed (CC): scanning {} visible lines, content_changed={}, scrollback={}, scroll_offset={}",
+                    visible_lines,
+                    content_changed,
+                    scrollback_len,
+                    scroll_offset
+                );
+
+                // Collect all rows with raw + reconstructed text.
+                let mut rows: Vec<(String, String, usize)> = Vec::new(); // (raw, recon, abs_row)
+
+                for row_idx in 0..visible_lines {
+                    let absolute_row =
+                        scrollback_len.saturating_sub(scroll_offset) + row_idx;
                     let start = row_idx * grid_cols;
                     let end = (start + grid_cols).min(cells.len());
                     if start >= cells.len() {
-                        return false;
+                        break;
                     }
-                    let text: String = cells[start..end]
+
+                    let row_text: String = cells[start..end]
                         .iter()
                         .map(|c| {
                             let g = c.grapheme.as_str();
                             if g.is_empty() || g == "\0" { " " } else { g }
                         })
                         .collect();
-                    // Match Claude Code's specific collapse patterns:
-                    //   "… +N lines (ctrl+o to expand)"
-                    //   "Read N lines (ctrl+o to expand)"
-                    //   "Read N files (ctrl+o to expand)"
-                    //   "+N lines (ctrl+o to expand)"
-                    let is_collapse_line = text.contains("lines (ctrl+o to expand)")
-                        || text.contains("files (ctrl+o to expand)");
-                    if is_collapse_line {
-                        crate::debug_info!(
-                            "PRETTIFIER",
-                            "collapse marker found at row {}",
-                            row_idx
-                        );
-                    }
-                    is_collapse_line
-                });
 
-            if has_collapse_markers {
-                // Compact mode — clear any existing prettified blocks
-                // so cell substitution doesn't overwrite Claude Code's
-                // own rendering.
-                pipeline.clear_blocks();
+                    let line = super::reconstruct_markdown_from_cells(&cells[start..end]);
+                    rows.push((row_text, line, absolute_row));
+                }
+
+                // Split into segments at action bullets (⏺) and collapse markers.
+                // Each segment is the content between two boundaries.
+                let mut segments: Vec<Vec<(String, usize)>> = Vec::new();
+                let mut current: Vec<(String, usize)> = Vec::new();
+
+                for (raw, recon, abs_row) in &rows {
+                    let trimmed = raw.trim();
+                    // Collapse markers — boundary, include the line in the
+                    // preceding segment so row alignment is preserved (skipping
+                    // it would cause the overlay to render wrong content at this row).
+                    if raw.contains("(ctrl+o to expand)") {
+                        current.push((recon.clone(), *abs_row));
+                        segments.push(std::mem::take(&mut current));
+                        continue;
+                    }
+                    // Action bullets (⏺) start a new segment
+                    if trimmed.starts_with('⏺') || trimmed.starts_with("● ") {
+                        if !current.is_empty() {
+                            segments.push(std::mem::take(&mut current));
+                        }
+                        // Include this line in the new segment
+                        current.push((recon.clone(), *abs_row));
+                        continue;
+                    }
+                    // Horizontal rules (─────) are boundaries
+                    if trimmed.len() > 10
+                        && trimmed.chars().all(|c| c == '─' || c == '━')
+                    {
+                        if !current.is_empty() {
+                            segments.push(std::mem::take(&mut current));
+                        }
+                        continue;
+                    }
+                    current.push((recon.clone(), *abs_row));
+                }
+                if !current.is_empty() {
+                    segments.push(current);
+                }
+
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "CC segmentation: {} total rows -> {} segments",
+                    rows.len(),
+                    segments.len()
+                );
+
+                // Submit each segment that has enough content for detection.
+                // Short segments (tool call one-liners) are skipped.
+                // The pipeline's handle_block() deduplicates by content hash,
+                // so resubmitting the same segment on successive frames is cheap.
+                let min_segment_lines = 5;
+                let mut submitted = 0usize;
+                let mut skipped_short = 0usize;
+                let mut skipped_empty = 0usize;
+                for mut segment in segments {
+                    let non_empty = segment
+                        .iter()
+                        .filter(|(l, _)| !l.trim().is_empty())
+                        .count();
+                    if non_empty < min_segment_lines {
+                        skipped_short += 1;
+                        continue;
+                    }
+
+                    let pre_len = segment.len();
+                    super::preprocess_claude_code_segment(&mut segment);
+                    if segment.is_empty() {
+                        skipped_empty += 1;
+                        continue;
+                    }
+
+                    crate::debug_log!(
+                        "PRETTIFIER",
+                        "CC segment: {} lines (was {} before preprocess), rows={}..{}, first={:?}",
+                        segment.len(),
+                        pre_len,
+                        segment.first().map(|(_, r)| *r).unwrap_or(0),
+                        segment.last().map(|(_, r)| *r + 1).unwrap_or(0),
+                        segment.first().map(|(l, _)| &l[..l.floor_char_boundary(60)])
+                    );
+
+                    submitted += 1;
+                    pipeline.submit_command_output(
+                        std::mem::take(&mut segment),
+                        Some("claude".to_string()),
+                    );
+                }
+
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "CC segmentation complete: submitted={}, skipped_short={}, skipped_empty={}",
+                    submitted,
+                    skipped_short,
+                    skipped_empty
+                );
             } else {
-                // Reset the boundary detector so it gets a fresh snapshot of
-                // visible content each time the terminal changes. Without this,
-                // the same rows would accumulate as duplicates across frames.
-                // The debounce timer (100ms) handles emission timing — the block
-                // is emitted once content stabilizes.
+                // Non-Claude session: submit the entire visible content as a
+                // single block. This gives the detector full context (avoids
+                // splitting markdown at blank lines) and reduces block churn.
+                //
+                // Throttle: during streaming, content changes every frame (~16ms).
+                // Recompute a quick hash and skip if content hasn't changed.
+                // If content did change, only re-submit if enough time has elapsed
+                // (150ms) to avoid rendering 60 intermediate states per second.
                 pipeline.reset_boundary();
 
-                // Feed all visible rows from the current frame snapshot.
+                let mut lines: Vec<(String, usize)> = Vec::with_capacity(visible_lines);
                 for row_idx in 0..visible_lines {
-                    let absolute_row = scrollback_len.saturating_sub(scroll_offset) + row_idx;
+                    let absolute_row =
+                        scrollback_len.saturating_sub(scroll_offset) + row_idx;
 
                     let start = row_idx * grid_cols;
                     let end = (start + grid_cols).min(cells.len());
@@ -2380,23 +2504,64 @@ impl WindowState {
                         break;
                     }
 
-                    let line = if is_claude_session {
-                        // Attribute-aware markdown reconstruction for Claude Code sessions.
-                        super::reconstruct_markdown_from_cells(&cells[start..end])
-                    } else {
-                        // Plain text extraction for normal output.
-                        cells[start..end]
-                            .iter()
-                            .map(|c| {
-                                let g = c.grapheme.as_str();
-                                if g.is_empty() || g == "\0" { " " } else { g }
-                            })
-                            .collect::<String>()
-                            .trim_end()
-                            .to_string()
+                    let line: String = cells[start..end]
+                        .iter()
+                        .map(|c| {
+                            let g = c.grapheme.as_str();
+                            if g.is_empty() || g == "\0" { " " } else { g }
+                        })
+                        .collect::<String>()
+                        .trim_end()
+                        .to_string();
+
+                    lines.push((line, absolute_row));
+                }
+
+                if !lines.is_empty() {
+                    // Quick content hash for dedup.
+                    let content_hash = {
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                        for (line, row) in &lines {
+                            line.hash(&mut hasher);
+                            row.hash(&mut hasher);
+                        }
+                        hasher.finish()
                     };
 
-                    pipeline.process_output(&line, absolute_row);
+                    if content_hash == tab.cache.prettifier_feed_last_hash {
+                        // Identical content — skip entirely.
+                        crate::debug_trace!(
+                            "PRETTIFIER",
+                            "per-frame feed (non-CC): content unchanged, skipping"
+                        );
+                    } else {
+                        let elapsed = tab.cache.prettifier_feed_last_time.elapsed();
+                        let throttle = std::time::Duration::from_millis(150);
+                        let has_block = !pipeline.active_blocks().is_empty();
+
+                        if has_block && elapsed < throttle {
+                            // Actively streaming with an existing prettified block.
+                            // Defer re-render to avoid per-frame churn.
+                            crate::debug_trace!(
+                                "PRETTIFIER",
+                                "per-frame feed (non-CC): throttled ({:.0}ms < {}ms), deferring",
+                                elapsed.as_secs_f64() * 1000.0,
+                                throttle.as_millis()
+                            );
+                        } else {
+                            crate::debug_log!(
+                                "PRETTIFIER",
+                                "per-frame feed (non-CC): submitting {} visible lines as single block, scrollback={}, scroll_offset={}",
+                                visible_lines,
+                                scrollback_len,
+                                scroll_offset
+                            );
+                            tab.cache.prettifier_feed_last_hash = content_hash;
+                            tab.cache.prettifier_feed_last_time = std::time::Instant::now();
+                            pipeline.submit_command_output(lines, None);
+                        }
+                    }
                 }
             }
         }
