@@ -65,6 +65,11 @@ pub struct BoundaryDetector {
     in_command_output: bool,
     /// Consecutive blank lines seen (for blank-line heuristic in `All` mode).
     consecutive_blank_lines: usize,
+    /// Whether we are inside a fenced code block (``` or ~~~).
+    /// Suppresses blank-line boundaries to keep markdown content together.
+    in_fenced_block: bool,
+    /// The fence marker character ('`' or '~') for the current fenced block.
+    fence_char: Option<char>,
 }
 
 impl BoundaryDetector {
@@ -78,6 +83,8 @@ impl BoundaryDetector {
             last_output_time: Instant::now(),
             in_command_output: false,
             consecutive_blank_lines: 0,
+            in_fenced_block: false,
+            fence_char: None,
         }
     }
 
@@ -93,13 +100,19 @@ impl BoundaryDetector {
         match self.config.scope {
             DetectionScope::CommandOutput => {
                 if !self.in_command_output {
+                    crate::debug_trace!(
+                        "PRETTIFIER",
+                        "boundary::push_line IGNORED (CommandOutput, not in_cmd) row={}: {:?}",
+                        row,
+                        &line[..line.floor_char_boundary(80)]
+                    );
                     return None;
                 }
                 crate::debug_trace!(
                     "PRETTIFIER",
-                    "push_line (CommandOutput, in_cmd=true) row={}: {:?}",
+                    "boundary::push_line (CommandOutput, in_cmd=true) row={}: {:?}",
                     row,
-                    &line[..line.len().min(60)]
+                    &line[..line.floor_char_boundary(80)]
                 );
             }
             DetectionScope::ManualOnly => {
@@ -109,9 +122,24 @@ impl BoundaryDetector {
                 }
                 self.current_lines.push(line.to_string());
                 self.consecutive_blank_lines = 0;
+                crate::debug_trace!(
+                    "PRETTIFIER",
+                    "boundary::push_line (ManualOnly) row={}, accumulated={}: {:?}",
+                    row,
+                    self.current_lines.len(),
+                    &line[..line.floor_char_boundary(80)]
+                );
                 return None;
             }
-            DetectionScope::All => {}
+            DetectionScope::All => {
+                crate::debug_trace!(
+                    "PRETTIFIER",
+                    "boundary::push_line (All) row={}, accumulated={}: {:?}",
+                    row,
+                    self.current_lines.len(),
+                    &line[..line.floor_char_boundary(80)]
+                );
+            }
         }
 
         self.last_output_time = Instant::now();
@@ -120,10 +148,25 @@ impl BoundaryDetector {
             self.block_start_row = row;
         }
 
+        // Track fenced code blocks (``` or ~~~) to suppress blank-line
+        // boundaries inside them. This keeps markdown content together.
+        self.update_fence_state(line);
+
         // Blank-line heuristic (All scope only).
-        if self.config.scope == DetectionScope::All && line.trim().is_empty() {
+        // Suppressed inside fenced code blocks to avoid splitting markdown.
+        if self.config.scope == DetectionScope::All
+            && line.trim().is_empty()
+            && !self.in_fenced_block
+        {
             self.consecutive_blank_lines += 1;
             if self.consecutive_blank_lines >= self.config.blank_line_threshold {
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "boundary: blank-line boundary triggered at row={} (consecutive_blanks={}, threshold={})",
+                    row,
+                    self.consecutive_blank_lines,
+                    self.config.blank_line_threshold
+                );
                 // Emit the non-blank lines accumulated before this blank run.
                 let block = self.emit_block();
                 // Discard the blank lines — don't add them to the new accumulator.
@@ -134,11 +177,20 @@ impl BoundaryDetector {
             return None;
         }
 
-        self.consecutive_blank_lines = 0;
+        if !self.in_fenced_block {
+            self.consecutive_blank_lines = 0;
+        }
         self.current_lines.push(line.to_string());
 
         // Max-lines boundary.
         if self.current_lines.len() >= self.config.max_scan_lines {
+            crate::debug_log!(
+                "PRETTIFIER",
+                "boundary: max_scan_lines boundary triggered at row={} (lines={}, max={})",
+                row,
+                self.current_lines.len(),
+                self.config.max_scan_lines
+            );
             return self.emit_block();
         }
 
@@ -153,7 +205,7 @@ impl BoundaryDetector {
         crate::debug_info!(
             "PRETTIFIER",
             "on_command_start: {:?}",
-            &command[..command.len().min(80)]
+            &command[..command.floor_char_boundary(80)]
         );
         self.current_command = Some(command.to_string());
         self.in_command_output = true;
@@ -212,6 +264,13 @@ impl BoundaryDetector {
         }
         let elapsed = self.last_output_time.elapsed().as_millis() as u64;
         if elapsed >= self.config.debounce_ms {
+            crate::debug_log!(
+                "PRETTIFIER",
+                "boundary: debounce fired after {}ms (threshold={}ms), pending_lines={}",
+                elapsed,
+                self.config.debounce_ms,
+                self.current_lines.len()
+            );
             return self.emit_block();
         }
         None
@@ -236,6 +295,65 @@ impl BoundaryDetector {
         self.block_start_row = 0;
         self.in_command_output = false;
         self.consecutive_blank_lines = 0;
+        self.in_fenced_block = false;
+        self.fence_char = None;
+    }
+
+    /// Track fenced code block boundaries (``` or ~~~).
+    ///
+    /// An opening fence is ``` or ~~~ (3+ chars) optionally followed by a
+    /// language tag. A closing fence is the same character (3+ chars) with
+    /// no trailing content except whitespace.
+    fn update_fence_state(&mut self, line: &str) {
+        let trimmed = line.trim();
+
+        if self.in_fenced_block {
+            // Look for a closing fence: same character, 3+ repetitions, no other content.
+            if let Some(ch) = self.fence_char {
+                let fence_len = trimmed.len() - trimmed.trim_start_matches(ch).len();
+                if fence_len >= 3 && trimmed[fence_len..].trim().is_empty() {
+                    crate::debug_trace!(
+                        "PRETTIFIER",
+                        "boundary: closing fence detected ('{}'x{})",
+                        ch,
+                        fence_len
+                    );
+                    self.in_fenced_block = false;
+                    self.fence_char = None;
+                }
+            }
+        } else {
+            // Look for an opening fence: ``` or ~~~ (3+ chars) with optional language tag.
+            let ch = if trimmed.starts_with("```") {
+                Some('`')
+            } else if trimmed.starts_with("~~~") {
+                Some('~')
+            } else {
+                None
+            };
+
+            if let Some(ch) = ch {
+                let fence_len = trimmed.len() - trimmed.trim_start_matches(ch).len();
+                let rest = trimmed[fence_len..].trim();
+                // Opening fence: rest must be empty or a valid language tag
+                // (alphanumeric, hyphens, underscores, plus signs).
+                if rest.is_empty()
+                    || rest
+                        .chars()
+                        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '+')
+                {
+                    crate::debug_trace!(
+                        "PRETTIFIER",
+                        "boundary: opening fence detected ('{}'x{}, lang={:?})",
+                        ch,
+                        fence_len,
+                        if rest.is_empty() { None } else { Some(rest) }
+                    );
+                    self.in_fenced_block = true;
+                    self.fence_char = Some(ch);
+                }
+            }
+        }
     }
 
     /// Whether there are accumulated lines waiting to be emitted.
@@ -253,9 +371,11 @@ impl BoundaryDetector {
     /// Trims trailing blank lines. Returns `None` if no non-blank content remains.
     fn emit_block(&mut self) -> Option<ContentBlock> {
         if self.current_lines.is_empty() {
+            crate::debug_trace!("PRETTIFIER", "boundary::emit_block: no lines accumulated, returning None");
             return None;
         }
 
+        let original_count = self.current_lines.len();
         let mut lines = std::mem::take(&mut self.current_lines);
         let command = self.current_command.take();
         let start_row = self.block_start_row;
@@ -267,11 +387,27 @@ impl BoundaryDetector {
 
         if lines.is_empty() {
             // All content was blank — nothing to emit.
+            crate::debug_log!(
+                "PRETTIFIER",
+                "boundary::emit_block: all {} lines were blank, returning None",
+                original_count
+            );
             self.consecutive_blank_lines = 0;
             return None;
         }
 
         let end_row = start_row + lines.len();
+
+        crate::debug_info!(
+            "PRETTIFIER",
+            "boundary::emit_block: emitting {} lines (trimmed from {}), rows={}..{}, cmd={:?}, first={:?}",
+            lines.len(),
+            original_count,
+            start_row,
+            end_row,
+            command.as_deref().map(|c| &c[..c.floor_char_boundary(40)]),
+            lines.first().map(|l| &l[..l.floor_char_boundary(80)])
+        );
 
         self.block_start_row = 0;
         self.consecutive_blank_lines = 0;
@@ -610,5 +746,102 @@ mod tests {
 
         // All content is blank — flush should return None.
         assert!(det.flush().is_none());
+    }
+
+    // -----------------------------------------------------------------------
+    // Fence-aware boundary tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_fence_suppresses_blank_line_boundary() {
+        let mut det = BoundaryDetector::new(BoundaryConfig {
+            blank_line_threshold: 2,
+            ..all_scope_config()
+        });
+
+        assert!(det.push_line("# Header", 0).is_none());
+        assert!(det.push_line("```rust", 1).is_none());
+        assert!(det.push_line("fn main() {}", 2).is_none());
+        // Two blank lines inside a fenced block should NOT trigger boundary.
+        assert!(det.push_line("", 3).is_none());
+        assert!(det.push_line("", 4).is_none());
+        assert!(det.push_line("let x = 1;", 5).is_none());
+        assert!(det.push_line("```", 6).is_none());
+
+        // All lines should still be accumulated (no boundary triggered).
+        assert_eq!(det.pending_line_count(), 7);
+        let block = det.flush().unwrap();
+        assert_eq!(block.lines.len(), 7);
+        assert_eq!(block.lines[0], "# Header");
+        assert_eq!(block.lines[6], "```");
+    }
+
+    #[test]
+    fn test_fence_boundary_after_close() {
+        let mut det = BoundaryDetector::new(BoundaryConfig {
+            blank_line_threshold: 2,
+            ..all_scope_config()
+        });
+
+        assert!(det.push_line("```python", 0).is_none());
+        assert!(det.push_line("print('hi')", 1).is_none());
+        assert!(det.push_line("```", 2).is_none());
+        // After closing fence, blank lines SHOULD trigger boundary again.
+        assert!(det.push_line("", 3).is_none());
+        let block = det.push_line("", 4);
+        assert!(block.is_some());
+        let block = block.unwrap();
+        assert_eq!(block.lines.len(), 3);
+        assert_eq!(block.lines[0], "```python");
+    }
+
+    #[test]
+    fn test_tilde_fence_suppresses_blank_line_boundary() {
+        let mut det = BoundaryDetector::new(BoundaryConfig {
+            blank_line_threshold: 2,
+            ..all_scope_config()
+        });
+
+        assert!(det.push_line("~~~yaml", 0).is_none());
+        assert!(det.push_line("key: value", 1).is_none());
+        assert!(det.push_line("", 2).is_none());
+        assert!(det.push_line("", 3).is_none());
+        assert!(det.push_line("other: data", 4).is_none());
+        assert!(det.push_line("~~~", 5).is_none());
+
+        // All lines accumulated — fence suppressed blank-line boundary.
+        assert_eq!(det.pending_line_count(), 6);
+    }
+
+    #[test]
+    fn test_reset_clears_fence_state() {
+        let mut det = BoundaryDetector::new(all_scope_config());
+
+        det.push_line("```rust", 0);
+        assert!(det.flush().is_some());
+        // After reset, fence state should be cleared.
+        det.reset();
+        // Now blank lines should trigger boundaries normally.
+        det.push_line("text", 0);
+        det.push_line("", 1);
+        let block = det.push_line("", 2);
+        assert!(block.is_some());
+    }
+
+    #[test]
+    fn test_fence_with_language_tag_spaces() {
+        // Language tags with non-alphanumeric chars should not start a fence.
+        let mut det = BoundaryDetector::new(BoundaryConfig {
+            blank_line_threshold: 2,
+            ..all_scope_config()
+        });
+
+        // "``` not a real fence" has spaces, so should NOT be treated as a fence.
+        assert!(det.push_line("``` not a real fence", 0).is_none());
+        assert!(det.push_line("content", 1).is_none());
+        // Blank lines should still trigger boundary (not in a fence).
+        assert!(det.push_line("", 2).is_none());
+        let block = det.push_line("", 3);
+        assert!(block.is_some());
     }
 }

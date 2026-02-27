@@ -47,10 +47,27 @@ impl RenderCache {
         if self.entries.contains_key(&key) {
             self.hit_count += 1;
             self.touch(&key);
+            crate::debug_log!(
+                "PRETTIFIER",
+                "cache::get HIT hash={:#x} width={} (hits={}, misses={})",
+                content_hash,
+                terminal_width,
+                self.hit_count,
+                self.miss_count
+            );
             // Re-borrow after touch to satisfy borrow checker.
             self.entries.get(&key).map(|e| &e.rendered)
         } else {
             self.miss_count += 1;
+            crate::debug_log!(
+                "PRETTIFIER",
+                "cache::get MISS hash={:#x} width={} (hits={}, misses={}, entries={})",
+                content_hash,
+                terminal_width,
+                self.hit_count,
+                self.miss_count,
+                self.entries.len()
+            );
             None
         }
     }
@@ -65,6 +82,15 @@ impl RenderCache {
     ) {
         let key = (content_hash, terminal_width);
 
+        crate::debug_log!(
+            "PRETTIFIER",
+            "cache::put hash={:#x} width={} format={} rendered_lines={}",
+            content_hash,
+            terminal_width,
+            format_id,
+            rendered.lines.len()
+        );
+
         if self.entries.contains_key(&key) {
             // Update existing entry.
             self.entries.insert(
@@ -78,6 +104,12 @@ impl RenderCache {
         } else {
             // Evict if full.
             if self.entries.len() >= self.max_entries {
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "cache::put evicting LRU (entries={}, max={})",
+                    self.entries.len(),
+                    self.max_entries
+                );
                 self.evict_lru();
             }
             self.entries.insert(

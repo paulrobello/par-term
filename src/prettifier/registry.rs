@@ -34,9 +34,11 @@ impl RendererRegistry {
 
     /// Register a detector at the given priority (higher = checked first).
     ///
-    /// Maintains descending sort by priority.
+    /// Maintains descending sort by priority. Within the same priority,
+    /// detectors are checked in registration order (FIFO): earlier-registered
+    /// detectors are checked first and win on equal confidence.
     pub fn register_detector(&mut self, priority: i32, detector: Box<dyn ContentDetector>) {
-        let idx = self.detectors.partition_point(|(p, _)| *p > priority);
+        let idx = self.detectors.partition_point(|(p, _)| *p >= priority);
         self.detectors.insert(idx, (priority, detector));
     }
 
@@ -72,15 +74,41 @@ impl RendererRegistry {
     ///    and we only replace on strictly greater confidence).
     /// 4. Return the best result if its confidence meets the threshold, else `None`.
     pub fn detect(&self, content: &ContentBlock) -> Option<DetectionResult> {
-        let first_lines = content.first_lines(5);
+        // Sample more lines for quick_match: 5 was too few for content that
+        // has preamble (e.g. Claude Code UI) before the structured data.
+        let first_lines = content.first_lines(30);
         let mut best: Option<DetectionResult> = None;
 
-        for (_priority, detector) in &self.detectors {
+        crate::debug_log!(
+            "PRETTIFIER",
+            "registry::detect: running {} detectors against {} lines (rows={}..{}), first_line={:?}",
+            self.detectors.len(),
+            content.lines.len(),
+            content.start_row,
+            content.end_row,
+            content.lines.first().map(|l| &l[..l.floor_char_boundary(60)])
+        );
+
+        for (priority, detector) in &self.detectors {
             if !detector.quick_match(&first_lines) {
+                crate::debug_trace!(
+                    "PRETTIFIER",
+                    "registry::detect: {} (priority={}) quick_match=false, skipping",
+                    detector.format_id(),
+                    priority
+                );
                 continue;
             }
 
             if let Some(result) = detector.detect(content) {
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "registry::detect: {} (priority={}) detected confidence={:.3}, rules={:?}",
+                    detector.format_id(),
+                    priority,
+                    result.confidence,
+                    &result.matched_rules[..result.matched_rules.len().min(5)]
+                );
                 let dominated = match &best {
                     Some(current) => result.confidence > current.confidence,
                     None => true,
@@ -88,10 +116,36 @@ impl RendererRegistry {
                 if dominated {
                     best = Some(result);
                 }
+            } else {
+                crate::debug_trace!(
+                    "PRETTIFIER",
+                    "registry::detect: {} (priority={}) quick_match=true but detect()=None",
+                    detector.format_id(),
+                    priority
+                );
             }
         }
 
-        best.filter(|r| r.confidence >= self.confidence_threshold)
+        let result = best.filter(|r| r.confidence >= self.confidence_threshold);
+        match &result {
+            Some(r) => {
+                crate::debug_info!(
+                    "PRETTIFIER",
+                    "registry::detect: WINNER format={}, confidence={:.3} (threshold={:.3})",
+                    r.format_id,
+                    r.confidence,
+                    self.confidence_threshold
+                );
+            }
+            None => {
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "registry::detect: no format met threshold {:.3}",
+                    self.confidence_threshold
+                );
+            }
+        }
+        result
     }
 
     /// Set the global confidence threshold.

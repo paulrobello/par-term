@@ -157,9 +157,22 @@ impl PrettifierPipeline {
     /// and rendering.
     pub fn process_output(&mut self, line: &str, row: usize) {
         if !self.is_enabled() {
+            crate::debug_trace!(
+                "PRETTIFIER",
+                "pipeline::process_output SKIPPED (disabled) row={}: {:?}",
+                row,
+                &line[..line.floor_char_boundary(60)]
+            );
             return;
         }
         if let Some(block) = self.boundary_detector.push_line(line, row) {
+            crate::debug_info!(
+                "PRETTIFIER",
+                "pipeline::process_output: boundary emitted block, {} lines, rows={}..{}",
+                block.lines.len(),
+                block.start_row,
+                block.end_row
+            );
             self.handle_block(block);
         }
     }
@@ -184,11 +197,27 @@ impl PrettifierPipeline {
     pub fn submit_command_output(&mut self, lines: Vec<(String, usize)>, command: Option<String>) {
         self.boundary_detector.reset();
         if lines.is_empty() {
+            crate::debug_log!(
+                "PRETTIFIER",
+                "pipeline::submit_command_output: empty lines, skipping"
+            );
             return;
         }
 
         let start_row = lines.first().expect("lines is non-empty, checked above").1;
         let end_row = lines.last().expect("lines is non-empty, checked above").1 + 1;
+
+        crate::debug_info!(
+            "PRETTIFIER",
+            "pipeline::submit_command_output: {} lines, rows={}..{}, cmd={:?}, first={:?}, last={:?}",
+            lines.len(),
+            start_row,
+            end_row,
+            command.as_deref().map(|c| &c[..c.floor_char_boundary(40)]),
+            lines.first().map(|(l, _)| &l[..l.floor_char_boundary(60)]),
+            lines.last().map(|(l, _)| &l[..l.floor_char_boundary(60)])
+        );
+
         let text_lines: Vec<String> = lines.into_iter().map(|(text, _)| text).collect();
 
         let block = ContentBlock {
@@ -241,6 +270,15 @@ impl PrettifierPipeline {
     ///
     /// Creates a `PrettifiedBlock` with confidence 1.0 and `TriggerInvoked` source.
     pub fn trigger_prettify(&mut self, format_id: &str, content: ContentBlock) {
+        crate::debug_info!(
+            "PRETTIFIER",
+            "pipeline::trigger_prettify: format={}, {} lines, rows={}..{}",
+            format_id,
+            content.lines.len(),
+            content.start_row,
+            content.end_row
+        );
+
         let detection = DetectionResult {
             format_id: format_id.to_string(),
             confidence: 1.0,
@@ -255,6 +293,13 @@ impl PrettifierPipeline {
 
         let block_id = self.next_block_id;
         self.next_block_id += 1;
+
+        crate::debug_info!(
+            "PRETTIFIER",
+            "pipeline::trigger_prettify: stored block_id={}, has_rendered={}",
+            block_id,
+            buffer.rendered().is_some()
+        );
 
         self.active_blocks.push_back(PrettifiedBlock {
             buffer,
@@ -419,6 +464,16 @@ impl PrettifierPipeline {
         self.renderer_config = config;
     }
 
+    /// Update cell dimensions from the GPU renderer.
+    ///
+    /// Called after the renderer is initialized (or on font change) so that
+    /// inline graphics (e.g., Mermaid diagrams) are sized with the actual
+    /// cell metrics instead of the fallback estimate.
+    pub fn update_cell_dims(&mut self, width: f32, height: f32) {
+        self.renderer_config.cell_width_px = Some(width);
+        self.renderer_config.cell_height_px = Some(height);
+    }
+
     /// Re-render all blocks that need it (e.g., after a terminal width change).
     pub fn re_render_if_needed(&mut self) {
         let terminal_width = self.renderer_config.terminal_width;
@@ -457,22 +512,103 @@ impl PrettifierPipeline {
         // Skip auto-detection if this block's row range is suppressed.
         let row_range = content.start_row..content.end_row;
         if self.is_suppressed(&row_range) {
+            crate::debug_log!(
+                "PRETTIFIER",
+                "pipeline::handle_block: SUPPRESSED rows={}..{}, skipping",
+                row_range.start,
+                row_range.end
+            );
             return;
         }
 
-        if let Some(detection) = self.registry.detect(&content) {
+        crate::debug_info!(
+            "PRETTIFIER",
+            "pipeline::handle_block: processing {} lines, rows={}..{}, active_blocks={}",
+            content.lines.len(),
+            content.start_row,
+            content.end_row,
+            self.active_blocks.len()
+        );
+
+        // Log first few lines of content for debugging
+        for (i, line) in content.lines.iter().take(5).enumerate() {
+            crate::debug_log!(
+                "PRETTIFIER",
+                "pipeline::handle_block: content[{}]={:?}",
+                i,
+                &line[..line.floor_char_boundary(100)]
+            );
+        }
+        if content.lines.len() > 5 {
+            crate::debug_log!(
+                "PRETTIFIER",
+                "pipeline::handle_block: ... ({} more lines)",
+                content.lines.len() - 5
+            );
+        }
+
+        let detection_result = self.registry.detect(&content);
+        if detection_result.is_none() {
+            // Remove stale blocks: if an existing block overlaps this range
+            // but the content has changed (e.g., approval prompt replaced markdown),
+            // the old block must be removed so it doesn't cover the new content.
+            let content_hash = {
+                use std::hash::{Hash, Hasher};
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                content.lines.hash(&mut hasher);
+                hasher.finish()
+            };
+            let stale_idx = self.active_blocks.iter().position(|b| {
+                let c = b.content();
+                c.start_row < row_range.end
+                    && c.end_row > row_range.start
+                    && b.buffer.content_hash() != content_hash
+            });
+            if let Some(idx) = stale_idx {
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "removing stale block rows={}..{} (content changed)",
+                    self.active_blocks[idx].content().start_row,
+                    self.active_blocks[idx].content().end_row
+                );
+                self.active_blocks.remove(idx);
+            }
+        }
+        if let Some(detection) = detection_result {
+            let format_id = detection.format_id.clone();
+            let mut buffer = DualViewBuffer::new(content);
+            let content_hash = buffer.content_hash();
+            let terminal_width = self.renderer_config.terminal_width;
+
+            // Deduplicate: if an existing block covers overlapping rows,
+            // skip if content is identical, or replace if content changed.
+            // This prevents the per-frame viewport feed from creating
+            // thousands of duplicate blocks for the same visible content.
+            let overlapping_idx = self.active_blocks.iter().position(|b| {
+                let c = b.content();
+                c.start_row < row_range.end && c.end_row > row_range.start
+            });
+            if let Some(idx) = overlapping_idx {
+                if self.active_blocks[idx].buffer.content_hash() == content_hash {
+                    // Same content, same rows — skip duplicate.
+                    return;
+                }
+
+                // Content changed — remove the old block so we can replace it.
+                // The render_pipeline's content-hash dedup + throttle prevents
+                // per-frame churn, so we can always allow replacement here.
+                self.active_blocks.remove(idx);
+            }
+
             crate::debug_info!(
                 "PRETTIFIER",
                 "block detected: format={}, confidence={:.2}, rows={}..{}, lines={}",
                 detection.format_id,
                 detection.confidence,
-                content.start_row,
-                content.end_row,
-                content.lines.len()
+                row_range.start,
+                row_range.end,
+                buffer.source().lines.len()
             );
-            let format_id = detection.format_id.clone();
-            let mut buffer = DualViewBuffer::new(content);
-            let terminal_width = self.renderer_config.terminal_width;
 
             self.render_into_buffer(&mut buffer, &format_id, terminal_width);
 
@@ -524,19 +660,74 @@ impl PrettifierPipeline {
     ) {
         let content_hash = buffer.content_hash();
 
+        crate::debug_log!(
+            "PRETTIFIER",
+            "pipeline::render_into_buffer: format={}, hash={:#x}, width={}, source_lines={}",
+            format_id,
+            content_hash,
+            terminal_width,
+            buffer.source().lines.len()
+        );
+
         // Check cache first.
         if let Some(cached) = self.render_cache.get(content_hash, terminal_width) {
+            crate::debug_info!(
+                "PRETTIFIER",
+                "pipeline::render_into_buffer: CACHE HIT, {} rendered lines",
+                cached.lines.len()
+            );
             buffer.set_rendered(cached.clone(), terminal_width);
             return;
         }
 
         // Render and cache.
-        if let Some(renderer) = self.registry.get_renderer(format_id)
-            && let Ok(rendered) = renderer.render(buffer.source(), &self.renderer_config)
-        {
-            self.render_cache
-                .put(content_hash, terminal_width, format_id, rendered.clone());
-            buffer.set_rendered(rendered, terminal_width);
+        if let Some(renderer) = self.registry.get_renderer(format_id) {
+            match renderer.render(buffer.source(), &self.renderer_config) {
+                Ok(rendered) => {
+                    crate::debug_info!(
+                        "PRETTIFIER",
+                        "pipeline::render_into_buffer: RENDERED {} lines -> {} styled lines, badge={:?}",
+                        buffer.source().lines.len(),
+                        rendered.lines.len(),
+                        rendered.format_badge
+                    );
+                    // Log first few rendered lines
+                    for (i, line) in rendered.lines.iter().take(3).enumerate() {
+                        let text: String = line.segments.iter().map(|s| s.text.as_str()).collect();
+                        crate::debug_log!(
+                            "PRETTIFIER",
+                            "pipeline::render_into_buffer: output[{}]={:?} (segs={})",
+                            i,
+                            &text[..text.floor_char_boundary(100)],
+                            line.segments.len()
+                        );
+                    }
+                    if rendered.lines.len() > 3 {
+                        crate::debug_log!(
+                            "PRETTIFIER",
+                            "pipeline::render_into_buffer: ... ({} more rendered lines)",
+                            rendered.lines.len() - 3
+                        );
+                    }
+                    self.render_cache
+                        .put(content_hash, terminal_width, format_id, rendered.clone());
+                    buffer.set_rendered(rendered, terminal_width);
+                }
+                Err(e) => {
+                    crate::debug_error!(
+                        "PRETTIFIER",
+                        "pipeline::render_into_buffer: RENDER FAILED format={}: {:?}",
+                        format_id,
+                        e
+                    );
+                }
+            }
+        } else {
+            crate::debug_error!(
+                "PRETTIFIER",
+                "pipeline::render_into_buffer: NO RENDERER found for format={}",
+                format_id
+            );
         }
     }
 }
@@ -1017,6 +1208,65 @@ mod tests {
             block.content().preceding_command.as_deref(),
             Some("echo test")
         );
+    }
+
+    #[test]
+    fn test_overlapping_block_replaces_existing() {
+        let mut pipeline = test_pipeline();
+
+        // Simulate a full command-output block covering rows 0..100.
+        let full_lines: Vec<String> = (0..100).map(|i| format!("line {i}")).collect();
+        let full_block = ContentBlock {
+            lines: full_lines,
+            preceding_command: Some("test cmd".to_string()),
+            start_row: 0,
+            end_row: 100,
+            timestamp: SystemTime::now(),
+        };
+        pipeline.trigger_prettify("test", full_block);
+        assert_eq!(pipeline.active_blocks().len(), 1);
+        assert_eq!(pipeline.active_blocks()[0].content().end_row, 100);
+
+        // A viewport-sized per-frame feed with different content
+        // replaces the existing block (throttle + hash dedup in
+        // the render_pipeline prevent churn).
+        let viewport_lines: Vec<(String, usize)> = (80..100)
+            .map(|i| (format!("line {i} updated"), i))
+            .collect();
+        pipeline.submit_command_output(viewport_lines, None);
+
+        // The old block is replaced by the smaller viewport block.
+        assert_eq!(pipeline.active_blocks().len(), 1);
+        assert_eq!(pipeline.active_blocks()[0].content().start_row, 80);
+        assert_eq!(pipeline.active_blocks()[0].content().end_row, 100);
+    }
+
+    #[test]
+    fn test_similar_sized_block_can_replace() {
+        let mut pipeline = test_pipeline();
+
+        // Create a block covering rows 0..25.
+        let lines: Vec<String> = (0..25).map(|i| format!("line {i}")).collect();
+        let block1 = ContentBlock {
+            lines,
+            preceding_command: None,
+            start_row: 0,
+            end_row: 25,
+            timestamp: SystemTime::now(),
+        };
+        pipeline.trigger_prettify("test", block1);
+        assert_eq!(pipeline.active_blocks().len(), 1);
+
+        // Submit a similarly-sized block with different content.
+        // It should replace the original (both are ~viewport-sized).
+        let new_lines: Vec<(String, usize)> = (0..24)
+            .map(|i| (format!("updated line {i}"), i))
+            .collect();
+        pipeline.submit_command_output(new_lines, None);
+
+        // The old block should be replaced.
+        assert_eq!(pipeline.active_blocks().len(), 1);
+        assert_eq!(pipeline.active_blocks()[0].content().end_row, 24);
     }
 
     #[test]

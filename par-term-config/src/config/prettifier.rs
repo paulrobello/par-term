@@ -41,6 +41,10 @@ fn default_priority() -> i32 {
     50
 }
 
+fn default_diagrams_priority() -> i32 {
+    55
+}
+
 fn default_cache_max_entries() -> usize {
     64
 }
@@ -239,7 +243,7 @@ pub struct DiagramRendererConfig {
     #[serde(default = "default_true")]
     pub enabled: bool,
 
-    #[serde(default = "default_priority")]
+    #[serde(default = "default_diagrams_priority")]
     pub priority: i32,
 
     /// Rendering engine: "auto" (default — tries native → local → kroki),
@@ -257,7 +261,7 @@ impl Default for DiagramRendererConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            priority: default_priority(),
+            priority: default_diagrams_priority(),
             engine: None,
             kroki_server: None,
         }

@@ -115,6 +115,21 @@ impl DualViewBuffer {
         })
     }
 
+    /// Map a source line offset to the first corresponding rendered line index.
+    ///
+    /// Used by cell substitution: given a source line index within a block,
+    /// returns the rendered line index to display. This accounts for the
+    /// rendered output having fewer or more lines than the source (e.g.,
+    /// code fence close lines are consumed without producing rendered lines).
+    pub fn rendered_line_for_source(&self, source_idx: usize) -> Option<usize> {
+        self.rendered.as_ref().and_then(|r| {
+            r.line_mapping
+                .iter()
+                .find(|m| m.source_line == Some(source_idx))
+                .map(|m| m.rendered_line)
+        })
+    }
+
     /// Map a source line number to rendered line number(s).
     pub fn source_to_rendered_lines(&self, source_line: usize) -> Vec<usize> {
         match &self.rendered {
