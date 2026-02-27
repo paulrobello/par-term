@@ -1,6 +1,7 @@
 use crate::cell_renderer::Cell;
 use crate::selection::Selection;
 use std::sync::Arc;
+use std::time::Instant;
 
 /// State related to render caching and dirty tracking
 pub struct RenderCache {
@@ -17,6 +18,8 @@ pub struct RenderCache {
     pub prettifier_command_text: Option<String>, // Command text for ContentBlock
     pub prettifier_cc_dump_count: u32, // How many CC viewport dumps we've done (cap at ~5)
     pub prettifier_cc_last_dump_rows: (usize, usize), // Last dumped (start, end) range
+    pub prettifier_feed_last_time: Instant, // Throttle: last time we fed the non-CC pipeline
+    pub prettifier_feed_last_hash: u64, // Throttle: content hash of last feed (skip if unchanged)
 }
 
 impl RenderCache {
@@ -35,6 +38,8 @@ impl RenderCache {
             prettifier_command_text: None,
             prettifier_cc_dump_count: 0,
             prettifier_cc_last_dump_rows: (0, 0),
+            prettifier_feed_last_time: Instant::now(),
+            prettifier_feed_last_hash: 0,
         }
     }
 }

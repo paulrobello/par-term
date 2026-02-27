@@ -2946,6 +2946,15 @@ impl WindowState {
                 // positives). Deduplication in handle_block prevents duplicates.
                 pipeline.reset_boundary();
 
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "per-frame feed (CC): scanning {} visible lines, content_changed={}, scrollback={}, scroll_offset={}",
+                    visible_lines,
+                    content_changed,
+                    scrollback_len,
+                    scroll_offset
+                );
+
                 // Collect all rows with raw + reconstructed text.
                 let mut rows: Vec<(String, String, usize)> = Vec::new(); // (raw, recon, abs_row)
 
@@ -3009,43 +3018,85 @@ impl WindowState {
                     segments.push(current);
                 }
 
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "CC segmentation: {} total rows -> {} segments",
+                    rows.len(),
+                    segments.len()
+                );
+
                 // Submit each segment that has enough content for detection.
                 // Short segments (tool call one-liners) are skipped.
                 // The pipeline's handle_block() deduplicates by content hash,
                 // so resubmitting the same segment on successive frames is cheap.
                 let min_segment_lines = 5;
+                let mut submitted = 0usize;
+                let mut skipped_short = 0usize;
+                let mut skipped_empty = 0usize;
                 for mut segment in segments {
                     let non_empty = segment
                         .iter()
                         .filter(|(l, _)| !l.trim().is_empty())
                         .count();
                     if non_empty < min_segment_lines {
+                        skipped_short += 1;
+                        crate::debug_trace!(
+                            "PRETTIFIER",
+                            "CC segment skipped (too short): {} non-empty lines < {}",
+                            non_empty,
+                            min_segment_lines
+                        );
                         continue;
                     }
 
+                    let pre_len = segment.len();
                     preprocess_claude_code_segment(&mut segment);
                     if segment.is_empty() {
+                        skipped_empty += 1;
+                        crate::debug_trace!(
+                            "PRETTIFIER",
+                            "CC segment skipped (empty after preprocess, was {} lines)",
+                            pre_len
+                        );
                         continue;
                     }
 
                     crate::debug_log!(
                         "PRETTIFIER",
-                        "CC segment: {} lines, rows={}..{}",
+                        "CC segment: {} lines (was {} before preprocess), rows={}..{}, first={:?}",
                         segment.len(),
+                        pre_len,
                         segment.first().map(|(_, r)| *r).unwrap_or(0),
-                        segment.last().map(|(_, r)| *r + 1).unwrap_or(0)
+                        segment.last().map(|(_, r)| *r + 1).unwrap_or(0),
+                        segment.first().map(|(l, _)| &l[..l.len().min(60)])
                     );
 
+                    submitted += 1;
                     pipeline.submit_command_output(
                         std::mem::take(&mut segment),
                         Some("claude".to_string()),
                     );
                 }
+
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "CC segmentation complete: submitted={}, skipped_short={}, skipped_empty={}",
+                    submitted,
+                    skipped_short,
+                    skipped_empty
+                );
             } else {
-                // Non-Claude session: use boundary detector with blank-line
-                // heuristic and debounce for normal terminal output.
+                // Non-Claude session: submit the entire visible content as a
+                // single block. This gives the detector full context (avoids
+                // splitting markdown at blank lines) and reduces block churn.
+                //
+                // Throttle: during streaming, content changes every frame (~16ms).
+                // Recompute a quick hash and skip if content hasn't changed.
+                // If content did change, only re-submit if enough time has elapsed
+                // (150ms) to avoid rendering 60 intermediate states per second.
                 pipeline.reset_boundary();
 
+                let mut lines: Vec<(String, usize)> = Vec::with_capacity(visible_lines);
                 for row_idx in 0..visible_lines {
                     let absolute_row =
                         scrollback_len.saturating_sub(scroll_offset) + row_idx;
@@ -3066,7 +3117,54 @@ impl WindowState {
                         .trim_end()
                         .to_string();
 
-                    pipeline.process_output(&line, absolute_row);
+                    lines.push((line, absolute_row));
+                }
+
+                if !lines.is_empty() {
+                    // Quick content hash for dedup.
+                    let content_hash = {
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                        for (line, row) in &lines {
+                            line.hash(&mut hasher);
+                            row.hash(&mut hasher);
+                        }
+                        hasher.finish()
+                    };
+
+                    if content_hash == tab.cache.prettifier_feed_last_hash {
+                        // Identical content — skip entirely.
+                        crate::debug_trace!(
+                            "PRETTIFIER",
+                            "per-frame feed (non-CC): content unchanged, skipping"
+                        );
+                    } else {
+                        let elapsed = tab.cache.prettifier_feed_last_time.elapsed();
+                        let throttle = std::time::Duration::from_millis(150);
+                        let has_block = !pipeline.active_blocks().is_empty();
+
+                        if has_block && elapsed < throttle {
+                            // Actively streaming with an existing prettified block.
+                            // Defer re-render to avoid per-frame churn.
+                            crate::debug_trace!(
+                                "PRETTIFIER",
+                                "per-frame feed (non-CC): throttled ({:.0}ms < {}ms), deferring",
+                                elapsed.as_secs_f64() * 1000.0,
+                                throttle.as_millis()
+                            );
+                        } else {
+                            crate::debug_log!(
+                                "PRETTIFIER",
+                                "per-frame feed (non-CC): submitting {} visible lines as single block, scrollback={}, scroll_offset={}",
+                                visible_lines,
+                                scrollback_len,
+                                scroll_offset
+                            );
+                            tab.cache.prettifier_feed_last_hash = content_hash;
+                            tab.cache.prettifier_feed_last_time = std::time::Instant::now();
+                            pipeline.submit_command_output(lines, None);
+                        }
+                    }
                 }
             }
         }
@@ -3315,15 +3413,47 @@ impl WindowState {
             let scroll_off = tab.scroll_state.offset;
             let gutter_w = tab.gutter_manager.gutter_width;
 
+            crate::debug_log!(
+                "PRETTIFIER",
+                "cell_substitution: starting, active_blocks={}, scroll_off={}, scrollback_len={}, visible_lines={}, grid_cols={}",
+                pipeline.active_blocks().len(),
+                scroll_off,
+                scrollback_len,
+                visible_lines,
+                grid_cols
+            );
+
+            // Log all active block ranges for context
+            for block in pipeline.active_blocks() {
+                crate::debug_trace!(
+                    "PRETTIFIER",
+                    "cell_substitution: active block_id={}, rows={}..{}, format={}, has_rendered={}, display_lines={}",
+                    block.block_id,
+                    block.content().start_row,
+                    block.content().end_row,
+                    block.detection.format_id,
+                    block.has_rendered(),
+                    block.buffer.display_line_count()
+                );
+            }
+
             // Track which blocks we've already collected graphics from
             // to avoid duplicates when multiple viewport rows fall in
             // the same block.
             let mut collected_block_ids = std::collections::HashSet::new();
+            let mut substituted_rows = 0usize;
 
             for viewport_row in 0..visible_lines {
                 let absolute_row = scrollback_len.saturating_sub(scroll_off) + viewport_row;
                 if let Some(block) = pipeline.block_at_row(absolute_row) {
                     if !block.has_rendered() {
+                        crate::debug_trace!(
+                            "PRETTIFIER",
+                            "cell_substitution: vp_row={} abs_row={} block_id={} NOT RENDERED, skipping",
+                            viewport_row,
+                            absolute_row,
+                            block.block_id
+                        );
                         continue;
                     }
 
@@ -3376,20 +3506,36 @@ impl WindowState {
                     let block_start = block.content().start_row;
                     let line_offset = absolute_row.saturating_sub(block_start);
                     if let Some(styled_line) = display_lines.get(line_offset) {
+                        let output_text: String = styled_line.segments.iter().map(|s| s.text.as_str()).collect();
                         crate::debug_trace!(
                             "PRETTIFIER",
-                            "cell sub: vp_row={}, abs_row={}, block_id={}, line_off={}, segs={}",
+                            "cell sub: vp_row={}, abs_row={}, block_id={}, line_off={}/{}, segs={}, text={:?}",
                             viewport_row,
                             absolute_row,
                             block.block_id,
                             line_offset,
-                            styled_line.segments.len()
+                            display_lines.len(),
+                            styled_line.segments.len(),
+                            &output_text[..output_text.len().min(80)]
                         );
                         let cell_start = viewport_row * grid_cols;
                         let cell_end = (cell_start + grid_cols).min(cells.len());
                         if cell_start >= cells.len() {
                             break;
                         }
+                        // Log what the original cell content was before overwriting
+                        let original_text: String = cells[cell_start..cell_end]
+                            .iter()
+                            .map(|c| {
+                                let g = c.grapheme.as_str();
+                                if g.is_empty() || g == "\0" { " " } else { g }
+                            })
+                            .collect::<String>();
+                        crate::debug_trace!(
+                            "PRETTIFIER",
+                            "cell sub: replacing original={:?}",
+                            original_text.trim_end()
+                        );
                         // Clear row
                         for cell in &mut cells[cell_start..cell_end] {
                             *cell = par_term_config::Cell::default();
@@ -3418,8 +3564,27 @@ impl WindowState {
                                 col += 1;
                             }
                         }
+                        substituted_rows += 1;
+                    } else {
+                        crate::debug_trace!(
+                            "PRETTIFIER",
+                            "cell sub: vp_row={}, abs_row={}, block_id={}, line_off={} OUT OF RANGE (display_lines={})",
+                            viewport_row,
+                            absolute_row,
+                            block.block_id,
+                            line_offset,
+                            display_lines.len()
+                        );
                     }
                 }
+            }
+
+            if substituted_rows > 0 {
+                crate::debug_log!(
+                    "PRETTIFIER",
+                    "cell_substitution: completed, substituted {} viewport rows",
+                    substituted_rows
+                );
             }
         }
 
