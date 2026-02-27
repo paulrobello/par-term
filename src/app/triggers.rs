@@ -241,11 +241,30 @@ impl WindowState {
                         Ok(child) => {
                             let pid = child.id();
                             log::debug!("RunCommand spawned successfully (PID={})", pid);
+                            // Security audit trail: record every successful trigger-spawned
+                            // process at INFO level so it appears in the debug log even
+                            // without DEBUG_LEVEL set.  This allows post-incident review of
+                            // which commands were executed via triggers.
+                            crate::debug_info!(
+                                "TRIGGER",
+                                "AUDIT RunCommand trigger_id={} pid={} command={} args={:?}",
+                                trigger_id,
+                                pid,
+                                command,
+                                args
+                            );
                             // Track the spawned process for resource management
                             self.trigger_spawned_processes.insert(pid, Instant::now());
                         }
                         Err(e) => {
-                            log::error!("RunCommand failed to spawn '{}': {}", command, e)
+                            log::error!("RunCommand failed to spawn '{}': {}", command, e);
+                            crate::debug_error!(
+                                "TRIGGER",
+                                "AUDIT RunCommand FAILED trigger_id={} command={} error={}",
+                                trigger_id,
+                                command,
+                                e
+                            );
                         }
                     }
                 }
@@ -298,6 +317,16 @@ impl WindowState {
                         trigger_id,
                         text,
                         delay_ms
+                    );
+                    // Security audit trail: record every SendText execution so
+                    // post-incident analysis can reconstruct what text was injected
+                    // into the terminal via trigger automation.
+                    crate::debug_info!(
+                        "TRIGGER",
+                        "AUDIT SendText trigger_id={} delay_ms={} text={:?}",
+                        trigger_id,
+                        delay_ms,
+                        text
                     );
                     if let Some(tab) = self.tab_manager.active_tab() {
                         if delay_ms == 0 {

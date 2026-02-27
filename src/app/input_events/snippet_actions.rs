@@ -117,6 +117,25 @@ impl WindowState {
                     args.join(" ")
                 );
 
+                // TODO(enterprise): Command allowlist for restricted deployments.
+                //
+                // In enterprise environments it may be desirable to restrict which
+                // executables can be invoked through custom shell-command actions,
+                // in addition to the per-action configuration already enforced by
+                // the keybinding system.  A suggested approach:
+                //
+                //   1. Add an `allowed_commands: Option<Vec<String>>` field to
+                //      `Config` (disabled/absent means "allow all").
+                //   2. Before spawning, resolve `command` to its canonical path
+                //      with `std::fs::canonicalize` and check it against the list.
+                //   3. Return `false` (with a toast notification) if the canonical
+                //      path is not on the allowlist.
+                //
+                // This is intentionally left as a TODO because implementing it
+                // requires a policy decision about how the allowlist is managed
+                // (config file, environment variable, MDM profile, etc.) that is
+                // out of scope for the current security hardening pass.
+
                 // Spawn a background thread to avoid blocking the main event loop
                 std::thread::spawn(move || {
                     let timeout = std::time::Duration::from_secs(timeout_secs);

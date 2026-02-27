@@ -31,7 +31,7 @@
 //! [`set_echo_suppressed`]: SessionLogger::set_echo_suppressed
 
 use crate::config::SessionLogFormat;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{Local, Utc};
 use par_term_emu_core_rust::terminal::{RecordingEvent, RecordingEventType, RecordingSession};
 use parking_lot::Mutex;
@@ -145,7 +145,9 @@ impl SessionLogger {
             use std::os::unix::fs::OpenOptionsExt;
             opts.mode(0o600);
         }
-        let file = opts.open(&output_path)?;
+        let file = opts
+            .open(&output_path)
+            .with_context(|| format!("Failed to create session log file: {:?}", output_path))?;
         let writer = BufWriter::with_capacity(8192, file); // 8KB buffer
 
         // Initialize recording session for asciicast format
@@ -227,7 +229,9 @@ impl SessionLogger {
 
         // Flush and close the writer
         if let Some(mut writer) = self.writer.take() {
-            writer.flush()?;
+            writer
+                .flush()
+                .with_context(|| format!("Failed to flush session log: {:?}", self.output_path))?;
         }
 
         log::info!("Session logging stopped: {:?}", self.output_path);
@@ -398,7 +402,9 @@ impl SessionLogger {
     /// Flush buffered data to disk.
     pub fn flush(&mut self) -> Result<()> {
         if let Some(ref mut writer) = self.writer {
-            writer.flush()?;
+            writer
+                .flush()
+                .with_context(|| format!("Failed to flush session log: {:?}", self.output_path))?;
         }
         Ok(())
     }
@@ -480,7 +486,9 @@ impl SessionLogger {
         );
 
         if let Some(ref mut writer) = self.writer {
-            writer.write_all(header.as_bytes())?;
+            writer
+                .write_all(header.as_bytes())
+                .with_context(|| format!("Failed to write HTML header to {:?}", self.output_path))?;
         }
         Ok(())
     }
@@ -492,7 +500,9 @@ impl SessionLogger {
 </html>
 "#;
         if let Some(ref mut writer) = self.writer {
-            writer.write_all(footer.as_bytes())?;
+            writer
+                .write_all(footer.as_bytes())
+                .with_context(|| format!("Failed to write HTML footer to {:?}", self.output_path))?;
         }
         Ok(())
     }
@@ -511,7 +521,8 @@ impl SessionLogger {
             });
 
             if let Some(ref mut writer) = self.writer {
-                writeln!(writer, "{}", header)?;
+                writeln!(writer, "{}", header)
+                    .with_context(|| format!("Failed to write asciicast header to {:?}", self.output_path))?;
 
                 // Event lines (JSON arrays)
                 for event in &recording.events {
