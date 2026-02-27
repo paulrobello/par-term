@@ -18,8 +18,8 @@ impl CellRenderer {
                 let end = (row + 1) * self.grid.cols;
                 let row_cells = &self.cells[start..end];
 
-                let mut row_bg = Vec::with_capacity(self.grid.cols);
-                let mut row_text = Vec::with_capacity(self.grid.cols);
+                self.scratch_row_bg.clear();
+                self.scratch_row_text.clear();
 
                 // Background - use RLE to merge consecutive cells with same color (like iTerm2)
                 // This eliminates seams between adjacent same-colored cells
@@ -100,7 +100,7 @@ impl CellRenderer {
                             + self.grid.content_offset_y
                             + row as f32 * self.grid.cell_height;
                         let y1 = y0 + self.grid.cell_height;
-                        row_bg.push(BackgroundInstance {
+                        self.scratch_row_bg.push(BackgroundInstance {
                             position: [
                                 x0 / self.config.width as f32 * 2.0 - 1.0,
                                 1.0 - (y0 / self.config.height as f32 * 2.0),
@@ -145,7 +145,7 @@ impl CellRenderer {
                         + row as f32 * self.grid.cell_height;
                     let y1 = y0 + self.grid.cell_height;
 
-                    row_bg.push(BackgroundInstance {
+                    self.scratch_row_bg.push(BackgroundInstance {
                         position: [
                             x0 / self.config.width as f32 * 2.0 - 1.0,
                             1.0 - (y0 / self.config.height as f32 * 2.0),
@@ -160,8 +160,8 @@ impl CellRenderer {
 
                 // Pad row_bg to expected size with empty instances
                 // (RLE creates fewer instances than cells, but buffer expects cols entries)
-                while row_bg.len() < self.grid.cols {
-                    row_bg.push(BackgroundInstance {
+                while self.scratch_row_bg.len() < self.grid.cols {
+                    self.scratch_row_bg.push(BackgroundInstance {
                         position: [0.0, 0.0],
                         size: [0.0, 0.0],
                         color: [0.0, 0.0, 0.0, 0.0],
@@ -331,7 +331,7 @@ impl CellRenderer {
                                     let final_w = rect.width + ext_x + ext_w;
                                     let final_h = rect.height + ext_y + ext_h;
 
-                                    row_text.push(TextInstance {
+                                    self.scratch_row_text.push(TextInstance {
                                         position: [
                                             final_x / self.config.width as f32 * 2.0 - 1.0,
                                             1.0 - (final_y / self.config.height as f32 * 2.0),
@@ -381,7 +381,7 @@ impl CellRenderer {
 
                                 // Render as a colored rectangle using the solid white pixel in atlas
                                 // This goes through the text pipeline with foreground color
-                                row_text.push(TextInstance {
+                                self.scratch_row_text.push(TextInstance {
                                     position: [
                                         final_x / self.config.width as f32 * 2.0 - 1.0,
                                         1.0 - (final_y / self.config.height as f32 * 2.0),
@@ -413,7 +413,7 @@ impl CellRenderer {
                                 char_w,
                                 self.grid.cell_height,
                             ) {
-                                row_text.push(TextInstance {
+                                self.scratch_row_text.push(TextInstance {
                                     position: [
                                         rect.x / self.config.width as f32 * 2.0 - 1.0,
                                         1.0 - (rect.y / self.config.height as f32 * 2.0),
@@ -604,7 +604,7 @@ impl CellRenderer {
                             (glyph_left, glyph_top, render_w, render_h)
                         };
 
-                        row_text.push(TextInstance {
+                        self.scratch_row_text.push(TextInstance {
                             position: [
                                 final_left / self.config.width as f32 * 2.0 - 1.0,
                                 1.0 - (final_top / self.config.height as f32 * 2.0),
@@ -646,7 +646,7 @@ impl CellRenderer {
 
                     for col_idx in 0..self.grid.cols {
                         let cell = &self.cells[start + col_idx];
-                        if !cell.underline || row_text.len() >= self.grid.cols * 2 {
+                        if !cell.underline || self.scratch_row_text.len() >= self.grid.cols * 2 {
                             continue;
                         }
                         let text_alpha = if self.keep_text_opaque {
@@ -662,10 +662,10 @@ impl CellRenderer {
                         if is_stipple {
                             // Emit alternating dot segments across the cell width
                             let mut px = 0.0;
-                            while px < self.grid.cell_width && row_text.len() < self.grid.cols * 2 {
+                            while px < self.grid.cell_width && self.scratch_row_text.len() < self.grid.cols * 2 {
                                 let seg_w = stipple_on.min(self.grid.cell_width - px);
                                 let x = cell_x0 + px;
-                                row_text.push(TextInstance {
+                                self.scratch_row_text.push(TextInstance {
                                     position: [x / self.config.width as f32 * 2.0 - 1.0, ndc_y],
                                     size: [seg_w / self.config.width as f32 * 2.0, ndc_h],
                                     tex_offset,
@@ -676,7 +676,7 @@ impl CellRenderer {
                                 px += stipple_period;
                             }
                         } else {
-                            row_text.push(TextInstance {
+                            self.scratch_row_text.push(TextInstance {
                                 position: [cell_x0 / self.config.width as f32 * 2.0 - 1.0, ndc_y],
                                 size: [
                                     self.grid.cell_width / self.config.width as f32 * 2.0,
@@ -693,7 +693,7 @@ impl CellRenderer {
 
                 // Update CPU-side buffers
                 let bg_start = row * self.grid.cols;
-                self.bg_instances[bg_start..bg_start + self.grid.cols].copy_from_slice(&row_bg);
+                self.bg_instances[bg_start..bg_start + self.grid.cols].copy_from_slice(&self.scratch_row_bg);
 
                 let text_start = row * self.grid.cols * 2;
                 // Clear row text segment first
@@ -701,15 +701,15 @@ impl CellRenderer {
                     self.text_instances[text_start + i].size = [0.0, 0.0];
                 }
                 // Copy new text instances
-                let text_count = row_text.len().min(self.grid.cols * 2);
+                let text_count = self.scratch_row_text.len().min(self.grid.cols * 2);
                 self.text_instances[text_start..text_start + text_count]
-                    .copy_from_slice(&row_text[..text_count]);
+                    .copy_from_slice(&self.scratch_row_text[..text_count]);
 
                 // Update GPU-side buffers incrementally
                 self.queue.write_buffer(
                     &self.buffers.bg_instance_buffer,
                     (bg_start * std::mem::size_of::<BackgroundInstance>()) as u64,
-                    bytemuck::cast_slice(&row_bg),
+                    bytemuck::cast_slice(&self.scratch_row_bg),
                 );
                 self.queue.write_buffer(
                     &self.buffers.text_instance_buffer,

@@ -180,6 +180,9 @@ pub(crate) struct BackgroundImageState {
     pub(crate) solid_bg_color: [f32; 3],
     /// Cache of per-pane background textures keyed by image path
     pub(crate) pane_bg_cache: HashMap<String, background::PaneBackgroundEntry>,
+    /// Cache of per-pane uniform buffers and bind groups keyed by image path.
+    /// Reused across frames via `queue.write_buffer()` to avoid per-frame GPU allocations.
+    pub(crate) pane_bg_uniform_cache: HashMap<String, background::PaneBgUniformEntry>,
 }
 
 /// Command separator line settings and visible marks.
@@ -239,6 +242,10 @@ pub struct CellRenderer {
     // CPU-side instance buffers for incremental updates
     pub(crate) bg_instances: Vec<BackgroundInstance>,
     pub(crate) text_instances: Vec<TextInstance>,
+
+    // Scratch buffers reused across dirty-row iterations (avoids per-row Vec allocation)
+    pub(crate) scratch_row_bg: Vec<BackgroundInstance>,
+    pub(crate) scratch_row_text: Vec<TextInstance>,
 
     // Transparency mode
     /// When true, only default background cells are transparent.
@@ -578,6 +585,7 @@ impl CellRenderer {
                 bg_is_solid_color: false,
                 solid_bg_color: [0.0, 0.0, 0.0],
                 pane_bg_cache: HashMap::new(),
+                pane_bg_uniform_cache: HashMap::new(),
             },
             separator: SeparatorConfig {
                 enabled: false,
@@ -620,6 +628,8 @@ impl CellRenderer {
             keep_text_opaque: true,
             link_underline_style: par_term_config::LinkUnderlineStyle::default(),
             gutter_indicators: Vec::new(),
+            scratch_row_bg: Vec::with_capacity(cols),
+            scratch_row_text: Vec::with_capacity(cols * 2),
         };
 
         // Upload a solid white 2x2 pixel block to the atlas for geometric block rendering
@@ -829,6 +839,10 @@ impl CellRenderer {
             };
             self.buffers.max_text_instances
         ];
+
+        // Resize scratch buffers to match new grid; keep existing allocations if large enough
+        self.scratch_row_bg.reserve(self.grid.cols.saturating_sub(self.scratch_row_bg.capacity()));
+        self.scratch_row_text.reserve((self.grid.cols * 2).saturating_sub(self.scratch_row_text.capacity()));
     }
 
     /// Update cells. Returns `true` if any row actually changed.
