@@ -197,10 +197,7 @@ impl WindowState {
                                 &pane.restart_state
                                 && exit_time.elapsed() >= std::time::Duration::from_secs(1)
                             {
-                                log::info!(
-                                    "Pane {} delay elapsed, restarting shell",
-                                    pane.id
-                                );
+                                log::info!("Pane {} delay elapsed, restarting shell", pane.id);
                                 if let Err(e) = pane.respawn_shell(&config_clone) {
                                     log::error!(
                                         "Failed to respawn shell in pane {}: {}",

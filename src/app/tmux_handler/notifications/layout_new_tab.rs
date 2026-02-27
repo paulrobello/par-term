@@ -5,6 +5,8 @@
 use crate::app::window_state::WindowState;
 use crate::tmux::{TmuxLayout, TmuxWindowId};
 
+use super::layout::BoundsInfo;
+
 impl WindowState {
     /// Create a brand-new tab and apply the tmux layout to it.
     ///
@@ -15,15 +17,7 @@ impl WindowState {
         window_id: TmuxWindowId,
         parsed_layout: &TmuxLayout,
         pane_ids: &[crate::tmux::TmuxPaneId],
-        bounds_info: Option<(
-            winit::dpi::PhysicalSize<u32>,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-        )>,
+        bounds_info: BoundsInfo,
     ) {
         crate::debug_info!(
             "TMUX",
@@ -76,12 +70,9 @@ impl WindowState {
                     )) = bounds_info
                         && let Some(pm) = tab.pane_manager_mut()
                     {
-                        let content_width =
-                            size.width as f32 - padding * 2.0 - content_inset_right;
-                        let content_height = size.height as f32
-                            - content_offset_y
-                            - padding
-                            - status_bar_height;
+                        let content_width = size.width as f32 - padding * 2.0 - content_inset_right;
+                        let content_height =
+                            size.height as f32 - content_offset_y - padding - status_bar_height;
                         let bounds = crate::pane::PaneBounds::new(
                             padding,
                             content_offset_y,

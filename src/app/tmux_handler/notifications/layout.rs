@@ -9,6 +9,11 @@
 use crate::app::window_state::WindowState;
 use crate::tmux::{TmuxLayout, TmuxWindowId};
 
+/// Render bounds info passed through layout helper methods.
+///
+/// Fields: (physical_size, scale_factor, viewport_x, viewport_y, cell_width, cell_height, line_height)
+pub(super) type BoundsInfo = Option<(winit::dpi::PhysicalSize<u32>, f32, f32, f32, f32, f32, f32)>;
+
 impl WindowState {
     /// Request content refresh for specific panes
     ///
@@ -182,15 +187,7 @@ impl WindowState {
         window_id: TmuxWindowId,
         parsed_layout: &TmuxLayout,
         pane_ids: &[crate::tmux::TmuxPaneId],
-        bounds_info: Option<(
-            winit::dpi::PhysicalSize<u32>,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-        )>,
+        bounds_info: BoundsInfo,
     ) {
         crate::debug_info!(
             "TMUX",
@@ -226,12 +223,9 @@ impl WindowState {
             } else {
                 padding
             };
-            let content_width =
-                size.width as f32 - effective_padding * 2.0 - content_inset_right;
-            let content_height = size.height as f32
-                - content_offset_y
-                - effective_padding
-                - status_bar_height;
+            let content_width = size.width as f32 - effective_padding * 2.0 - content_inset_right;
+            let content_height =
+                size.height as f32 - content_offset_y - effective_padding - status_bar_height;
             let bounds = crate::pane::PaneBounds::new(
                 effective_padding,
                 content_offset_y,
@@ -308,15 +302,7 @@ impl WindowState {
         &mut self,
         tab_id: crate::tab::TabId,
         parsed_layout: &TmuxLayout,
-        bounds_info: Option<(
-            winit::dpi::PhysicalSize<u32>,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-        )>,
+        bounds_info: BoundsInfo,
     ) {
         crate::debug_info!(
             "TMUX",
@@ -328,10 +314,7 @@ impl WindowState {
         };
 
         if let Some(pm) = tab.pane_manager_mut() {
-            pm.update_layout_from_tmux(
-                parsed_layout,
-                &self.tmux_state.tmux_pane_to_native_pane,
-            );
+            pm.update_layout_from_tmux(parsed_layout, &self.tmux_state.tmux_pane_to_native_pane);
             pm.recalculate_bounds();
 
             if let Some((_, _, _, _, cell_width, cell_height, _)) = bounds_info {
@@ -349,15 +332,7 @@ impl WindowState {
         parsed_layout: &TmuxLayout,
         panes_to_keep: &std::collections::HashSet<crate::tmux::TmuxPaneId>,
         panes_to_remove: &[crate::tmux::TmuxPaneId],
-        bounds_info: Option<(
-            winit::dpi::PhysicalSize<u32>,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-        )>,
+        bounds_info: BoundsInfo,
     ) {
         crate::debug_info!(
             "TMUX",
@@ -421,9 +396,7 @@ impl WindowState {
             }
         }
 
-        if focused_pane_removed
-            && let Some(new_focus) = panes_to_keep.iter().next().copied()
-        {
+        if focused_pane_removed && let Some(new_focus) = panes_to_keep.iter().next().copied() {
             crate::debug_info!(
                 "TMUX",
                 "Focused pane was removed, updating tmux session focus to %{}",
@@ -451,15 +424,7 @@ impl WindowState {
         parsed_layout: &TmuxLayout,
         panes_to_keep: &std::collections::HashSet<crate::tmux::TmuxPaneId>,
         panes_to_add: &[crate::tmux::TmuxPaneId],
-        bounds_info: Option<(
-            winit::dpi::PhysicalSize<u32>,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-        )>,
+        bounds_info: BoundsInfo,
     ) {
         crate::debug_info!(
             "TMUX",
@@ -533,15 +498,7 @@ impl WindowState {
         window_id: TmuxWindowId,
         parsed_layout: &TmuxLayout,
         pane_ids: &[crate::tmux::TmuxPaneId],
-        _bounds_info: Option<(
-            winit::dpi::PhysicalSize<u32>,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-            f32,
-        )>,
+        _bounds_info: BoundsInfo,
     ) {
         let existing_tmux_ids: std::collections::HashSet<_> = self
             .tmux_state
@@ -570,11 +527,7 @@ impl WindowState {
                 std::sync::Arc::clone(&self.runtime),
             ) {
                 Ok(pane_mappings) => {
-                    crate::debug_info!(
-                        "TMUX",
-                        "Storing pane mappings: {:?}",
-                        pane_mappings
-                    );
+                    crate::debug_info!("TMUX", "Storing pane mappings: {:?}", pane_mappings);
                     self.tmux_state.tmux_pane_to_native_pane = pane_mappings.clone();
                     self.tmux_state.native_pane_to_tmux_pane = pane_mappings
                         .iter()

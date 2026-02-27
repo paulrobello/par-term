@@ -10,8 +10,8 @@ use winit::window::WindowId;
 use crate::config::{Config, resolve_shader_config};
 use crate::settings_window::{SettingsWindow, SettingsWindowAction};
 
-use super::update_checker::to_settings_update_result;
 use super::WindowManager;
+use super::update_checker::to_settings_update_result;
 
 impl WindowManager {
     /// Open the settings window (or focus if already open)

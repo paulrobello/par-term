@@ -8,10 +8,7 @@ use crate::tmux::SyncAction;
 
 impl WindowState {
     /// Handle pane focus changed notification from external tmux
-    pub(super) fn handle_tmux_pane_focus_changed(
-        &mut self,
-        tmux_pane_id: crate::tmux::TmuxPaneId,
-    ) {
+    pub(super) fn handle_tmux_pane_focus_changed(&mut self, tmux_pane_id: crate::tmux::TmuxPaneId) {
         crate::debug_info!("TMUX", "Pane focus changed to %{}", tmux_pane_id);
 
         // Update the tmux session's focused pane
@@ -20,9 +17,7 @@ impl WindowState {
         }
 
         // Update the native pane focus to match
-        if let Some(native_pane_id) =
-            self.tmux_state.tmux_pane_to_native_pane.get(&tmux_pane_id)
-        {
+        if let Some(native_pane_id) = self.tmux_state.tmux_pane_to_native_pane.get(&tmux_pane_id) {
             // Find the tab containing this pane and update its focus
             if let Some(tab) = self.tab_manager.active_tab_mut()
                 && let Some(pm) = tab.pane_manager_mut()

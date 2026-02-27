@@ -10,4 +10,5 @@
 //!   (split/close), clipboard/resize sync, and profile auto-application.
 
 mod gateway;
+mod gateway_input;
 mod notifications;
