@@ -857,7 +857,13 @@ mod tests {
     #[test]
     fn test_config_update_path_env_override_and_default() {
         // Test env var override
-        // SAFETY: test env var manipulation
+        //
+        // SAFETY: `std::env::set_var` / `remove_var` are `unsafe` in Rust 2024 because
+        // they are not thread-safe. This is acceptable in test code because:
+        // (a) `CONFIG_UPDATE_PATH_ENV` is a unique, test-specific environment variable
+        //     that is not read by any other concurrently-executing test in this crate,
+        // (b) the variable is unset again at the end of this test body, and
+        // (c) this code is only compiled in `#[cfg(test)]` and never runs in production.
         unsafe {
             std::env::set_var(CONFIG_UPDATE_PATH_ENV, "/tmp/test-par-term-update.json");
         }
@@ -865,7 +871,7 @@ mod tests {
         assert_eq!(path, PathBuf::from("/tmp/test-par-term-update.json"));
 
         // Test default path (env var unset)
-        // SAFETY: test env var manipulation
+        // SAFETY: see set_var comment above.
         unsafe {
             std::env::remove_var(CONFIG_UPDATE_PATH_ENV);
         }
@@ -883,7 +889,12 @@ mod tests {
 
     #[test]
     fn test_screenshot_paths_env_override_and_default() {
-        // SAFETY: test env var manipulation
+        // SAFETY: `std::env::set_var` / `remove_var` are `unsafe` in Rust 2024 because
+        // they are not thread-safe. This is acceptable here because:
+        // (a) `SCREENSHOT_REQUEST_PATH_ENV` and `SCREENSHOT_RESPONSE_PATH_ENV` are
+        //     unique, test-specific keys not shared with other concurrently-running tests,
+        // (b) both variables are unset again later in this same test body, and
+        // (c) this block is only compiled in `#[cfg(test)]` and never runs in production.
         unsafe {
             std::env::set_var(
                 SCREENSHOT_REQUEST_PATH_ENV,
@@ -903,7 +914,7 @@ mod tests {
             PathBuf::from("/tmp/test-par-term-shot-resp.json")
         );
 
-        // SAFETY: test env var manipulation
+        // SAFETY: see set_var comment above — same reasoning applies to remove_var.
         unsafe {
             std::env::remove_var(SCREENSHOT_REQUEST_PATH_ENV);
             std::env::remove_var(SCREENSHOT_RESPONSE_PATH_ENV);

@@ -55,6 +55,9 @@ pub(super) type PaneRenderDataResult = Option<(
 /// from `tab_manager.active_tab_mut()`.
 ///
 /// Returns `None` when no pane manager is present or the tab is absent.
+// Too many arguments: this free function receives all render parameters that are needed
+// across split panes. Grouping would require a transient struct that exists only to
+// cross one call boundary; the current flat signature is more readable in practice.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn gather_pane_render_data(
     tab: &mut crate::tab::Tab,
@@ -320,6 +323,10 @@ pub(super) fn gather_pane_render_data(
 
 impl crate::app::window_state::WindowState {
     /// Render split panes when the active tab has multiple panes
+    // Too many arguments: passes independently-owned render data to avoid holding
+    // mutable references across the pane collection and GPU submission path.
+    // Introducing a wrapper struct is deferred since these args map 1-to-1 to
+    // distinct subsystems (pane data, dividers, titles, focus, config, egui, UI state).
     #[allow(clippy::too_many_arguments)]
     pub(super) fn render_split_panes_with_data(
         renderer: &mut Renderer,

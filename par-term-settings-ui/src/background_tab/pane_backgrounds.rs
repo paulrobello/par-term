@@ -3,7 +3,6 @@ use crate::section::collapsing_section;
 use par_term_config::BackgroundImageMode;
 use std::collections::HashSet;
 
-#[allow(clippy::too_many_arguments)]
 pub fn show_pane_backgrounds(
     ui: &mut egui::Ui,
     settings: &mut SettingsUI,

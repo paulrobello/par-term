@@ -15,6 +15,34 @@
 //!   channel0: "textures/noise.png"
 //! */
 //! ```
+//!
+//! # Role in the Three-Tier Resolution Chain
+//!
+//! This module implements **Tier 2** of the shader configuration resolution chain
+//! documented in [`crate::shader_config`]:
+//!
+//! ```text
+//! Tier 1 — User override  (config.yaml → shader_configs)
+//!     ↓
+//! Tier 2 — Shader metadata  (THIS MODULE — embedded YAML in .glsl files)
+//!     ↓
+//! Tier 3 — Global defaults  (Config struct fields)
+//! ```
+//!
+//! Parsed metadata is supplied as `Option<&ShaderMetadata>` / `Option<&CursorShaderMetadata>`
+//! to [`crate::shader_config::resolve_shader_config`] and
+//! [`crate::shader_config::resolve_cursor_shader_config`], which merge it with
+//! the user override (Tier 1) and global defaults (Tier 3).
+//!
+//! # Duplication Note
+//!
+//! `parse_shader_metadata` and `parse_cursor_shader_metadata` share identical
+//! YAML-block extraction logic (finding `/*! par-term shader metadata ... */`),
+//! differing only in their output type (`ShaderMetadata` vs `CursorShaderMetadata`).
+//! Likewise, `ShaderMetadataCache` and `CursorShaderMetadataCache` are structurally
+//! identical, differing only in their cached type. A future refactor could unify
+//! these using a generic `MetadataCache<T: for<'de> serde::Deserialize<'de>>` type,
+//! but the current duplication is contained and the types are unlikely to diverge.
 
 use crate::types::ShaderMetadata;
 use std::collections::HashMap;

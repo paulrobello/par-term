@@ -355,8 +355,14 @@ impl ApplicationHandler for WindowManager {
 
         // Trigger dynamic profile refresh if requested via keybinding
         if reload_dynamic_profiles {
+            // Propagate the global `allow_http_profiles` flag into each source before
+            // refreshing, consistent with how the initial fetch was set up.
+            let mut sources = self.config.dynamic_profile_sources.clone();
+            for src in &mut sources {
+                src.allow_http = self.config.allow_http_profiles;
+            }
             self.dynamic_profile_manager
-                .refresh_all(&self.config.dynamic_profile_sources, &self.runtime);
+                .refresh_all(&sources, &self.runtime);
         }
 
         // Update profiles menu if profiles changed

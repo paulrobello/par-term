@@ -262,6 +262,9 @@ impl Scrollbar {
     /// * `content_offset_y` - Top inset in pixels (e.g., tab bar at top)
     /// * `content_inset_bottom` - Bottom inset in pixels (e.g., status bar)
     /// * `content_inset_right` - Right inset in pixels (e.g., AI Inspector panel)
+    // Too many arguments: the scrollbar update requires scroll position, viewport size,
+    // window dimensions, and all four content insets in one call to compute accurate
+    // geometry without a partial-update API. A ScrollbarParams struct is deferred.
     #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,
@@ -408,6 +411,8 @@ impl Scrollbar {
         }
     }
 
+    // Too many arguments: mark preparation needs all the same geometry as update() to
+    // position marks correctly. Shares the deferred ScrollbarParams refactor.
     #[allow(clippy::too_many_arguments)]
     fn prepare_marks(
         &mut self,

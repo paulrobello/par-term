@@ -5,6 +5,35 @@
 
 use super::SettingsUI;
 
+// --- Sidebar color palette ---
+
+/// Text color for tabs that do not match the current search query (dimmed).
+const COLOR_TAB_DIMMED: egui::Color32 = egui::Color32::from_rgb(80, 80, 80);
+
+/// Text color for the currently selected tab (bright white).
+const COLOR_TAB_SELECTED: egui::Color32 = egui::Color32::from_rgb(255, 255, 255);
+
+/// Text color for unselected tabs that match the search query.
+const COLOR_TAB_NORMAL: egui::Color32 = egui::Color32::from_rgb(180, 180, 180);
+
+/// Background fill for the selected tab row.
+const COLOR_TAB_SELECTED_BG: egui::Color32 = egui::Color32::from_rgb(60, 60, 70);
+
+/// Border/stroke color drawn around the selected tab row.
+const COLOR_TAB_SELECTED_BORDER: egui::Color32 = egui::Color32::from_rgb(100, 100, 120);
+
+/// Width of the border stroke drawn around the selected tab row (pixels).
+const TAB_BORDER_WIDTH: f32 = 1.0;
+
+/// Width of each tab button in the sidebar (pixels).
+const TAB_BUTTON_WIDTH: f32 = 140.0;
+
+/// Height of each tab button in the sidebar (pixels).
+const TAB_BUTTON_HEIGHT: f32 = 32.0;
+
+/// Vertical spacing added above and below the tab list.
+const TAB_LIST_PADDING: f32 = 8.0;
+
 /// The available settings tabs in the reorganized UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SettingsTab {
@@ -118,7 +147,7 @@ pub fn show(ui: &mut egui::Ui, current_tab: &mut SettingsTab, search_query: &str
     let mut tab_changed = false;
 
     // Add some vertical spacing at the top
-    ui.add_space(8.0);
+    ui.add_space(TAB_LIST_PADDING);
 
     for tab in SettingsTab::all() {
         let is_selected = *current_tab == *tab;
@@ -128,29 +157,29 @@ pub fn show(ui: &mut egui::Ui, current_tab: &mut SettingsTab, search_query: &str
 
         // Dim tabs that don't match search
         let text_color = if !has_matches {
-            egui::Color32::from_rgb(80, 80, 80)
+            COLOR_TAB_DIMMED
         } else if is_selected {
-            egui::Color32::from_rgb(255, 255, 255)
+            COLOR_TAB_SELECTED
         } else {
-            egui::Color32::from_rgb(180, 180, 180)
+            COLOR_TAB_NORMAL
         };
 
         let bg_color = if is_selected {
-            egui::Color32::from_rgb(60, 60, 70)
+            COLOR_TAB_SELECTED_BG
         } else {
             egui::Color32::TRANSPARENT
         };
 
         // Create a selectable button-like widget
         let response = ui.add_sized(
-            [140.0, 32.0],
+            [TAB_BUTTON_WIDTH, TAB_BUTTON_HEIGHT],
             egui::Button::new(
                 egui::RichText::new(format!("{} {}", tab.icon(), tab.display_name()))
                     .color(text_color),
             )
             .fill(bg_color)
             .stroke(if is_selected {
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(100, 100, 120))
+                egui::Stroke::new(TAB_BORDER_WIDTH, COLOR_TAB_SELECTED_BORDER)
             } else {
                 egui::Stroke::NONE
             }),
@@ -165,7 +194,7 @@ pub fn show(ui: &mut egui::Ui, current_tab: &mut SettingsTab, search_query: &str
         response.on_hover_text(tab_contents_summary(*tab));
     }
 
-    ui.add_space(8.0);
+    ui.add_space(TAB_LIST_PADDING);
 
     tab_changed
 }

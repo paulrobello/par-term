@@ -15,6 +15,13 @@ pub struct RendererConfig {
     pub cell_width_px: Option<f32>,
     /// Cell height in pixels (for sizing inline graphics).
     pub cell_height_px: Option<f32>,
+    /// Allowlist of command names (basename or full path) that `ExternalCommandRenderer`
+    /// is permitted to execute. When non-empty, any command not listed here will be
+    /// refused and a warning logged. When empty (the default), all commands are allowed
+    /// but a warning is emitted for every execution.
+    ///
+    /// Populated from `prettifier.allowed_commands` in the user config.
+    pub allowed_commands: Vec<String>,
 }
 
 /// Color palette from the current terminal theme.
@@ -63,6 +70,7 @@ impl Default for RendererConfig {
             theme_colors: ThemeColors::default(),
             cell_width_px: None,
             cell_height_px: None,
+            allowed_commands: Vec::new(),
         }
     }
 }

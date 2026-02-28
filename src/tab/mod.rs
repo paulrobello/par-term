@@ -89,43 +89,65 @@ pub struct Tab {
     pub(crate) has_activity: bool,
     /// Scroll state for this tab.
     ///
-    /// Legacy field: each pane has its own scroll state via `PaneManager`.
-    /// This field continues to be the authoritative scroll state for single-pane
-    /// tabs and the "active pane" fallback for split layouts. It is read in
-    /// ~10 sites including `url_hover.rs`, `pane_render.rs`, and `prettifier_cells.rs`.
+    /// LEGACY: Used by ~10 call sites — migration target is
+    /// `PaneManager::active_pane().scroll_state`.
     ///
-    /// TODO(migration): Remove this field once all pane-aware code reads scroll state
-    /// exclusively from `PaneManager::active_pane().scroll_state`. Track progress at
-    /// https://github.com/paulrobello/par-term/issues — needs issue.
+    /// Known callers that must be updated before this field can be removed:
+    /// - `src/app/url_hover.rs` — reads scroll offset for URL hit-testing
+    /// - `src/renderer/pane_render.rs` — passes scroll state to cell renderer
+    /// - `src/prettifier/prettifier_cells.rs` — computes gutter scroll position
+    /// - `src/search/` — applies scroll offset to search result positions
+    /// - `src/tab_bar_ui/` — reads scroll state for activity indicator
+    ///
+    /// Migration plan: add `scroll_state: ScrollState` to the `Pane` struct,
+    /// update each call site to call `tab.pane_manager.as_ref().map_or(&tab.scroll_state,
+    /// |pm| &pm.active_pane().scroll_state)`, then remove this field once all sites
+    /// have been migrated and the pane split path is fully tested.
     pub(crate) scroll_state: ScrollState,
     /// Mouse state for this tab.
     ///
-    /// Legacy field: each pane has its own mouse state via `PaneManager`.
-    /// Currently the authoritative store for URL detection, hover state, and
-    /// mouse tracking mode. Read in ~15 sites.
+    /// LEGACY: Used by ~15 call sites — migration target is
+    /// `PaneManager::active_pane().mouse`.
     ///
-    /// TODO(migration): Remove this field once mouse state is read exclusively from
-    /// `PaneManager::active_pane().mouse`. Track progress at
-    /// https://github.com/paulrobello/par-term/issues — needs issue.
+    /// Known callers that must be updated before this field can be removed:
+    /// - `src/app/input_events.rs` — writes mouse position and button state
+    /// - `src/app/url_hover.rs` — reads hover URL and mouse position
+    /// - `src/app/window_state/mod.rs` — polls mouse tracking mode
+    /// - `src/renderer/pane_render.rs` — reads mouse position for cursor rendering
+    /// - `src/selection.rs` — reads/writes selection anchor via mouse state
+    ///
+    /// Migration plan: add `mouse: MouseState` to the `Pane` struct, route all
+    /// write operations through `PaneManager::active_pane_mut().mouse`, then remove
+    /// this field once all sites are migrated.
     pub(crate) mouse: MouseState,
     /// Bell state for this tab.
     ///
-    /// Legacy field: each pane has its own bell state via `PaneManager`.
-    /// Currently used in ~7 sites including `notifications.rs` and `triggers.rs`.
+    /// LEGACY: Used by ~7 call sites — migration target is
+    /// `PaneManager::active_pane().bell`.
     ///
-    /// TODO(migration): Remove this field once bell state is read exclusively from
-    /// `PaneManager::active_pane().bell`. Track progress at
-    /// https://github.com/paulrobello/par-term/issues — needs issue.
+    /// Known callers that must be updated before this field can be removed:
+    /// - `src/app/notifications.rs` — reads bell state to dispatch OS notifications
+    /// - `src/app/triggers.rs` — triggers bell on pattern match
+    /// - `src/audio_bell.rs` — reads bell state to decide whether to play audio
+    ///
+    /// Migration plan: add `bell: BellState` to the `Pane` struct, update write
+    /// sites to target `PaneManager::active_pane_mut().bell`, then remove this field.
     pub(crate) bell: BellState,
     /// Render cache for this tab.
     ///
-    /// Legacy field: each pane has its own render cache via `PaneManager`.
-    /// Currently the authoritative render cache for single-pane tabs and used
-    /// as fallback for the active pane in ~17 sites.
+    /// LEGACY: Used by ~17 call sites — migration target is
+    /// `PaneManager::active_pane().cache`.
     ///
-    /// TODO(migration): Remove this field once all rendering code reads cache state
-    /// exclusively from `PaneManager::active_pane().cache`. Track progress at
-    /// https://github.com/paulrobello/par-term/issues — needs issue.
+    /// Known callers that must be updated before this field can be removed:
+    /// - `src/cell_renderer.rs` — reads glyph atlas and dirty flags
+    /// - `src/renderer/pane_render.rs` — checks dirty flag before re-rendering
+    /// - `src/app/config_updates.rs` — invalidates cache on theme/font change
+    /// - `src/custom_shader_renderer.rs` — reads shader cache for background pass
+    /// - `src/prettifier/prettifier_cells.rs` — reads prettifier render cache
+    ///
+    /// Migration plan: add `cache: RenderCache` to the `Pane` struct, update each
+    /// call site to use `tab.pane_manager.as_ref().map_or(&tab.cache,
+    /// |pm| &pm.active_pane().cache)`, then remove this field.
     pub(crate) cache: RenderCache,
     /// Async task for refresh polling
     pub(crate) refresh_task: Option<JoinHandle<()>>,
@@ -217,68 +239,53 @@ pub struct Tab {
     pub(crate) pending_tmux_mode_disable: bool,
 }
 
+/// Parameters that differ between `Tab::new()` and `Tab::new_from_profile()`.
+///
+/// Passed to [`Tab::new_internal`] after the caller has resolved its constructor-specific
+/// values (shell command, working directory, tab title).
+struct TabInitParams {
+    /// Unique tab identifier
+    id: TabId,
+    /// Terminal title shown in the tab bar
+    title: String,
+    /// True for auto-generated "Tab N" titles (not set by OSC, CWD, or user)
+    has_default_title: bool,
+    /// True when the user (or profile `tab_name`) has explicitly named the tab
+    user_named: bool,
+    /// Working directory to expose via `Tab::get_cwd`
+    working_directory: Option<String>,
+    /// Terminal grid dimensions (cols, rows) used for prettifier pipeline init
+    cols: usize,
+    /// Used to schedule the initial-text send (if any) in `Tab::new()`
+    runtime: Option<Arc<Runtime>>,
+}
+
 impl Tab {
-    /// Create a new tab with a terminal session
+    /// Shared constructor body called by both `Tab::new()` and `Tab::new_from_profile()`.
+    ///
+    /// Both public constructors:
+    /// 1. Create and configure a `TerminalManager` (divergent: shell command, env, login_shell)
+    /// 2. Call this method to handle the identical steps:
+    ///    - Coprocess auto-start loop
+    ///    - Session logging setup
+    ///    - `Arc<Mutex<>>` wrapping
+    ///    - Initial text scheduling (only when `params.runtime` is `Some`)
+    ///    - `Tab` struct construction with all shared default fields
     ///
     /// # Arguments
-    /// * `id` - Unique tab identifier
-    /// * `tab_number` - Display number for the tab (1-indexed)
-    /// * `config` - Terminal configuration
-    /// * `runtime` - Tokio runtime for async operations
-    /// * `working_directory` - Optional working directory to start in
-    /// * `grid_size` - Optional (cols, rows) override. When provided, uses these
-    ///   dimensions instead of config.cols/rows. This ensures the shell starts
-    ///   with the correct dimensions when the renderer has already calculated
-    ///   the grid size accounting for tab bar height.
-    ///
-    /// # REFACTOR
-    /// `Tab::new()` and `Tab::new_from_profile()` share ~80% identical initialization
-    /// logic (terminal creation, coprocess setup, session logging, struct construction).
-    /// A future refactor should extract shared steps into a private `Tab::new_internal()`
-    /// helper that both constructors delegate to, keeping only their divergent logic
-    /// (shell command resolution for `new_from_profile`, tab title and working directory
-    /// handling) in the respective public methods.
-    pub fn new(
-        id: TabId,
-        tab_number: usize,
+    /// * `params` — Constructor-specific values (title, working_directory, etc.)
+    /// * `terminal` — Fully configured `TerminalManager` with PTY already spawned
+    /// * `config` — Global config (used for coprocesses, session logging, prettifier)
+    /// * `trigger_security` — Pre-computed security map from `terminal.sync_triggers()`
+    /// * `session_title` — Human-readable title written to the session log file header
+    fn new_internal(
+        params: TabInitParams,
+        terminal: TerminalManager,
         config: &Config,
-        runtime: Arc<Runtime>,
-        working_directory: Option<String>,
-        grid_size: Option<(usize, usize)>,
+        trigger_security: std::collections::HashMap<u64, bool>,
+        session_title: String,
     ) -> anyhow::Result<Self> {
-        // Use provided grid size if available, otherwise fall back to config
-        let (cols, rows) = grid_size.unwrap_or((config.cols, config.rows));
-
-        // Create terminal with scrollback from config
-        let mut terminal =
-            TerminalManager::new_with_scrollback(cols, rows, config.scrollback_lines)?;
-
-        // Apply common terminal configuration
-        configure_terminal_from_config(&mut terminal, config);
-
-        // Determine working directory:
-        // 1. If explicitly provided (e.g., from tab_inherit_cwd), use that
-        // 2. Otherwise, use the configured startup directory based on mode
-        let effective_startup_dir = config.get_effective_startup_directory();
-        let work_dir = working_directory
-            .as_deref()
-            .or(effective_startup_dir.as_deref());
-
-        // Get shell command and apply login shell flag
-        let (shell_cmd, mut shell_args) = get_shell_command(config);
-        apply_login_shell_flag(&mut shell_args, config);
-
-        let shell_args_deref = shell_args.as_deref();
-        let shell_env = build_shell_env(config.shell_env.as_ref());
-        terminal.spawn_custom_shell_with_dir(
-            &shell_cmd,
-            shell_args_deref,
-            work_dir,
-            shell_env.as_ref(),
-        )?;
-
-        // Sync triggers from config into the core TriggerRegistry
-        let trigger_security = terminal.sync_triggers(&config.triggers);
+        let cols = params.cols;
 
         // Auto-start configured coprocesses via the PtySession's built-in manager
         let mut coprocess_ids = Vec::with_capacity(config.coprocesses.len());
@@ -322,9 +329,9 @@ impl Tab {
         // Set up session logging if enabled
         if config.auto_log_sessions {
             let logs_dir = config.logs_dir();
-            let session_title = Some(format!(
-                "Tab {} - {}",
-                tab_number,
+            let title_with_ts = Some(format!(
+                "{} - {}",
+                session_title,
                 chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
             ));
 
@@ -332,7 +339,7 @@ impl Tab {
                 config.session_log_format,
                 &logs_dir,
                 (config.cols, config.rows),
-                session_title,
+                title_with_ts,
             ) {
                 Ok(mut logger) => {
                     logger.set_redact_passwords(config.session_log_redact_passwords);
@@ -360,9 +367,10 @@ impl Tab {
 
         let terminal = Arc::new(Mutex::new(terminal));
 
-        // Send initial text after optional delay
-        if let Some(payload) =
-            build_initial_text_payload(&config.initial_text, config.initial_text_send_newline)
+        // Send initial text after optional delay (only when a runtime is provided)
+        if let Some(runtime) = params.runtime
+            && let Some(payload) =
+                build_initial_text_payload(&config.initial_text, config.initial_text_send_newline)
         {
             let delay_ms = config.initial_text_delay_ms;
             let terminal_clone = Arc::clone(&terminal);
@@ -378,24 +386,21 @@ impl Tab {
             });
         }
 
-        // Generate initial title based on current tab count, not unique ID
-        let title = format!("Tab {}", tab_number);
-
         Ok(Self {
-            id,
+            id: params.id,
             terminal,
             pane_manager: None, // Created on first split
-            title,
+            title: params.title,
             has_activity: false,
             scroll_state: ScrollState::new(),
             mouse: MouseState::new(),
             bell: BellState::new(),
             cache: RenderCache::new(),
             refresh_task: None,
-            working_directory: working_directory.or_else(|| config.working_directory.clone()),
+            working_directory: params.working_directory,
             custom_color: None,
-            has_default_title: true,
-            user_named: false,
+            has_default_title: params.has_default_title,
+            user_named: params.user_named,
             last_activity_time: std::time::Instant::now(),
             last_seen_generation: 0,
             anti_idle_last_activity: std::time::Instant::now(),
@@ -434,6 +439,80 @@ impl Tab {
         })
     }
 
+    /// Create a new tab with a terminal session
+    ///
+    /// # Arguments
+    /// * `id` - Unique tab identifier
+    /// * `tab_number` - Display number for the tab (1-indexed)
+    /// * `config` - Terminal configuration
+    /// * `runtime` - Tokio runtime for async operations
+    /// * `working_directory` - Optional working directory to start in
+    /// * `grid_size` - Optional (cols, rows) override. When provided, uses these
+    ///   dimensions instead of config.cols/rows. This ensures the shell starts
+    ///   with the correct dimensions when the renderer has already calculated
+    ///   the grid size accounting for tab bar height.
+    pub fn new(
+        id: TabId,
+        tab_number: usize,
+        config: &Config,
+        runtime: Arc<Runtime>,
+        working_directory: Option<String>,
+        grid_size: Option<(usize, usize)>,
+    ) -> anyhow::Result<Self> {
+        // Use provided grid size if available, otherwise fall back to config
+        let (cols, rows) = grid_size.unwrap_or((config.cols, config.rows));
+
+        // Create terminal with scrollback from config
+        let mut terminal =
+            TerminalManager::new_with_scrollback(cols, rows, config.scrollback_lines)?;
+
+        // Apply common terminal configuration
+        configure_terminal_from_config(&mut terminal, config);
+
+        // Determine working directory:
+        // 1. If explicitly provided (e.g., from tab_inherit_cwd), use that
+        // 2. Otherwise, use the configured startup directory based on mode
+        let effective_startup_dir = config.get_effective_startup_directory();
+        let work_dir = working_directory
+            .as_deref()
+            .or(effective_startup_dir.as_deref());
+
+        // Get shell command and apply login shell flag
+        let (shell_cmd, mut shell_args) = get_shell_command(config);
+        apply_login_shell_flag(&mut shell_args, config);
+
+        let shell_args_deref = shell_args.as_deref();
+        let shell_env = build_shell_env(config.shell_env.as_ref());
+        terminal.spawn_custom_shell_with_dir(
+            &shell_cmd,
+            shell_args_deref,
+            work_dir,
+            shell_env.as_ref(),
+        )?;
+
+        // Sync triggers from config into the core TriggerRegistry
+        let trigger_security = terminal.sync_triggers(&config.triggers);
+
+        // Generate initial title based on current tab count, not unique ID
+        let title = format!("Tab {}", tab_number);
+
+        Self::new_internal(
+            TabInitParams {
+                id,
+                title,
+                has_default_title: true,
+                user_named: false,
+                working_directory: working_directory.or_else(|| config.working_directory.clone()),
+                cols,
+                runtime: Some(runtime),
+            },
+            terminal,
+            config,
+            trigger_security,
+            format!("Tab {}", tab_number),
+        )
+    }
+
     /// Create a new tab from a profile configuration
     ///
     /// The profile can override:
@@ -447,16 +526,17 @@ impl Tab {
     /// # Arguments
     /// * `id` - Unique tab identifier
     /// * `config` - Terminal configuration
-    /// * `_runtime` - Tokio runtime (unused but kept for API consistency)
+    /// * `_runtime` - Tokio runtime (unused: profile tabs don't send initial text)
     /// * `profile` - Profile configuration to use
     /// * `grid_size` - Optional (cols, rows) override for initial terminal size
     ///
-    /// # REFACTOR
-    /// `Tab::new_from_profile()` and `Tab::new()` share ~80% identical initialization
-    /// logic. See the `Tab::new()` doc comment for the proposed `new_internal()` extraction
-    /// approach. This constructor's unique logic is: SSH command detection, per-profile
-    /// login_shell override, per-profile SHELL env-var injection, and title derivation
-    /// from `profile.tab_name` vs `profile.name`.
+    /// # Unique logic vs `Tab::new()`
+    /// This constructor's divergent logic (not shared with `Tab::new()` via `new_internal`):
+    /// - SSH command detection (`profile.ssh_command_args()`)
+    /// - Per-profile `login_shell` override (takes precedence over `config.login_shell`)
+    /// - Per-profile `SHELL` env-var injection when `profile.shell` is set
+    /// - Title derived from `profile.tab_name` → `profile.name` (not "Tab N")
+    /// - Profile tabs do NOT send `config.initial_text` on startup
     pub fn new_from_profile(
         id: TabId,
         config: &Config,
@@ -532,91 +612,7 @@ impl Tab {
         // Sync triggers from config into the core TriggerRegistry
         let trigger_security = terminal.sync_triggers(&config.triggers);
 
-        // Auto-start configured coprocesses via the PtySession's built-in manager
-        let mut coprocess_ids = Vec::with_capacity(config.coprocesses.len());
-        for coproc_config in &config.coprocesses {
-            if coproc_config.auto_start {
-                let core_config = par_term_emu_core_rust::coprocess::CoprocessConfig {
-                    command: coproc_config.command.clone(),
-                    args: coproc_config.args.clone(),
-                    cwd: None,
-                    env: crate::terminal::coprocess_env(),
-                    copy_terminal_output: coproc_config.copy_terminal_output,
-                    restart_policy: coproc_config.restart_policy.to_core(),
-                    restart_delay_ms: coproc_config.restart_delay_ms,
-                };
-                match terminal.start_coprocess(core_config) {
-                    Ok(id) => {
-                        log::info!(
-                            "Auto-started coprocess '{}' (id={})",
-                            coproc_config.name,
-                            id
-                        );
-                        coprocess_ids.push(Some(id));
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to auto-start coprocess '{}': {}",
-                            coproc_config.name,
-                            e
-                        );
-                        coprocess_ids.push(None);
-                    }
-                }
-            } else {
-                coprocess_ids.push(None);
-            }
-        }
-
-        // Create shared session logger
-        let session_logger = create_shared_logger();
-
-        // Set up session logging if enabled
-        if config.auto_log_sessions {
-            let logs_dir = config.logs_dir();
-            let session_title = Some(format!(
-                "{} - {}",
-                profile.name,
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
-            ));
-
-            match SessionLogger::new(
-                config.session_log_format,
-                &logs_dir,
-                (config.cols, config.rows),
-                session_title,
-            ) {
-                Ok(mut logger) => {
-                    logger.set_redact_passwords(config.session_log_redact_passwords);
-                    if let Err(e) = logger.start() {
-                        log::warn!("Failed to start session logging for profile: {}", e);
-                    } else {
-                        log::info!(
-                            "Session logging started for profile '{}': {:?}",
-                            profile.name,
-                            logger.output_path()
-                        );
-
-                        // Set up output callback to record PTY output
-                        let logger_clone = Arc::clone(&session_logger);
-                        terminal.set_output_callback(move |data: &[u8]| {
-                            if let Some(ref mut logger) = *logger_clone.lock() {
-                                logger.record_output(data);
-                            }
-                        });
-
-                        *session_logger.lock() = Some(logger);
-                    }
-                }
-                Err(e) => {
-                    log::warn!("Failed to create session logger for profile: {}", e);
-                }
-            }
-        }
-
-        let terminal = Arc::new(Mutex::new(terminal));
-
-        // Generate title: use profile tab_name or profile name or default
+        // Generate title: use profile tab_name or profile name
         let title = profile
             .tab_name
             .clone()
@@ -627,57 +623,24 @@ impl Tab {
             .clone()
             .or_else(|| config.working_directory.clone());
 
-        Ok(Self {
-            id,
+        // Session log title uses profile name (Tab::new uses "Tab N")
+        let session_title = profile.name.clone();
+
+        Self::new_internal(
+            TabInitParams {
+                id,
+                title,
+                has_default_title: false, // Profile-created tabs have explicit names
+                user_named: profile.tab_name.is_some(),
+                working_directory,
+                cols,
+                runtime: None, // Profile tabs don't send initial_text
+            },
             terminal,
-            pane_manager: None, // Created on first split
-            title,
-            has_activity: false,
-            scroll_state: ScrollState::new(),
-            mouse: MouseState::new(),
-            bell: BellState::new(),
-            cache: RenderCache::new(),
-            refresh_task: None,
-            working_directory,
-            custom_color: None,
-            has_default_title: false, // Profile-created tabs have explicit names
-            user_named: profile.tab_name.is_some(),
-            last_activity_time: std::time::Instant::now(),
-            last_seen_generation: 0,
-            anti_idle_last_activity: std::time::Instant::now(),
-            anti_idle_last_generation: 0,
-            silence_notified: false,
-            exit_notified: false,
-            session_logger,
-            tmux_gateway_active: false,
-            tmux_pane_id: None,
-            detected_hostname: None,
-            detected_cwd: None,
-            auto_applied_profile_id: None,
-            auto_applied_dir_profile_id: None,
-            profile_icon: None,
-            custom_icon: None,
-            pre_profile_title: None,
-            badge_override: None,
-            coprocess_ids,
-            script_manager: crate::scripting::manager::ScriptManager::new(),
-            script_ids: Vec::new(),
-            script_observer_ids: Vec::new(),
-            script_forwarders: Vec::new(),
-            trigger_marks: Vec::new(),
+            config,
             trigger_security,
-            trigger_rate_limiter: par_term_config::TriggerRateLimiter::default(),
-            prettifier: crate::prettifier::config_bridge::create_pipeline_from_config(
-                config, cols, None,
-            ),
-            gutter_manager: GutterManager::new(),
-            was_alt_screen: false,
-            pre_ssh_switch_profile: None,
-            ssh_auto_switched: false,
-            is_active: Arc::new(AtomicBool::new(false)),
-            shutdown_fast: false,
-            pending_tmux_mode_disable: false,
-        })
+            session_title,
+        )
     }
 }
 

@@ -22,6 +22,10 @@
 ///
 /// # Returns
 /// Tuple of (new_left, new_top, new_width, new_height)
+// Too many arguments: the 10 parameters represent two independent 2D rectangles
+// (glyph bounds and cell bounds) plus two scalar thresholds. Introducing a Rect
+// type for the two pairs is the cleanest fix; deferred since this helper is called
+// only from the block-character rendering hot path.
 #[allow(clippy::too_many_arguments)]
 pub fn snap_glyph_to_cell(
     glyph_left: f32,

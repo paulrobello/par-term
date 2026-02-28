@@ -164,6 +164,10 @@ pub struct CustomShaderRenderer {
 
 impl CustomShaderRenderer {
     /// Create a new custom shader renderer from a GLSL shader file
+    // Too many arguments: initialising the renderer requires GPU device/queue/format,
+    // shader path, size, animation settings, opacity, content mode, and texture channels.
+    // A CustomShaderConfig struct is the right approach; deferred since there is one call
+    // site and the parameters map directly to Config fields.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         device: &Device,

@@ -189,6 +189,10 @@ impl CellRenderer {
     /// # Arguments
     /// * `skip_solid_background` - If true, skip adding a solid background fill for the viewport.
     ///   Use when a custom shader or background image was already rendered full-screen.
+    // Too many arguments: passes viewport, cell data, grid dimensions, cursor state,
+    // and a background-skip flag as independent parameters to the GPU instance builder.
+    // A RenderPassParams struct is the right fix; deferred since the function has one
+    // call site and the arguments map directly to distinct render concepts.
     #[allow(clippy::too_many_arguments)]
     fn build_pane_instance_buffers(
         &mut self,

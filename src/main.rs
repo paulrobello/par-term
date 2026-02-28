@@ -1,6 +1,25 @@
 // Hide console window on Windows release builds
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+//! par-term entry point.
+//!
+//! # Logging Quick Reference
+//!
+//! par-term has **two parallel logging systems** that both write to the same file
+//! (`/tmp/par_term_debug.log`, respects `$TMPDIR`/`%TEMP%`):
+//!
+//! | System | Macros | Control | Best for |
+//! |--------|--------|---------|----------|
+//! | Custom debug | `crate::debug_info!("CAT", ...)` | `DEBUG_LEVEL=0-4` env var | High-frequency render/input events with category tags |
+//! | Standard `log` crate | `log::info!(...)`, `log::warn!()`, etc. | `RUST_LOG` env var | Application lifecycle, startup/shutdown, config, I/O errors |
+//!
+//! **Rule of thumb**: use `log::*!()` for events that happen once (startup, config load,
+//! profile switch, errors). Use `crate::debug_*!()` for events that fire every frame or
+//! on every keystroke (rendering, input, shader updates). Third-party crates (wgpu, tokio,
+//! etc.) emit only through `log`, never through the custom macros.
+//!
+//! See `src/debug.rs` for macro definitions and `docs/LOGGING.md` for full documentation.
+
 use anyhow::Result;
 use par_term::app::App;
 use par_term::cli;
