@@ -216,7 +216,7 @@ See `docs/CUSTOM_SHADERS.md` for full shader documentation including uniforms, c
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **par-term** (4952 symbols, 16866 relationships, 300 execution flows).
+This project is indexed by GitNexus as **par-term** (8804 symbols, 26095 relationships, 300 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 
