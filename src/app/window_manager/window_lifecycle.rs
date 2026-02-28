@@ -66,7 +66,7 @@ impl WindowManager {
         {
             // Send the command followed by Enter
             let cmd_with_enter = format!("{}\n", cmd);
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 if let Err(e) = term.write(cmd_with_enter.as_bytes()) {
                     log::error!("Failed to send command to shell: {}", e);
                 } else {

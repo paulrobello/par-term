@@ -68,7 +68,7 @@ impl WindowState {
                 // because tmux re-sends content via pane refresh (Ctrl+L) on next connect.
                 if let Some(pane_manager) = tab.pane_manager_mut()
                     && let Some(pane) = pane_manager.get_pane_mut(native_pane_id)
-                    && let Ok(term) = pane.terminal.try_lock()
+                    && let Ok(term) = pane.terminal.try_write()
                 {
                     // Route the data to this pane's terminal
                     term.process_data(data);
@@ -91,7 +91,7 @@ impl WindowState {
             // On miss: this tmux output chunk is dropped for this tab. Low risk as tmux
             // provides its own backpressure (%pause / %continue protocol).
             if tab.tmux_pane_id == Some(pane_id)
-                && let Ok(term) = tab.terminal.try_lock()
+                && let Ok(term) = tab.terminal.try_write()
             {
                 term.process_data(data);
                 crate::debug_trace!(
@@ -120,7 +120,7 @@ impl WindowState {
             // reason as above — tmux backpressure and pane refresh handle recovery.
             if tab.tmux_pane_id.is_some()
                 && !tab.tmux_gateway_active
-                && let Ok(term) = tab.terminal.try_lock()
+                && let Ok(term) = tab.terminal.try_write()
             {
                 term.process_data(data);
                 crate::debug_trace!(
@@ -188,7 +188,7 @@ impl WindowState {
                             // try_lock: intentional — the tab was just created so contention is
                             // extremely unlikely. On miss: the very first chunk of pane output
                             // is dropped; subsequent output arrives normally.
-                            if let Ok(term) = tab.terminal.try_lock() {
+                            if let Ok(term) = tab.terminal.try_write() {
                                 term.process_data(data);
                             }
                         }

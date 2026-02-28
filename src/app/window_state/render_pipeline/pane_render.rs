@@ -194,7 +194,7 @@ pub(super) fn gather_pane_render_data(
 
         // Gather cells
         let scroll_offset = if is_focused { tab_scroll_offset } else { 0 };
-        let cells = if let Ok(term) = pane.terminal.try_lock() {
+        let cells = if let Ok(term) = pane.terminal.try_write() {
             let selection = pane.mouse.selection.map(|sel| sel.normalized());
             let rectangular = pane
                 .mouse
@@ -208,7 +208,7 @@ pub(super) fn gather_pane_render_data(
 
         // Gather marks and scrollback length
         let (marks, pane_scrollback_len) = if need_marks {
-            if let Ok(mut term) = pane.terminal.try_lock() {
+            if let Ok(mut term) = pane.terminal.try_write() {
                 let sb_len = term.scrollback_len();
                 term.update_scrollback_metadata(sb_len, 0);
                 (term.scrollback_marks(), sb_len)
@@ -217,7 +217,7 @@ pub(super) fn gather_pane_render_data(
             }
         } else {
             // Still need scrollback_len for graphics position math
-            let sb_len = if let Ok(term) = pane.terminal.try_lock() {
+            let sb_len = if let Ok(term) = pane.terminal.try_write() {
                 term.scrollback_len()
             } else {
                 0
@@ -239,7 +239,7 @@ pub(super) fn gather_pane_render_data(
         };
 
         // Cursor position
-        let cursor_pos = if let Ok(term) = pane.terminal.try_lock() {
+        let cursor_pos = if let Ok(term) = pane.terminal.try_write() {
             if term.is_cursor_visible() {
                 Some(term.cursor_position())
             } else {
@@ -256,7 +256,7 @@ pub(super) fn gather_pane_render_data(
         let rows = ((content_h / sizing.cell_height).floor() as usize).max(1);
 
         // Collect inline graphics (Sixel/iTerm2/Kitty)
-        let pane_graphics = if let Ok(term) = pane.terminal.try_lock() {
+        let pane_graphics = if let Ok(term) = pane.terminal.try_write() {
             let mut g = term.get_graphics_with_animations();
             let sb = term.get_scrollback_graphics();
             crate::debug_log!(

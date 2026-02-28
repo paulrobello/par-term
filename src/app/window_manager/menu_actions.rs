@@ -182,7 +182,7 @@ impl WindowManager {
                         if let Some(tab) = window_state.tab_manager.active_tab() {
                             let terminal_clone = Arc::clone(&tab.terminal);
                             window_state.runtime.spawn(async move {
-                                let term = terminal_clone.lock().await;
+                                let term = terminal_clone.write().await;
                                 let _ = term.write(b"\x16");
                             });
                         }
@@ -229,7 +229,7 @@ impl WindowManager {
                 {
                     // Clear scrollback in active tab
                     let cleared = if let Some(tab) = window_state.tab_manager.active_tab_mut() {
-                        if let Ok(mut term) = tab.terminal.try_lock() {
+                        if let Ok(mut term) = tab.terminal.try_write() {
                             term.clear_scrollback();
                             term.clear_scrollback_metadata();
                             tab.cache.scrollback_len = 0;

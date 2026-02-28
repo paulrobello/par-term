@@ -114,7 +114,7 @@ impl WindowState {
                     let text = crate::paste_transform::sanitize_paste_content(&text);
                     let terminal_clone = Arc::clone(&tab.terminal);
                     self.runtime.spawn(async move {
-                        let term = terminal_clone.lock().await;
+                        let term = terminal_clone.write().await;
                         let _ = term.paste(&text);
                     });
                 }
@@ -214,7 +214,7 @@ impl WindowState {
             // reposition logic. The cursor stays where it was — acceptable UX.
             let (is_alt_screen, current_col) = tab
                 .terminal
-                .try_lock()
+                .try_write()
                 .ok()
                 .map(|t| (t.is_alt_screen_active(), t.cursor_position().0))
                 .unwrap_or((true, 0));
@@ -239,7 +239,7 @@ impl WindowState {
                     let terminal_clone = Arc::clone(&tab.terminal);
                     let runtime = Arc::clone(&self.runtime);
                     runtime.spawn(async move {
-                        let t = terminal_clone.lock().await;
+                        let t = terminal_clone.write().await;
                         let _ = t.write(move_seq.as_bytes());
                     });
                 }
@@ -543,7 +543,7 @@ impl WindowState {
             // On miss: this selection is not added to clipboard history. The clipboard
             // content itself was already copied above (separate operation).
             if let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_lock()
+                && let Ok(term) = tab.terminal.try_write()
             {
                 term.add_to_clipboard_history(
                     ClipboardSlot::Clipboard,

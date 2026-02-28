@@ -338,7 +338,7 @@ impl WindowState {
                 let cleared = if let Some(tab) = self.tab_manager.active_tab_mut() {
                     // try_lock: intentional — keybinding action in sync event loop.
                     // On miss: scrollback not cleared this invocation. User can retry.
-                    if let Ok(mut term) = tab.terminal.try_lock() {
+                    if let Ok(mut term) = tab.terminal.try_write() {
                         term.clear_scrollback();
                         term.clear_scrollback_metadata();
                         tab.cache.scrollback_len = 0;
@@ -426,7 +426,7 @@ impl WindowState {
                 // try_lock: intentional — cursor blink toggle via keybinding in sync loop.
                 // On miss: cursor style not updated this invocation. Cosmetic only.
                 if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(mut term) = tab.terminal.try_lock()
+                    && let Ok(mut term) = tab.terminal.try_write()
                 {
                     term.set_cursor_style(term_style);
                 }
@@ -536,7 +536,8 @@ impl WindowState {
                     self.execute_custom_action(action_id)
                 } else if let Some(arrangement_name) = action.strip_prefix("restore_arrangement:") {
                     // Restore arrangement by name - handled by WindowManager
-                    self.overlay_state.pending_arrangement_restore = Some(arrangement_name.to_string());
+                    self.overlay_state.pending_arrangement_restore =
+                        Some(arrangement_name.to_string());
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
@@ -558,7 +559,8 @@ impl WindowState {
     /// The toast will be displayed for 2 seconds and then automatically hidden.
     pub(crate) fn show_toast(&mut self, message: impl Into<String>) {
         self.overlay_state.toast_message = Some(message.into());
-        self.overlay_state.toast_hide_time = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+        self.overlay_state.toast_hide_time =
+            Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
         self.focus_state.needs_redraw = true;
         if let Some(window) = &self.window {
             window.request_redraw();

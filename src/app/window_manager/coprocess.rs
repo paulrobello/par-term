@@ -30,7 +30,7 @@ impl WindowManager {
             };
             // Acceptable risk: blocking_lock() from sync event loop for infrequent
             // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
-            let term = tab.terminal.blocking_lock();
+            let term = tab.terminal.blocking_write();
             match term.start_coprocess(core_config) {
                 Ok(id) => {
                     log::info!("Started coprocess '{}' (id={})", coproc_config.name, id);
@@ -74,7 +74,7 @@ impl WindowManager {
             if let Some(Some(id)) = tab.coprocess_ids.get(config_index).copied() {
                 // Acceptable risk: blocking_lock() from sync event loop for infrequent
                 // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
-                let term = tab.terminal.blocking_lock();
+                let term = tab.terminal.blocking_write();
                 if let Err(e) = term.stop_coprocess(id) {
                     log::error!("Failed to stop coprocess at index {}: {}", config_index, e);
                 } else {
@@ -99,7 +99,7 @@ impl WindowManager {
                 && let Some(ws) = self.windows.get(&window_id)
                 && let Some(tab) = ws.tab_manager.active_tab()
             {
-                if let Ok(term) = tab.terminal.try_lock() {
+                if let Ok(term) = tab.terminal.try_write() {
                     let mut running = Vec::new();
                     let mut errors = Vec::new();
                     let mut output = Vec::new();

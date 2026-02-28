@@ -100,7 +100,7 @@ impl WindowState {
                             // until the next frame resolves the exit.
                             && tab
                                 .terminal
-                                .try_lock()
+                                .try_write()
                                 .ok()
                                 .is_some_and(|term| !term.is_running());
                         (

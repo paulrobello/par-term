@@ -78,7 +78,8 @@ impl WindowState {
 
         // Calculate frame interval based on focus state for power saving
         // When pause_refresh_on_blur is enabled and window is unfocused, use slower refresh rate
-        let frame_interval_ms = if self.config.pause_refresh_on_blur && !self.focus_state.is_focused {
+        let frame_interval_ms = if self.config.pause_refresh_on_blur && !self.focus_state.is_focused
+        {
             // Use unfocused FPS (e.g., 10 FPS = 100ms interval)
             1000 / self.config.unfocused_fps.max(1)
         } else {
@@ -89,7 +90,8 @@ impl WindowState {
 
         // Check if enough time has passed since last render for FPS throttling
         let time_since_last_render = self
-            .focus_state.last_render_time
+            .focus_state
+            .last_render_time
             .map(|t| now.duration_since(t))
             .unwrap_or(frame_interval); // If no last render, allow immediate render
         let can_render = time_since_last_render >= frame_interval;
@@ -102,7 +104,7 @@ impl WindowState {
                 // try_lock: intentional — flicker check runs in about_to_wait (sync event loop).
                 // On miss: assume cursor is visible (false) so rendering is not delayed.
                 // Slightly conservative but never causes stale frames.
-                if let Ok(term) = tab.terminal.try_lock() {
+                if let Ok(term) = tab.terminal.try_write() {
                     !term.is_cursor_visible() && !self.config.lock_cursor_visibility
                 } else {
                     false
@@ -119,7 +121,8 @@ impl WindowState {
 
                 // Check bypass conditions
                 let delay_expired = self
-                    .focus_state.cursor_hidden_since
+                    .focus_state
+                    .cursor_hidden_since
                     .map(|t| {
                         now.duration_since(t)
                             >= std::time::Duration::from_millis(
@@ -129,7 +132,8 @@ impl WindowState {
                     .unwrap_or(false);
 
                 // Bypass for UI interactions (modals + resize overlay)
-                let any_ui_visible = self.any_modal_ui_visible() || self.overlay_state.resize_overlay_visible;
+                let any_ui_visible =
+                    self.any_modal_ui_visible() || self.overlay_state.resize_overlay_visible;
 
                 // Delay unless bypass conditions met
                 !delay_expired && !any_ui_visible
@@ -177,7 +181,8 @@ impl WindowState {
             let interval =
                 std::time::Duration::from_millis(self.config.throughput_render_interval_ms as u64);
             let batch_start = self
-                .focus_state.throughput_batch_start
+                .focus_state
+                .throughput_batch_start
                 .expect("throughput_batch_start is Some: set to Some on the line above when None");
 
             // Check if interval has elapsed
@@ -196,7 +201,9 @@ impl WindowState {
         };
 
         // Schedule wake for throughput mode
-        if should_delay_for_throughput && let Some(batch_start) = self.focus_state.throughput_batch_start {
+        if should_delay_for_throughput
+            && let Some(batch_start) = self.focus_state.throughput_batch_start
+        {
             let interval =
                 std::time::Duration::from_millis(self.config.throughput_render_interval_ms as u64);
             let render_time = batch_start + interval;
@@ -211,7 +218,9 @@ impl WindowState {
         // 1. Cursor Blinking
         // Wake up exactly when the cursor needs to toggle visibility or fade.
         // Skip cursor blinking when unfocused with pause_refresh_on_blur to save power.
-        if self.config.cursor_blink && (self.focus_state.is_focused || !self.config.pause_refresh_on_blur) {
+        if self.config.cursor_blink
+            && (self.focus_state.is_focused || !self.config.pause_refresh_on_blur)
+        {
             if self.cursor_anim.cursor_blink_timer.is_none() {
                 let blink_interval =
                     std::time::Duration::from_millis(self.config.cursor_blink_interval);
@@ -333,7 +342,8 @@ impl WindowState {
         if !self.overlay_state.closed_tabs.is_empty() && self.config.session_undo_timeout_secs > 0 {
             let timeout =
                 std::time::Duration::from_secs(self.config.session_undo_timeout_secs as u64);
-            self.overlay_state.closed_tabs
+            self.overlay_state
+                .closed_tabs
                 .retain(|info| now.duration_since(info.closed_at) < timeout);
         }
 
@@ -348,7 +358,8 @@ impl WindowState {
             }
             // Schedule next frame at the appropriate interval
             let next_frame = self
-                .focus_state.last_render_time
+                .focus_state
+                .last_render_time
                 .map(|t| t + frame_interval)
                 .unwrap_or(now);
             // Ensure we don't schedule in the past

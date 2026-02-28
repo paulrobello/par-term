@@ -293,7 +293,7 @@ impl WindowState {
             let width_px = (renderer_cols as f32 * cell_width) as usize;
             let height_px = (renderer_rows as f32 * cell_height) as usize;
 
-            if let Ok(mut term) = tab.terminal.try_lock() {
+            if let Ok(mut term) = tab.terminal.try_write() {
                 term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                 // Send resize to ensure PTY has correct pixel dimensions
                 let _ = term.resize_with_pixels(renderer_cols, renderer_rows, width_px, height_px);

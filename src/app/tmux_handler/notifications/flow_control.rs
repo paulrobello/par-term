@@ -82,7 +82,7 @@ impl WindowState {
                             // event loop. On miss: this buffered chunk is lost. Low risk:
                             // the tmux %continue state means output has resumed and fresh
                             // data will arrive shortly to fill in any gap.
-                            if let Ok(term) = pane.terminal.try_lock() {
+                            if let Ok(term) = pane.terminal.try_write() {
                                 term.process_data(&data);
                             }
                             break;

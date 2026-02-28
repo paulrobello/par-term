@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::app::bell::BellState;
@@ -23,24 +23,24 @@ use super::common::{PaneBackground, PaneId, RestartState};
 
 /// A single terminal pane with its own state
 ///
-/// # Mutex Strategy
+/// # RwLock Strategy
 ///
-/// `terminal` uses `tokio::sync::Mutex` for the same reason as `Tab::terminal`:
+/// `terminal` uses `tokio::sync::RwLock` for the same reason as `Tab::terminal`:
 /// `TerminalManager` is shared between the async PTY reader task and the sync winit
 /// event loop.
 ///
 /// Access rules:
-/// - **From async tasks**: `terminal.lock().await`
-/// - **From the sync event loop**: `terminal.try_lock()` for polling;
-///   `terminal.blocking_lock()` for infrequent user-initiated operations only.
+/// - **From async tasks**: `terminal.read().await` or `terminal.write().await`
+/// - **From the sync event loop**: `terminal.try_read()` or `terminal.try_write()` for polling;
+///   `terminal.blocking_write()` for infrequent user-initiated operations only.
 pub struct Pane {
     /// Unique identifier for this pane
     pub id: PaneId,
     /// The terminal session for this pane.
     ///
-    /// Uses `tokio::sync::Mutex`. From sync contexts use `.try_lock()` for
-    /// non-blocking access or `.blocking_lock()` for user-initiated operations.
-    pub terminal: Arc<Mutex<TerminalManager>>,
+    /// Uses `tokio::sync::RwLock`. From sync contexts use `.try_read()` or `.try_write()` for
+    /// non-blocking access or `.blocking_write()` for user-initiated operations.
+    pub terminal: Arc<RwLock<TerminalManager>>,
     /// Scroll state for this pane
     pub scroll_state: ScrollState,
     /// Mouse state for this pane
@@ -119,7 +119,7 @@ impl Pane {
         // Create shared session logger
         let session_logger = create_shared_logger();
 
-        let terminal = Arc::new(Mutex::new(terminal));
+        let terminal = Arc::new(RwLock::new(terminal));
 
         Ok(Self {
             id,
@@ -168,7 +168,7 @@ impl Pane {
         // Create shared session logger
         let session_logger = create_shared_logger();
 
-        let terminal = Arc::new(Mutex::new(terminal));
+        let terminal = Arc::new(RwLock::new(terminal));
 
         Ok(Self {
             id,
@@ -206,7 +206,7 @@ impl Pane {
 
     /// Check if the terminal in this pane is still running
     pub fn is_running(&self) -> bool {
-        if let Ok(term) = self.terminal.try_lock() {
+        if let Ok(term) = self.terminal.try_write() {
             let running = term.is_running();
             if !running {
                 crate::debug_info!(
@@ -223,7 +223,7 @@ impl Pane {
 
     /// Get the current working directory of this pane's shell
     pub fn get_cwd(&self) -> Option<String> {
-        if let Ok(term) = self.terminal.try_lock() {
+        if let Ok(term) = self.terminal.try_write() {
             term.shell_integration_cwd()
         } else {
             self.working_directory.clone()
@@ -296,7 +296,7 @@ impl Pane {
         let shell_env = build_shell_env(config.shell_env.as_ref());
 
         // Respawn the shell
-        if let Ok(mut term) = self.terminal.try_lock() {
+        if let Ok(mut term) = self.terminal.try_write() {
             // Clear the screen before respawning (using VT escape sequence)
             // This clears screen and moves cursor to home position
             term.process_data(b"\x1b[2J\x1b[H");
@@ -317,7 +317,7 @@ impl Pane {
 
     /// Write a restart prompt message to the terminal
     pub fn write_restart_prompt(&self) {
-        if let Ok(term) = self.terminal.try_lock() {
+        if let Ok(term) = self.terminal.try_write() {
             // Write the prompt message directly to terminal display
             let message = "\r\n[Process exited. Press Enter to restart...]\r\n";
             term.process_data(message.as_bytes());
@@ -326,7 +326,7 @@ impl Pane {
 
     /// Get the title for this pane (from OSC or CWD)
     pub fn get_title(&self) -> String {
-        if let Ok(term) = self.terminal.try_lock() {
+        if let Ok(term) = self.terminal.try_write() {
             let osc_title = term.get_title();
             if !osc_title.is_empty() {
                 return osc_title;
@@ -380,7 +380,7 @@ impl Pane {
                 };
                 tokio::time::sleep(tokio::time::Duration::from_millis(interval_ms)).await;
 
-                let should_redraw = if let Ok(term) = terminal_clone.try_lock() {
+                let should_redraw = if let Ok(term) = terminal_clone.try_write() {
                     let current_gen = term.update_generation();
                     if current_gen > last_gen {
                         last_gen = current_gen;
@@ -415,7 +415,7 @@ impl Pane {
 
     /// Resize the terminal to match the pane bounds
     pub fn resize_terminal(&self, cols: usize, rows: usize) {
-        if let Ok(mut term) = self.terminal.try_lock()
+        if let Ok(mut term) = self.terminal.try_write()
             && term.dimensions() != (cols, rows)
         {
             let _ = term.resize(cols, rows);
@@ -435,7 +435,7 @@ impl Pane {
         cell_width: u32,
         cell_height: u32,
     ) {
-        if let Ok(mut term) = self.terminal.try_lock() {
+        if let Ok(mut term) = self.terminal.try_write() {
             term.set_cell_dimensions(cell_width, cell_height);
             if term.dimensions() != (cols, rows) {
                 let _ = term.resize(cols, rows);
@@ -474,7 +474,7 @@ impl Drop for Pane {
         std::thread::sleep(std::time::Duration::from_millis(50));
 
         // Kill the terminal
-        if let Ok(mut term) = self.terminal.try_lock()
+        if let Ok(mut term) = self.terminal.try_write()
             && term.is_running()
         {
             log::info!("Killing terminal for pane {}", self.id);

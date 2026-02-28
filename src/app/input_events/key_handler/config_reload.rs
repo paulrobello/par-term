@@ -69,7 +69,7 @@ impl WindowState {
                         // try_lock: intentional — config reload (F5) runs in sync event loop.
                         // On miss: the tab's theme is not updated immediately. It will be
                         // applied on the next config reload or theme change event.
-                        if let Ok(mut term) = tab.terminal.try_lock() {
+                        if let Ok(mut term) = tab.terminal.try_write() {
                             term.set_theme(new_config.load_theme());
                         }
                     }

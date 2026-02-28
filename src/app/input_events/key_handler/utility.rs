@@ -28,7 +28,7 @@ impl WindowState {
             let cleared = if let Some(tab) = self.tab_manager.active_tab_mut() {
                 // try_lock: intentional — keyboard shortcut handler in sync event loop.
                 // On miss: scrollback is not cleared this keypress. User can press again.
-                if let Ok(mut term) = tab.terminal.try_lock() {
+                if let Ok(mut term) = tab.terminal.try_write() {
                     term.clear_scrollback();
                     term.clear_scrollback_metadata();
                     tab.cache.scrollback_len = 0;
@@ -61,7 +61,7 @@ impl WindowState {
                     // try_lock: intentional — spawned async task uses try_lock to avoid
                     // blocking the tokio worker. On miss: the Ctrl+L clear is silently dropped.
                     // User can press the shortcut again.
-                    if let Ok(term) = terminal_clone.try_lock() {
+                    if let Ok(term) = terminal_clone.try_write() {
                         let _ = term.write(&clear_sequence);
                         log::debug!("Sent clear screen sequence (Ctrl+L)");
                     }
@@ -162,7 +162,7 @@ impl WindowState {
             // event loop. On miss: the cursor style is not updated this frame; it will
             // apply on the next keybinding invocation. Cosmetic only.
             if let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(mut term) = tab.terminal.try_lock()
+                && let Ok(mut term) = tab.terminal.try_write()
             {
                 term.set_cursor_style(term_style);
             }

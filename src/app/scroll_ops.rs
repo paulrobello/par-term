@@ -83,7 +83,7 @@ impl WindowState {
         // The user can press the key again.
         let prev = tab
             .terminal
-            .try_lock()
+            .try_write()
             .ok()
             .and_then(|term| term.scrollback_previous_mark(current_top));
 
@@ -103,7 +103,7 @@ impl WindowState {
         // try_lock: intentional — same rationale as scroll_to_previous_mark above.
         let next = tab
             .terminal
-            .try_lock()
+            .try_write()
             .ok()
             .and_then(|term| term.scrollback_next_mark(current_top));
 

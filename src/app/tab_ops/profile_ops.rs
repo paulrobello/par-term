@@ -67,7 +67,7 @@ impl WindowState {
                     // On miss: duplicate tab starts with default dimensions; corrected on next
                     // Resized event.
                     if let Some(renderer) = &self.renderer
-                        && let Ok(mut term) = tab.terminal.try_lock()
+                        && let Ok(mut term) = tab.terminal.try_write()
                     {
                         let (cols, rows) = renderer.grid_size();
                         let size = renderer.size();
@@ -318,7 +318,7 @@ impl WindowState {
 
                     let terminal_clone = Arc::clone(&tab.terminal);
                     self.runtime.spawn(async move {
-                        let term = terminal_clone.lock().await;
+                        let term = terminal_clone.write().await;
                         if let Err(e) = term.write(full_cmd.as_bytes()) {
                             log::error!("Failed to execute profile command: {}", e);
                         }
@@ -368,7 +368,7 @@ impl WindowState {
             // try_lock: intentional — SSH command check in about_to_wait (sync event loop).
             // On miss: returns None (no command seen), skipping SSH profile switch this frame.
             // Will be evaluated again next frame.
-            let cmd = if let Ok(term) = tab.terminal.try_lock() {
+            let cmd = if let Ok(term) = tab.terminal.try_write() {
                 term.get_running_command_name()
             } else {
                 None
@@ -490,7 +490,7 @@ impl WindowState {
 
                     let terminal_clone = Arc::clone(&tab.terminal);
                     self.runtime.spawn(async move {
-                        let term = terminal_clone.lock().await;
+                        let term = terminal_clone.write().await;
                         if let Err(e) = term.write(full_cmd.as_bytes()) {
                             log::error!("Failed to execute profile command: {}", e);
                         }

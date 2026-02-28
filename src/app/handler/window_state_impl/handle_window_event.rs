@@ -156,7 +156,7 @@ impl WindowState {
                         // which fires in the sync event loop. On miss: this tab's terminal
                         // keeps its old size until the next resize event. Low risk as scale
                         // factor changes are rare (drag between displays).
-                        if let Ok(mut term) = tab.terminal.try_lock() {
+                        if let Ok(mut term) = tab.terminal.try_write() {
                             let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
                         } else {
                             crate::debug::record_try_lock_failure("scale_factor_resize");
@@ -229,7 +229,7 @@ impl WindowState {
                         // On miss: this tab's terminal keeps its old dimensions; the cell
                         // cache is still invalidated below so rendering uses the correct
                         // grid size. The terminal size will be fixed on the next resize event.
-                        if let Ok(mut term) = tab.terminal.try_lock() {
+                        if let Ok(mut term) = tab.terminal.try_write() {
                             let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
                             tab.cache.scrollback_len = term.scrollback_len();
                         } else {
@@ -244,7 +244,7 @@ impl WindowState {
                         let total_lines = rows + tab.cache.scrollback_len;
                         // try_lock: intentional — scrollbar mark update during Resized event.
                         // On miss: scrollbar renders without marks this frame. Cosmetic only.
-                        let marks = if let Ok(term) = tab.terminal.try_lock() {
+                        let marks = if let Ok(term) = tab.terminal.try_write() {
                             term.scrollback_marks()
                         } else {
                             Vec::new()
@@ -406,7 +406,7 @@ impl WindowState {
                         // On miss: this tab keeps the old theme until the next theme event
                         // or config reload. Cell cache is still invalidated to prevent stale
                         // rendering with the old theme colors.
-                        if let Ok(mut term) = tab.terminal.try_lock() {
+                        if let Ok(mut term) = tab.terminal.try_write() {
                             term.set_theme(theme.clone());
                         }
                         tab.cache.cells = None;

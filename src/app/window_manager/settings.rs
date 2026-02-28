@@ -284,7 +284,7 @@ impl WindowManager {
                     };
 
                     for tab in window_state.tab_manager.tabs_mut() {
-                        if let Ok(mut term) = tab.terminal.try_lock() {
+                        if let Ok(mut term) = tab.terminal.try_write() {
                             term.set_cursor_style(term_style);
                         }
                         tab.cache.cells = None; // Invalidate cache to redraw cursor
@@ -396,7 +396,7 @@ impl WindowManager {
                 if changes.theme
                     && let Some(tab) = window_state.tab_manager.active_tab()
                 {
-                    match tab.terminal.try_lock() {
+                    match tab.terminal.try_write() {
                         Ok(mut term) => term.set_theme(config.load_theme()),
                         Err(_) => crate::debug::record_try_lock_failure("theme_change"),
                     }
@@ -410,7 +410,7 @@ impl WindowManager {
                         Some(config.answerback_string.clone())
                     };
                     for tab in window_state.tab_manager.tabs_mut() {
-                        if let Ok(term) = tab.terminal.try_lock() {
+                        if let Ok(term) = tab.terminal.try_write() {
                             term.set_answerback_string(answerback.clone());
                         }
                     }
@@ -423,7 +423,7 @@ impl WindowManager {
                         config.ambiguous_width,
                     );
                     for tab in window_state.tab_manager.tabs_mut() {
-                        if let Ok(term) = tab.terminal.try_lock() {
+                        if let Ok(term) = tab.terminal.try_write() {
                             term.set_width_config(width_config);
                         }
                     }
@@ -432,7 +432,7 @@ impl WindowManager {
                 // Apply Unicode normalization form
                 if changes.normalization_form {
                     for tab in window_state.tab_manager.tabs_mut() {
-                        if let Ok(term) = tab.terminal.try_lock() {
+                        if let Ok(term) = tab.terminal.try_write() {
                             term.set_normalization_form(config.normalization_form);
                         }
                     }
@@ -588,7 +588,7 @@ impl WindowManager {
                     let height_px = (new_rows as f32 * cell_height) as usize;
 
                     for tab in window_state.tab_manager.tabs_mut() {
-                        if let Ok(mut term) = tab.terminal.try_lock() {
+                        if let Ok(mut term) = tab.terminal.try_write() {
                             term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                             let _ =
                                 term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
@@ -650,7 +650,7 @@ impl WindowManager {
 
             // Resync triggers from config into core registry for all tabs
             for tab in window_state.tab_manager.tabs_mut() {
-                if let Ok(term) = tab.terminal.try_lock() {
+                if let Ok(term) = tab.terminal.try_write() {
                     tab.trigger_security = term.sync_triggers(&config.triggers);
                 }
             }

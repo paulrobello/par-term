@@ -155,7 +155,7 @@ impl WindowState {
             // where blocking would stall the entire GUI.
             // On miss: set the deferred flag so the notification poll loop retries on the
             // next frame, guaranteeing the terminal parser eventually exits control mode.
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 term.set_tmux_control_mode(false);
             } else {
                 crate::debug_error!(

@@ -72,7 +72,7 @@ impl WindowState {
             // try_lock: intentional — handle_key_event runs in the sync event loop.
             // On miss: assume shell is still running (true) to avoid spuriously exiting
             // on a keypress when the lock is briefly held by the PTY reader.
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 term.is_running()
             } else {
                 true
@@ -246,7 +246,7 @@ impl WindowState {
                     if let Some(tab) = self.tab_manager.active_tab() {
                         let terminal_clone = Arc::clone(&tab.terminal);
                         self.runtime.spawn(async move {
-                            let term = terminal_clone.lock().await;
+                            let term = terminal_clone.write().await;
                             let _ = term.paste(&text);
                         });
                     }
@@ -259,7 +259,7 @@ impl WindowState {
                     if let Some(tab) = self.tab_manager.active_tab() {
                         let terminal_clone = Arc::clone(&tab.terminal);
                         self.runtime.spawn(async move {
-                            let term = terminal_clone.lock().await;
+                            let term = terminal_clone.write().await;
                             let _ = term.write(b"\x16");
                         });
                     }
@@ -341,7 +341,7 @@ impl WindowState {
         // default cursor/modify-other-keys mode for one frame — safe for interactive typing.
         let (modify_other_keys_mode, application_cursor) =
             if let Some(tab) = self.tab_manager.active_tab() {
-                if let Ok(term) = tab.terminal.try_lock() {
+                if let Ok(term) = tab.terminal.try_write() {
                     (term.modify_other_keys_mode(), term.application_cursor())
                 } else {
                     (0, false)
@@ -412,7 +412,7 @@ impl WindowState {
                     let bytes_clone = bytes.clone();
                     self.runtime.spawn(async move {
                         for terminal in terminals {
-                            let term = terminal.lock().await;
+                            let term = terminal.write().await;
                             let _ = term.write(&bytes_clone);
                         }
                     });
@@ -433,7 +433,7 @@ impl WindowState {
                 };
 
                 self.runtime.spawn(async move {
-                    let term = terminal_clone.lock().await;
+                    let term = terminal_clone.write().await;
                     let _ = term.write(&bytes);
                 });
             }

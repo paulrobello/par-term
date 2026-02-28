@@ -10,25 +10,25 @@
 mod action_handlers;
 mod agent_messages;
 mod config_watchers;
+mod focus_state;
 mod impl_agent;
 mod impl_helpers;
 mod impl_init;
+mod overlay_state;
 mod prettify_helpers;
 mod render_pipeline;
 mod renderer_ops;
 mod shader_ops;
-mod update_state;
-mod focus_state;
-mod overlay_state;
-mod watcher_state;
 mod trigger_state;
+mod update_state;
+mod watcher_state;
 
 // Re-export the sub-state types
-pub(crate) use update_state::UpdateState;
 pub(crate) use focus_state::FocusState;
 pub(crate) use overlay_state::OverlayState;
-pub(crate) use watcher_state::WatcherState;
 pub(crate) use trigger_state::TriggerState;
+pub(crate) use update_state::UpdateState;
+pub(crate) use watcher_state::WatcherState;
 
 // Re-export the prettify helpers so sub-modules in render_pipeline/ can reach them
 // via `super::super::` (i.e. `window_state::reconstruct_markdown_from_cells`).

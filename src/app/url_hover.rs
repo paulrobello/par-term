@@ -21,7 +21,7 @@ impl WindowState {
             // try_lock: intentional — URL hover detection on every mouse-move frame in
             // the sync event loop. On miss: hovered URL is not updated this frame. The
             // cursor shows the last known state — benign cosmetic lag.
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 let (cols, rows) = term.dimensions();
                 let scroll_offset = tab.scroll_state.offset;
                 let visible_cells =
@@ -162,7 +162,7 @@ impl WindowState {
         // Get actual terminal columns from the terminal
         // try_lock: intentional — URL highlight rendering in the sync render path.
         // On miss: URL highlight falls back to default (no highlight this frame). Cosmetic.
-        let cols = if let Ok(term) = tab.terminal.try_lock() {
+        let cols = if let Ok(term) = tab.terminal.try_write() {
             let (cols, _rows) = term.dimensions();
             cols
         } else {

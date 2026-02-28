@@ -112,7 +112,7 @@ impl WindowState {
         // try_lock: intentional — trigger polling in about_to_wait (sync event loop).
         // On miss: triggers are not processed this frame; they will be on the next poll.
         let (action_results, current_scrollback_len, custom_vars) =
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 let ar = term.poll_action_results();
                 let sl = term.scrollback_len();
                 let cv = term.custom_session_variables();
@@ -216,9 +216,11 @@ impl WindowState {
 
                     // Clean up old process entries (assume completed after timeout)
                     let now = Instant::now();
-                    self.trigger_state.trigger_spawned_processes.retain(|_pid, spawn_time| {
-                        now.duration_since(*spawn_time).as_secs() < PROCESS_CLEANUP_AGE_SECS
-                    });
+                    self.trigger_state
+                        .trigger_spawned_processes
+                        .retain(|_pid, spawn_time| {
+                            now.duration_since(*spawn_time).as_secs() < PROCESS_CLEANUP_AGE_SECS
+                        });
 
                     // Check process limit to prevent resource exhaustion
                     if self.trigger_state.trigger_spawned_processes.len() >= MAX_TRIGGER_PROCESSES {
@@ -254,7 +256,9 @@ impl WindowState {
                                 args
                             );
                             // Track the spawned process for resource management
-                            self.trigger_state.trigger_spawned_processes.insert(pid, Instant::now());
+                            self.trigger_state
+                                .trigger_spawned_processes
+                                .insert(pid, Instant::now());
                         }
                         Err(e) => {
                             log::error!("RunCommand failed to spawn '{}': {}", command, e);
@@ -333,7 +337,7 @@ impl WindowState {
                             // try_lock: intentional — trigger SendText in sync event loop.
                             // On miss: the triggered text is not sent this frame. Low risk:
                             // triggers fire on repeated output patterns and will retry.
-                            if let Ok(term) = tab.terminal.try_lock()
+                            if let Ok(term) = tab.terminal.try_write()
                                 && let Err(e) = term.write(text.as_bytes())
                             {
                                 log::error!("SendText write failed: {}", e);
@@ -346,7 +350,7 @@ impl WindowState {
                                 // try_lock: intentional — delayed SendText from spawned thread.
                                 // On miss: the delayed text is not sent. Acceptable; trigger
                                 // automation has inherent timing flexibility.
-                                if let Ok(term) = terminal.try_lock()
+                                if let Ok(term) = terminal.try_write()
                                     && let Err(e) = term.write(text_owned.as_bytes())
                                 {
                                     log::error!("Delayed SendText write failed: {}", e);
@@ -512,11 +516,16 @@ impl WindowState {
         // Patterns that are already cached are skipped; invalid patterns are logged once.
         for (trigger_id, _row, payload) in &pending {
             if let Some(ref filter) = payload.command_filter
-                && !self.trigger_state.trigger_regex_cache.contains_key(filter.as_str())
+                && !self
+                    .trigger_state
+                    .trigger_regex_cache
+                    .contains_key(filter.as_str())
             {
                 match regex::Regex::new(filter) {
                     Ok(re) => {
-                        self.trigger_state.trigger_regex_cache.insert(filter.clone(), re);
+                        self.trigger_state
+                            .trigger_regex_cache
+                            .insert(filter.clone(), re);
                     }
                     Err(e) => {
                         log::error!(
@@ -529,11 +538,16 @@ impl WindowState {
                 }
             }
             if let Some(ref block_end) = payload.block_end
-                && !self.trigger_state.trigger_regex_cache.contains_key(block_end.as_str())
+                && !self
+                    .trigger_state
+                    .trigger_regex_cache
+                    .contains_key(block_end.as_str())
             {
                 match regex::Regex::new(block_end) {
                     Ok(re) => {
-                        self.trigger_state.trigger_regex_cache.insert(block_end.clone(), re);
+                        self.trigger_state
+                            .trigger_regex_cache
+                            .insert(block_end.clone(), re);
                     }
                     Err(e) => {
                         log::error!(
@@ -678,7 +692,7 @@ impl WindowState {
 
         // try_lock: intentional — prettify trigger processing in about_to_wait (sync loop).
         // On miss: prettify is skipped this frame; the pending events are reprocessed next poll.
-        if let Ok(term) = tab.terminal.try_lock() {
+        if let Ok(term) = tab.terminal.try_write() {
             // Compute scope ranges for each pending event using scrollback metadata.
             let max_readable = current_scrollback_len + 200; // generous upper bound for visible grid
             for (_trigger_id, grid_row, payload) in pending {

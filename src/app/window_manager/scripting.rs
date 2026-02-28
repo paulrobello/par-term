@@ -73,7 +73,7 @@ impl WindowManager {
             // Acceptable risk: blocking_lock() from sync event loop for infrequent
             // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
             let observer_id = {
-                let term = tab.terminal.blocking_lock();
+                let term = tab.terminal.blocking_write();
                 term.add_observer(forwarder.clone())
             };
 
@@ -114,7 +114,7 @@ impl WindowManager {
 
                     // Acceptable risk: blocking_lock() in error cleanup path.
                     // See docs/CONCURRENCY.md for mutex strategy.
-                    let term = tab.terminal.blocking_lock();
+                    let term = tab.terminal.blocking_write();
                     term.remove_observer(observer_id);
                     drop(term);
 
@@ -161,7 +161,7 @@ impl WindowManager {
             // Acceptable risk: blocking_lock() from sync event loop for infrequent
             // user-initiated operation. See docs/CONCURRENCY.md for mutex strategy.
             if let Some(Some(observer_id)) = tab.script_observer_ids.get(config_index).copied() {
-                let term = tab.terminal.blocking_lock();
+                let term = tab.terminal.blocking_write();
                 term.remove_observer(observer_id);
                 drop(term);
             }

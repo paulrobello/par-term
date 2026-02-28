@@ -56,7 +56,7 @@ impl WindowState {
         };
 
         // Check if shell has exited
-        let _is_running = if let Ok(term) = terminal.try_lock() {
+        let _is_running = if let Ok(term) = terminal.try_write() {
             term.is_running()
         } else {
             true // Assume running if locked
@@ -67,7 +67,7 @@ impl WindowState {
         // Get terminal cells for rendering (with dirty tracking optimization)
         // Also capture alt screen state to disable cursor shader for TUI apps
         let (mut cells, current_cursor_pos, cursor_style, is_alt_screen, current_generation) =
-            if let Ok(term) = terminal.try_lock() {
+            if let Ok(term) = terminal.try_write() {
                 // Get current generation to check if terminal content has changed
                 let current_generation = term.update_generation();
 
@@ -268,7 +268,7 @@ impl WindowState {
         // Need to re-borrow as mutable after the terminal lock is released
         if !self.debug.cache_hit
             && let Some(tab) = self.tab_manager.active_tab_mut()
-            && let Ok(term) = tab.terminal.try_lock()
+            && let Ok(term) = tab.terminal.try_write()
         {
             let current_generation = term.update_generation();
             tab.cache.cells = Some(Arc::new(cells.clone()));
@@ -281,7 +281,7 @@ impl WindowState {
         let mut show_scrollbar = self.should_show_scrollbar();
 
         let (scrollback_len, terminal_title, shell_lifecycle_events) =
-            if let Ok(mut term) = terminal.try_lock() {
+            if let Ok(mut term) = terminal.try_write() {
                 // Use cursor row 0 when cursor not visible (e.g., alt screen)
                 let cursor_row = current_cursor_pos.map(|(_, row)| row).unwrap_or(0);
                 let sb_len = term.scrollback_len();
@@ -357,7 +357,7 @@ impl WindowState {
                             // the visible portion. This ensures scrolling through
                             // long output shows prettified content throughout.
                             let output_start = start + 1;
-                            if let Ok(term) = terminal.try_lock() {
+                            if let Ok(term) = terminal.try_write() {
                                 let lines = term.lines_text_range(output_start, *absolute_line);
                                 crate::debug_info!(
                                     "PRETTIFIER",
@@ -722,7 +722,7 @@ impl WindowState {
 
         // Keep copy mode dimensions in sync with terminal
         if self.copy_mode.active
-            && let Ok(term) = terminal.try_lock()
+            && let Ok(term) = terminal.try_write()
         {
             let (cols, rows) = term.dimensions();
             self.copy_mode.update_dimensions(cols, rows, scrollback_len);
@@ -731,7 +731,7 @@ impl WindowState {
         let need_marks =
             self.config.scrollbar_command_marks || self.config.command_separator_enabled;
         let mut scrollback_marks = if need_marks {
-            if let Ok(term) = terminal.try_lock() {
+            if let Ok(term) = terminal.try_write() {
                 term.scrollback_marks()
             } else {
                 Vec::new()
@@ -794,7 +794,7 @@ impl WindowState {
         if self.overlay_ui.search_ui.visible {
             // Get all searchable lines from cells (ensures consistent wide character handling)
             if let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_lock()
+                && let Ok(term) = tab.terminal.try_write()
             {
                 let lines_iter =
                     crate::app::search_highlight::get_all_searchable_lines(&term, visible_lines);

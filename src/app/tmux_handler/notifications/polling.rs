@@ -23,7 +23,7 @@ impl WindowState {
             // try_lock: intentional — we are in the sync event loop. On miss: leave the
             // flag set and retry next frame. The lock will be free once the PTY reader
             // finishes its current read (which is short-lived).
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 term.set_tmux_control_mode(false);
                 tab.pending_tmux_mode_disable = false;
                 crate::debug_info!(
@@ -69,7 +69,7 @@ impl WindowState {
             // try_lock: intentional — called from the sync event loop (about_to_wait) where
             // blocking would stall the entire GUI. On miss: returns false (no notifications
             // processed this frame); they will be picked up on the next poll cycle.
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 term.drain_tmux_notifications()
             } else {
                 return false;

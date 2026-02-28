@@ -110,7 +110,7 @@ impl WindowState {
         let progress_snapshot = if self.config.progress_bar_enabled {
             self.tab_manager.active_tab().and_then(|tab| {
                 tab.terminal
-                    .try_lock()
+                    .try_write()
                     .ok()
                     .map(|term| ProgressBarSnapshot {
                         simple: term.progress_bar(),
@@ -257,7 +257,7 @@ impl WindowState {
             // Use try_lock() to avoid blocking the event loop when PTY reader holds the lock
             let anim_start = std::time::Instant::now();
             if let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(terminal) = tab.terminal.try_lock()
+                && let Ok(terminal) = tab.terminal.try_write()
                 && terminal.update_animations()
             {
                 // Animation frame changed - request continuous redraws while animations are playing
@@ -283,7 +283,7 @@ impl WindowState {
                 .unwrap_or(false);
             if !has_pane_manager_for_graphics
                 && let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(terminal) = tab.terminal.try_lock()
+                && let Ok(terminal) = tab.terminal.try_write()
             {
                 let mut graphics = terminal.get_graphics_with_animations();
                 let scrollback_len = terminal.scrollback_len();

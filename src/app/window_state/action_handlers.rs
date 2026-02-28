@@ -151,7 +151,7 @@ impl WindowState {
             }
             ClipboardHistoryAction::ClearAll => {
                 if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
+                    && let Ok(term) = tab.terminal.try_write()
                 {
                     term.clear_all_clipboard_history();
                     log::info!("Cleared all clipboard history");
@@ -162,7 +162,7 @@ impl WindowState {
             }
             ClipboardHistoryAction::ClearSlot(slot) => {
                 if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
+                    && let Ok(term) = tab.terminal.try_write()
                 {
                     term.clear_clipboard_history(slot);
                     log::info!("Cleared clipboard history for slot {:?}", slot);
@@ -202,7 +202,7 @@ impl WindowState {
             }
             InspectorAction::WriteToTerminal(cmd) => {
                 if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
+                    && let Ok(term) = tab.terminal.try_write()
                 {
                     let _ = term.write(cmd.as_bytes());
                 }
@@ -210,7 +210,7 @@ impl WindowState {
             InspectorAction::RunCommandAndNotify(cmd) => {
                 // Write command + Enter to terminal
                 if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
+                    && let Ok(term) = tab.terminal.try_write()
                 {
                     let _ = term.write(format!("{cmd}\n").as_bytes());
                 }
@@ -218,7 +218,7 @@ impl WindowState {
                 let history_len = self
                     .tab_manager
                     .active_tab()
-                    .and_then(|tab| tab.terminal.try_lock().ok())
+                    .and_then(|tab| tab.terminal.try_write().ok())
                     .map(|term| term.core_command_history().len())
                     .unwrap_or(0);
                 // Spawn a task that polls for command completion and notifies the agent
@@ -236,7 +236,7 @@ impl WindowState {
                         for _ in 0..300 {
                             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                             if let Some(ref terminal) = terminal
-                                && let Ok(term) = terminal.try_lock()
+                                && let Ok(term) = terminal.try_write()
                             {
                                 let history = term.core_command_history();
                                 if history.len() > history_len {

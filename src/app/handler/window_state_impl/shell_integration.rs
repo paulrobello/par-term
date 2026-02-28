@@ -37,7 +37,7 @@ impl WindowState {
         // Try to get shell integration info
         // try_lock: intentional — called every frame from the render path; blocking would
         // stall rendering. On miss: window title is not updated this frame. No data loss.
-        if let Ok(term) = tab.terminal.try_lock() {
+        if let Ok(term) = tab.terminal.try_write() {
             let mut title_parts = vec![self.config.window_title.clone()];
 
             // Add window number if configured
@@ -89,7 +89,7 @@ impl WindowState {
 
         // try_lock: intentional — sync_badge_shell_integration is called from the render
         // path. On miss: badge variables are not updated this frame; they will be on the next.
-        if let Ok(term) = tab.terminal.try_lock() {
+        if let Ok(term) = tab.terminal.try_write() {
             let exit_code = term.shell_integration_exit_code();
             let current_command = term.get_running_command_name();
             let cwd = term.shell_integration_cwd();

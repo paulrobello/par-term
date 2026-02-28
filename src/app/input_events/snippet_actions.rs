@@ -50,7 +50,7 @@ impl WindowState {
             // try_lock: intentional — execute_snippet called from keybinding handler in
             // sync event loop. On miss: the snippet is not sent to the terminal this
             // invocation. The user can trigger the keybinding again.
-            if let Ok(terminal) = tab.terminal.try_lock() {
+            if let Ok(terminal) = tab.terminal.try_write() {
                 // Append newline if auto_execute is enabled
                 let content_to_write = if snippet.auto_execute {
                     format!("{}\n", substituted_content)
@@ -228,7 +228,7 @@ impl WindowState {
                     // try_lock: intentional — execute_custom_action runs from keybinding
                     // handler in sync event loop. On miss: the action text is not written.
                     // Logged as an error so the user is aware; they can retry the keybinding.
-                    if let Ok(terminal) = tab.terminal.try_lock() {
+                    if let Ok(terminal) = tab.terminal.try_write() {
                         if let Err(e) = terminal.write(substituted_text.as_bytes()) {
                             log::error!("Failed to write action text to terminal: {}", e);
                             return false;
@@ -260,7 +260,7 @@ impl WindowState {
                 let write_error = if let Some(tab) = self.tab_manager.active_tab_mut() {
                     // try_lock: intentional — send_keys action in sync event loop.
                     // On miss: the key sequences are not written. User can retry.
-                    if let Ok(terminal) = tab.terminal.try_lock() {
+                    if let Ok(terminal) = tab.terminal.try_write() {
                         let mut err: Option<String> = None;
                         for bytes in &byte_sequences {
                             if let Err(e) = terminal.write(bytes) {

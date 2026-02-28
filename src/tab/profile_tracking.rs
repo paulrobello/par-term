@@ -23,7 +23,7 @@ impl Tab {
         if self.user_named {
             return;
         }
-        if let Ok(term) = self.terminal.try_lock() {
+        if let Ok(term) = self.terminal.try_write() {
             let osc_title = term.get_title();
             if !osc_title.is_empty() {
                 self.title = osc_title;
@@ -70,7 +70,7 @@ impl Tab {
 
     /// Check if the terminal in this tab is still running
     pub fn is_running(&self) -> bool {
-        if let Ok(term) = self.terminal.try_lock() {
+        if let Ok(term) = self.terminal.try_write() {
             term.is_running()
         } else {
             true // Assume running if locked
@@ -79,7 +79,7 @@ impl Tab {
 
     /// Get the current working directory of this tab's shell
     pub fn get_cwd(&self) -> Option<String> {
-        if let Ok(term) = self.terminal.try_lock() {
+        if let Ok(term) = self.terminal.try_write() {
             term.shell_integration_cwd()
         } else {
             self.working_directory.clone()
@@ -129,7 +129,7 @@ impl Tab {
     ///
     /// This uses the hostname extracted from OSC 7 sequences by the terminal emulator.
     pub fn check_hostname_change(&mut self) -> Option<String> {
-        let current_hostname = if let Ok(term) = self.terminal.try_lock() {
+        let current_hostname = if let Ok(term) = self.terminal.try_write() {
             term.shell_integration_hostname()
         } else {
             return None;

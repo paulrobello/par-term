@@ -40,7 +40,7 @@ impl WindowState {
         // try_lock: intentional — mouse button handler runs in the sync event loop.
         // On miss: the mouse event is not forwarded to mouse-tracking apps this click.
         // The user can click again; no data is permanently lost.
-        let Ok(term) = terminal_arc.try_lock() else {
+        let Ok(term) = terminal_arc.try_write() else {
             return false;
         };
 
@@ -58,7 +58,7 @@ impl WindowState {
                 let terminal_clone = Arc::clone(&terminal_arc);
                 let runtime = Arc::clone(&self.runtime);
                 runtime.spawn(async move {
-                    let t = terminal_clone.lock().await;
+                    let t = terminal_clone.write().await;
                     let _ = t.write(&encoded);
                 });
             }
@@ -95,7 +95,7 @@ impl WindowState {
             // event routing. The next mouse move/click will re-query correctly.
             return focused_pane
                 .terminal
-                .try_lock()
+                .try_write()
                 .ok()
                 .is_some_and(|term| term.is_mouse_tracking_enabled());
         }
@@ -111,7 +111,7 @@ impl WindowState {
         // On miss: returns false (no tracking detected). Cosmetically incorrect for this
         // event only; the next query will succeed.
         tab.terminal
-            .try_lock()
+            .try_write()
             .ok()
             .is_some_and(|term| term.is_mouse_tracking_enabled())
     }

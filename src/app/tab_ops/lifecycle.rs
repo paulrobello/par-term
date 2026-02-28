@@ -76,7 +76,7 @@ impl WindowState {
                             // try_lock: intentional — resize during new-tab creation in sync
                             // event loop. On miss: this tab keeps old dimensions; corrected
                             // on the next Resized event.
-                            if let Ok(mut term) = tab.terminal.try_lock() {
+                            if let Ok(mut term) = tab.terminal.try_write() {
                                 term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                                 let _ = term
                                     .resize_with_pixels(new_cols, new_rows, width_px, height_px);
@@ -109,7 +109,7 @@ impl WindowState {
                     // On miss: the new tab starts with default PTY dimensions; corrected
                     // on the next Resized event.
                     if let Some(renderer) = &self.renderer
-                        && let Ok(mut term) = tab.terminal.try_lock()
+                        && let Ok(mut term) = tab.terminal.try_write()
                     {
                         let (cols, rows) = renderer.grid_size();
                         let cell_width = renderer.cell_width();
@@ -208,7 +208,9 @@ impl WindowState {
                             hidden_tab: Some(hidden_tab),
                         };
                         self.overlay_state.closed_tabs.push_front(info);
-                        while self.overlay_state.closed_tabs.len() > self.config.session_undo_max_entries {
+                        while self.overlay_state.closed_tabs.len()
+                            > self.config.session_undo_max_entries
+                        {
                             self.overlay_state.closed_tabs.pop_back();
                         }
                         is_empty
@@ -239,7 +241,9 @@ impl WindowState {
                         hidden_tab: None,
                     };
                     self.overlay_state.closed_tabs.push_front(info);
-                    while self.overlay_state.closed_tabs.len() > self.config.session_undo_max_entries {
+                    while self.overlay_state.closed_tabs.len()
+                        > self.config.session_undo_max_entries
+                    {
                         self.overlay_state.closed_tabs.pop_back();
                     }
                 }
@@ -293,7 +297,7 @@ impl WindowState {
                     for tab in self.tab_manager.tabs_mut() {
                         // try_lock: intentional — tab close resize in sync event loop.
                         // On miss: tab keeps old dimensions; fixed on the next Resized event.
-                        if let Ok(mut term) = tab.terminal.try_lock() {
+                        if let Ok(mut term) = tab.terminal.try_write() {
                             term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                             let _ =
                                 term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
@@ -324,7 +328,8 @@ impl WindowState {
             let timeout =
                 std::time::Duration::from_secs(self.config.session_undo_timeout_secs as u64);
             let now = std::time::Instant::now();
-            self.overlay_state.closed_tabs
+            self.overlay_state
+                .closed_tabs
                 .retain(|info| now.duration_since(info.closed_at) < timeout);
         }
 
@@ -376,7 +381,7 @@ impl WindowState {
                 // try_lock: intentional — tab switch resize in sync event loop.
                 // On miss: the newly active tab uses previous dimensions until next Resized.
                 if let Some(renderer) = &self.renderer
-                    && let Ok(mut term) = tab.terminal.try_lock()
+                    && let Ok(mut term) = tab.terminal.try_write()
                 {
                     let (cols, rows) = renderer.grid_size();
                     let cell_width = renderer.cell_width();
@@ -432,7 +437,7 @@ impl WindowState {
                         // try_lock: intentional — new pane initialization in sync event loop.
                         // On miss: pane terminal keeps default dimensions; fixed on next Resized.
                         if let Some(renderer) = &self.renderer
-                            && let Ok(mut term) = tab.terminal.try_lock()
+                            && let Ok(mut term) = tab.terminal.try_write()
                         {
                             let (cols, rows) = renderer.grid_size();
                             let cell_width = renderer.cell_width();
@@ -500,7 +505,7 @@ impl WindowState {
                 if tab.id != new_tab_id {
                     // try_lock: intentional — tab bar resize loop in sync event loop.
                     // On miss: this tab is not resized; corrected on the next Resized event.
-                    if let Ok(mut term) = tab.terminal.try_lock() {
+                    if let Ok(mut term) = tab.terminal.try_write() {
                         term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                         let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                     }
@@ -620,7 +625,7 @@ impl WindowState {
     /// Get the active tab's terminal
     pub fn active_terminal(
         &self,
-    ) -> Option<&Arc<tokio::sync::Mutex<crate::terminal::TerminalManager>>> {
+    ) -> Option<&Arc<tokio::sync::RwLock<crate::terminal::TerminalManager>>> {
         self.tab_manager.active_tab().map(|tab| &tab.terminal)
     }
 
@@ -633,7 +638,7 @@ impl WindowState {
         // On miss (.ok() returns None): no job confirmation is shown, so tab closes without
         // prompting. This is safe: users are extremely unlikely to close exactly when the
         // lock is held by the PTY reader.
-        let term = tab.terminal.try_lock().ok()?;
+        let term = tab.terminal.try_write().ok()?;
         term.should_confirm_close(&self.config.jobs_to_ignore)
     }
 }

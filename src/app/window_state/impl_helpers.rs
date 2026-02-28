@@ -146,7 +146,7 @@ impl WindowState {
         let mut next_due: Option<std::time::Instant> = None;
 
         for tab in self.tab_manager.tabs_mut() {
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 // Treat new terminal output as activity
                 let current_generation = term.update_generation();
                 if current_generation > tab.anti_idle_last_generation {
@@ -314,7 +314,7 @@ impl WindowState {
         // Save last working directory for "previous session" mode
         if self.config.startup_directory_mode == crate::config::StartupDirectoryMode::Previous
             && let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_lock()
+            && let Ok(term) = tab.terminal.try_write()
             && let Some(cwd) = term.shell_integration_cwd()
         {
             log::info!("Saving last working directory: {}", cwd);
@@ -407,7 +407,7 @@ impl Drop for WindowState {
 
         // Pre-kill all PTY processes (sends SIGKILL, fast non-blocking)
         for arc in &terminal_arcs {
-            if let Ok(mut term) = arc.try_lock()
+            if let Ok(mut term) = arc.try_write()
                 && term.is_running()
             {
                 let _ = term.kill();

@@ -194,7 +194,7 @@ impl WindowState {
         // try_lock: intentional — file transfer polling in about_to_wait (sync event loop).
         // On miss: active_transfers stays cleared (cleared above) and no transfer progress
         // is shown for this frame. The overlay will be repopulated on the next poll.
-        if let Ok(term) = tab.terminal.try_lock() {
+        if let Ok(term) = tab.terminal.try_write() {
             // 1. Update active transfers for overlay (terminal-side transfers like downloads)
             let active = term.get_active_transfers();
             self.file_transfer_state
@@ -221,7 +221,7 @@ impl WindowState {
                 // try_lock: intentional — taking a completed download from the terminal in
                 // a spawned async task using sync try_lock. On miss: the completed transfer
                 // is not taken this iteration; it will be picked up on the next poll.
-                if let Ok(term) = terminal_arc.try_lock()
+                if let Ok(term) = terminal_arc.try_write()
                     && let Some(ft) = term.take_completed_transfer(id)
                 {
                     let filename = if ft.filename.is_empty() {
@@ -262,7 +262,7 @@ impl WindowState {
             // 3. Check for failed transfers and notify
             // try_lock: intentional — checking for failed transfers in a spawned async task.
             // On miss: failure detection is deferred to the next poll iteration. No data lost.
-            if let Ok(term) = terminal_arc.try_lock() {
+            if let Ok(term) = terminal_arc.try_write() {
                 let failed: Vec<(u64, String)> = term
                     .get_completed_transfers()
                     .iter()
@@ -278,7 +278,7 @@ impl WindowState {
                 // Take failed transfers to consume them
                 drop(term);
                 for (id, reason) in &failed {
-                    if let Ok(term) = terminal_arc.try_lock() {
+                    if let Ok(term) = terminal_arc.try_write() {
                         let _ = term.take_completed_transfer(*id);
                     }
                     self.deliver_notification(
@@ -292,7 +292,7 @@ impl WindowState {
             // 4. Poll for upload requests
             // try_lock: intentional — upload request polling in spawned async task.
             // On miss: upload requests are deferred to the next poll. No user data is lost.
-            if let Ok(term) = terminal_arc.try_lock() {
+            if let Ok(term) = terminal_arc.try_write() {
                 let upload_requests = term.poll_upload_requests();
                 for format in upload_requests {
                     self.file_transfer_state
@@ -557,7 +557,7 @@ impl WindowState {
 
                                     // Acceptable risk: blocking_lock() from std thread (not Tokio).
                                     // See docs/CONCURRENCY.md for mutex strategy.
-                                    let term = terminal_arc.blocking_lock();
+                                    let term = terminal_arc.blocking_write();
                                     match term.write(chunk) {
                                         Ok(()) => {
                                             drop(term);
@@ -600,7 +600,7 @@ impl WindowState {
         if let Some(tab) = self.tab_manager.active_tab() {
             // Acceptable risk: blocking_lock() from sync winit event loop.
             // See docs/CONCURRENCY.md for mutex strategy.
-            let term = tab.terminal.blocking_lock();
+            let term = tab.terminal.blocking_write();
             let _ = term.write(b"abort\n");
         }
     }
@@ -620,7 +620,7 @@ impl WindowState {
                 // try_lock: intentional — getting download save path in sync event loop.
                 // On miss: falls through to the Downloads fallback below. Acceptable UX.
                 if let Some(tab) = self.tab_manager.active_tab()
-                    && let Ok(term) = tab.terminal.try_lock()
+                    && let Ok(term) = tab.terminal.try_write()
                     && let Some(cwd) = term.shell_integration_cwd()
                 {
                     return Some(PathBuf::from(cwd));

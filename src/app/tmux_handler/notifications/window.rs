@@ -66,7 +66,7 @@ impl WindowState {
                     // loop. On miss: the new tmux tab's terminal is not resized this frame; the
                     // size will be corrected on the next Resized event.
                     if let Some(renderer) = &self.renderer
-                        && let Ok(mut term) = tab.terminal.try_lock()
+                        && let Ok(mut term) = tab.terminal.try_write()
                     {
                         let (cols, rows) = renderer.grid_size();
                         let size = renderer.size();

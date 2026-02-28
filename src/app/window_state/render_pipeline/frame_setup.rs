@@ -98,7 +98,7 @@ impl WindowState {
                 let height_px = (new_rows as f32 * cell_height) as usize;
 
                 for tab in self.tab_manager.tabs_mut() {
-                    if let Ok(mut term) = tab.terminal.try_lock() {
+                    if let Ok(mut term) = tab.terminal.try_write() {
                         term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                         let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                     }

@@ -248,13 +248,13 @@ impl WindowState {
             let pane = pane_manager.get_pane(focused_id)?;
             // try_lock: intentional — same rationale as check_current_tab_running_job.
             // On miss: pane closes without confirmation. Safe in practice.
-            let term = pane.terminal.try_lock().ok()?;
+            let term = pane.terminal.try_write().ok()?;
             return term.should_confirm_close(&self.config.jobs_to_ignore);
         }
 
         // Single pane - use the tab's terminal
         // try_lock: intentional — same rationale as above.
-        let term = tab.terminal.try_lock().ok()?;
+        let term = tab.terminal.try_write().ok()?;
         term.should_confirm_close(&self.config.jobs_to_ignore)
     }
 

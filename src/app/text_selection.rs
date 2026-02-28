@@ -28,7 +28,7 @@ impl WindowState {
         // try_lock: intentional — text selection update runs on every mouse-drag frame
         // in the sync event loop. On miss: selection is not updated this frame; the user
         // will notice slight lag in selection boundary rendering.
-        let (cols, visible_cells, _scroll_offset) = if let Ok(term) = tab.terminal.try_lock() {
+        let (cols, visible_cells, _scroll_offset) = if let Ok(term) = tab.terminal.try_write() {
             let (cols, _rows) = term.dimensions();
             let scroll_offset = tab.scroll_state.offset;
             let visible_cells = term.get_cells_with_scrollback(scroll_offset, None, false, None);
@@ -92,7 +92,7 @@ impl WindowState {
         let cols = if let Some(tab) = self.tab_manager.active_tab() {
             // try_lock: intentional — triple-click line selection in sync event loop.
             // On miss: line selection is skipped this click. User can triple-click again.
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 let (cols, _rows) = term.dimensions();
                 cols
             } else {
@@ -128,7 +128,7 @@ impl WindowState {
 
             // try_lock: intentional — double-click word selection in sync event loop.
             // On miss: word selection is skipped this click. User can double-click again.
-            let cols = if let Ok(term) = tab.terminal.try_lock() {
+            let cols = if let Ok(term) = tab.terminal.try_write() {
                 let (cols, _rows) = term.dimensions();
                 if cols == 0 {
                     return;
@@ -175,7 +175,7 @@ impl WindowState {
         // try_lock: intentional — extracting selected text from sync event loop on mouse
         // release. On miss (.ok() returns None): returns None and no text is copied.
         // The user can release and re-click to copy.
-        let term = tab.terminal.try_lock().ok()?;
+        let term = tab.terminal.try_write().ok()?;
         let (start, end) = selection.normalized();
         let (start_col, start_row) = start;
         let (end_col, end_row) = end;

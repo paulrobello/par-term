@@ -34,7 +34,7 @@ pub(crate) use setup::{
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 // Re-export TabId from par-term-config for shared access across subcrates
@@ -48,9 +48,9 @@ pub use par_term_config::TabId;
 /// tasks (PTY reader, input sender, resize handler) and the winit event loop.
 ///
 /// Access rules:
-/// - **From async tasks** (spawned with `runtime.spawn`): `terminal.lock().await`
-/// - **From the sync winit event loop**: `terminal.try_lock()` for non-blocking polling;
-///   `terminal.blocking_lock()` only for infrequent user-initiated operations
+/// - **From async tasks** (spawned with `runtime.spawn`): `terminal.write().await`
+/// - **From the sync winit event loop**: `terminal.try_write()` for non-blocking polling;
+///   `terminal.blocking_write()` only for infrequent user-initiated operations
 ///   (e.g., start/stop coprocess, register scripting observer).
 ///
 /// Never call `blocking_lock()` inside an async context — it will deadlock if called
@@ -63,23 +63,25 @@ pub struct Tab {
     pub(crate) id: TabId,
     /// The terminal session for this tab.
     ///
-    /// Uses `tokio::sync::Mutex` because `TerminalManager` is shared across async tasks
+    /// Uses `tokio::sync::RwLock` because `TerminalManager` is shared across async tasks
     /// (PTY reader, input sender, resize handler) and the winit event loop.
     ///
     /// ## Locking rules
     ///
     /// | Caller context | Correct access pattern | Notes |
     /// |----------------|------------------------|-------|
-    /// | Async task (`runtime.spawn`) | `terminal.lock().await` | Standard async lock |
-    /// | Sync winit event loop (polling) | `terminal.try_lock()` | Non-blocking; skip if contended |
-    /// | Sync winit event loop (user action) | `terminal.blocking_lock()` | OK for infrequent user-initiated ops (start/stop coprocess, register observer) |
+    /// | Async task (Read) | `terminal.read().await` | Async shared access |
+    /// | Async task (Write) | `terminal.write().await` | Async exclusive access |
+    /// | Sync event loop (Read) | `terminal.try_read()` | Non-blocking; skip if contended |
+    /// | Sync event loop (Write) | `terminal.try_write()` | Non-blocking; skip if contended |
+    /// | Sync user action (Write)| `terminal.blocking_write()` | OK for infrequent user-initiated ops |
     ///
-    /// **Never call `blocking_lock()` from within a Tokio worker thread** — it will
+    /// **Never call `blocking_write()` from within a Tokio worker thread** — it will
     /// deadlock because the blocking call cannot yield to the async scheduler.
     ///
     /// See the struct-level doc on [`Tab`] and `docs/MUTEX_PATTERNS.md` for the full
     /// threading model.
-    pub(crate) terminal: Arc<Mutex<TerminalManager>>,
+    pub(crate) terminal: Arc<RwLock<TerminalManager>>,
     /// Pane manager for split pane support.
     ///
     /// Not behind a Mutex — accessed only from the sync winit event loop on the main thread.
@@ -367,7 +369,7 @@ impl Tab {
             }
         }
 
-        let terminal = Arc::new(Mutex::new(terminal));
+        let terminal = Arc::new(RwLock::new(terminal));
 
         // Send initial text after optional delay (only when a runtime is provided)
         if let Some(runtime) = params.runtime
@@ -381,7 +383,7 @@ impl Tab {
                     tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
                 }
 
-                let term = terminal_clone.lock().await;
+                let term = terminal_clone.write().await;
                 if let Err(err) = term.write(&payload) {
                     log::warn!("Failed to send initial text: {}", err);
                 }
@@ -651,7 +653,7 @@ impl Drop for Tab {
         std::thread::sleep(std::time::Duration::from_millis(50));
 
         // Kill the terminal
-        if let Ok(mut term) = self.terminal.try_lock()
+        if let Ok(mut term) = self.terminal.try_write()
             && term.is_running()
         {
             log::info!("Killing terminal for tab {}", self.id);
@@ -669,7 +671,7 @@ impl Tab {
             TerminalManager::new_with_scrollback(80, 24, 100).expect("stub terminal creation");
         Self {
             id,
-            terminal: Arc::new(Mutex::new(terminal)),
+            terminal: Arc::new(RwLock::new(terminal)),
             pane_manager: None,
             title: format!("Tab {}", tab_number),
             has_activity: false,

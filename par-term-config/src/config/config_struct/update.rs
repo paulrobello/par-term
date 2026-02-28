@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::types::UpdateCheckFrequency;
+use serde::{Deserialize, Serialize};
 
 /// Configuration for automatic update checking
 #[derive(Debug, Clone, Serialize, Deserialize)]

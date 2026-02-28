@@ -279,8 +279,7 @@ pub(crate) fn create_base_terminal(
     let (cols, rows) = grid_size.unwrap_or((config.cols, config.rows));
 
     // Create terminal with scrollback from config
-    let mut terminal =
-        TerminalManager::new_with_scrollback(cols, rows, config.scrollback_lines)?;
+    let mut terminal = TerminalManager::new_with_scrollback(cols, rows, config.scrollback_lines)?;
 
     // Apply common terminal configuration
     configure_terminal_from_config(&mut terminal, config);

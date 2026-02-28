@@ -909,7 +909,7 @@ impl WindowState {
 
             if !commands_to_run.is_empty()
                 && let Some(tab) = self.tab_manager.active_tab()
-                && let Ok(term) = tab.terminal.try_lock()
+                && let Ok(term) = tab.terminal.try_write()
             {
                 for cmd in &commands_to_run {
                     let _ = term.write(cmd.as_bytes());
@@ -927,7 +927,7 @@ impl WindowState {
         // up-to-date command history regardless of agent connection state.
         if self.overlay_ui.ai_inspector.open
             && let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_lock()
+            && let Ok(term) = tab.terminal.try_write()
         {
             let history = term.core_command_history();
             let current_count = history.len();
@@ -992,7 +992,7 @@ impl WindowState {
         if self.overlay_ui.ai_inspector.open
             && self.overlay_ui.ai_inspector.needs_refresh
             && let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_lock()
+            && let Ok(term) = tab.terminal.try_write()
         {
             let snapshot = crate::ai_inspector::snapshot::SnapshotData::gather(
                 &term,

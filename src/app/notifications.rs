@@ -18,7 +18,7 @@ impl WindowState {
         // try_lock: intentional — OSC notification polling in about_to_wait (sync loop).
         // On miss: notifications are deferred to the next poll frame. Low risk; OSC
         // notifications are informational and a one-frame delay is imperceptible.
-        if let Ok(term) = tab.terminal.try_lock() {
+        if let Ok(term) = tab.terminal.try_write() {
             // Check for OSC 9/777 notifications
             if term.has_notifications() {
                 let notifications = term.take_notifications();
@@ -50,7 +50,7 @@ impl WindowState {
             // try_lock: intentional — bell count polling in about_to_wait (sync event loop).
             // On miss: bell detection is skipped this frame. The bell event will be seen
             // on the next poll. A one-frame delay in bell feedback is imperceptible.
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 (term.bell_count(), tab.bell.last_count)
             } else {
                 return;
@@ -173,7 +173,7 @@ impl WindowState {
             // Check if the terminal has exited
             // try_lock: intentional — exit check in about_to_wait (sync event loop).
             // On miss: this tab's exit is not detected this frame; it will be on the next.
-            let has_exited = if let Ok(term) = tab.terminal.try_lock() {
+            let has_exited = if let Ok(term) = tab.terminal.try_write() {
                 !term.is_running()
             } else {
                 continue; // Skip if terminal is locked
@@ -220,7 +220,7 @@ impl WindowState {
             // Get current terminal generation to detect new output
             // try_lock: intentional — activity/generation check in about_to_wait (sync loop).
             // On miss: activity tracking skipped for this tab this frame. Harmless.
-            let current_generation = if let Ok(term) = tab.terminal.try_lock() {
+            let current_generation = if let Ok(term) = tab.terminal.try_write() {
                 term.update_generation()
             } else {
                 continue; // Skip if terminal is locked
@@ -313,7 +313,8 @@ impl WindowState {
 
         // Skip desktop notification if window is focused and suppression is enabled
         // (unless force is set, e.g. for trigger-generated notifications)
-        if !force && self.config.suppress_notifications_when_focused && self.focus_state.is_focused {
+        if !force && self.config.suppress_notifications_when_focused && self.focus_state.is_focused
+        {
             log::debug!(
                 "Suppressing desktop notification (window is focused): {}",
                 title

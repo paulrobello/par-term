@@ -98,7 +98,7 @@ impl WindowState {
             let runtime = Arc::clone(&self.runtime);
 
             runtime.spawn(async move {
-                let term = terminal_clone.lock().await;
+                let term = terminal_clone.write().await;
                 let bytes = quoted_path.as_bytes().to_vec();
                 if let Err(e) = term.write(&bytes) {
                     log::error!("Failed to write dropped file path to terminal: {}", e);

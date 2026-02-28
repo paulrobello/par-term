@@ -141,7 +141,7 @@ impl WindowState {
                 // handler in the sync event loop. On miss: assumes no tracking (false) so
                 // the motion event is skipped this frame. High-frequency; acceptable loss.
                 let should_report = terminal_arc
-                    .try_lock()
+                    .try_write()
                     .ok()
                     .is_some_and(|term| term.should_report_mouse_motion(button_pressed));
 
@@ -149,7 +149,7 @@ impl WindowState {
                 // On miss: mouse motion encoding is skipped this frame. Same rationale.
                 if should_report
                     && !shift_held
-                    && let Ok(term) = terminal_arc.try_lock()
+                    && let Ok(term) = terminal_arc.try_write()
                 {
                     // Encode button+motion (button 32 marker)
                     let button = if button_pressed {
@@ -163,7 +163,7 @@ impl WindowState {
                         let terminal_clone = Arc::clone(&terminal_arc);
                         let runtime = Arc::clone(&self.runtime);
                         runtime.spawn(async move {
-                            let t = terminal_clone.lock().await;
+                            let t = terminal_clone.write().await;
                             let _ = t.write(&encoded);
                         });
                     }
@@ -254,7 +254,7 @@ impl WindowState {
         // selection will proceed even on alt screen for this one motion event. Benign.
         let alt_screen_active = self.tab_manager.active_tab().is_some_and(|tab| {
             tab.terminal
-                .try_lock()
+                .try_write()
                 .ok()
                 .is_some_and(|term| term.is_alt_screen_active())
         });

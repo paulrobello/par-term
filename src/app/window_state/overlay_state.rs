@@ -2,9 +2,9 @@
 //!
 //! Extracted from `WindowState` as part of the God Object decomposition (ARC-001).
 
-use std::time::Instant;
-use std::collections::VecDeque;
 use crate::app::tab_ops::ClosedTabInfo;
+use std::collections::VecDeque;
+use std::time::Instant;
 
 /// State for transient UI overlays (resize, toast, pane ID) and pending UI requests.
 pub(crate) struct OverlayState {

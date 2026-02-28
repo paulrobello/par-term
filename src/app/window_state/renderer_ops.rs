@@ -54,7 +54,7 @@ impl WindowState {
 
         // Resize all tabs' terminals
         for tab in self.tab_manager.tabs_mut() {
-            if let Ok(mut term) = tab.terminal.try_lock() {
+            if let Ok(mut term) = tab.terminal.try_write() {
                 let _ = term.resize_with_pixels(cols, rows, width_px, height_px);
                 term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                 term.set_theme(self.config.load_theme());
@@ -190,7 +190,7 @@ impl WindowState {
                 let height_px = (new_rows as f32 * cell_height) as usize;
 
                 for tab in self.tab_manager.tabs_mut() {
-                    if let Ok(mut term) = tab.terminal.try_lock() {
+                    if let Ok(mut term) = tab.terminal.try_write() {
                         term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                         let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                     }
@@ -253,7 +253,7 @@ impl WindowState {
             let height_px = (new_rows as f32 * cell_height) as usize;
 
             for tab in self.tab_manager.tabs_mut() {
-                if let Ok(mut term) = tab.terminal.try_lock() {
+                if let Ok(mut term) = tab.terminal.try_write() {
                     term.set_cell_dimensions(cell_width as u32, cell_height as u32);
                     let _ = term.resize_with_pixels(new_cols, new_rows, width_px, height_px);
                 }
@@ -299,7 +299,7 @@ impl WindowState {
             // Style is locked, use config's blink setting
             self.config.cursor_blink
         } else if let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_lock()
+            && let Ok(term) = tab.terminal.try_write()
         {
             use par_term_emu_core_rust::cursor::CursorStyle;
             let style = term.cursor_style();

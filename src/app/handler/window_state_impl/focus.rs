@@ -27,7 +27,8 @@ impl WindowState {
         // zero-char selection that clears the system clipboard.
         if focused {
             let suppressed_recent_unfocused_click = self
-                .focus_state.focus_click_suppressed_while_unfocused_at
+                .focus_state
+                .focus_click_suppressed_while_unfocused_at
                 .is_some_and(|t| t.elapsed() <= std::time::Duration::from_millis(500));
 
             self.focus_state.focus_click_pending = !suppressed_recent_unfocused_click;
@@ -70,7 +71,7 @@ impl WindowState {
             // focus change event is not delivered to this terminal/pane. For most TUI apps
             // this means the focus-change visual update (e.g., tmux pane highlight) is
             // delayed one or more frames.
-            if let Ok(term) = tab.terminal.try_lock() {
+            if let Ok(term) = tab.terminal.try_write() {
                 term.report_focus_change(focused);
             } else {
                 crate::debug::record_try_lock_failure("focus_event");
@@ -79,7 +80,7 @@ impl WindowState {
             if let Some(pm) = &tab.pane_manager {
                 for pane in pm.all_panes() {
                     // try_lock: intentional — same rationale as tab terminal above.
-                    if let Ok(term) = pane.terminal.try_lock() {
+                    if let Ok(term) = pane.terminal.try_write() {
                         term.report_focus_change(focused);
                     } else {
                         crate::debug::record_try_lock_failure("focus_event_pane");

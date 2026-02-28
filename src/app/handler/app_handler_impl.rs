@@ -269,7 +269,11 @@ impl ApplicationHandler for WindowManager {
             }
 
             // Check for arrangement restore request from keybinding
-            if let Some(name) = window_state.overlay_state.pending_arrangement_restore.take() {
+            if let Some(name) = window_state
+                .overlay_state
+                .pending_arrangement_restore
+                .take()
+            {
                 arrangement_restore_name = Some(name);
             }
 
