@@ -453,6 +453,11 @@ fn show_script_edit_form(
                     restart_delay_ms: settings.temp_script_restart_delay_ms,
                     subscriptions,
                     env_vars: std::collections::HashMap::new(),
+                    allow_write_text: false,
+                    allow_run_command: false,
+                    allow_change_config: false,
+                    write_text_rate_limit: 0,
+                    run_command_rate_limit: 0,
                 };
 
                 if let Some(i) = edit_index {

@@ -229,6 +229,74 @@ pub enum ScriptCommand {
     ClearPanel {},
 }
 
+/// Strip VT/ANSI escape sequences from text before PTY injection.
+///
+/// Removes CSI (`ESC[`), OSC (`ESC]`), DCS (`ESC P`), APC (`ESC _`),
+/// PM (`ESC ^`), SOS (`ESC X`) sequences, and bare two-byte `ESC x`
+/// sequences. Printable characters and newlines are passed through.
+///
+/// This is required for safe `WriteText` dispatch: a script must not be
+/// able to embed control sequences that reposition the cursor, exfiltrate
+/// data, or otherwise corrupt the terminal state.
+pub fn strip_vt_sequences(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c != '\x1b' {
+            result.push(c);
+            continue;
+        }
+        // ESC seen — classify and skip the sequence
+        match chars.peek().copied() {
+            Some('[') => {
+                // CSI: ESC [ ... <final-byte>
+                chars.next(); // consume '['
+                while let Some(&ch) = chars.peek() {
+                    chars.next();
+                    if ch.is_ascii_alphabetic() || ch == '@' || ch == '`' {
+                        break;
+                    }
+                }
+            }
+            Some(']') => {
+                // OSC: ESC ] ... BEL or ST (ESC \)
+                chars.next(); // consume ']'
+                while let Some(ch) = chars.next() {
+                    if ch == '\x07' {
+                        break;
+                    }
+                    if ch == '\x1b' && chars.peek() == Some(&'\\') {
+                        chars.next();
+                        break;
+                    }
+                }
+            }
+            Some('P') | Some('_') | Some('^') | Some('X') => {
+                // DCS / APC / PM / SOS: ESC <type> ... ST (ESC \)
+                chars.next(); // consume the type byte
+                while let Some(ch) = chars.next() {
+                    if ch == '\x1b' && chars.peek() == Some(&'\\') {
+                        chars.next();
+                        break;
+                    }
+                }
+            }
+            Some('(') | Some(')') | Some('*') | Some('+') => {
+                // Character-set designation: ESC ( x — skip two bytes
+                chars.next();
+                chars.next();
+            }
+            Some(_) => {
+                // Generic two-byte ESC sequence — skip one byte
+                chars.next();
+            }
+            None => {}
+        }
+    }
+    result
+}
+
 impl ScriptCommand {
     /// Returns `true` if this command requires explicit permission in the script config.
     ///

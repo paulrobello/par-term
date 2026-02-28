@@ -41,4 +41,35 @@ pub struct ScriptConfig {
     /// Additional environment variables to set for the script process
     #[serde(default)]
     pub env_vars: HashMap<String, String>,
+
+    /// Allow this script to inject text into the active PTY via `WriteText`.
+    ///
+    /// Defaults to `false`. Must be explicitly set to `true` to enable.
+    /// When enabled, VT/ANSI escape sequences are stripped before writing
+    /// and a rate limit is applied (see `write_text_rate_limit`).
+    #[serde(default)]
+    pub allow_write_text: bool,
+
+    /// Allow this script to spawn external processes via `RunCommand`.
+    ///
+    /// Defaults to `false`. Must be explicitly set to `true` to enable.
+    /// When enabled, the command is checked against the denylist and a
+    /// rate limit is applied (see `run_command_rate_limit`).
+    #[serde(default)]
+    pub allow_run_command: bool,
+
+    /// Allow this script to modify runtime configuration via `ChangeConfig`.
+    ///
+    /// Defaults to `false`. Must be explicitly set to `true` to enable.
+    /// Only keys in the runtime allowlist may be changed.
+    #[serde(default)]
+    pub allow_change_config: bool,
+
+    /// Maximum `WriteText` writes per second (0 = use default of 10/s).
+    #[serde(default)]
+    pub write_text_rate_limit: u32,
+
+    /// Maximum `RunCommand` executions per second (0 = use default of 1/s).
+    #[serde(default)]
+    pub run_command_rate_limit: u32,
 }
