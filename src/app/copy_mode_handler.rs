@@ -20,21 +20,22 @@ impl WindowState {
             return;
         }
 
-        let (cursor_col, cursor_row, cols, rows, scrollback_len) =
-            if let Some(tab) = self.tab_manager.active_tab() {
-                // try_lock: intentional — copy mode initialization in sync event loop.
-                // On miss: copy mode is not entered this keypress. User can try again.
-                if let Ok(term) = tab.terminal.try_write() {
+        // try_lock: intentional — copy mode initialization in sync event loop.
+        // On miss: copy mode is not entered this keypress. User can try again.
+        let Some((cursor_col, cursor_row, cols, rows, scrollback_len)) = self
+            .tab_manager
+            .active_tab()
+            .and_then(|tab| {
+                tab.try_with_terminal_mut(|term| {
                     let (col, row) = term.cursor_position();
                     let (cols, rows) = term.dimensions();
                     let sb_len = term.scrollback_len();
                     (col, row, cols, rows, sb_len)
-                } else {
-                    return;
-                }
-            } else {
-                return;
-            };
+                })
+            })
+        else {
+            return;
+        };
 
         self.copy_mode
             .enter(cursor_col, cursor_row, cols, rows, scrollback_len);
@@ -53,10 +54,10 @@ impl WindowState {
     pub(crate) fn exit_copy_mode(&mut self) {
         self.copy_mode.exit();
         // Clear selection (per-pane aware)
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
+        self.with_active_tab_mut(|tab| {
             tab.selection_mouse_mut().selection = None;
             tab.cache.cells = None; // Invalidate cache
-        }
+        });
         // Scroll back to bottom
         self.set_scroll_target(0);
         self.focus_state.needs_redraw = true;
@@ -320,10 +321,10 @@ impl WindowState {
                     // Exit visual mode first
                     self.copy_mode.visual_mode = VisualMode::None;
                     self.copy_mode.selection_anchor = None;
-                    if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    self.with_active_tab_mut(|tab| {
                         tab.selection_mouse_mut().selection = None;
                         tab.cache.cells = None;
-                    }
+                    });
                     self.focus_state.needs_redraw = true;
                     self.request_redraw();
                 } else {
@@ -413,22 +414,20 @@ impl WindowState {
         // Get all lines from terminal for searching
         // try_lock: intentional — copy mode search in sync event loop.
         // On miss: search is skipped this keypress; result stays at current position.
-        let found = if let Some(tab) = self.tab_manager.active_tab() {
-            if let Ok(term) = tab.terminal.try_write() {
-                let total = self.copy_mode.scrollback_len + self.copy_mode.rows;
-                if forward {
-                    // Search forward from current position
-                    self.search_lines_forward(&term, &query, current_line, current_col, total)
-                } else {
-                    // Search backward from current position
-                    self.search_lines_backward(&term, &query, current_line, current_col)
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let total = self.copy_mode.scrollback_len + self.copy_mode.rows;
+        let found = self
+            .tab_manager
+            .active_tab()
+            .and_then(|tab| {
+                tab.try_with_terminal_mut(|term| {
+                    if forward {
+                        self.search_lines_forward(term, &query, current_line, current_col, total)
+                    } else {
+                        self.search_lines_backward(term, &query, current_line, current_col)
+                    }
+                })
+            })
+            .flatten();
 
         if let Some((line, col)) = found {
             self.copy_mode.cursor_absolute_line = line;
@@ -521,12 +520,10 @@ impl WindowState {
         let abs_line = self.copy_mode.cursor_absolute_line;
         // try_lock: intentional — reading line text for copy mode in sync event loop.
         // On miss: returns None (no text). The line action (yank/open) is skipped.
-        if let Some(tab) = self.tab_manager.active_tab()
-            && let Ok(term) = tab.terminal.try_write()
-        {
-            return term.line_text_at_absolute(abs_line);
-        }
-        None
+        self.tab_manager
+            .active_tab()
+            .and_then(|tab| tab.try_with_terminal_mut(|term| term.line_text_at_absolute(abs_line)))
+            .flatten()
     }
 
     /// Post-motion housekeeping: sync selection, follow cursor, redraw
@@ -547,27 +544,19 @@ impl WindowState {
 
     /// Synchronize the copy mode visual selection with the tab's mouse selection
     fn sync_copy_mode_selection(&mut self) {
-        let scroll_offset = self
-            .tab_manager
-            .active_tab()
-            .map(|t| t.scroll_state.offset)
-            .unwrap_or(0);
+        let scroll_offset = self.with_active_tab(|t| t.scroll_state.offset).unwrap_or(0);
 
         let selection = self.copy_mode.compute_selection(scroll_offset);
 
-        if let Some(tab) = self.tab_manager.active_tab_mut() {
+        self.with_active_tab_mut(|tab| {
             tab.selection_mouse_mut().selection = selection;
             tab.cache.cells = None; // Invalidate cache to re-render selection
-        }
+        });
     }
 
     /// Scroll the viewport to follow the copy mode cursor if it moved offscreen
     fn follow_copy_mode_cursor(&mut self) {
-        let current_offset = self
-            .tab_manager
-            .active_tab()
-            .map(|t| t.scroll_state.offset)
-            .unwrap_or(0);
+        let current_offset = self.with_active_tab(|t| t.scroll_state.offset).unwrap_or(0);
 
         if let Some(new_offset) = self.copy_mode.required_scroll_offset(current_offset) {
             self.set_scroll_target(new_offset);
@@ -595,10 +584,10 @@ impl WindowState {
                         // Stay in copy mode but clear visual selection
                         self.copy_mode.visual_mode = crate::copy_mode::VisualMode::None;
                         self.copy_mode.selection_anchor = None;
-                        if let Some(tab) = self.tab_manager.active_tab_mut() {
+                        self.with_active_tab_mut(|tab| {
                             tab.selection_mouse_mut().selection = None;
                             tab.cache.cells = None;
-                        }
+                        });
                         self.focus_state.needs_redraw = true;
                         self.request_redraw();
                     }

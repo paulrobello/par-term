@@ -12,9 +12,7 @@ impl WindowState {
             && !self.overlay_ui.profile_manager.is_empty()
         {
             self.tab_bar_ui.show_new_tab_profile_menu = !self.tab_bar_ui.show_new_tab_profile_menu;
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             log::info!("Toggled new-tab profile menu via shortcut");
         } else {
             self.new_tab();

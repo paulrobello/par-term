@@ -2,6 +2,8 @@
 //!
 //! Covers:
 //! - DRY rendering helpers (`invalidate_tab_cache`, `request_redraw`, `clear_and_invalidate`)
+//! - Window access helpers (`with_window`, AUD-033)
+//! - Active-tab access helpers (`with_active_tab`, `with_active_tab_mut`, AUD-030)
 //! - Debounced config save (`save_config_debounced`, `process_pending_config_save`)
 //! - Anti-idle keep-alive logic
 //! - egui pointer / keyboard query helpers
@@ -12,6 +14,7 @@
 
 use super::{ConfigSaveState, WindowState};
 use crate::app::anti_idle::should_send_keep_alive;
+use crate::tab::Tab;
 use anyhow::Result;
 use std::sync::Arc;
 
@@ -28,7 +31,10 @@ impl WindowState {
         }
     }
 
-    /// Request window redraw if window exists
+    /// Request window redraw if window exists.
+    ///
+    /// Prefer this over the inline `if let Some(window) = &self.window { window.request_redraw() }`
+    /// pattern (AUD-032).
     #[inline]
     pub(crate) fn request_redraw(&self) {
         if let Some(window) = &self.window {
@@ -37,6 +43,41 @@ impl WindowState {
         } else {
             crate::debug_trace!("REDRAW", "request_redraw called but no window");
         }
+    }
+
+    /// Run a closure with the winit `Window`, returning `None` when the window is absent.
+    ///
+    /// Use this instead of the inline `if let Some(window) = &self.window { ... }` pattern
+    /// for one-shot operations on the window (cursor changes, title updates, etc.) (AUD-033).
+    ///
+    /// # Example
+    /// ```ignore
+    /// self.with_window(|w| w.set_cursor(cursor));
+    /// ```
+    #[inline]
+    pub(crate) fn with_window<R>(&self, f: impl FnOnce(&winit::window::Window) -> R) -> Option<R> {
+        self.window.as_deref().map(f)
+    }
+
+    /// Run a closure with the active tab (immutable), returning `None` when no tab is active.
+    ///
+    /// Use this instead of the inline `if let Some(tab) = self.tab_manager.active_tab() { ... }`
+    /// pattern (AUD-030).
+    #[inline]
+    pub(crate) fn with_active_tab<R>(&self, f: impl FnOnce(&Tab) -> R) -> Option<R> {
+        self.tab_manager.active_tab().map(f)
+    }
+
+    /// Run a closure with the active tab (mutable), returning `None` when no tab is active.
+    ///
+    /// Use this instead of the inline `if let Some(tab) = self.tab_manager.active_tab_mut() { ... }`
+    /// pattern (AUD-030).
+    #[inline]
+    pub(crate) fn with_active_tab_mut<R>(
+        &mut self,
+        f: impl FnOnce(&mut Tab) -> R,
+    ) -> Option<R> {
+        self.tab_manager.active_tab_mut().map(f)
     }
 
     /// Clear renderer cells and invalidate cache (used when switching tabs)
@@ -195,12 +236,12 @@ impl WindowState {
             return true;
         }
         // Before first render, egui state is unreliable - allow mouse events through
-        if !self.egui_initialized {
+        if !self.egui.initialized {
             return false;
         }
         // Always check egui context - the tab bar is always rendered via egui
         // and can consume pointer events (e.g., close button clicks)
-        if let Some(ctx) = &self.egui_ctx {
+        if let Some(ctx) = &self.egui.ctx {
             ctx.is_using_pointer() || ctx.wants_pointer_input()
         } else {
             false
@@ -249,7 +290,7 @@ impl WindowState {
         }
 
         // Check egui context for keyboard usage
-        if let Some(ctx) = &self.egui_ctx {
+        if let Some(ctx) = &self.egui.ctx {
             ctx.wants_keyboard_input()
         } else {
             false
@@ -362,8 +403,8 @@ impl Drop for WindowState {
         }
 
         // Clean up egui state FIRST before any other resources are dropped
-        self.egui_state = None;
-        self.egui_ctx = None;
+        self.egui.state = None;
+        self.egui.ctx = None;
 
         // Drain all tabs from the manager (takes ownership without dropping)
         let mut tabs = self.tab_manager.drain_tabs();

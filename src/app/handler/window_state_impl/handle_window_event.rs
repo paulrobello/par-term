@@ -49,7 +49,7 @@ impl WindowState {
 
         // Let egui handle the event (needed for proper rendering state)
         let (egui_consumed, egui_needs_repaint) =
-            if let (Some(egui_state), Some(window)) = (&mut self.egui_state, &self.window) {
+            if let (Some(egui_state), Some(window)) = (&mut self.egui.state, &self.window) {
                 let event_response = egui_state.on_window_event(window, &event);
                 // Request redraw if egui needs it (e.g., text input in modals)
                 if event_response.repaint {
@@ -120,9 +120,7 @@ impl WindowState {
                         .quit_confirmation_ui
                         .show_confirmation(tab_count);
                     self.focus_state.needs_redraw = true;
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+                    self.request_redraw();
                     return false; // Don't close yet - wait for user confirmation
                 }
 
@@ -244,11 +242,9 @@ impl WindowState {
                         let total_lines = rows + tab.cache.scrollback_len;
                         // try_lock: intentional — scrollbar mark update during Resized event.
                         // On miss: scrollbar renders without marks this frame. Cosmetic only.
-                        let marks = if let Ok(term) = tab.terminal.try_write() {
-                            term.scrollback_marks()
-                        } else {
-                            Vec::new()
-                        };
+                        let marks = tab
+                            .try_with_terminal(|term| term.scrollback_marks())
+                            .unwrap_or_default();
                         renderer.update_scrollbar(
                             tab.scroll_state.offset,
                             rows,
@@ -309,9 +305,7 @@ impl WindowState {
                             Some(std::time::Instant::now());
                     }
                     self.focus_state.ui_consumed_mouse_press = true; // Also suppress the release
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+                    self.request_redraw();
                 } else {
                     // Track UI mouse consumption to prevent release events bleeding through
                     // when UI closes during a click (e.g., drawer toggle)
@@ -320,9 +314,7 @@ impl WindowState {
                     if state == ElementState::Pressed {
                         if ui_wants_pointer {
                             self.focus_state.ui_consumed_mouse_press = true;
-                            if let Some(window) = &self.window {
-                                window.request_redraw();
-                            }
+                            self.request_redraw();
                         } else {
                             self.focus_state.ui_consumed_mouse_press = false;
                             self.begin_clipboard_image_click_guard(button, state);
@@ -333,9 +325,7 @@ impl WindowState {
                         // Release: block if we consumed the press OR if UI wants pointer
                         if self.focus_state.ui_consumed_mouse_press || ui_wants_pointer {
                             self.focus_state.ui_consumed_mouse_press = false;
-                            if let Some(window) = &self.window {
-                                window.request_redraw();
-                            }
+                            self.request_redraw();
                         } else {
                             self.begin_clipboard_image_click_guard(button, state);
                             self.handle_mouse_button(button, state);
@@ -349,9 +339,7 @@ impl WindowState {
                 // Skip terminal handling if egui UI is visible or using the pointer
                 if any_ui_visible || self.is_egui_using_pointer() {
                     // Request redraw so egui can update hover states
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+                    self.request_redraw();
                 } else {
                     self.handle_mouse_move((position.x, position.y));
                 }

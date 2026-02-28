@@ -93,16 +93,13 @@ impl WindowState {
                 // Also check legacy single-pane tabs
                 let (shell_exited, active_tab_id, tab_count, tab_title, exit_notified) = {
                     if let Some(tab) = self.tab_manager.active_tab() {
+                        // try_lock: intentional — shell exit check during RedrawRequested
+                        // in the sync event loop. On miss: treat as still running so the tab
+                        // stays open until the next frame resolves the exit.
                         let exited = tab.pane_manager.is_none()
-                            // try_lock: intentional — shell exit check during RedrawRequested
-                            // in the sync event loop. On miss: treat as still running
-                            // (is_some_and returns false on None), so the tab stays open
-                            // until the next frame resolves the exit.
                             && tab
-                                .terminal
-                                .try_write()
-                                .ok()
-                                .is_some_and(|term| !term.is_running());
+                                .try_with_terminal_mut(|term| !term.is_running())
+                                .unwrap_or(false);
                         (
                             exited,
                             Some(tab.id),

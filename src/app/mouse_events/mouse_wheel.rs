@@ -6,9 +6,7 @@ impl WindowState {
     pub(crate) fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
         // Check if profile drawer is open - let egui handle scroll events
         if self.overlay_ui.profile_drawer_ui.expanded {
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             return;
         }
 
@@ -152,9 +150,7 @@ impl WindowState {
 
         if target_set {
             // Request redraw to start the animation loop
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
         }
     }
 
@@ -184,9 +180,7 @@ impl WindowState {
                     tab.scroll_state.animation_start = None;
                 }
 
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
         }
     }

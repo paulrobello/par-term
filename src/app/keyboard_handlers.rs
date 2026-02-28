@@ -54,9 +54,7 @@ impl WindowState {
             log::info!("Settings window requested");
 
             // Request redraw to trigger event processing
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
 
             return true;
         }
@@ -86,9 +84,7 @@ impl WindowState {
             );
 
             // Request redraw to show/hide help
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
 
             return true;
         }
@@ -100,9 +96,7 @@ impl WindowState {
             self.overlay_ui.help_ui.visible = false;
             log::info!("Help UI closed via Escape");
 
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
 
             return true;
         }
@@ -115,9 +109,7 @@ impl WindowState {
             self.overlay_ui.shader_install_ui.visible = false;
             log::info!("Shader install UI closed via Escape");
 
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
 
             return true;
         }
@@ -130,9 +122,7 @@ impl WindowState {
             self.overlay_ui.integrations_ui.visible = false;
             log::info!("Integrations dialog closed via Escape");
 
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
 
             return true;
         }
@@ -170,9 +160,7 @@ impl WindowState {
             );
 
             // Request redraw to show/hide FPS overlay
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
 
             return true;
         }

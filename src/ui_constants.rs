@@ -239,3 +239,33 @@ pub const FPS_OVERLAY_OFFSET_X: f32 = -30.0;
 pub const FPS_OVERLAY_OFFSET_Y: f32 = 10.0;
 /// Corner rounding of the FPS overlay background frame.
 pub const FPS_OVERLAY_ROUNDING: f32 = 4.0;
+
+// ---------------------------------------------------------------------------
+// Mouse / interaction thresholds
+// ---------------------------------------------------------------------------
+
+/// Minimum squared pixel distance a mouse must travel from press position before
+/// a click-and-hold is treated as a drag selection. Prevents accidental selections
+/// from trackpad tap-to-click jitter.
+///
+/// Note: compared against `dx*dx + dy*dy` (squared distance) to avoid a sqrt.
+pub const DRAG_THRESHOLD_PX: f64 = 8.0;
+
+/// Maximum pixel distance a click-and-release may travel while still being
+/// considered a plain click (vs. a drag). Used by the clipboard-image click
+/// guard to decide whether to restore the clipboard after a release.
+///
+/// Note: compared against `dx*dx + dy*dy` (squared distance) to avoid a sqrt.
+pub const CLICK_RESTORE_THRESHOLD_PX: f64 = 6.0;
+
+/// Hit-test radius (in physical pixels) for scrollbar mark tooltips.
+/// Mouse must be within this many pixels of a mark's centre to show the tooltip.
+pub const SCROLLBAR_MARK_HIT_RADIUS_PX: f32 = 8.0;
+
+// ---------------------------------------------------------------------------
+// Animation / timing
+// ---------------------------------------------------------------------------
+
+/// Duration of the visual-bell screen flash in milliseconds.
+/// Shared by the pane, tab, and render-pipeline flash logic.
+pub const VISUAL_BELL_FLASH_DURATION_MS: u128 = 150;

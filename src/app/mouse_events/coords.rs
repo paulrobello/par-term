@@ -123,9 +123,7 @@ impl WindowState {
             });
 
             // Request redraw in case terminal needs to update
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
         }
     }
 }

@@ -663,6 +663,42 @@ impl Drop for Tab {
 }
 
 impl Tab {
+    /// Non-blocking read access to this tab's `TerminalManager`.
+    ///
+    /// Returns `None` on lock contention (expected: another async task holds it).
+    /// Use this instead of the inline `if let Ok(term) = tab.terminal.try_read()` pattern
+    /// (AUD-031).
+    ///
+    /// # try_lock rationale
+    /// Called from the sync winit event loop. On contention, returns `None` so the
+    /// caller can gracefully skip the operation and retry on the next frame.
+    #[inline]
+    pub(crate) fn try_with_terminal<R>(
+        &self,
+        f: impl FnOnce(&TerminalManager) -> R,
+    ) -> Option<R> {
+        // try_lock: intentional — called from the sync event loop; skip on contention.
+        self.terminal.try_read().ok().map(|guard| f(&guard))
+    }
+
+    /// Non-blocking write access to this tab's `TerminalManager`.
+    ///
+    /// Returns `None` on lock contention (expected: another async task holds it).
+    /// Use this instead of the inline `if let Ok(mut term) = tab.terminal.try_write()` pattern
+    /// (AUD-031).
+    ///
+    /// # try_lock rationale
+    /// Called from the sync winit event loop. On contention, returns `None` so the
+    /// caller can gracefully skip the operation and retry on the next frame.
+    #[inline]
+    pub(crate) fn try_with_terminal_mut<R>(
+        &self,
+        f: impl FnOnce(&mut TerminalManager) -> R,
+    ) -> Option<R> {
+        // try_lock: intentional — called from the sync event loop; skip on contention.
+        self.terminal.try_write().ok().map(|mut guard| f(&mut guard))
+    }
+
     /// Get the mouse state for selection operations.
     ///
     /// In split-pane mode, returns the focused pane's mouse state so that

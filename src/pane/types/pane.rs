@@ -17,6 +17,7 @@ use crate::tab::{
     apply_login_shell_flag, build_shell_env, configure_terminal_from_config, get_shell_command,
 };
 use crate::terminal::TerminalManager;
+use crate::ui_constants::VISUAL_BELL_FLASH_DURATION_MS;
 
 use super::bounds::PaneBounds;
 use super::common::{PaneBackground, PaneId, RestartState};
@@ -196,9 +197,8 @@ impl Pane {
 
     /// Check if the visual bell is currently active
     pub fn is_bell_active(&self) -> bool {
-        const FLASH_DURATION_MS: u128 = 150;
         if let Some(flash_start) = self.bell.visual_flash {
-            flash_start.elapsed().as_millis() < FLASH_DURATION_MS
+            flash_start.elapsed().as_millis() < VISUAL_BELL_FLASH_DURATION_MS
         } else {
             false
         }

@@ -24,6 +24,7 @@ use crate::app::window_state::WindowState;
 use crate::badge::render_badge;
 use crate::config::{ShaderInstallPrompt, color_u8_to_f32_a};
 use crate::progress_bar::{ProgressBarSnapshot, render_progress_bars};
+use crate::ui_constants::{SCROLLBAR_MARK_HIT_RADIUS_PX, VISUAL_BELL_FLASH_DURATION_MS};
 use wgpu::SurfaceError;
 
 impl WindowState {
@@ -336,15 +337,14 @@ impl WindowState {
                 .active_tab()
                 .and_then(|t| t.bell.visual_flash);
             let visual_bell_intensity = if let Some(flash_start) = visual_bell_flash {
-                const FLASH_DURATION_MS: u128 = 150;
                 let elapsed = flash_start.elapsed().as_millis();
-                if elapsed < FLASH_DURATION_MS {
+                if elapsed < VISUAL_BELL_FLASH_DURATION_MS {
                     // Request continuous redraws while flash is active
                     if let Some(window) = &self.window {
                         window.request_redraw();
                     }
                     // Fade out: start at 0.3 intensity, fade to 0
-                    0.3 * (1.0 - (elapsed as f32 / FLASH_DURATION_MS as f32))
+                    0.3 * (1.0 - (elapsed as f32 / VISUAL_BELL_FLASH_DURATION_MS as f32))
                 } else {
                     // Flash complete - clear it
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
@@ -403,7 +403,11 @@ impl WindowState {
                         .active_tab()
                         .map(|tab| tab.mouse.position)
                         .and_then(|(mx, my)| {
-                            renderer.scrollbar_mark_at_position(mx as f32, my as f32, 8.0)
+                            renderer.scrollbar_mark_at_position(
+                            mx as f32,
+                            my as f32,
+                            SCROLLBAR_MARK_HIT_RADIUS_PX,
+                        )
                         })
                         .cloned()
                 } else {
@@ -430,12 +434,12 @@ impl WindowState {
 
             let egui_data = if let Some(window) = self.window.as_ref() {
                 // Window is live; run egui if the context and state are also ready.
-                if let (Some(egui_ctx), Some(egui_state)) = (&self.egui_ctx, &mut self.egui_state) {
+                if let (Some(egui_ctx), Some(egui_state)) = (&self.egui.ctx, &mut self.egui.state) {
                     let mut raw_input = egui_state.take_egui_input(window);
 
                     // Inject pending events from menu accelerators (Cmd+V/C/A intercepted by muda)
                     // when egui overlays (profile modal, search, etc.) are active
-                    raw_input.events.append(&mut self.pending_egui_events);
+                    raw_input.events.append(&mut self.egui.pending_events);
 
                     // When no modal UI overlay is visible, filter out Tab key events to prevent
                     // egui's default focus navigation from stealing Tab/Shift+Tab from the terminal.
@@ -710,8 +714,8 @@ impl WindowState {
             };
 
             // Mark egui as initialized after first ctx.run() - makes is_using_pointer() reliable
-            if !self.egui_initialized && egui_data.is_some() {
-                self.egui_initialized = true;
+            if !self.egui.initialized && egui_data.is_some() {
+                self.egui.initialized = true;
             }
 
             // Settings are now handled exclusively by standalone SettingsWindow
