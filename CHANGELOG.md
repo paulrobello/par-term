@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Per-pane selection state isolation for split-pane mode: each pane now owns its own selection, click tracking, and drag state, preventing garbled clipboard content when selecting across panes.
 - Implemented `ScriptCommand` handlers for `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, and `ChangeConfig` with permission opt-ins and rate limiting.
 - New `docs/ENVIRONMENT_VARIABLES.md` and `docs/API.md` references.
 - Three-mutex policy documented in `src/lib.rs` and `docs/MUTEX_PATTERNS.md`.
