@@ -24,6 +24,11 @@ fn test_script_config_yaml_roundtrip() {
         restart_delay_ms: 5000,
         subscriptions: vec!["output".to_string(), "title_change".to_string()],
         env_vars,
+        allow_write_text: false,
+        allow_run_command: false,
+        allow_change_config: false,
+        write_text_rate_limit: 0,
+        run_command_rate_limit: 0,
     };
 
     let yaml = serde_yaml_ng::to_string(&script).unwrap();
@@ -121,6 +126,11 @@ fn test_config_with_scripts_yaml_roundtrip() {
         restart_delay_ms: 1000,
         subscriptions: vec!["output".to_string()],
         env_vars: HashMap::new(),
+        allow_write_text: false,
+        allow_run_command: false,
+        allow_change_config: false,
+        write_text_rate_limit: 0,
+        run_command_rate_limit: 0,
     }];
 
     let yaml = serde_yaml_ng::to_string(&config).unwrap();
@@ -150,4 +160,71 @@ restart_policy: {}
             yaml_val
         );
     }
+}
+
+// ── Permission field tests ───────────────────────────────────────────────────
+
+#[test]
+fn test_script_config_permission_flags_default_to_false() {
+    let yaml = r#"
+name: test
+script_path: /bin/test
+"#;
+    let script: ScriptConfig = serde_yaml_ng::from_str(yaml).unwrap();
+    assert!(
+        !script.allow_write_text,
+        "allow_write_text should default to false"
+    );
+    assert!(
+        !script.allow_run_command,
+        "allow_run_command should default to false"
+    );
+    assert!(
+        !script.allow_change_config,
+        "allow_change_config should default to false"
+    );
+    assert_eq!(
+        script.write_text_rate_limit, 0,
+        "write_text_rate_limit should default to 0"
+    );
+    assert_eq!(
+        script.run_command_rate_limit, 0,
+        "run_command_rate_limit should default to 0"
+    );
+}
+
+#[test]
+fn test_script_config_permission_flags_can_be_enabled() {
+    let yaml = r#"
+name: test
+script_path: /bin/test
+allow_write_text: true
+allow_run_command: true
+allow_change_config: true
+write_text_rate_limit: 20
+run_command_rate_limit: 5
+"#;
+    let script: ScriptConfig = serde_yaml_ng::from_str(yaml).unwrap();
+    assert!(script.allow_write_text);
+    assert!(script.allow_run_command);
+    assert!(script.allow_change_config);
+    assert_eq!(script.write_text_rate_limit, 20);
+    assert_eq!(script.run_command_rate_limit, 5);
+}
+
+#[test]
+fn test_script_config_permission_flags_yaml_roundtrip() {
+    let yaml = r#"
+name: test
+script_path: /bin/test
+allow_write_text: true
+allow_run_command: false
+allow_change_config: true
+write_text_rate_limit: 15
+run_command_rate_limit: 2
+"#;
+    let script: ScriptConfig = serde_yaml_ng::from_str(yaml).unwrap();
+    let back = serde_yaml_ng::to_string(&script).unwrap();
+    let deserialized: ScriptConfig = serde_yaml_ng::from_str(&back).unwrap();
+    assert_eq!(script, deserialized);
 }

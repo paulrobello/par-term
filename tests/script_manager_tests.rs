@@ -15,6 +15,11 @@ fn make_config(script_path: &str, args: Vec<String>) -> ScriptConfig {
         restart_delay_ms: 0,
         subscriptions: Vec::new(),
         env_vars: HashMap::new(),
+        allow_write_text: false,
+        allow_run_command: false,
+        allow_change_config: false,
+        write_text_rate_limit: 0,
+        run_command_rate_limit: 0,
     }
 }
 

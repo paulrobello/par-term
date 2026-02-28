@@ -253,6 +253,16 @@ pub struct SettingsUI {
     pub temp_script_restart_delay_ms: u64,
     /// Temporary script subscriptions for edit form (comma-separated)
     pub temp_script_subscriptions: String,
+    /// Temporary: allow WriteText commands
+    pub temp_script_allow_write_text: bool,
+    /// Temporary: allow RunCommand commands
+    pub temp_script_allow_run_command: bool,
+    /// Temporary: allow ChangeConfig commands
+    pub temp_script_allow_change_config: bool,
+    /// Temporary: WriteText rate limit (writes/sec, 0 = default)
+    pub temp_script_write_text_rate_limit: u32,
+    /// Temporary: RunCommand rate limit (runs/sec, 0 = default)
+    pub temp_script_run_command_rate_limit: u32,
     /// Whether the add-new-script form is active
     pub adding_new_script: bool,
     /// Pending script start/stop actions: (config_index, start=true/stop=false)

@@ -12,6 +12,11 @@ use par_term_config::ScriptConfig;
 /// Unique identifier for a managed script process.
 pub type ScriptId = u64;
 
+/// Default maximum `WriteText` writes per second.
+pub const DEFAULT_WRITE_TEXT_RATE: u32 = 10;
+/// Default maximum `RunCommand` executions per second.
+pub const DEFAULT_RUN_COMMAND_RATE: u32 = 1;
+
 /// Manages multiple script subprocess instances for a single tab.
 ///
 /// Each script is assigned a unique [`ScriptId`] and can be individually started,
@@ -24,6 +29,10 @@ pub struct ScriptManager {
     processes: HashMap<ScriptId, ScriptProcess>,
     /// Panel state per script: script_id -> (title, content).
     panels: HashMap<ScriptId, (String, String)>,
+    /// Last `WriteText` dispatch time per script (for rate limiting).
+    write_text_times: HashMap<ScriptId, std::time::Instant>,
+    /// Last `RunCommand` dispatch time per script (for rate limiting).
+    run_command_times: HashMap<ScriptId, std::time::Instant>,
 }
 
 impl ScriptManager {
@@ -33,6 +42,8 @@ impl ScriptManager {
             next_id: 1,
             processes: HashMap::new(),
             panels: HashMap::new(),
+            write_text_times: HashMap::new(),
+            run_command_times: HashMap::new(),
         }
     }
 
@@ -120,12 +131,15 @@ impl ScriptManager {
 
     /// Stop and remove a specific script by ID.
     ///
-    /// Also clears the associated panel state. Does nothing if the ID is unknown.
+    /// Also clears the associated panel state and rate-limit tracking.
+    /// Does nothing if the ID is unknown.
     pub fn stop_script(&mut self, id: ScriptId) {
         if let Some(mut process) = self.processes.remove(&id) {
             process.stop();
         }
         self.panels.remove(&id);
+        self.write_text_times.remove(&id);
+        self.run_command_times.remove(&id);
     }
 
     /// Stop and remove all managed scripts.
@@ -134,6 +148,56 @@ impl ScriptManager {
             process.stop();
         }
         self.panels.clear();
+        self.write_text_times.clear();
+        self.run_command_times.clear();
+    }
+
+    /// Check whether a `WriteText` command from `id` is within rate limits.
+    ///
+    /// Returns `true` (allowed) if at least `1000 / limit_per_sec` ms have
+    /// elapsed since the last allowed write. Updates the last-write timestamp
+    /// on success. `limit_per_sec == 0` uses the [`DEFAULT_WRITE_TEXT_RATE`].
+    pub fn check_write_text_rate(&mut self, id: ScriptId, limit_per_sec: u32) -> bool {
+        let rate = if limit_per_sec == 0 {
+            DEFAULT_WRITE_TEXT_RATE
+        } else {
+            limit_per_sec
+        };
+        let min_interval_ms = 1000u64 / rate as u64;
+        let now = std::time::Instant::now();
+        if self
+            .write_text_times
+            .get(&id)
+            .is_some_and(|last| (now.duration_since(*last).as_millis() as u64) < min_interval_ms)
+        {
+            return false;
+        }
+        self.write_text_times.insert(id, now);
+        true
+    }
+
+    /// Check whether a `RunCommand` from `id` is within rate limits.
+    ///
+    /// Returns `true` (allowed) if at least `1000 / limit_per_sec` ms have
+    /// elapsed since the last allowed run. Updates the last-run timestamp on
+    /// success. `limit_per_sec == 0` uses the [`DEFAULT_RUN_COMMAND_RATE`].
+    pub fn check_run_command_rate(&mut self, id: ScriptId, limit_per_sec: u32) -> bool {
+        let rate = if limit_per_sec == 0 {
+            DEFAULT_RUN_COMMAND_RATE
+        } else {
+            limit_per_sec
+        };
+        let min_interval_ms = 1000u64 / rate as u64;
+        let now = std::time::Instant::now();
+        if self
+            .run_command_times
+            .get(&id)
+            .is_some_and(|last| (now.duration_since(*last).as_millis() as u64) < min_interval_ms)
+        {
+            return false;
+        }
+        self.run_command_times.insert(id, now);
+        true
     }
 
     /// Get the panel state for a script.
