@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **External Command Allowlist (SEC-002)**: `ExternalCommandRenderer` now enforces a configurable `allowed_commands` list (set via `content_prettifier.allowed_commands` in config); if the list is non-empty, commands not on it are refused. Empty list (default) preserves backward compatibility with a warn-only log.
+- **HTTP Profile Blocking (SEC-003)**: Dynamic profile URLs using HTTP are now blocked by default. Opt-in via `allow_http_profiles: true` in config (logs a warning when enabled). Authentication headers over HTTP are refused unconditionally.
+- **Unsafe Safety Documentation (SEC-008/009)**: All `unsafe` blocks in `macos_metal.rs`, `macos_space.rs`, and `macos_blur.rs` now carry full `// SAFETY:` justifications. Test helpers using `env::set_var`/`remove_var` document the single-threaded test context.
+- **Update Client Security Docs (SEC-010)**: `par-term-update/src/http.rs` now has a module-level doc covering HTTPS enforcement, SSRF/DNS-rebinding prevention via host allowlist, response size caps, and binary content validation.
+
+### Refactored
+
+- **Settings UI: terminal_tab Split (ARC-003)**: `par-term-settings-ui/src/terminal_tab.rs` (1356 lines) split into `terminal_tab/` with 7 sub-modules (`behavior`, `unicode`, `shell`, `startup`, `search`, `semantic_history`, `mod`).
+- **Settings UI: advanced_tab Split (ARC-003)**: `par-term-settings-ui/src/advanced_tab.rs` (1276 lines) split into `advanced_tab/` with 5 sub-modules (`import_export`, `tmux`, `logging`, `system`, `mod`). `merge_config` re-exported via `pub use`.
+- **Settings UI: profile_modal_ui Split (ARC-003)**: `par-term-settings-ui/src/profile_modal_ui.rs` (1406 lines) split into `profile_modal_ui/` with 4 sub-modules (`form_helpers`, `list_view`, `edit_view`, `mod`). All public APIs preserved.
+- **Tab Constructor Deduplication (ARC-005)**: Shared initialization logic extracted into `Tab::new_internal()` with `TabInitParams`; both `Tab::new()` and `Tab::new_from_profile()` now contain only their unique logic.
+- **Makefile Variable Extraction (ARC-012)**: Added `DEBUG_LOG` and `RUN_BASE` variables; de-duplicated 12 targets that previously hard-coded log paths and cargo invocations.
+
+### Documentation
+
+- **Tab Legacy Field Migration (ARC-004)**: All four legacy Tab fields (`scroll_state`, `mouse`, `bell`, `cache`) now carry `LEGACY:` comments naming exact call sites and step-by-step migration plans.
+- **Config Resolution Chain (ARC-007)**: `par-term-config/src/shader_metadata.rs` now cross-references the 3-tier resolution chain doc and notes structural duplication between background and cursor variants.
+- **Makefile Magic Numbers in UI Code (QA-009)**: 9 inline color/size literals in `sidebar.rs` extracted into named constants (`COLOR_TAB_DIMMED`, `COLOR_TAB_SELECTED`, `TAB_BUTTON_WIDTH`, etc.).
+- **Test Organization (ARC-013)**: `Cargo.toml` documents logical groupings of the 26 integration test files and the future `tests/<group>/mod.rs` migration path.
+- **Logging Quick Reference (ARC-014)**: `src/main.rs` module doc now includes a `# Logging Quick Reference` table comparing `crate::debug_*!()` macros vs `log::*!()` with when-to-use rules.
+- **Clippy Exemption Cleanup (QA-008)**: Removed 2 false-positive `#[allow(clippy::too_many_arguments)]` attributes; added explanatory comments to the 11 genuine exemptions.
+
 ### Added
 
 - **Environment Variables Reference**: New `docs/ENVIRONMENT_VARIABLES.md` documents all recognized environment variables (DEBUG_LEVEL, RUST_LOG, SHELL, TERM, XDG vars, MCP IPC, and config substitution syntax)
