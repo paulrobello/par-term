@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded test suites for tab bar UI and settings window.
 - `src/ui_constants.rs` to centralize UI layout dimensions.
 - Customizable `timeout_secs` for snippet shell commands.
+- 73 keybinding integration tests covering parse/registry/lookup pipeline, modifiers, key aliases, physical keys, and error cases.
+- 97 copy mode state machine tests covering motions, visual modes, selection, marks, search, and edge cases.
 
 ### Fixed
 - Fixed drag-selection often failing to copy text to clipboard due to `try_write()` race condition; mouse-release copy now uses `blocking_write()` to guarantee the selection is captured.
@@ -48,11 +50,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Refactored
 - Decomposed `WindowState` and `Config` into cohesive sub-state objects.
+- Extracted `EguiState` sub-struct from `WindowState` (ARC-001 continuation).
+- Added `with_active_tab()`, `with_active_tab_mut()`, `with_window()`, `request_redraw()` helpers on `WindowState`; converted 60+ call sites.
+- Added `try_with_terminal()` / `try_with_terminal_mut()` helpers on `Tab`; converted 7 call sites.
+- Split `agent_messages.rs` (1,006 lines) into `agent_config.rs` + `agent_screenshot.rs`.
+- Split `triggers.rs` (832 lines) into `mark_line`, `prettify`, and `sound` sub-modules.
+- Split `scripting.rs` (820 lines), extracting `config_change` sub-module.
+- Converted `url_detection.rs`, `copy_mode.rs` into module directories with separate test files.
+- Extracted `DRAG_THRESHOLD_PX`, `CLICK_RESTORE_THRESHOLD_PX`, `SCROLLBAR_MARK_HIT_RADIUS_PX`, `VISUAL_BELL_FLASH_DURATION_MS` into `ui_constants.rs`.
 - Migrated terminal access from `Mutex` to `RwLock` for better read concurrency.
-- Split oversized files (exceeding 800-1000 lines) into focused sub-modules.
 - Extracted shared initialization logic for tabs and panes.
 - Unified GLSL transpiler templates and added WGSL injection validation.
-- Centralized UI constants and extracted named renderer constants.
 - De-duplicated `Makefile` variables and targets.
 
 ### Documentation
