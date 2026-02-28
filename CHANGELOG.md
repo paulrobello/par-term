@@ -11,7 +11,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **CONTRIBUTING.md**: Comprehensive contributor guide covering development setup, build commands (with compile-time estimates), testing, code quality tools, debug logging macros, architecture overview, macOS/Linux platform specifics, PR guidelines, and commit message format
+- **Environment Variables Reference**: New `docs/ENVIRONMENT_VARIABLES.md` documents all recognized environment variables (DEBUG_LEVEL, RUST_LOG, SHELL, TERM, XDG vars, MCP IPC, and config substitution syntax)
+- **API Documentation Index**: New `docs/API.md` lists key public types across all 13 workspace crates with brief descriptions
+- **Mutex Usage Policy**: `src/lib.rs` now documents the three-mutex policy (tokio::sync for async, parking_lot for sync, std::sync for simple cases) with a reference to `docs/MUTEX_PATTERNS.md`
+
+### Security
+
+- **HTTP Profile URL Warning (SEC-003)**: Profiles fetched over HTTP now emit a `log::warn!` (visible in all log modes) in addition to the existing debug-level notice — MITM risk clearly surfaced to users without blocking HTTP
+- **External Command Renderer Warning (SEC-002)**: `ExternalCommandRenderer` struct now carries a `# Security Warning` rustdoc section documenting the arbitrary-command-execution risk and trust model; a `debug_info!` log fires on every external renderer invocation
+- **Session Logger Limitation Doc (SEC-006)**: Module-level rustdoc added to `session_logger` listing 5 scenarios where heuristic password redaction may miss credentials and explicitly recommending users disable session logging when working with sensitive secrets
+- **gitignore: .claude/settings.local.json (SEC-001)**: Added explicit path-anchored `.gitignore` entry for `.claude/settings.local.json` to prevent accidental commit of local API tokens
+
+### Refactored
+
+- **Settings UI: input_tab Split (ARC-003)**: `par-term-settings-ui/src/input_tab.rs` (1542 lines) split into a `par-term-settings-ui/src/input_tab/` directory with 6 focused sub-modules (`mod.rs`, `keyboard.rs`, `mouse.rs`, `selection.rs`, `word_selection.rs`, `keybindings.rs`); public API (`show`, `capture_key_combo`, `display_key_combo`) preserved
+
+### Documentation
+
+- **WindowState Field Groups (ARC-001)**: Added struct-level doc table identifying 17 logical field groups and section dividers throughout the `WindowState` struct
+- **Tab Locking Rules (ARC-002)**: `Tab.terminal` field now carries a rustdoc locking rules table: async tasks → `.lock().await`, sync polling → `try_lock()`, sync user-initiated → `blocking_lock()`; references `docs/MUTEX_PATTERNS.md`
+- **Prettifier Module Overview (ARC-006)**: `src/prettifier/mod.rs` now has a `//! Module Structure` doc listing all submodules by role (Detection / Rendering / Pipeline)
+- **Config Resolution Chain (ARC-007)**: `par-term-config/src/shader_config.rs` now documents the three-tier resolution chain (config → metadata → resolved) with an ASCII diagram
+- **Re-export Facade Docs (ARC-008)**: `src/config/mod.rs`, `src/terminal.rs`, `src/renderer.rs` now document what each re-exports and why the facade pattern is used
+- **Status Bar Architecture (ARC-009)**: `src/status_bar/mod.rs` now documents the widget dispatch approach and future registry upgrade path
+- **Session vs Arrangement Persistence (ARC-010)**: Cross-reference tables added to `src/session/mod.rs` and `src/arrangements/mod.rs` explaining differences in restore semantics
+- **Error Handling Conventions (QA-006)**: `# Error Handling Convention` doc comments added to modules mixing `Result<(), String>` and `anyhow::Result`
+- **Config Struct Refactoring Plan (QA-001)**: `par-term-config/src/config/config_struct/mod.rs` now documents 38 logical groupings as future sub-struct candidates
+- **README Quick Start (DOC-006)**: "Getting Started" section added near the top of `README.md` with prominent links to `docs/GETTING_STARTED.md` and related guides
+
+### Fixed
+
+- **Dead Code Tracking (QA-003)**: All `#[allow(dead_code)]` fields in `config_updates.rs`, `file_transfers.rs`, and `flow_control.rs` now carry `TODO(dead_code)` tracking comments with a v0.26 removal deadline
+
+### CONTRIBUTING.md**: Comprehensive contributor guide covering development setup, build commands (with compile-time estimates), testing, code quality tools, debug logging macros, architecture overview, macOS/Linux platform specifics, PR guidelines, and commit message format
 - **Mutex Patterns Documentation**: New `docs/MUTEX_PATTERNS.md` documents the `tokio::sync::Mutex` vs `parking_lot::Mutex` decision matrix, all three access patterns for `Tab.terminal` from sync contexts, anti-patterns, and the `record_try_lock_failure()` telemetry; inline `# Mutex Strategy` doc sections added to `Tab`, `Pane`, `AgentState`, and `SharedSessionLogger`
 - **Concurrency Guide**: New `docs/CONCURRENCY.md` documents the threading model, state hierarchy, mutex selection decision matrix, async-shared vs sync-only state, and guidance for adding new shared state
 - **State Lifecycle Guide**: New `docs/STATE_LIFECYCLE.md` documents window/tab/pane creation, update, and destruction sequences with data flow diagrams
