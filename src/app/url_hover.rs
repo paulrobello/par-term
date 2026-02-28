@@ -12,7 +12,7 @@ impl WindowState {
     pub(crate) fn detect_urls(&mut self) {
         // Gather data from active tab.
         // Returns None if the terminal lock could not be acquired.  In that case we
-        // clear detected_urls below so stale positions are not applied to new cells.
+        // keep existing detected_urls so highlights don't flicker during streaming output.
         let terminal_data = {
             let tab = if let Some(t) = self.tab_manager.active_tab() {
                 t
@@ -20,10 +20,11 @@ impl WindowState {
                 return;
             };
 
-            // try_lock: intentional — URL hover detection on every mouse-move frame in
-            // the sync event loop. On miss: hovered URL is not updated this frame. The
-            // cursor shows the last known state — benign cosmetic lag.
-            if let Ok(term) = tab.terminal.try_write() {
+            // try_read: intentional — URL detection only needs read access (dimensions +
+            // cell snapshot). Using try_read instead of try_write reduces contention with
+            // other concurrent readers. On miss: stale URLs are kept from prior detection,
+            // which is preferable to clearing all highlights and causing a visible flicker.
+            if let Ok(term) = tab.terminal.try_read() {
                 let (cols, rows) = term.dimensions();
                 let scroll_offset = tab.scroll_state.offset;
                 let visible_cells =
@@ -55,16 +56,14 @@ impl WindowState {
             }
         };
 
-        // If the terminal lock was not available, clear any stale detected_urls so that
-        // apply_url_underlines() does not apply old highlight positions to new cell content
-        // (which causes brief color glitches on unrelated cells during streaming output).
+        // If the terminal lock was not available, keep existing detected_urls.
+        // Clearing them would cause all URL highlights to flicker off for multiple frames
+        // during streaming output (when the PTY writer frequently holds the write lock).
+        // Keeping stale positions is preferable — any brief mis-coloring on changed cells
+        // lasts at most one frame and is far less noticeable than a 100ms highlight blackout.
         let (cols, rows, visible_cells, scroll_offset, hyperlink_urls) = match terminal_data {
             Some(data) => data,
             None => {
-                if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.mouse.detected_urls.clear();
-                    tab.mouse.hovered_url = None;
-                }
                 return;
             }
         };
@@ -175,10 +174,10 @@ impl WindowState {
             return;
         }
 
-        // Get actual terminal columns from the terminal
-        // try_lock: intentional — URL highlight rendering in the sync render path.
-        // On miss: URL highlight falls back to default (no highlight this frame). Cosmetic.
-        let cols = if let Ok(term) = tab.terminal.try_write() {
+        // Get actual terminal columns from the terminal.
+        // try_read: only needs read access (dimensions). On miss: skip highlight this
+        // frame (cosmetic, single frame). Using try_read reduces contention.
+        let cols = if let Ok(term) = tab.terminal.try_read() {
             let (cols, _rows) = term.dimensions();
             cols
         } else {
