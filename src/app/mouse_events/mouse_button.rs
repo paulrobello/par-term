@@ -18,25 +18,24 @@ impl WindowState {
 
         // Check if profile drawer is open - let egui handle all mouse events
         if self.overlay_ui.profile_drawer_ui.expanded {
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             return;
         }
 
         // Check if click is on the profile drawer toggle button
-        if let Some(window) = &self.window {
+        let in_toggle_button = self.with_window(|window| {
             let size = window.inner_size();
-            if self.overlay_ui.profile_drawer_ui.is_point_in_toggle_button(
+            self.overlay_ui.profile_drawer_ui.is_point_in_toggle_button(
                 mouse_position.0 as f32,
                 mouse_position.1 as f32,
                 size.width as f32,
                 size.height as f32,
-            ) {
-                // Let egui handle the toggle button click
-                window.request_redraw();
-                return;
-            }
+            )
+        });
+        if in_toggle_button == Some(true) {
+            // Let egui handle the toggle button click
+            self.request_redraw();
+            return;
         }
 
         // Check if click is in the tab bar area - if so, let egui handle it
@@ -68,18 +67,14 @@ impl WindowState {
         };
         if in_tab_bar {
             // Request redraw so egui can process the click event
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             return; // Click is on tab bar, don't process as terminal event
         }
 
         // Check if tab context menu is open - if so, let egui handle all clicks.
         // Request a redraw so egui can process click-away dismissal immediately.
         if self.tab_bar_ui.is_context_menu_open() {
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             return;
         }
 
@@ -454,18 +449,14 @@ impl WindowState {
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
                     tab.selection_mouse_mut().is_selecting = false; // Word selection is static until drag starts
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             } else if new_click_count == 3 {
                 // Triple-click: Anchor full-line selection
                 self.select_line_at(row);
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
                     tab.selection_mouse_mut().is_selecting = true; // Triple-click usually implies immediate drag intent
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             } else {
                 // Single click: Reset state and wait for drag to start Normal/Rectangular selection
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
@@ -473,9 +464,7 @@ impl WindowState {
                     sm.is_selecting = false;
                     sm.selection = None;
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             }
         }
     }

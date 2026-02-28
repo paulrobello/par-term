@@ -2,7 +2,8 @@
 
 use super::impl_agent::merge_custom_ai_inspector_agents;
 use super::{
-    ConfigSaveState, FocusState, OverlayState, TriggerState, UpdateState, WatcherState, WindowState,
+    ConfigSaveState, EguiState, FocusState, OverlayState, TriggerState, UpdateState, WatcherState,
+    WindowState,
 };
 use crate::badge::BadgeState;
 use crate::config::Config;
@@ -55,10 +56,7 @@ impl WindowState {
 
             cursor_anim: crate::app::cursor_anim_state::CursorAnimState::default(),
             is_fullscreen: false,
-            egui_ctx: None,
-            egui_state: None,
-            pending_egui_events: Vec::new(),
-            egui_initialized: false,
+            egui: EguiState::default(),
             shader_state: crate::app::shader_state::ShaderState::new(shaders_dir),
             overlay_ui,
             agent_state: crate::app::agent_state::AgentState::new(available_agents),

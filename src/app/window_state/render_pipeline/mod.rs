@@ -430,12 +430,12 @@ impl WindowState {
 
             let egui_data = if let Some(window) = self.window.as_ref() {
                 // Window is live; run egui if the context and state are also ready.
-                if let (Some(egui_ctx), Some(egui_state)) = (&self.egui_ctx, &mut self.egui_state) {
+                if let (Some(egui_ctx), Some(egui_state)) = (&self.egui.ctx, &mut self.egui.state) {
                     let mut raw_input = egui_state.take_egui_input(window);
 
                     // Inject pending events from menu accelerators (Cmd+V/C/A intercepted by muda)
                     // when egui overlays (profile modal, search, etc.) are active
-                    raw_input.events.append(&mut self.pending_egui_events);
+                    raw_input.events.append(&mut self.egui.pending_events);
 
                     // When no modal UI overlay is visible, filter out Tab key events to prevent
                     // egui's default focus navigation from stealing Tab/Shift+Tab from the terminal.
@@ -710,8 +710,8 @@ impl WindowState {
             };
 
             // Mark egui as initialized after first ctx.run() - makes is_using_pointer() reliable
-            if !self.egui_initialized && egui_data.is_some() {
-                self.egui_initialized = true;
+            if !self.egui.initialized && egui_data.is_some() {
+                self.egui.initialized = true;
             }
 
             // Settings are now handled exclusively by standalone SettingsWindow

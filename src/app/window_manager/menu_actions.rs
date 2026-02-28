@@ -114,7 +114,7 @@ impl WindowManager {
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                     && window_state.has_egui_text_overlay_visible()
                 {
-                    window_state.pending_egui_events.push(egui::Event::Copy);
+                    window_state.egui.pending_events.push(egui::Event::Copy);
                     return;
                 }
                 if let Some(window_id) = focused_window
@@ -159,7 +159,7 @@ impl WindowManager {
                     if let Ok(mut clipboard) = arboard::Clipboard::new() {
                         if let Ok(text) = clipboard.get_text() {
                             window_state
-                                .pending_egui_events
+                                .egui.pending_events
                                 .push(egui::Event::Paste(text));
                             return;
                         }
@@ -211,7 +211,7 @@ impl WindowManager {
                     && let Some(window_state) = self.windows.get_mut(&window_id)
                     && window_state.has_egui_text_overlay_visible()
                 {
-                    window_state.pending_egui_events.push(egui::Event::Key {
+                    window_state.egui.pending_events.push(egui::Event::Key {
                         key: egui::Key::A,
                         physical_key: None,
                         pressed: true,

@@ -19,9 +19,7 @@ impl WindowState {
 
         // Check if profile drawer is open - let egui handle mouse events
         if self.overlay_ui.profile_drawer_ui.expanded {
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             return;
         }
 
@@ -38,9 +36,7 @@ impl WindowState {
             .unwrap_or(1.0);
         if position.1 < tab_bar_height as f64 * scale_factor {
             // Request redraw so egui can update hover states
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
+            self.request_redraw();
             return; // Mouse is on tab bar, let egui handle it
         }
 
@@ -324,17 +320,13 @@ impl WindowState {
                     sm.is_selecting = true;
                     sm.selection = Some(Selection::new(click_pos, (col, row), mode));
                 }
-                if let Some(window) = &self.window {
-                    window.request_redraw();
-                }
+                self.request_redraw();
             } else if is_selecting && let Some(mode) = selection_mode {
                 // Dragging in progress: Update selection endpoints
                 if mode == SelectionMode::Line {
                     // Triple-click mode: Selection always covers whole lines
                     self.extend_line_selection(row);
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+                    self.request_redraw();
                 } else {
                     // Normal/Rectangular mode: update end cell
                     if let Some(tab) = self.tab_manager.active_tab_mut()
@@ -342,9 +334,7 @@ impl WindowState {
                     {
                         sel.end = (col, row);
                     }
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+                    self.request_redraw();
                 }
             }
         }

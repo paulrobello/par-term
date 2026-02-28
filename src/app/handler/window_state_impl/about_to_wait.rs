@@ -100,18 +100,18 @@ impl WindowState {
         // When reduce_flicker is enabled and cursor is hidden, delay rendering
         // to batch updates and reduce visual flicker during bulk terminal operations.
         let should_delay_for_flicker = if self.config.reduce_flicker {
-            let cursor_hidden = if let Some(tab) = self.tab_manager.active_tab() {
-                // try_lock: intentional — flicker check runs in about_to_wait (sync event loop).
-                // On miss: assume cursor is visible (false) so rendering is not delayed.
-                // Slightly conservative but never causes stale frames.
-                if let Ok(term) = tab.terminal.try_write() {
-                    !term.is_cursor_visible() && !self.config.lock_cursor_visibility
-                } else {
-                    false
-                }
-            } else {
-                false
-            };
+            // try_lock: intentional — flicker check runs in about_to_wait (sync event loop).
+            // On miss: assume cursor is visible (false) so rendering is not delayed.
+            // Slightly conservative but never causes stale frames.
+            let cursor_hidden = self
+                .tab_manager
+                .active_tab()
+                .and_then(|tab| {
+                    tab.try_with_terminal_mut(|term| {
+                        !term.is_cursor_visible() && !self.config.lock_cursor_visibility
+                    })
+                })
+                .unwrap_or(false);
 
             if cursor_hidden {
                 // Track when cursor was first hidden
@@ -414,9 +414,8 @@ impl WindowState {
         let mut redraw_requested = false;
         if self.focus_state.needs_redraw
             && (!should_delay_render || has_active_file_transfers)
-            && let Some(window) = &self.window
         {
-            window.request_redraw();
+            self.request_redraw();
             self.focus_state.needs_redraw = false;
             redraw_requested = true;
         }

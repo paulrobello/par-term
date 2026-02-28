@@ -379,7 +379,8 @@ impl WindowState {
     /// If preserve_memory is true, preserves window positions and collapse state
     pub(crate) fn init_egui(&mut self, window: &Arc<Window>, preserve_memory: bool) {
         let previous_memory = if preserve_memory {
-            self.egui_ctx
+            self.egui
+                .ctx
                 .as_ref()
                 .map(|ctx| ctx.memory(|mem| mem.clone()))
         } else {
@@ -403,7 +404,7 @@ impl WindowState {
             None,
         );
 
-        self.egui_ctx = Some(egui_ctx);
-        self.egui_state = Some(egui_state);
+        self.egui.ctx = Some(egui_ctx);
+        self.egui.state = Some(egui_state);
     }
 }

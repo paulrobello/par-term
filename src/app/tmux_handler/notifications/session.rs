@@ -95,14 +95,13 @@ impl WindowState {
     /// Update window title with tmux session info
     /// Format: "window_title - [tmux: session_name]"
     pub(crate) fn update_window_title_with_tmux(&self) {
-        if let Some(window) = &self.window {
-            let title = if let Some(session_name) = &self.tmux_state.tmux_session_name {
-                format!("{} - [tmux: {}]", self.config.window_title, session_name)
-            } else {
-                self.config.window_title.clone()
-            };
-            window.set_title(&self.format_title(&title));
-        }
+        let title = if let Some(session_name) = &self.tmux_state.tmux_session_name {
+            format!("{} - [tmux: {}]", self.config.window_title, session_name)
+        } else {
+            self.config.window_title.clone()
+        };
+        let formatted = self.format_title(&title);
+        self.with_window(|w| w.set_title(&formatted));
     }
 
     /// Handle session renamed notification

@@ -10,6 +10,7 @@
 mod action_handlers;
 mod agent_messages;
 mod config_watchers;
+mod egui_state;
 mod focus_state;
 mod impl_agent;
 mod impl_helpers;
@@ -24,6 +25,7 @@ mod update_state;
 mod watcher_state;
 
 // Re-export the sub-state types
+pub(crate) use egui_state::EguiState;
 pub(crate) use focus_state::FocusState;
 pub(crate) use overlay_state::OverlayState;
 pub(crate) use trigger_state::TriggerState;
@@ -116,16 +118,10 @@ pub struct WindowState {
     pub(crate) window_index: usize,
 
     // =========================================================================
-    // egui overlay layer
+    // egui overlay layer (ARC-001 extraction: EguiState)
     // =========================================================================
-    /// egui context for GUI rendering
-    pub(crate) egui_ctx: Option<egui::Context>,
-    /// egui-winit state for event handling
-    pub(crate) egui_state: Option<egui_winit::State>,
-    /// Pending egui events to inject into next frame's raw_input.
-    pub(crate) pending_egui_events: Vec<egui::Event>,
-    /// Whether egui has completed its first ctx.run() call.
-    pub(crate) egui_initialized: bool,
+    /// egui context, input state, and lifecycle flags (see `EguiState`)
+    pub(crate) egui: EguiState,
 
     // =========================================================================
     // Sub-system state bundles
