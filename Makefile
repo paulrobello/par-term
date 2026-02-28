@@ -1,7 +1,7 @@
 # Makefile for par-term
 # Cross-platform terminal emulator frontend
 
-.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install install-acp acp-harness acp-smoke doc coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
+.PHONY: help build build-debug run run-release run-error run-warn run-info run-debug run-trace release test check clean fmt lint checkall install install-acp acp-harness acp-smoke doc doc-open coverage test-fonts benchmark-shaping test-text-shaping bundle bundle-install run-bundle deploy
 
 ACP_AGENT ?= claude-ollama.local
 ACP_TIMEOUT ?= 45
@@ -63,7 +63,8 @@ help:
 	@echo "  make install-acp - Install Claude ACP bridge (@zed-industries/claude-agent-acp)"
 	@echo "  make acp-harness - Run ACP harness (set ARGS='...')"
 	@echo "  make acp-smoke   - Run Claude+Ollama ACP smoke test with transcript"
-	@echo "  make doc         - Generate and open documentation"
+	@echo "  make doc         - Generate rustdoc documentation (no-deps)"
+	@echo "  make doc-open    - Generate and open rustdoc in the browser"
 	@echo "  make coverage    - Generate test coverage report"
 	@echo "  make deploy      - Trigger Release and Deploy GitHub Action"
 	@echo ""

@@ -1,19 +1,46 @@
+//! Styled segment extraction from the terminal grid.
+//!
+//! Converts a raw `Grid` of terminal cells into a flat list of [`StyledSegment`]
+//! values — contiguous runs of text sharing the same visual attributes. This is
+//! the entry point for the content prettifier pipeline.
+
 use par_term_emu_core_rust::grid::Grid;
 
-/// A segment of text with consistent styling
+/// A contiguous run of characters in the terminal grid that share the same visual style.
+///
+/// Produced by [`extract_styled_segments`] by scanning the terminal grid and merging
+/// adjacent cells with identical foreground color, background color, and text attributes.
+/// Used by the content prettifier pipeline to detect structured content such as
+/// Markdown, JSON, and diffs.
 #[derive(Debug, Clone)]
 pub struct StyledSegment {
+    /// The text content of the segment (may contain multi-byte Unicode characters).
     pub text: String,
+    /// Foreground (text) color as `(red, green, blue)` with 0–255 components.
     pub fg_color: (u8, u8, u8),
+    /// Background color as `(red, green, blue)` with 0–255 components.
     pub bg_color: (u8, u8, u8),
+    /// Whether the text is bold.
     pub bold: bool,
+    /// Whether the text is italic.
     pub italic: bool,
+    /// Whether the text is underlined.
     pub underline: bool,
+    /// Row index in the terminal grid (0 = top row).
     pub line: usize,
+    /// Column index of the first character of this segment (0 = leftmost column).
     pub start_col: usize,
 }
 
-/// Extract styled segments from a terminal grid
+/// Extract styled segments from a terminal grid.
+///
+/// Scans every cell in the grid row by row, merging horizontally adjacent cells
+/// that share identical foreground color, background color, bold, italic, and
+/// underline attributes into a single [`StyledSegment`]. Empty cells (space
+/// character) break segments only when their style differs from the current run.
+///
+/// Returns segments in top-to-bottom, left-to-right order. Each segment records
+/// its grid row (`line`) and the column of its first character (`start_col`).
 pub fn extract_styled_segments(grid: &Grid) -> Vec<StyledSegment> {
     let mut segments = Vec::new();
     let rows = grid.rows();
@@ -97,7 +124,10 @@ pub fn extract_styled_segments(grid: &Grid) -> Vec<StyledSegment> {
     segments
 }
 
-/// Convert styled segments to plain text (for simple rendering)
+/// Convert a slice of styled segments back to plain text, inserting newlines between rows.
+///
+/// Useful when only the text content is needed and styling can be discarded,
+/// for example when passing terminal output to a text-only consumer.
 pub fn segments_to_plain_text(segments: &[StyledSegment]) -> String {
     let mut result = String::new();
     let mut current_line = 0;

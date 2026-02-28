@@ -26,23 +26,28 @@ pub(crate) struct ConfigChanges {
     pub shader_use_background_as_channel0: bool,
 
     // Cursor shader
-    #[allow(dead_code)] // Detected for future config change handler
+    // TODO(dead_code): Implement live reload for cursor_shader_config or remove by v0.26
+    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
     pub cursor_shader_config: bool,
     pub cursor_shader_path: bool,
     pub cursor_shader_enabled: bool,
     pub cursor_shader_animation: bool,
     pub cursor_shader_speed: bool,
-    #[allow(dead_code)] // Detected for future config change handler
+    // TODO(dead_code): Implement live reload for cursor_shader_hides_cursor or remove by v0.26
+    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
     pub cursor_shader_hides_cursor: bool,
-    #[allow(dead_code)] // Detected for future config change handler
+    // TODO(dead_code): Implement live reload for cursor_shader_disable_in_alt_screen or remove by v0.26
+    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
     pub cursor_shader_disable_in_alt_screen: bool,
 
     // Window
     pub window_title: bool,
     pub window_decorations: bool,
-    #[allow(dead_code)] // Detected for future config change handler
+    // TODO(dead_code): Implement live window_type change handling or remove by v0.26
+    #[allow(dead_code)] // Requires restart; no live handler yet
     pub window_type: bool,
-    #[allow(dead_code)] // Detected for future config change handler
+    // TODO(dead_code): Implement live target_monitor change handling or remove by v0.26
+    #[allow(dead_code)] // Requires restart; no live handler yet
     pub target_monitor: bool,
     pub lock_window_size: bool,
     pub show_window_number: bool,
@@ -69,11 +74,12 @@ pub(crate) struct ConfigChanges {
     pub normalization_form: bool,
 
     // Anti-idle keep-alive
-    #[allow(dead_code)] // Detected for future config change handler
+    // TODO(dead_code): Implement live anti-idle config change handling or remove by v0.26
+    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
     pub anti_idle_enabled: bool,
-    #[allow(dead_code)] // Detected for future config change handler
+    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
     pub anti_idle_seconds: bool,
-    #[allow(dead_code)] // Detected for future config change handler
+    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
     pub anti_idle_code: bool,
 
     // Background (mode, image, and solid color)
@@ -116,7 +122,8 @@ pub(crate) struct ConfigChanges {
     pub command_separator: bool,
 
     // Dynamic profile sources
-    #[allow(dead_code)] // Detected for future config change handler
+    // TODO(dead_code): Implement live dynamic_profile_sources change handling or remove by v0.26
+    #[allow(dead_code)] // Detected but not yet consumed by a live-reload handler
     pub dynamic_profile_sources: bool,
 
     // Per-pane backgrounds

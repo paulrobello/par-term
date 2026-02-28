@@ -2,6 +2,15 @@
 //!
 //! This module handles opening/closing the settings window, propagating
 //! config changes to all terminal windows, and syncing shader state.
+//!
+//! # Error Handling Convention
+//!
+//! Functions that can fail for reasons surfaced to the user (e.g., shader
+//! compilation errors) return `Result<(), String>` so callers can display
+//! the error in the UI. For internal errors that should not escape to UI
+//! callers, use `anyhow::Result` or `Option`. New functions should follow
+//! the `Result<T, String>` pattern when the error message needs to be
+//! displayed to the user.
 
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;

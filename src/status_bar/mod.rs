@@ -2,6 +2,38 @@
 //!
 //! The status bar is a configurable panel that can display widgets such as
 //! the current time, username, git branch, CPU/memory usage, and more.
+//!
+//! # Widget Architecture
+//!
+//! The current architecture uses a **data-driven, direct-call approach** rather
+//! than a formal registration mechanism:
+//!
+//! - Widget identifiers (`WidgetId`) and their configuration are defined in
+//!   `par-term-config/src/status_bar.rs`.
+//! - The `widgets` submodule (`src/status_bar/widgets/`) contains the rendering
+//!   logic: `widget_text()` dispatches on `WidgetId` to produce the display string,
+//!   and `sorted_widgets_for_section()` filters and orders widgets for each bar section.
+//! - `StatusBarUI::render()` in this file drives the egui layout for left/center/right
+//!   sections and calls into the widgets module.
+//! - Background data (system metrics, git status) is polled on dedicated threads
+//!   (`SystemMonitor`, `GitBranchPoller`) and surfaced via `WidgetContext`.
+//!
+//! # Adding a New Widget
+//!
+//! 1. Add a variant to `WidgetId` in `par-term-config/src/status_bar.rs`.
+//! 2. Add a `widget_text()` arm in `src/status_bar/widgets/`.
+//! 3. If the widget needs background data, extend `WidgetContext` and add
+//!    a poller in this file following the `GitBranchPoller` pattern.
+//! 4. Update `default_widgets()` in `par-term-config` to include the new widget.
+//! 5. Update search keywords in `par-term-settings-ui/src/settings_ui/sidebar.rs`.
+//!
+//! # Future: Formal Widget Registry
+//!
+//! The current dispatch-on-enum approach scales well to ~20 widgets but becomes
+//! harder to extend as the widget set grows. A future improvement could introduce
+//! a `StatusBarWidget` trait and a registry (e.g., `HashMap<WidgetId, Box<dyn StatusBarWidget>>`)
+//! so that third-party or plugin-style widgets can be registered without modifying
+//! the central dispatch function. This is tracked as ARC-009 in AUDIT.md.
 
 pub mod config;
 pub mod system_monitor;

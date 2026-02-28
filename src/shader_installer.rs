@@ -1,6 +1,12 @@
 //! Shared shader installation logic.
 //!
 //! Used by both the CLI (`install-shaders` command) and the UI (shader install dialog).
+//!
+//! # Error Handling Convention
+//!
+//! Functions here return `Result<T, String>` (string errors for UI display)
+//! so callers can surface messages to the user without a conversion step.
+//! New functions added to this module should follow the same pattern.
 
 use crate::config::Config;
 use crate::manifest::{self, FileStatus, Manifest};

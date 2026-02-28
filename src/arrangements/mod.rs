@@ -1,10 +1,26 @@
-//! Window arrangement types and manager for saving/restoring window layouts
+//! Window arrangement types and manager for saving/restoring window layouts.
 //!
 //! Arrangements capture the positions, sizes, and tab CWDs of all windows
 //! so they can be restored later. Monitor-aware to handle external monitor
 //! disconnect/reconnect scenarios.
 //!
 //! Data types are defined in `par-term-settings-ui` and re-exported here.
+//!
+//! # Relationship to `crate::session`
+//!
+//! par-term has two overlapping session persistence mechanisms:
+//!
+//! | Feature | Module | Trigger | Scope |
+//! |---------|--------|---------|-------|
+//! | Auto session restore | `crate::session` | Automatic on clean exit / next launch | Last-session state only (single slot) |
+//! | Named arrangements | `crate::arrangements` (this module) | User-initiated save/restore via UI | Multiple named snapshots, monitor-aware |
+//!
+//! The `WindowSnapshot` / `TabSnapshot` types here and the `SessionWindow` / `SessionTab`
+//! types in `crate::session` are structurally similar. Arrangements add monitor-awareness
+//! (`MonitorInfo`) and named identity (`ArrangementId`) on top of the basic session
+//! capture pattern.
+//!
+//! See `crate::session` for discussion of the tradeoffs and a possible future unification.
 
 pub mod capture;
 pub mod restore;

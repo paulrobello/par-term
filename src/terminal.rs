@@ -1,7 +1,13 @@
 //! Terminal manager for PTY handling and terminal state management.
 //!
-//! This module re-exports types from the par-term-terminal crate for backward compatibility.
-//! All terminal management types and functions are defined in par-term-terminal.
+//! Re-exports types from the `par-term-terminal` sub-crate for backward compatibility.
+//! All terminal management types and functions are defined in `par-term-terminal`.
+//!
+//! # Re-exports from `par-term-terminal`
+//!
+//! This module is a thin facade so the rest of the main crate can use
+//! `crate::terminal::TerminalManager` rather than depending directly on
+//! `par_term_terminal`. The actual implementation lives in `par-term-terminal`.
 
 // Submodules
 pub use par_term_terminal::terminal::clipboard;

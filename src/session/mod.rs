@@ -1,7 +1,27 @@
-//! Session state types for save/restore on startup
+//! Session state types for save/restore on startup.
 //!
-//! This module provides automatic session persistence: save the current window
+//! This module provides **automatic session persistence**: save the current window
 //! layout, tabs, and pane splits on clean exit, then restore them on next launch.
+//!
+//! # Relationship to `crate::arrangements`
+//!
+//! par-term has two overlapping session persistence mechanisms:
+//!
+//! | Feature | Module | Trigger | Scope |
+//! |---------|--------|---------|-------|
+//! | Auto session restore | `crate::session` (this module) | Automatic on clean exit / next launch | Last-session state only (single slot) |
+//! | Named arrangements | `crate::arrangements` | User-initiated save/restore via UI | Multiple named snapshots, monitor-aware |
+//!
+//! Both capture window positions, sizes, tab CWDs, and tab titles using similar
+//! serialization patterns (serde JSON via `storage` submodule). The key distinction
+//! is lifecycle: session state is ephemeral (overwritten on each clean exit), while
+//! arrangements are user-named and persist indefinitely.
+//!
+//! The `SessionTab` / `SessionWindow` types in this module and the `TabSnapshot` /
+//! `WindowSnapshot` types in `crate::arrangements` serve analogous roles and have
+//! similar shapes. A future refactor could unify them under a shared snapshot type
+//! in `par-term-config`, but doing so would require coordinating the different
+//! restore semantics (arrangements are monitor-aware; session restore is not).
 
 pub mod capture;
 pub mod restore;

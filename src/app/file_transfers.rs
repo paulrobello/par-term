@@ -34,6 +34,7 @@ const RECENT_TRANSFER_DISPLAY_SECS: u64 = 3;
 #[derive(Debug, Clone)]
 pub(crate) struct TransferInfo {
     /// Unique transfer identifier
+    // TODO(dead_code): Expose id in the overlay tooltip or diagnostic log, or remove by v0.26
     #[allow(dead_code)] // Protocol data: populated from FileTransfer for diagnostics
     pub id: u64,
     /// Display filename
@@ -45,6 +46,7 @@ pub(crate) struct TransferInfo {
     /// Total expected bytes (None if unknown)
     pub total_bytes: Option<usize>,
     /// When the transfer started (unix millis)
+    // TODO(dead_code): Use started_at to display elapsed time in the overlay, or remove by v0.26
     #[allow(dead_code)] // Protocol data: populated from FileTransfer for diagnostics
     pub started_at: u64,
 }
@@ -53,6 +55,7 @@ pub(crate) struct TransferInfo {
 #[derive(Debug)]
 pub(crate) struct PendingSave {
     /// Transfer ID
+    // TODO(dead_code): Use id in save-failure error messages, or remove by v0.26
     #[allow(dead_code)] // Protocol data: correlates save with transfer for diagnostics
     pub id: u64,
     /// Suggested filename
@@ -65,6 +68,7 @@ pub(crate) struct PendingSave {
 #[derive(Debug)]
 pub(crate) struct PendingUpload {
     /// Upload format (e.g., "base64")
+    // TODO(dead_code): Use format to support non-base64 upload encodings, or remove by v0.26
     #[allow(dead_code)] // Protocol data: stored for future multi-format upload support
     pub format: String,
 }

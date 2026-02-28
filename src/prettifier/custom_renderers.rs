@@ -25,6 +25,24 @@ use super::types::{
 /// A user-defined renderer that delegates to an external command.
 ///
 /// Content is piped to the command's stdin and the output is captured as styled text.
+///
+/// # Security Warning
+///
+/// This renderer executes **arbitrary commands** specified in the user's configuration
+/// file (`render_command` and `render_args`). There is intentionally no validation or
+/// allowlisting of the command being executed — users have full control over what runs.
+///
+/// **Risk**: A malicious configuration file shared with a user (e.g., via a dotfile
+/// repository, a project-level config, or social engineering) could include a custom
+/// renderer that executes destructive or exfiltrating commands whenever matching
+/// terminal output is detected.
+///
+/// **Trust assumption**: This renderer inherits the full trust of the user's config
+/// file. Only load configuration from sources you trust. Do not import or share config
+/// files from untrusted parties without auditing all `custom_renderers` entries.
+///
+/// A 10-second execution timeout and 1 MiB output cap are applied as resource guards,
+/// but these do not prevent malicious commands from causing harm within those limits.
 pub struct ExternalCommandRenderer {
     format_id: String,
     display_name: String,
@@ -68,6 +86,17 @@ impl ContentRenderer for ExternalCommandRenderer {
         _config: &RendererConfig,
     ) -> Result<RenderedContent, RenderError> {
         let input = content.full_text();
+
+        // SECURITY: Executing a user-configured external command.
+        // The command and arguments come directly from the user's config file with
+        // no validation. See the struct-level doc comment for the full risk assessment.
+        crate::debug_info!(
+            "PRETTIFIER",
+            "ExternalCommandRenderer: invoking user-configured command '{}' (format: {}). \
+             Only run configs from trusted sources.",
+            self.render_command,
+            self.format_id
+        );
 
         let mut child = Command::new(&self.render_command)
             .args(&self.render_args)

@@ -252,9 +252,21 @@ impl WindowManager {
                                 tab.script_manager.clear_panel(script_id);
                                 panel_val = None;
                             }
-                            // TODO(#203): Implement WriteText, Notify, SetBadge, SetVariable,
-                            // RunCommand, ChangeConfig — these require proper access to the
-                            // terminal and config systems.
+                            // TODO(issue): Implement the remaining ScriptCommand variants:
+                            //   - WriteText   — write text to the active terminal PTY
+                            //   - Notify      — surface a system/in-app notification
+                            //   - SetBadge    — update the tab badge text
+                            //   - SetVariable — store a named variable in the session context
+                            //   - RunCommand  — execute a shell command (needs denylist check)
+                            //   - ChangeConfig — apply a config override for the active tab
+                            //
+                            // All of these require bridging back into `WindowState` from inside
+                            // `WindowManager::sync_script_running_state()`. The cleanest approach
+                            // is to collect pending commands into a `Vec<PendingScriptAction>` here
+                            // and process them in the caller after this method returns.
+                            //
+                            // Tracked in AUDIT.md as ARC-011. Create a GitHub issue before
+                            // implementing to coordinate with the scripting protocol design.
                             _ => {
                                 log::debug!("Script command not yet implemented: {:?}", cmd);
                             }

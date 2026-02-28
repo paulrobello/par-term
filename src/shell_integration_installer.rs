@@ -7,6 +7,12 @@
 //! - Writes scripts to `~/.config/par-term/shell_integration.{bash,zsh,fish}`
 //! - Adds marker-wrapped source lines to RC files
 //! - Supports clean uninstall that safely removes the marker blocks
+//!
+//! # Error Handling Convention
+//!
+//! Private helpers use `Result<(), String>` for simple string errors that are
+//! surfaced to the caller for display. New code added to this module should
+//! follow the same pattern.
 
 use crate::config::{Config, ShellType};
 use std::fs;

@@ -4,6 +4,40 @@
 //! and renders it in a rich, human-readable form. Built on a pluggable trait-based
 //! architecture where `ContentDetector` identifies formats and `ContentRenderer`
 //! handles display.
+//!
+//! # Module Structure
+//!
+//! The prettifier is organized into three functional layers:
+//!
+//! ## Detection Layer
+//! - [`detectors`] — Content type detector implementations (`JsonDetector`,
+//!   `MarkdownDetector`, `DiffDetector`, etc.). Each implements [`traits::ContentDetector`].
+//! - [`regex_detector`] — Generic regex-based detector for user-configured patterns.
+//! - [`boundary`] — Line boundary tracking for multi-line content detection.
+//! - [`buffer`] — Output buffer used during progressive detection.
+//!
+//! ## Rendering Layer
+//! - [`renderers`] — Format-specific renderers (Markdown, JSON, YAML, diffs,
+//!   stack traces, diagrams). Each implements [`traits::ContentRenderer`].
+//! - [`custom_renderers`] — User-configured external command renderers.
+//! - [`gutter`] — Gutter indicator manager: renders left-margin marks that flag
+//!   prettified content blocks in the terminal view.
+//!
+//! ## Pipeline / Registry Layer
+//! - [`pipeline`] — `PrettifierPipeline`: the top-level coordinator that holds
+//!   all detectors and renderers and drives per-line processing. One pipeline
+//!   instance lives per [`crate::tab::Tab`].
+//! - [`registry`] — `RendererRegistry`: maps content type identifiers to the
+//!   renderer implementations at runtime.
+//! - [`cache`] — Rendered output cache to avoid re-rendering unchanged content.
+//! - [`config_bridge`] — Translates `par-term-config` prettifier settings into
+//!   live `PrettifierPipeline` instances; bridges configuration and runtime.
+//! - [`claude_code`] — Specialized detector/renderer for Claude Code XML tool-call
+//!   output format.
+//!
+//! ## Shared Types
+//! - [`traits`] — `ContentDetector` and `ContentRenderer` trait definitions.
+//! - [`types`] — Shared data types: `ContentBlock`, `DetectionResult`, `RenderOutput`, etc.
 
 pub mod boundary;
 pub mod buffer;

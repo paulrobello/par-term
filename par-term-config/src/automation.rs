@@ -362,6 +362,16 @@ const PIPE_SHELL_TARGETS: &[&str] = &["bash", "sh", "zsh", "fish", "dash", "ksh"
 /// For any trigger that uses `require_user_action: false`, users should
 /// carefully audit the command and args to ensure they cannot be exploited.
 ///
+/// # Why Not Shell Parsing?
+///
+/// A truly robust solution would require **full shell parsing** of the command string:
+/// expanding variables, resolving aliases, decoding escape sequences, and evaluating
+/// subshells before checking against any policy. Implementing a complete POSIX shell
+/// parser is a significant undertaking and would itself introduce a large attack surface.
+/// This function intentionally does not attempt shell parsing and instead relies on
+/// `require_user_action: true` as the primary security control. The denylist exists
+/// only as a best-effort secondary guard.
+///
 /// Returns `Some(pattern)` if denied, `None` if allowed.
 pub fn check_command_denylist(command: &str, args: &[String]) -> Option<&'static str> {
     // Build full command string for pattern matching

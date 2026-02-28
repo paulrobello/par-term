@@ -16,17 +16,27 @@ pub use par_term_config::ScrollbackMark;
 const MAX_PROMPT_HEIGHT: usize = 6;
 
 /// Lightweight snapshot of a completed command taken from the core library.
+///
+/// Used by the AI inspector and semantic history features to display
+/// command history with timing, exit codes, and command text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommandSnapshot {
+    /// Sequential identifier for this command within the session.
     pub id: usize,
+    /// The command text as typed, if available from shell integration.
     pub command: Option<String>,
+    /// Wall-clock time when the command started (milliseconds since Unix epoch).
     pub start_time: u64,
+    /// Wall-clock time when the command finished, or `None` if still running.
     pub end_time: Option<u64>,
+    /// Shell exit code, or `None` if the command has not yet finished.
     pub exit_code: Option<i32>,
+    /// Elapsed time in milliseconds, or `None` if the command has not yet finished.
     pub duration_ms: Option<u64>,
 }
 
 impl CommandSnapshot {
+    /// Build a `CommandSnapshot` from a core library `CommandExecution` record.
     pub fn from_core(command: &CommandExecution, id: usize) -> Self {
         Self {
             id,
@@ -39,16 +49,32 @@ impl CommandSnapshot {
     }
 }
 
-/// Metadata for displaying timing/command info for a specific line.
+/// Metadata for displaying timing and command information for a specific scrollback line.
+///
+/// Returned by [`ScrollbackMetadata::get_line_metadata`] to let the renderer
+/// annotate prompt lines with exit codes, durations, and command text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LineMetadata {
+    /// Absolute scrollback line index this metadata applies to.
     pub line: usize,
+    /// Shell exit code of the command that started at this line, if known.
     pub exit_code: Option<i32>,
+    /// Wall-clock start time (ms since Unix epoch), if known.
     pub start_time: Option<u64>,
+    /// Elapsed duration in milliseconds, if the command has finished.
     pub duration_ms: Option<u64>,
+    /// Command text, if captured by shell integration.
     pub command: Option<String>,
 }
 
+/// Tracks shell-integration markers, command history, and per-line timestamps
+/// for a single terminal session.
+///
+/// Updated incrementally as the terminal processes shell integration sequences
+/// (OSC marks from `par-term-emu-core-rust`). Provides the data needed by:
+/// - Command separator rendering (exit code color, timing overlay)
+/// - AI inspector command history
+/// - Semantic history navigation
 #[derive(Default)]
 pub struct ScrollbackMetadata {
     /// Map of prompt/mark line -> command id

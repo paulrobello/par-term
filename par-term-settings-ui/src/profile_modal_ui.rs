@@ -88,6 +88,10 @@ pub struct ProfileModalUI {
 }
 
 impl ProfileModalUI {
+    // =========================================================================
+    // Lifecycle & State Management
+    // =========================================================================
+
     /// Create a new profile modal UI
     pub fn new() -> Self {
         Self {
@@ -176,6 +180,10 @@ impl ProfileModalUI {
     pub fn get_working_profiles(&self) -> &[Profile] {
         &self.working_profiles
     }
+
+    // =========================================================================
+    // Form Field Helpers (private)
+    // =========================================================================
 
     /// Clear form fields
     fn clear_form(&mut self) {
@@ -466,8 +474,10 @@ impl ProfileModalUI {
         }
     }
 
-    /// Render the profile list/edit UI inline (no egui::Window wrapper).
-    ///
+    // =========================================================================
+    // Public UI Entry Points (modal window + inline embed)
+    // =========================================================================
+
     /// Used inside the settings window's Profiles tab to embed the profile
     /// management UI directly. Returns `ProfileModalAction` to communicate
     /// save/cancel/open-profile requests to the caller.
@@ -544,6 +554,10 @@ impl ProfileModalUI {
         action
     }
 
+    // =========================================================================
+    // Dialog Renderers (modal overlays)
+    // =========================================================================
+
     /// Render delete confirmation dialog
     fn render_delete_confirmation(&mut self, ctx: &egui::Context) {
         let (_, profile_name) = self
@@ -583,6 +597,10 @@ impl ProfileModalUI {
                 });
             });
     }
+
+    // =========================================================================
+    // View Renderers
+    // =========================================================================
 
     /// Render the list view
     pub(crate) fn render_list_view(&mut self, ui: &mut egui::Ui) -> ProfileModalAction {
@@ -1324,6 +1342,10 @@ impl ProfileModalUI {
             }
         });
     }
+
+    // =========================================================================
+    // Profile Hierarchy Helpers (private)
+    // =========================================================================
 
     /// Check if `ancestor_id` appears in the parent chain of `profile_id`
     fn has_ancestor(&self, profile_id: ProfileId, ancestor_id: ProfileId) -> bool {
