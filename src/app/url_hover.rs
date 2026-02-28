@@ -10,8 +10,10 @@ use super::window_state::WindowState;
 impl WindowState {
     /// Detect URLs in the visible terminal area (both regex-detected and OSC 8 hyperlinks)
     pub(crate) fn detect_urls(&mut self) {
-        // Gather data from active tab
-        let (cols, rows, visible_cells, scroll_offset, hyperlink_urls) = {
+        // Gather data from active tab.
+        // Returns None if the terminal lock could not be acquired.  In that case we
+        // clear detected_urls below so stale positions are not applied to new cells.
+        let terminal_data = {
             let tab = if let Some(t) = self.tab_manager.active_tab() {
                 t
             } else {
@@ -47,8 +49,22 @@ impl WindowState {
                     }
                 }
 
-                (cols, rows, visible_cells, scroll_offset, hyperlink_urls)
+                Some((cols, rows, visible_cells, scroll_offset, hyperlink_urls))
             } else {
+                None
+            }
+        };
+
+        // If the terminal lock was not available, clear any stale detected_urls so that
+        // apply_url_underlines() does not apply old highlight positions to new cell content
+        // (which causes brief color glitches on unrelated cells during streaming output).
+        let (cols, rows, visible_cells, scroll_offset, hyperlink_urls) = match terminal_data {
+            Some(data) => data,
+            None => {
+                if let Some(tab) = self.tab_manager.active_tab_mut() {
+                    tab.mouse.detected_urls.clear();
+                    tab.mouse.hovered_url = None;
+                }
                 return;
             }
         };

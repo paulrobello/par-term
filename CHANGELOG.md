@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Semantic Highlight Color Glitch**: Fixed brief color glitches on unrelated terminal cells caused by stale URL/file-path highlight positions being applied to new content. When the PTY reader held the terminal lock during `detect_urls()`, the function returned early without clearing `detected_urls`, so `apply_url_underlines()` would paint old positions onto freshly-rendered cells. Now clears `detected_urls` and `hovered_url` on lock failure so no stale highlights are emitted.
+
 ### Security
 
 - **YAML Library Migration**: Replaced the unsound `serde_yml` dependency with `serde_yaml_ng` (0.10.0) to resolve the `libyml` vulnerability and ensured all quality checks pass.
