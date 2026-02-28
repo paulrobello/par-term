@@ -147,8 +147,8 @@ mod tests {
             order: 0,
         };
 
-        let yaml = serde_yml::to_string(&arr).unwrap();
-        let deserialized: WindowArrangement = serde_yml::from_str(&yaml).unwrap();
+        let yaml = serde_yaml_ng::to_string(&arr).unwrap();
+        let deserialized: WindowArrangement = serde_yaml_ng::from_str(&yaml).unwrap();
 
         assert_eq!(deserialized.id, arr.id);
         assert_eq!(deserialized.name, arr.name);

@@ -584,7 +584,7 @@ fn export_snippets(settings: &mut SettingsUI) {
         let library = SnippetLibrary {
             snippets: settings.config.snippets.clone(),
         };
-        match serde_yml::to_string(&library) {
+        match serde_yaml_ng::to_string(&library) {
             Ok(yaml) => {
                 if let Err(e) = std::fs::write(&path, yaml) {
                     log::error!("Failed to write snippet library: {}", e);
@@ -614,7 +614,7 @@ fn import_snippets(settings: &mut SettingsUI, changes_this_frame: &mut bool) {
 
     if let Some(path) = path {
         match std::fs::read_to_string(&path) {
-            Ok(content) => match serde_yml::from_str::<SnippetLibrary>(&content) {
+            Ok(content) => match serde_yaml_ng::from_str::<SnippetLibrary>(&content) {
                 Ok(library) => {
                     let existing_ids: std::collections::HashSet<String> = settings
                         .config

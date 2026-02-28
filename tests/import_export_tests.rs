@@ -8,8 +8,8 @@ use par_term::settings_ui::advanced_tab::merge_config;
 #[test]
 fn test_export_config_round_trip() {
     let config = Config::default();
-    let yaml = serde_yml::to_string(&config).expect("serialize");
-    let imported: Config = serde_yml::from_str(&yaml).expect("deserialize");
+    let yaml = serde_yaml_ng::to_string(&config).expect("serialize");
+    let imported: Config = serde_yaml_ng::from_str(&yaml).expect("deserialize");
     assert_eq!(config.cols, imported.cols);
     assert_eq!(config.rows, imported.rows);
     assert_eq!(config.font_size, imported.font_size);
@@ -25,7 +25,7 @@ rows: 40
 font_size: 18.0
 font_family: "Fira Code"
 "#;
-    let imported: Config = serde_yml::from_str(yaml).expect("parse imported");
+    let imported: Config = serde_yaml_ng::from_str(yaml).expect("parse imported");
 
     // Replace mode: entire config is the imported one
     assert_eq!(imported.cols, 120);
@@ -95,7 +95,7 @@ fn test_import_partial_yaml_uses_defaults_for_missing_fields() {
 font_size: 20.0
 theme: "solarized-dark"
 "#;
-    let imported: Config = serde_yml::from_str(yaml).expect("parse partial yaml");
+    let imported: Config = serde_yaml_ng::from_str(yaml).expect("parse partial yaml");
 
     // Explicitly set fields should match
     assert_eq!(imported.font_size, 20.0);
@@ -110,6 +110,6 @@ theme: "solarized-dark"
 #[test]
 fn test_import_invalid_yaml_returns_error() {
     let yaml = "this is not: valid: yaml: {{{";
-    let result = serde_yml::from_str::<Config>(yaml);
+    let result = serde_yaml_ng::from_str::<Config>(yaml);
     assert!(result.is_err());
 }

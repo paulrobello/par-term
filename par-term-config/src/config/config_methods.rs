@@ -204,7 +204,7 @@ impl Config {
             let allow_all = super::env_vars::pre_scan_allow_all_env_vars(&contents);
             let contents =
                 super::env_vars::substitute_variables_with_allowlist(&contents, allow_all);
-            let mut config: Config = serde_yml::from_str(&contents)?;
+            let mut config: Config = serde_yaml_ng::from_str(&contents)?;
 
             // Warn about triggers with require_user_action: false, since the
             // denylist is the only protection in that mode and it is bypassable.
@@ -456,7 +456,7 @@ impl Config {
             fs::create_dir_all(parent)?;
         }
 
-        let yaml = serde_yml::to_string(self)?;
+        let yaml = serde_yaml_ng::to_string(self)?;
 
         // Atomic save: write to temp file then rename to prevent corruption on crash
         let temp_path = config_path.with_extension("yaml.tmp");
@@ -1014,7 +1014,7 @@ impl Config {
             last_working_directory: Some(directory.to_string()),
         };
 
-        let yaml = serde_yml::to_string(&state)?;
+        let yaml = serde_yaml_ng::to_string(&state)?;
 
         // Atomic save: write to temp file then rename to prevent corruption on crash
         let temp_path = state_path.with_extension("yaml.tmp");
@@ -1070,7 +1070,7 @@ impl Config {
 
         match fs::read_to_string(&state_path) {
             Ok(contents) => {
-                if let Ok(state) = serde_yml::from_str::<SessionState>(&contents)
+                if let Ok(state) = serde_yaml_ng::from_str::<SessionState>(&contents)
                     && let Some(dir) = state.last_working_directory
                 {
                     log::debug!("Loaded last working directory from state file: {}", dir);

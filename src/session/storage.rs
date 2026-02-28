@@ -27,7 +27,7 @@ pub fn save_session_to(state: &SessionState, path: PathBuf) -> Result<()> {
             .with_context(|| format!("Failed to create config directory {:?}", parent))?;
     }
 
-    let contents = serde_yml::to_string(state).context("Failed to serialize session state")?;
+    let contents = serde_yaml_ng::to_string(state).context("Failed to serialize session state")?;
 
     std::fs::write(&path, contents)
         .with_context(|| format!("Failed to write session state to {:?}", path))?;
@@ -61,7 +61,7 @@ pub fn load_session_from(path: PathBuf) -> Result<Option<SessionState>> {
         return Ok(None);
     }
 
-    let state: SessionState = serde_yml::from_str(&contents)
+    let state: SessionState = serde_yaml_ng::from_str(&contents)
         .with_context(|| format!("Failed to parse session state from {:?}", path))?;
 
     log::info!(
@@ -288,11 +288,11 @@ mod tests {
         let h = SplitDirection::Horizontal;
         let v = SplitDirection::Vertical;
 
-        let h_yaml = serde_yml::to_string(&h).unwrap();
-        let v_yaml = serde_yml::to_string(&v).unwrap();
+        let h_yaml = serde_yaml_ng::to_string(&h).unwrap();
+        let v_yaml = serde_yaml_ng::to_string(&v).unwrap();
 
-        let h_back: SplitDirection = serde_yml::from_str(&h_yaml).unwrap();
-        let v_back: SplitDirection = serde_yml::from_str(&v_yaml).unwrap();
+        let h_back: SplitDirection = serde_yaml_ng::from_str(&h_yaml).unwrap();
+        let v_back: SplitDirection = serde_yaml_ng::from_str(&v_yaml).unwrap();
 
         assert_eq!(h, h_back);
         assert_eq!(v, v_back);

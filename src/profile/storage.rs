@@ -48,7 +48,7 @@ pub fn load_profiles_from(path: PathBuf) -> Result<ProfileManager> {
         return Ok(ProfileManager::new());
     }
 
-    let profiles: Vec<Profile> = serde_yml::from_str(&contents)
+    let profiles: Vec<Profile> = serde_yaml_ng::from_str(&contents)
         .with_context(|| format!("Failed to parse profiles from {:?}", path))?;
 
     crate::debug_info!(
@@ -77,7 +77,7 @@ pub fn save_profiles_to(manager: &ProfileManager, path: PathBuf) -> Result<()> {
     }
 
     let profiles = manager.to_vec();
-    let contents = serde_yml::to_string(&profiles).context("Failed to serialize profiles")?;
+    let contents = serde_yaml_ng::to_string(&profiles).context("Failed to serialize profiles")?;
 
     std::fs::write(&path, contents)
         .with_context(|| format!("Failed to write profiles to {:?}", path))?;

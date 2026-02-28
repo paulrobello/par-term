@@ -79,7 +79,7 @@ pub fn parse_shader_metadata(source: &str) -> Option<ShaderMetadata> {
     let yaml_trimmed = yaml_content.trim();
 
     // Parse the YAML
-    match serde_yml::from_str(yaml_trimmed) {
+    match serde_yaml_ng::from_str(yaml_trimmed) {
         Ok(metadata) => {
             log::debug!("Parsed shader metadata: {:?}", metadata);
             Some(metadata)
@@ -118,7 +118,7 @@ pub fn parse_shader_metadata_from_file(path: &Path) -> Option<ShaderMetadata> {
 /// # Returns
 /// The YAML representation of the metadata
 pub fn serialize_metadata_to_yaml(metadata: &ShaderMetadata) -> Result<String, String> {
-    serde_yml::to_string(metadata).map_err(|e| format!("Failed to serialize metadata: {}", e))
+    serde_yaml_ng::to_string(metadata).map_err(|e| format!("Failed to serialize metadata: {}", e))
 }
 
 /// Format shader metadata as a complete comment block ready to insert into a shader.
@@ -340,7 +340,7 @@ pub fn parse_cursor_shader_metadata(source: &str) -> Option<CursorShaderMetadata
     let yaml_trimmed = yaml_content.trim();
 
     // Parse the YAML as CursorShaderMetadata
-    match serde_yml::from_str(yaml_trimmed) {
+    match serde_yaml_ng::from_str(yaml_trimmed) {
         Ok(metadata) => {
             log::debug!("Parsed cursor shader metadata: {:?}", metadata);
             Some(metadata)
@@ -385,7 +385,7 @@ pub fn parse_cursor_shader_metadata_from_file(path: &Path) -> Option<CursorShade
 pub fn serialize_cursor_metadata_to_yaml(
     metadata: &CursorShaderMetadata,
 ) -> Result<String, String> {
-    serde_yml::to_string(metadata).map_err(|e| format!("Failed to serialize metadata: {}", e))
+    serde_yaml_ng::to_string(metadata).map_err(|e| format!("Failed to serialize metadata: {}", e))
 }
 
 /// Format cursor shader metadata as a complete comment block ready to insert into a shader.

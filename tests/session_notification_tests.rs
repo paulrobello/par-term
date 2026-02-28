@@ -30,13 +30,13 @@ fn test_session_ended_notification_yaml_deserialization() {
     let yaml = r#"
 notification_session_ended: true
 "#;
-    let config: Config = serde_yml::from_str(yaml).unwrap();
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
     assert!(config.notification_session_ended);
 
     let yaml = r#"
 notification_session_ended: false
 "#;
-    let config: Config = serde_yml::from_str(yaml).unwrap();
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
     assert!(!config.notification_session_ended);
 }
 
@@ -46,13 +46,13 @@ fn test_suppress_notifications_when_focused_yaml_deserialization() {
     let yaml = r#"
 suppress_notifications_when_focused: true
 "#;
-    let config: Config = serde_yml::from_str(yaml).unwrap();
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
     assert!(config.suppress_notifications_when_focused);
 
     let yaml = r#"
 suppress_notifications_when_focused: false
 "#;
-    let config: Config = serde_yml::from_str(yaml).unwrap();
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
     assert!(!config.suppress_notifications_when_focused);
 }
 
@@ -62,13 +62,13 @@ fn test_session_ended_config_alias() {
     let yaml = r#"
 session_ended: true
 "#;
-    let config: Config = serde_yml::from_str(yaml).unwrap();
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
     assert!(config.notification_session_ended);
 
     let yaml = r#"
 session_ended: false
 "#;
-    let config: Config = serde_yml::from_str(yaml).unwrap();
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
     assert!(!config.notification_session_ended);
 }
 
@@ -76,7 +76,7 @@ session_ended: false
 #[test]
 fn test_session_notification_config_yaml_serialization() {
     let config = Config::default();
-    let yaml = serde_yml::to_string(&config).unwrap();
+    let yaml = serde_yaml_ng::to_string(&config).unwrap();
 
     // Check that the fields are present in serialization
     assert!(yaml.contains("notification_session_ended: false"));
@@ -93,7 +93,7 @@ notification_silence_enabled: true
 notification_session_ended: true
 suppress_notifications_when_focused: false
 "#;
-    let config: Config = serde_yml::from_str(yaml).unwrap();
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
     assert!(config.notification_bell_desktop);
     assert!(config.notification_activity_enabled);
@@ -109,7 +109,7 @@ fn test_session_ended_with_suppress_disabled() {
 notification_session_ended: true
 suppress_notifications_when_focused: false
 "#;
-    let config: Config = serde_yml::from_str(yaml).unwrap();
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
     assert!(config.notification_session_ended);
     assert!(!config.suppress_notifications_when_focused);
@@ -178,7 +178,7 @@ notification_bell_visual: true
 notification_bell_sound: 50
 suppress_notifications_when_focused: true
 "#;
-    let config: Config = serde_yml::from_str(yaml).unwrap();
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
     // Bell settings should be independent of suppress setting
     assert!(config.notification_bell_visual);
@@ -191,7 +191,7 @@ suppress_notifications_when_focused: true
 #[test]
 fn test_empty_yaml_uses_defaults() {
     let yaml = "";
-    let config: Config = serde_yml::from_str(yaml).unwrap();
+    let config: Config = serde_yaml_ng::from_str(yaml).unwrap();
 
     assert!(!config.notification_session_ended);
     assert!(config.suppress_notifications_when_focused);

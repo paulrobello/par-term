@@ -66,11 +66,11 @@ fn test_option_key_mode_serde() {
 
     for (mode, expected_yaml) in modes {
         // Test serialization
-        let yaml = serde_yml::to_string(&mode).unwrap();
+        let yaml = serde_yaml_ng::to_string(&mode).unwrap();
         assert_eq!(yaml.trim(), expected_yaml);
 
         // Test deserialization
-        let deserialized: OptionKeyMode = serde_yml::from_str(expected_yaml).unwrap();
+        let deserialized: OptionKeyMode = serde_yaml_ng::from_str(expected_yaml).unwrap();
         assert_eq!(deserialized, mode);
     }
 }

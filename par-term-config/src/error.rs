@@ -39,7 +39,7 @@ pub enum ConfigError {
     Io(std::io::Error),
 
     /// The config file contained invalid YAML that could not be parsed.
-    Parse(serde_yml::Error),
+    Parse(serde_yaml_ng::Error),
 
     /// A field value failed semantic validation.
     ///
@@ -80,8 +80,8 @@ impl From<std::io::Error> for ConfigError {
     }
 }
 
-impl From<serde_yml::Error> for ConfigError {
-    fn from(e: serde_yml::Error) -> Self {
+impl From<serde_yaml_ng::Error> for ConfigError {
+    fn from(e: serde_yaml_ng::Error) -> Self {
         ConfigError::Parse(e)
     }
 }
