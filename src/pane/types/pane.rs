@@ -13,7 +13,9 @@ use crate::app::render_cache::RenderCache;
 use crate::config::Config;
 use crate::scroll_state::ScrollState;
 use crate::session_logger::{SharedSessionLogger, create_shared_logger};
-use crate::tab::{apply_login_shell_flag, build_shell_env, configure_terminal_from_config, get_shell_command};
+use crate::tab::{
+    apply_login_shell_flag, build_shell_env, configure_terminal_from_config, get_shell_command,
+};
 use crate::terminal::TerminalManager;
 
 use super::bounds::PaneBounds;

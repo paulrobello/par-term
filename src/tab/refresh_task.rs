@@ -5,8 +5,8 @@
 //! Uses adaptive polling with exponential backoff for inactive tabs.
 
 use crate::tab::Tab;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use tokio::runtime::Runtime;
 
 impl Tab {

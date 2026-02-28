@@ -198,8 +198,7 @@ impl DiffRenderer {
                                         ..Default::default()
                                     });
                                     if j < pair_count {
-                                        if let DiffLine::Added(a_text) =
-                                            &hunk_lines[add_start + j]
+                                        if let DiffLine::Added(a_text) = &hunk_lines[add_start + j]
                                         {
                                             segments.extend(word_diff_segments(
                                                 r_text,
@@ -402,8 +401,7 @@ impl DiffRenderer {
                     match &row.left {
                         SbsCell::Context(ln, text) => {
                             if self.config.show_line_numbers {
-                                segments
-                                    .push(line_num_segment(Some(*ln), gutter_width, theme));
+                                segments.push(line_num_segment(Some(*ln), gutter_width, theme));
                             }
                             let truncated = truncate_str(text, content_width);
                             let padded = format!(" {truncated:<width$}", width = content_width);
@@ -414,8 +412,7 @@ impl DiffRenderer {
                         }
                         SbsCell::Removed(ln, text) => {
                             if self.config.show_line_numbers {
-                                segments
-                                    .push(line_num_segment(Some(*ln), gutter_width, theme));
+                                segments.push(line_num_segment(Some(*ln), gutter_width, theme));
                             }
                             let truncated = truncate_str(text, content_width);
                             let padded = format!("-{truncated:<width$}", width = content_width);
@@ -447,8 +444,7 @@ impl DiffRenderer {
                     match &row.right {
                         SbsCell::Context(ln, text) => {
                             if self.config.show_line_numbers {
-                                segments
-                                    .push(line_num_segment(Some(*ln), gutter_width, theme));
+                                segments.push(line_num_segment(Some(*ln), gutter_width, theme));
                             }
                             let truncated = truncate_str(text, content_width);
                             segments.push(StyledSegment {
@@ -459,8 +455,7 @@ impl DiffRenderer {
                         SbsCell::Removed(ln, text) => {
                             // This shouldn't happen on right side but handle gracefully
                             if self.config.show_line_numbers {
-                                segments
-                                    .push(line_num_segment(Some(*ln), gutter_width, theme));
+                                segments.push(line_num_segment(Some(*ln), gutter_width, theme));
                             }
                             let truncated = truncate_str(text, content_width);
                             segments.push(StyledSegment {

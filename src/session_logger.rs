@@ -486,9 +486,9 @@ impl SessionLogger {
         );
 
         if let Some(ref mut writer) = self.writer {
-            writer
-                .write_all(header.as_bytes())
-                .with_context(|| format!("Failed to write HTML header to {:?}", self.output_path))?;
+            writer.write_all(header.as_bytes()).with_context(|| {
+                format!("Failed to write HTML header to {:?}", self.output_path)
+            })?;
         }
         Ok(())
     }
@@ -500,9 +500,9 @@ impl SessionLogger {
 </html>
 "#;
         if let Some(ref mut writer) = self.writer {
-            writer
-                .write_all(footer.as_bytes())
-                .with_context(|| format!("Failed to write HTML footer to {:?}", self.output_path))?;
+            writer.write_all(footer.as_bytes()).with_context(|| {
+                format!("Failed to write HTML footer to {:?}", self.output_path)
+            })?;
         }
         Ok(())
     }
@@ -521,8 +521,9 @@ impl SessionLogger {
             });
 
             if let Some(ref mut writer) = self.writer {
-                writeln!(writer, "{}", header)
-                    .with_context(|| format!("Failed to write asciicast header to {:?}", self.output_path))?;
+                writeln!(writer, "{}", header).with_context(|| {
+                    format!("Failed to write asciicast header to {:?}", self.output_path)
+                })?;
 
                 // Event lines (JSON arrays)
                 for event in &recording.events {

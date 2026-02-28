@@ -22,7 +22,8 @@ mod tests;
 // Re-export all public types so `pane::types::Foo` still resolves correctly
 // and `pane/mod.rs` re-exports are unchanged.
 pub use bounds::PaneBounds;
-pub use common::{DividerRect, NavigationDirection, PaneBackground, PaneId, RestartState,
-    SplitDirection};
+pub use common::{
+    DividerRect, NavigationDirection, PaneBackground, PaneId, RestartState, SplitDirection,
+};
 pub use pane::Pane;
 pub use pane_node::PaneNode;

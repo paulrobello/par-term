@@ -33,8 +33,8 @@ use encoding::{
 };
 use shell::{shell_backslash_escape, shell_double_quote, shell_single_quote};
 use whitespace::{
-    add_newlines, collapse_spaces, normalize_line_endings, paste_as_single_line, remove_empty_lines,
-    remove_newlines, trim_lines,
+    add_newlines, collapse_spaces, normalize_line_endings, paste_as_single_line,
+    remove_empty_lines, remove_newlines, trim_lines,
 };
 
 /// Available paste transformations.

@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **CONTRIBUTING.md**: Comprehensive contributor guide covering development setup, build commands (with compile-time estimates), testing, code quality tools, debug logging macros, architecture overview, macOS/Linux platform specifics, PR guidelines, and commit message format
 - **Mutex Patterns Documentation**: New `docs/MUTEX_PATTERNS.md` documents the `tokio::sync::Mutex` vs `parking_lot::Mutex` decision matrix, all three access patterns for `Tab.terminal` from sync contexts, anti-patterns, and the `record_try_lock_failure()` telemetry; inline `# Mutex Strategy` doc sections added to `Tab`, `Pane`, `AgentState`, and `SharedSessionLogger`
+- **Concurrency Guide**: New `docs/CONCURRENCY.md` documents the threading model, state hierarchy, mutex selection decision matrix, async-shared vs sync-only state, and guidance for adding new shared state
+- **State Lifecycle Guide**: New `docs/STATE_LIFECYCLE.md` documents window/tab/pane creation, update, and destruction sequences with data flow diagrams
+- **GPU Resource Lifecycle**: New section in `docs/ARCHITECTURE.md` covering Surface/Device lifecycle, Glyph Atlas management, Inline Graphics caching, Custom Shader hot-reload, and Frame Timing
 
 ### Security
 
@@ -23,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Oversized File Splits (C-1)**: All 12 files exceeding the 800-line threshold split into 80+ focused sub-modules — `background_tab.rs` (2,482→6 files), `render_pipeline/mod.rs` (2,443→8 files), `config_struct.rs` (2,201→2 files), `types.rs` (1,749→11 domain files), `markdown.rs` (1,766→8 files), `ai_inspector/panel.rs` (1,763→4 files), `window_tab.rs` (1,755→7 files), `lib.rs` (1,723→4 files), `block_chars.rs` (1,674→6 files), `pane/manager.rs` (1,627→6 files), `profile_modal_ui.rs` (1,423→5 files), `window_state/mod.rs` (1,420→5 files); all public APIs unchanged
 - **Named Renderer Constants (L-6)**: 23 named constants extracted across `cell_renderer`, `scrollbar`, and `graphics_renderer`; atlas coordinate divisor corrected from hardcoded `2048.0` to `atlas_size` (fixes rendering on GPUs with smaller texture limits)
+- **Oversized File Splits (Round 2)**: Split 8 additional files exceeding 1000 lines into focused sub-modules — `tab/mod.rs` (1426→7 files), `diagrams.rs` (1408→5 files), `paste_transform.rs` (1314→7 files), `diff.rs` (1301→7 files), `pipeline.rs` (1293→5 files), `chat.rs` (1090→5 files), `pane/types.rs` (1033→6 files), `stack_trace.rs` (1010→7 files); all public APIs unchanged
+- **Terminal Init Deduplication**: Extracted shared terminal configuration from duplicated `Pane::new()`/`Pane::new_for_tmux()` into reusable `configure_terminal_from_config()`, `get_shell_command()`, `apply_login_shell_flag()` helpers (~90 lines removed)
 
 ### Fixed
 
@@ -46,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **Trigger Denylist Bypass Patterns (M-2)**: Denylist now detects common bypass wrappers (`env`, `/usr/bin/env`, `sh -c`, `bash -c`, `zsh -c`, `fish -c`, `dash -c`, etc.) and shell `-c` patterns are immediately denied regardless of payload; startup warning emitted to stderr when any trigger has `require_user_action: false`
+- **tmux Command Escaping Hardening**: `send_keys` functions now strip null bytes before single-quote escaping to prevent command truncation; comprehensive doc comments added explaining escaping strategy and edge cases
+- **Trigger Execution Audit Logging**: `RunCommand` and `SendText` trigger executions now logged via `debug_info!("TRIGGER", ...)` with trigger_id, pid, command, and args for post-incident review
+- **Config File Permission Check**: `Config::load()` now warns on Unix if config file is group-readable or world-readable, with `chmod 600` remediation advice
 
 - **Self-Update Integrity (C-1)**: Checksum verification now fails the update when checksum URL exists but download fails — prevents MITM attacks from bypassing verification
 - **AppleScript Injection (H-1)**: macOS notifications now properly escape backslashes, quotes, and newlines in AppleScript strings to prevent command injection via terminal output
@@ -87,6 +95,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **MCP IPC File Permissions**: IPC files (config-update, screenshot request/response) are now created with `0o600` permissions atomically at creation time — eliminates the world-readable race window that existed when `std::fs::write` + post-write `chmod` was used
 - **Status Bar Thread Spawn Panics**: Replaced `expect()` on OS thread spawning in the system monitor and git branch poller — spawn failures now log a debug error and degrade gracefully instead of crashing the terminal session
+- **Log Renderer `.expect()` Panics**: Replaced 4 `.expect()` calls on regex captures in `log.rs` with safe `map_or()` pattern
+- **Session Logger Error Context**: Added `anyhow::Context` to 6 key I/O operations in `session_logger.rs` for actionable error messages with file paths
+- **`blocking_lock()` Safety Documentation**: All 7 `blocking_lock()` call sites annotated as accepted risk with references to `docs/CONCURRENCY.md`
 - **tmux Terminal Stuck in Control Mode**: Fixed a race where `handle_tmux_session_ended` could fail to acquire the terminal lock and silently leave the parser stuck in tmux control mode; the fix uses a per-tab `pending_tmux_mode_disable` flag that is retried each frame via `retry_pending_tmux_mode_disable()`, guaranteeing cleanup without blocking the winit event loop
 
 ### Fixed

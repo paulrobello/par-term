@@ -224,9 +224,7 @@ fn test_add_messages() {
 
     assert!(matches!(&state.messages[0], ChatMessage::User { text, .. } if text == "test"));
     assert!(matches!(&state.messages[1], ChatMessage::System(t) if t == "system"));
-    assert!(
-        matches!(&state.messages[2], ChatMessage::CommandSuggestion(t) if t == "cargo test")
-    );
+    assert!(matches!(&state.messages[2], ChatMessage::CommandSuggestion(t) if t == "cargo test"));
     assert!(matches!(&state.messages[3], ChatMessage::AutoApproved(t) if t == "read file"));
 }
 
@@ -274,8 +272,7 @@ fn test_extract_code_block_commands_uppercase_lang() {
 
 #[test]
 fn test_extract_code_block_commands_line_continuation() {
-    let text =
-        "```bash\ncurl -H 'Auth: a' \\\n  --data 'x=1' \\\n  https://example.test\n```";
+    let text = "```bash\ncurl -H 'Auth: a' \\\n  --data 'x=1' \\\n  https://example.test\n```";
     let cmds = extract_code_block_commands(text);
     assert_eq!(
         cmds,
