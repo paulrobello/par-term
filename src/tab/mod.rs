@@ -62,10 +62,22 @@ pub struct Tab {
     pub(crate) id: TabId,
     /// The terminal session for this tab.
     ///
-    /// Uses `tokio::sync::Mutex` for cross-task async sharing.
-    /// From sync contexts: use `.try_lock()` for non-blocking access or
-    /// `.blocking_lock()` for user-initiated operations.
-    /// Legacy field: use pane-based state instead. Will be removed in a future version.
+    /// Uses `tokio::sync::Mutex` because `TerminalManager` is shared across async tasks
+    /// (PTY reader, input sender, resize handler) and the winit event loop.
+    ///
+    /// ## Locking rules
+    ///
+    /// | Caller context | Correct access pattern | Notes |
+    /// |----------------|------------------------|-------|
+    /// | Async task (`runtime.spawn`) | `terminal.lock().await` | Standard async lock |
+    /// | Sync winit event loop (polling) | `terminal.try_lock()` | Non-blocking; skip if contended |
+    /// | Sync winit event loop (user action) | `terminal.blocking_lock()` | OK for infrequent user-initiated ops (start/stop coprocess, register observer) |
+    ///
+    /// **Never call `blocking_lock()` from within a Tokio worker thread** — it will
+    /// deadlock because the blocking call cannot yield to the async scheduler.
+    ///
+    /// See the struct-level doc on [`Tab`] and `docs/MUTEX_PATTERNS.md` for the full
+    /// threading model.
     pub(crate) terminal: Arc<Mutex<TerminalManager>>,
     /// Pane manager for split pane support.
     ///
