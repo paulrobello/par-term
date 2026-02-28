@@ -11,11 +11,7 @@ use std::collections::HashSet;
 
 impl ProfileModalUI {
     /// Render the edit/create view
-    pub(crate) fn render_edit_view(
-        &mut self,
-        ui: &mut egui::Ui,
-        collapsed: &mut HashSet<String>,
-    ) {
+    pub(crate) fn render_edit_view(&mut self, ui: &mut egui::Ui, collapsed: &mut HashSet<String>) {
         // Check if the profile being edited is a dynamic profile
         let is_dynamic_profile = self
             .editing_id

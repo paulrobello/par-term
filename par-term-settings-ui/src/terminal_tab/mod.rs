@@ -164,7 +164,12 @@ pub fn show(
             "system default",
         ],
     ) {
-        semantic_history::show_semantic_history_section(ui, settings, changes_this_frame, collapsed);
+        semantic_history::show_semantic_history_section(
+            ui,
+            settings,
+            changes_this_frame,
+            collapsed,
+        );
     }
 
     // Scrollbar section

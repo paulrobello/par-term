@@ -368,23 +368,22 @@ impl Tab {
         let terminal = Arc::new(Mutex::new(terminal));
 
         // Send initial text after optional delay (only when a runtime is provided)
-        if let Some(runtime) = params.runtime {
-            if let Some(payload) =
+        if let Some(runtime) = params.runtime
+            && let Some(payload) =
                 build_initial_text_payload(&config.initial_text, config.initial_text_send_newline)
-            {
-                let delay_ms = config.initial_text_delay_ms;
-                let terminal_clone = Arc::clone(&terminal);
-                runtime.spawn(async move {
-                    if delay_ms > 0 {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
-                    }
+        {
+            let delay_ms = config.initial_text_delay_ms;
+            let terminal_clone = Arc::clone(&terminal);
+            runtime.spawn(async move {
+                if delay_ms > 0 {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+                }
 
-                    let term = terminal_clone.lock().await;
-                    if let Err(err) = term.write(&payload) {
-                        log::warn!("Failed to send initial text: {}", err);
-                    }
-                });
-            }
+                let term = terminal_clone.lock().await;
+                if let Err(err) = term.write(&payload) {
+                    log::warn!("Failed to send initial text: {}", err);
+                }
+            });
         }
 
         Ok(Self {

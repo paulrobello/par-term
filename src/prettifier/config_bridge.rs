@@ -303,6 +303,7 @@ mod tests {
             claude_code_integration: ClaudeCodeConfig::default(),
             detection_rules: HashMap::new(),
             cache: CacheConfig::default(),
+            allowed_commands: Vec::new(),
         };
 
         let config = to_pipeline_config(&resolved);
