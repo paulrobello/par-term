@@ -57,7 +57,7 @@ use super::window_state::WindowState;
 
 /// (grid_row, label, color) tuple for a pending MarkLine action.
 /// Shared between `mod.rs` (where it's constructed) and `mark_line.rs` (where it's consumed).
-pub(self) type MarkLineEntry = (usize, Option<String>, Option<(u8, u8, u8)>);
+type MarkLineEntry = (usize, Option<String>, Option<(u8, u8, u8)>);
 
 /// Expand a leading `~/` to the user's home directory.
 fn expand_tilde(path: &str) -> String {
@@ -426,5 +426,4 @@ impl WindowState {
             self.apply_prettify_triggers(pending_prettify, current_scrollback_len);
         }
     }
-
 }
