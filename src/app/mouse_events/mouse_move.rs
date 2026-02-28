@@ -259,7 +259,7 @@ impl WindowState {
                 .is_some_and(|term| term.is_alt_screen_active())
         });
 
-        // Get mouse state for selection logic
+        // Get mouse state for selection logic (per-pane in split mode)
         let (
             button_pressed,
             click_count,
@@ -271,18 +271,21 @@ impl WindowState {
             .tab_manager
             .active_tab()
             .map(|t| {
+                let sm = t.selection_mouse();
                 (
                     t.mouse.button_pressed,
-                    t.mouse.click_count,
-                    t.mouse.is_selecting,
-                    t.mouse.click_position,
-                    t.mouse.click_pixel_position,
-                    t.mouse.selection.as_ref().map(|s| s.mode),
+                    sm.click_count,
+                    sm.is_selecting,
+                    sm.click_position,
+                    sm.click_pixel_position,
+                    sm.selection.as_ref().map(|s| s.mode),
                 )
             })
             .unwrap_or((false, 0, false, None, None, None));
 
-        if let Some((col, row)) = self.pixel_to_cell(position.0, position.1)
+        // Use pane-relative coordinates in split-pane mode so drag selection
+        // coordinates match the focused pane's terminal buffer.
+        if let Some((col, row)) = self.pixel_to_selection_cell(position.0, position.1)
             && button_pressed
             && (!alt_screen_active || shift_held)
         {
@@ -317,8 +320,9 @@ impl WindowState {
                 };
 
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.mouse.is_selecting = true;
-                    tab.mouse.selection = Some(Selection::new(click_pos, (col, row), mode));
+                    let sm = tab.selection_mouse_mut();
+                    sm.is_selecting = true;
+                    sm.selection = Some(Selection::new(click_pos, (col, row), mode));
                 }
                 if let Some(window) = &self.window {
                     window.request_redraw();
@@ -334,7 +338,7 @@ impl WindowState {
                 } else {
                     // Normal/Rectangular mode: update end cell
                     if let Some(tab) = self.tab_manager.active_tab_mut()
-                        && let Some(ref mut sel) = tab.mouse.selection
+                        && let Some(ref mut sel) = tab.selection_mouse_mut().selection
                     {
                         sel.end = (col, row);
                     }

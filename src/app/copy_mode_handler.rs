@@ -52,9 +52,9 @@ impl WindowState {
     /// Exit copy mode, clearing selection and restoring scroll
     pub(crate) fn exit_copy_mode(&mut self) {
         self.copy_mode.exit();
-        // Clear selection
+        // Clear selection (per-pane aware)
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.selection = None;
+            tab.selection_mouse_mut().selection = None;
             tab.cache.cells = None; // Invalidate cache
         }
         // Scroll back to bottom
@@ -321,7 +321,7 @@ impl WindowState {
                     self.copy_mode.visual_mode = VisualMode::None;
                     self.copy_mode.selection_anchor = None;
                     if let Some(tab) = self.tab_manager.active_tab_mut() {
-                        tab.mouse.selection = None;
+                        tab.selection_mouse_mut().selection = None;
                         tab.cache.cells = None;
                     }
                     self.focus_state.needs_redraw = true;
@@ -556,7 +556,7 @@ impl WindowState {
         let selection = self.copy_mode.compute_selection(scroll_offset);
 
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.selection = selection;
+            tab.selection_mouse_mut().selection = selection;
             tab.cache.cells = None; // Invalidate cache to re-render selection
         }
     }
@@ -596,7 +596,7 @@ impl WindowState {
                         self.copy_mode.visual_mode = crate::copy_mode::VisualMode::None;
                         self.copy_mode.selection_anchor = None;
                         if let Some(tab) = self.tab_manager.active_tab_mut() {
-                            tab.mouse.selection = None;
+                            tab.selection_mouse_mut().selection = None;
                             tab.cache.cells = None;
                         }
                         self.focus_state.needs_redraw = true;

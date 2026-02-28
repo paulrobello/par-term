@@ -322,9 +322,9 @@ impl WindowState {
         if event.state == ElementState::Pressed
             && !is_modifier_only
             && let Some(tab) = self.tab_manager.active_tab_mut()
-            && tab.mouse.selection.is_some()
+            && tab.selection_mouse().selection.is_some()
         {
-            tab.mouse.selection = None;
+            tab.selection_mouse_mut().selection = None;
             if let Some(window) = &self.window {
                 window.request_redraw();
             }

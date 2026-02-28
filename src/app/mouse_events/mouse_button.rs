@@ -273,7 +273,7 @@ impl WindowState {
                 // Fully consume the protected click so it doesn't become a local
                 // selection anchor and affect the next drag-selection gesture.
                 tab.mouse.button_pressed = false;
-                tab.mouse.is_selecting = false;
+                tab.selection_mouse_mut().is_selecting = false;
             }
             return;
         }
@@ -337,18 +337,27 @@ impl WindowState {
         }
 
         // --- 5c. Pane Focus ---
-        // If tab has multiple panes, focus the clicked pane
+        // If tab has multiple panes, focus the clicked pane.
+        // Return early to prevent falling through to selection anchoring —
+        // without this, slight mouse movement during the click creates an
+        // accidental micro-selection that overwrites clipboard contents.
         if let Some(tab) = self.tab_manager.active_tab_mut()
             && tab.has_multiple_panes()
-            && let Some(pane_id) = tab.focus_pane_at(mouse_x, mouse_y)
         {
-            log::debug!("Focused pane {} via mouse click", pane_id);
-            // Also update tmux focused pane for correct input routing
-            self.set_tmux_focused_pane_from_native(pane_id);
-            // Reset scroll to bottom when switching pane focus so the
-            // newly-focused pane doesn't inherit the previous pane's scroll offset.
-            self.set_scroll_target(0);
-            self.focus_state.needs_redraw = true;
+            // End any active drag on the OLD focused pane before switching focus.
+            // The selection itself persists (visible but inactive), matching iTerm2 behavior.
+            tab.selection_mouse_mut().is_selecting = false;
+
+            if let Some(pane_id) = tab.focus_pane_at(mouse_x, mouse_y) {
+                log::debug!("Focused pane {} via mouse click", pane_id);
+                // Also update tmux focused pane for correct input routing
+                self.set_tmux_focused_pane_from_native(pane_id);
+                // Reset scroll to bottom when switching pane focus so the
+                // newly-focused pane doesn't inherit the previous pane's scroll offset.
+                self.set_scroll_target(0);
+                self.focus_state.needs_redraw = true;
+                return;
+            }
         }
 
         // --- 5d. Prettifier Gutter Click ---
@@ -389,18 +398,21 @@ impl WindowState {
 
         // --- 6. Selection Anchoring & Click Counting ---
         // Handle complex selection modes based on click sequence
-        if let Some((col, row)) = self.pixel_to_cell(mouse_position.0, mouse_position.1) {
+        // Use pane-relative coordinates in split-pane mode so selections
+        // are stored relative to the focused pane's terminal buffer.
+        if let Some((col, row)) = self.pixel_to_selection_cell(mouse_position.0, mouse_position.1) {
             let now = std::time::Instant::now();
 
-            // Read current click state
+            // Read current click state from per-pane selection mouse
             let (same_position, click_count, last_click_time) = self
                 .tab_manager
                 .active_tab()
                 .map(|t| {
+                    let sm = t.selection_mouse();
                     (
-                        t.mouse.click_position == Some((col, row)),
-                        t.mouse.click_count,
-                        t.mouse.last_click_time,
+                        sm.click_position == Some((col, row)),
+                        sm.click_count,
+                        sm.last_click_time,
                     )
                 })
                 .unwrap_or((false, 0, None));
@@ -422,16 +434,17 @@ impl WindowState {
                 1
             };
 
-            // Update mouse state
+            // Update selection mouse state (per-pane in split mode)
             if let Some(tab) = self.tab_manager.active_tab_mut() {
+                let sm = tab.selection_mouse_mut();
                 if new_click_count == 1 {
                     // Clear previous selection on new single click
-                    tab.mouse.selection = None;
+                    sm.selection = None;
                 }
-                tab.mouse.click_count = new_click_count;
-                tab.mouse.last_click_time = Some(now);
-                tab.mouse.click_position = Some((col, row));
-                tab.mouse.click_pixel_position = Some(mouse_position);
+                sm.click_count = new_click_count;
+                sm.last_click_time = Some(now);
+                sm.click_position = Some((col, row));
+                sm.click_pixel_position = Some(mouse_position);
             }
 
             // Apply immediate selection based on click count
@@ -439,7 +452,7 @@ impl WindowState {
                 // Double-click: Anchor word selection
                 self.select_word_at(col, row);
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.mouse.is_selecting = false; // Word selection is static until drag starts
+                    tab.selection_mouse_mut().is_selecting = false; // Word selection is static until drag starts
                 }
                 if let Some(window) = &self.window {
                     window.request_redraw();
@@ -448,7 +461,7 @@ impl WindowState {
                 // Triple-click: Anchor full-line selection
                 self.select_line_at(row);
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.mouse.is_selecting = true; // Triple-click usually implies immediate drag intent
+                    tab.selection_mouse_mut().is_selecting = true; // Triple-click usually implies immediate drag intent
                 }
                 if let Some(window) = &self.window {
                     window.request_redraw();
@@ -456,8 +469,9 @@ impl WindowState {
             } else {
                 // Single click: Reset state and wait for drag to start Normal/Rectangular selection
                 if let Some(tab) = self.tab_manager.active_tab_mut() {
-                    tab.mouse.is_selecting = false;
-                    tab.mouse.selection = None;
+                    let sm = tab.selection_mouse_mut();
+                    sm.is_selecting = false;
+                    sm.selection = None;
                 }
                 if let Some(window) = &self.window {
                     window.request_redraw();
@@ -516,7 +530,7 @@ impl WindowState {
 
         // End selection and optionally copy to clipboard/primary selection
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.is_selecting = false;
+            tab.selection_mouse_mut().is_selecting = false;
         }
 
         if let Some(selected_text) = self.get_selected_text_for_copy() {

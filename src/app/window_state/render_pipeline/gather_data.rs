@@ -42,7 +42,7 @@ impl WindowState {
             Some(t) => (
                 t.terminal.clone(),
                 t.scroll_state.offset,
-                t.mouse.selection,
+                t.selection_mouse().selection,
                 t.cache.cells.clone(),
                 t.cache.generation,
                 t.cache.scroll_offset,
@@ -275,7 +275,7 @@ impl WindowState {
             tab.cache.generation = current_generation;
             tab.cache.scroll_offset = tab.scroll_state.offset;
             tab.cache.cursor_pos = current_cursor_pos;
-            tab.cache.selection = tab.mouse.selection;
+            tab.cache.selection = tab.selection_mouse().selection;
         }
 
         let mut show_scrollbar = self.should_show_scrollbar();
