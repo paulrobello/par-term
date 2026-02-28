@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **TmuxSync Dispatch Wiring (issue #202)**: `process_sync_actions` was scaffolded but never called, leaving all `SyncAction` events silently dropped. The notification poll loop now routes window/layout/output/flow-control notifications through `TmuxSync::process_notifications()` → `process_sync_actions()` in priority order (session → layout → output → flow-control), preserving ordering guarantees. Each `SyncAction` arm drives real UI mutations: `CreateTab` creates a new tab, `CloseTab` closes the mapped tab, `RenameTab` updates the tab title, `UpdateLayout` applies layout changes, `PaneOutput` routes bytes to the native pane terminal, and `SessionEnded/Pause/Continue` delegate to their existing handlers. Fallback direct-dispatch paths are retained for unmapped `LayoutChange` and `Output` notifications. Adds 14 unit tests for the sync action dispatch flow.
 - **Semantic Highlight Color Glitch**: Fixed brief color glitches on unrelated terminal cells caused by stale URL/file-path highlight positions being applied to new content. When the PTY reader held the terminal lock during `detect_urls()`, the function returned early without clearing `detected_urls`, so `apply_url_underlines()` would paint old positions onto freshly-rendered cells. Now clears `detected_urls` and `hovered_url` on lock failure so no stale highlights are emitted.
 
 ### Security
