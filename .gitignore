@@ -35,4 +35,7 @@ settings.local.json.bak
 # Git worktrees
 .worktrees/
 .claude/worktrees/
+
+# Claude local settings — may contain API tokens (SEC-001)
+.claude/settings.local.json
 settings.local.json
