@@ -271,9 +271,8 @@ impl WindowState {
             // 4. Interactive UI Elements
             // Ensure high responsiveness during mouse dragging (text selection or scrollbar).
             // Always allow these for responsiveness, even if throttled.
-            if (tab.mouse.is_selecting
-                || tab.mouse.selection.is_some()
-                || tab.scroll_state.dragging)
+            let sm = tab.selection_mouse();
+            if (sm.is_selecting || sm.selection.is_some() || tab.scroll_state.dragging)
                 && tab.mouse.button_pressed
             {
                 self.focus_state.needs_redraw = true;

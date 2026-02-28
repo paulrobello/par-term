@@ -20,9 +20,7 @@ impl WindowState {
     ///
     /// In split-pane mode, returns the focused pane's terminal and scroll offset.
     /// Otherwise, returns the tab's terminal and scroll offset.
-    fn selection_terminal_and_offset(
-        &self,
-    ) -> Option<(Arc<RwLock<TerminalManager>>, usize)> {
+    fn selection_terminal_and_offset(&self) -> Option<(Arc<RwLock<TerminalManager>>, usize)> {
         let tab = self.tab_manager.active_tab()?;
 
         if let Some(ref pm) = tab.pane_manager
@@ -33,10 +31,7 @@ impl WindowState {
                 focused_pane.scroll_state.offset,
             ))
         } else {
-            Some((
-                Arc::clone(&tab.terminal),
-                tab.scroll_state.offset,
-            ))
+            Some((Arc::clone(&tab.terminal), tab.scroll_state.offset))
         }
     }
 
@@ -46,19 +41,17 @@ impl WindowState {
     /// 1. If smart_selection_enabled, try pattern-based selection (URLs, emails, etc.)
     /// 2. Fall back to word boundary selection using configurable word_characters
     pub(crate) fn select_word_at(&mut self, col: usize, row: usize) {
-        let (terminal_arc, scroll_offset) =
-            if let Some(v) = self.selection_terminal_and_offset() {
-                v
-            } else {
-                return;
-            };
+        let (terminal_arc, scroll_offset) = if let Some(v) = self.selection_terminal_and_offset() {
+            v
+        } else {
+            return;
+        };
 
         // blocking_write: user-initiated double-click selection — must succeed
         // for the word to be highlighted.
         let term = terminal_arc.blocking_write();
         let (cols, _rows) = term.dimensions();
-        let visible_cells =
-            term.get_cells_with_scrollback(scroll_offset, None, false, None);
+        let visible_cells = term.get_cells_with_scrollback(scroll_offset, None, false, None);
         drop(term); // Release lock before accessing self fields
 
         if visible_cells.is_empty() || cols == 0 {
@@ -101,9 +94,9 @@ impl WindowState {
             find_word_boundaries(&line, col, &word_characters)
         };
 
-        // Now update mouse state
+        // Now update per-pane selection state
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.selection = Some(Selection::new(
+            tab.selection_mouse_mut().selection = Some(Selection::new(
                 (start_col, row),
                 (end_col, row),
                 SelectionMode::Normal,
@@ -113,12 +106,11 @@ impl WindowState {
 
     /// Select entire line at the given row (used for triple-click)
     pub(crate) fn select_line_at(&mut self, row: usize) {
-        let (terminal_arc, _scroll_offset) =
-            if let Some(v) = self.selection_terminal_and_offset() {
-                v
-            } else {
-                return;
-            };
+        let (terminal_arc, _scroll_offset) = if let Some(v) = self.selection_terminal_and_offset() {
+            v
+        } else {
+            return;
+        };
 
         // blocking_write: user-initiated triple-click selection — must succeed
         // for the line to be highlighted.
@@ -132,7 +124,7 @@ impl WindowState {
 
         // Store the row in start/end - Line mode uses rows only
         if let Some(tab) = self.tab_manager.active_tab_mut() {
-            tab.mouse.selection = Some(Selection::new(
+            tab.selection_mouse_mut().selection = Some(Selection::new(
                 (0, row),
                 (cols.saturating_sub(1), row),
                 SelectionMode::Line,
@@ -168,15 +160,15 @@ impl WindowState {
             let anchor_row = self
                 .tab_manager
                 .active_tab()
-                .and_then(|t| t.mouse.click_position)
+                .and_then(|t| t.selection_mouse().click_position)
                 .map(|(_, r)| r)
                 .unwrap_or(current_row);
             (cols, anchor_row)
         };
 
-        // Now update mouse selection
+        // Now update per-pane selection
         if let Some(tab) = self.tab_manager.active_tab_mut()
-            && let Some(ref mut selection) = tab.mouse.selection
+            && let Some(ref mut selection) = tab.selection_mouse_mut().selection
             && selection.mode == SelectionMode::Line
         {
             // For line selection, always ensure full lines are selected
@@ -201,7 +193,7 @@ impl WindowState {
     /// reads from the focused pane's terminal rather than the tab's gateway terminal.
     pub(crate) fn get_selected_text(&self) -> Option<String> {
         let tab = self.tab_manager.active_tab()?;
-        let selection = tab.mouse.selection.as_ref()?;
+        let selection = tab.selection_mouse().selection.as_ref()?;
 
         // Get the correct terminal and scroll offset (pane-aware)
         let (terminal_arc, scroll_offset) = self.selection_terminal_and_offset()?;
@@ -215,8 +207,7 @@ impl WindowState {
         let (end_col, end_row) = end;
 
         let (cols, rows) = term.dimensions();
-        let visible_cells =
-            term.get_cells_with_scrollback(scroll_offset, None, false, None);
+        let visible_cells = term.get_cells_with_scrollback(scroll_offset, None, false, None);
         if visible_cells.is_empty() || cols == 0 {
             return None;
         }
@@ -331,7 +322,7 @@ impl WindowState {
         if !pipeline.is_enabled() {
             return None;
         }
-        let selection = tab.mouse.selection.as_ref()?;
+        let selection = tab.selection_mouse().selection.as_ref()?;
         let (start, _end) = selection.normalized();
         let start_row = start.1 + tab.scroll_state.offset;
 

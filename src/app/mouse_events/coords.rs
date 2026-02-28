@@ -75,6 +75,23 @@ impl WindowState {
         Some((col, row))
     }
 
+    /// Convert pixel coordinates to cell coordinates for selection purposes.
+    ///
+    /// In split-pane mode, returns pane-relative coordinates for the focused pane.
+    /// In single-pane mode, returns global terminal coordinates (same as `pixel_to_cell`).
+    /// Returns `None` if the point is outside the active pane's bounds (split mode)
+    /// or if no renderer is available.
+    pub(crate) fn pixel_to_selection_cell(&self, x: f64, y: f64) -> Option<(usize, usize)> {
+        if let Some(tab) = self.tab_manager.active_tab()
+            && let Some(ref pm) = tab.pane_manager
+            && let Some(focused_pane) = pm.focused_pane()
+        {
+            self.pixel_to_pane_cell(x, y, &focused_pane.bounds)
+        } else {
+            self.pixel_to_cell(x, y)
+        }
+    }
+
     /// Handle a file being dropped into the terminal window.
     ///
     /// Quotes the file path according to the configured style and writes it

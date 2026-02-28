@@ -663,6 +663,36 @@ impl Drop for Tab {
 }
 
 impl Tab {
+    /// Get the mouse state for selection operations.
+    ///
+    /// In split-pane mode, returns the focused pane's mouse state so that
+    /// selection coordinates are isolated per-pane. In single-pane mode,
+    /// returns the tab's own mouse state.
+    pub(crate) fn selection_mouse(&self) -> &MouseState {
+        if let Some(ref pm) = self.pane_manager
+            && let Some(focused_pane) = pm.focused_pane()
+        {
+            &focused_pane.mouse
+        } else {
+            &self.mouse
+        }
+    }
+
+    /// Get mutable mouse state for selection operations.
+    ///
+    /// In split-pane mode, returns the focused pane's mouse state so that
+    /// selection coordinates are isolated per-pane. In single-pane mode,
+    /// returns the tab's own mouse state.
+    pub(crate) fn selection_mouse_mut(&mut self) -> &mut MouseState {
+        if let Some(ref mut pm) = self.pane_manager
+            && let Some(focused_pane) = pm.focused_pane_mut()
+        {
+            &mut focused_pane.mouse
+        } else {
+            &mut self.mouse
+        }
+    }
+
     /// Create a minimal stub tab for unit testing (no PTY, no runtime)
     #[cfg(test)]
     pub(crate) fn new_stub(id: TabId, tab_number: usize) -> Self {
