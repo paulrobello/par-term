@@ -127,46 +127,50 @@ impl WindowState {
             }
         }
 
-        // Process notifications in priority order:
-        // 1. Session/Window structure (setup)
-        // 2. LayoutChange (creates pane mappings)
-        // 3. Output (uses pane mappings)
-        // This ensures pane mappings exist before output arrives.
+        // Separate notifications into two buckets:
+        //   • direct — handled by dedicated handlers (TmuxSync cannot translate these)
+        //   • sync   — routed through TmuxSync for ID translation, then dispatched via
+        //              process_sync_actions in priority order: session → layout → output → other
+        //
+        // Processing in groups preserves the ordering guarantee: session/window structure
+        // is set up (and window→tab mappings created) before layout changes are applied,
+        // and pane mappings from layout are available before output arrives.
 
-        // Separate notifications by type for ordered processing
-        let mut session_notifications = Vec::new();
-        let mut layout_notifications = Vec::new();
-        let mut output_notifications = Vec::new();
-        let mut other_notifications = Vec::new();
+        let mut direct_notifications = Vec::new();
+        let mut session_sync = Vec::new();
+        let mut layout_sync = Vec::new();
+        let mut output_sync = Vec::new();
+        let mut other_sync = Vec::new();
 
         for notification in notifications {
             match &notification {
                 TmuxNotification::ControlModeStarted
                 | TmuxNotification::SessionStarted(_)
                 | TmuxNotification::SessionRenamed(_)
-                | TmuxNotification::WindowAdd(_)
+                | TmuxNotification::PaneFocusChanged { .. }
+                | TmuxNotification::Error(_) => {
+                    direct_notifications.push(notification);
+                }
+                TmuxNotification::WindowAdd(_)
                 | TmuxNotification::WindowClose(_)
                 | TmuxNotification::WindowRenamed { .. }
                 | TmuxNotification::SessionEnded => {
-                    session_notifications.push(notification);
+                    session_sync.push(notification);
                 }
                 TmuxNotification::LayoutChange { .. } => {
-                    layout_notifications.push(notification);
+                    layout_sync.push(notification);
                 }
                 TmuxNotification::Output { .. } => {
-                    output_notifications.push(notification);
+                    output_sync.push(notification);
                 }
-                TmuxNotification::PaneFocusChanged { .. }
-                | TmuxNotification::Error(_)
-                | TmuxNotification::Pause
-                | TmuxNotification::Continue => {
-                    other_notifications.push(notification);
+                TmuxNotification::Pause | TmuxNotification::Continue => {
+                    other_sync.push(notification);
                 }
             }
         }
 
-        // Process session/window structure first
-        for notification in session_notifications {
+        // --- Direct dispatch (notifications TmuxSync does not handle) ---
+        for notification in direct_notifications {
             match notification {
                 TmuxNotification::ControlModeStarted => {
                     crate::debug_info!("TMUX", "Control mode started - tmux is ready");
@@ -179,54 +183,8 @@ impl WindowState {
                     self.handle_tmux_session_renamed(&session_name);
                     needs_redraw = true;
                 }
-                TmuxNotification::WindowAdd(window_id) => {
-                    self.handle_tmux_window_add(window_id);
-                    needs_redraw = true;
-                }
-                TmuxNotification::WindowClose(window_id) => {
-                    self.handle_tmux_window_close(window_id);
-                    needs_redraw = true;
-                }
-                TmuxNotification::WindowRenamed { id, name } => {
-                    self.handle_tmux_window_renamed(id, &name);
-                    needs_redraw = true;
-                }
-                TmuxNotification::SessionEnded => {
-                    self.handle_tmux_session_ended();
-                    needs_redraw = true;
-                }
-                _ => {}
-            }
-        }
-
-        // Process layout changes second (creates pane mappings)
-        for notification in layout_notifications {
-            if let TmuxNotification::LayoutChange { window_id, layout } = notification {
-                self.handle_tmux_layout_change(window_id, &layout);
-                needs_redraw = true;
-            }
-        }
-
-        // Process output third (uses pane mappings)
-        for notification in output_notifications {
-            if let TmuxNotification::Output { pane_id, data } = notification {
-                self.handle_tmux_output(pane_id, &data);
-                needs_redraw = true;
-            }
-        }
-
-        // Process other notifications last
-        for notification in other_notifications {
-            match notification {
                 TmuxNotification::Error(msg) => {
                     self.handle_tmux_error(&msg);
-                }
-                TmuxNotification::Pause => {
-                    self.handle_tmux_pause();
-                }
-                TmuxNotification::Continue => {
-                    self.handle_tmux_continue();
-                    needs_redraw = true;
                 }
                 TmuxNotification::PaneFocusChanged { pane_id } => {
                     self.handle_tmux_pane_focus_changed(pane_id);
@@ -235,6 +193,56 @@ impl WindowState {
                 _ => {}
             }
         }
+
+        // --- TmuxSync dispatch: group 1 — session/window structure ---
+        // Creates window→tab mappings; must run before layout and output.
+        let session_actions = self
+            .tmux_state
+            .tmux_sync
+            .process_notifications(&session_sync);
+        needs_redraw |= self.process_sync_actions(session_actions);
+
+        // --- TmuxSync dispatch: group 2 — layout changes ---
+        // Applies pane layout; requires window mappings from group 1.
+        let layout_actions = self
+            .tmux_state
+            .tmux_sync
+            .process_notifications(&layout_sync);
+        needs_redraw |= self.process_sync_actions(layout_actions);
+
+        // Fallback: LayoutChange notifications that TmuxSync could not translate
+        // (no window→tab mapping yet). The direct handler handles on-the-fly mapping.
+        for notification in &layout_sync {
+            if let TmuxNotification::LayoutChange { window_id, layout } = notification
+                && self.tmux_state.tmux_sync.get_tab(*window_id).is_none()
+            {
+                self.handle_tmux_layout_change(*window_id, layout);
+                needs_redraw = true;
+            }
+        }
+
+        // --- TmuxSync dispatch: group 3 — pane output ---
+        // Routes bytes to native panes; requires pane mappings from group 2.
+        let output_actions = self
+            .tmux_state
+            .tmux_sync
+            .process_notifications(&output_sync);
+        needs_redraw |= self.process_sync_actions(output_actions);
+
+        // Fallback: Output for panes not yet mapped. The direct handler has multi-level
+        // fallback logic (tab-level routing, on-demand tab creation).
+        for notification in output_sync {
+            if let TmuxNotification::Output { pane_id, data } = notification
+                && self.tmux_state.tmux_sync.get_native_pane(pane_id).is_none()
+            {
+                self.handle_tmux_output(pane_id, &data);
+                needs_redraw = true;
+            }
+        }
+
+        // --- TmuxSync dispatch: group 4 — flow control (pause/continue) ---
+        let other_actions = self.tmux_state.tmux_sync.process_notifications(&other_sync);
+        needs_redraw |= self.process_sync_actions(other_actions);
 
         needs_redraw
     }

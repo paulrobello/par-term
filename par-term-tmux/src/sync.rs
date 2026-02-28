@@ -233,6 +233,310 @@ impl Default for TmuxSync {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session::TmuxNotification;
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    fn make_sync_with_window(window_id: TmuxWindowId, tab_id: TabId) -> TmuxSync {
+        let mut sync = TmuxSync::new();
+        sync.map_window(window_id, tab_id);
+        sync
+    }
+
+    fn make_sync_with_pane(tmux_pane_id: TmuxPaneId, native_pane_id: PaneId) -> TmuxSync {
+        let mut sync = TmuxSync::new();
+        sync.map_pane(tmux_pane_id, native_pane_id);
+        sync
+    }
+
+    // -------------------------------------------------------------------------
+    // CreateTab — WindowAdd always produces an action (no mapping required)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn window_add_produces_create_tab() {
+        let mut sync = TmuxSync::new();
+        let notifs = vec![TmuxNotification::WindowAdd(42)];
+        let actions = sync.process_notifications(&notifs);
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::CreateTab { window_id } => assert_eq!(*window_id, 42),
+            other => panic!("expected CreateTab, got {:?}", other),
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // CloseTab — WindowClose only produces an action when the window is mapped
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn window_close_produces_close_tab_when_mapped() {
+        let mut sync = make_sync_with_window(7, 100);
+        let notifs = vec![TmuxNotification::WindowClose(7)];
+        let actions = sync.process_notifications(&notifs);
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::CloseTab { tab_id } => assert_eq!(*tab_id, 100),
+            other => panic!("expected CloseTab, got {:?}", other),
+        }
+        // Mapping must be removed so the fallback path won't double-process it.
+        assert!(
+            sync.get_tab(7).is_none(),
+            "window mapping should be removed after close"
+        );
+    }
+
+    #[test]
+    fn window_close_produces_no_action_when_unmapped() {
+        let mut sync = TmuxSync::new();
+        let notifs = vec![TmuxNotification::WindowClose(99)];
+        let actions = sync.process_notifications(&notifs);
+        assert!(
+            actions.is_empty(),
+            "unmapped window close should produce no action"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // RenameTab — WindowRenamed only produces an action when the window is mapped
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn window_renamed_produces_rename_tab_when_mapped() {
+        let mut sync = make_sync_with_window(3, 50);
+        let notifs = vec![TmuxNotification::WindowRenamed {
+            id: 3,
+            name: "my-shell".into(),
+        }];
+        let actions = sync.process_notifications(&notifs);
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::RenameTab { tab_id, name } => {
+                assert_eq!(*tab_id, 50);
+                assert_eq!(name, "my-shell");
+            }
+            other => panic!("expected RenameTab, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn window_renamed_produces_no_action_when_unmapped() {
+        let mut sync = TmuxSync::new();
+        let notifs = vec![TmuxNotification::WindowRenamed {
+            id: 5,
+            name: "irrelevant".into(),
+        }];
+        let actions = sync.process_notifications(&notifs);
+        assert!(actions.is_empty());
+    }
+
+    // -------------------------------------------------------------------------
+    // UpdateLayout — LayoutChange only produces an action when the window is mapped
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn layout_change_produces_update_layout_when_mapped() {
+        let mut sync = make_sync_with_window(1, 10);
+        let notifs = vec![TmuxNotification::LayoutChange {
+            window_id: 1,
+            layout: "abc123,80x24,0,0".into(),
+        }];
+        let actions = sync.process_notifications(&notifs);
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::UpdateLayout { tab_id, layout } => {
+                assert_eq!(*tab_id, 10);
+                assert_eq!(layout, "abc123,80x24,0,0");
+            }
+            other => panic!("expected UpdateLayout, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn layout_change_produces_no_action_when_unmapped() {
+        let mut sync = TmuxSync::new();
+        let notifs = vec![TmuxNotification::LayoutChange {
+            window_id: 2,
+            layout: "80x24".into(),
+        }];
+        let actions = sync.process_notifications(&notifs);
+        assert!(
+            actions.is_empty(),
+            "unmapped layout change should produce no action (fallback in polling.rs)"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // PaneOutput — Output only produces an action when the pane is mapped;
+    //              pane_id in the action is the *native* PaneId.
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn output_produces_pane_output_with_native_id_when_mapped() {
+        let mut sync = make_sync_with_pane(20, 200);
+        let payload = b"hello tmux".to_vec();
+        let notifs = vec![TmuxNotification::Output {
+            pane_id: 20,
+            data: payload.clone(),
+        }];
+        let actions = sync.process_notifications(&notifs);
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::PaneOutput { pane_id, data } => {
+                assert_eq!(
+                    *pane_id, 200,
+                    "pane_id should be native (200), not tmux (20)"
+                );
+                assert_eq!(data, &payload);
+            }
+            other => panic!("expected PaneOutput, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn output_produces_no_action_when_pane_unmapped() {
+        let mut sync = TmuxSync::new();
+        let notifs = vec![TmuxNotification::Output {
+            pane_id: 99,
+            data: b"data".to_vec(),
+        }];
+        let actions = sync.process_notifications(&notifs);
+        assert!(
+            actions.is_empty(),
+            "unmapped pane output should produce no action (fallback in polling.rs)"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Session lifecycle and flow-control pass-throughs
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn session_ended_produces_action() {
+        let mut sync = TmuxSync::new();
+        let actions = sync.process_notifications(&[TmuxNotification::SessionEnded]);
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], SyncAction::SessionEnded));
+    }
+
+    #[test]
+    fn pause_produces_action() {
+        let mut sync = TmuxSync::new();
+        let actions = sync.process_notifications(&[TmuxNotification::Pause]);
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], SyncAction::Pause));
+    }
+
+    #[test]
+    fn continue_produces_action() {
+        let mut sync = TmuxSync::new();
+        let actions = sync.process_notifications(&[TmuxNotification::Continue]);
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions[0], SyncAction::Continue));
+    }
+
+    // -------------------------------------------------------------------------
+    // Direct-dispatch notifications are silently ignored by TmuxSync
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn direct_dispatch_notifications_produce_no_actions() {
+        let mut sync = TmuxSync::new();
+        let notifs = vec![
+            TmuxNotification::ControlModeStarted,
+            TmuxNotification::SessionStarted("mysession".into()),
+            TmuxNotification::SessionRenamed("newsession".into()),
+            TmuxNotification::Error("something went wrong".into()),
+            TmuxNotification::PaneFocusChanged { pane_id: 5 },
+        ];
+        let actions = sync.process_notifications(&notifs);
+        assert!(
+            actions.is_empty(),
+            "direct-dispatch notifications should not be translated to SyncActions"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Ordering: window→tab mapping created by CreateTab is available for
+    // UpdateLayout within the same call only if the call is split by group
+    // (which polling.rs does — each group is a separate process_notifications call).
+    // This test verifies that if window is already mapped, layout works correctly.
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn layout_uses_mapping_established_in_prior_group() {
+        let mut sync = TmuxSync::new();
+
+        // Simulate what polling.rs does: first group creates the mapping via process_sync_actions
+        // (which calls handle_tmux_window_add → map_window). Here we set it up directly.
+        sync.map_window(8, 80);
+
+        // Second group: LayoutChange should now find the mapping.
+        let layout_notifs = vec![TmuxNotification::LayoutChange {
+            window_id: 8,
+            layout: "80x24,0,0,0".into(),
+        }];
+        let actions = sync.process_notifications(&layout_notifs);
+
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(
+            actions[0],
+            SyncAction::UpdateLayout { tab_id: 80, .. }
+        ));
+    }
+
+    // -------------------------------------------------------------------------
+    // Batch ordering: multiple notifications are translated in iteration order
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn multiple_notifications_translated_in_order() {
+        let mut sync = TmuxSync::new();
+        sync.map_window(1, 10);
+        sync.map_window(2, 20);
+
+        let notifs = vec![
+            TmuxNotification::WindowRenamed {
+                id: 1,
+                name: "first".into(),
+            },
+            TmuxNotification::WindowRenamed {
+                id: 2,
+                name: "second".into(),
+            },
+        ];
+        let actions = sync.process_notifications(&notifs);
+
+        assert_eq!(actions.len(), 2);
+        match (&actions[0], &actions[1]) {
+            (
+                SyncAction::RenameTab {
+                    tab_id: 10,
+                    name: n0,
+                },
+                SyncAction::RenameTab {
+                    tab_id: 20,
+                    name: n1,
+                },
+            ) => {
+                assert_eq!(n0, "first");
+                assert_eq!(n1, "second");
+            }
+            _ => panic!("unexpected action order: {:?}", actions),
+        }
+    }
+}
+
 /// Actions to perform on the par-term side based on tmux notifications
 #[derive(Debug, Clone)]
 pub enum SyncAction {
