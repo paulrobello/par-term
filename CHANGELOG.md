@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Scripting Command Handlers (issue #203)**: Implemented all 6 previously-stubbed `ScriptCommand` handlers — `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, and `ChangeConfig`. Three restricted commands (`WriteText`, `RunCommand`, `ChangeConfig`) require explicit per-script opt-in via `allow_*` flags in `ScriptConfig` (all default to `false`). `WriteText` strips VT/ANSI escape sequences before PTY injection. `RunCommand` uses shell-free tokenisation with command denylist enforcement. `ChangeConfig` validates against a strict allowlist of 6 safe runtime keys. Per-script rate limiting for `WriteText` (default 10/s) and `RunCommand` (default 1/s). Settings UI exposes permission toggles and rate limit controls in the script edit form. Includes 26 new tests covering VT stripping, rate limiting, and config serialization.
+
 ### Fixed
 
 - **TmuxSync Dispatch Wiring (issue #202)**: `process_sync_actions` was scaffolded but never called, leaving all `SyncAction` events silently dropped. The notification poll loop now routes window/layout/output/flow-control notifications through `TmuxSync::process_notifications()` → `process_sync_actions()` in priority order (session → layout → output → flow-control), preserving ordering guarantees. Each `SyncAction` arm drives real UI mutations: `CreateTab` creates a new tab, `CloseTab` closes the mapped tab, `RenameTab` updates the tab title, `UpdateLayout` applies layout changes, `PaneOutput` routes bytes to the native pane terminal, and `SessionEnded/Pause/Continue` delegate to their existing handlers. Fallback direct-dispatch paths are retained for unmapped `LayoutChange` and `Output` notifications. Adds 14 unit tests for the sync action dispatch flow.
