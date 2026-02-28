@@ -149,29 +149,80 @@ impl TmuxCommand {
     // Input/Output Commands
     // =========================================================================
 
-    /// Send keys to a pane
+    /// Send keys to a pane, interpreting tmux key names (e.g. `Enter`, `Escape`).
+    ///
+    /// # Escaping strategy
+    ///
+    /// The key string is wrapped in POSIX single-quotes and every embedded
+    /// single-quote is replaced with the `'\''` idiom (end quote, escaped
+    /// literal quote, reopen quote).  This is sufficient for all printable
+    /// characters.
+    ///
+    /// # Known edge cases
+    ///
+    /// - **Null bytes (`\x00`)**: tmux's control-mode protocol is newline-framed;
+    ///   a null byte inside a quoted argument may cause the parser to truncate
+    ///   or mis-frame the command.  Null bytes are stripped before quoting as a
+    ///   defensive measure.
+    /// - **Newlines (`\n`)**: A literal newline inside the single-quoted region
+    ///   will prematurely terminate the control-mode command.  Callers that need
+    ///   to send actual newline *characters* should use `send_literal` instead,
+    ///   which adds the `-l` flag so tmux treats the text as literal input
+    ///   rather than a key name sequence.
+    /// - **Tmux key name interpretation**: Without `-l`, tmux interprets special
+    ///   tokens such as `Enter`, `Escape`, `Up`, etc.  If you want the literal
+    ///   string "Enter" to appear in the terminal, use `send_literal`.
     pub fn send_keys(pane_id: TmuxPaneId, keys: &str) -> Self {
-        // Escape single quotes in the keys
-        let escaped = keys.replace('\'', "'\\''");
+        // Strip null bytes: they cannot be represented safely inside a
+        // control-mode quoted argument and would truncate the command.
+        let sanitized = keys.replace('\x00', "");
+        let escaped = sanitized.replace('\'', "'\\''");
         Self::new(format!("send-keys -t %{} '{}'", pane_id, escaped))
     }
 
-    /// Send literal text to a pane
+    /// Send literal text to a pane without tmux key-name interpretation.
+    ///
+    /// Uses the `-l` (literal) flag so that tmux sends the text byte-for-byte
+    /// without interpreting special tokens like `Enter` or `Escape`.  This is
+    /// the preferred variant for pasting user-supplied text.
+    ///
+    /// # Escaping strategy
+    ///
+    /// Single-quotes are escaped with the `'\''` idiom.  Null bytes are stripped
+    /// because they cannot be encoded in tmux's control-mode framing protocol.
+    ///
+    /// # Remaining edge cases
+    ///
+    /// Even with `-l`, an embedded newline in the argument will terminate the
+    /// control-mode command prematurely.  Callers must split multi-line text into
+    /// one `send_literal` call per line, or replace `\n` with an `Enter`
+    /// key-name call via `send_keys`.
     pub fn send_literal(pane_id: TmuxPaneId, text: &str) -> Self {
-        // Use -l for literal text
-        let escaped = text.replace('\'', "'\\''");
+        // Strip null bytes before quoting.
+        let sanitized = text.replace('\x00', "");
+        let escaped = sanitized.replace('\'', "'\\''");
         Self::new(format!("send-keys -t %{} -l '{}'", pane_id, escaped))
     }
 
-    /// Send keys to a window (sends to the active pane in that window)
+    /// Send keys to a window (sends to the active pane in that window).
+    ///
+    /// See [`Self::send_keys`] for the full escaping strategy and edge cases.
     pub fn send_keys_to_window(window_id: TmuxWindowId, keys: &str) -> Self {
-        let escaped = keys.replace('\'', "'\\''");
+        // Strip null bytes: they cannot be represented safely inside a
+        // control-mode quoted argument and would truncate the command.
+        let sanitized = keys.replace('\x00', "");
+        let escaped = sanitized.replace('\'', "'\\''");
         Self::new(format!("send-keys -t @{} '{}'", window_id, escaped))
     }
 
-    /// Send literal text to a window (sends to the active pane in that window)
+    /// Send literal text to a window (sends to the active pane in that window).
+    ///
+    /// Uses the `-l` (literal) flag.  See [`Self::send_literal`] for the full
+    /// escaping strategy and edge cases.
     pub fn send_literal_to_window(window_id: TmuxWindowId, text: &str) -> Self {
-        let escaped = text.replace('\'', "'\\''");
+        // Strip null bytes before quoting.
+        let sanitized = text.replace('\x00', "");
+        let escaped = sanitized.replace('\'', "'\\''");
         Self::new(format!("send-keys -t @{} -l '{}'", window_id, escaped))
     }
 
@@ -316,5 +367,20 @@ mod tests {
     fn test_send_keys_escaping() {
         let cmd = TmuxCommand::send_keys(1, "echo 'hello'");
         assert!(cmd.as_str().contains("echo"));
+        // Single-quotes in the input must be escaped with the '\''-idiom.
+        assert!(cmd.as_str().contains("'\\''"));
+    }
+
+    #[test]
+    fn test_send_keys_strips_null_bytes() {
+        // Null bytes must be stripped: they truncate control-mode commands.
+        let cmd = TmuxCommand::send_keys(1, "hel\x00lo");
+        assert_eq!(cmd.as_str(), "send-keys -t %1 'hello'");
+    }
+
+    #[test]
+    fn test_send_literal_strips_null_bytes() {
+        let cmd = TmuxCommand::send_literal(2, "te\x00xt");
+        assert_eq!(cmd.as_str(), "send-keys -t %2 -l 'text'");
     }
 }

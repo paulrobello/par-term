@@ -211,3 +211,6 @@ parking_lot::Mutex   — all callers are sync threads; use .lock() directly
 ```
 
 See `CLAUDE.md` and `src/debug.rs` for additional context on the try_lock telemetry system.
+
+For the state hierarchy and a higher-level overview of the threading model, see
+[CONCURRENCY.md](CONCURRENCY.md).

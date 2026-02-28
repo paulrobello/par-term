@@ -23,6 +23,12 @@ This document provides a high-level overview of the `par-term` architecture, det
   - [Event Loop Sleep on macOS](#event-loop-sleep-on-macos)
   - [Status Bar Skip Updates When Hidden](#status-bar-skip-updates-when-hidden)
   - [Inactive Tab Refresh Throttling](#inactive-tab-refresh-throttling)
+- [GPU Resource Lifecycle](#gpu-resource-lifecycle)
+  - [Surface and Device](#surface-and-device)
+  - [Glyph Atlas](#glyph-atlas)
+  - [Inline Graphics Textures](#inline-graphics-textures)
+  - [Custom Shader Resources](#custom-shader-resources)
+  - [Frame Timing and FPS Overlay](#frame-timing-and-fps-overlay)
 - [Related Documentation](#related-documentation)
 
 ## Overview
@@ -419,6 +425,48 @@ When the status bar is enabled but hidden (fullscreen auto-hide or mouse inactiv
 
 Inactive tabs poll for terminal updates at a reduced rate configured by the `inactive_tab_fps` setting. This allows background tabs to continue processing PTY output (preventing buffer stalls) while consuming far less CPU than the active tab's full refresh rate.
 
+## GPU Resource Lifecycle
+
+par-term's GPU resources follow a predictable lifecycle that maps directly onto the
+state hierarchy described above.
+
+### Surface and Device
+
+The wgpu surface and device are created once when `WindowState` is initialized. They are
+stored inside the `Renderer` struct, which is owned by `WindowState`. When the window is
+resized, the surface is reconfigured (not recreated) with the new dimensions. The device
+is released when `WindowState` is dropped.
+
+### Glyph Atlas
+
+The glyph atlas is a GPU texture that caches rasterized glyphs. New glyphs are added on
+demand during the Cell Pass. The atlas is invalidated and rebuilt when the font or font
+size changes (`rebuild_renderer` in `src/app/window_state/renderer_ops.rs`). Atlas
+overflow is handled by evicting the least-recently-used glyphs.
+
+### Inline Graphics Textures
+
+Sixel, iTerm2, and Kitty graphics are decoded to RGBA on the CPU and uploaded to GPU
+textures during the Graphics Pass. Textures are cached by their content hash. When a
+graphic scrolls off screen, its texture is evicted from the cache. Prettifier-rendered
+graphics (Mermaid diagrams, etc.) are treated identically — they produce RGBA byte
+buffers that enter the same texture cache.
+
+### Custom Shader Resources
+
+Custom background and cursor shaders have their own pipeline objects (created on
+shader load) and `iChannel` textures. Shader hot-reload (`shader_hot_reload = true` in
+config) watches the shader files on disk. When a change is detected, the transpilation
+and pipeline rebuild happen on the main thread before the next frame. The old pipeline is
+released after the new one is successfully compiled.
+
+### Frame Timing and FPS Overlay
+
+Frame timing is tracked via a rolling window of recent frame durations. The FPS overlay
+(enabled via the settings UI) reads from this rolling average each frame. Frame timing
+data is stored as a fixed-size circular buffer inside `WindowState`; it is not persisted
+and resets on window close.
+
 ## Related Documentation
 
 - [Documentation Style Guide](DOCUMENTATION_STYLE_GUIDE.md) - Standards for project documentation.
@@ -426,3 +474,5 @@ Inactive tabs poll for terminal updates at a reduced rate configured by the `ina
 - [Custom Shaders Guide](CUSTOM_SHADERS.md) - Installing and creating custom GLSL shaders.
 - [SSH Host Management](SSH.md) - SSH host discovery and quick connect system.
 - [Status Bar](STATUS_BAR.md) - Status bar widgets and system monitoring.
+- [State Lifecycle](STATE_LIFECYCLE.md) - When state objects are created, updated, and destroyed.
+- [Concurrency Guide](CONCURRENCY.md) - Mutex strategy and threading model.

@@ -7,7 +7,7 @@ use crate::config::Config;
 use crate::terminal::TerminalManager;
 
 /// Configure a terminal with settings from config (theme, clipboard limits, cursor style, unicode)
-pub(super) fn configure_terminal_from_config(terminal: &mut TerminalManager, config: &Config) {
+pub(crate) fn configure_terminal_from_config(terminal: &mut TerminalManager, config: &Config) {
     // Set theme from config
     terminal.set_theme(config.load_theme());
 
@@ -235,7 +235,7 @@ fn build_platform_extra_paths() -> Vec<String> {
 }
 
 /// Determine the shell command and arguments to use based on config
-pub(super) fn get_shell_command(config: &Config) -> (String, Option<Vec<String>>) {
+pub(crate) fn get_shell_command(config: &Config) -> (String, Option<Vec<String>>) {
     if let Some(ref custom) = config.custom_shell {
         (custom.clone(), config.shell_args.clone())
     } else {
@@ -255,7 +255,7 @@ pub(super) fn get_shell_command(config: &Config) -> (String, Option<Vec<String>>
 
 /// Apply login shell flag if configured (Unix only)
 #[cfg(not(target_os = "windows"))]
-pub(super) fn apply_login_shell_flag(shell_args: &mut Option<Vec<String>>, config: &Config) {
+pub(crate) fn apply_login_shell_flag(shell_args: &mut Option<Vec<String>>, config: &Config) {
     if config.login_shell {
         let args = shell_args.get_or_insert_with(Vec::new);
         if !args.iter().any(|a| a == "-l" || a == "--login") {
@@ -265,6 +265,6 @@ pub(super) fn apply_login_shell_flag(shell_args: &mut Option<Vec<String>>, confi
 }
 
 #[cfg(target_os = "windows")]
-pub(super) fn apply_login_shell_flag(_shell_args: &mut Option<Vec<String>>, _config: &Config) {
+pub(crate) fn apply_login_shell_flag(_shell_args: &mut Option<Vec<String>>, _config: &Config) {
     // No-op on Windows
 }

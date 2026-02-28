@@ -173,6 +173,30 @@ impl Config {
             }
 
             log::info!("Loading existing config from {:?}", config_path);
+
+            // Security: warn if the config file is readable by group or others.
+            // The config file may contain sensitive values (API keys, SSH paths,
+            // trigger commands) that should not be exposed to other users on a
+            // shared system.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(metadata) = fs::metadata(&config_path) {
+                    let mode = metadata.permissions().mode();
+                    // Check group-readable (0o040) or world-readable (0o004) bits.
+                    if mode & 0o044 != 0 {
+                        log::warn!(
+                            "Config file {:?} has insecure permissions (mode {:04o}). \
+                             It is readable by group or others, which may expose sensitive \
+                             configuration values. Run: chmod 600 {:?}",
+                            config_path,
+                            mode & 0o777,
+                            config_path,
+                        );
+                    }
+                }
+            }
+
             let contents = fs::read_to_string(&config_path)?;
 
             // Pre-scan the raw YAML for `allow_all_env_vars: true` before
