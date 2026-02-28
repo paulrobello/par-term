@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Customizable `timeout_secs` for snippet shell commands.
 
 ### Fixed
+- Fixed drag-selection often failing to copy text to clipboard due to `try_write()` race condition; mouse-release copy now uses `blocking_write()` to guarantee the selection is captured.
+- Fixed clicking between tmux panes overwriting clipboard contents via accidental micro-selections; pane-focus clicks are now fully consumed before reaching selection-anchor code.
+- Fixed text selection in split-pane mode reading from the wrong terminal buffer; selection now correctly reads from the focused pane's terminal.
+- Fixed double-click and triple-click word/line selection occasionally failing to highlight due to the same `try_write()` contention.
 - Wired `process_sync_actions` in TmuxSync dispatch to handle session, layout, output, and flow-control notifications.
 - Fixed highlight flickering in `detect_urls` by preserving stale lists on lock misses.
 - Resolved `window_opacity` state corruption during `render_to_texture`.

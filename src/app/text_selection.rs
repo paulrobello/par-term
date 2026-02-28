@@ -9,33 +9,57 @@
 
 use crate::selection::{Selection, SelectionMode};
 use crate::smart_selection::find_word_boundaries;
+use crate::terminal::TerminalManager;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use super::window_state::WindowState;
 
 impl WindowState {
+    /// Get the terminal and scroll offset for text selection operations.
+    ///
+    /// In split-pane mode, returns the focused pane's terminal and scroll offset.
+    /// Otherwise, returns the tab's terminal and scroll offset.
+    fn selection_terminal_and_offset(
+        &self,
+    ) -> Option<(Arc<RwLock<TerminalManager>>, usize)> {
+        let tab = self.tab_manager.active_tab()?;
+
+        if let Some(ref pm) = tab.pane_manager
+            && let Some(focused_pane) = pm.focused_pane()
+        {
+            Some((
+                Arc::clone(&focused_pane.terminal),
+                focused_pane.scroll_state.offset,
+            ))
+        } else {
+            Some((
+                Arc::clone(&tab.terminal),
+                tab.scroll_state.offset,
+            ))
+        }
+    }
+
     /// Select word at the given position using smart selection and word boundary rules.
     ///
     /// Selection priority:
     /// 1. If smart_selection_enabled, try pattern-based selection (URLs, emails, etc.)
     /// 2. Fall back to word boundary selection using configurable word_characters
     pub(crate) fn select_word_at(&mut self, col: usize, row: usize) {
-        let tab = if let Some(t) = self.tab_manager.active_tab() {
-            t
-        } else {
-            return;
-        };
+        let (terminal_arc, scroll_offset) =
+            if let Some(v) = self.selection_terminal_and_offset() {
+                v
+            } else {
+                return;
+            };
 
-        // try_lock: intentional — text selection update runs on every mouse-drag frame
-        // in the sync event loop. On miss: selection is not updated this frame; the user
-        // will notice slight lag in selection boundary rendering.
-        let (cols, visible_cells, _scroll_offset) = if let Ok(term) = tab.terminal.try_write() {
-            let (cols, _rows) = term.dimensions();
-            let scroll_offset = tab.scroll_state.offset;
-            let visible_cells = term.get_cells_with_scrollback(scroll_offset, None, false, None);
-            (cols, visible_cells, scroll_offset)
-        } else {
-            return;
-        };
+        // blocking_write: user-initiated double-click selection — must succeed
+        // for the word to be highlighted.
+        let term = terminal_arc.blocking_write();
+        let (cols, _rows) = term.dimensions();
+        let visible_cells =
+            term.get_cells_with_scrollback(scroll_offset, None, false, None);
+        drop(term); // Release lock before accessing self fields
 
         if visible_cells.is_empty() || cols == 0 {
             return;
@@ -89,18 +113,18 @@ impl WindowState {
 
     /// Select entire line at the given row (used for triple-click)
     pub(crate) fn select_line_at(&mut self, row: usize) {
-        let cols = if let Some(tab) = self.tab_manager.active_tab() {
-            // try_lock: intentional — triple-click line selection in sync event loop.
-            // On miss: line selection is skipped this click. User can triple-click again.
-            if let Ok(term) = tab.terminal.try_write() {
-                let (cols, _rows) = term.dimensions();
-                cols
+        let (terminal_arc, _scroll_offset) =
+            if let Some(v) = self.selection_terminal_and_offset() {
+                v
             } else {
                 return;
-            }
-        } else {
-            return;
-        };
+            };
+
+        // blocking_write: user-initiated triple-click selection — must succeed
+        // for the line to be highlighted.
+        let term = terminal_arc.blocking_write();
+        let (cols, _rows) = term.dimensions();
+        drop(term);
 
         if cols == 0 {
             return;
@@ -120,15 +144,17 @@ impl WindowState {
     pub(crate) fn extend_line_selection(&mut self, current_row: usize) {
         // Get cols from terminal and click_position from mouse
         let (cols, anchor_row) = {
-            let tab = if let Some(t) = self.tab_manager.active_tab() {
-                t
-            } else {
-                return;
-            };
+            let (terminal_arc, _scroll_offset) =
+                if let Some(v) = self.selection_terminal_and_offset() {
+                    v
+                } else {
+                    return;
+                };
 
-            // try_lock: intentional — double-click word selection in sync event loop.
-            // On miss: word selection is skipped this click. User can double-click again.
-            let cols = if let Ok(term) = tab.terminal.try_write() {
+            // try_write: intentional — triple-click drag extension runs on every
+            // mouse-move frame. On miss: selection is not extended this frame;
+            // the user sees a brief lag. High-frequency; acceptable loss.
+            let cols = if let Ok(term) = terminal_arc.try_write() {
                 let (cols, _rows) = term.dimensions();
                 if cols == 0 {
                     return;
@@ -139,9 +165,10 @@ impl WindowState {
             };
 
             // Use click_position as the anchor row (the originally triple-clicked row)
-            let anchor_row = tab
-                .mouse
-                .click_position
+            let anchor_row = self
+                .tab_manager
+                .active_tab()
+                .and_then(|t| t.mouse.click_position)
                 .map(|(_, r)| r)
                 .unwrap_or(current_row);
             (cols, anchor_row)
@@ -167,22 +194,29 @@ impl WindowState {
         }
     }
 
-    /// Extract selected text from terminal
+    /// Extract selected text from terminal.
+    ///
+    /// Uses `blocking_write()` because this is called on mouse release (user-initiated)
+    /// and must succeed to copy the selection to the clipboard. In split-pane mode,
+    /// reads from the focused pane's terminal rather than the tab's gateway terminal.
     pub(crate) fn get_selected_text(&self) -> Option<String> {
         let tab = self.tab_manager.active_tab()?;
         let selection = tab.mouse.selection.as_ref()?;
 
-        // try_lock: intentional — extracting selected text from sync event loop on mouse
-        // release. On miss (.ok() returns None): returns None and no text is copied.
-        // The user can release and re-click to copy.
-        let term = tab.terminal.try_write().ok()?;
+        // Get the correct terminal and scroll offset (pane-aware)
+        let (terminal_arc, scroll_offset) = self.selection_terminal_and_offset()?;
+
+        // blocking_write: user-initiated copy on mouse release — must succeed to
+        // avoid silently dropping the selection. This is an infrequent operation
+        // (once per mouse release) so the brief lock wait is acceptable.
+        let term = terminal_arc.blocking_write();
         let (start, end) = selection.normalized();
         let (start_col, start_row) = start;
         let (end_col, end_row) = end;
 
         let (cols, rows) = term.dimensions();
         let visible_cells =
-            term.get_cells_with_scrollback(tab.scroll_state.offset, None, false, None);
+            term.get_cells_with_scrollback(scroll_offset, None, false, None);
         if visible_cells.is_empty() || cols == 0 {
             return None;
         }

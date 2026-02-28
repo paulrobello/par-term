@@ -337,7 +337,10 @@ impl WindowState {
         }
 
         // --- 5c. Pane Focus ---
-        // If tab has multiple panes, focus the clicked pane
+        // If tab has multiple panes, focus the clicked pane.
+        // Return early to prevent falling through to selection anchoring —
+        // without this, slight mouse movement during the click creates an
+        // accidental micro-selection that overwrites clipboard contents.
         if let Some(tab) = self.tab_manager.active_tab_mut()
             && tab.has_multiple_panes()
             && let Some(pane_id) = tab.focus_pane_at(mouse_x, mouse_y)
@@ -349,6 +352,7 @@ impl WindowState {
             // newly-focused pane doesn't inherit the previous pane's scroll offset.
             self.set_scroll_target(0);
             self.focus_state.needs_redraw = true;
+            return;
         }
 
         // --- 5d. Prettifier Gutter Click ---
