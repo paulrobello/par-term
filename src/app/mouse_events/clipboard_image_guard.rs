@@ -1,4 +1,5 @@
 use crate::app::window_state::{ClipboardImageClickGuard, PreservedClipboardImage, WindowState};
+use crate::ui_constants::CLICK_RESTORE_THRESHOLD_PX;
 use std::sync::Arc;
 use winit::event::{ElementState, MouseButton};
 
@@ -74,7 +75,6 @@ impl WindowState {
 
         let dx = release_position.0 - guard.press_position.0;
         let dy = release_position.1 - guard.press_position.1;
-        const CLICK_RESTORE_THRESHOLD_PX: f64 = 6.0;
         if (dx * dx + dy * dy) > CLICK_RESTORE_THRESHOLD_PX * CLICK_RESTORE_THRESHOLD_PX {
             return;
         }
@@ -155,7 +155,6 @@ impl WindowState {
 
         let dx = mouse_position.0 - guard.press_position.0;
         let dy = mouse_position.1 - guard.press_position.1;
-        const CLICK_RESTORE_THRESHOLD_PX: f64 = 6.0;
         // Suppress the full press/release pair if this started as a plain click-like gesture.
         (dx * dx + dy * dy) <= CLICK_RESTORE_THRESHOLD_PX * CLICK_RESTORE_THRESHOLD_PX
     }
@@ -173,7 +172,6 @@ impl WindowState {
                 }
                 let dx = position.0 - guard.press_position.0;
                 let dy = position.1 - guard.press_position.1;
-                const CLICK_RESTORE_THRESHOLD_PX: f64 = 6.0;
                 (dx * dx + dy * dy) > CLICK_RESTORE_THRESHOLD_PX * CLICK_RESTORE_THRESHOLD_PX
             });
 

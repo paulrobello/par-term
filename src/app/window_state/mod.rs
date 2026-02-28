@@ -8,7 +8,9 @@
 //! `overlay_state.rs`, `update_state.rs`, `watcher_state.rs`, and `trigger_state.rs`.
 
 mod action_handlers;
+mod agent_config;
 mod agent_messages;
+mod agent_screenshot;
 mod config_watchers;
 mod egui_state;
 mod focus_state;

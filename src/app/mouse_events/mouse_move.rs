@@ -1,5 +1,6 @@
 use crate::app::window_state::WindowState;
 use crate::selection::{Selection, SelectionMode};
+use crate::ui_constants::DRAG_THRESHOLD_PX;
 use crate::url_detection;
 use std::sync::Arc;
 
@@ -290,8 +291,6 @@ impl WindowState {
             // tiny selections that overwrite clipboard content (including images).
             // Slightly larger dead zone to avoid accidental selection starts from
             // trackpad jitter / tap-to-click movement noise.
-            const DRAG_THRESHOLD_PX: f64 = 8.0;
-
             let past_drag_threshold = click_pixel_position.is_some_and(|(cx, cy)| {
                 let dx = position.0 - cx;
                 let dy = position.1 - cy;

@@ -5,13 +5,13 @@
 //! auto-profile lifecycle.
 
 use crate::tab::Tab;
+use crate::ui_constants::VISUAL_BELL_FLASH_DURATION_MS;
 
 impl Tab {
     /// Check if the visual bell is currently active (within flash duration)
     pub fn is_bell_active(&self) -> bool {
-        const FLASH_DURATION_MS: u128 = 150;
         if let Some(flash_start) = self.bell.visual_flash {
-            flash_start.elapsed().as_millis() < FLASH_DURATION_MS
+            flash_start.elapsed().as_millis() < VISUAL_BELL_FLASH_DURATION_MS
         } else {
             false
         }

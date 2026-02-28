@@ -1,8 +1,14 @@
-//! Trigger action dispatch and sound playback.
+//! Trigger action dispatch for WindowState.
 //!
 //! This module handles polling trigger action results from the core library
 //! and executing frontend-handled actions: RunCommand, PlaySound, SendText,
 //! and Prettify (relayed through Notify with magic prefix).
+//!
+//! ## Sub-modules
+//!
+//! - `mark_line` — MarkLine result deduplication and application
+//! - `prettify` — Prettify relay event processing with scope computation
+//! - `sound` — Audio playback for PlaySound trigger actions
 //!
 //! ## Security
 //!
@@ -25,11 +31,13 @@
 //! 4. **Process management**: RunCommand spawns are tracked and limited to prevent
 //!    resource exhaustion. Output is redirected to null to prevent terminal corruption.
 
+mod mark_line;
+mod prettify;
+mod sound;
+
 use std::collections::HashMap;
-use std::io::BufReader;
-use std::path::PathBuf;
 use std::process::Stdio;
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 
 use par_term_config::check_command_denylist;
 
@@ -40,13 +48,16 @@ const MAX_TRIGGER_PROCESSES: usize = 10;
 /// Maximum age (in seconds) for tracked processes before cleanup.
 /// Processes older than this are assumed to have completed.
 const PROCESS_CLEANUP_AGE_SECS: u64 = 300; // 5 minutes
+
 use par_term_emu_core_rust::terminal::ActionResult;
 
-use crate::config::automation::{PRETTIFY_RELAY_PREFIX, PrettifyRelayPayload, PrettifyScope};
-use crate::prettifier::types::ContentBlock;
-use crate::tab::Tab;
+use crate::config::automation::{PRETTIFY_RELAY_PREFIX, PrettifyRelayPayload};
 
 use super::window_state::WindowState;
+
+/// (grid_row, label, color) tuple for a pending MarkLine action.
+/// Shared between `mod.rs` (where it's constructed) and `mark_line.rs` (where it's consumed).
+pub(self) type MarkLineEntry = (usize, Option<String>, Option<(u8, u8, u8)>);
 
 /// Expand a leading `~/` to the user's home directory.
 fn expand_tilde(path: &str) -> String {
@@ -85,9 +96,6 @@ fn should_suppress_dangerous_action(
 
     false
 }
-
-/// (grid_row, label, color) tuple for a pending MarkLine action.
-type MarkLineEntry = (usize, Option<String>, Option<(u8, u8, u8)>);
 
 impl WindowState {
     /// Check for trigger action results and dispatch them.
@@ -419,414 +427,4 @@ impl WindowState {
         }
     }
 
-    /// Apply MarkLine trigger results using a rebuild strategy.
-    ///
-    /// Between frames, the core fires trigger scans on every PTY read. Each
-    /// scan records the match at a different grid row (because scrollback grows
-    /// between reads), and the batch may contain rows like [10, 8, 6, 4] for a
-    /// single physical line. Trying to cluster these is fragile.
-    ///
-    /// Instead, we use a rebuild approach:
-    /// 1. Keep historical marks that have scrolled into scrollback (they won't
-    ///    be re-scanned, so we must preserve them).
-    /// 2. Discard stale marks in the visible grid for each trigger_id present
-    ///    in the current batch (these will be rebuilt from fresh results).
-    /// 3. Add new marks using only the smallest row per trigger_id (most
-    ///    current, consistent with `current_scrollback_len`).
-    fn apply_mark_line_results(
-        &mut self,
-        pending_marks: HashMap<u64, Vec<MarkLineEntry>>,
-        current_scrollback_len: usize,
-    ) {
-        let tab = if let Some(t) = self.tab_manager.active_tab_mut() {
-            t
-        } else {
-            return;
-        };
-
-        // Remove stale visible-grid marks for trigger_ids that have fresh results.
-        // Marks in scrollback (line < current_scrollback_len) are historical and
-        // must be preserved since the trigger scanner only scans the visible grid.
-        let trigger_ids_in_batch: Vec<u64> = pending_marks.keys().copied().collect();
-        tab.trigger_marks.retain(|m| {
-            if let Some(tid) = m.trigger_id
-                && trigger_ids_in_batch.contains(&tid)
-            {
-                // Keep only if in scrollback (historical)
-                return m.line < current_scrollback_len;
-            }
-            true // Keep marks from other triggers or shell integration
-        });
-
-        // For each trigger, deduplicate rows from the batch. The last scan
-        // (producing the smallest rows) has row values consistent with
-        // current_scrollback_len. We use a HashSet of rows to eliminate exact
-        // duplicates, then add marks for each unique row.
-        for (trigger_id, entries) in pending_marks {
-            // Deduplicate: keep only unique rows, preferring the entry with
-            // the smallest row (from the most recent scan).
-            let mut seen_rows = std::collections::HashSet::new();
-            let mut unique: Vec<MarkLineEntry> = Vec::new();
-            // Process in reverse so the last (smallest-row) entry for each
-            // physical line wins.
-            for (row, label, color) in entries.into_iter().rev() {
-                if seen_rows.insert(row) {
-                    unique.push((row, label, color));
-                }
-            }
-
-            for (row, label, color) in unique {
-                let absolute_line = current_scrollback_len + row;
-                log::info!(
-                    "Trigger {} MarkLine: row={} abs={} label={:?}",
-                    trigger_id,
-                    row,
-                    absolute_line,
-                    label
-                );
-                tab.trigger_marks
-                    .push(crate::scrollback_metadata::ScrollbackMark {
-                        line: absolute_line,
-                        exit_code: None,
-                        start_time: None,
-                        duration_ms: None,
-                        command: label,
-                        color,
-                        trigger_id: Some(trigger_id),
-                    });
-            }
-        }
-    }
-
-    /// Process collected prettify relay events.
-    ///
-    /// Each event is a `(trigger_id, matched_grid_row, payload)` tuple relayed
-    /// through the core MarkLine system. This method:
-    /// 1. Checks the master prettifier toggle
-    /// 2. Handles `command_filter` scoping
-    /// 3. Routes `format: "none"` to suppression
-    /// 4. Builds `ContentBlock`s based on scope and dispatches to the pipeline
-    fn apply_prettify_triggers(
-        &mut self,
-        pending: Vec<(u64, usize, PrettifyRelayPayload)>,
-        current_scrollback_len: usize,
-    ) {
-        // Pre-populate the regex cache with all patterns from pending events.
-        // This is done before borrowing `tab` to avoid borrow-checker conflicts.
-        // Patterns that are already cached are skipped; invalid patterns are logged once.
-        for (trigger_id, _row, payload) in &pending {
-            if let Some(ref filter) = payload.command_filter
-                && !self
-                    .trigger_state
-                    .trigger_regex_cache
-                    .contains_key(filter.as_str())
-            {
-                match regex::Regex::new(filter) {
-                    Ok(re) => {
-                        self.trigger_state
-                            .trigger_regex_cache
-                            .insert(filter.clone(), re);
-                    }
-                    Err(e) => {
-                        log::error!(
-                            "Trigger {} prettify: invalid command_filter regex '{}': {}",
-                            trigger_id,
-                            filter,
-                            e
-                        );
-                    }
-                }
-            }
-            if let Some(ref block_end) = payload.block_end
-                && !self
-                    .trigger_state
-                    .trigger_regex_cache
-                    .contains_key(block_end.as_str())
-            {
-                match regex::Regex::new(block_end) {
-                    Ok(re) => {
-                        self.trigger_state
-                            .trigger_regex_cache
-                            .insert(block_end.clone(), re);
-                    }
-                    Err(e) => {
-                        log::error!(
-                            "Trigger {} prettify: invalid block_end regex '{}': {}",
-                            trigger_id,
-                            block_end,
-                            e
-                        );
-                    }
-                }
-            }
-        }
-
-        let tab = if let Some(t) = self.tab_manager.active_tab_mut() {
-            t
-        } else {
-            return;
-        };
-
-        // Check master toggle — if prettifier is disabled, skip all.
-        if let Some(ref pipeline) = tab.prettifier {
-            if !pipeline.is_enabled() {
-                return;
-            }
-        } else {
-            // No pipeline configured — nothing to do.
-            return;
-        }
-
-        // Read terminal content and metadata we need for scope handling.
-        // We lock the terminal once and extract everything we need.
-        let (lines_by_abs, preceding_command, scope_ranges) =
-            Self::read_terminal_context(tab, current_scrollback_len, &pending);
-
-        for (idx, (trigger_id, _grid_row, payload)) in pending.into_iter().enumerate() {
-            // Check command_filter: if set, only fire when the preceding command matches.
-            if let Some(ref filter) = payload.command_filter {
-                // Use the pre-compiled regex from the cache (populated before this loop).
-                // If the pattern was invalid it was logged above and not inserted — skip.
-                if let Some(re) = self.trigger_state.trigger_regex_cache.get(filter.as_str()) {
-                    match preceding_command.as_deref() {
-                        Some(cmd) if re.is_match(cmd) => {}
-                        _ => {
-                            log::debug!(
-                                "Trigger {} prettify: command_filter '{}' did not match, skipping",
-                                trigger_id,
-                                filter
-                            );
-                            continue;
-                        }
-                    }
-                } else {
-                    // Pattern was invalid (logged during pre-compilation above).
-                    continue;
-                }
-            }
-
-            // Get the pre-computed scope range; narrow for Block scope if block_end is set.
-            let (start_abs, end_abs) = if let Some(&range) = scope_ranges.get(idx) {
-                if payload.scope == PrettifyScope::Block {
-                    // Look up the pre-compiled block_end regex from the cache.
-                    let block_end_re = payload
-                        .block_end
-                        .as_deref()
-                        .and_then(|pat| self.trigger_state.trigger_regex_cache.get(pat));
-                    Self::narrow_block_scope(range.0, range.1, block_end_re, &lines_by_abs)
-                } else {
-                    range
-                }
-            } else {
-                continue;
-            };
-
-            log::info!(
-                "Trigger {} prettify: format='{}' scope={:?} rows={}..{}",
-                trigger_id,
-                payload.format,
-                payload.scope,
-                start_abs,
-                end_abs,
-            );
-
-            // Handle "none" format — suppress auto-detection for this range.
-            if payload.format == "none" {
-                if let Some(ref mut pipeline) = tab.prettifier {
-                    pipeline.suppress_detection(start_abs..end_abs);
-                    log::debug!(
-                        "Trigger {} prettify: suppressed auto-detection for rows {}..{}",
-                        trigger_id,
-                        start_abs,
-                        end_abs,
-                    );
-                }
-                continue;
-            }
-
-            // Build the ContentBlock from the determined range.
-            let content_lines: Vec<String> = (start_abs..end_abs)
-                .filter_map(|abs| lines_by_abs.get(&abs).cloned())
-                .collect();
-
-            if content_lines.is_empty() {
-                log::debug!(
-                    "Trigger {} prettify: no content in range {}..{}, skipping",
-                    trigger_id,
-                    start_abs,
-                    end_abs,
-                );
-                continue;
-            }
-
-            let content = ContentBlock {
-                lines: content_lines,
-                preceding_command: preceding_command.clone(),
-                start_row: start_abs,
-                end_row: end_abs,
-                timestamp: SystemTime::now(),
-            };
-
-            // Dispatch to the pipeline, bypassing confidence scoring.
-            if let Some(ref mut pipeline) = tab.prettifier {
-                pipeline.trigger_prettify(&payload.format, content);
-            }
-        }
-    }
-
-    /// Read terminal content and metadata needed for prettify scope handling.
-    ///
-    /// Returns `(lines_by_abs_line, preceding_command, scope_ranges)`.
-    /// `scope_ranges` maps each pending index to its `(start_abs, end_abs)` range.
-    /// We read all needed lines in one lock acquisition to avoid contention.
-    fn read_terminal_context(
-        tab: &Tab,
-        current_scrollback_len: usize,
-        pending: &[(u64, usize, PrettifyRelayPayload)],
-    ) -> (HashMap<usize, String>, Option<String>, Vec<(usize, usize)>) {
-        #![allow(clippy::type_complexity)]
-        let mut lines_by_abs: HashMap<usize, String> = HashMap::new();
-        let mut scope_ranges: Vec<(usize, usize)> = Vec::with_capacity(pending.len());
-
-        let preceding_command;
-
-        // try_lock: intentional — prettify trigger processing in about_to_wait (sync loop).
-        // On miss: prettify is skipped this frame; the pending events are reprocessed next poll.
-        if let Ok(term) = tab.terminal.try_write() {
-            // Compute scope ranges for each pending event using scrollback metadata.
-            let max_readable = current_scrollback_len + 200; // generous upper bound for visible grid
-            for (_trigger_id, grid_row, payload) in pending {
-                let matched_abs = current_scrollback_len + grid_row;
-                let range = match payload.scope {
-                    PrettifyScope::Line => (matched_abs, matched_abs + 1),
-                    PrettifyScope::CommandOutput => {
-                        // Use previous_mark/next_mark to find command output boundaries.
-                        let output_start = term
-                            .scrollback_previous_mark(matched_abs)
-                            .map(|p| p + 1) // output starts after the prompt line
-                            .unwrap_or(0);
-                        let output_end = term
-                            .scrollback_next_mark(matched_abs + 1)
-                            .unwrap_or(max_readable);
-                        (output_start, output_end)
-                    }
-                    PrettifyScope::Block => {
-                        // For block scope, read from match to a reasonable limit.
-                        // Actual block_end matching is done after reading.
-                        (matched_abs, matched_abs + 500)
-                    }
-                };
-                scope_ranges.push(range);
-            }
-
-            // Find the widest range we need to read.
-            let min_abs = scope_ranges.iter().map(|(s, _)| *s).min().unwrap_or(0);
-            let max_abs = scope_ranges.iter().map(|(_, e)| *e).max().unwrap_or(0);
-
-            // Read the lines in the determined range.
-            for abs_line in min_abs..max_abs {
-                if let Some(text) = term.line_text_at_absolute(abs_line) {
-                    lines_by_abs.insert(abs_line, text);
-                }
-            }
-
-            // Get preceding command from the most recent mark before the first match.
-            let first_matched_abs = pending
-                .iter()
-                .map(|(_, row, _)| current_scrollback_len + row)
-                .min()
-                .unwrap_or(0);
-
-            preceding_command = term
-                .scrollback_previous_mark(first_matched_abs)
-                .and_then(|mark_line| term.scrollback_metadata_for_line(mark_line))
-                .and_then(|m| m.command);
-        } else {
-            return (lines_by_abs, None, Vec::new());
-        }
-
-        (lines_by_abs, preceding_command, scope_ranges)
-    }
-
-    /// Narrow a block scope range by scanning for a block_end regex match.
-    ///
-    /// If `block_end_re` is set and matches a line in `lines_by_abs`, the range
-    /// is narrowed to `start..match+1`. Otherwise returns the original range.
-    ///
-    /// Accepts a pre-compiled `Regex` reference to avoid hot-path recompilation.
-    fn narrow_block_scope(
-        start_abs: usize,
-        end_abs: usize,
-        block_end_re: Option<&regex::Regex>,
-        lines_by_abs: &HashMap<usize, String>,
-    ) -> (usize, usize) {
-        if let Some(re) = block_end_re {
-            for abs in (start_abs + 1)..end_abs {
-                if let Some(text) = lines_by_abs.get(&abs)
-                    && re.is_match(text)
-                {
-                    return (start_abs, abs + 1); // Include the end line.
-                }
-            }
-        }
-
-        // No block_end found or no pattern — use original range capped to available content.
-        let max_available = lines_by_abs.keys().max().copied().unwrap_or(start_abs) + 1;
-        (start_abs, end_abs.min(max_available))
-    }
-
-    /// Play a sound file. Absolute paths are used directly; relative names
-    /// are resolved against the par-term sounds directory.
-    fn play_sound_file(sound_id: &str, volume: u8) {
-        let candidate = std::path::Path::new(sound_id);
-        let path = if candidate.is_absolute() {
-            candidate.to_path_buf()
-        } else {
-            Self::sounds_dir().join(sound_id)
-        };
-
-        if !path.exists() {
-            log::warn!("Sound file not found: {}", path.display());
-            return;
-        }
-
-        let volume_f32 = (volume as f32 / 100.0).clamp(0.0, 1.0);
-
-        std::thread::spawn(move || {
-            let file = match std::fs::File::open(&path) {
-                Ok(f) => f,
-                Err(e) => {
-                    log::error!("Failed to open sound file '{}': {}", path.display(), e);
-                    return;
-                }
-            };
-            let stream = match rodio::DeviceSinkBuilder::open_default_sink() {
-                Ok(s) => s,
-                Err(e) => {
-                    log::error!("Failed to open audio output: {}", e);
-                    return;
-                }
-            };
-            let sink = rodio::Player::connect_new(stream.mixer());
-            let source = match rodio::Decoder::new(BufReader::new(file)) {
-                Ok(s) => s,
-                Err(e) => {
-                    log::error!("Failed to decode sound file '{}': {}", path.display(), e);
-                    return;
-                }
-            };
-            sink.set_volume(volume_f32);
-            sink.append(source);
-            sink.sleep_until_end();
-        });
-    }
-
-    /// Get the sounds directory path.
-    fn sounds_dir() -> PathBuf {
-        if let Some(config_dir) = dirs::config_dir() {
-            config_dir.join("par-term").join("sounds")
-        } else {
-            PathBuf::from("sounds")
-        }
-    }
 }
