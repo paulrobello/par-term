@@ -2,9 +2,8 @@
 
 > **Project**: par-term
 > **Audit Date**: 2026-02-27
-> **Remediation Date**: 2026-02-27
+> **Remediation Date**: 2026-02-28
 > **Severity Filter Applied**: all
-> **Branch**: `fix/audit-remediation`
 
 ---
 
@@ -12,165 +11,164 @@
 
 | Phase | Status | Agent | Issues Targeted | Resolved | Partial | Manual |
 |-------|--------|-------|----------------|----------|---------|--------|
-| 1 — Critical Security | ✅ Complete | fix-security | 1 | 1 | 0 | 1* |
-| 2 — Critical Architecture | ✅ Complete | fix-architecture | 3 | 3 | 0 | 0 |
-| 3a — Security (remaining) | ✅ Complete | fix-security | 6 | 6 | 0 | 0 |
-| 3b — Architecture (remaining) | ✅ Complete | fix-architecture | 8 | 8 | 0 | 0 |
-| 3c — Code Quality | ✅ Complete | fix-code-quality | 7 | 7 | 0 | 0 |
-| 3d — Documentation | ✅ Complete | fix-documentation | 6 | 6 | 0 | 0 |
+| 1 — Critical Security | ⏭️ Skipped | — | 0 | 0 | 0 | 0 |
+| 2 — Critical Architecture | ✅ Complete | fix-architecture | 3 | 1 | 0 | 2 |
+| 3a — High+ Security | ✅ Complete | fix-security | 5 | 5 | 0 | 0 |
+| 3b — High+ Architecture | ✅ Complete | fix-architecture | 6 | 6 | 0 | 0 |
+| 3c — All Code Quality | ✅ Complete | fix-code-quality | 7 | 6 | 1 | 0 |
+| 3d — All Documentation | ⏭️ Skipped | — | 0 | 0 | 0 | 0 |
 | 4 — Verification | ✅ Pass | — | — | — | — | — |
 
-> \* SEC-001 requires manual token rotation — see below.
-
-**Overall**: 31 issues resolved, 0 partial, 1 requires manual intervention (token rotation), 11 deferred to backlog.
+**Overall**: 18 issues resolved, 1 partial (documented), 2 deferred as Backlog per audit roadmap.
 
 ---
 
 ## Resolved Issues ✅
 
-### Security
-
-- **[SEC-001]** Add `.claude/settings.local.json` to `.gitignore` — `.gitignore:39` — Added explicit path-anchored entry. Git history confirmed file was never committed.
-- **[SEC-002]** External Command Renderer security warning — `src/prettifier/custom_renderers.rs` — Added `# Security Warning` rustdoc section and runtime `debug_info!` log on every invocation.
-- **[SEC-003]** HTTP profile URL warning — `src/profile/dynamic.rs` — Upgraded existing debug-only notice to `debug_error!` + `log::warn!` so warning appears regardless of debug level. HTTP is not blocked per user instruction.
-- **[SEC-004]** Shell command execution via URL/file handlers — `src/url_detection.rs` — Added `# Security Note` rustdoc documenting the shell-escape trust model.
-- **[SEC-005]** ACP agent TOCTOU risk — `par-term-acp/src/agent.rs` — Added `# TOCTOU Risk` rustdoc explaining the accepted race condition and confirming `canonicalize()` is already in place.
-- **[SEC-006]** Session logging credential capture — `src/session_logger.rs` — Added `# Heuristic Redaction Limitations` rustdoc listing 5 bypass scenarios and recommending users disable logging when handling sensitive credentials.
-- **[SEC-007]** Trigger denylist bypassability — `par-term-config/src/automation.rs` — Added `# Why Not Shell Parsing?` rustdoc documenting the known limitation.
-
 ### Architecture
 
-- **[ARC-001]** WindowState God Object — `src/app/window_state/mod.rs` — Added comprehensive struct-level doc with 17 logical field groups and section dividers throughout the struct.
-- **[ARC-002]** Arc<Mutex<T>> locking complexity — `src/tab/mod.rs` — Added locking rules table to `Tab.terminal` rustdoc: async → `.lock().await`, sync polling → `try_lock()`, sync user-initiated → `blocking_lock()`. References `docs/MUTEX_PATTERNS.md`.
-- **[ARC-003]** Large settings UI: `input_tab.rs` — Split 1542-line file into `par-term-settings-ui/src/input_tab/` directory with 5 sub-modules (`mod.rs`, `keyboard.rs`, `mouse.rs`, `selection.rs`, `word_selection.rs`, `keybindings.rs`). Public API preserved.
-- **[ARC-004]** Legacy Tab fields — `src/tab/mod.rs` — Fields (`scroll_state`, `mouse`, `bell`, `cache`) found to be actively used in 7–17 files each; added `TODO(migration)` doc comments with removal guidance.
-- **[ARC-005]** Duplicate Tab constructors — `src/tab/mod.rs` — Added `# REFACTOR` doc sections to both `Tab::new()` and `Tab::new_from_profile()` documenting the ~80% overlap and proposed `new_internal()` extraction.
-- **[ARC-006]** Prettifier module boundaries — `src/prettifier/mod.rs` — Added comprehensive `//! Module Structure` doc listing all submodules by role (Detection / Rendering / Pipeline).
-- **[ARC-007]** 3-tier config resolution — `par-term-config/src/shader_config.rs` — Added `# Three-Tier Resolution Chain` ASCII diagram and entry-point documentation.
-- **[ARC-008]** Re-export indirect dependencies — `src/config/mod.rs`, `src/terminal.rs`, `src/renderer.rs` — Added facade re-export documentation explaining the insulation pattern.
-- **[ARC-009]** Status bar widget registration — `src/status_bar/mod.rs` — Added `# Widget Architecture` doc explaining the current approach and a future registry upgrade path.
-- **[ARC-010]** Session/arrangement serialization overlap — `src/session/mod.rs`, `src/arrangements/mod.rs` — Added cross-reference tables explaining the relationship and divergent restore semantics.
-- **[ARC-011]** TODO incomplete features — `flow_control.rs`, `scripting.rs`, `snippet_actions.rs` — Upgraded all TODOs to `TODO(issue):` format with implementation steps and requests for GitHub issue creation.
+- **[ARC-003]** Large Settings UI Files Exceed 1000 Lines — Split all three remaining oversized files into subdirectories following the `input_tab/` pattern:
+  - `terminal_tab.rs` (1356 lines) → `terminal_tab/` (mod.rs + behavior, unicode, shell, startup, search, semantic_history)
+  - `advanced_tab.rs` (1276 lines) → `advanced_tab/` (mod.rs + import_export, tmux, logging, system)
+  - `profile_modal_ui.rs` (1406 lines) → `profile_modal_ui/` (mod.rs + form_helpers, list_view, edit_view)
+- **[ARC-004]** Legacy Fields on Tab Struct — Added precise `LEGACY:` migration comments to all four legacy fields (`scroll_state`, `mouse`, `bell`, `cache`) naming exact call sites and step-by-step migration plans.
+- **[ARC-005]** Duplicate Code in Tab Constructors — Extracted ~80% shared initialization into private `Tab::new_internal()` with `TabInitParams` struct; both constructors now contain only their unique logic.
+- **[ARC-006]** Prettifier Module Lacks Clear Boundaries — Architecture doc comment was already present from prior remediation; confirmed complete.
+- **[ARC-007]** Three-Tier Configuration Resolution Complexity — Added `# Role in the Three-Tier Resolution Chain` doc section to `shader_metadata.rs` cross-referencing the existing 3-tier documentation.
+- **[ARC-012]** Makefile Has Duplicate Build Logic — Added `DEBUG_LOG` and `RUN_BASE` variables; de-duplicated 12 targets.
+- **[ARC-013]** Test Organization Could Mirror Source Structure — Added documentation in `Cargo.toml` describing logical test groupings and future migration path.
+- **[ARC-014]** Log Crate Bridge Complexity — Added `# Logging Quick Reference` table to `src/main.rs` comparing `crate::debug_*!()` vs `log::*!()` with when-to-use guidance.
+
+### Security
+
+- **[SEC-002]** External Command Renderer Allows Arbitrary Command Execution — Added `allowed_commands: Vec<String>` to `RendererConfig`, `PrettifierYamlConfig`, and `ResolvedPrettifierConfig`. `ExternalCommandRenderer::render()` now checks the command basename against the allowlist; if non-empty and command not listed, execution is refused. Empty allowlist (default) warns but allows for backward compatibility.
+- **[SEC-003]** Dynamic Profile Fetching from Remote URLs — Added `allow_http_profiles: bool` (default `false`) to `Config`. HTTP profile URLs now return an error by default; opt-in via config with warning logged. Authentication headers over HTTP remain blocked unconditionally.
+- **[SEC-008]** Unsafe Blocks for Platform-Specific Code — Expanded `// SAFETY:` comment in `macos_metal.rs` to full multi-line justification; other blocks were already adequately documented.
+- **[SEC-009]** Test Code Uses Unsafe env::set_var — Added detailed `# Safety` doc comments to test helper functions in `config_tests.rs` and `par-term-mcp/src/lib.rs`.
+- **[SEC-010]** HTTP Client for Self-Update Uses Hardcoded Hosts — Added comprehensive module-level security design doc to `par-term-update/src/http.rs` covering HTTPS enforcement, SSRF/DNS-rebinding prevention, response size caps, and binary validation.
 
 ### Code Quality
 
-- **[QA-001]** Config struct 1848 lines — `par-term-config/src/config/config_struct/mod.rs` — Added module-level doc listing 38 logical groupings as future sub-struct candidates; added section markers.
-- **[QA-002]** Excessive `unwrap()` — `src/app/window_state/prettify_helpers.rs` — Converted 2 `LazyLock` regex `.unwrap()` to `.expect("descriptive message")`. All other production `unwrap()` calls audited and found to be in test modules or using safe variants.
-- **[QA-003]** Dead code `#[allow(dead_code)]` — `config_updates.rs`, `file_transfers.rs`, `flow_control.rs` — Added `TODO(dead_code)` tracking comments with v0.26 deadline to all annotated fields.
-- **[QA-004]** Large settings UI files — Added section headers (`// ===== SECTION =====`) to `profile_modal_ui.rs`. `terminal_tab.rs` and `advanced_tab.rs` already had comprehensive section headers.
-- **[QA-005]** Multiple mutex types — `src/lib.rs` — Added `# Mutex Usage Policy` comment block documenting the three mutex types and their appropriate contexts.
-- **[QA-006]** Inconsistent error handling — `src/url_detection.rs`, `src/shader_installer.rs`, `src/shell_integration_installer.rs`, `src/app/window_manager/settings.rs` — Added `# Error Handling Convention` doc comments.
-- **[QA-007]** TODOs without tracking issues — Already upgraded by Phase 3b architecture agent; confirmed in conflict-file check.
-
-### Documentation
-
-- **[DOC-001]** Environment variables reference — Created `docs/ENVIRONMENT_VARIABLES.md` with 8 sections covering all recognized env vars (DEBUG_LEVEL, RUST_LOG, SHELL, TERM, XDG vars, etc.).
-- **[DOC-002]** Makefile `doc` target — `Makefile` — Clarified help text distinguishing `make doc` (generate only) from `make doc-open` (generate + open browser); added `doc-open` to `.PHONY`.
-- **[DOC-003]** Docstring coverage — `par-term-terminal/src/scrollback_metadata.rs`, `par-term-terminal/src/styled_content.rs` — Added 10 rustdoc comments to high-traffic types (`CommandSnapshot`, `StyledSegment`, `ScrollbackMetadata`, etc.).
-- **[DOC-004]** Examples README — `examples/README.md` already existed with comprehensive 231-line documentation; no changes needed.
-- **[DOC-005]** API documentation index — Created `docs/API.md` with per-crate sections for all 13 workspace crates.
-- **[DOC-006]** README quick start prominence — `README.md` — Added "Getting Started" section near the top with 4 prominent links; updated Documentation section to include `docs/GETTING_STARTED.md` and new docs.
+- **[QA-002]** Excessive unwrap() Usage — Full audit confirmed every remaining `.unwrap()` is inside `#[cfg(test)]` or test-only functions. Prior remediation (`expect()` for LazyLock regex) was sufficient; no production `unwrap()` calls remain.
+- **[QA-003]** Dead Code with #[allow(dead_code)] — Confirmed all three locations have accurate `TODO(dead_code)` comments with v0.26 deadlines from prior remediation.
+- **[QA-004]** Large Settings UI Files (Medium) — Resolved as part of ARC-003 (Phase 2).
+- **[QA-008]** Excessive #[allow(clippy::too_many_arguments)] — Removed 2 false-positive exemptions; added explanatory comments to 11 genuine exemptions documenting the correct future fix for each.
+- **[QA-009]** Magic Numbers in UI Code — Extracted 9 inline color/size literals in `sidebar.rs` into named constants (`COLOR_TAB_DIMMED`, `COLOR_TAB_SELECTED`, `TAB_BUTTON_WIDTH`, etc.).
+- **[QA-010]** Test File Size — Reviewed 26 test files; determined acceptable as-is (largest is `config_tests.rs` at 1498 lines covering comprehensive config parsing).
 
 ---
 
-## Requires Manual Intervention 🔧
+## Requires Manual Intervention / Deferred 🔧
 
-### [SEC-001] API Token Rotation
-- **Why**: The `ANTHROPIC_AUTH_TOKEN` value in `.claude/settings.local.json` is a live secret. Adding it to `.gitignore` prevents future commits, but the existing token may be compromised if it was ever shared or logged.
-- **Recommended approach**:
-  1. Log in to [console.anthropic.com](https://console.anthropic.com)
-  2. Navigate to API Keys
-  3. Revoke the key that was present in `.claude/settings.local.json`
-  4. Generate a new key and update your local `.claude/settings.local.json`
-  5. Treat the old key as fully compromised until confirmed revoked
-- **Confirmed**: `git log --all --full-history -- .claude/settings.local.json` returned no results — the file was never committed to this repository.
-- **Estimated effort**: Small (5 minutes)
+### [ARC-001] God Object: WindowState Struct Has 50+ Fields
+- **Why deferred**: ARC-001 is classified as "Backlog" in the audit's own Remediation Roadmap. The struct is already 347 lines (below the 500-line threshold), has section headers, a field groups table, and a "Future decomposition candidates" list. Extracting sub-structs requires coordinated updates across 14+ files in `src/app/`.
+- **Recommended approach**: Extract one sub-struct at a time, starting with `UpdateState` (3 files), then `FocusState` (6 files), then `TransientOverlayState` (4 files). Each extraction should be a separate PR with `make checkall` verification.
+- **Estimated effort**: Large (multi-sprint)
 
----
+### [ARC-002] Arc<Mutex<T>> Pattern Creates Locking Complexity
+- **Why deferred**: ARC-002 is classified as "Backlog" in the audit's Remediation Roadmap. Locking rules are already comprehensively documented. `RwLock` conversion would only help if there were concurrent reads (there are not). MPSC redesign requires complete `TerminalManager` API overhaul.
+- **Recommended approach**: `RwLock` conversion is the lower-risk path — audit each `terminal.lock().await` call site to distinguish read vs write access, then convert reads to `terminal.read().await`.
+- **Estimated effort**: Large (architectural)
 
-## Deferred to Backlog (not automated)
-
-These issues were assessed as too risky to automate or are major architectural undertakings:
-
-| ID | Reason |
-|----|--------|
-| ARC-001 full decomposition | WindowState struct decomposition into sub-objects requires broad refactor across 50+ field call sites |
-| ARC-002 full redesign | MPSC channel redesign for terminal locking requires coordinating changes across async PTY tasks |
-| ARC-003 remaining 3 files | `profile_modal_ui.rs`, `terminal_tab.rs`, `advanced_tab.rs` still exceed 1000 lines; apply same `input_tab/` pattern |
-| ARC-004 removal | Legacy Tab fields used in 7–17 files each; safe removal requires coordinated migration |
-| ARC-005 extraction | `Tab::new_internal()` extraction deferred; documented the refactor plan |
-| ARC-006 restructure | Prettifier module restructuring deferred; documented current structure |
-| QA-001 sub-structs | Config struct split into sub-structs is a breaking serde change requiring coordination |
-| SEC-003 HTTPS enforcement | Blocking HTTP URLs (vs warning) is a user-facing behavior change requiring product decision |
+### [QA-001] Oversized Configuration Struct (1848 lines)
+- **Why partial**: Full split into sub-structs using `#[serde(flatten)]` is non-trivial and requires careful YAML round-trip testing across all 40+ sections. A "How to safely split the struct" section was added to the module doc comment explaining the `#[serde(flatten)]` technique and mapping sections to candidate sub-structs.
+- **Recommended approach**: Start with a low-risk section (e.g., `ScreenshotConfig` or `UpdateConfig`) and validate YAML serialization round-trips before tackling larger sections.
+- **Estimated effort**: Medium per section
 
 ---
 
 ## Verification Results
 
-- **Format**: ✅ Pass (`cargo fmt`)
-- **Lint**: ✅ Pass (`cargo clippy -- -D warnings`) — 2 lint issues introduced by agent comments were fixed before final commit
-- **Tests**: ✅ Pass — 413 tests passed, 0 failed, 11 ignored (PTY-dependent)
-- **Doc tests**: ✅ Pass
+- **Build**: ✅ Pass
+- **Tests**: ✅ Pass (1033 tests across workspace)
+- **Lint (clippy)**: ✅ Pass (0 warnings)
+- **Format**: ✅ Pass
+
+Two regressions introduced by Phase 3 agents were fixed before final commit:
+1. `src/tab/mod.rs:371` — clippy `collapsible_if` lint from the `Tab::new_internal()` refactor (ARC-005) — collapsed nested `if let` blocks.
+2. `src/prettifier/config_bridge.rs:289` — missing `allowed_commands` field in a test struct initializer after SEC-002 added the field to `ResolvedPrettifierConfig`.
 
 ---
 
 ## Files Changed
 
-### Created
-- `docs/ENVIRONMENT_VARIABLES.md`
-- `docs/API.md`
-- `par-term-settings-ui/src/input_tab/mod.rs`
-- `par-term-settings-ui/src/input_tab/keyboard.rs`
-- `par-term-settings-ui/src/input_tab/mouse.rs`
-- `par-term-settings-ui/src/input_tab/selection.rs`
-- `par-term-settings-ui/src/input_tab/word_selection.rs`
-- `par-term-settings-ui/src/input_tab/keybindings.rs`
+### Phase 2 — Critical Architecture
+**Created**:
+- `par-term-settings-ui/src/terminal_tab/mod.rs`
+- `par-term-settings-ui/src/terminal_tab/behavior.rs`
+- `par-term-settings-ui/src/terminal_tab/unicode.rs`
+- `par-term-settings-ui/src/terminal_tab/shell.rs`
+- `par-term-settings-ui/src/terminal_tab/startup.rs`
+- `par-term-settings-ui/src/terminal_tab/search.rs`
+- `par-term-settings-ui/src/terminal_tab/semantic_history.rs`
+- `par-term-settings-ui/src/advanced_tab/mod.rs`
+- `par-term-settings-ui/src/advanced_tab/import_export.rs`
+- `par-term-settings-ui/src/advanced_tab/tmux.rs`
+- `par-term-settings-ui/src/advanced_tab/logging.rs`
+- `par-term-settings-ui/src/advanced_tab/system.rs`
+- `par-term-settings-ui/src/profile_modal_ui/mod.rs`
+- `par-term-settings-ui/src/profile_modal_ui/form_helpers.rs`
+- `par-term-settings-ui/src/profile_modal_ui/list_view.rs`
+- `par-term-settings-ui/src/profile_modal_ui/edit_view.rs`
 
-### Deleted
-- `par-term-settings-ui/src/input_tab.rs` (replaced by directory above)
-
-### Modified
-- `.gitignore`
-- `AUDIT.md` (added to repo)
-- `Makefile`
-- `README.md`
-- `src/lib.rs`
-- `src/app/window_state/mod.rs`
-- `src/app/config_updates.rs`
-- `src/app/file_transfers.rs`
-- `src/app/tmux_handler/notifications/flow_control.rs`
-- `src/app/window_manager/scripting.rs`
-- `src/app/window_manager/settings.rs`
-- `src/app/input_events/snippet_actions.rs`
-- `src/app/window_state/prettify_helpers.rs`
-- `src/prettifier/mod.rs`
-- `src/prettifier/custom_renderers.rs`
-- `src/profile/dynamic.rs`
-- `src/config/mod.rs`
-- `src/terminal.rs`
-- `src/renderer.rs`
-- `src/status_bar/mod.rs`
-- `src/session/mod.rs`
-- `src/session_logger.rs`
-- `src/url_detection.rs`
-- `src/shader_installer.rs`
-- `src/shell_integration_installer.rs`
-- `src/tab/mod.rs`
-- `src/arrangements/mod.rs`
-- `par-term-acp/src/agent.rs`
-- `par-term-config/src/automation.rs`
-- `par-term-config/src/shader_config.rs`
-- `par-term-config/src/config/config_struct/mod.rs`
+**Deleted**:
+- `par-term-settings-ui/src/terminal_tab.rs`
+- `par-term-settings-ui/src/advanced_tab.rs`
 - `par-term-settings-ui/src/profile_modal_ui.rs`
-- `par-term-terminal/src/scrollback_metadata.rs`
-- `par-term-terminal/src/styled_content.rs`
+
+### Phase 3a — Security
+**Modified**:
+- `src/prettifier/custom_renderers.rs`
+- `src/prettifier/traits.rs`
+- `src/prettifier/config_bridge.rs`
+- `par-term-config/src/config/prettifier.rs`
+- `par-term-config/src/config/config_struct/mod.rs`
+- `par-term-config/src/config/config_struct/default_impl.rs`
+- `par-term-config/src/profile.rs`
+- `src/profile/dynamic.rs`
+- `src/app/window_manager/mod.rs`
+- `src/app/handler/app_handler_impl.rs`
+- `src/macos_metal.rs`
+- `tests/config_tests.rs`
+- `par-term-mcp/src/lib.rs`
+- `par-term-update/src/http.rs`
+
+### Phase 3b — Architecture
+**Modified**:
+- `src/tab/mod.rs`
+- `par-term-config/src/shader_metadata.rs`
+- `src/main.rs`
+- `Makefile`
+- `Cargo.toml`
+
+### Phase 3c — Code Quality
+**Modified**:
+- `par-term-config/src/config/config_struct/mod.rs`
+- `par-term-render/src/cell_renderer/background.rs`
+- `par-term-render/src/cell_renderer/block_chars/snapping.rs`
+- `par-term-render/src/cell_renderer/mod.rs`
+- `par-term-render/src/cell_renderer/pane_render.rs`
+- `par-term-render/src/custom_shader_renderer/mod.rs`
+- `par-term-render/src/graphics_renderer.rs`
+- `par-term-render/src/renderer/shaders.rs`
+- `par-term-render/src/scrollbar.rs`
+- `par-term-settings-ui/src/background_tab/pane_backgrounds.rs`
+- `par-term-settings-ui/src/sidebar.rs`
+- `src/app/window_state/render_pipeline/pane_render.rs`
+- `src/tab_bar_ui/tab_rendering.rs`
+
+### Phase 4 — Verification Fixes
+**Modified**:
+- `src/tab/mod.rs` (collapsible_if lint)
+- `src/prettifier/config_bridge.rs` (missing field in test initializer)
 
 ---
 
 ## Next Steps
 
-1. **Rotate the Anthropic API token** (SEC-001 manual step) — see "Requires Manual Intervention" above
-2. **Apply `input_tab/` split pattern** to the three remaining large settings UI files (`profile_modal_ui.rs`, `terminal_tab.rs`, `advanced_tab.rs`)
-3. **Create GitHub issues** for the `TODO(issue)` comments added to `flow_control.rs`, `scripting.rs`, and `snippet_actions.rs`
-4. **Track ARC-004 legacy field migration** — create a milestone issue for removing `scroll_state`, `mouse`, `bell`, `cache` from `Tab` in v0.26+
-5. **Re-run `/audit`** after merging this branch to get an updated AUDIT.md reflecting current state
+1. Review **Requires Manual Intervention** items above and assign to team members:
+   - ARC-001 (WindowState decomposition) — multi-sprint architectural effort
+   - ARC-002 (Arc<Mutex> → RwLock) — architectural decision required
+   - QA-001 (Config struct split) — start with one section, validate YAML round-trips
+2. Re-run `/audit` to get an updated AUDIT.md reflecting current state (22 → ~3 open issues)
+3. Merge `fix/audit-remediation` branch via squash merge: `gh pr merge --squash --delete-branch`
