@@ -10,1646 +10,359 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-
-- **Scripting Command Handlers (issue #203)**: Implemented all 6 previously-stubbed `ScriptCommand` handlers — `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, and `ChangeConfig`. Three restricted commands (`WriteText`, `RunCommand`, `ChangeConfig`) require explicit per-script opt-in via `allow_*` flags in `ScriptConfig` (all default to `false`). `WriteText` strips VT/ANSI escape sequences before PTY injection. `RunCommand` uses shell-free tokenisation with command denylist enforcement. `ChangeConfig` validates against a strict allowlist of 6 safe runtime keys. Per-script rate limiting for `WriteText` (default 10/s) and `RunCommand` (default 1/s). Settings UI exposes permission toggles and rate limit controls in the script edit form. Includes 26 new tests covering VT stripping, rate limiting, and config serialization.
+- Implemented `ScriptCommand` handlers for `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, and `ChangeConfig` with permission opt-ins and rate limiting.
+- New `docs/ENVIRONMENT_VARIABLES.md` and `docs/API.md` references.
+- Three-mutex policy documented in `src/lib.rs` and `docs/MUTEX_PATTERNS.md`.
+- Try-lock failure telemetry for tracking dropped operations.
+- Expanded test suites for tab bar UI and settings window.
+- `src/ui_constants.rs` to centralize UI layout dimensions.
+- Customizable `timeout_secs` for snippet shell commands.
 
 ### Fixed
-
-- **TmuxSync Dispatch Wiring (issue #202)**: `process_sync_actions` was scaffolded but never called, leaving all `SyncAction` events silently dropped. The notification poll loop now routes window/layout/output/flow-control notifications through `TmuxSync::process_notifications()` → `process_sync_actions()` in priority order (session → layout → output → flow-control), preserving ordering guarantees. Each `SyncAction` arm drives real UI mutations: `CreateTab` creates a new tab, `CloseTab` closes the mapped tab, `RenameTab` updates the tab title, `UpdateLayout` applies layout changes, `PaneOutput` routes bytes to the native pane terminal, and `SessionEnded/Pause/Continue` delegate to their existing handlers. Fallback direct-dispatch paths are retained for unmapped `LayoutChange` and `Output` notifications. Adds 14 unit tests for the sync action dispatch flow.
-- **URL/File Highlight Flicker**: Fixed all URL and file-path highlights disappearing simultaneously for ~100ms during terminal output. The previous fix (clearing `detected_urls` on terminal lock failure) was itself the cause: when the PTY writer held the write lock during streaming output, every render frame triggered a clear, blanking all highlights until output settled. Fix switches `detect_urls()` and `apply_url_underlines()` from `try_write()` to `try_read()` (correct for read-only terminal access), and on lock miss the stale URL list is preserved instead of cleared. Any brief mis-coloring from stale positions during active writes lasts at most one frame and is far less noticeable than a multi-frame highlight blackout.
+- Wired `process_sync_actions` in TmuxSync dispatch to handle session, layout, output, and flow-control notifications.
+- Fixed highlight flickering in `detect_urls` by preserving stale lists on lock misses.
+- Resolved `window_opacity` state corruption during `render_to_texture`.
+- Improved left/right modifier remapping logic.
+- Resolved various panic-prone `.expect()` calls and improved error handling across modules.
+- Added response size limits for update checker and ACP file reads.
+- Fixed orphaned trigger processes and improved cleaning of tmux control mode on session end.
+- Fixed potential panics in command truncation with multi-byte UTF-8 characters.
+- Resolved dead code tracking for v0.26 removal.
+- Annotated all `unsafe` blocks with `// SAFETY:` justifications.
 
 ### Security
-
-- **YAML Library Migration**: Replaced the unsound `serde_yml` dependency with `serde_yaml_ng` (0.10.0) to resolve the `libyml` vulnerability and ensured all quality checks pass.
-- **External Command Allowlist (SEC-002)**: `ExternalCommandRenderer` now enforces a configurable `allowed_commands` list (set via `content_prettifier.allowed_commands` in config); if the list is non-empty, commands not on it are refused. Empty list (default) preserves backward compatibility with a warn-only log.
-- **HTTP Profile Blocking (SEC-003)**: Dynamic profile URLs using HTTP are now blocked by default. Opt-in via `allow_http_profiles: true` in config (logs a warning when enabled). Authentication headers over HTTP are refused unconditionally.
-- **Unsafe Safety Documentation (SEC-008/009)**: All `unsafe` blocks in `macos_metal.rs`, `macos_space.rs`, and `macos_blur.rs` now carry full `// SAFETY:` justifications. Test helpers using `env::set_var`/`remove_var` document the single-threaded test context.
-- **Update Client Security Docs (SEC-010)**: `par-term-update/src/http.rs` now has a module-level doc covering HTTPS enforcement, SSRF/DNS-rebinding prevention via host allowlist, response size caps, and binary content validation.
+- Migrated from `serde_yml` to `serde_yaml_ng` to resolve vulnerabilities.
+- Enforced command allowlists for `ExternalCommandRenderer`.
+- Blocked HTTP profile URLs by default and added warnings for MitM risks.
+- Strengthened update checker with domain allowlists and binary content validation.
+- Improved permissions for session logs and MCP IPC files.
+- Added password redaction warnings for session logging.
+- Prevented accidental commit of local API tokens via `.gitignore`.
+- Added path traversal prevention for config paths and shader names.
+- Hardened tmux command escaping to prevent truncation via null bytes.
 
 ### Refactored
-
-- **WindowState God Object Decomposition (ARC-001)**: Decomposed the primary `WindowState` struct into cohesive sub-state objects (`FocusState`, `OverlayState`, `UpdateState`, `WatcherState`, `TriggerState`) and updated all workspace call sites.
-- **Terminal Mutex to RwLock Migration (ARC-002)**: Converted `Tab.terminal` and `Pane.terminal` from `Arc<Mutex<TerminalManager>>` to `Arc<RwLock<TerminalManager>>` for improved read concurrency in the render loop. Performed workspace-wide replacement of locking patterns and updated documentation.
-- **Tab Constructor Deduplication (ARC-005)**: Shared initialization logic extracted into `create_base_terminal` helper in `src/tab/setup.rs` and `Tab::new_internal()`; both `Tab::new()` and `Tab::new_from_profile()` now contain only their unique logic.
-- **Config Struct Decomposition (QA-001)**: Initiated the split of the oversized `Config` struct by extracting update-related fields into a dedicated `UpdateConfig` sub-struct using `#[serde(flatten)]`.
-- **Settings UI: terminal_tab Split (ARC-003)**: `par-term-settings-ui/src/terminal_tab.rs` (1356 lines) split into `terminal_tab/` with 7 sub-modules (`behavior`, `unicode`, `shell`, `startup`, `search`, `semantic_history`, `mod`).
-- **Settings UI: advanced_tab Split (ARC-003)**: `par-term-settings-ui/src/advanced_tab.rs` (1276 lines) split into `advanced_tab/` with 5 sub-modules (`import_export`, `tmux`, `logging`, `system`, `mod`). `merge_config` re-exported via `pub use`.
-- **Settings UI: profile_modal_ui Split (ARC-003)**: `par-term-settings-ui/src/profile_modal_ui.rs` (1406 lines) split into `profile_modal_ui/` with 4 sub-modules (`form_helpers`, `list_view`, `edit_view`, `mod`). All public APIs preserved.
-- **Makefile Variable Extraction (ARC-012)**: Added `DEBUG_LOG` and `RUN_BASE` variables; de-duplicated 12 targets that previously hard-coded log paths and cargo invocations.
+- Decomposed `WindowState` and `Config` into cohesive sub-state objects.
+- Migrated terminal access from `Mutex` to `RwLock` for better read concurrency.
+- Split oversized files (exceeding 800-1000 lines) into focused sub-modules.
+- Extracted shared initialization logic for tabs and panes.
+- Unified GLSL transpiler templates and added WGSL injection validation.
+- Centralized UI constants and extracted named renderer constants.
+- De-duplicated `Makefile` variables and targets.
 
 ### Documentation
-
-- **Tab Legacy Field Migration (ARC-004)**: All four legacy Tab fields (`scroll_state`, `mouse`, `bell`, `cache`) now carry `LEGACY:` comments naming exact call sites and step-by-step migration plans.
-- **Config Resolution Chain (ARC-007)**: `par-term-config/src/shader_metadata.rs` now cross-references the 3-tier resolution chain doc and notes structural duplication between background and cursor variants.
-- **Makefile Magic Numbers in UI Code (QA-009)**: 9 inline color/size literals in `sidebar.rs` extracted into named constants (`COLOR_TAB_DIMMED`, `COLOR_TAB_SELECTED`, `TAB_BUTTON_WIDTH`, etc.).
-- **Test Organization (ARC-013)**: `Cargo.toml` documents logical groupings of the 26 integration test files and the future `tests/<group>/mod.rs` migration path.
-- **Logging Quick Reference (ARC-014)**: `src/main.rs` module doc now includes a `# Logging Quick Reference` table comparing `crate::debug_*!()` macros vs `log::*!()` with when-to-use rules.
-- **Clippy Exemption Cleanup (QA-008)**: Removed 2 false-positive `#[allow(clippy::too_many_arguments)]` attributes; added explanatory comments to the 11 genuine exemptions.
-
-### Added
-
-- **Environment Variables Reference**: New `docs/ENVIRONMENT_VARIABLES.md` documents all recognized environment variables (DEBUG_LEVEL, RUST_LOG, SHELL, TERM, XDG vars, MCP IPC, and config substitution syntax)
-- **API Documentation Index**: New `docs/API.md` lists key public types across all 13 workspace crates with brief descriptions
-- **Mutex Usage Policy**: `src/lib.rs` now documents the three-mutex policy (tokio::sync for async, parking_lot for sync, std::sync for simple cases) with a reference to `docs/MUTEX_PATTERNS.md`
-
-### Security
-
-- **HTTP Profile URL Warning (SEC-003)**: Profiles fetched over HTTP now emit a `log::warn!` (visible in all log modes) in addition to the existing debug-level notice — MITM risk clearly surfaced to users without blocking HTTP
-- **External Command Renderer Warning (SEC-002)**: `ExternalCommandRenderer` struct now carries a `# Security Warning` rustdoc section documenting the arbitrary-command-execution risk and trust model; a `debug_info!` log fires on every external renderer invocation
-- **Session Logger Limitation Doc (SEC-006)**: Module-level rustdoc added to `session_logger` listing 5 scenarios where heuristic password redaction may miss credentials and explicitly recommending users disable session logging when working with sensitive secrets
-- **gitignore: .claude/settings.local.json (SEC-001)**: Added explicit path-anchored `.gitignore` entry for `.claude/settings.local.json` to prevent accidental commit of local API tokens
-
-### Refactored
-
-- **Settings UI: input_tab Split (ARC-003)**: `par-term-settings-ui/src/input_tab.rs` (1542 lines) split into a `par-term-settings-ui/src/input_tab/` directory with 6 focused sub-modules (`mod.rs`, `keyboard.rs`, `mouse.rs`, `selection.rs`, `word_selection.rs`, `keybindings.rs`); public API (`show`, `capture_key_combo`, `display_key_combo`) preserved
-
-### Documentation
-
-- **WindowState Field Groups (ARC-001)**: Added struct-level doc table identifying 17 logical field groups and section dividers throughout the `WindowState` struct
-- **Tab Locking Rules (ARC-002)**: `Tab.terminal` field now carries a rustdoc locking rules table: async tasks → `.lock().await`, sync polling → `try_lock()`, sync user-initiated → `blocking_lock()`; references `docs/MUTEX_PATTERNS.md`
-- **Prettifier Module Overview (ARC-006)**: `src/prettifier/mod.rs` now has a `//! Module Structure` doc listing all submodules by role (Detection / Rendering / Pipeline)
-- **Config Resolution Chain (ARC-007)**: `par-term-config/src/shader_config.rs` now documents the three-tier resolution chain (config → metadata → resolved) with an ASCII diagram
-- **Re-export Facade Docs (ARC-008)**: `src/config/mod.rs`, `src/terminal.rs`, `src/renderer.rs` now document what each re-exports and why the facade pattern is used
-- **Status Bar Architecture (ARC-009)**: `src/status_bar/mod.rs` now documents the widget dispatch approach and future registry upgrade path
-- **Session vs Arrangement Persistence (ARC-010)**: Cross-reference tables added to `src/session/mod.rs` and `src/arrangements/mod.rs` explaining differences in restore semantics
-- **Error Handling Conventions (QA-006)**: `# Error Handling Convention` doc comments added to modules mixing `Result<(), String>` and `anyhow::Result`
-- **Config Struct Refactoring Plan (QA-001)**: `par-term-config/src/config/config_struct/mod.rs` now documents 38 logical groupings as future sub-struct candidates
-- **README Quick Start (DOC-006)**: "Getting Started" section added near the top of `README.md` with prominent links to `docs/GETTING_STARTED.md` and related guides
-
-### Fixed
-
-- **Dead Code Tracking (QA-003)**: All `#[allow(dead_code)]` fields in `config_updates.rs`, `file_transfers.rs`, and `flow_control.rs` now carry `TODO(dead_code)` tracking comments with a v0.26 removal deadline
-
-### CONTRIBUTING.md**: Comprehensive contributor guide covering development setup, build commands (with compile-time estimates), testing, code quality tools, debug logging macros, architecture overview, macOS/Linux platform specifics, PR guidelines, and commit message format
-- **Mutex Patterns Documentation**: New `docs/MUTEX_PATTERNS.md` documents the `tokio::sync::Mutex` vs `parking_lot::Mutex` decision matrix, all three access patterns for `Tab.terminal` from sync contexts, anti-patterns, and the `record_try_lock_failure()` telemetry; inline `# Mutex Strategy` doc sections added to `Tab`, `Pane`, `AgentState`, and `SharedSessionLogger`
-- **Concurrency Guide**: New `docs/CONCURRENCY.md` documents the threading model, state hierarchy, mutex selection decision matrix, async-shared vs sync-only state, and guidance for adding new shared state
-- **State Lifecycle Guide**: New `docs/STATE_LIFECYCLE.md` documents window/tab/pane creation, update, and destruction sequences with data flow diagrams
-- **GPU Resource Lifecycle**: New section in `docs/ARCHITECTURE.md` covering Surface/Device lifecycle, Glyph Atlas management, Inline Graphics caching, Custom Shader hot-reload, and Frame Timing
-
-### Security
-
-- **Config Path Traversal Prevention (H-1)**: `Config::validate_config_path()` canonicalizes paths and rejects anything outside `~/.config/par-term/`; `validate_shader_name()` blocks `..` components in shader names; new `checked_shader_path()` for strict callers; `PathTraversal` variant added to `ConfigError`
-- **Update URL Allowlist (H-3)**: Update checker now enforces an HTTPS-only allowlist of four permitted GitHub domains (`github.com`, `api.github.com`, `objects.githubusercontent.com`, `github-releases.githubusercontent.com`); `validate_binary_content()` checks platform magic bytes (ZIP/ELF/MZ) before SHA256 verification; 14 new unit tests
-
-### Refactored
-
-- **Oversized File Splits (C-1)**: All 12 files exceeding the 800-line threshold split into 80+ focused sub-modules — `background_tab.rs` (2,482→6 files), `render_pipeline/mod.rs` (2,443→8 files), `config_struct.rs` (2,201→2 files), `types.rs` (1,749→11 domain files), `markdown.rs` (1,766→8 files), `ai_inspector/panel.rs` (1,763→4 files), `window_tab.rs` (1,755→7 files), `lib.rs` (1,723→4 files), `block_chars.rs` (1,674→6 files), `pane/manager.rs` (1,627→6 files), `profile_modal_ui.rs` (1,423→5 files), `window_state/mod.rs` (1,420→5 files); all public APIs unchanged
-- **Named Renderer Constants (L-6)**: 23 named constants extracted across `cell_renderer`, `scrollbar`, and `graphics_renderer`; atlas coordinate divisor corrected from hardcoded `2048.0` to `atlas_size` (fixes rendering on GPUs with smaller texture limits)
-- **Oversized File Splits (Round 2)**: Split 8 additional files exceeding 1000 lines into focused sub-modules — `tab/mod.rs` (1426→7 files), `diagrams.rs` (1408→5 files), `paste_transform.rs` (1314→7 files), `diff.rs` (1301→7 files), `pipeline.rs` (1293→5 files), `chat.rs` (1090→5 files), `pane/types.rs` (1033→6 files), `stack_trace.rs` (1010→7 files); all public APIs unchanged
-- **Terminal Init Deduplication**: Extracted shared terminal configuration from duplicated `Pane::new()`/`Pane::new_for_tmux()` into reusable `configure_terminal_from_config()`, `get_shell_command()`, `apply_login_shell_flag()` helpers (~90 lines removed)
-
-### Fixed
-
-- **SAFETY Comments (M-1)**: All 11 unsafe blocks in `macos_metal.rs`, `macos_blur.rs`, and `macos_space.rs` annotated with `// SAFETY:` comments documenting invariants
-
-### Chore
-
-- **TODO Tracking**: Two previously untracked TODO comments converted to GitHub issues — #202 (tmux `process_sync_actions` integration) and #203 (scripting protocol commands WriteText/Notify/SetBadge/SetVariable/RunCommand/ChangeConfig)
-
-- **Try-Lock Failure Telemetry (M-7)**: Global `TRY_LOCK_FAILURE_COUNT` AtomicU64 counter tracks silently-dropped operations (resize, theme change, focus events) with per-site labels; periodic summary logged each event-loop iteration via `maybe_log_try_lock_telemetry()`
-- **Drag/Context-Menu Tests (L-15)**: Tab bar UI test suite expanded from 30 → 59 tests covering drag state transitions, context menu lifecycle, and drop target calculation; new `calculate_drop_target_horizontal()` pure-logic helper extracted for testability
-- **Settings UI Tests (L-14)**: Settings window test suite expanded from 5 → 33 tests covering `section_matches` logic, `tab_matches_search`, config validation ranges, and `has_changes` state machine transitions
-- **UI Constants Module**: New `src/ui_constants.rs` centralizes 80 named constants for window sizes, spacing, padding, and layout dimensions across 13 UI components — replaces inline magic numbers, enabling future DPI scaling and theming
-- **Scripting Permission Model**: Added `requires_permission()`, `permission_flag_name()`, `is_rate_limited()` helper methods to `ScriptCommand` for future permission checking infrastructure
-- **Shell Command Timeout**: Custom snippet shell commands now have configurable `timeout_secs` field (default 30s) to prevent hung commands
+- Added legacy field migration plans for `Tab` struct.
+- Documented 3-tier shader resolution chain.
+- Updated `CONTRIBUTING.md`, `docs/CONCURRENCY.md`, `docs/STATE_LIFECYCLE.md`, and `docs/ARCHITECTURE.md` with deep technical overviews.
+- Simplified `README.md` with a quick start guide.
+- Added per-module documentation for re-exports, locking rules, and architectural patterns.
 
 ### Changed
-
-- **Config Save Coordination**: Centralized config saves through `save_config_debounced()` with 100ms debounce window — prevents concurrent write conflicts
-
-### Security
-
-- **Trigger Denylist Bypass Patterns (M-2)**: Denylist now detects common bypass wrappers (`env`, `/usr/bin/env`, `sh -c`, `bash -c`, `zsh -c`, `fish -c`, `dash -c`, etc.) and shell `-c` patterns are immediately denied regardless of payload; startup warning emitted to stderr when any trigger has `require_user_action: false`
-- **tmux Command Escaping Hardening**: `send_keys` functions now strip null bytes before single-quote escaping to prevent command truncation; comprehensive doc comments added explaining escaping strategy and edge cases
-- **Trigger Execution Audit Logging**: `RunCommand` and `SendText` trigger executions now logged via `debug_info!("TRIGGER", ...)` with trigger_id, pid, command, and args for post-incident review
-- **Config File Permission Check**: `Config::load()` now warns on Unix if config file is group-readable or world-readable, with `chmod 600` remediation advice
-
-- **Self-Update Integrity (C-1)**: Checksum verification now fails the update when checksum URL exists but download fails — prevents MITM attacks from bypassing verification
-- **AppleScript Injection (H-1)**: macOS notifications now properly escape backslashes, quotes, and newlines in AppleScript strings to prevent command injection via terminal output
-- **ACP Recursive Search (H-6)**: Added `MAX_SEARCH_DEPTH` (20) and symlink skipping to prevent stack overflow from symlink loops
-- **Session Log Permissions (M-4)**: Session log files now created with `0o600` permissions (owner read/write only) on Unix
-- **ACP File Size Limit (M-5)**: Added `MAX_FILE_SIZE` (50MB) check to prevent memory exhaustion from large file reads
-- **Debug Shader Permissions (L-1)**: Debug shader files now only written in debug builds with restricted permissions
+- Centralized config saves with a 100ms debounce.
+- Prettifier is now disabled by default.
+- Enabled automatic CI triggers for main and PRs.
 
 ### Performance
-
-- **Per-Frame GPU Buffer Elimination (L-3)**: Pane background bind groups now use a `HashMap`-keyed uniform buffer cache — `queue.write_buffer()` reuse replaces `device.create_buffer()` + `device.create_bind_group()` per frame per pane
-- **Scratch Vec Reuse (L-6)**: `CellRenderer` now holds `scratch_row_bg` and `scratch_row_text` fields; per-dirty-row `Vec::with_capacity()` allocations replaced with `.clear()` + reuse
-- **Regex Cache (L-9)**: `trigger_regex_cache: HashMap<String, Regex>` on `WindowState` — prettify trigger patterns compiled once and reused across frames
-- **Borrowed Display Lines (M-15)**: New `display_lines_ref() -> Option<&[StyledLine]>` borrows directly from `RenderedContent.lines` in the render hot path — eliminates per-frame `Vec<StyledLine>` clone
-- **Native Filesystem Watcher (L-17)**: Config file watcher now tries `notify::RecommendedWatcher` (inotify/FSEvents/ReadDirectoryChanges) first, falling back to `PollWatcher` on failure — replaces 500ms polling with native OS events
-
-### Fixed
-
-- **API Response Size Limits (C-2)**: Added `MAX_API_RESPONSE_SIZE` (10MB) limit to HTTP response body reads in update checker
-- **Blocking Shell Commands (H-2)**: Snippet shell commands now run asynchronously in background threads instead of blocking the main event loop
-- **Orphaned Trigger Processes (H-3)**: Trigger `RunCommand` now tracks spawned PIDs, redirects stdout/stderr to null, and enforces max concurrent process limit (10)
-- **Custom JSON Parsing (H-4)**: Replaced hand-rolled JSON parsing with proper `serde_json::Value` parsing for update checker
-- **GPU Scrollbar Buffer Allocation (H-7)**: Scrollbar marks now use pre-allocated buffer pool instead of per-frame GPU allocations
-- **GPU Instance Draw Counts (H-8)**: GPU draw calls now use actual instance counts instead of buffer capacity, improving performance after window resize
-- **Graphics Texture Cache (H-9)**: Added LRU eviction with max cache size (100 textures) to prevent GPU memory exhaustion
-- **UTF-8 truncate_chars (H-10)**: Fixed `truncate_chars()` to use character count instead of byte length for proper multi-byte UTF-8 handling
-- **AI Inspector Focus Check (H-11)**: Fixed Escape key handling to only prevent close when chat input specifically has focus
-- **Sub-crate Version Resolution (H-12)**: Added root `VERSION` constant and pass version as parameter to sub-crates instead of using `env!("CARGO_PKG_VERSION")`
-- **Mutex Poison Handling (M-12)**: Script process mutex locks now gracefully recover from poison instead of panicking
-- **Shell History Memory (M-13)**: Shell history files now use streaming `BufReader::lines()` instead of loading entire file into memory
-- **SSH Config Logging (M-14)**: SSH config parser now logs warnings when config file cannot be read
-- **Regex Caching (M-19)**: Config variable substitution regexes now compiled once using `LazyLock` instead of every function call
-- **Atlas Size Constant (L-2)**: Glyph atlas size now defined as `PREFERRED_ATLAS_SIZE` constant with validation against device limits
-- **GPU Texture Validation (L-4)**: Added `debug_assert_eq!` for data size validation in GPU texture write functions
-- **Empty Command Buffer (L-7)**: `render_overlays` now early-returns when no overlays active, avoiding unnecessary GPU work
-- **parking_lot Mutex (L-10)**: Update checker now uses `parking_lot::Mutex` for consistency with rest of codebase
-- **eprintln to log (L-11)**: Script process reader threads now use `log::warn!()` instead of `eprintln!()`
-- **Manifest Atomic Save (L-18)**: Update manifest now uses temp file + rename pattern for atomic saves
-
-- **MCP IPC File Permissions**: IPC files (config-update, screenshot request/response) are now created with `0o600` permissions atomically at creation time — eliminates the world-readable race window that existed when `std::fs::write` + post-write `chmod` was used
-- **Status Bar Thread Spawn Panics**: Replaced `expect()` on OS thread spawning in the system monitor and git branch poller — spawn failures now log a debug error and degrade gracefully instead of crashing the terminal session
-- **Log Renderer `.expect()` Panics**: Replaced 4 `.expect()` calls on regex captures in `log.rs` with safe `map_or()` pattern
-- **Session Logger Error Context**: Added `anyhow::Context` to 6 key I/O operations in `session_logger.rs` for actionable error messages with file paths
-- **`blocking_lock()` Safety Documentation**: All 7 `blocking_lock()` call sites annotated as accepted risk with references to `docs/CONCURRENCY.md`
-- **tmux Terminal Stuck in Control Mode**: Fixed a race where `handle_tmux_session_ended` could fail to acquire the terminal lock and silently leave the parser stuck in tmux control mode; the fix uses a per-tab `pending_tmux_mode_disable` flag that is retried each frame via `retry_pending_tmux_mode_disable()`, guaranteeing cleanup without blocking the winit event loop
-
-### Fixed
-
-- **window_opacity State Mutation (M-9)**: `render_to_texture` no longer temporarily mutates `self.window_opacity` — opacity override now passed as `Option<f32>` parameter to `update_bg_image_uniforms()`, preventing corruption on early `?` returns
-- **Left/Right Modifier Remapping (M-18)**: Modifier remapping now uses winit's `lcontrol_state()`/`rcontrol_state()`, `lalt_state()`/`ralt_state()`, `lsuper_state()`/`rsuper_state()` to apply per-side remappings correctly when both sides are held; backward-compatible fallback for platforms that don't distinguish sides
-
-### Refactored
-
-- **GLSL Transpiler Deduplication (M-10)**: Extracted ~300 lines of shared GLSL wrapper template and post-processing into `transpile_impl()` — both public `transpile_glsl_to_wgsl()` functions are now 5-line thin wrappers
-- **WGSL Injection Validation (M-11)**: String-based `@builtin(position)` injection now validates the replacement actually occurred via `replace_required()` — returns a descriptive error if naga output doesn't match the expected pattern
-- **`section_matches` Extraction (M-16)**: Function extracted from all 19 `par-term-settings-ui/src/*_tab.rs` files into shared `section.rs` module — 152 lines of duplication removed
-- **`GraphicRenderInfo` Struct (L-5)**: Opaque 7-element tuple `(u64, isize, usize, usize, usize, f32, usize)` replaced with named `GraphicRenderInfo` struct across renderer and graphics pipeline
-- **`MoveArrangementUp/Down` Variants (M-20)**: `RenameArrangement` sentinel strings `"__move_up__"`/`"__move_down__"` replaced with dedicated `MoveArrangementUp(id)` and `MoveArrangementDown(id)` action variants
-- **Tab Bar File Split (L-12)**: `src/tab_bar_ui/mod.rs` (1895 lines) split into focused sub-modules: `tab_rendering.rs` (641), `drag_drop.rs` (292), `context_menu.rs` (298), `profile_menu.rs` (84); `mod.rs` reduced to 619 lines
-- **Tab Bar Rendering Helpers (M-17)**: Shared bg-color computation extracted from `render_tab_with_width` and `render_vertical_tab` into `compute_tab_bg_color()` helper
-
-### Changed
-
-- **Prettifier Disabled by Default**: The content prettifier is now disabled by default; enable it via `enable_prettifier: true` in `config.yaml` or the Settings UI
-- **CI Workflow Auto-Triggers**: CI now runs automatically on all pushes to `main` and on all pull requests targeting `main` (previously manual-only)
-- **render_pipeline Refactored into Sub-Modules**: `render_pipeline.rs` (2,941 lines) split into a directory module — `frame_setup.rs` (frame lifecycle helpers), `pane_render.rs` (split-pane rendering), `post_render.rs` (post-render action dispatch), and `mod.rs` (orchestrator); zero behavior changes
+- Eliminated per-frame GPU buffer allocations for pane backgrounds using a uniform buffer cache.
+- Implemented scratch `Vec` reuse in `CellRenderer`.
+- Added regex caching for triggers.
+- Replaced per-frame `StyledLine` clones with borrows.
+- Integrated native filesystem watchers for config hot-reload.
 
 ---
 
 ## [0.24.0] - 2026-02-27
 
 ### Fixed
-
-- **Box-Drawing Line Thickness Inconsistency (Tmux Pane Borders)**: Fixed tmux pane borders (and other box-drawing characters) rendering inconsistently as single or double lines — the geometric renderer produced fractional pixel coordinates for thin lines (e.g. `│` width ≈ 1.7–2.4px), and depending on sub-pixel cell position the GPU rasterizer would cover either 1 or 2 fragment centers; box-drawing pixel rectangles are now snapped to integer pixel boundaries ensuring consistent line thickness regardless of cell position
-- **Prettifier Line Mapping**: Fixed source→rendered line mapping in cell substitution — prevents index drift when the rendered output has a different line count than the source (e.g., consumed code-fence delimiters)
-- **Prettifier Cell Dimensions**: GPU renderer cell dimensions are now synced into the prettifier pipeline so inline graphics (Mermaid diagrams, etc.) are sized with actual cell metrics
-- **Prettifier Small Block Detection**: Removed block-size guard that was preventing small blocks from rendering
-- **Prettifier Claude Code Integration**: Viewport content hash now used to clear stale Claude Code blocks; restored Claude Code segmentation and frame-rate throttle in the split module
-- **Paste Control Character Sanitization**: Control characters are now stripped from clipboard paste to prevent injection via crafted clipboard content
-- **MCP IPC File Permissions**: MCP IPC socket files are now created with restrictive permissions to prevent unauthorized access
-- **Session Logger Password Redaction**: Passwords are now redacted from session log output
-- **Graceful Shutdown**: Replaced `process::exit()` calls with proper graceful shutdown sequence
-- **Config Variable Substitution Allowlist**: Config variable substitution is now restricted to an explicit allowlist to prevent injection attacks
-- **RunCommand Terminal Output Restriction**: `RunCommand` keybinding actions can no longer be triggered from terminal output — only from explicit user key presses
-- **Split-Pane Unsafe Cell Pointer**: Eliminated an unsafe cell pointer leak in the split-pane render path
+- **Box-Drawing Line Thickness**: Snapped box-drawing pixel rectangles to integer boundaries for consistent line thickness.
+- **Prettifier Improvements**: Fixed source-to-rendered line mapping, synced cell dimensions for inline graphics, and implemented Claude Code integration enhancements.
+- **Security & Reliability**: Sanitized paste control characters, restricted MCP IPC file permissions, and redacted passwords from session logs.
+- **System**: Implemented graceful shutdown sequence and restricted config variable substitution to an allowlist.
 
 ### Changed
-
-- **Internal Architecture**: Decomposed `window_state.rs` into focused sub-modules (`window_state/`, `render_pipeline.rs`, `agent_messages.rs`, etc.) and extracted render coordination into dedicated functions (`gather_render_data`, `should_render_frame`, `submit_gpu_frame`, etc.) — no user-visible behavior changes; improves maintainability and reduces file sizes
+- **Internal Architecture**: Decomposed `window_state.rs` into focused sub-modules and extracted render coordination functions.
 
 ---
 
 ## [0.23.0] - 2026-02-25
 
 ### Added
-
-- **Content Prettifier**: New content prettifier system that detects structured content in terminal output (Markdown, JSON, YAML, TOML, XML, CSV, diffs, log files, diagrams, SQL results, stack traces) and renders it with syntax highlighting, table formatting, color-coded diffs, and other format-specific enhancements — includes pluggable trait-based architecture with custom renderer support, per-profile overrides, Claude Code integration, clipboard integration, toggle UX between rendered and source views, render caching, and a full Settings UI tab; see `docs/PRETTIFIER.md` for complete documentation
+- **Content Prettifier**: New system to detect and render structured content (Markdown, JSON, etc.) with syntax highlighting and format-specific enhancements.
 
 ### Changed
-
-- **Font Hinting Default**: Font hinting is now **enabled** by default (was disabled) — improves text sharpness at common display sizes; can be toggled in Settings → Appearance → Font Hinting
-- **Dependencies Updated**: Updated workspace dependencies to latest versions
+- **Font Hinting**: Enabled by default for improved text sharpness.
+- **Dependencies**: Updated workspace dependencies to latest versions.
 
 ### Fixed
-
-- **Settings Quick Search Keywords**: Fixed and updated search keywords across all settings tabs — removed 12 content-prettifier keywords that were incorrectly placed in the Terminal tab (causing wrong tab matches for searches like "markdown" or "json"); added ~50 missing keywords across ContentPrettifier (engine, kroki, alternate screen, cache), AI Inspector (custom agents, screenshot access, platform-specific), Automation (prettify action), Integrations (detected, version, status), Advanced (homebrew, cargo), and Notifications (audio formats); removed 5 stale keywords from AI Inspector and ContentPrettifier that referenced non-existent settings
-
-- **Inline Graphics in Split Pane Mode (Sixel/iTerm2/Kitty)**: Inline graphics now render correctly in split-pane layouts — previously graphics were invisible in all split panes because the render path read from the shared tab terminal instead of each pane's own PTY, and never issued a graphics draw call; each pane now gathers graphics from its own terminal, uploads textures to the shared GPU cache, and renders them clipped to the pane's scissor rect
-
-- **Scrollback in Split Pane Mode**: Scrollback (mouse-wheel scroll, Page Up/Down, keyboard marks navigation) now works correctly in split panes — fixed three independent bugs: (1) `tab.cache.scrollback_len` was not updated from the focused pane's terminal so scroll distance was always clamped to 0; (2) `clamp_to_scrollback()` was called every frame with the stale tab-terminal's scrollback length (0 in pane mode), resetting scroll state on every frame; (3) the scroll offset stored in `tab.scroll_state` was not being used when gathering focused-pane cell data for rendering
-
-- **Scrollbar Visible and Pane-Scoped in Split Mode**: The scrollbar now appears inside the focused pane's bounds instead of spanning the full window — previously the scrollbar GPU state was never updated in the split-pane render path (making it invisible), and even after being made visible it used window-level insets; the scrollbar track and thumb are now constrained to the focused pane's pixel bounds
-
-- **`clear` Does Not Remove Inline Graphics (Sixel/iTerm2/Kitty)**: Fixed a bug where typing `clear` (or any ED 2 / ED 3 erase-display sequence) left inline graphics still visible on screen — graphics that had partially scrolled into the scrollback buffer were stored in a separate scrollback list that `ED 2` never cleared; `ED 2` and `ED 3` now call `clear_scrollback_graphics()` in addition to clearing current-screen placements, so all visible graphics are removed for all three protocols (requires `par-term-emu-core-rust` ≥ 0.39.3)
-
-- **Window Arrangement Position/Size Wrong on Second Monitor (DPI)**: Fixed arrangement restore placing windows at the wrong position and with the wrong size when a second display with a different DPI is connected and set as primary — on macOS, `monitor.position()` scales each monitor's origin by its own `backingScaleFactor`, producing per-monitor coordinate spaces that are incompatible across displays with different scale factors; `position_relative` and window size are now stored in scale-factor-independent **logical pixels** (physical ÷ scale_factor) and restored via `LogicalPosition`/`LogicalSize` so winit applies the correct per-monitor DPI conversion; also fixed a related bug where window size was captured as `outer_size` (content + title bar) but restored as `inner_size` (content only), causing the window to grow by the title bar height on every restore (affects both arrangement and session capture)
-
-- **Character Rendering Artifacts (Thin Lines at Cell Edges)**: Fixed intermittent thin bright lines appearing on the right side and bottom of terminal cells — caused by the bilinear sampler bleeding into uninitialized or stale padding pixels in the glyph atlas when glyphs were evicted from the LRU cache; the padding strips are now explicitly zeroed after each glyph upload so bilinear sampling at glyph edges always blends with transparent black
-
-- **No Error Message on Missing Display Server**: par-term now prints a clear error to stderr when startup fails (e.g., no X or Wayland server available) instead of silently exiting with code 1; on Linux an additional hint is shown pointing to the `DISPLAY`/`WAYLAND_DISPLAY` environment variables
-- **Text Selection in Mouse-Tracking Apps (less, vim, etc.)**: Holding Shift while clicking/dragging now bypasses application mouse tracking to allow local text selection — previously apps like `less` that enable mouse tracking on the alternate screen made it impossible to highlight text; this matches the standard behaviour of iTerm2, Kitty, and Alacritty
-- **tmux Pane Clicking Intermittently Broken**: Fixed a bug where clicking to switch tmux panes would silently fail when an image was in the clipboard — the clipboard-image protection guard was suppressing the click entirely instead of forwarding it to the PTY, so tmux never received the pane-switch event; the guard now correctly allows mouse-tracked clicks to pass through to the terminal application
-- **Tab Clicks Temporarily Ignored After Context Menu**: Fixed a tab-context-menu input edge case where left clicks could appear unresponsive until a later repaint — mouse handling now requests an immediate redraw while the tab context menu is open so egui can process click-away dismissal promptly
-- **Tab Title Emoji Rendering in egui**: Improved tab/profile icon and title rendering when names contain emoji or complex grapheme sequences — egui tab labels now sanitize unsupported emoji presentation/ZWJ sequences and map common icons to reliable monochrome symbols to avoid missing glyphs/tofu boxes
-- **Accidental Text Selection on Trackpad Tap**: Increased the mouse drag dead-zone threshold from 4 px to 8 px so that trackpad tap-to-click movement noise and minor jitter no longer create unintended micro-selections that overwrite clipboard content
-- **Symbol Rendering from Emoji Fonts (Dingbats, Misc Symbols, Misc Technical)**: Fixed characters like ✳ ⏺ ✶ rendering with visible colored background plates, and ✨ ⭐ ✔ rendering as invisible or distorted — Apple Color Emoji has charmap entries for these symbols but only stores sbix bitmaps (no vector outlines), producing degenerate all-zero-alpha results when outline rendering is requested; the renderer now skips color emoji fonts for monochrome symbol rendering entirely, exhausting all text fonts first (Menlo, Zapf Dingbats, STIX Two Math, Apple Symbols, etc.) for clean vector outlines; if no text font has the character, a colored emoji last-resort fallback renders the glyph as-is from Apple Color Emoji; also handles VS16 (U+FE0F emoji presentation selector) — symbol characters followed by VS16 are still rendered monochrome in terminal contexts; added Zapf Dingbats and STIX Two Math to the font fallback chain for broader symbol coverage
+- **Settings Search**: Fixed and updated search keywords across all settings tabs.
+- **Split Pane Mode**: Fixed inline graphics, scrollback, and scrollbar rendering in split-pane layouts.
+- **Window Arrangements**: Resolved DPI-related positioning and sizing issues on multi-monitor setups.
+- **Rendering**: Fixed character artifacts in glyph atlas and improved symbol rendering from emoji fonts.
+- **Usability**: Improved text selection in mouse-tracking apps and fixed trackpad micro-selection jitter.
 
 ---
-
 ## [0.22.0] - 2026-02-22
 
 ### Added
-
-- **Code Block Rendering in Chat**: Agent messages containing fenced code blocks (``` ) now render with a distinct dark background, border, language tag label, and monospace font instead of plain text — also applies to streaming text as it arrives
-- **Cancel Queued Messages**: User messages waiting to be sent (queued behind an in-progress prompt) now show a "(queued)" label and red "Cancel" button to abort the send before it reaches the agent
-- **Cancel Button During Streaming**: Added a red "Cancel" button next to the spinner when the agent is streaming/thinking — invokes `Agent::cancel()` to stop the current prompt and adds a "Cancelled." system message to the chat
-- **Multi-line Chat Input**: Changed the assistant panel chat input from single-line to multi-line — Enter sends, Shift+Enter inserts a newline, and the input area grows dynamically up to 6 rows
-- **Clear Conversation Button**: Added a "C" button next to the send button to clear all chat messages without disconnecting from the agent
-- **Auto-Approval Chat Notifications**: Auto-approved tool calls (read-only tools, safe path writes, YOLO mode) now show as "Auto-approved: ..." entries in the chat history so users have visibility into what the agent is doing
-- **Shell Detection in Snapshots**: Terminal state snapshots now populate the shell field from the `$SHELL` environment variable instead of leaving it blank
-- **Custom ACP Agents in Settings/UI Config**: Assistant settings now support managing custom ACP agents via `ai_inspector_custom_agents`, including per-agent environment variables for local/provider-specific setups (for example Ollama)
-- **Custom ACP Ollama Context Helper**: Custom ACP agents now support an optional `ollama_context_length` field (also editable in Settings > Assistant) which injects `OLLAMA_CONTEXT_LENGTH` for Ollama-backed agent sessions without manual env var editing
-- **Claude + Ollama ACP Documentation**: Expanded Assistant Panel docs with Zed ACP bridge (`claude-agent-acp`) setup, `ollama launch claude` workflow, custom-agent examples, and troubleshooting notes
-- **ACP Harness CLI for Agent Debugging**: Added `par-term-acp-harness` plus `make acp-harness` / `make acp-smoke` targets to reproduce Assistant Panel ACP sessions (including shader-context injection, tool-call logging, transcripts, and Claude+Ollama debugging)
-- **Terminal Screenshot MCP Tool for Agents**: Added `terminal_screenshot` to the par-term MCP server for permission-gated visual terminal capture (including live renderer screenshots in the app and harness fallback image testing via `--screenshot-file`)
-- **Reset Assistant Permission Approvals**: Added a "Reset approvals" button in the Assistant panel when connected — it reconnects the agent session to revoke all session-scoped "Always allow" permission selections, then replays local chat context into the next prompt (best effort) so work can continue
-- **Best-Effort Context Restore Across Agent Reconnects**: When connecting to an agent with existing Assistant chat history (including switching providers/models), par-term now stages a bounded local transcript and injects it into the next prompt so the new ACP session can continue with prior visible context
-- **Glass Sphere Bounce Shader**: New `glass-sphere-bounce.glsl` background shader with refracting glass spheres bouncing in a box
-- **Tab Bar Border Sharpening**: Improved rounded tab corner rendering with sharper borders
+- **Assistant Panel**: Added code block rendering, message queueing/cancellation, and multi-line chat input.
+- **ACP Integration**: Support for custom ACP agents (including Ollama) and better context restoration across reconnects.
+- **Debugging**: New `par-term-acp-harness` for reproducing Assistant Panel sessions and `terminal_screenshot` MCP tool.
+- **Aesthetics**: New `glass-sphere-bounce.glsl` shader and sharpened tab bar borders.
 
 ### Changed
-
-- **Claude ACP Bridge Package Name**: User-facing install commands and bundled docs now use `@zed-industries/claude-agent-acp` / `claude-agent-acp` (the upstream replacement for deprecated `@zed-industries/claude-code-acp`)
-- **Bundle Install Includes ACP Bridge**: `make bundle-install` now installs the macOS app bundle, CLI binary, and Claude ACP bridge in one command; CI/release workflows also install/verify the bridge
-- **Screenshot Permissions Split from YOLO Mode**: Assistant settings now include a separate "Allow Agent Screenshots" toggle, and screenshot requests are no longer auto-approved by YOLO mode
-- **Core Emulator Dependency Bump**: Updated `par-term-emu-core-rust` to v0.39.2 (published crate) and removed the temporary local path override used while validating the clipboard-click fixes
+- **Dependencies**: Updated `par-term-emu-core-rust` and rebranded Claude ACP bridge package.
+- **Security**: Split screenshot permissions from YOLO mode.
 
 ### Fixed
-
-- **Input and Shader Lag After CPU Optimizations**: Fixed responsiveness regressions introduced by idle-throttling changes — active tabs/panes no longer use exponential refresh backoff (backoff now applies only to inactive tabs), and the event loop no longer performs idle sleep immediately after queuing a redraw, restoring smooth typing response and shader animation cadence
-- **ACP Agent Connection in App Bundle**: Fixed agent connection failures when running from macOS app bundle — the login shell didn't have nvm/homebrew in PATH. Now resolves the full shell PATH via interactive login shell and passes it to the agent process
-- **Nested Claude Code Session Blocking**: Fixed agent handshake timeout caused by `CLAUDECODE` environment variable leaking into the spawned agent process, which refused to start as a "nested session"
-- **Claude ACP Local Backend Tool Misfires**: Hardened Claude ACP/Ollama sessions against unsupported `Skill`/task tool misuse, improved prompt guidance for local models, and added compatibility handling for XML-style `config_update` tool output emitted by some models
-- **ACP Shader Task Completion Drift (Claude+Ollama)**: Improved Assistant Panel and harness recovery for local backend tool failures and partial completions — detects incomplete shader activation requests (shader written but no `config_update`), retries with stricter bounded ACP guidance, and tracks `config_update` completion from tool-call events to avoid false negatives
-- **Assistant Panel Input Pushed Off-Screen**: Fixed the chat input and controls being invisible because `egui::Area` reported near-infinite available height — added `set_max_height` constraint so the scroll area doesn't consume all space
-- **UTF-8 Panic in Command Truncation**: Fixed potential panic when truncating command text containing multi-byte UTF-8 characters (emoji, CJK, accented characters) — added char-boundary-aware `truncate_chars()` helper used in Timeline, Tree, and List Detail views
-- **Escape Key Closes Panel During Input**: Fixed Escape key unconditionally closing the assistant panel even when typing in the chat input or when a dropdown is open — Escape now only closes the panel when no widget has focus
-- **Error Status Missing Details**: `AgentStatus::Error` now displays the error message inline (e.g., "Error: Agent handshake timed out") with a hover tooltip, instead of showing just "Error"
-- **Agent Selector Not Tracking Selection**: Fixed the multi-agent dropdown always displaying the first agent's name regardless of selection — added persistent `selected_agent_index` so the Connect button and dropdown stay in sync
-- **New Tab Button Clipped Off Right Edge**: Fixed the new-tab split button ([+][▾]) being pushed off the right side of the window — the tab bar width budget was missing the 2px left padding and double-counting the gap before the button, causing ~6px overflow
-- **Assistant Panel Overlapping Tab Bar**: Fixed the assistant panel covering tab bar tabs/buttons when open — the horizontal tab bar now reserves the assistant panel's consumed width so tabs shrink instead of rendering underneath the overlay panel
-- **Clipboard Image Loss on Plain Click (Focused Window / tmux)**: Fixed image clipboard contents being cleared when single-clicking in an already-focused terminal window (especially with tmux mouse reporting enabled) before pasting into image-aware apps like Claude Code — par-term now guards click-like mouse gestures when an image is present in the clipboard, suppresses the forwarded tmux click that caused zero-drag selection/clipboard clears, preserves normal drag-to-select behavior, and skips empty clipboard text writes after selection normalization
-- **Scrollbar Repositioning on Content Inset Changes**: Fixed scrollbar not updating position when content insets change (e.g., assistant panel opening/closing)
+- **Performance**: Resolved input and shader lag by refining idle-throttling logic.
+- **ACP Handshaking**: Fixed connection failures in app bundles and nested session blocking.
+- **UI/UX**: Resolved chat input visibility issues, UTF-8 command truncation panics, and Escape key behavior.
 
 ---
-
 ## [0.21.0] - 2026-02-20
 
 ### Added
-
-- **Nerd Font Icons for Profile Picker**: Replaced emoji presets in the profile icon picker with ~120 curated [Nerd Font](https://www.nerdfonts.com/) icons across 10 categories (Terminal, Dev & Tools, Files & Data, Network & Cloud, Security, Git & VCS, Containers & Infra, OS & Platforms, Status & Alerts, People & Misc) — icons render reliably in egui and show descriptive tooltips on hover
-- **Tab Icon via Context Menu**: Right-click any tab and select "Set Icon" to pick a custom icon from the Nerd Font grid or type any character/emoji — custom icons take precedence over profile-assigned icons and persist across session save/restore, saved layouts, and tab duplication. Use "Clear Icon" to revert to the profile icon or no icon
-- **Tab Title Mode**: New `tab_title_mode` config option (`auto` / `osc_only`) controls how tab titles are automatically updated — `auto` (default) uses OSC title then falls back to CWD from shell integration, `osc_only` only updates from explicit OSC escape sequences and never auto-sets from the working directory. Available in Settings > Window > Tab Bar
-- **Rename Tab**: Right-click any tab and select "Rename Tab" to set a custom name — manually named tabs are static and never auto-updated regardless of the title mode setting. Enter a blank name to revert to automatic title behavior
-- **Session Persistence for Tab Names and Colors**: User-set tab names and custom tab colors are now preserved across session save/restore and in window arrangements
+- **Customization**: Replaced emoji presets with ~120 Nerd Font icons and added support for per-tab custom icons and manual renaming.
+- **Tab Behavior**: New `tab_title_mode` for finer control over automatic title updates.
 
 ### Changed
-
-- **Major Idle CPU Reduction**: Reduced idle CPU usage from ~103% to ~18-25% through four complementary optimizations: conditional dirty tracking in the renderer (only marks dirty when cell/cursor/scrollbar data actually changes), a fast render path that skips expensive shader passes when content is unchanged, adaptive polling with exponential backoff in refresh tasks (16ms → 250ms when idle), and an explicit sleep in the event loop to prevent macOS spinning
-- **Idle Wakeup Cadence Decoupled from FPS**: Refined macOS idle event-loop throttling so focused idle windows no longer wake at render cadence (`max_fps`, often 60Hz) — idle sleep now uses dedicated focused/unfocused caps to reduce unnecessary CPU usage when the terminal is static
-- **Status Bar Skip Updates When Hidden**: When the status bar is enabled but hidden (fullscreen auto-hide or mouse inactivity timeout), per-frame widget updates, session variable capture, and rendering are now skipped — background polling threads continue so data is fresh when the bar reappears
-- **Inactive Tab Refresh Throttling**: Inactive tabs now poll for terminal updates at a reduced rate, lowering CPU usage when many background tabs are open
+- **Power Efficiency**: Major reduction in idle CPU usage (~103% to ~18-25%) via adaptive polling and conditional dirty tracking.
+- **UI Responsiveness**: Decoupled idle wakeup cadence from FPS and throttled inactive tab refresh.
 
 ### Fixed
-
-- **Layout Restore Tab Properties for Multi-Window**: Fixed arrangement and session restore applying custom tab colors, icons, and user titles to the wrong window in multi-window layouts — replaced non-deterministic `HashMap::last()` lookup with the exact `WindowId` returned from window creation
-- **Input Lag During Heavy Terminal Output**: Fixed periodic ~1-second input freezes when multiple tabs produce heavy output (e.g., tmux sessions with active redraws) — replaced `blocking_lock()` with `try_lock()` for animation and graphics updates in the render path so the event loop is never blocked by PTY reader lock contention
-- **Tab Bar Rounded Corner Stroke Thickness**: Fixed the border stroke on tab rounded corners appearing thinner than straight edges — switched from `StrokeKind::Middle` to `StrokeKind::Inside` so the full stroke width renders consistently on both curves and straight segments
-- **Scrollbar Overlapping Terminal Content**: Fixed the scrollbar rendering on top of terminal text instead of reserving its own space — the terminal grid now subtracts the scrollbar width from available columns so content stops before the scrollbar
-- **Tab Bar First Tab Border Clipping**: Fixed the left border of the first tab being slightly cropped in the horizontal tab bar by adding left padding before tab content
-- **Progress Bar Overlapping Tab Bar**: Fixed progress bars rendering on top of the tab bar — progress bars now respect the tab bar position and render below a top tab bar or above a bottom tab bar
-- **Vertically Squashed Ballot Box and Dingbat Glyphs**: Fixed checkbox characters (☐☑☒) and check marks (✓✔) appearing vertically compressed compared to other terminals — Miscellaneous Symbols and Dingbats Unicode ranges now get snap-to-cell-boundaries treatment to prevent scale compression from pixel rounding
-- **Vertically Squished Geometric Shapes**: Fixed geometric shape characters (◼ ■ ▪ ◾ ▬ ▮) rendering as short rectangles instead of proper squares — these now use pixel-perfect geometric rendering with aspect-ratio preservation, using cell width as the base dimension and centering vertically in the cell
-- **Clipboard Image Lost on Single Click**: Added an initial mitigation to reduce accidental clipboard overwrites from click jitter during text selection (further hardened in a later follow-up fix)
-- **Settings Close Reverting Live-Previewed Config**: Fixed closing the settings window reverting live-previewed config changes (like `tab_inactive_outline_only`) — the collapsed-sections save was loading stale values from disk and triggering the config file watcher, overwriting in-memory live-preview state. Now saves the current in-memory config so disk stays in sync
+- **Multi-Window Layouts**: Fixed tab property restoration for arrangements with multiple windows.
+- **Responsiveness**: Resolved input lag during heavy output by switching to `try_lock()` in the render path.
+- **Rendering**: Fixed tab bar corner thickness, scrollbar overlap, and vertically squashed Unicode symbols.
 
 ---
-
 ## [0.20.0] - 2026-02-20
 
 ### Added
-
-- **Hourly Update Check Frequency**: New `Hourly` option for `update_check_frequency` — checks GitHub for new releases every hour (aligned with the existing 1-hour rate limit). Available in Settings > Advanced > Updates
-- **Status Bar Update Widget**: New `UpdateAvailable` status bar widget that appears in the right section when a new version is detected — displays an up-arrow with the available version (e.g., "⬆ v0.20.0") in a highlighted yellow color. Enabled by default and auto-hides when no update is available
-- **Clickable Update Notification**: Clicking the status bar update widget opens a dedicated update dialog overlay showing version info, release notes, GitHub release link, and install/skip/dismiss actions — installation-type-aware (shows package manager commands for Homebrew/Cargo installs, or an Install button for standalone/bundle installs)
-- **Rain Glass Shader**: New `rain-glass.glsl` background shader — rain on glass with a procedural dark nebula background that requires no texture. Configurable color palette, noise parameters, and fog settings via `#define` knobs at the top of the file
-- **Inactive Tab Outline-Only Mode**: New `tab_inactive_outline_only` option renders inactive tabs with just a border stroke and no background fill — hovered inactive tabs brighten the outline for visual feedback
-- **Pane Background Darken Slider**: Added a darken control (0.0–1.0) for per-pane custom background images, allowing backgrounds to be dimmed independently from opacity — darken reduces RGB towards black while opacity controls transparency
-- **Real-Time Pane Background Preview**: Per-pane background settings (image, mode, opacity, darken) now apply instantly as values change — removed the manual "Apply to pane" button
-- **Hide Window Padding on Split**: New `hide_window_padding_on_split` option (default: enabled) automatically removes window padding when panes are split — since each pane has its own padding, the outer window padding is redundant and wastes space
-- **New Tab Menu as Dropdown**: The new tab profile menu now appears as a dropdown in the top-right corner instead of a centered dialog
-- **Assistant Panel Toggle in New Tab Menu**: Added an "Assistant Panel" toggle item to the new tab dropdown menu (visible when `ai_inspector_enabled` is true)
-- **File Transfer Progress Overlay**: Upload progress bar showing filename, bytes transferred, and completion status in a bottom-right egui overlay — downloads show a completed progress bar for 3 seconds after receiving, with direction-specific notifications for both uploads and downloads
+- **Updates**: Hourly update check frequency and a new clickable status bar widget for available updates.
+- **UI/UX**: Dropdown new-tab menu, real-time pane background previews, and a file transfer progress overlay.
+- **Shaders**: New `rain-glass.glsl` background shader and an outline-only mode for inactive tabs.
 
 ### Changed
-
-- **Default Window Padding**: Changed default `window_padding` from 10.0 to 0.0
-- **Default Font Hinting**: Changed default `font_hinting` from true to false for a softer, more natural appearance
-- **Default Tab Bar Mode**: Changed default `tab_bar_mode` from `when_multiple` to `always` so the tab bar is visible by default even with a single tab
+- **Defaults**: Disabled window padding by default and set `tab_bar_mode` to `always`.
 
 ### Fixed
-
-- **Inline Image Display (pt-imgcat)**: Fixed inline images not rendering for files larger than ~750 KB — updated core library to v0.39.1 which increases the OSC buffer limit from 1 MB to 128 MB
-- **Inline Image Double-Scroll**: Fixed partially-scrolled inline images being positioned above the viewport — the renderer now adjusts the y position by `scroll_offset_rows` so the visible portion starts at the correct screen row instead of at the original (negative) position
-- **Upload Over SSH (pt-ul)**: Fixed uploads hanging indefinitely over SSH — resolved response_buffer deadlock by using background thread with chunked PTY writes; fixed archive format (now sends proper tar.gz instead of raw base64)
-- **Render During Active Uploads**: Fixed terminal rendering being completely blocked during file uploads — the render pipeline returned early when `try_lock()` failed (upload thread held the terminal lock), now falls back to cached cells so the egui overlay (including file transfer progress) can render
-- **Remote Shell Install Dialog**: Fixed Install button and Copy button not working — Install now uses `paste_text()` (same code path as Cmd+V) which correctly forwards commands through SSH sessions via bracketed paste mode; added Copy Command button with clipboard feedback; added Enter/Escape key support
-- **Stale URL Hover State**: Fixed mouse cursor and title bar showing file info for content that has scrolled off screen — `detect_urls()` now clears hover state and resets cursor/title on every content rebuild
-- **Dialog Input Passthrough**: Fixed mouse and keyboard events leaking through to the terminal when the remote shell install, quit confirmation, or SSH connect dialogs were visible
-- **Live Window Padding Updates**: Window padding changes in the settings UI now take effect immediately without requiring an app restart — the renderer, graphics, and shader sub-renderers are all updated live and terminals are resized to match the new grid dimensions
-- **Settings Collapsible Section Persistence**: Fixed 14 collapsible sections across 6 settings UI files (Effects, Profiles, Scripts, Snippets) that lost their expanded/collapsed state when reopening the settings window or restarting the app — all sections now use the persistent `collapsing_section` helper that saves state to config
-- **Split Pane Mouse Event Routing**: Fixed mouse events (click, motion, scroll) being sent to the tab's legacy terminal instead of the focused pane's terminal in split pane mode — tmux pane resize and other mouse-aware applications inside split panes now work correctly
-- **Split Pane Focus and Divider Resize**: Fixed regression where clicking on pane dividers or other panes was consumed by the focused pane's terminal mouse tracking, preventing pane focus switching and divider drag-to-resize — added bounds checking so only clicks inside the focused pane are forwarded to its terminal
+- **File Transfers**: Fixed uploads hanging over SSH and implemented background threads for PTY writes.
+- **Split Panes**: Corrected mouse event routing and divider resize logic in split-pane mode.
+- **Rendering**: Resolved inline image display issues for large files and fixed live window padding updates.
 
 ---
-
 ## [0.19.0] - 2026-02-19
 
 ### Added
-
-- **Configurable Link Highlight Color**: Link highlight color for detected URLs and file paths is now configurable via `link_highlight_color` setting (default: bright cyan `#4FC3F7`), with a color picker in Settings > Terminal > Semantic History
-- **Link Underline Rendering**: Detected URLs and file paths now render with visible underlines in the GPU text pipeline (previously the underline flag was set but never drawn)
-- **Link Underline Toggle**: Added `link_highlight_underline` setting to enable/disable underlines on highlighted links (default: enabled)
-- **Stipple Underline Style**: Added `link_underline_style` setting with Solid and Stipple (dotted) options — Stipple is the default, matching iTerm2's link underline aesthetic
-- **Settings Search Auto-Focus**: The quick search input in the settings UI now receives focus automatically when the window opens, allowing immediate keyboard-driven filtering
+- **Link Highlighting**: Configurable link highlight colors, underlining support, and stipple underline style.
+- **Settings**: Auto-focus for settings search input.
 
 ### Fixed
-
-- **Fast Window Shutdown**: Fixed slow app close (beachball on macOS) that scaled with number of open tabs — moved all blocking disk I/O (session save, command history, session loggers) to background threads, replaced long-sleeping status bar polling threads with 50ms interruptible loops, and signal pollers to stop at the start of shutdown so joins complete instantly
-- **Settings Sidebar Icon**: Fixed Input tab (⌨️) showing an empty box due to trailing Unicode variation selector (U+FE0F) that egui cannot render
-- **Miscellaneous Technical Symbol Rendering**: Fixed media control characters (⏺ ⏹ ⏸ ⏩ ⏪ etc., U+2300–U+23FF) rendering as colored emoji instead of monochrome symbols — extends the dingbat monochrome fix to cover the entire Miscellaneous Technical block
-- **Crate Package Size**: Fixed crates.io publish failure by excluding non-essential files (shader textures, gallery images, macOS .icns, design docs) — reduced package from 24.7MiB to 3.9MiB
+- **Shutdown**: Implemented fast window shutdown by moving I/O to background threads.
+- **Symbols**: Fixed media control character rendering as colored emoji.
+- **Distribution**: Reduced crate package size by excluding non-essential files.
 
 ---
-
 ## [0.18.0] - 2026-02-18
 
 ### Added
-
-- **Quick Settings Shader Toggles**: Added BG Shader and Cursor Shader toggle checkboxes to the settings UI quick settings strip, allowing shader effects to be enabled/disabled without navigating to the shader configuration tab
-- **Focus Event Forwarding**: Forward CSI focus-in/out sequences (`\x1b[I` / `\x1b[O`) to all PTYs that have DECSET 1004 focus tracking enabled, allowing applications like tmux to react to window focus changes
+- **Quick Settings**: Added BG and Cursor Shader toggles to the quick settings strip.
+- **Focus Tracking**: Forward CSI focus-in/out sequences to PTYs for applications like tmux.
 
 ### Fixed
+- **Rendering**: Fixed dingbat/symbol characters rendering as colored emoji instead of monochrome.
+- **Input**: Suppressed focus clicks to prevent accidental clipboard loss in mouse-aware apps.
+- **Shell Detection**: Improved shell detection with multi-strategy fallback.
+- **Settings**: Fixed empty icons in the settings sidebar and resolved version display issues.
 
-- **Dingbat/Symbol Monochrome Rendering**: Fixed dingbat characters (✳ ✴ ❇, etc.) rendering as colorful emoji instead of monochrome symbols using the terminal foreground color — characters in the Dingbats (U+2700-U+27BF), Miscellaneous Symbols (U+2600-U+26FF), and Miscellaneous Symbols and Arrows (U+2B00-U+2BFF) blocks now consistently render as text-colored symbols, fixing spinner animation inconsistencies in Claude Code (#194)
-- **Focus Click Clipboard Loss**: Suppress the first mouse click that focuses the window to prevent it from being forwarded to the PTY — without this, tmux (or other mouse-aware apps) would trigger a zero-char selection that clears the system clipboard, destroying any clipboard image
-- **Image Paste in Claude Code**: Fixed Cmd+V / menu Paste not forwarding to terminal when clipboard contains an image but no text — image-aware child processes (e.g., Claude Code) now receive Ctrl+V so they can handle image paste via their own clipboard access
-- **Settings Sidebar Icons**: Fixed empty box rendering for several tab icons — AiInspector, StatusBar, Input, and Advanced tabs now display correctly using emoji characters in egui's supported Unicode range
-- **Shell Detection**: Improved `ShellType::detect()` with multi-strategy fallback — checks `$SHELL` env var first, then `dscl` on macOS (for app bundle launches where `$SHELL` is not set), then `/etc/passwd` on Unix systems
-- **Settings Version Display**: Fixed settings UI and update checker displaying subcrate version "0.1.0" instead of the actual application version; app version is now passed from the main crate via `SettingsUI.app_version` and `UpdateChecker::new(current_version)`
-- **Shell Integration Install/Uninstall**: Fixed Install and Uninstall buttons in the shell integration section doing nothing — wired `shell_integration_is_installed_fn` and action dispatch through `SettingsWindowAction::InstallShellIntegration` / `UninstallShellIntegration` to the actual installer
-
-### Changed
-
-- **Assistant Panel Defaults**: Changed default view mode from "cards" to "tree" and default auto-send context from enabled to disabled
-- **Refactor**: Collapsed `src/config/` re-export layer — replaced ~4,800 lines of duplicate code with a single `pub use par_term_config::*;`, eliminating all duplicate files (`types.rs`, `defaults.rs`, `snippets.rs`, `shader_config.rs`, `shader_metadata.rs`, `automation.rs`, `scripting.rs`, `watcher.rs`) from `src/config/` (closes #182)
-- **Refactor**: Extracted SSH subsystem into new `par-term-ssh` workspace subcrate — moved ~1,174 lines from `src/ssh/` into dedicated crate with `mdns-sd`, `serde`, and `dirs` dependencies; `src/ssh/mod.rs` is now a thin re-export shim (closes #176)
-- **Refactor**: Extracted keybinding system into new `par-term-keybindings` workspace subcrate — moved ~1,490 lines from `src/keybindings/` into dedicated crate with `par-term-config` and `winit` dependencies; `src/keybindings/mod.rs` is now a thin re-export shim (closes #177)
-- **Refactor**: Extracted scripting/observer system into new `par-term-scripting` workspace subcrate — moved ~877 lines from `src/scripting/` into dedicated crate with `par-term-config`, `par-term-emu-core-rust`, and `serde_json` dependencies; `src/scripting/mod.rs` is now a thin re-export shim (closes #178)
-- **Refactor**: Extracted update system into new `par-term-update` workspace subcrate — moved ~1,170 lines from `src/manifest.rs`, `src/self_updater.rs`, `src/update_checker.rs` into dedicated crate; heavy deps (`zip`, `sha2`, `ureq`, `semver`, `chrono`) isolated from main crate; source files replaced with re-export shims (closes #179)
-- **Refactor**: Extracted input handler into new `par-term-input` workspace subcrate — moved ~505 lines from `src/input.rs` into dedicated crate with `par-term-config`, `arboard`, and `winit` dependencies; `src/input.rs` is now a thin re-export shim (closes #180)
-- **Refactor**: Extracted MCP stdio server into new `par-term-mcp` workspace subcrate — moved ~580 lines from `src/mcp_server.rs` into dedicated crate with only `serde`, `serde_json`, and `dirs` dependencies; zero internal crate dependencies make it independently publishable (closes #181)
-- **Refactor**: Moved `PaneId` and `TabId` type definitions into `par-term-config` for shared access across subcrates — `src/pane/types.rs` and `src/tab/mod.rs` now re-export from `par-term-config`; `src/tmux/sync.rs` imports directly from `par-term-config`, removing its internal crate coupling (closes #183)
-- **Refactor**: Extracted tmux control mode integration into new `par-term-tmux` workspace subcrate — moved ~2,474 lines from `src/tmux/` into dedicated crate with `par-term-config`, `par-term-emu-core-rust`, `winit`, `chrono`, `hostname`, and `regex` dependencies; `src/lib.rs` re-exports the crate as `tmux` module for zero call-site changes (closes #184)
+### Refactored
+- Collapsed `src/config/` re-export layer (~4,800 lines of duplicates removed).
+- Extracted SSH, keybinding, scripting, update, input, MCP, and tmux subsystems into dedicated workspace crates.
 
 ---
-
 ## [0.17.1] - 2026-02-18
 
 ### Changed
-
-- **Dependency Updates**: Updated multiple workspace dependencies to latest versions
-  - `clap` 4.5.57 → 4.5.59 (patch)
-  - `libc` 0.2.181 → 0.2.182 (patch)
-  - `uuid` 1.20 → 1.21 (minor, across root, config, settings-ui)
-  - `arboard` 3.4.1 → 3.6.1 (minor, in settings-ui)
-  - `regex` 1.11 → 1.12.3 (minor, in settings-ui)
-  - `zip` 7.4.0 → 8.1.0 (major)
-  - `mdns-sd` 0.17 → 0.18 (major)
-  - `ureq` 2.12 → 3.2.0 (major, in settings-ui — aligned with root crate)
-  - 27 transitive dependencies also updated via `cargo update`
+- Updated workspace dependencies including `zip`, `mdns-sd`, and `ureq`.
 
 ### Fixed
-
-- **macOS Self-Update Quarantine**: Auto-updater now runs `xattr -cr` on the .app bundle after extracting update zip to remove macOS quarantine attributes, preventing Gatekeeper from blocking the updated app on next launch
-- **CI Publishing**: Fixed publish workflow to publish all workspace subcrates in dependency order before the main crate, resolving "no matching package" errors for workspace path dependencies
+- **macOS**: Resolved self-update quarantine issues by stripping Gatekeeper attributes.
+- **CI**: Fixed workspace subcrate publishing order.
 
 ---
-
 ## [0.17.0] - 2026-02-17
 
 ### Added
-
-- **Duplicate Tab Context Menu**: Added "Duplicate Tab" option to the tab right-click context menu (#160)
-  - Creates a new tab adjacent to the source tab with the same working directory and custom color
-  - Works on any tab via right-click, not just the active tab
+- **Assistant Panel**: DevTools-style panel for terminal inspection and ACP agent integration.
+- **Shader Assistant**: Context-triggered shader expertise for agents.
+- **File Transfers**: Native UI for iTerm2 OSC 1337 transfers.
+- **Per-Pane Backgrounds**: Independent background images for each split pane.
+- **Scripting**: New Python-based scripting manager for reacting to terminal events.
+- **Team Features**: Dynamic profile loading from remote URLs.
+- **Aesthetics**: Auto dark mode and automatic tab styling based on system theme.
 
 ### Changed
-
-- **Font Manager Extraction**: Extracted font management and text shaping into `par-term-fonts` workspace crate (#165)
-  - Moved `FontManager`, `FontData`, `TextShaper`, and fallback chain into `par-term-fonts`
-  - Main crate re-exports all types for backward compatibility
-  - Includes embedded DejaVu Sans Mono fallback font and integration tests
-- **Terminal Manager Extraction**: Extracted terminal manager into `par-term-terminal` workspace crate (#166)
-  - Moved `TerminalManager`, scrollback metadata, styled content, and all terminal submodules into `par-term-terminal`
-  - Moved `Cell` type to `par-term-config` as a shared type between terminal and renderer crates
-  - Defined `SearchMatch` type in `par-term-terminal` for terminal search results
-  - Main crate re-exports all types for backward compatibility
-- **Settings UI Extraction**: Completed extraction of settings UI into `par-term-settings-ui` workspace crate (#170)
-  - Moved all 28 settings tab modules, sidebar, section helpers, and shader utilities into `par-term-settings-ui`
-  - Moved `SettingsUI` struct, `SettingsWindowAction` enum, and all settings data types into the crate
-  - Moved arrangement data types (`WindowArrangement`, `ArrangementManager`, etc.) to `par-term-settings-ui`
-  - Used callback pattern for cross-crate operations (shader install, self-update, shell integration)
-  - Main crate re-exports all types for backward compatibility
-- **Cell Renderer Extraction**: Extracted GPU rendering engine into `par-term-render` workspace crate (#167)
-  - Moved `CellRenderer`, `Renderer`, `GraphicsRenderer`, `CustomShaderRenderer`, `Scrollbar`, and `gpu_utils` into `par-term-render`
-  - Moved all WGSL shaders (cell_bg, cell_text, sixel, scrollbar, background_image) into `par-term-render`
-  - Moved `ScrollbackMark` to `par-term-config` as a shared type between terminal and renderer crates
-  - Main crate re-exports all types for backward compatibility
-- **Assistant Panel Rebrand**: Renamed "AI Inspector" to "Assistant" throughout the UI
-  - Panel title, settings sidebar tab, settings checkboxes/tooltips, and log messages all updated
-  - Internal code identifiers (`ai_inspector`) unchanged for backwards compatibility
-- **Terminal Capture Defaults**: Terminal capture now defaults to paused instead of live, reducing resource usage when the panel is opened purely for agent chat
-- **Assistant Panel Layout**: Reorganized panel sections for better workflow
-  - ACP agent connection bar moved above the terminal capture area (was below)
-  - Terminal capture configuration and command history wrapped in a collapsible section, defaulting to collapsed
+- Refactored core modules (fonts, terminal, settings, rendering) into dedicated workspace crates.
+- Renamed "AI Inspector" to "Assistant".
 
 ### Fixed
-
-- **Shift+Tab Not Reaching Terminal**: Fixed Shift+Tab being intercepted instead of sent to terminal applications like Claude Code (#158)
-  - Input handler now sends standard `\x1b[Z` (CSI Z) reverse-tab escape sequence for Shift+Tab instead of plain `\t`
-  - Filtered egui's default Tab focus navigation from stealing Tab/Shift+Tab when no modal UI overlay is visible
-  - Side panels (Assistant, profile drawer) no longer block Tab passthrough to the terminal
-- **Assistant Panel Content Overflow**: Fixed long commands causing panel to expand beyond viewport
-  - Added text wrapping to all chat message types (user, agent, thinking, tool calls, command suggestions, permissions, system messages)
-  - Enforced hard maximum width constraint (50% of viewport) to prevent panel from taking over the window
-- **Assistant Panel Resize Line Z-Order**: Fixed resize line rendering above welcome modal and other dialogs
-  - Changed resize line layer from `Order::Middle` to `Order::Background` so modal dialogs always render on top
-- **Assistant Panel Resize**: Comprehensive fix for panel resize handle behavior
-  - Eliminated 1-frame drag lag by moving resize handle input before panel rendering
-  - Fixed resize handle jumping into the panel on drag start when content overflows configured width
-  - Fixed resize handle and scrollbar jittering when dragged to min/max width (rendered_width oscillation)
-  - Fixed terminal text selection during resize drag by blocking mouse events via `wants_pointer()` check
-- **Dialog Z-Ordering**: All modal dialogs now render above the scrollbar and Assistant panel
-  - Added `Order::Foreground` to all 8 dialog windows (quit, close tab, manage profiles, confirm delete, new tab, file transfers, reset defaults, remote shell install)
-  - Moved scrollbar GPU render pass before egui pass so egui dialogs always appear on top
-- **Fast Window Shutdown**: Closing par-term is now visually instant instead of taking 8+ seconds with a beachball on macOS (#146)
-  - Window hides immediately on close for instant visual feedback
-  - PTY session cleanup runs on parallel background threads instead of sequentially on the main thread
-  - Reduced tokio runtime shutdown timeout from 2s to 500ms
-  - Eliminated unnecessary `thread::sleep()` calls (200ms + 50ms per tab) during shutdown
-  - 3-tab window: visual close time reduced from ~8.35s to instant; total cleanup ~2.5s (parallel, in background)
-
-### Added
-
-- **Shader Assistant**: Context-triggered shader expertise for ACP agents (#156)
-  - Auto-detects shader-related queries (20 keywords: shader, glsl, wgsl, crt, shadertoy, etc.) and active shader state
-  - Injects full shader reference into agent prompts: current shader state, available shaders, uniforms, GLSL template, debug file paths
-  - Config file watcher monitors `config.yaml` for external changes (e.g., agent-applied shader settings) and live-reloads without restart
-  - Enables ACP agents to create, edit, debug, and apply custom shaders end-to-end
-
-- **Assistant Panel** (formerly AI Inspector): DevTools-style right-side panel for terminal state inspection and ACP agent integration (#149)
-  - Toggle with Cmd+I (macOS) / Ctrl+Shift+I (other) or `toggle_ai_inspector` keybinding action
-  - 4 view modes (Cards, Timeline, Tree, List+Detail) for browsing command history with exit codes, durations, and output
-  - Configurable scope: Visible (screen), Recent 5/10/25/50, or Full scrollback
-  - JSON export: Copy to clipboard or save to file with structured snapshot data (environment, terminal state, commands)
-  - ACP agent chat: Connect to Claude Code and other ACP-compatible agents via JSON-RPC 2.0 over stdio
-  - Full chat UI with user, agent, system, thinking, tool call, command suggestion, permission, and auto-approved message types
-  - Agent command suggestions rendered as clickable blocks with Run (execute + notify agent) and Paste (write to input) actions
-  - Agent connection bar with connect/disconnect controls and one-click install buttons for agents without connectors
-  - Agent terminal access toggle: allow or deny agent write access to the terminal
-  - Auto-context feeding: Automatically sends command results to the connected agent on completion
-  - 8 bundled ACP agent configs: Claude Code, Amp, Augment, GitHub Copilot, Docker, Gemini CLI, OpenAI, OpenHands
-  - User-defined agent configs via TOML files in `~/.config/par-term/agents/`
-  - Auto-launch configured agent when panel opens (default: Claude Code)
-  - Yolo mode: Auto-approve all agent permission requests
-  - Resizable panel with drag handle on left edge; auto-expands when content overflows
-  - Terminal reflows columns when panel opens, closes, or is resized
-  - Settings UI tab with controls for all 11 configuration options
-  - 50+ unit tests across snapshot, chat, JSON-RPC, protocol, agent discovery, and agent lifecycle modules
-
-- **File Transfer UI**: Native file dialogs and progress overlay for iTerm2 OSC 1337 file transfers (#154)
-  - Native save dialog when file downloads complete, with configurable default save location (Downloads folder, last used, CWD, custom)
-  - Native file picker when remote application requests file upload
-  - Real-time egui progress overlay (bottom-right) showing all active transfers with progress bars
-  - Desktop notifications for transfer lifecycle events (start, complete, fail)
-  - Upload cancellation when user dismisses file picker
-  - Settings UI in Advanced > File Transfers for download save location preference
-
-- **Shell Integration Utilities**: `pt-dl`, `pt-ul`, and `pt-imgcat` POSIX sh scripts for file download, upload, and inline image display via iTerm2 OSC 1337 protocol
-  - Work over SSH on any remote host using only standard Unix utilities
-  - Automatically installed to `~/.config/par-term/bin/` with PATH setup
-  - tmux/screen passthrough support for escape sequences
-  - Also available via the curl-based remote installer
-
-- **Per-Pane Background Images**: Individual background images for each split pane (#148)
-  - New `PaneBackground` data model with per-pane image path, display mode (fit/fill/stretch/tile/center), and opacity
-  - GPU texture cache with path-based deduplication for efficient multi-pane rendering
-  - Per-pane bind groups substitute pane dimensions into existing background shader — no shader changes needed
-  - Config persistence via `pane_backgrounds` array in config.yaml with index, image, mode, opacity
-  - Falls back to global `background_image` when no per-pane image is configured
-  - Settings UI in Effects > Per-Pane Background with pane index selector, file picker, mode dropdown, opacity slider
-  - Tilde expansion for image paths (e.g., `~/Pictures/bg.png`)
-
-- **Scripting Manager**: Python scripts that react to terminal events via the observer API (#150)
-  - New config option: `scripts` array with per-script `name`, `script_path`, `args`, `auto_start`, `restart_policy`, `subscriptions`, `env_vars`
-  - JSON protocol over stdin/stdout: terminal sends events, scripts send commands back
-  - 12 event types: `bell_rang`, `cwd_changed`, `command_complete`, `title_changed`, `size_changed`, `user_var_changed`, `environment_changed`, `badge_changed`, `trigger_matched`, `zone_opened`, `zone_closed`, `zone_scrolled_out`
-  - 9 command types: `WriteText`, `Notify`, `SetBadge`, `SetVariable`, `RunCommand`, `ChangeConfig`, `Log`, `SetPanel`, `ClearPanel`
-  - Per-tab script lifecycle with auto-start and restart policies (Never/Always/OnFailure)
-  - Event subscription filtering (empty = all events)
-  - Markdown panels: scripts can register custom UI panels rendered in Settings
-  - Settings UI: Scripts tab with full CRUD, start/stop controls, output viewer, error display, panel viewer
-  - Observer bridge: `ScriptEventForwarder` implements core `TerminalObserver` trait for real-time event forwarding
-  - Example script: `scripts/examples/hello_observer.py`
-
-- **Configurable Link Handler**: Custom command for opening URLs instead of system default browser
-  - New config option: `link_handler_command` with `{url}` placeholder (e.g., `firefox {url}`)
-  - Falls back to system default browser when empty
-  - Settings UI field in Terminal > Semantic History with placeholder validation warning
-  - Searchable via "link handler", "browser", "open url" in Settings search
-
-- **Dynamic Profiles from Remote URLs**: Load profile definitions from remote URLs for team-shared configurations (#142)
-  - New config option: `dynamic_profile_sources` with per-source URL, custom headers, refresh interval, size limits, and conflict resolution
-  - Background auto-refresh via configurable timer (default 30 min)
-  - Local cache for offline availability (`~/.config/par-term/cache/dynamic_profiles/`)
-  - Configurable conflict resolution: Local Wins (default) or Remote Wins
-  - HTTPS enforcement when auth headers are present
-  - Settings UI for managing dynamic sources (add/edit/remove, headers editor, refresh controls)
-  - Visual `[dynamic]` indicators in profile modal and drawer; dynamic profiles are read-only
-  - New keybinding action: `reload_dynamic_profiles` for manual refresh
-  - 11 unit tests covering serialization, cache, and merge logic
-
-- **Auto Dark Mode**: Automatically switch terminal theme based on system light/dark appearance (#139)
-  - New config options: `auto_dark_mode`, `light_theme`, `dark_theme`
-  - Detects system theme at startup via `Window::theme()`
-  - Responds to real-time OS theme changes via `WindowEvent::ThemeChanged`
-  - Settings UI controls in Appearance > Auto Dark Mode section
-  - Defaults: light theme = "Light Background", dark theme = "Dark Background"
-
-- **Automatic Tab Style**: Auto-switch tab bar style based on system light/dark appearance (#141)
-  - New `Automatic` variant for the `tab_style` config option
-  - Configurable light/dark mapping via `light_tab_style` and `dark_tab_style`
-  - Detects system theme at startup and responds to real-time OS theme changes
-  - Settings UI sub-dropdowns for light/dark style selection when Automatic is chosen
-  - Defaults: light = "Light", dark = "Dark"
-
-- **macOS Target Space**: Open windows in a specific macOS Space (virtual desktop) (#140)
-  - New config option: `target_space` (1-16, or null for OS default)
-  - Uses private SkyLight Server (SLS) APIs with version-aware implementation
-  - Supports both legacy API (macOS < 14.5) and modern compat ID API (macOS 14.5+)
-  - Settings UI control in Window > Window Behavior section (macOS only)
-  - Graceful degradation: logs warning and continues if Space APIs unavailable
+- Resolved Shift+Tab interception issues.
+- Implemented instant window shutdown on macOS.
 
 ---
-
 ## [0.16.0] - 2026-02-13
 
 ### Added
-
-- **Status Bar**: Configurable status bar with widget system (#133)
-  - 10 built-in widgets: clock, username@hostname, current directory, git branch, CPU usage, memory usage, network status, bell indicator, current command, custom text
-  - Three-section layout (left/center/right) with configurable separator
-  - Widget configurator in Settings UI with drag-and-drop reordering
-  - System monitoring via background thread (CPU, memory, network)
-  - Git branch polling with configurable interval
-  - Auto-hide on fullscreen and/or mouse inactivity
-  - Per-widget enable/disable and section assignment
-  - Customizable colors, font, opacity, and height
-  - Top or bottom positioning (stacks with tab bar)
-
-- **Install Shell Integration on Remote Host** (#135): New Shell menu with option to install shell integration on remote hosts via SSH
-  - Shell > Install Shell Integration on Remote Host... sends curl command to active terminal
-  - Confirmation dialog shows exact command before sending
-  - Uses existing install script hosted on GitHub Pages
-
-- **Navigate to Settings from Application Menu** (#127): Platform-aware settings access from native application menu
-  - macOS: "par-term" application menu with Settings... (Cmd+,), About, and standard macOS items (Services, Hide, Hide Others, Show All, Quit)
-  - Windows/Linux: Edit > Preferences... (Ctrl+Shift+,) follows platform conventions
-  - View > Settings... (F12) retained on all platforms for backward compatibility
-
-- **Profile Selection on New Tab Button** (#129): Split button on the tab bar for quick profile-based tab creation
-  - `+` button creates a default tab (existing behavior preserved)
-  - `▾` chevron opens a profile dropdown with "Default" at top + all profiles in order with icons
-  - Chevron only appears when profiles exist
-  - Works in both horizontal and vertical tab bar layouts
-  - New config option `new_tab_shortcut_shows_profiles` (default: false) to make Cmd+T / Ctrl+Shift+T show the profile picker instead
-  - Escape key dismisses the dropdown
-  - Settings checkbox in Window > Tab Behavior section
-
-- **SSH Host Profiles, Quick Connect & Auto-Discovery** (#134): Comprehensive SSH host management
-  - SSH config parser (`~/.ssh/config`) for host discovery with wildcard filtering, multi-host blocks, ProxyJump
-  - Known hosts parser (`~/.ssh/known_hosts`) with hashed entry skipping and bracketed `[host]:port` support
-  - Shell history scanner (bash/zsh/fish) for previously-used SSH connections
-  - mDNS/Bonjour SSH host discovery via `_ssh._tcp.local.` service browsing (opt-in)
-  - SSH Quick Connect dialog (`Cmd+Shift+S`) with search, keyboard navigation, grouped by source
-  - SSH-specific profile fields: host, user, port, identity file, extra args
-  - Profiles with `ssh_host` set launch SSH connections instead of shells
-  - Automatic profile switching on SSH connection (hostname-based via OSC 1337)
-  - Command-based profile switching when `ssh` process is detected running
-  - Auto-revert to previous profile when SSH session ends
-  - SSH settings tab in Settings UI (auto-switch toggles, mDNS config)
-  - Host discovery aggregator with deduplication across all sources
-
-- **Shell Selection Per Profile** (#128): Configure a specific shell for each profile with platform-aware detection
-  - New `shell` field on profiles selects a shell independently of the `command` field
-  - New `login_shell` field per profile overrides the global login shell setting (None = inherit, true/false = override)
-  - Platform-aware shell detection: parses `/etc/shells` on Unix/macOS, checks known locations on Windows (PowerShell, cmd, Git Bash, WSL, MSYS2, Cygwin)
-  - Shell dropdown in profile editor with all detected shells + "Default (inherit global)" option
-  - Priority: profile `command` > profile `shell` > global `custom_shell` / `$SHELL`
-  - Inheritable via profile parent system
-  - Search keywords added to Settings Profiles tab for discoverability
+- **Status Bar**: Configurable bar with widgets for system monitoring and session info.
+- **Remote Integration**: Support for installing shell integration via SSH.
+- **Native Menus**: Platform-appropriate settings access from application menus.
+- **SSH Host Management**: Integrated SSH config parsing and Quick Connect dialog.
+- **Profile Improvements**: Profile selection on new-tab button and per-profile shell overrides.
 
 ---
-
 ## [0.15.0] - 2026-02-12
 
 ### Added
-
-- **Directory-Based Profile Switching** (#114): Automatically switch profiles based on current working directory
-  - New `directory_patterns` field on profiles (glob patterns like `/Users/*/projects/work-*`)
-  - CWD changes detected via OSC 7 trigger profile matching
-  - Priority: explicit user selection > hostname match > directory match > default
-  - Settings UI for editing directory patterns per profile
-  - Does not override explicit user profile selection or hostname-based switching
-
-- **Profile Emoji Picker** (#114): Emoji picker popup for the profile icon field in the profile modal
-  - Curated grid of ~70 terminal-relevant emojis in 9 categories (Terminal, Dev & Tools, Files & Data, Network & Cloud, Security, Status & Alerts, Containers & Infra, People & Roles, Misc)
-  - Scrollable popup with category headers and one-click selection
-  - Users can still type custom emojis directly in the text field
-  - "Clear icon" button to remove the current icon
-
-- **Full Profile Auto-Switch Application** (#114): Auto-switched profiles now apply all visual settings
-  - **Directory switching**: Applies profile icon in tab bar, overrides tab title, applies badge text and badge styling (color, alpha, font, bold, margins, size), executes profile command
-  - **Hostname switching**: Brought to full parity — applies icon, title, badge text/styling, and command execution on remote host detection
-  - **Tmux session switching**: Brought to full parity — applies icon, title, badge text/styling, and command execution on session name match
-  - Profile icon displayed in both horizontal and vertical tab bar layouts
-  - Original tab title saved and restored when auto-profile clears
-
-- **Tab Style Variants** (#112): Cosmetic tab bar presets with 5 built-in styles
-  - Dark (default), Light, Compact, Minimal, and High Contrast presets
-  - Each preset applies coordinated color/size/spacing adjustments
-  - Exposed as dropdown in Settings > Window > Tab Bar
-  - Config: `tab_style: dark|light|compact|minimal|high_contrast`
-
-- **Alert Sounds** (#112): Configurable sound effects for terminal events
-  - Per-event sound configuration: Bell, Command Complete, New Tab, Tab Close
-  - Each event supports: enable/disable, volume, frequency, duration, custom sound file
-  - Custom sound files: WAV/OGG/FLAC format with `~` home directory expansion
-  - Falls back to legacy `notification_bell_sound` for backward compatibility
-  - Config: `alert_sounds` map with per-event `AlertSoundConfig` entries
-  - UI in Settings > Notifications > Alert Sounds
-
-- **Fuzzy Command History Search** (#118): Searchable overlay for browsing and selecting from command history
-  - Fuzzy matching with ranked results via Skim algorithm (`fuzzy-matcher` crate)
-  - Match highlighting with yellow underline on matching characters
-  - Exit code indicators (green/red/gray) and relative timestamps per entry
-  - Keyboard navigation: Arrow Up/Down, Enter to insert, Esc to close
-  - Commands captured from OSC 133 shell integration markers and core library history
-  - Deduplicated entries (re-executing moves command to top)
-  - History persisted across sessions to `~/.config/par-term/command_history.yaml`
-  - Config: `command_history_max_entries` (default: 1000), exposed in Settings > Terminal > Command History
-  - Keybinding: Cmd+R (macOS), Ctrl+Alt+R (Linux/Windows)
-
-- **Import/Export Preferences** (#91): Import and export terminal configuration
-  - Export current config to a YAML file via native file dialog
-  - Import preferences from a local YAML file (replace or merge modes)
-  - Import preferences from a URL (replace or merge modes)
-  - Merge mode only overrides values that differ from defaults, preserving user customizations
-  - Validation ensures imported config is well-formed before applying
-  - UI in Settings > Advanced > Import/Export Preferences
-
-- **Session Undo — Reopen Closed Tabs** (#115): Recover accidentally closed tabs
-  - Captures tab metadata (CWD, title, position, pane layout, custom color) on close
-  - Reopen with Cmd+Z (macOS) or Ctrl+Shift+Z (Linux/Windows)
-  - Toast notification shows undo keybinding hint and countdown
-  - Configurable timeout: `session_undo_timeout_secs` (default: 5s, 0 = disabled)
-  - Configurable queue depth: `session_undo_max_entries` (default: 10)
-  - **Preserve shell session**: `session_undo_preserve_shell` (default: false) — when enabled,
-    closing a tab hides the shell instead of killing it; undo restores the full session with
-    scrollback, running processes, and pane layout intact
-  - Restores tab at original position with title, custom color, and split pane layout
-  - Expired entries automatically pruned from queue (hidden tabs killed on expiry)
-  - UI controls in Settings > Terminal > Startup
-
-- **Session Restore on Startup** (#117): Automatically save and restore session state
-  - Saves open windows, tabs, pane layouts, and working directories on clean exit
-  - Restores full session on next launch including split pane trees with ratios
-  - Working directories validated on restore; missing directories fall back to `$HOME`
-  - Takes precedence over `auto_restore_arrangement` when both are enabled
-  - Graceful degradation: corrupt/missing session file creates default window
-  - Session file cleared after successful restore to prevent stale state
-  - Config: `restore_session: true` (default: false)
-  - UI checkbox in Settings > Terminal > Startup
-
-- **Tab Bar Position** (#116): Configurable tab bar placement with three positions
-  - **Top** (default): Current horizontal tab bar at the top of the window
-  - **Bottom**: Horizontal tab bar below terminal content
-  - **Left**: Vertical sidebar with scrollable tab list, active indicator, and drag-and-drop reordering
-  - Configurable sidebar width for Left position (default 160px, range 100–300)
-  - All positions support tab bar visibility modes (always/when_multiple/never)
-  - Live switching via Settings UI dropdown without restart
-  - Config: `tab_bar_position: top|bottom|left`, `tab_bar_width: 160.0`
-  - UI in Settings > Window > Tab Bar
+- **Auto-Switching**: Automatically switch profiles based on current working directory patterns.
+- **UI/UX**: Nerd Font icon picker for profiles and support for tab style variants.
+- **Audio**: Configurable alert sounds for terminal events.
+- **History**: Fuzzy search overlay for command history.
+- **Session Management**: Session undo (reopen closed tabs) and automatic session restoration on startup.
+- **Layout**: Support for bottom and left tab bar positions.
 
 ### Improved
-
-- **Profile management moved to Settings window** (#125): Profile create/edit/delete/reorder UI is now embedded inline in the Settings > Profiles tab, replacing the terminal-window modal dialog. The profile drawer's "Manage" button and the menu's "Manage Profiles" action now open the Settings window to the Profiles tab. This eliminates the disjointed settings → terminal → modal flow.
-- **Settings quick search**: Added missing search keywords across all settings tabs for better discoverability of settings via the search box
+- Moved profile management directly into the Settings window.
 
 ### Fixed
-
-- **Paste/Copy/Select-All in egui overlays**: Cmd+V, Cmd+C, and Cmd+A now correctly route to egui text fields when a modal dialog is active (profile modal, search overlay, clipboard history, command history, shader install, integrations). Previously, macOS menu accelerators (muda) intercepted these shortcuts and sent them to the terminal instead.
-- **Directory pattern tilde expansion**: Profile directory patterns using `~` (e.g., `~/Repos/par-term*`) now correctly expand to the home directory before matching. Previously, `~` was treated as a literal character and never matched.
-- **Comprehensive HiDPI/DPI scaling fix**: All pixel-dimension config values are now correctly scaled from logical pixels to physical pixels on HiDPI displays (e.g., Retina at scale_factor=2). Previously, many values rendered at half their intended size. Fixed values include:
-  - Tab bar content offset (#121), window padding, scrollbar width
-  - Pane padding, divider width/hit width, title height, focus border width
-  - Command separator thickness, cursor shadow offset/blur, cursor glow radius
-  - Cursor bar/underline thickness, cursor boost glow
-  - Tmux status bar height in layout calculations, tab bar mouse click guard
-  - All values are correctly rescaled when moving windows between displays with different DPIs
-- **Pane divider drag resize** now uses the configured divider width instead of a hardcoded 1.0px value, fixing inaccurate resize calculations when divider width differs from 1.0
-- **Profile parent selector** now prevents creating inheritance cycles (e.g., A→B→A) by checking ancestor chains before listing valid parents
-
-### Changed
-
-- **Default update check frequency** changed from weekly to daily for faster update discovery
-- **Text shaper cache** upgraded from arbitrary FIFO eviction to proper LRU eviction via the `lru` crate, improving cache hit rates for frequently-shaped text runs
-
-### Removed
-
-- Removed unused `Config::new()` constructor and builder methods (`with_dimensions`, `with_font_size`, `with_font_family`, `with_scrollback`); use `Config::default()` instead
-- Removed unused `CustomShaderRenderer` methods: `update_from_resolved_config()`, `update_channels_from_resolved_config()`
-- Removed unused `SettingsWindow::instance` field, `GraphicsRenderer::surface_format` field, `CustomShaderRenderer::text_opacity` field
-- Removed dead `ansi_to_rgb()` utility function and tmux layout parsing stub (`parse_layout_to_splits`, `LayoutSplit`)
-- Removed stale TODO comment about cursor geometric rendering (already implemented via `CellRenderer::cursor_overlay`)
+- Resolved HiDPI/DPI scaling issues across all UI components.
+- Fixed keyboard shortcut routing in egui overlays.
 
 ---
-
 ## [0.14.0] - 2026-02-11
 
 ### Added
-
-- **Self-Update** (#82): par-term can now download and install updates in-place
-  - CLI: `par-term self-update` with `--yes` flag for non-interactive use
-  - Settings UI: "Check Now" and "Install Update" buttons in Advanced > Updates
-  - Detects installation method (Homebrew, cargo, .app bundle, standalone binary)
-  - Homebrew/cargo installs show appropriate upgrade instructions instead
-  - macOS .app bundle: extracts and replaces bundle contents from zip
-  - Linux/Windows standalone: atomic binary replacement
-  - Async update with progress indication in Settings UI
-
-- **Command Separator Lines**: Horizontal separator lines between shell commands in the terminal grid
-  - Renders thin lines at prompt boundaries using existing shell integration (OSC 133) marks
-  - Exit-code coloring: green for success, red for failure, gray for unknown
-  - Configurable thickness (0.5-5.0 px), opacity (0.0-1.0), and custom fixed color
-  - Works with any prompt height (single-line, multi-line, tall starship/powerline prompts)
-  - Separator placed at the top of the prompt (PromptStart marker), not the cursor line
-  - Works in both single-pane and split-pane modes
-  - Respects trigger mark custom colors
-  - Settings UI in Terminal > Command Separators section
-  - Config: `command_separator_enabled`, `command_separator_thickness`, `command_separator_opacity`, `command_separator_exit_color`, `command_separator_color`
-  - Disabled by default (opt-in)
-
-- **Shell Integration Event Queuing** (core library): OSC 133 markers now queue with cursor positions
-  - Each shell integration marker records the absolute cursor line at parse time
-  - Eliminates marker batching where multiple markers between frames collapsed to one
-  - Ensures accurate separator/mark placement for multi-line prompts
-  - `__PAR_TERM` environment variable set for shell integration script detection
-
-- **Variable Substitution in Config** (#102): Use `${VAR}` environment variable references in `config.yaml` values
-  - All string config fields support substitution (e.g., `background_image: "${HOME}/Pictures/bg.png"`)
-  - Default values via `${VAR:-default}` syntax for unset variables
-  - Escape with `$${VAR}` to produce the literal `${VAR}`
-  - Unset variables without defaults are left unchanged
-
-- **Drag-and-Drop Tab Reordering** (#106): Reorder tabs by dragging them in the tab bar
-  - Click and drag any tab to move it to a new position
-  - Floating ghost tab follows the cursor during drag with semi-transparent preview
-  - Blue insertion indicator line with glow effect shows the drop target
-  - Dragged tab dims in place to indicate it is being moved
-  - Escape key cancels the drag operation
-  - Single-tab windows correctly suppress drag initiation
-  - Existing keyboard reorder shortcuts (Cmd/Ctrl+Shift+Arrow) continue to work
-
-- **Window Arrangements** (#103): Save and restore window layouts (iTerm2 parity)
-  - **Save**: Capture current window positions, sizes, tab CWDs, and active tab indices as named arrangements
-  - **Restore**: Recreate saved layouts, replacing all current windows
-  - **Monitor-aware**: Positions stored relative to monitor origin for portability across display configurations
-  - **Monitor matching**: Restores windows to correct monitors by name, then index fallback, then primary monitor
-  - **Position clamping**: Ensures restored windows are visible even if monitor layout has changed
-  - **Auto-restore on startup**: Configure an arrangement to restore automatically when the app launches
-  - **Settings UI**: New "Arrangements" tab (📐) with save, restore, rename, delete, and reorder controls
-  - **Menu integration**: "Save Window Arrangement..." item in View menu
-  - **Keybinding support**: `save_arrangement` and `restore_arrangement:<name>` keybinding actions
-  - **YAML persistence**: Arrangements stored in `~/.config/par-term/arrangements.yaml`
-
-- **Remember Settings Section States** (#105): Settings window section expand/collapse states now persist across sessions
-  - Collapsible section states (expanded/collapsed) are tracked and saved to `collapsed_settings_sections` in config
-  - States persist when the settings window is closed and reopened within the same session
-  - States persist across app restarts via automatic save on settings window close
-  - States are also saved when explicitly clicking "Save" in settings
+- **Self-Update**: In-place update system detecting installation method (Homebrew, cargo, bundle, etc.).
+- **Command Separators**: Optional horizontal lines between shell commands using OSC 133 marks.
+- **Config Variables**: Environment variable substitution in `config.yaml` using `${VAR}` syntax.
+- **Tab Reordering**: Drag-and-drop support for reordering tabs in the tab bar.
+- **Window Arrangements**: Save and restore named window layouts with monitor-aware positioning.
+- **Settings Persistence**: Persistent expand/collapse states for settings window sections.
 
 ### Changed
-
-- **Default Font Size**: Increased default `font_size` from 10.0 to 12.0 for better readability out of the box
+- Increased default `font_size` to 12.0.
 
 ### Fixed
-
-- **Duplicate arrangement names allowed**: Saving a window arrangement with the same name as an existing one now prompts to overwrite instead of creating a duplicate entry
-- **Update notification clipped on some systems**: Shortened the new version notification body text and added a timeout to prevent content being cut off in small system notification windows
+- Improved update notifications and resolved duplicate arrangement name issues.
 
 ---
-
 ## [0.13.0] - 2026-02-10
 
 ### Added
-
-- **Vi-Style Copy Mode** (#99): Keyboard-driven text selection and navigation (iTerm2 parity)
-  - Enter via configurable keybinding (`toggle_copy_mode` / `enter_copy_mode` action)
-  - Modal state machine: all keyboard input navigates an independent cursor through terminal buffer including scrollback
-  - **Navigation**: `h/j/k/l` directional, `0/$` line start/end, `^` first non-blank, arrow keys, Home/End
-  - **Word motions**: `w/b/e` word forward/backward/end, `W/B/E` WORD (whitespace-delimited) variants
-  - **Page motions**: `Ctrl+U/D` half page, `Ctrl+B/F` full page, `gg` top, `G` bottom, `{count}G` goto line
-  - **Count prefix**: `{count}` before any motion (e.g., `5j` moves down 5 lines)
-  - **Visual selection**: `v` character, `V` line, `Ctrl+V` block/rectangular modes
-  - **Yank**: `y` in visual mode copies selection to clipboard and exits copy mode
-  - **Search**: `/pattern` forward, `?pattern` backward, `n/N` repeat search (case-insensitive, wrapping)
-  - **Marks**: `m{a-z}` set mark, `'{a-z}` jump to mark
-  - **Cursor**: Steady block cursor in copy mode, real terminal cursor hidden
-  - **Status bar**: egui overlay at bottom showing mode (COPY/VISUAL/V-LINE/V-BLOCK/SEARCH) and position
-  - **Auto-scroll**: Viewport follows cursor when it moves offscreen
-  - **Tab switch**: Copy mode exits automatically when switching tabs
-  - **Escape**: Exits visual mode first, then copy mode on second press; `q` exits immediately
-  - **Settings UI**: Enable/disable copy mode, auto-exit on yank, show/hide status bar (Settings > Input > Copy Mode)
-  - **Default keybinding**: `Cmd+Shift+C` (macOS) / `Ctrl+Shift+Space` (Linux/Windows), configurable in Settings > Input > Keybindings
-  - **Help panel**: Full copy mode reference added to F1 help
-
-- **Unicode Normalization**: Configurable Unicode normalization form (NFC/NFD/NFKC/NFKD/None) for text processing. NFC is the default. Exposed in Settings > Terminal > Unicode section. Live-updates across all tabs when changed.
-
-- **Snippets & Actions Completion** (#101): Complete remaining snippets and actions features
-  - **Custom Variables UI**: Collapsible editor in snippet edit form for managing per-snippet variables (name/value grid with add/delete)
-  - **Key Sequence Simulation**: `KeySequence` actions now parse and send terminal byte sequences (Ctrl combos, arrow keys, F-keys, Enter, etc.)
-  - **Snippet Import/Export**: Export all snippets to YAML file and import from YAML with duplicate detection and keybinding conflict resolution
+- **Copy Mode**: Keyboard-driven text selection and navigation (Vi-style).
+- **Unicode Normalization**: Support for NFC (default), NFD, NFKC, and NFKD forms.
+- **Snippets & Actions**: Completed custom variables UI, key sequence simulation, and import/export.
 
 ### Fixed
-
-- **Emoji rendering**: Fixed color emoji not rendering. Swash render sources were ordered to try `Outline` first, but Apple Color Emoji on macOS has outline data that produced tiny monochrome glyphs instead of color bitmaps. Reversed source order to try `ColorBitmap` > `ColorOutline` > `Outline` so emoji fonts render as colored bitmaps while regular text fonts fall through to outlines. Also fixed TTC face index being discarded when loading fonts from fontdb.
-
-- **Tmux pane resize via mouse drag**: Fixed mouse drag events not being forwarded to the PTY when terminal mouse tracking is enabled (e.g., tmux). The `button_pressed` state was not being set when the click was consumed by mouse tracking, so subsequent motion events were silently dropped in ButtonEvent mode. Clicking to change tmux pane focus worked, but dragging to resize did not.
-
-- **Text baseline alignment**: Fixed subtle per-glyph rounding artifacts that could cause characters on the same line to appear at slightly different vertical positions. The baseline position is now rounded once per row and bearing offsets are applied as exact integers, eliminating scale_y-induced rounding inconsistencies.
-
-- **File/URL link highlighting offset**: Fixed link highlighting and click targets being shifted to the right when multi-byte UTF-8 characters (prompt icons, Unicode text, etc.) appeared earlier in the line. Regex byte offsets are now correctly mapped to terminal column indices.
-
-- **Absolute file path link detection**: Added detection of absolute file paths (e.g., `/Users/name/.config`) in link highlighting regex. Previously only relative (`./`, `../`) and home-relative (`~/`) paths were matched.
+- Resolved emoji rendering issues, tmux pane resize via mouse drag, and link highlighting offsets.
 
 ---
-
 ## [0.12.0] - 2026-02-10
 
 ### Added
-
-- **Snippets & Actions System** (#86): Text automation and custom actions (iTerm2 parity)
-  - **Text Snippets**: Save frequently-used text blocks for quick insertion
-    - Variable substitution with `\(variable)` syntax
-    - 10 built-in variables: `date`, `time`, `datetime`, `hostname`, `user`, `path`, `git_branch`, `git_commit`, `uuid`, `random`
-    - **Session variables**: Access live terminal state via `\(session.*)` syntax (12 session variables)
-    - Custom variables per snippet, keyboard shortcut assignment, folder organization
-    - **Auto-execute**: Optional checkbox to send Enter after inserting snippet content
-  - **Custom Actions**: User-defined macros triggered via keyboard shortcuts
-    - **ShellCommand**: Execute shell commands with notifications and error handling
-    - **InsertText**: Insert text with variable substitution
-    - **KeySequence**: Placeholder for future keyboard simulation
-  - **Settings UI**: Two new tabs — Snippets (📝) and Actions (🚀) — with full CRUD, keybinding recording, and conflict detection
-  - **Keybinding Auto-Generation**: Snippets and actions with keybinding field auto-generate keybindings on config load
-
-- **Progress Bar Rendering** (#92): Thin overlay progress bars rendered via egui at the top or bottom of the terminal window
-  - Supports OSC 9;4 protocol states (Normal, Warning, Error, Indeterminate)
-  - Configurable style (bar or bar-with-text), position, height, opacity, and per-state colors
-  - Animated indeterminate bar oscillates smoothly; multiple concurrent bars stack vertically
-  - Named concurrent progress bars (OSC 934) fully supported
-  - Full settings UI in new "Progress Bar" tab
-
-- **Progress Bar Shader Uniforms**: New `iProgress` vec4 uniform exposes progress bar state to custom GLSL shaders
-  - Components: `x` = state, `y` = percent, `z` = isActive, `w` = active bar count
-  - Enables shader effects that respond to progress (screen-edge glows, color shifts, particle effects)
-
-- **Paste Delay** (#93): New `paste_delay_ms` config option (0-500ms) adds a configurable delay between pasted lines. Useful for slow terminals or remote connections.
-
-- **Paste Transforms: Newline Control** (#93): Three new paste transformations via Paste Special:
-  - `Paste as Single Line`, `Add Newlines`, `Remove Newlines`
-
-- **Current Command in Window Title** (#94): Window title bar shows `[command_name]` when a command is running via shell integration. Reverts when command finishes.
-
-- **Shell Integration Badge Variables** (#94): New `\(session.exit_code)` and `\(session.current_command)` badge variables.
-
-- **Remote Host Integration** (#94): OSC 1337 RemoteHost sequence support. Remote hostname and username synced to badge variables from both OSC 7 and OSC 1337 sequences.
-
-- **Image Scaling Quality** (#90): Configurable texture filtering for inline images — `nearest` (pixel-perfect) or `linear` (smooth) via `image_scaling_mode` config.
-
-- **Image Aspect Ratio Control** (#90): Toggle to preserve or ignore aspect ratio for inline images via `image_preserve_aspect_ratio` config.
-
-- **Prompt on Quit**: Configurable confirmation dialog before closing with active sessions via `prompt_on_quit` config.
-
-- **Pane Title Bars** (#88): GPU-rendered title bars for split panes showing OSC title, CWD path, or fallback pane name
-  - Configurable height, position, text color, and background color
-  - Enable via `show_pane_titles: true` in config
-
-- **Divider Style Customization** (#88): Four visual styles for pane dividers — Solid, Double, Dashed, Shadow — via `pane_divider_style` config.
+- **Snippets & Actions**: New system for text automation and custom macros.
+- **Progress Bars**: Thin overlay bars supporting OSC 9;4 and OSC 934 protocols.
+- **Paste Improvements**: Configurable paste delay and new newline-control transformations.
+- **Pane Enhancements**: GPU-rendered title bars and customizable divider styles.
+- **Integration**: OSC 1337 RemoteHost support and current command display in window title.
 
 ### Changed
-
-- **Core Library**: Updated `par-term-emu-core-rust` from 0.33.0 to 0.35.0 (OSC 934 named progress bars, OSC 1337 SetUserVar)
-- **Cross-Platform Keybindings Overhaul**: Redesigned default keybindings on Linux/Windows to avoid conflicts with standard terminal control codes. macOS keybindings unchanged. Now follows WezTerm, Kitty, GNOME Terminal, and Windows Terminal conventions.
-- **Terminfo**: Modernized `par-term.terminfo` entry with direct-color, bracketed paste, and status line capabilities
-- **Dependencies**: Updated `libc`, `zip`, `notify`, `tempfile` to latest versions
+- Major cross-platform keybinding overhaul and modernized terminfo.
 
 ### Fixed
-
-- **Dingbat/Symbol Characters Rendering as Colored Emoji**: Fixed by reordering font fallback chain to prefer monochrome symbol fonts before color emoji fonts
-- **Snippet/Action Row Overflow**: Buttons anchored to right with auto-truncating content preview
-- **Platform-Specific Keybinding Display**: Shows `Cmd` on macOS and `Ctrl` on Linux/Windows
-- **Ctrl+C Not Sending SIGINT on Linux/Windows**: Now uses `Ctrl+Shift+C` for copy, allowing bare `Ctrl+C` to pass through
-- **Pane Focus Indicator Settings** (#88): Focus indicator and color now read from config correctly
-- **Pane Background Opacity** (#88): Slider now wired to rendering pipeline
-- **Divider Hover Color** (#88): Hover state now passed to renderer
-- **Divider Width/Hit Width Not Updating** (#88): Values now propagate on config change
-- **Background Solid Color in Split Panes** (#88): Custom color now used instead of theme color
-- **Double Divider Style** (#88): Proper double lines with gap when width >= 4px
-- **Shadow Divider Style** (#88): Beveled effect rendered within divider bounds
+- Resolved pane focus indicator settings, background opacity issues, and Linux Ctrl+C behavior.
 
 ---
-
 ## [0.11.0] - 2026-02-06
 
 ### Added
-
-- **Triggers, Trigger Actions & Coprocesses** (#84): Full frontend UI and event wiring for automation features
-  - **Regex Triggers**: Define regex patterns that match terminal output and fire actions
-    - 7 action types: Highlight, Notify, MarkLine, SetVariable, RunCommand, PlaySound, SendText
-    - Config persistence in `config.yaml` via `triggers` array with `TriggerConfig` structs
-    - Triggers synced into core `TriggerRegistry` on startup and settings save
-    - Regex validation in Settings UI with error feedback
-  - **Trigger Highlight Rendering**: Matched text highlighted with configurable fg/bg colors
-    - Colors overlaid on terminal cells during rendering
-    - Automatic expiry cleanup each frame
-  - **Trigger Action Dispatch**: Per-frame polling of core `ActionResult` events
-    - `RunCommand`: Spawns detached process with args
-    - `PlaySound`: Plays WAV/OGG/FLAC/MP3 from `~/.config/par-term/sounds/` via rodio; `"bell"` or empty plays built-in tone
-    - `SendText`: Writes text to PTY with optional delay
-    - `Notify`: Desktop notifications via `notify-rust`
-    - `MarkLine`: Scrollbar marks with configurable color and label, visible in scrollbar tooltips
-    - `SetVariable`: Custom session variables synced to badge overlay (e.g., capture git branch for badge display)
-  - **Trigger Marks on Scrollbar**: MarkLine trigger actions create color-coded marks on the scrollbar
-    - Marks include label text shown in scrollbar tooltips
-    - Rebuild strategy eliminates duplicate marks when triggers fire multiple times per frame
-    - Historical marks preserved in scrollback; visible-grid marks rebuilt from fresh scan results
-    - Marks cleared automatically when scrollback is cleared
-  - **Coprocesses**: Background processes that receive terminal output
-    - Per-tab `CoprocessManager` with auto-start support for configured coprocesses
-    - Config persistence via `coprocesses` array with `CoprocessDefConfig` structs
-    - Settings UI with name, command, args, auto_start, and copy_terminal_output controls
-    - **Restart policy**: Configurable restart behavior (Never, Always, OnFailure) with optional delay
-    - **Output viewer**: Collapsible per-coprocess output display in Automation settings tab
-    - **Start/Stop controls**: Start and stop coprocesses directly from Settings UI
-    - **Error display**: Failed coprocess starts show error messages inline in the UI
-  - **Automation Settings Tab**: New "Automation" tab (⚡) in Settings UI
-    - Collapsible sections for Triggers and Coprocesses
-    - Inline add/edit forms with type-specific action editors (color pickers, sliders, text inputs)
-    - Enable/disable toggles, delete with confirmation
-    - Searchable via sidebar keywords (trigger, regex, automation, coprocess, action, pattern, etc.)
-
-- **Minimum Contrast Enforcement**: WCAG-based accessibility feature for readable text
-  - Automatically adjusts text color when contrast ratio against background is too low
-  - Uses WCAG luminance formula for perceptually accurate contrast calculation
-  - New config option: `minimum_contrast` (range 1.0-21.0, default: 1.0 = disabled)
-  - Set to 4.5 for WCAG AA compliance, 7.0 for WCAG AAA compliance
-  - Settings UI: Appearance → Colors section with slider
-
-- **Semantic History**: Click file paths to open them in your editor (iTerm2 parity)
-  - Detects file paths in terminal output with optional line:column numbers
-  - Supports formats: `/path/file.rs`, `src/main.rs:42`, `file.py:10:5`
-  - Ctrl+click (Cmd+click on macOS) opens file in configured editor
-  - Directories open in system file manager (Finder/Explorer/Nautilus)
-  - Configurable editor selection mode:
-    - **Custom** - Use a user-specified editor command
-    - **Environment Variable** - Use `$EDITOR`/`$VISUAL` (default)
-    - **System Default** - Open with system's default application
-  - Falls back to system default if configured editor unavailable
-  - Uses login shell (`$SHELL -lc`) to run editor commands, ensuring user's PATH is available
-  - New config options:
-    - `semantic_history_enabled` - Enable/disable feature (default: true)
-    - `semantic_history_editor_mode` - Editor selection mode: `custom`, `environment_variable`, `system_default`
-    - `semantic_history_editor` - Custom editor command with placeholders: `{file}`, `{line}`, `{col}`
-  - Example editor commands: `code -g {file}:{line}`, `vim +{line} {file}`
-  - Settings UI: Terminal → Semantic History section with editor mode dropdown
-
-- **Configurable Log Level**: Runtime log level control for the `log` crate bridge
-  - New config option: `log_level` (off/error/warn/info/debug/trace, default: off)
-  - CLI flag: `--log-level <LEVEL>` overrides config setting
-  - Settings UI: Advanced → Debug Logging section with dropdown and "Open Log File" button
-  - Log output routed to `/tmp/par_term_debug.log`
+- **Automation**: New "Automation" settings tab for managing regex triggers and coprocesses.
+- **Triggers**: Match terminal output to fire actions (highlight, notify, play sound, send text, etc.).
+- **Coprocesses**: Background processes that receive terminal output with restart policies.
+- **Accessibility**: WCAG-based minimum contrast enforcement.
+- **Semantic History**: Ctrl+click (Cmd+click) on file paths to open them in a configured editor.
+- **Logging**: Configurable runtime log level control.
 
 ### Changed
-
-- **Unified Logging**: Replaced `env_logger` with custom `log::Log` bridge that routes all `log::info!()`, `log::error!()` etc. to `/tmp/par_term_debug.log`. Ensures logs are always captured in macOS app bundles and Windows GUI apps where stderr is invisible. When `RUST_LOG` is set, also mirrors to stderr for terminal debugging.
-
-- **Coprocess PATH Resolution**: Coprocesses now inherit the user's login shell PATH, fixing "command not found" errors when running from macOS app bundles with minimal PATH environments.
+- Unified logging bridge and improved coprocess PATH resolution.
 
 ### Fixed
-
-- **Trigger MarkLine deduplication**: Fixed duplicate scrollbar marks when triggers fire multiple times per frame due to PTY read batching. Uses a rebuild strategy that preserves historical marks in scrollback while deduplicating visible-grid marks.
-
-- **Scrollbar command text capture**: Mark tooltips now correctly show command text instead of output lines, reading from scrollback metadata when the command mark scrolls off the visible grid.
-
-- **Trigger marks cleared on scrollback clear**: Trigger marks are now properly removed when the scrollback buffer is cleared (e.g., via `clear` command or Cmd+K).
-
-- **Settings Quick Search**: Expanded search keywords to cover all settings options, making it easier to find specific settings like "minimum contrast", "semantic history", "anti-idle", and many more
-
-- **Core Library API Integration**: Enabled previously dormant APIs from par-term-emu-core-rust
-  - Recording API now accessible for future instant replay features
-  - Shell integration stats API now accessible for badge variables and status bar
+- Resolved trigger mark deduplication and improved scrollbar command text capture.
 
 ---
-
 ## [0.10.0] - 2026-02-04
 
 ### Added
-
-- **Close Confirmation for Running Jobs**: Confirmation dialog when closing tabs/panes with active processes
-  - Detects running commands via shell integration markers
-  - Shows dialog with command name and options to "Close Anyway" or "Cancel"
-  - New config option: `confirm_close_running_jobs` (default: false)
-  - New config option: `jobs_to_ignore` - list of process names to skip (default: common shells like bash/zsh/fish, utilities like less/more/man)
-  - Settings UI: Terminal → Behavior section with checkbox and editable ignore list
-  - Escape key dismisses the confirmation dialog
-
-- **Shell Exit Action**: Configurable behavior when shell process exits
-  - New config option: `shell_exit_action` replaces boolean `exit_on_shell_exit`
-  - Five exit action options:
-    - `close` - Close the tab/pane (default, matches old `exit_on_shell_exit: true`)
-    - `keep` - Keep pane open showing terminated shell (matches old `exit_on_shell_exit: false`)
-    - `restart_immediately` - Spawn new shell instantly when previous exits
-    - `restart_with_prompt` - Show "[Process exited. Press Enter to restart...]" message and wait
-    - `restart_after_delay` - Restart shell after 1 second delay
-  - Settings UI: Terminal → Behavior section with dropdown selector
-  - Backward compatible: old boolean config values auto-migrate (`true`→Close, `false`→Keep)
-
-- **Modifier Key Remapping**: Remap modifier keys to different functions
-  - Configure left/right Ctrl, Alt, and Super keys independently
-  - Remap options: None (disabled), Ctrl, Alt, Shift, Super
-  - New config option: `modifier_remapping` with `left_ctrl`, `right_ctrl`, `left_alt`, `right_alt`, `left_super`, `right_super`
-  - Settings UI: Input → Modifier Remapping section
-  - Use cases: swap Ctrl and Caps Lock, use Ctrl as Cmd on macOS
-
-- **Language-Agnostic Key Bindings**: Keybindings that work consistently across keyboard layouts
-  - New config option: `use_physical_keys` (default: false)
-  - When enabled, keybindings match by physical key position (scan code) instead of character produced
-  - Makes shortcuts like Ctrl+Z work the same on QWERTY, AZERTY, Dvorak, etc.
-  - Physical key syntax for keybindings: `[KeyCode]` (e.g., `Ctrl+[KeyZ]`)
-  - Settings UI: Input → Keyboard section checkbox
-  - Supports all letter keys, digits, punctuation, and function keys
-
-- **modifyOtherKeys Protocol Support**: XTerm extension for enhanced keyboard input reporting
-  - Applications can enable via `CSI > 4 ; mode m` escape sequence (mode 0=off, 1=special keys, 2=all keys)
-  - When enabled, keys with modifiers are reported as `CSI 27 ; modifier ; keycode ~`
-  - Allows applications to distinguish between e.g., Ctrl+i and Tab
-  - Query support via `CSI ? 4 m` returns current mode
-  - Requires par-term-emu-core-rust v0.30.0+
-
-- **Tmux Profile Auto-Switching**: Automatically apply profiles when connecting to tmux sessions
-  - New profile field `tmux_session_patterns` - glob patterns to match session names (e.g., `work-*`, `*-production`)
-  - Case-insensitive pattern matching with wildcards: prefix (`dev-*`), suffix (`*-prod`), contains (`*server*`), exact match
-  - Profile's `badge_text` is applied to the gateway tab when matched
-  - Fixed profile option: `tmux_profile` config to always use a specific profile for all tmux connections
-  - Settings UI: "Auto-Switch Tmux" field in profile editor with pattern hints
-  - Profile cleared automatically when tmux session ends
-
-- **GPU Power Preference**: Control which GPU is used for rendering on multi-GPU systems
-  - New config option: `power_preference` with three modes:
-    - `none` - Let the system decide (default)
-    - `low_power` - Prefer integrated GPU (Intel/AMD iGPU) for battery savings
-    - `high_performance` - Prefer discrete GPU (NVIDIA/AMD) for maximum performance
-  - Settings UI: Window → Performance section with dropdown selector
-  - Note: Requires app restart to take effect (GPU adapter selected at startup)
-
-- **Reduce Flicker**: iTerm2-style flicker reduction for smoother terminal updates
-  - Delays screen redraws while cursor is hidden (DECTCEM off)
-  - Many terminal programs hide cursor during bulk updates (scrolling, screen redraws)
-  - Batches rapid updates to reduce visual flicker and tearing
-  - New config options:
-    - `reduce_flicker` - Enable/disable feature (default: true)
-    - `reduce_flicker_delay_ms` - Maximum delay before forced render (1-100ms, default: 16ms)
-  - Settings UI: Window → Performance → Flicker Reduction section
-  - Automatically bypasses delay for UI interactions (help, search, dialogs)
-  - Respects `lock_cursor_visibility` config option
-
-- **Maximize Throughput Mode**: Manual toggle for prioritizing bulk output processing over immediate responsiveness
-  - Batches screen updates during bulk terminal output (e.g., `cat /usr/share/dict/words`)
-  - Reduces CPU overhead when processing large outputs by throttling render rate
-  - Toggle with `Cmd+Shift+T` (macOS) or `Ctrl+Shift+T` (other platforms)
-  - Toast notification confirms mode toggle
-  - New config options:
-    - `maximize_throughput` - Enable/disable feature (default: false)
-    - `throughput_render_interval_ms` - Render interval in throughput mode (50-500ms, default: 100ms)
-  - Settings UI: Window → Performance → Throughput Mode section
-  - Unlike reduce_flicker, this mode always batches regardless of cursor visibility
-
-- **Per-Profile Badge Configuration**: Full badge customization per profile (iTerm2 parity)
-  - Profiles can now override all badge settings, not just the text format
-  - New optional profile fields:
-    - `badge_color` - RGB color override
-    - `badge_color_alpha` - Opacity override (0.0-1.0)
-    - `badge_font` - Font family override
-    - `badge_font_bold` - Bold toggle override
-    - `badge_top_margin` / `badge_right_margin` - Position overrides
-    - `badge_max_width` / `badge_max_height` - Size constraint overrides
-  - Profile Modal UI: New collapsible "Badge Appearance" section with:
-    - Color picker with checkbox to enable override
-    - Opacity slider
-    - Font input and bold checkbox
-    - Margin and size controls
-  - Each setting can be individually overridden or use global defaults
-  - Supports profile inheritance - child profiles inherit badge settings from parent
-  - Use case: Different badge appearances per environment (e.g., red "PROD", green "DEV")
+- **Confirm Close**: Confirmation dialog when closing tabs/panes with active jobs.
+- **Exit Action**: Configurable behavior when a shell process exits (close, keep, restart).
+- **Modifier Remapping**: Independent remapping for left/right Ctrl, Alt, and Super keys.
+- **Physical Keys**: Option to match keybindings by physical position (scan code).
+- **Keyboard Protocols**: Support for XTerm `modifyOtherKeys` extension.
+- **Performance**: iTerm2-style flicker reduction and manual "Maximize Throughput" mode.
+- **Customization**: GPU power preference and per-profile badge configuration.
 
 ### Fixed
-
-- **Arrow Keys in `less` and Other Pagers**: Fixed arrow keys not working in programs that enable application cursor key mode (DECCKM)
-  - Programs like `less`, `more`, and some TUI apps enable DECCKM mode which expects SS3 sequences (`ESC O A`) instead of CSI sequences (`ESC [ A`)
-  - Arrow keys now correctly send `ESC O A/B/C/D` when application cursor mode is enabled
-  - Added `application_cursor()` method to `TerminalManager` to expose DECCKM state from core library
+- Resolved arrow key issues in `less` and other pagers using DECCKM mode.
 
 ---
-
 ## [0.9.0] - 2026-02-04
 
 ### Added
-
-- **Welcome Dialog Changelog Link**: Added "View Changelog" hyperlink to the welcome/onboarding popup
-  - Links to GitHub CHANGELOG.md for easy access to release notes
-  - Appears below the "A GPU-accelerated terminal emulator" subtitle
-
-- **Settings UI: Profiles Tab**: New "Profiles" tab in Settings window for profile management
-  - "Open Profile Manager" button to launch the profile modal from settings
-  - Profile drawer button visibility toggle (`show_profile_drawer_button` config option)
-  - Overview of profile features and display options
-
-- **Configurable tmux Status Bar Format** (#67): Customize tmux status bar content via format strings
-  - `tmux_status_bar_left`: Format string for left side (default: `[{session}] {windows}`)
-  - `tmux_status_bar_right`: Format string for right side (default: `{pane} | {time:%H:%M}`)
-  - Supported variables: `{session}`, `{windows}`, `{pane}`, `{time:FORMAT}`, `{hostname}`, `{user}`
-  - Settings UI controls in Advanced > tmux Integration section
-  - Native tmux format query commands following iTerm2's approach (deferred full async implementation)
-
-### Changed
-
-- **Default Font Size**: Reduced default `font_size` from 13.0 to 10.0
-- **Default Shader Brightness**: Reduced default `custom_shader_brightness` from 100% to 15% for better text readability out of the box
-- **Dev Tools Build**: Test utilities (`test-cr`, `test-grid`) now require `--features dev-tools` flag to build/install
-- **Default Profile Drawer Button**: Profile drawer toggle button now hidden by default (`show_profile_drawer_button: false`)
-- **Settings UI Sections**: "Background & Effects" and "Cursor Shader" sections now expand by default for easier discovery
+- **Profiles Tab**: New tab in Settings for profile management and drawer visibility toggle.
+- **tmux Formatting**: Customizable tmux status bar content via format strings.
+- **Welcome Dialog**: Added a link to the changelog in the onboarding popup.
 
 ### Fixed
-
-- **Segfault on Exit**: Fixed crash when closing terminal window while settings window is open
-  - Settings window is now explicitly closed before app teardown
-  - egui state is cleaned up before other window resources
-  - Audio stream cleanup order fixed to prevent use-after-free
-
-- **Settings Window Size Display**: Fixed Settings UI not updating current cols/rows when the terminal window is resized (Windows)
-  - The "Current: NxM" display in Window → Display now updates in real-time during resize
-
-- **Windows ARM64 Build**: Fixed build failure on Windows ARM64 due to `ring` crate requiring clang
-  - Switched `ureq` HTTP client from `rustls` to `native-tls` backend
-  - Uses system TLS (Schannel on Windows, OpenSSL on Linux, Security.framework on macOS)
-  - No longer requires clang/LLVM toolchain for Windows builds
-
-- **VM GPU Compatibility**: Fixed app failing to start in virtual machine environments (Parallels, etc.)
-  - Windows: Now uses DirectX 12 backend instead of Vulkan (which fails in Parallels VMs)
-  - Linux: Added OpenGL fallback when Vulkan is unavailable or non-compliant
-  - Resolves "Adapter is not Vulkan compliant" errors in VM environments
-
-- **HTTPS Request Panic**: Fixed panic when making HTTPS requests (update checker, shader installer)
-  - Explicitly configure `ureq` to use native-tls provider instead of defaulting to rustls
-  - Added `http.rs` module with properly configured HTTP agent
-
-- **Font Size Change Crash**: Fixed crash when changing font size in Settings
-  - wgpu only allows one surface per window; old renderer must be dropped before creating new one
-  - Now properly releases old surface before creating new renderer
-
-- **Windows File Watching**: Fixed shader hot reload not working on Windows
-  - The `notify` crate was configured with macOS-only backend, leaving Windows without file watching support
-  - Now uses platform-specific configuration: kqueue on macOS, ReadDirectoryChangesW on Windows, inotify on Linux
-
-- **Windows Taskbar Icon Loss** (#79): Fixed icon reverting to generic Windows icon when pinning app to taskbar
-  - Added Windows resource embedding via `winres` build dependency
-  - Created `assets/par-term.ico` with multiple icon sizes (16, 32, 48, 64, 128, 256)
-  - Icon is now properly embedded in the Windows executable
-
-### Added
-
-- **Windows Install Script**: Added `scripts/install-windows.bat` for building on Windows
-  - Sets up Visual Studio environment before cargo install
-  - Required for native dependencies that need MSVC toolchain
+- Resolved segfaults on exit, Windows ARM64 build failures, and HTTPS request panics.
+- Improved Windows taskbar icon handling and file watching.
 
 ---
-
 ## [0.8.0] - 2026-02-03
 
 ### Added
-
-- **Configurable Startup Directory** (#74): Control where new terminal sessions start
-  - **Three modes**: `home` (default), `previous` (remember last session), `custom` (user-specified path)
-  - **Session persistence**: Previous session mode saves working directory on close and restores on next launch
-  - **Graceful fallback**: If saved/custom directory doesn't exist, falls back to home directory
-  - **Settings UI**: New "Startup Directory" section in Terminal → Shell settings tab with mode dropdown and path picker
-  - **Legacy compatibility**: Existing `working_directory` config still works and takes precedence if set
-  - Config options: `startup_directory_mode`, `startup_directory`, `last_working_directory`
-
-- **Badge System** (#73): iTerm2-style semi-transparent text overlays in the terminal corner
-  - **Badge text overlay**: Displays dynamic session information in top-right corner
-  - **Dynamic variables**: 12 built-in variables using `\(session.*)` syntax
-    - `session.hostname`, `session.username`, `session.path` - Basic session info
-    - `session.job`, `session.last_command` - Command tracking
-    - `session.profile_name`, `session.tty` - Profile and TTY info
-    - `session.columns`, `session.rows` - Terminal dimensions
-    - `session.bell_count`, `session.selection`, `session.tmux_pane_title` - Advanced
-  - **Configurable appearance**: RGBA color, opacity, font family, bold toggle
-  - **Configurable position**: Top/right margins, max width/height as fraction of terminal
-  - **OSC 1337 support**: Base64-encoded `SetBadgeFormat` escape sequence with security checks
-  - **Settings UI**: Full badge configuration tab with General, Appearance, Position, and Variables sections
-  - Config options: `badge_enabled`, `badge_format`, `badge_color`, `badge_color_alpha`, `badge_font`, `badge_font_bold`, `badge_top_margin`, `badge_right_margin`, `badge_max_width`, `badge_max_height`
-
-- **Scrollbar Mark Tooltips** (#69): Hover over scrollbar command markers to see command details
-  - **Command info**: Shows command text (truncated if long), execution time, duration, and exit code
-  - **Optional feature**: Disabled by default, enable via Settings → Terminal → Scrollbar → "Show tooltips on hover"
-  - Config option: `scrollbar_mark_tooltips`
-
-- **Tab Bar Stretch & HTML Titles**: Tabs can now stretch to fill the bar by default (`tab_stretch_to_fill`), and tab titles support limited HTML markup (`<b>`, `<i>`, `<u>`, `<span style="color:...">`) via `tab_html_titles`.
-- **Native Paste/Copy Keys**: Recognize `NamedKey::Paste`/`NamedKey::Copy` plus Cmd/Ctrl+V/C across platforms, covering keyboards that emit dedicated paste/copy keys.
-- **Settings Reset to Defaults**: Settings UI now includes a "Reset to Defaults" button with a confirmation dialog. It rebuilds the config from defaults, resyncs all staged temp values, clears searches, and marks changes for save so users can restore a clean baseline in one click.
-- **Scrollbar Command Markers Toggle**: Added a Settings → Terminal → Scrollbar option (`scrollbar_command_marks`, default on) to show/hide command status markers in the scrollbar.
+- **Startup Directory**: Control over initial working directory (home, previous, or custom).
+- **Badge System**: Semi-transparent text overlays with dynamic session variables.
+- **Tab Enhancements**: Support for tab stretching and HTML markup in titles.
+- **UI/UX**: Tooltips for scrollbar marks and "Reset to Defaults" button in Settings.
 
 ### Changed
-
-- **Core Library Update**: Updated to `par-term-emu-core-rust` v0.28.0 (published crates.io version)
-- **Tab Stretch Default**: `tab_stretch_to_fill` now defaults to true so tabs auto-distribute available width while respecting `tab_min_width`.
-- **Shader Install Overwrite Prompt**: Onboarding integrations now detect user-modified bundled shaders and prompt to overwrite, skip modified files, or cancel before installing the latest shader pack. Installation uses manifest-aware logic that preserves user edits by default.
-- **Settings Reinstall Prompt Parity**: The Settings > Integrations > Custom Shaders reinstall button now shows the same overwrite/skip prompt when bundled shaders were modified, and surfaces progress/status inline.
+- Updated core library and enabled tab stretching by default.
 
 ### Fixed
-
-- **Windows Console Window on Launch**: Fixed extra console window appearing when launching par-term on Windows. Added `windows_subsystem = "windows"` attribute to hide the console window in release builds.
-- **Config Refresh for New Windows**: Creating a new window now reloads config from disk first, so changes made in other windows (like integration install states written during onboarding) apply immediately and avoid stale prompts.
-- **Scrollbar Command Mark Colors**: Command markers now retain exit codes even when shells emit OSC exit codes without CommandFinished history entries, ensuring success/failure colors render reliably.
-- **Bash Shell Integration Exit Codes**: Bash integration now emits numeric exit codes in OSC 133;D (no literal `$?`), restoring correct marker coloring.
+- Resolved Windows console window visibility and bash shell integration exit codes.
 
 ---
-
 ## [0.7.0] - 2026-02-02
 
-### Fixed
-
-- **tmux Pane Display on Initial Connect**: Fixed tmux panes not rendering when attaching to existing sessions. The `close_exited_panes` logic was incorrectly closing tmux display panes (which don't have local shells) immediately after creation. Now skips shell exit checks for tabs displaying tmux content.
-- **tmux Tabs Not Closing on Session End**: Fixed tmux display tabs remaining open after the tmux session ends. Now properly closes all tabs that were displaying tmux window content when the session terminates, and clears pane mappings.
-- **Shift+Enter Key Behavior**: Shift+Enter now sends LF (`\n`) instead of CR (`\r`), matching iTerm2 behavior. This enables soft line breaks in applications like Claude Code that distinguish between Enter (submit) and Shift+Enter (new line).
-- **Multi-Window Focus Routing**: Menu actions (Cmd+T, Cmd+V, etc.) now correctly route to the focused window instead of an arbitrary window when multiple windows are open
-- **Settings UI Layout**: Content area now properly fills available window space instead of leaving empty space at the bottom
-- **Settings UI Control Widths**: Applied consistent width constants to sliders and text inputs across all settings tabs
-- **Tab Bar Content Overlap**: Fixed issue where shell content's first line was hidden behind the tab bar when tabs were enabled. Content offset and terminal dimensions are now updated immediately when creating or closing tabs that change tab bar visibility (e.g., going from 1→2 tabs with `when_multiple` mode). Also fixed incorrect pixel dimensions being passed to PTY when syncing tab bar height.
-- **tmux Path Detection**: tmux path is now resolved at runtime (not just at config load). Searches PATH and common installation locations (`/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`) when the configured path is `tmux`. This fixes tmux integration for users with existing configs and when par-term is launched from macOS Finder where PATH may be incomplete.
-
 ### Added
-
-- **Integrations Install System**: Unified installation for optional par-term enhancements
-  - **Shell Integration**: Scripts for bash/zsh/fish enabling prompt navigation, CWD tracking, and command status
-    - Install via CLI: `par-term install-shell-integration`
-    - Install via curl: `curl -fsSL https://paulrobello.github.io/par-term/install-shell-integration.sh | bash`
-    - Uninstall via CLI: `par-term uninstall-shell-integration`
-  - **Shader Bundle with Manifest**: Tracks bundled files vs user-created files using SHA256 hashes
-    - Safe uninstall preserves user modifications
-    - Manifest-aware reinstall detects and warns about modified files
-    - Uninstall via CLI: `par-term uninstall-shaders`
-  - **Welcome Dialog**: First-run prompt offering to install both integrations
-    - Version-aware prompting (only asks once per version)
-    - Checkbox selection for shaders and/or shell integration
-    - Skip and "Never Ask" options
-  - **Settings UI Tab**: New "Integrations" tab (🔌) for managing installations
-    - Install/Reinstall/Uninstall buttons for each integration
-    - Status indicators showing installed version
-    - Copy-able curl commands for manual installation
-  - **GitHub Pages Hosting**: Curl-installable scripts at paulrobello.github.io/par-term/
-
-- **Settings UI Completeness**: Added missing UI controls for config options that were previously only configurable via config.yaml
-  - **Tab Bar Tab**: tab_bar_mode (always/when_multiple/never), tab_bar_height, tab_show_index, tab_inherit_cwd, max_tabs
-  - **Window Tab**: allow_title_change checkbox to control whether apps can change window title via OSC sequences
-  - **Cursor Tab**: cursor_shadow_blur slider for shadow blur radius
-  - **Cursor Shader Section**: cursor_shader_color picker, cursor_shader_trail_duration, cursor_shader_glow_radius, cursor_shader_glow_intensity sliders
-  - **Background Tab**: shader_hot_reload_delay slider (shown when hot reload is enabled)
-- **Edit Config File Button**: New button in settings footer to open config.yaml in system's default text editor
-
-- **tmux Status Bar**: Native status bar display when connected to tmux sessions
-  - Shows session name, window list with active marker, focused pane ID, and time
-  - Renders at bottom of terminal using egui (outside terminal content area)
-  - Configurable refresh interval via `tmux_status_bar_refresh_ms` (default: 1000ms)
-  - Toggle via `tmux_show_status_bar` config option and Settings UI
-  - See [#67](https://github.com/paulrobello/par-term/issues/67) for planned enhancements (configurable content, tmux format strings)
-
-- **Auto-Close Exited Panes**: Panes automatically close when their shell process exits
-  - Works with split panes - each pane closes independently when its shell exits
-  - Tab closes when all panes have exited (respects `exit_on_shell_exit` config)
-  - Properly handles tmux panes (which don't have local shells)
-
-- **tmux Control Mode Enhancements**: Improved multi-client support and bidirectional sync (#62)
-  - **Bidirectional pane resize**: Resizing panes in par-term now updates external tmux clients
-  - **Multi-client size sync**: Sets `window-size smallest` on connect so tmux respects par-term's size
-  - **Focus-aware size assertion**: Re-asserts client size when par-term window gains focus
-  - Horizontal divider drags sync height, vertical divider drags sync width (no cascade issues)
-
-- **Session Logging and Recording**: Automatic session logging to record terminal output (#60)
-  - **Automatic logging**: Enable via `auto_log_sessions` config option
-  - **Multiple log formats**:
-    - Plain text: Simple output without escape sequences (smallest files)
-    - HTML: Rendered output with colors preserved (viewable in browser)
-    - Asciicast: asciinema-compatible format for replay and sharing
-  - **Configurable log directory**: XDG-compliant default (`~/.local/share/par-term/logs/`)
-  - **Archive on close**: Ensure session is fully written when tab closes
-  - **Hotkey toggle**: `Cmd/Ctrl+Shift+R` to start/stop session recording on demand
-  - **Visual feedback**: Toast notification when recording starts/stops
-  - **CLI option**: `--log-session` flag to enable logging at startup
-  - Config options: `auto_log_sessions`, `session_log_format`, `session_log_directory`, `archive_on_close`
-  - Settings UI section under "Session Logging" with format selector, directory picker, and log count display
-
-- **Profile System**: iTerm2-style profiles for saved terminal configurations (#65)
-  - **Profile Manager**: Create, edit, delete, and reorder named profiles
-  - **Profile Drawer**: Collapsible right-side panel for quick profile access
-    - Toggle button at window edge
-    - Single-click to select, double-click to open
-    - "Manage" button opens full management modal
-  - **Profile Modal**: Full CRUD interface for profile management
-    - Create new profiles with "+ New Profile" button
-    - Edit existing profiles (double-click or edit button)
-    - Delete profiles with confirmation dialog
-    - Reorder profiles with up/down buttons
-  - **Profile Settings**:
-    - Name and emoji icon for visual identification
-    - Working directory with browse button
-    - Custom command with arguments
-    - Custom tab name override
-  - **Persistence**: Profiles saved to `~/.config/par-term/profiles.yaml`
-  - **Integration**: Opening a profile creates a new tab with the configured settings
-
-- **Window Management Features**: Implement missing window management features from iTerm2 (#56)
-  - **Window Type**: Start in different window modes (`window_type` config option)
-    - Normal: Standard window (default)
-    - Fullscreen: Start in fullscreen mode
-    - Edge-anchored: Position window at screen edges (top/bottom/left/right) for dropdown-style terminals
-  - **Target Monitor**: Open window on specific monitor (`target_monitor` config option)
-    - Set monitor index (0 = primary) for multi-monitor setups
-    - Auto-centers window on target monitor, or edges to that monitor for edge-anchored modes
-  - **Lock Window Size**: Prevent window resize (`lock_window_size` config option)
-    - Disables window resizing when enabled
-  - **Window Number Display**: Show window index in title bar (`show_window_number` config option)
-    - Displays "[N]" suffix in window title when multiple windows open
-    - Useful for keyboard navigation between windows
-  - **Maximize Vertically**: Stretch window to full screen height (Shift+F11 or View menu)
-    - Maintains current width and X position while spanning full monitor height
-  - Settings UI controls for all options in Window & Display section
-
-- **Unicode Width Configuration**: Configurable Unicode version and ambiguous width settings (#46)
-  - **Unicode Version**: Select from Unicode 9.0 through 16.0, or Auto (latest)
-    - Different versions have different character width tables, especially for emoji
-    - Use older versions for compatibility with legacy systems
-  - **Ambiguous Width**: Treatment of East Asian Ambiguous characters
-    - Narrow (1 cell): Western default
-    - Wide (2 cells): CJK default for Chinese/Japanese/Korean environments
-  - Config options: `unicode_version`, `ambiguous_width`
-  - Settings UI dropdowns in Terminal tab
-  - Ensures proper cursor positioning and text alignment across different contexts
-
-- **Paste Special** (`Cmd/Ctrl+Shift+V`): Transform clipboard content before pasting (#41)
-  - Command palette UI with fuzzy search filtering
-  - 26 text transformations across 4 categories:
-    - **Shell Escaping**: Single quotes, double quotes, backslash escaping
-    - **Case Conversion**: UPPERCASE, lowercase, Title Case, camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case
-    - **Whitespace**: Trim, trim lines, collapse spaces, tabs↔spaces, remove empty lines, normalize line endings
-    - **Encoding**: Base64 encode/decode, URL encode/decode, hex encode/decode, JSON escape/unescape
-  - Live preview showing original and transformed content
-  - Keyboard navigation (↑↓ to navigate, Enter to apply, Escape to cancel)
-  - Double-click to apply transformation
-  - Integration with clipboard history: `Shift+Enter` in clipboard history opens paste special
-  - Configurable keybinding via Settings UI
-
-- **Session Ended Notification**: Desktop notification when a shell process exits (#54)
-  - Useful for long-running commands where users switch to other applications
-  - Per-tab tracking ensures notification fires only once per session
-  - Config option: `notification_session_ended` (default: false)
-  - Settings UI checkbox in Bell & Notifications section
-
-- **Suppress Notifications When Focused**: Smart notification filtering (#54)
-  - Skip desktop notifications when the terminal window is already focused
-  - Visual and audio bells are unaffected (user can see/hear them)
-  - Reduces notification noise when actively using the terminal
-  - Config option: `suppress_notifications_when_focused` (default: true)
-  - Settings UI checkbox in Bell & Notifications section
-
-- **Advanced Mouse Features**: Implement mouse/pointer features from iTerm2 (#43)
-  - **Platform-appropriate URL modifier**: Cmd+click on macOS, Ctrl+click on Windows/Linux to open URLs
-  - **Option+Click moves cursor**: Position cursor at clicked location using arrow key sequences
-    - Config option: `option_click_moves_cursor` (default: true)
-    - Only works at bottom of scrollback (not scrolled back)
-    - Disabled on alternate screen (TUI apps handle their own cursor)
-    - Uses shell's cursor position to calculate movement delta
-  - **Focus follows mouse**: Auto-focus window when cursor enters
-    - Config option: `focus_follows_mouse` (default: false, opt-in)
-  - **Horizontal scroll reporting**: Report horizontal scroll to apps with mouse tracking
-    - Uses button codes 66 (left) and 67 (right)
-    - Config option: `report_horizontal_scroll` (default: true)
-  - **Rectangular selection**: Now uses Option+Cmd (matching iTerm2), freeing Option alone for cursor positioning
-  - Settings UI controls in Mouse Behavior section
-
-- **Auto-Quote Dropped Files**: Automatically quote file paths when dragging and dropping files into the terminal (#39)
-  - Handles spaces and special shell characters safely
-  - Configurable quote styles: single quotes (default), double quotes, backslash escaping, or none
-  - Config option: `dropped_file_quote_style`
-  - Settings UI in Mouse tab under Selection & Clipboard
-
-- **Anti-Idle Keep-Alive**: Prevent SSH and connection timeouts by periodically sending invisible characters (#47)
-  - Configurable idle threshold (10-3600 seconds, default: 60)
-  - Configurable keep-alive character (NUL, ESC, ENQ, Space, or custom ASCII code)
-  - Tracks both keyboard input and terminal output as activity
-  - Per-tab activity tracking with automatic keep-alive on idle
-  - Config options: `anti_idle_enabled`, `anti_idle_seconds`, `anti_idle_code`
-  - Settings UI in Shell tab with presets dropdown and custom code input
-
-- **Initial Startup Text**: Auto-send configurable text/commands when a session starts (#48)
-  - Config options: `initial_text`, `initial_text_delay_ms`, `initial_text_send_newline`
-  - Escape support: `\n`, `\r`, `\t`, `\xHH`, `\e`; normalizes to CR for Enter behavior
-  - Optional delay before send to let the shell initialize; optional auto-newline to execute
-  - Settings UI: Shell tab provides multi-line input, delay, and newline toggle
-
-- **Answerback String**: Configurable answerback string for terminal identification (#45)
-  - Responds to ENQ (0x05) control character with user-defined string
-  - Used for legacy terminal identification in multi-terminal environments
-  - Default: empty (disabled) for security
-  - Config option: `answerback_string`
-  - Settings UI in Shell tab with security warning
-
-- **Smart Selection & Word Boundaries**: Enhanced double-click text selection with configurable patterns (#42)
-  - **Word boundary characters**: Configurable characters considered part of a word
-    - Default: `/-+\~_.` (iTerm2 compatible)
-    - Config option: `word_characters`
-  - **Smart selection rules**: Regex-based patterns with precision levels for intelligent selection
-    - 11 default patterns: HTTP URLs, SSH/Git/File URLs, file paths, email addresses, IPv4 addresses, Java/Python imports, C++ namespaces, quoted strings, UUIDs
-    - 5 precision levels: VeryHigh, High, Normal, Low, VeryLow (higher precision patterns match first)
-    - Enable/disable individual rules or smart selection entirely
-    - Config options: `smart_selection_enabled`, `smart_selection_rules`
-  - **Settings UI** in Mouse tab:
-    - Word characters text field
-    - Smart selection toggle
-    - List of rules with enable/disable checkboxes (hover for regex/precision details)
-    - "Reset rules to defaults" button
-  - Cached regex compilation for optimal performance
-
-- **Terminal Search** (Cmd/Ctrl+F): Search through scrollback buffer with match highlighting (#24)
-  - egui-based search bar overlay with real-time incremental search
-  - Match highlighting with configurable colors for regular and current match
-  - Navigation between matches with Enter/Shift+Enter or Cmd/Ctrl+G
-  - Search options: case sensitive (Aa), regex mode (.*), whole word (\b)
-  - Automatic scroll to current match with match counter display
-  - Debounced search (150ms) for responsive typing
-  - Proper Unicode support: correctly handles multi-byte characters (emoji, CJK)
-  - New config options: `search_highlight_color`, `search_current_highlight_color`
-  - Keyboard shortcuts: Cmd/Ctrl+F (open), Escape (close), Enter (next), Shift+Enter (prev)
-
-- **Automatic Update Checking**: Configurable update check frequency with desktop notifications (#34)
-  - Check for new par-term releases from GitHub automatically
-  - Four frequency options: Never, Daily, Weekly (default), Monthly
-  - Desktop notification when updates are available (one notification per version)
-  - Platform-specific instructions: macOS users see Homebrew update command
-  - "Skip This Version" option to suppress notifications for specific releases
-  - New config options: `update_check_frequency`, `last_update_check`, `skipped_version`
-  - Settings UI section under "Updates" with version info and "Check Now" button
-  - Checks run on startup (5 second delay) and periodically while running
-
-- **Shader Install Prompt on First Startup**: Automatic detection and install offer when shaders folder is missing (#33)
-  - Modal dialog appears on first launch if `~/.config/par-term/shaders/` is empty or missing
-  - Three options: "Yes, Install" (download shaders), "Never" (save preference), "Later" (dismiss for session)
-  - Downloads shader pack from GitHub releases automatically with progress spinner
-  - Installation runs in background thread for responsive UI during download
-  - New config option: `shader_install_prompt` (ask/never/installed)
-  - Escape key closes dialog (when not installing)
-  - Can still install manually via `par-term install-shaders` CLI command
-
-- **Font Rendering Options**: Anti-aliasing and thin strokes controls for improved text appearance (#32)
-  - **Anti-aliasing**: Toggle font smoothing on/off for crisp or smooth text
-    - Disable for sharp, pixelated text at small sizes
-    - Config option: `font_antialias` (default: true)
-  - **Hinting**: Control font hinting for pixel-aligned glyphs
-    - Improves text clarity at small sizes by aligning to pixel boundaries
-    - Config option: `font_hinting` (default: true)
-  - **Thin Strokes Mode**: iTerm2-inspired font smoothing modes for HiDPI displays
-    - `never`: Standard stroke weight everywhere
-    - `retina_only`: Lighter strokes on HiDPI displays (default)
-    - `dark_backgrounds_only`: Lighter strokes on dark backgrounds
-    - `retina_dark_backgrounds_only`: Lighter strokes only on HiDPI + dark backgrounds
-    - `always`: Always use lighter strokes
-    - Config option: `font_thin_strokes`
-  - All options accessible in Settings > Font > Rendering Options
-  - Changes take effect immediately by clearing and re-rasterizing the glyph cache
-
-- **Activity and Idle Notifications**: Desktop notifications for terminal activity (#29)
-  - **Activity notification**: Triggers when terminal output resumes after inactivity
-    - Useful for alerting when long-running commands complete
-    - Configurable threshold (default 10 seconds of inactivity)
-    - Enable via `notification_activity_enabled` config option
-  - **Silence/Idle notification**: Triggers when terminal has been idle too long
-    - Useful for detecting stalled processes or completed commands
-    - Configurable threshold (default 300 seconds / 5 minutes)
-    - Enable via `notification_silence_enabled` config option
-  - Both accessible in Settings UI under "Bell & Notifications"
-
-- **Option Key as Meta/Esc Configuration**: Essential feature for emacs/vim users (#23)
-  - Configure left and right Option/Alt key behavior independently
-  - Three modes: Normal (special characters), Meta (high bit), Esc (ESC prefix)
-  - Default mode is "Esc" for best terminal compatibility (M-x, M-f, M-b, etc.)
-  - New "Keyboard Input" section in Settings UI
-  - Config options: `left_option_key_mode` and `right_option_key_mode`
-
-- **Cursor Text Color**: Configurable text color under block cursor (#25)
-  - New `cursor_text_color` option to customize text visibility under block cursor
-  - Optional: When not set, uses automatic contrast calculation (dark text on bright cursor, bright text on dark cursor)
-  - Settings UI with checkbox toggle and color picker in Cursor tab
-  - Only affects block cursor style (beam and underline don't obscure text)
-
-- **Cursor Enhancements**: iTerm2-style cursor visibility improvements (#26)
-  - **Cursor Guide**: Horizontal line spanning terminal width at cursor row
-    - Configurable RGBA color with low default alpha
-    - Toggle via `cursor_guide_enabled` config option
-  - **Cursor Shadow**: Drop shadow behind cursor for visibility
-    - Configurable RGBA shadow color and X/Y offset
-    - Toggle via `cursor_shadow_enabled` config option
-  - **Cursor Boost**: Glow effect around cursor
-    - Adjustable intensity slider (0.0-1.0)
-    - Configurable RGB boost color
-  - **Unfocused Cursor Style**: Control cursor appearance when window loses focus
-    - `hollow`: Outline-only block cursor (default)
-    - `same`: Keep normal cursor style
-    - `hidden`: Hide cursor completely when unfocused
-  - All enhancements configurable via Settings > Cursor tab
-
-### Changed
-
-- **Core Library Update**: Updated to `par-term-emu-core-rust` v0.26.0 (includes recording type re-exports for session logging)
+- **Integrations**: Unified installation system for shell integration and shader bundles.
+- **Settings**: Added missing UI controls for various configuration options.
+- **tmux**: Native status bar display and improved multi-client sync in control mode.
+- **Session Logging**: Automatic recording of terminal output in text, HTML, or asciicast formats.
+- **Profile System**: Full CRUD for named profiles with a collapsible drawer.
+- **Window Management**: New window types (fullscreen, edge-anchored) and target monitor selection.
+- **Unicode**: Configurable Unicode version and ambiguous width settings.
+- **Paste Special**: Command palette for transforming clipboard content before pasting.
+- **Notifications**: Desktop alerts for session exit, activity, and silence.
+- **Mouse**: Advanced mouse features including Option+Click cursor movement and focus-follows-mouse.
+- **Selection**: Smart selection rules and auto-quoting for dropped files.
+- **Search**: Incremental search through scrollback buffer with match highlighting.
+- **Font**: Rendering options for anti-aliasing, hinting, and thin strokes.
 
 ### Fixed
-
-- **tmux Control Mode Client Size**: Fixed `refresh-client -C` command format (was using comma separator instead of `x`)
-  - Command now correctly sends `refresh-client -C 80x24` instead of `refresh-client -C 80,24`
-  - Enables proper multi-client sizing where tmux respects par-term's dimensions
-- **Default Keybindings Not Available for Existing Users**: New default keybindings are now automatically merged into existing user configs
-  - When loading config, any new default keybindings whose actions don't exist in user's config are added
-  - Ensures existing users get access to new features like `paste_special` without manual config editing
-- **Thin Strokes Rendering**: Corrected subpixel mask alpha handling so thin strokes remain visible instead of disappearing when enabled.
-- **Font Rendering Toggles**: Thin strokes, antialiasing, and hinting now apply immediately when clicking "Apply font changes" in Settings (no restart required).
-- **Tab Bar Click Reliability**: Fixed missed clicks and wrong-tab-selection issues
-  - Close button now renders as overlay with manual hit-testing for reliable clicks
-  - Uses `clicked_by(PointerButton::Primary)` to prevent keyboard focus from triggering tab switches
-  - Added `egui_initialized` flag to prevent unreliable pointer state before first render
-- **Max FPS Setting Not Honored**: Fixed `max_fps` config option not being enforced when window is focused
-  - Previously, FPS throttling only applied when window was unfocused with `pause_refresh_on_blur` enabled
-  - Now `max_fps` properly caps frame rate even when VSync runs at a higher monitor refresh rate (e.g., 120Hz)
-  - Also fixed settings UI changes to `max_fps` not restarting tab refresh tasks with the new value
-- **Terminal Content Overlap**: Added content offset system to prevent terminal content from overlapping with tab bar
-  - Propagated `content_offset_y` through cell renderer, graphics renderer, and custom shader renderer
-- **Tab Numbering**: Changed to position-based numbering that automatically renumbers when tabs are closed or reordered
-  - Tabs now show "Tab 1, Tab 2, Tab 3" instead of keeping original IDs
-- **Mouse Event Handling**: Fixed event ordering to check tab bar area before updating terminal mouse state
-- **Startup Crash with Missing Background Image**: App no longer crashes when configured background image file is missing
-  - Now logs a warning and continues without the background image
-  - Fixes blank screen issue when shaders folder is missing but config references images inside it
-- **Window Number Not Showing in Title**: Fixed `show_window_number` config option not working consistently
-  - Window number now appears in all title updates (shell integration, OSC title changes, URL tooltips)
-  - Added `format_title()` helper method to ensure consistent title formatting across all code paths
-- **Cmd+W Closes Entire App Instead of Tab**: Fixed smart close behavior for Cmd+W keyboard shortcut
-  - Cmd+W now closes the current tab first; only closes the window if it was the last tab
-  - Menu item renamed from "Close Window" to "Close" to reflect the smart close behavior
-
-### Added
-
-- Comprehensive tab bar UI tests (`tests/tab_bar_ui_tests.rs`)
-- Tab stability integration tests (`tests/tab_stability_tests.rs`)
+- Resolved tmux pane display issues, Shift+Enter behavior, and multi-window focus routing.
+- Improved DPI scaling across all UI components and fixed various rendering overlaps.
 
 ---
-
 ## [0.6.0] - 2026-01-29
 
 ### Added
@@ -2161,7 +874,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/paulrobello/par-term/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/paulrobello/par-term/compare/v0.23.0...v0.24.0
+[0.23.0]: https://github.com/paulrobello/par-term/compare/v0.22.0...v0.23.0
+[0.22.0]: https://github.com/paulrobello/par-term/compare/v0.21.0...v0.22.0
+[0.21.0]: https://github.com/paulrobello/par-term/compare/v0.20.0...v0.21.0
+[0.20.0]: https://github.com/paulrobello/par-term/compare/v0.19.0...v0.20.0
+[0.19.0]: https://github.com/paulrobello/par-term/compare/v0.18.0...v0.19.0
+[0.18.0]: https://github.com/paulrobello/par-term/compare/v0.17.1...v0.18.0
+[0.17.1]: https://github.com/paulrobello/par-term/compare/v0.17.0...v0.17.1
+[0.17.0]: https://github.com/paulrobello/par-term/compare/v0.16.0...v0.17.0
+[0.16.0]: https://github.com/paulrobello/par-term/compare/v0.15.0...v0.16.0
+[0.15.0]: https://github.com/paulrobello/par-term/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/paulrobello/par-term/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/paulrobello/par-term/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/paulrobello/par-term/compare/v0.11.0...v0.12.0
