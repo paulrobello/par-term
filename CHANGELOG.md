@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **YAML Library Migration**: Replaced the unsound `serde_yml` dependency with `serde_yaml_ng` (0.10.0) to resolve the `libyml` vulnerability and ensured all quality checks pass.
 - **External Command Allowlist (SEC-002)**: `ExternalCommandRenderer` now enforces a configurable `allowed_commands` list (set via `content_prettifier.allowed_commands` in config); if the list is non-empty, commands not on it are refused. Empty list (default) preserves backward compatibility with a warn-only log.
 - **HTTP Profile Blocking (SEC-003)**: Dynamic profile URLs using HTTP are now blocked by default. Opt-in via `allow_http_profiles: true` in config (logs a warning when enabled). Authentication headers over HTTP are refused unconditionally.
 - **Unsafe Safety Documentation (SEC-008/009)**: All `unsafe` blocks in `macos_metal.rs`, `macos_space.rs`, and `macos_blur.rs` now carry full `// SAFETY:` justifications. Test helpers using `env::set_var`/`remove_var` document the single-threaded test context.
@@ -18,10 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Refactored
 
+- **WindowState God Object Decomposition (ARC-001)**: Decomposed the primary `WindowState` struct into cohesive sub-state objects (`FocusState`, `OverlayState`, `UpdateState`, `WatcherState`, `TriggerState`) and updated all workspace call sites.
+- **Terminal Mutex to RwLock Migration (ARC-002)**: Converted `Tab.terminal` and `Pane.terminal` from `Arc<Mutex<TerminalManager>>` to `Arc<RwLock<TerminalManager>>` for improved read concurrency in the render loop. Performed workspace-wide replacement of locking patterns and updated documentation.
+- **Tab Constructor Deduplication (ARC-005)**: Shared initialization logic extracted into `create_base_terminal` helper in `src/tab/setup.rs` and `Tab::new_internal()`; both `Tab::new()` and `Tab::new_from_profile()` now contain only their unique logic.
+- **Config Struct Decomposition (QA-001)**: Initiated the split of the oversized `Config` struct by extracting update-related fields into a dedicated `UpdateConfig` sub-struct using `#[serde(flatten)]`.
 - **Settings UI: terminal_tab Split (ARC-003)**: `par-term-settings-ui/src/terminal_tab.rs` (1356 lines) split into `terminal_tab/` with 7 sub-modules (`behavior`, `unicode`, `shell`, `startup`, `search`, `semantic_history`, `mod`).
 - **Settings UI: advanced_tab Split (ARC-003)**: `par-term-settings-ui/src/advanced_tab.rs` (1276 lines) split into `advanced_tab/` with 5 sub-modules (`import_export`, `tmux`, `logging`, `system`, `mod`). `merge_config` re-exported via `pub use`.
 - **Settings UI: profile_modal_ui Split (ARC-003)**: `par-term-settings-ui/src/profile_modal_ui.rs` (1406 lines) split into `profile_modal_ui/` with 4 sub-modules (`form_helpers`, `list_view`, `edit_view`, `mod`). All public APIs preserved.
-- **Tab Constructor Deduplication (ARC-005)**: Shared initialization logic extracted into `Tab::new_internal()` with `TabInitParams`; both `Tab::new()` and `Tab::new_from_profile()` now contain only their unique logic.
 - **Makefile Variable Extraction (ARC-012)**: Added `DEBUG_LOG` and `RUN_BASE` variables; de-duplicated 12 targets that previously hard-coded log paths and cargo invocations.
 
 ### Documentation
